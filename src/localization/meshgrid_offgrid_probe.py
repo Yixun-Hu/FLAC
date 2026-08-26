@@ -36,6 +36,7 @@ The probe is otherwise a normal announcement-08 citizen: every generated
 waveform is saved with its sha256 and a manifest.
 """
 import argparse
+import hashlib
 import json
 import os
 
@@ -89,6 +90,51 @@ OFFGRID_CANDIDATE_SENTINEL = -1
 WAVEFORM_DIRNAME = "waveforms"
 PROBE_REPORT_JSON = "offgrid_probe_report.json"
 PROBE_REPORT_MARKDOWN = "offgrid_probe_report.md"
+
+#: What binds the probe's LIVE observation to the frozen grid rows -- and, just
+#: as importantly, what does not.
+#:
+#: Surveyed across the published artifacts: the D1 record pins the eight CONTEXT
+#: RIRs (``context_audio_sha256``, verified per query by
+#: ``meshgrid_engine.verify_context_record``) and the context poses; the engine
+#: row pins its own claims and the similarity sidecar (``sims_sha256``). NOTHING
+#: digests the observed RIR -- not the manifest, not the row, not the binding
+#: (checked over all 1,566 published rows). No field is invented here to pretend
+#: otherwise (Codex r9i review, item 2).
+#:
+#: What IS available is a functional tie, and it is stronger than a digest of a
+#: file nobody registered: one of the row's OWN stored similarities is
+#: re-derived from the live observation, using the same keyed noise and the same
+#: candidate, and must reproduce the frozen value. s[x, k] = cos(E(h_obs),
+#: E(h_hat[x, k])), so a different observation moves it directly and by O(1),
+#: while the only admissible difference is the batch-shape noise the engine
+#: already registers a bound for.
+OBSERVATION_BINDING_NOTE = (
+    "no registered artifact digests the observed RIR: the D1 record pins the eight CONTEXT RIRs "
+    "(verified per query by the engine's verify_context_record) and the row pins its own claims "
+    "and its similarity sidecar, but the observation itself is pinned nowhere (Codex r9i review, "
+    "item 2). Rather than invent a field, the live observation is tied to the frozen rows "
+    "FUNCTIONALLY: one candidate of the query is regenerated from the same keyed noise and the "
+    "same conditioning, and its cosine against the LIVE observation must reproduce the "
+    "similarity the row already published for that candidate, to within the engine's registered "
+    "SCORE_TOLERANCE plus the float16 half-ulp of the sidecar. Because s[x, k] = cos(E(h_obs), "
+    "E(h_hat[x, k])), a substituted observation moves that number directly. What this pins: that "
+    "the observation being scored here is the observation those rows were scored against. What "
+    "it does NOT pin: the observation's provenance in any absolute sense -- its bytes are "
+    "recorded below so a later round can pre-register them, exactly as the pair-metadata bank "
+    "was")
+
+#: the intent record that survives a hard crash.
+PUBLICATION_JOURNAL = "offgrid_publication_journal.json"
+
+JOURNAL_NOTE = (
+    "an in-process rollback cannot survive SIGKILL, a power loss, or an interrupt landing in the "
+    "gap between a rename and the bookkeeping that records it (Codex r9i review, item 3). So "
+    "every intended rename is journalled and fsynced BEFORE the first one runs, and the journal "
+    "is marked complete only after all of them have landed and been re-verified. A journal found "
+    "incomplete at startup means a previous attempt died mid-move: every final it names is "
+    "moved back to quarantine before anything else happens, so the directory returns to the one "
+    "state a partial publication may leave behind")
 
 #: the publish contract, stated inside the artifact that depends on it.
 PUBLICATION_ORDER_NOTE = (
@@ -218,7 +264,7 @@ def truth_noise(seed, query_id, num_samples, latent_shape, policy=me.NOISE_KEY_P
 
 def generate_at_truth(engine, md, receiver_xyz, truth_xyz, *, query_id, seed=me.SEED,
                       num_samples=me.NUM_SAMPLES, noise_policy=me.NOISE_KEY_POLICY,
-                      source_chunk=1):
+                      source_chunk=1, context=None):
     """Generate ``K`` RIRs at the continuous truth -> ``[K, 1, T]`` waveforms.
 
     The conditioning is assembled through the engine's own two branches, so the
@@ -233,7 +279,8 @@ def generate_at_truth(engine, md, receiver_xyz, truth_xyz, *, query_id, seed=me.
         raise ValueError(f"{query_id}: the receiver and the continuous truth must be finite")
     position_cam = (truth - receiver).reshape(1, 3)
 
-    context = me.context_conditioning(engine.conditioner, md, engine.device)
+    context = (me.context_conditioning(engine.conditioner, md, engine.device)
+               if context is None else context)
     source = me.source_conditioning(engine.conditioner, {"depth": md["depth"]}, position_cam,
                                     engine.device, chunk=int(source_chunk))
     noise = truth_noise(seed, query_id, num_samples, engine.latent_shape,
@@ -242,6 +289,89 @@ def generate_at_truth(engine, md, receiver_xyz, truth_xyz, *, query_id, seed=me.
     merged = me.expand_conditioning(context, source, rows, engine.device)
     latents = engine.sampler(noise, engine.cond_inputs_fn(merged))
     return engine.decoder(latents).clamp(-1.0, 1.0)
+
+
+def observation_digests(obs_wav, source_path=None):
+    """Record what the observation IS, so a later round can pre-register it."""
+    tensor = torch.as_tensor(obs_wav).detach().cpu().float().contiguous()
+    out = {"tensor_sha256": hashlib.sha256(tensor.numpy().tobytes()).hexdigest(),
+           "shape": [int(v) for v in tensor.shape],
+           "source_path": None if source_path is None else str(source_path),
+           "source_sha256": None,
+           "pinned": False,
+           "note": OBSERVATION_BINDING_NOTE}
+    if source_path and os.path.isfile(str(source_path)):
+        out["source_sha256"] = me.file_sha256(str(source_path))
+    return out
+
+
+def observation_continuity_tolerance(stored):
+    """The only admissible difference between the two derivations of one cosine.
+
+    The engine's registered bound on two passes of the same protocol that differ
+    only in batching, plus the half-ulp the float16 sidecar itself introduces.
+    Both are registered constants, not numbers chosen here.
+    """
+    return float(me.SCORE_TOLERANCE) + mr.float16_half_ulp(np.asarray(stored,
+                                                                      dtype=np.float16))
+
+
+def assert_observation_continuity(engine, query, md, context, row, sims, obs_embedding, *,
+                                  seed=me.SEED, num_samples=me.NUM_SAMPLES,
+                                  noise_policy=me.NOISE_KEY_POLICY, source_chunk=1,
+                                  aggregator=mr.HEADLINE_AGGREGATOR):
+    """The live observation IS the one the frozen rows were scored against.
+
+    One of the query's own candidates -- the row's headline prediction, so the
+    check lands exactly where the result does -- is regenerated from the same
+    keyed noise and the same conditioning, and its cosine against the LIVE
+    observation must reproduce the similarity the row already published. See
+    :data:`OBSERVATION_BINDING_NOTE` for why this is the binding rather than a
+    digest, and for what it does and does not pin.
+    """
+    from src.localization.scoring import cosine_sims
+
+    largest = str(max(int(k) for k in row["by_k"]))
+    block = row["by_k"][largest]
+    candidate_row = int(block["prediction_row"] if aggregator == "lme"
+                        else block["mean_prediction_row"])
+    candidate_index = int(row["candidate_indices"][candidate_row])
+    num_samples = int(num_samples)
+
+    stored = np.asarray(sims, dtype=np.float16)[candidate_row, :num_samples]
+    coordinates = np.asarray(query.coordinates, dtype=np.float64)
+    position_cam = (coordinates[candidate_row]
+                    - np.asarray(query.receiver_xyz, dtype=np.float64)).reshape(1, 3)
+
+    source = me.source_conditioning(engine.conditioner, {"depth": md["depth"]}, position_cam,
+                                    engine.device, chunk=int(source_chunk))
+    noise = me.noise_block(seed, query.query_id, [candidate_index], num_samples,
+                           engine.latent_shape, policy=noise_policy, device=engine.device)
+    merged = me.expand_conditioning(context, source,
+                                    torch.zeros(num_samples, dtype=torch.long), engine.device)
+    wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
+    embeddings = torch.as_tensor(engine.embedder(wavs)).float().reshape(1, num_samples, -1)
+    rederived = cosine_sims(torch.as_tensor(obs_embedding).float().reshape(-1),
+                            embeddings)[0].double().numpy()
+
+    delta = float(np.abs(rederived - stored.astype(np.float64)).max())
+    tolerance = observation_continuity_tolerance(stored)
+    verdict = {"ok": bool(delta <= tolerance), "max_abs_delta": delta,
+               "tolerance": float(tolerance), "k": int(largest),
+               "candidate_index": candidate_index, "candidate_row": candidate_row,
+               "num_samples": num_samples,
+               "stored": [float(v) for v in stored],
+               "rederived": [float(v) for v in rederived],
+               "note": OBSERVATION_BINDING_NOTE}
+    if not verdict["ok"]:
+        raise ValueError(
+            f"{query.query_id}: the observation this control loaded does not reproduce the "
+            f"similarities the frozen row published for candidate {candidate_index} -- max "
+            f"|delta| {delta:.3g} against a tolerance of {tolerance:.3g} (the engine's "
+            f"SCORE_TOLERANCE plus the sidecar's float16 half-ulp). s[x, k] = cos(E(h_obs), "
+            "E(h_hat)), so the observation being scored here is not the observation those rows "
+            f"were scored against. {OBSERVATION_BINDING_NOTE}")
+    return verdict
 
 
 def truth_scores(embedder, obs_embedding, waveforms, tau=me.TAU, prefixes=me.K_PREFIXES):
@@ -441,11 +571,15 @@ def publish_probe_waveforms(out_dir, records):
     rolls every completed move back into quarantine, so the directory is never
     left holding a partial published set.
     """
+    # the crash-safe half: an fsynced statement of every rename about to happen,
+    # written before the first one (Codex r9i review, item 3)
+    write_publication_journal(out_dir, records)
     published, moved = [], []
     # EVERY step of the loop is inside the handler, the rename included. r9d left
     # os.replace outside it, so a rename that failed part-way through -- a full
     # disk, a permission change, a cross-device target -- kept the already-moved
-    # subset published (Codex r9f review, M9).
+    # subset published (Codex r9f review, M9). The journal covers what no handler
+    # can: the process not reaching the handler at all.
     try:
         for record in records:
             source = os.path.join(str(out_dir), record["waveform_staged_path"])
@@ -463,6 +597,7 @@ def publish_probe_waveforms(out_dir, records):
                                  "digest recorded at staging time")
             record["waveform_published"] = True
             published.append(record["waveform_path"])
+        complete_publication_journal(out_dir, len(published))
     except BaseException:
         # BaseException, not Exception: a KeyboardInterrupt mid-loop must not be
         # the one way to leave a partial published set behind
@@ -476,6 +611,74 @@ def publish_probe_waveforms(out_dir, records):
     return published
 
 
+def journal_path(out_dir):
+    return os.path.join(str(out_dir), PUBLICATION_JOURNAL)
+
+
+def write_publication_journal(out_dir, records):
+    """State every intended rename, durably, BEFORE the first one happens."""
+    from datetime import datetime, timezone
+
+    payload = {
+        "experiment": "exp_22 loc_meshgrid off-grid publication journal",
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "completed": False,
+        "note": JOURNAL_NOTE,
+        "moves": [{"query_id": record["query_id"],
+                   "final": record["waveform_path"],
+                   "staged": record["waveform_staged_path"],
+                   "sha256": record["waveform_sha256"]}
+                  for record in records],
+    }
+    return _write_json_durably(journal_path(out_dir), payload)
+
+
+def complete_publication_journal(out_dir, n_published):
+    """Mark the journal complete -- only after every move landed and verified."""
+    path = journal_path(out_dir)
+    with open(path) as handle:
+        payload = json.load(handle)
+    payload.update({"completed": True, "n_published": int(n_published)})
+    return _write_json_durably(path, payload)
+
+
+def recover_publication(out_dir):
+    """Quarantine the finals of an interrupted publication, before anything else.
+
+    The one state a partial publication may leave behind is "everything is in
+    quarantine". A journal that exists and is not complete says a previous
+    attempt died between the first rename and the last verification, so every
+    final it names is moved back to its staged path -- and only then may a caller
+    proceed. A complete journal, or none at all, is a no-op.
+    """
+    path = journal_path(out_dir)
+    if not os.path.isfile(path):
+        return {"recovered": False, "reason": "no journal", "n_quarantined": 0}
+    with open(path) as handle:
+        payload = json.load(handle)
+    if payload.get("completed"):
+        return {"recovered": False, "reason": "the journal is complete", "n_quarantined": 0}
+
+    quarantined, missing = [], []
+    for move in payload.get("moves") or []:
+        final = os.path.join(str(out_dir), move["final"])
+        staged = os.path.join(str(out_dir), move["staged"])
+        if not os.path.isfile(final):
+            if not os.path.isfile(staged):
+                missing.append(move["final"])
+            continue
+        os.makedirs(os.path.dirname(staged), exist_ok=True)
+        os.replace(final, staged)
+        _fsync_dir(os.path.dirname(staged))
+        _fsync_dir(os.path.dirname(final))
+        quarantined.append(move["final"])
+    os.remove(path)
+    _fsync_dir(os.path.dirname(os.path.abspath(path)))
+    return {"recovered": True, "reason": "an interrupted publication was rolled back",
+            "n_quarantined": len(quarantined), "quarantined": quarantined,
+            "missing": missing, "note": JOURNAL_NOTE}
+
+
 #: what the publication path needs out of the verified gate. r9d hand-listed a
 #: subset here and dropped ``metadata_bank_expected``, so the JSON and the
 #: Markdown always said non-canonical while the NPZ labels said canonical
@@ -484,7 +687,8 @@ def publish_probe_waveforms(out_dir, records):
 PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batching",
                            "single_shard", "single_shard_note", "registered_protocol",
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
-                           "non_canonical")
+                           "observation_continuity",
+                           "non_canonical", "non_canonical_declared")
 
 
 def publication_gate(gate):
@@ -515,6 +719,27 @@ def probe_canonical_status(gate):
         reasons.append({"gate": "metadata_bank",
                         "why": "no pre-registered pair-metadata bank digest was supplied",
                         "note": mr.METADATA_BANK_PREREGISTRATION_NOTE})
+    if gate.get("observation_continuity") and not gate["observation_continuity"].get("ok", True):
+        reasons.append({"gate": "observation_continuity",
+                        "why": gate["observation_continuity"].get(
+                            "why", "the live observation could not be tied to the frozen rows"),
+                        "note": OBSERVATION_BINDING_NOTE})
+    # The operator's own declaration. r9d propagated it and r9g put it in the
+    # publication slice, but nothing READ it, so a valid pin plus --non-canonical
+    # produced canonical JSON/Markdown beside non-canonical NPZs (Codex r9i
+    # review, item 4). Read explicitly, and then joined fail-closed below.
+    if gate.get("non_canonical_declared"):
+        reasons.append({"gate": "declared_non_canonical",
+                        "why": "the operator ran this control with --non-canonical",
+                        "note": mr.NON_CANONICAL_NOTE})
+    # FAIL-CLOSED: whatever the derived flag says, the status may never come out
+    # more canonical than it. A reason we failed to enumerate is still a reason.
+    if gate.get("non_canonical") and not reasons:
+        reasons.append({"gate": "non_canonical_flag",
+                        "why": "the verified gate carries non_canonical = True without naming a "
+                               "reason this function knows how to enumerate; the status refuses "
+                               "to be more canonical than the gate it was handed",
+                        "note": mr.NON_CANONICAL_NOTE})
     return {"canonical": not reasons, "reasons": reasons,
             "note": None if not reasons else mr.NON_CANONICAL_NOTE}
 
@@ -532,6 +757,9 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
     """
     os.makedirs(str(out_dir), exist_ok=True)
     records = list(records)
+    # a previous attempt may have died mid-move; put its finals back in
+    # quarantine before this one writes a thing (Codex r9i review, item 3)
+    recovery = recover_publication(out_dir)
     # summarize FIRST: a refusal in here must not leave published dumps behind
     summary = summarize_probe(records, prefixes=prefixes)
     report = {
@@ -566,7 +794,8 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "n_queries": len(records),
         "records": list(records),
         "summary": summary,
-        "publication": {"completed": False, "note": PUBLICATION_ORDER_NOTE},
+        "publication": {"completed": False, "note": PUBLICATION_ORDER_NOTE,
+                        "journal_note": JOURNAL_NOTE, "recovery": recovery},
     }
     path = os.path.join(str(out_dir), PROBE_REPORT_JSON)
     markdown = os.path.join(str(out_dir), PROBE_REPORT_MARKDOWN)
@@ -587,7 +816,8 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
     # rewritten once publication is complete and verified.
     report["records"] = list(records)
     report["publication"] = {"completed": True, "n_published": verified["n_published"],
-                             "verified": True, "note": PUBLICATION_ORDER_NOTE}
+                             "verified": True, "note": PUBLICATION_ORDER_NOTE,
+                             "journal_note": JOURNAL_NOTE, "recovery": recovery}
     _write_json_durably(path, mr.jsonable(report))
     _write_text_durably(markdown, render_markdown(report))
     return {"json": path, "markdown": markdown, "publication": report["publication"],
@@ -622,8 +852,15 @@ def _write_text_durably(path, text):
     return _fsync_path(path)
 
 
-def verify_published_probe(out_dir, records):
-    """Every file the manifest names is present, and is the file it names."""
+def verify_published_probe(out_dir, records, recover=False):
+    """Every file the manifest names is present, and is the file it names.
+
+    ``recover=True`` makes this a startup path: an incomplete journal is rolled
+    back into quarantine first, so a caller that verifies after a crash is told
+    the truth about a quarantined set rather than about a half-published one.
+    """
+    if recover:
+        recover_publication(out_dir)
     missing, wrong = [], []
     for record in records:
         path = os.path.join(str(out_dir), record["waveform_path"])
@@ -796,7 +1033,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
               binding_sha256=None, binding=None, seed=me.SEED, tau=me.TAU,
               num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
               noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, non_canonical=None,
-              on_record=None):
+              verify_observation=True, on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -859,10 +1096,25 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         obs_embedding = torch.as_tensor(
             engine.embedder(torch.as_tensor(obs_wav).to(engine.device))
         )[0].float().cpu()
+
+        # the query's context branch, computed once and reused by both the truth
+        # generation and the observation-continuity check
+        query_context = me.context_conditioning(engine.conditioner, md, engine.device)
+
+        # BEFORE anything is scored: prove the observation just loaded is the one
+        # these frozen rows were scored against (Codex r9i review, item 2)
+        continuity = None
+        if verify_observation:
+            sims_path = os.path.join(str(run_dir), str(row["sims_path"]))
+            continuity = assert_observation_continuity(
+                engine, query, md, query_context, row, np.load(sims_path), obs_embedding,
+                seed=seed, num_samples=num_samples, noise_policy=noise_policy,
+                source_chunk=source_chunk)
+
         waveforms = generate_at_truth(engine, md, query.receiver_xyz, truth,
                                       query_id=query.query_id, seed=seed,
                                       num_samples=num_samples, noise_policy=noise_policy,
-                                      source_chunk=source_chunk)
+                                      source_chunk=source_chunk, context=query_context)
         sims, scores = truth_scores(engine.embedder, obs_embedding, waveforms, tau=tau,
                                     prefixes=prefixes)
         calibration = calibration_record(engine.embedder, obs_embedding,
@@ -878,6 +1130,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
             "receiver_xyz": [float(v) for v in query.receiver_xyz],
             "truth_xyz": [float(v) for v in truth],
             "truth_vector_drift_m": float(truth_vector_drift),
+            "observation_continuity": continuity,
+            "observation": observation_digests(obs_wav, raw_md.get("path")),
             "n_candidates": int(query.n_candidates), "num_samples": int(num_samples),
             "e_oracle": e_oracle,
             "truth_is_a_candidate": bool(distances.min() == 0.0),
@@ -896,6 +1150,19 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         seen.add(query.query_id)
         if on_record is not None:
             on_record(record_out)
+
+    if verify_observation:
+        deltas = [record["observation_continuity"]["max_abs_delta"] for record in out]
+        continuity_summary = {"ok": True, "checked": len(out),
+                              "max_abs_delta": (max(deltas) if deltas else 0.0),
+                              "note": OBSERVATION_BINDING_NOTE}
+    else:
+        continuity_summary = {"ok": False, "checked": 0,
+                              "why": "the observation-continuity check was disabled, so nothing "
+                                     "ties the loaded observation to the frozen rows",
+                              "note": OBSERVATION_BINDING_NOTE}
+    for record in out:
+        record["observation_continuity_summary"] = continuity_summary
 
     absent = sorted(set(wanted) - seen)
     if absent:
@@ -1077,6 +1344,7 @@ def gate_run(args, model_config, agree_path, totals=None,
         allow_unpinned=args.non_canonical)
     gate["metadata_bank_sha256"] = bank["metadata_bank_sha256"]
     gate["metadata_bank_expected"] = args.expect_metadata_bank_sha256
+    gate["non_canonical_declared"] = bool(args.non_canonical)
     gate["non_canonical"] = bool(args.non_canonical
                                  or not gate["metadata_bank"]["pinned"]
                                  or args.single_shard
@@ -1144,6 +1412,11 @@ def main(argv=None):
         prefixes=tuple(int(k) for k in args.k_prefixes), noise_policy=args.noise_policy,
         source_chunk=args.source_chunk, non_canonical=gate["non_canonical"],
         on_record=_announce)
+    gate["observation_continuity"] = (probe_records[0]["observation_continuity_summary"]
+                                      if probe_records else
+                                      {"ok": False, "checked": 0,
+                                       "why": "no probe query was reached",
+                                       "note": OBSERVATION_BINDING_NOTE})
     published = write_probe_report(args.out_dir, probe_records, binding,
                                    gate["binding_sha256"],
                                    provenance={"run_dir": str(args.run_dir),

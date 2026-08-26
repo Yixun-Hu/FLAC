@@ -1122,3 +1122,208 @@ def test_a_successful_run_records_publication_as_complete(tmp_path):
         assert record["waveform_published"] is True
     assert published["sha256"]["json"] == me.file_sha256(published["json"])
     assert "manifest is written and fsynced BEFORE" in payload["publication"]["note"]
+
+
+# --------------------------------------------------------------------------- #
+# r9j: the last items from the Codex r9i verify pass
+# --------------------------------------------------------------------------- #
+def test_the_observation_is_tied_to_the_frozen_rows_it_is_ranked_against(tmp_path):
+    """Item 2: no artifact digests the observation, so the tie is functional."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    for record in records:
+        verdict = record["observation_continuity"]
+        assert verdict["ok"] is True
+        assert verdict["max_abs_delta"] <= verdict["tolerance"]
+        # the tolerance is built from REGISTERED constants, not chosen here
+        assert verdict["tolerance"] > me.SCORE_TOLERANCE
+        # the check lands on the row's HEADLINE prediction, where the result is
+        assert verdict["candidate_index"] == record["rank_lme"][
+            str(max(fx.FIXTURE_PREFIXES))]["grid_prediction_index"]
+        assert 0 <= verdict["candidate_row"] < record["n_candidates"]
+        assert verdict["num_samples"] == fx.FIXTURE_SAMPLES
+        assert len(verdict["stored"]) == len(verdict["rederived"]) == fx.FIXTURE_SAMPLES
+        assert "pinned nowhere" in verdict["note"]
+
+
+def test_a_substituted_observation_is_refused_against_the_frozen_rows(tmp_path):
+    """The exploit: score a different observation against the same rows."""
+    fixture = _probe_fixture(tmp_path)
+    items = [(obs, md) for obs, md in fixture["items"]]
+    # the first probe query's observation becomes a different waveform
+    obs, md = items[0]
+    # a RAMP, not an offset: the synthetic embedder L2-normalizes, so a constant
+    # observation scaled by a constant embeds identically -- the substitution has
+    # to change the observation's SHAPE for the fixture to express it at all
+    ramp = torch.arange(obs.shape[-1], dtype=obs.dtype).reshape(1, 1, -1) * 0.05
+    substituted = obs + ramp
+    assert not torch.allclose(fixture["engine"]._embed(substituted),
+                              fixture["engine"]._embed(obs)), "the substitution must be visible"
+    items[0] = (substituted, md)
+    with pytest.raises(ValueError, match="not the observation those rows were scored against"):
+        op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
+                     fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
+
+
+def test_the_continuity_check_names_what_it_does_and_does_not_pin():
+    note = op.OBSERVATION_BINDING_NOTE
+    assert "the observation itself is pinned nowhere" in note
+    assert "CONTEXT RIRs" in note                 # what IS pinned, and by whom
+    assert "verify_context_record" in note
+    assert "What this pins" in note and "does NOT pin" in note
+    assert "invent" in note
+
+
+def test_the_observation_digests_are_recorded_for_a_later_pre_registration(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    for record in records:
+        observation = record["observation"]
+        assert len(observation["tensor_sha256"]) == 64
+        assert observation["pinned"] is False     # recorded, not claimed
+        assert observation["shape"][0] == 1
+
+
+def test_disabling_the_continuity_check_makes_the_control_non_canonical(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, verify_observation=False)
+    assert records[0]["observation_continuity"] is None
+    summary = records[0]["observation_continuity_summary"]
+    assert summary["ok"] is False
+    status = op.probe_canonical_status(
+        {"metadata_bank_expected": "a" * 64, "observation_continuity": summary})
+    assert status["canonical"] is False
+    assert "observation_continuity" in [reason["gate"] for reason in status["reasons"]]
+
+
+def test_a_declared_non_canonical_run_marks_json_markdown_and_npz(tmp_path):
+    """Item 4: a valid pin PLUS --non-canonical used to yield canonical JSON."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, non_canonical=True)
+    gate = {"single_shard": False,
+            "metadata_bank_expected": fixture["metadata_bank_sha256"],
+            "registered_protocol": {"is_registered": True, "deviations": {}},
+            "non_canonical": True, "non_canonical_declared": True}
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate=op.publication_gate(gate))
+    payload = json.load(open(published["json"]))
+    assert payload["canonical_status"]["canonical"] is False
+    assert "declared_non_canonical" in [reason["gate"]
+                                        for reason in payload["canonical_status"]["reasons"]]
+    assert "NON-CANONICAL" in open(published["markdown"]).read()
+    for record in payload["records"]:
+        assert record["sensitivity_status"] == op.CANONICAL_STATUS_NON_CANONICAL
+        with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert "NON-CANONICAL" in str(data["sensitivity_status"])
+
+
+def test_the_status_can_never_be_more_canonical_than_the_gate(tmp_path):
+    """Fail-closed: an unenumerated reason is still a reason."""
+    status = op.probe_canonical_status(
+        {"metadata_bank_expected": "a" * 64, "single_shard": False,
+         "registered_protocol": {"is_registered": True, "deviations": {}},
+         "non_canonical": True})
+    assert status["canonical"] is False
+    assert [reason["gate"] for reason in status["reasons"]] == ["non_canonical_flag"]
+    # and the flag survives the publication slice
+    assert "non_canonical" in op.PUBLICATION_GATE_FIELDS
+    assert "non_canonical_declared" in op.PUBLICATION_GATE_FIELDS
+    sliced = op.publication_gate({"non_canonical": True, "non_canonical_declared": True,
+                                  "metadata_bank_expected": "a" * 64})
+    assert op.probe_canonical_status(sliced)["canonical"] is False
+
+
+def test_publication_journals_every_intended_rename_before_the_first(tmp_path):
+    """Item 3: an in-process handler cannot survive SIGKILL."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    seen = {}
+    real_replace = os.replace
+
+    def _spy(src, dst):
+        if str(dst).endswith(".npz") and "journal" not in seen:
+            path = os.path.join(fixture["out_dir"], op.PUBLICATION_JOURNAL)
+            seen["journal"] = json.load(open(path)) if os.path.isfile(path) else None
+        return real_replace(src, dst)
+
+    op.os.replace = _spy
+    try:
+        op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                              fixture["binding_sha256"], provenance={},
+                              tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    finally:
+        op.os.replace = real_replace
+
+    # the journal existed, listed EVERY final, and said publication was unfinished
+    assert seen["journal"] is not None
+    assert seen["journal"]["completed"] is False
+    assert sorted(move["final"] for move in seen["journal"]["moves"]) == \
+        sorted(record["waveform_path"] for record in records)
+    # ... and it is marked complete once every rename landed and verified
+    done = json.load(open(os.path.join(fixture["out_dir"], op.PUBLICATION_JOURNAL)))
+    assert done["completed"] is True and done["n_published"] == len(records)
+
+
+def test_a_crash_after_the_nth_rename_is_recovered_into_quarantine(tmp_path):
+    """A hard crash reaches no handler; the journal is what survives it."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    assert len(records) >= 2
+
+    # simulate the crash: journal, move the first final, then stop dead --
+    # no rollback, no completion, exactly what SIGKILL leaves behind
+    op.write_publication_journal(fixture["out_dir"], records)
+    first = records[0]
+    source = os.path.join(fixture["out_dir"], first["waveform_staged_path"])
+    target = os.path.join(fixture["out_dir"], first["waveform_path"])
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    os.replace(source, target)
+    assert os.path.isfile(target)                 # a partial final set exists
+
+    # the next startup path finds the incomplete journal and quarantines it
+    recovery = op.recover_publication(fixture["out_dir"])
+    assert recovery["recovered"] is True
+    assert recovery["n_quarantined"] == 1
+    assert not os.path.isfile(target)
+    assert os.path.isfile(source)
+    published = os.path.join(fixture["out_dir"], op.WAVEFORM_DIRNAME)
+    assert [name for name in os.listdir(published) if name.endswith(".npz")] == []
+    assert not os.path.isfile(os.path.join(fixture["out_dir"], op.PUBLICATION_JOURNAL))
+
+
+def test_write_probe_report_recovers_a_crashed_predecessor_first(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    op.write_publication_journal(fixture["out_dir"], records)
+    first = records[0]
+    os.makedirs(os.path.join(fixture["out_dir"], op.WAVEFORM_DIRNAME), exist_ok=True)
+    os.replace(os.path.join(fixture["out_dir"], first["waveform_staged_path"]),
+               os.path.join(fixture["out_dir"], first["waveform_path"]))
+
+    published = op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                                      fixture["binding_sha256"], provenance={},
+                                      tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    payload = json.load(open(published["json"]))
+    assert payload["publication"]["recovery"]["recovered"] is True
+    assert payload["publication"]["recovery"]["n_quarantined"] == 1
+    assert payload["publication"]["completed"] is True
+    assert op.verify_published_probe(fixture["out_dir"], records)["verified"] is True
+
+
+def test_a_complete_journal_is_not_rolled_back(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                          fixture["binding_sha256"], provenance={},
+                          tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    recovery = op.recover_publication(fixture["out_dir"])
+    assert recovery["recovered"] is False
+    assert recovery["reason"] == "the journal is complete"
+    for record in records:
+        assert os.path.isfile(os.path.join(fixture["out_dir"], record["waveform_path"]))
+    assert op.recover_publication(str(tmp_path / "nowhere"))["reason"] == "no journal"
