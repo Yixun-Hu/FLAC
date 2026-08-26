@@ -617,6 +617,33 @@ def test_a_pair_file_swapped_after_the_gate_refuses(tmp_path):
         run_control(fixture, bank_document=fixture["bank_document"])
 
 
+def test_a_pair_file_is_verified_before_a_position_is_read_out_of_it(tmp_path, monkeypatch):
+    fixture = build_control_fixture(tmp_path)
+    order = []
+    real_payload = rc.RoomBank.payload
+    real_assert = rc.assert_file_bytes
+
+    def spy_payload(self, src_node, rec_node):
+        order.append(("read", os.path.normpath(self.pairs[(int(src_node), int(rec_node))])))
+        return real_payload(self, src_node, rec_node)
+
+    def spy_assert(path, expected_sha256, what, found=None):
+        order.append(("verify", os.path.normpath(str(path))))
+        return real_assert(path, expected_sha256, what, found=found)
+
+    monkeypatch.setattr(rc.RoomBank, "payload", spy_payload)
+    monkeypatch.setattr(rc, "assert_file_bytes", spy_assert)
+    run_control(fixture)
+
+    seen = set()
+    for action, path in order:
+        if action == "verify":
+            seen.add(path)
+        elif path.endswith(".json"):
+            assert path in seen, f"{path} was read before its bytes were verified"
+    assert seen, "no pair file was verified at all"
+
+
 def test_the_truth_pair_is_verified_before_the_truth_is_read(tmp_path):
     fixture = build_control_fixture(tmp_path)
     truth_pair = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")

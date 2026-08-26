@@ -1270,12 +1270,18 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         if bank_document is not None:
             hashes, recorded = _digest_hashes(bank_document, metadata_root, dataset_root,
                                               query_id)
+            # BEFORE USE, not after: the digest document already names every pair
+            # file this query will read, so each one is verified before anything
+            # reads a position or a truth out of it
             truth_pair = os.path.normpath(
                 os.path.join(str(metadata_root), recorded["truth_pair"][0]))
-            if truth_pair not in verified_files:
-                assert_file_bytes(truth_pair, recorded["truth_pair"][1],
-                                  "the truth-carrying pair file")
-                verified_files.add(truth_pair)
+            for path, sha256, what in (
+                    [(truth_pair, recorded["truth_pair"][1], "the truth-carrying pair file")]
+                    + [(os.path.normpath(os.path.join(str(metadata_root), row[2])), row[3],
+                        "a bank entry's pair file") for row in recorded["bank"]]):
+                if path not in verified_files:
+                    assert_file_bytes(path, sha256, what)
+                    verified_files.add(path)
 
         metadata_receiver, truth = resolver.resolve(record)
         mr.assert_receiver_matches(query_id, metadata_receiver, query.receiver_xyz)
@@ -1290,13 +1296,14 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         mr.assert_receiver_matches(query_id, bank["receiver_xyz"], query.receiver_xyz)
         if bank_document is not None:
             assert_bank_unchanged(query_id, bank["entries"], bank_document)
-            # every POSITION file this bank read, once per run
+            # a bank entry the digest did not name would have no verified pair
+            # file behind its position, so it cannot be scored
             for entry in bank["entries"]:
-                pair_path = os.path.normpath(str(entry.pair_path))
-                if pair_path not in verified_files:
-                    assert_file_bytes(pair_path, hashes.get(pair_path),
-                                      "a bank entry's pair file")
-                    verified_files.add(pair_path)
+                if os.path.normpath(str(entry.pair_path)) not in verified_files:
+                    raise ValueError(
+                        f"{query_id}: bank entry S{entry.src_node:03d}_R{entry.rec_node:03d} "
+                        "reads a pair file the sparse-bank digest does not name; its position "
+                        "is unverified and it may not be scored")
             # and the observation: the loader's file, and the loader's tensor
             expected_observation = observation_path(dataset_root, record)
             assert_observation_is_the_digested_file(query_id, md, expected_observation)
