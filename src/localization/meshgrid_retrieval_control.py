@@ -46,16 +46,21 @@ binding must hash to its own content and agree with this control's
 inputs, every query's context draw must re-verify against the frozen D1 manifest
 (``meshgrid_engine.verify_context_record``), the pair metadata's receiver must be
 the G1 manifest's receiver, the dense-grid oracle re-derived from that room's
-candidate block must equal the one G1 published -- which is what pins the
-continuous truth this control measures its own errors against
-(:func:`assert_grid_oracle`) -- and the result set must be exactly the registered
-census. Ground truth is resolved post hoc from the dataset's own pair metadata
+candidate block must equal the one G1 published (:func:`assert_grid_oracle`: a
+scalar consistency check saying the control and the audit describe the same
+query, and NOT a proof of the truth vector -- that claim reduces to the bank
+digest alone), and the result set must be exactly the registered
+census. After the gate, the bytes stay bound: every digested file this control
+re-reads is hashed again on the read that consumes it, and the observation must
+be the file the loader opened AND decode to the tensor the loader delivered
+(:func:`assert_observation_bytes`). Ground truth is resolved post hoc from the dataset's own pair metadata
 through the SAME seam the r9 report uses
 (``meshgrid_report.TruthResolver``) -- there is no second resolver -- and the
 loader item stays wrapped in ``GuardedMetadata``, so this control cannot read
 ``md['source']`` either.
 """
 import argparse
+import hashlib
 import json
 import os
 
@@ -193,6 +198,32 @@ BINDING_SCOPE_NOTE = (
 #: equal by a cross-pin test (``test_the_registered_values_are_the_ones_the_r1_
 #: report_enforces``) and collapse into one constant in a later round.
 REGISTERED_AGREE_SHA256 = "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+#: the registered model config's digest (inherited plan §1.4), duplicated on the
+#: same terms and cross-pinned by the same test.
+REGISTERED_MODEL_CONFIG_SHA256 = "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9"
+
+#: The loader settings that decide the OBSERVED waveform, with the values the
+#: registered configs carry. Bound by VALUE and not merely by the run's config
+#: digest (Codex r9f review): a random crop or a different sample size changes
+#: obs_wav -- and therefore every cosine -- while every digest still matches.
+REGISTERED_LOADER = {
+    "loader_sample_rate": 22050,
+    "loader_sample_size": 10240,
+    "loader_force_channels": "mono",
+    "loader_random_crop": False,
+    "loader_augs": False,
+}
+
+#: the device TYPE the scored run used; compared as a type, so ``cuda:1`` is
+#: ``cuda`` and a CPU control is a declared sensitivity check.
+REGISTERED_DEVICE = "cuda"
+
+
+def device_type(device):
+    """``'cuda:1'`` -> ``'cuda'``: the part that can move a cosine's last bits."""
+    if device is None:
+        return None
+    return torch.device(str(device)).type
 
 #: How each result-affecting input is held.
 #:
@@ -249,14 +280,29 @@ RESULT_AFFECTING_INPUTS = {
     "n_boot": _surface_entry(
         "gated_against_registered", "decides every published interval",
         registered=BOOTSTRAP_N),
+    "bootstrap_alpha": _surface_entry(
+        "gated_against_registered",
+        "the interval's LEVEL: at another alpha the published [ci_lo, ci_hi] are a different "
+        "statement, and nothing else in the artifact would say so",
+        registered=BOOTSTRAP_ALPHA),
     "success_radii_m": _surface_entry(
         "gated_against_registered", "decides the success columns",
         registered=[float(r) for r in SUCCESS_RADII]),
-    # --- gated against the published run binding ---------------------------
+    "device": _surface_entry(
+        "gated_against_registered",
+        "the AGREE tower's GEMMs are the model's own batch/backend nondeterminism across device "
+        "TYPES (the engine's BATCHING_CAVEAT measures ~one float16 ulp), so a cosine's last bits "
+        "-- and, at a small enough top-1 margin, an argmax -- can move between CPU and CUDA. The "
+        "scored run was CUDA; the device TYPE is compared (cuda:1 is cuda), and a CPU control is "
+        "a stamped sensitivity check rather than a silent one",
+        registered="cuda"),
     "model_config_sha256": _surface_entry(
-        "gated_against_run_binding",
+        "gated_against_registered",
         "builds the released dataloader: sample_rate and sample_size decide the observed "
-        "waveform and therefore every cosine (Codex r9c review, BLOCKER 3)", in_run_binding=True),
+        "waveform and therefore every cosine (Codex r9c review, BLOCKER 3). ALSO matched "
+        "field-by-field against the published run binding (RETRIEVAL_BINDING_FIELDS)",
+        registered=REGISTERED_MODEL_CONFIG_SHA256, in_run_binding=True),
+    # --- gated against the published run binding ---------------------------
     "dataset_config": _surface_entry(
         "gated_against_run_binding", "names the split the stream is walked over",
         in_run_binding=True),
@@ -288,12 +334,19 @@ RESULT_AFFECTING_INPUTS = {
         "digests every pair file this control reads"),
     "dataset_root": _surface_entry(
         "stamped_not_checked",
-        "a PATH decides nothing; the waveform bytes under it are bound by sparse_bank_sha256"),
-    "device": _surface_entry(
-        "stamped_not_checked",
-        "the AGREE tower is deterministic at fixed batching; the device changes throughput and, "
-        "at most, the last bits of a cosine, which is disclosed by the engine's BATCHING_CAVEAT"),
+        "a PATH decides nothing; the waveform bytes under it are bound by sparse_bank_sha256, "
+        "and assert_roots_agree refuses a root the released loader would not read from"),
 }
+#: the loader settings that decide the observed waveform, bound BY VALUE.
+RESULT_AFFECTING_INPUTS.update({
+    name: _surface_entry(
+        "gated_against_registered",
+        "decides the observed waveform the cosines are taken against: the released eval read is "
+        "torchaudio.load -> PadCrop(sample_size, randomize=random_crop) -> force_channels, so "
+        "a different rate, size, channel fold, random crop or augmentation is a different "
+        "h_obs. Bound by VALUE, not only by the run's config digest (Codex r9f review)",
+        registered=value)
+    for name, value in REGISTERED_LOADER.items()})
 RESULT_AFFECTING_INPUTS.update({
     field: _surface_entry("stamped_not_checked", _GENERATION_ONLY, in_run_binding=True)
     for field in RETRIEVAL_BINDING_NOT_CHECKED})
@@ -370,8 +423,14 @@ class BankEntry:
         return (int(self.src_node), int(self.rec_node))
 
 
-def read_rir(path):
-    """One real dataset RIR -> ``[1, 1, T]`` float32, the released read.
+def read_bytes(path):
+    """The file's exact bytes -- ONE read, so hashing and decoding cannot diverge."""
+    with open(str(path), "rb") as handle:
+        return handle.read()
+
+
+def decode_rir(data, where=""):
+    """Decoded RIR bytes -> ``[1, 1, T]`` float32, the released read.
 
     ``torchaudio.load`` plus the release's own two invariants (``AR_md``:
     22,050 Hz, single-channel ``single_channel_ir_*``). No crop and no pad is
@@ -380,21 +439,62 @@ def read_rir(path):
     and pads to 10,240, so a raw read and the loader's 10,240-sample PadCrop
     reach the AGREE tower as the SAME tensor. Introducing a second crop
     convention here could only make them differ.
+
+    Decoding takes BYTES rather than a path on purpose: the caller hashes the
+    same ``bytes`` object it decodes, so the bytes that were verified are exactly
+    the bytes that were consumed -- there is no second read to disagree with the
+    first (Codex r9f review, byte continuity).
     """
+    import io
     import torchaudio
 
-    wave, rate = torchaudio.load(str(path))
+    wave, rate = torchaudio.load(io.BytesIO(data))
     if int(rate) != RELEASED_SAMPLE_RATE:
-        raise ValueError(f"{path}: IR sampling rate must be {RELEASED_SAMPLE_RATE}, got {rate} "
+        raise ValueError(f"{where}: IR sampling rate must be {RELEASED_SAMPLE_RATE}, got {rate} "
                          "(the released AR_md context read asserts the same thing)")
     if wave.ndim != 2 or wave.shape[0] != 1:
-        raise ValueError(f"{path}: expected a single-channel RIR, got shape {tuple(wave.shape)}")
+        raise ValueError(f"{where}: expected a single-channel RIR, got shape "
+                         f"{tuple(wave.shape)}")
     if wave.shape[-1] == 0:
-        raise ValueError(f"{path}: the RIR is empty")
+        raise ValueError(f"{where}: the RIR is empty")
     wave = wave.float()
     if not bool(torch.isfinite(wave).all()):
-        raise ValueError(f"{path}: the RIR carries a non-finite sample")
+        raise ValueError(f"{where}: the RIR carries a non-finite sample")
     return wave.reshape(1, 1, -1)
+
+
+def read_rir(path):
+    """One real dataset RIR -> ``[1, 1, T]`` float32 (read then decode)."""
+    return decode_rir(read_bytes(path), where=str(path))
+
+
+def assert_file_bytes(path, expected_sha256, what, found=None):
+    """The file still carries the bytes the digest covered, at the moment of use.
+
+    The digest is taken before the pass; this is what closes the window between
+    the gate and the read. Every post-gate read of a digested file goes through
+    it, and the hash is taken over the SAME bytes the caller then consumes.
+    """
+    found = hashlib.sha256(read_bytes(path)).hexdigest() if found is None else str(found)
+    if not expected_sha256:
+        raise ValueError(f"{what} {path}: the sparse-bank digest carries no hash for this file, "
+                         "so its bytes cannot be verified; the digest and the pass do not cover "
+                         "the same files")
+    if found != str(expected_sha256):
+        raise ValueError(
+            f"{what} {path} changed after the sparse-bank digest was taken: it now hashes to "
+            f"{found[:16]}... but the digest covered {str(expected_sha256)[:16]}.... The bytes "
+            "behind this query's cosines, positions or truth are not the pre-registered ones")
+    return found
+
+
+def verified_rir(path, expected_sha256, decoder=None):
+    """A digested RIR, read once: hash the bytes, refuse, then decode THOSE bytes."""
+    data = read_bytes(path)
+    assert_file_bytes(path, expected_sha256, "bank waveform",
+                      found=hashlib.sha256(data).hexdigest())
+    decoder = decode_rir if decoder is None else decoder
+    return decoder(data, str(path))
 
 
 def ir_index(ir_room_dir):
@@ -597,6 +697,127 @@ BANK_DIGEST_ALGORITHM = (
     "the digest even when no byte of an existing file moved")
 
 
+def observation_path(dataset_root, record):
+    """The observed RIR's path -- ONE definition, used by the digest and the pass.
+
+    The digest hashes this file and the loader opens this file; the r9f review's
+    blocker was that those were two independent resolutions, so a pristine
+    alternate ``--dataset-root`` could satisfy the frozen digest while the loader
+    consumed different observation bytes. Everything downstream now derives from
+    this function, and :func:`assert_observation_is_the_digested_file` asserts
+    per query that the file the LOADER opened is this one.
+    """
+    return os.path.join(str(dataset_root), str(record["relpath"]))
+
+
+def dataset_root_of_config(dataset_config_path):
+    """The root the released dataloader will resolve ``relpath`` against.
+
+    ``create_dataloader_from_config`` walks ``datasets[].path``; more than one
+    entry would give the stream two roots and the digest one, so it is refused
+    rather than guessed.
+    """
+    with open(str(dataset_config_path)) as handle:
+        config = json.load(handle)
+    datasets = config.get("datasets") or []
+    roots = [entry.get("path") for entry in datasets if entry.get("path")]
+    if len(roots) != 1:
+        raise ValueError(
+            f"{dataset_config_path} declares {len(roots)} dataset root(s) {roots}; this control "
+            "digests exactly one root, so a config with none or several is refused rather than "
+            "guessed")
+    return str(roots[0])
+
+
+def assert_roots_agree(dataset_root, dataset_config_path):
+    """The digested root IS the root the loader will read from.
+
+    Compared by ``realpath``, so a symlink or a trailing slash is not a
+    difference, and a genuinely different tree is.
+    """
+    configured = dataset_root_of_config(dataset_config_path)
+    left, right = os.path.realpath(str(dataset_root)), os.path.realpath(configured)
+    if left != right:
+        raise ValueError(
+            f"--dataset-root {dataset_root!r} resolves to {left!r} but the dataset config "
+            f"{dataset_config_path!r} resolves its files under {configured!r} ({right!r}). The "
+            "digest would then cover different bytes than the loader consumes -- a pristine "
+            "alternate root could satisfy the frozen sparse-bank digest while the observed RIRs "
+            "came from somewhere else (Codex r9f review, BLOCKER). One root, or a refusal")
+    return {"dataset_root": str(dataset_root), "configured": configured, "realpath": left}
+
+
+def loader_values(model_config, dataset_config):
+    """The observed-waveform settings the released stack will be built with.
+
+    Read from the two configs exactly where ``meshgrid_queries.build_release_stack``
+    reads them, so the values checked are the values used.
+    """
+    return {
+        "loader_sample_rate": int(model_config["sample_rate"]),
+        "loader_sample_size": int(model_config["sample_size"]),
+        "loader_force_channels": str(dataset_config.get("force_channels", "stereo")),
+        "loader_random_crop": bool(dataset_config.get("random_crop", True)),
+        "loader_augs": bool(dataset_config.get("augs", False)),
+    }
+
+
+def observation_from_bytes(data, sample_size, where=""):
+    """The loader's own observation tensor, rebuilt from the DIGESTED bytes.
+
+    Reproduces the released read for an eval item exactly:
+    ``load_file`` (``torchaudio.load``; no resample, the release asserts 22,050),
+    then ``PadCrop_Normalized_T(sample_size, randomize=False)`` -- copy the first
+    ``sample_size`` samples into a zero chunk -- then ``Mono()``, then no
+    augmentations (the registered eval config sets ``augs: false``,
+    ``random_crop: false``). Measured bit-identical to the loader's tensor on the
+    real split.
+    """
+    wave = decode_rir(data, where=where).reshape(1, -1)
+    sample_size = int(sample_size)
+    chunk = wave.new_zeros([1, sample_size])
+    chunk[:, :min(wave.shape[-1], sample_size)] = wave[:, :sample_size]
+    return chunk
+
+
+def assert_observation_is_the_digested_file(query_id, md, expected_path):
+    """The file the LOADER opened is the file the digest covered."""
+    loader_path = md.get("path") if hasattr(md, "get") else None
+    if not loader_path:
+        raise ValueError(f"{query_id}: the loader item carries no 'path', so the file it read "
+                         "cannot be joined to the digested one")
+    left, right = os.path.realpath(str(loader_path)), os.path.realpath(str(expected_path))
+    if left != right:
+        raise ValueError(
+            f"{query_id}: the loader read {left!r} but the sparse-bank digest covers {right!r}; "
+            "the observation being scored is not the observation that was digested")
+    return right
+
+
+def assert_observation_bytes(query_id, obs_wav, path, expected_sha256, sample_size):
+    """The scored observation IS the digested bytes -- hash AND content.
+
+    Two claims, in order: the file still hashes to what the digest covered, and
+    decoding THOSE bytes through the released eval read reproduces the tensor the
+    loader handed this control, exactly. The second is what makes the first bind
+    the number rather than the file name: it is the digested bytes that produced
+    the cosine.
+    """
+    data = read_bytes(path)
+    assert_file_bytes(path, expected_sha256, "observation",
+                      found=hashlib.sha256(data).hexdigest())
+    rebuilt = observation_from_bytes(data, sample_size, where=str(path))
+    observed = torch.as_tensor(obs_wav).detach().cpu().float().reshape(1, -1)
+    if observed.shape != rebuilt.shape or not torch.equal(observed, rebuilt):
+        raise ValueError(
+            f"{query_id}: the observation the loader delivered is not what the digested bytes "
+            f"of {path} decode to (shapes {tuple(observed.shape)} vs {tuple(rebuilt.shape)}, "
+            f"max |delta| "
+            f"{float((observed - rebuilt[:, :observed.shape[-1]]).abs().max()) if observed.shape[-1] <= rebuilt.shape[-1] else float('nan'):.3g}). "
+            "The scored waveform did not come from the digested file")
+    return True
+
+
 def bank_digest(metadata_root, dataset_root, records, rule=REGISTERED_BANK_RULE, cache=None,
                 file_digest=None, on_query=None):
     """Digest the sparse bank of the whole registered subset -> the gate's value.
@@ -633,7 +854,7 @@ def bank_digest(metadata_root, dataset_root, records, rule=REGISTERED_BANK_RULE,
         tables = room_bank(metadata_root, dataset_root, room_id, relpath, cache=cache)
         src_node, rec_node = parse_ir_filename(os.path.basename(relpath))
         truth_pair = tables.pairs[(src_node, rec_node)]
-        observation = os.path.join(str(dataset_root), relpath)
+        observation = observation_path(dataset_root, record)
 
         rows = []
         for entry in bank["entries"]:
@@ -757,12 +978,21 @@ def assert_bank_excludes_the_target(entries, truth, query_id,
 # --------------------------------------------------------------------------- #
 # the score and the prediction
 # --------------------------------------------------------------------------- #
-def embed_bank(embedder, entries, reader=read_rir, cache=None):
-    """``[M, D]`` embeddings of the bank's real RIRs, one read per file.
+def embed_bank(embedder, entries, decoder=None, cache=None, expected_sha256=None):
+    """``[M, D]`` embeddings of the bank's real RIRs, one verified read per file.
 
     ``cache`` is keyed by the IR path, so a receiver's bank is embedded once and
     reused by every query of that receiver -- the same memoization argument the
-    engine makes for its source cache, on a much smaller object.
+    engine makes for its source cache, on a much smaller object. The file is
+    hashed on that one read and refused if its bytes are not the digested ones
+    (``expected_sha256`` maps path -> sha256); a cache HIT is a file this run
+    already verified.
+
+    ``expected_sha256=None`` means there is NO digest to verify against and the
+    read is unverified -- the state the report publishes as
+    ``bank_membership_rechecked_against_the_digest: false``. A MAP with a path
+    missing from it is a refusal, not a skip: a file the digest did not cover has
+    no business in a bank the digest is supposed to describe.
     """
     rows = []
     for entry in entries:
@@ -770,7 +1000,12 @@ def embed_bank(embedder, entries, reader=read_rir, cache=None):
         if cache is not None and path in cache:
             rows.append(cache[path])
             continue
-        embedding = torch.as_tensor(embedder(reader(path))).float().reshape(-1)
+        if expected_sha256 is None:
+            data = read_bytes(path)
+            waveform = (decode_rir if decoder is None else decoder)(data, path)
+        else:
+            waveform = verified_rir(path, expected_sha256.get(path), decoder=decoder)
+        embedding = torch.as_tensor(embedder(waveform)).float().reshape(-1)
         if cache is not None:
             cache[path] = embedding
         rows.append(embedding)
@@ -930,9 +1165,28 @@ def assert_grid_oracle(query, truth, tolerance=mr.ORACLE_TOLERANCE):
     return delta
 
 
+def _digest_hashes(bank_document, metadata_root, dataset_root, query_id):
+    """``{path: sha256}`` for everything the digest covered for ONE query.
+
+    The document stores root-relative paths (so the digest is machine-portable);
+    this rejoins them to the roots the pass is actually reading from, which is
+    the only place the two representations meet.
+    """
+    recorded = (bank_document or {}).get("queries", {}).get(str(query_id))
+    if recorded is None:
+        raise ValueError(f"{query_id} is not in the sparse-bank digest document; the digest and "
+                         "the pass do not cover the same subset")
+    hashes = {os.path.join(str(metadata_root), recorded["truth_pair"][0]):
+                  recorded["truth_pair"][1]}
+    for row in recorded["bank"]:
+        hashes[os.path.join(str(metadata_root), row[2])] = row[3]
+        hashes[os.path.join(str(dataset_root), row[4])] = row[5]
+    return hashes, recorded
+
+
 def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_root,
-                  bank_rule=REGISTERED_BANK_RULE, radii=SUCCESS_RADII,
-                  reader=read_rir, bank_document=None, on_record=None):
+                  bank_rule=REGISTERED_BANK_RULE, radii=SUCCESS_RADII, sample_size=None,
+                  decoder=None, bank_document=None, on_record=None):
     """Walk the registered stream and score every query against its sparse bank.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -949,10 +1203,15 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
     one the audit published (:func:`assert_grid_oracle` -- a scalar consistency
     check, NOT a proof of the truth vector; see :data:`TRUTH_INTEGRITY_NOTE`).
 
-    ``bank_document`` is the enumeration :func:`bank_digest` was taken over. The
-    driver always supplies it, and then every query's bank membership is
-    re-checked against it, closing the window between the digest gate and the
-    pass. When it is absent the report says so
+    ``bank_document`` is the enumeration :func:`bank_digest` was taken over, and
+    the driver always supplies it. With it, three things are re-checked per query
+    AFTER the gate, because membership alone is not byte continuity (Codex r9f
+    review): the bank's membership, the BYTES of every file this control reads
+    from that bank (each pair JSON and each waveform, hashed on the same read
+    that consumes them), and the observation -- whose file must be the one the
+    loader opened AND must decode to the tensor the loader delivered
+    (``sample_size`` is the registered loader crop). When the document is absent
+    the report says so
     (``gates.bank_membership_rechecked_against_the_digest``), because a gate that
     did not run may not be reported as one that did.
     """
@@ -963,6 +1222,10 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
     resolver = mr.TruthResolver(metadata_root)
     rooms, embeddings, results, seen = {}, {}, [], set()
     current_room, current_index, finished_rooms, oracle_deltas = None, {}, set(), []
+    #: pair files whose bytes this run already checked against the digest. A file
+    #: is verified on its first use and not on every one of the ten queries that
+    #: share it; the run is one window, not ten.
+    verified_files = set()
 
     for position, (obs_wav, raw_md) in enumerate(stream):
         record = by_position.get(position)
@@ -995,6 +1258,19 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
             raise ValueError(f"stream position {position}: the loader returned no observed "
                              "waveform; there is nothing to retrieve against")
 
+        # the bytes the digest covered, rejoined to the roots being read now.
+        # Taken BEFORE the truth is resolved, because the truth is read out of one
+        # of these very files.
+        hashes, recorded = ({}, None)
+        if bank_document is not None:
+            hashes, recorded = _digest_hashes(bank_document, metadata_root, dataset_root,
+                                              query_id)
+            truth_pair = os.path.join(str(metadata_root), recorded["truth_pair"][0])
+            if truth_pair not in verified_files:
+                assert_file_bytes(truth_pair, recorded["truth_pair"][1],
+                                  "the truth-carrying pair file")
+                verified_files.add(truth_pair)
+
         metadata_receiver, truth = resolver.resolve(record)
         mr.assert_receiver_matches(query_id, metadata_receiver, query.receiver_xyz)
         oracle_deltas.append(assert_grid_oracle(query, truth))
@@ -1008,11 +1284,26 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         mr.assert_receiver_matches(query_id, bank["receiver_xyz"], query.receiver_xyz)
         if bank_document is not None:
             assert_bank_unchanged(query_id, bank["entries"], bank_document)
+            # every POSITION file this bank read, once per run
+            for entry in bank["entries"]:
+                pair_path = str(entry.pair_path)
+                if pair_path not in verified_files:
+                    assert_file_bytes(pair_path, hashes.get(pair_path),
+                                      "a bank entry's pair file")
+                    verified_files.add(pair_path)
+            # and the observation: the loader's file, and the loader's tensor
+            expected_observation = observation_path(dataset_root, record)
+            assert_observation_is_the_digested_file(query_id, md, expected_observation)
+            assert_observation_bytes(query_id, obs_wav, expected_observation,
+                                     recorded["observation_sha256"],
+                                     obs_wav.shape[-1] if sample_size is None else sample_size)
 
         obs_embedding = torch.as_tensor(embedder(torch.as_tensor(obs_wav)))[0].float()
         sims = bank_sims(obs_embedding,
-                         embed_bank(embedder, bank["entries"], reader=reader,
-                                    cache=embeddings))
+                         embed_bank(embedder, bank["entries"], decoder=decoder,
+                                    cache=embeddings,
+                                    expected_sha256=hashes if bank_document is not None
+                                    else None))
         result = evaluate_bank_query(
             bank["entries"], sims, truth, query_id=query_id, room_id=room_id,
             position=position, receiver_id=query.receiver_id,
@@ -1165,28 +1456,38 @@ def oracle_contrast(results):
 # --------------------------------------------------------------------------- #
 # canonicality: which registered inputs this run actually used
 # --------------------------------------------------------------------------- #
-def observed_inputs(context, *, bank_rule, bootstrap_seed, n_boot, radii=SUCCESS_RADII):
+def observed_inputs(context, *, bank_rule, bootstrap_seed, n_boot, alpha=BOOTSTRAP_ALPHA,
+                    radii=SUCCESS_RADII):
     """What each named input WAS on this run, for the surface report and the gate."""
     binding = dict(context.get("binding") or {})
     observed = {
         "agree_ckpt_sha256": context.get("agree_ckpt_sha256"),
         "scorer_readout": context.get("scorer_readout"),
+        # the config THIS control hashed; the binding gate separately proves it
+        # is the run's, so a difference here is a registered-value deviation
+        "model_config_sha256": (context.get("model_config_sha256")
+                                or (context.get("binding") or {}).get("model_config_sha256")),
         "tau": context.get("tau"),
         "bank_rule": bank_rule,
         "bootstrap_seed": int(bootstrap_seed),
         "n_boot": int(n_boot),
+        "bootstrap_alpha": float(alpha),
         "success_radii_m": [float(r) for r in radii],
         "sparse_bank_sha256": (context.get("bank_gate") or {}).get("sparse_bank_sha256"),
         "metadata_root": context.get("metadata_root"),
         "dataset_root": context.get("dataset_root"),
-        "device": context.get("device"),
+        # the TYPE, because that is what can move a cosine's last bits
+        "device": device_type(context.get("device")),
     }
+    observed.update({name: (context.get("loader") or {}).get(name)
+                     for name in REGISTERED_LOADER})
     for field in me.RUN_BINDING_FIELDS:
         observed.setdefault(field, binding.get(field))
     return observed
 
 
-def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, radii=SUCCESS_RADII):
+def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, alpha=BOOTSTRAP_ALPHA,
+                        radii=SUCCESS_RADII):
     """Every registered input that deviates, named -- or an empty list.
 
     The rule is one sentence: a canonical run of this control uses the registered
@@ -1195,7 +1496,7 @@ def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, radii=SUC
     artifact.
     """
     observed = observed_inputs(context, bank_rule=bank_rule, bootstrap_seed=bootstrap_seed,
-                               n_boot=n_boot, radii=radii)
+                               n_boot=n_boot, alpha=alpha, radii=radii)
     deviations = []
     for name, entry in sorted(RESULT_AFFECTING_INPUTS.items()):
         if entry["class"] != "gated_against_registered":
@@ -1277,7 +1578,7 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
     bank = bank_report(results)
     assessment = assert_canonical(
         assess_canonicality(context, bank_rule=bank["rule"], bootstrap_seed=bootstrap_seed,
-                            n_boot=n_boot, radii=radii),
+                            n_boot=n_boot, alpha=alpha, radii=radii),
         allow_non_canonical=bool(context.get("allow_non_canonical")))
     bank_gate = dict(context.get("bank_gate") or {})
     draws = mr.room_bootstrap_draws(census["n_rooms"], seed=bootstrap_seed, n=n_boot)
@@ -1382,6 +1683,15 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
                 bool(bank_gate.get("canonical")),
             "bank_membership_rechecked_against_the_digest":
                 bool(context.get("bank_membership_rechecked", False)),
+            # membership alone is not byte continuity (Codex r9f review): every
+            # digested file re-read after the gate is hashed on the read that
+            # consumes it, and the observation must decode to the scored tensor
+            "digested_bytes_reverified_on_every_post_gate_read":
+                bool(context.get("bank_bytes_verified", False)),
+            "observation_is_the_digested_file_and_decodes_to_the_scored_tensor":
+                bool(context.get("bank_bytes_verified", False)),
+            "one_dataset_root_for_the_digest_and_the_loader":
+                bool(context.get("roots_agree", False)),
             "bank_excludes_the_query_own_pair": True,
             "bank_excludes_any_entry_on_the_target": True,
             "census_is_the_registered_subset": True,
@@ -1728,6 +2038,14 @@ def validate_args(args):
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
 
+    # ONE root, in every mode: the digest must cover the bytes the loader will
+    # consume, so a --dataset-root the dataset config would not read from is
+    # refused before anything is hashed (Codex r9f review, BLOCKER)
+    try:
+        assert_roots_agree(args.dataset_root, args.dataset_config)
+    except (ValueError, OSError) as error:
+        _refuse(str(error))
+
     if args.print_bank_sha256:
         # the pre-registration mode: it names no run and publishes no number
         return True
@@ -1749,6 +2067,10 @@ def validate_args(args):
     if int(args.bootstrap_seed) != BOOTSTRAP_SEED or int(args.n_boot) != BOOTSTRAP_N:
         deviations.append(f"the bootstrap {args.bootstrap_seed} x {args.n_boot} is not the "
                           f"registered {BOOTSTRAP_SEED} x {BOOTSTRAP_N}")
+    if device_type(args.device) != REGISTERED_DEVICE:
+        deviations.append(f"--device {args.device!r} is a {device_type(args.device)!r} device "
+                          f"and the scored run was {REGISTERED_DEVICE!r} "
+                          f"({RESULT_AFFECTING_INPUTS['device']['why']})")
     if not args.expect_bank_sha256:
         deviations.append("no --expect-bank-sha256 was supplied, so the sparse bank would be "
                           f"recorded rather than gated ({NON_CANONICAL_BANK_NOTE})")
@@ -1795,8 +2117,13 @@ def main(argv=None):
 
     with open(args.model_config) as handle:
         model_config = json.load(handle)
+    with open(args.dataset_config) as handle:
+        dataset_config = json.load(handle)
     resolved = mq.with_resolved_agree(model_config)
     agree_path = args.agree_ckpt or resolved["training"]["metrics"]["AGREE_ckpt"]
+    # the settings that decide obs_wav, read where the release stack reads them
+    loader = loader_values(model_config, dataset_config)
+    print(f"loader: {loader}")
 
     plan = me.load_audit_plan(args.audit_report, branch=args.branch)
     manifest = mq.load_manifest(args.context_manifest)
@@ -1831,7 +2158,7 @@ def main(argv=None):
     print(f"G1 audit re-verified: {len(plan.rooms)} rooms, branch {plan.branch}, "
           f"{plan.n_queries} queries")
 
-    loader, facts = mq.build_release_stack(args.dataset_config, args.model_config)
+    stream_loader, facts = mq.build_release_stack(args.dataset_config, args.model_config)
     me.assert_release_rng_state(manifest)
     print(f"release call graph reproduced: {facts['call_graph']}")
 
@@ -1844,10 +2171,10 @@ def main(argv=None):
                   f"{record['n_candidates']}  e_loc {record['e_loc']:.3f} m "
                   f"(sparse oracle {record['e_oracle_sparse']:.3f} m)", flush=True)
 
-    results = run_retrieval(embedder, iter_stream_items(loader), records, plan,
+    results = run_retrieval(embedder, iter_stream_items(stream_loader), records, plan,
                             metadata_root=args.metadata_root, dataset_root=args.dataset_root,
                             bank_rule=args.bank_rule, bank_document=document,
-                            on_record=_announce)
+                            sample_size=loader["loader_sample_size"], on_record=_announce)
     report = build_report(results, {
         "records": records, "binding": dict(binding, **gate["recorded_not_checked"]),
         "binding_sha256": gate["binding_sha256"], "run_dir": str(args.run_dir),
@@ -1855,9 +2182,12 @@ def main(argv=None):
         "context_manifest": str(args.context_manifest),
         "metadata_root": str(args.metadata_root), "dataset_root": str(args.dataset_root),
         "agree_ckpt": str(agree_path), "agree_ckpt_sha256": agree_sha256,
+        "model_config_sha256": binding["model_config_sha256"],
         "scorer_readout": me.SCORER_READOUT, "tau": float(args.tau),
-        "device": str(args.device), "gate": gate, "bank_gate": bank_gate,
-        "bank_membership_rechecked": True,
+        "device": str(args.device), "loader": loader,
+        "gate": gate, "bank_gate": bank_gate,
+        "bank_membership_rechecked": True, "bank_bytes_verified": True,
+        "roots_agree": True,
         "allow_non_canonical": bool(args.non_canonical),
     }, bootstrap_seed=args.bootstrap_seed, n_boot=args.n_boot)
     published = write_report(args.out_dir, report)

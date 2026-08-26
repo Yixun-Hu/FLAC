@@ -14,6 +14,7 @@ for all but a deliberately missing one. No GPU and no AGREE checkpoint is
 involved: the embedder is the report fixture's synthetic one, and the waveform
 reader is injected.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -100,20 +101,22 @@ def _write_dataset_tree(tmp_path, metadata_root):
     return dataset_root
 
 
-class FakeReader:
-    """A deterministic stand-in for the released waveform read.
+class FakeDecoder:
+    """A deterministic stand-in for the released waveform decode.
 
-    Every RIR is a different constant ramp keyed by its file name, so no two
-    bank entries can embed to the same vector and a cosine can order them.
+    Takes the BYTES the control hashed (never a path it could re-read), so the
+    fixture cannot accidentally decode something other than what was verified.
+    Every RIR is a different constant ramp keyed by its file name, so no two bank
+    entries can embed to the same vector and a cosine can order them.
     """
 
     def __init__(self, length=16):
         self.length = int(length)
         self.calls = []
 
-    def __call__(self, path):
-        self.calls.append(str(path))
-        src, rec = rc.parse_ir_filename(os.path.basename(str(path)))
+    def __call__(self, data, where=""):
+        self.calls.append(str(where))
+        src, rec = rc.parse_ir_filename(os.path.basename(str(where)))
         base = 0.01 * src + 0.001 * rec
         return (torch.arange(self.length, dtype=torch.float32).reshape(1, 1, -1) * 0.001
                 + base)
@@ -130,9 +133,19 @@ def build_control_fixture(tmp_path, pre_register=True):
     fixture = fx.build_fixture_run(tmp_path)
     fixture["dataset_root"] = _write_dataset_tree(tmp_path, fixture["metadata_root"])
     fixture["embedder"] = fx.SyntheticEngine()._embed
-    fixture["reader"] = FakeReader()
+    fixture["decoder"] = FakeDecoder()
     fixture["out_dir"] = str(tmp_path / "retrieval")
     fixture["totals"] = rc.retrieval_totals(rooms=2, queries=4)
+    # the four OBSERVATIONS are real float32 wavs carrying exactly the tensors the
+    # fixture stream delivers, and the loader item points at them: the control
+    # now proves the scored tensor decodes from the digested bytes (r9h item 1/2)
+    import torchaudio
+
+    for obs_wav, md in fixture["items"]:
+        path = os.path.join(fixture["dataset_root"], md["relpath"])
+        torchaudio.save(path, torch.as_tensor(obs_wav).reshape(1, -1), 22050,
+                        encoding="PCM_F", bits_per_sample=32)
+        md["path"] = path
     document = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
                               fixture["records"])
     fixture["bank_document"] = document
@@ -140,15 +153,33 @@ def build_control_fixture(tmp_path, pre_register=True):
         document["sha256"], expected=document["sha256"] if pre_register else None,
         allow_non_canonical=not pre_register)
     fixture["agree_ckpt_sha256"] = rc.REGISTERED_AGREE_SHA256
+    fixture["model_config_sha256"] = rc.REGISTERED_MODEL_CONFIG_SHA256
     fixture["scorer_readout"] = me.SCORER_READOUT
     fixture["tau"] = me.TAU
     fixture["bank_rule"] = rc.REGISTERED_BANK_RULE
+    fixture["device"] = rc.REGISTERED_DEVICE
+    fixture["loader"] = dict(rc.REGISTERED_LOADER)
     fixture["allow_non_canonical"] = True
+    # a dataset config whose root IS the fixture tree, so the digest and the
+    # loader resolve one root (r9h item 1)
+    fixture["dataset_config"] = str(tmp_path / "fixture_dataset_config.json")
+    with open(fixture["dataset_config"], "w") as handle:
+        json.dump({"datasets": [{"id": "AcousticRooms", "path": fixture["dataset_root"],
+                                 "folder_name": FIXTURE_ROOT}],
+                   "force_channels": "mono", "random_crop": False, "augs": False},
+                  handle)
     return fixture
 
 
 def run_control(fixture, **kwargs):
-    kwargs.setdefault("reader", fixture["reader"])
+    """The walk, with the digest document supplied as the driver always does.
+
+    Tests that deliberately edit a digested file to reach a DIFFERENT gate pass
+    ``bank_document=None``: with the document, the byte-continuity check refuses
+    first, which is exactly what r9h added.
+    """
+    kwargs.setdefault("decoder", fixture["decoder"])
+    kwargs.setdefault("bank_document", fixture["bank_document"])
     kwargs.setdefault("records", fixture["records"])
     records = kwargs.pop("records")
     return rc.run_retrieval(fixture["embedder"], list(fixture["items"]), records,
@@ -479,6 +510,151 @@ def test_a_canonical_run_requires_a_pre_registered_digest():
         rc.assert_bank_digest(found, expected="b" * 64, allow_non_canonical=True)
 
 
+# --------------------------------------------------------------------------- #
+# one root for the digest and the loader (r9f BLOCKER: root divergence)
+# --------------------------------------------------------------------------- #
+def test_the_digest_and_the_loader_resolve_one_root(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    assert rc.dataset_root_of_config(fixture["dataset_config"]) == fixture["dataset_root"]
+    agreed = rc.assert_roots_agree(fixture["dataset_root"], fixture["dataset_config"])
+    assert agreed["realpath"] == os.path.realpath(fixture["dataset_root"])
+    # a trailing slash is not a different tree
+    assert rc.assert_roots_agree(fixture["dataset_root"] + os.sep, fixture["dataset_config"])
+
+    other = str(tmp_path / "elsewhere")
+    os.makedirs(other, exist_ok=True)
+    with pytest.raises(ValueError, match="different bytes than the loader consumes"):
+        rc.assert_roots_agree(other, fixture["dataset_config"])
+
+
+def test_a_config_without_exactly_one_root_is_refused(tmp_path):
+    path = str(tmp_path / "two_roots.json")
+    with open(path, "w") as handle:
+        json.dump({"datasets": [{"path": "A"}, {"path": "B"}]}, handle)
+    with pytest.raises(ValueError, match="dataset root"):
+        rc.dataset_root_of_config(path)
+    with open(path, "w") as handle:
+        json.dump({"datasets": []}, handle)
+    with pytest.raises(ValueError, match="dataset root"):
+        rc.dataset_root_of_config(path)
+
+
+def test_a_divergent_dataset_root_is_refused_at_startup(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    other = str(tmp_path / "pristine")
+    os.makedirs(other, exist_ok=True)
+    args = rc.parse_args(["--print-bank-sha256",
+                          "--context-manifest", fixture["context_manifest"],
+                          "--metadata-root", fixture["metadata_root"],
+                          "--dataset-config", fixture["dataset_config"],
+                          "--dataset-root", other])
+    with pytest.raises(SystemExit, match="different bytes than the loader consumes"):
+        rc.validate_args(args)
+
+
+def test_the_digested_file_is_the_file_the_loader_read(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    for obs_wav, md in fixture["items"]:
+        assert md["path"] == rc.observation_path(fixture["dataset_root"],
+                                                 {"relpath": md["relpath"]})
+    assert run_control(fixture)                        # the join holds end to end
+
+    # ... and a loader that opened some other copy of the same relpath refuses
+    elsewhere = str(tmp_path / "pristine")
+    for _obs, md in fixture["items"]:
+        target = os.path.join(elsewhere, md["relpath"])
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(md["path"], "rb") as src, open(target, "wb") as dst:
+            dst.write(src.read())
+        md["path"] = target
+    with pytest.raises(ValueError, match="not the observation that was digested"):
+        run_control(fixture)
+
+
+def test_an_observation_that_does_not_decode_to_the_scored_tensor_refuses(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    items = [(torch.as_tensor(obs) + 0.125, md) for obs, md in fixture["items"]]
+    with pytest.raises(ValueError, match="did not come from the digested file"):
+        rc.run_retrieval(fixture["embedder"], items, fixture["records"], fixture["plan"],
+                         metadata_root=fixture["metadata_root"],
+                         dataset_root=fixture["dataset_root"], decoder=fixture["decoder"],
+                         bank_document=fixture["bank_document"])
+
+
+# --------------------------------------------------------------------------- #
+# byte continuity across the digest -> scoring window (r9f BLOCKER)
+# --------------------------------------------------------------------------- #
+def test_an_observation_swapped_after_the_gate_refuses(tmp_path):
+    import torchaudio
+
+    fixture = build_control_fixture(tmp_path)
+    obs_wav, md = fixture["items"][0]
+    torchaudio.save(md["path"], torch.as_tensor(obs_wav).reshape(1, -1) + 0.25, 22050,
+                    encoding="PCM_F", bits_per_sample=32)
+    with pytest.raises(ValueError, match="observation .* changed after the sparse-bank digest"):
+        run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_a_bank_waveform_swapped_after_the_gate_refuses(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    wav = os.path.join(fixture["dataset_root"], _ir_relpath("A/A_idx_1", 2, 2))
+    with open(wav, "ab") as handle:
+        handle.write(b"tampered")
+    with pytest.raises(ValueError,
+                       match="bank waveform .* changed after the sparse-bank digest"):
+        run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_a_pair_file_swapped_after_the_gate_refuses(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    pair = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S002_R002.json")
+    payload = json.load(open(pair))
+    with open(pair, "w") as handle:                       # same values, different bytes
+        json.dump(payload, handle, indent=1)
+    with pytest.raises(ValueError,
+                       match="pair file .* changed after the sparse-bank digest"):
+        run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_the_truth_pair_is_verified_before_the_truth_is_read(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    truth_pair = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")
+    payload = json.load(open(truth_pair))
+    with open(truth_pair, "w") as handle:
+        json.dump(dict(payload, src_loc=[1.2, 1.1, 0.6]), handle)
+    # the BYTES refuse first: the scalar oracle check would only have caught a
+    # truth that moved far enough to change the oracle (r9f BLOCKER 2)
+    with pytest.raises(ValueError,
+                       match="truth-carrying pair file .* changed after the sparse-bank digest"):
+        run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_a_file_the_digest_never_covered_cannot_be_read_under_a_digest(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    entry = rc.build_query_bank(fixture["metadata_root"], fixture["dataset_root"],
+                                "A/A_idx_1", _ir_relpath("A/A_idx_1", 1, 2))["entries"][0]
+    with pytest.raises(ValueError, match="carries no hash for this file"):
+        rc.embed_bank(fixture["embedder"], [entry], decoder=fixture["decoder"],
+                      expected_sha256={})
+
+
+def test_a_verified_read_hashes_the_bytes_it_decodes(tmp_path):
+    path = str(tmp_path / "S001_R002_hybrid_IR.wav")
+    with open(path, "wb") as handle:
+        handle.write(b"payload")
+    seen = {}
+
+    def decoder(data, where=""):
+        seen["data"] = data
+        return torch.zeros(1, 1, 4)
+
+    sha = hashlib.sha256(b"payload").hexdigest()
+    rc.verified_rir(path, sha, decoder=decoder)
+    assert seen["data"] == b"payload"                 # decoded exactly what was hashed
+    with pytest.raises(ValueError, match="changed after the sparse-bank digest"):
+        rc.verified_rir(path, "0" * 64, decoder=decoder)
+
+
 def test_the_walk_refuses_a_bank_that_moved_after_the_digest(tmp_path):
     fixture = build_control_fixture(tmp_path)
     document = fixture["bank_document"]
@@ -638,10 +814,10 @@ def test_the_control_is_deterministic(tmp_path):
 
 def test_a_bank_entry_is_embedded_once_and_reused_across_the_receivers_queries(tmp_path):
     fixture = build_control_fixture(tmp_path)
-    reader = fixture["reader"]
+    decoder = fixture["decoder"]
     run_control(fixture)
     # queries 0 and 2 share receiver R002; every distinct IR file is read once
-    assert len(reader.calls) == len(set(reader.calls))
+    assert len(decoder.calls) == len(set(decoder.calls))
 
 
 def test_the_control_refuses_a_truncated_stream(tmp_path):
@@ -649,7 +825,7 @@ def test_the_control_refuses_a_truncated_stream(tmp_path):
     with pytest.raises(ValueError, match="the stream ended before"):
         rc.run_retrieval(fixture["embedder"], list(fixture["items"])[:2], fixture["records"],
                          fixture["plan"], metadata_root=fixture["metadata_root"],
-                         dataset_root=fixture["dataset_root"], reader=fixture["reader"])
+                         dataset_root=fixture["dataset_root"], decoder=fixture["decoder"])
 
 
 def test_the_control_refuses_a_receiver_that_is_not_the_manifests(tmp_path):
@@ -659,8 +835,10 @@ def test_the_control_refuses_a_receiver_that_is_not_the_manifests(tmp_path):
     payload["rec_loc"] = [0.25, 0.0, 0.5]
     with open(path, "w") as handle:
         json.dump(payload, handle)
+    # bank_document=None: this test is about the receiver join, and with the
+    # document the byte-continuity gate would (correctly) refuse first
     with pytest.raises(ValueError, match="not resolving the same query"):
-        run_control(fixture)
+        run_control(fixture, bank_document=None)
 
 
 def test_the_control_refuses_a_truth_whose_grid_oracle_is_not_the_manifests(tmp_path):
@@ -670,8 +848,10 @@ def test_the_control_refuses_a_truth_whose_grid_oracle_is_not_the_manifests(tmp_
     payload["src_loc"] = [1.11, 1.11, 0.61]           # the truth moves off its cell
     with open(path, "w") as handle:
         json.dump(payload, handle)
+    # bank_document=None isolates the scalar oracle gate; the byte gate has its
+    # own test (test_the_truth_pair_is_verified_before_the_truth_is_read)
     with pytest.raises(ValueError, match="not looking at the same query"):
-        run_control(fixture)
+        run_control(fixture, bank_document=None)
 
 
 def test_a_g1_room_manifest_that_names_one_query_twice_is_refused(tmp_path):
@@ -714,7 +894,7 @@ def test_the_control_refuses_a_context_draw_that_is_not_the_registered_one(tmp_p
     with pytest.raises(ValueError, match="context audio digest"):
         rc.run_retrieval(fixture["embedder"], list(fixture["items"]), records,
                          fixture["plan"], metadata_root=fixture["metadata_root"],
-                         dataset_root=fixture["dataset_root"], reader=fixture["reader"])
+                         dataset_root=fixture["dataset_root"], decoder=fixture["decoder"])
 
 
 def test_the_control_never_reads_the_held_out_target_from_the_loader(tmp_path):
@@ -729,7 +909,7 @@ def test_the_control_never_reads_the_held_out_target_from_the_loader(tmp_path):
     items = [(wav, Tripwire(md)) for wav, md in fixture["items"]]
     results = rc.run_retrieval(fixture["embedder"], items, fixture["records"],
                                fixture["plan"], metadata_root=fixture["metadata_root"],
-                               dataset_root=fixture["dataset_root"], reader=fixture["reader"])
+                               dataset_root=fixture["dataset_root"], decoder=fixture["decoder"])
     assert len(results) == 4
 
 
@@ -739,7 +919,7 @@ def test_a_query_with_no_observation_is_refused(tmp_path):
     with pytest.raises(ValueError, match="no observed waveform"):
         rc.run_retrieval(fixture["embedder"], items, fixture["records"], fixture["plan"],
                          metadata_root=fixture["metadata_root"],
-                         dataset_root=fixture["dataset_root"], reader=fixture["reader"])
+                         dataset_root=fixture["dataset_root"], decoder=fixture["decoder"])
 
 
 # --------------------------------------------------------------------------- #
@@ -1026,6 +1206,78 @@ def test_the_input_surface_covers_every_result_affecting_input():
         assert surface[field]["class"] == "stamped_not_checked"
 
 
+def test_the_surface_binds_the_inputs_the_r9f_review_found_loose(tmp_path):
+    surface = rc.RESULT_AFFECTING_INPUTS
+    # device: pinned to the device TYPE the scored run used, not merely stamped
+    assert surface["device"]["class"] == "gated_against_registered"
+    assert surface["device"]["registered"] == rc.REGISTERED_DEVICE == "cuda"
+    assert rc.device_type("cuda:1") == "cuda" and rc.device_type("cpu") == "cpu"
+    # the interval's LEVEL, not only its seed and count
+    assert surface["bootstrap_alpha"]["registered"] == rc.BOOTSTRAP_ALPHA == 0.05
+    # the loader settings that decide obs_wav, bound BY VALUE
+    for name, value in rc.REGISTERED_LOADER.items():
+        assert surface[name]["class"] == "gated_against_registered"
+        assert surface[name]["registered"] == value
+    assert rc.REGISTERED_LOADER == {"loader_sample_rate": 22050, "loader_sample_size": 10240,
+                                    "loader_force_channels": "mono",
+                                    "loader_random_crop": False, "loader_augs": False}
+    # ... read from the two configs where the release stack reads them
+    with open("src/configs/model_configs/FLAC/AR/FLAC_AR.json") as handle:
+        model_config = json.load(handle)
+    with open("src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json") as handle:
+        dataset_config = json.load(handle)
+    assert rc.loader_values(model_config, dataset_config) == rc.REGISTERED_LOADER
+    # and the model config that carries them is pinned by digest as well
+    assert surface["model_config_sha256"]["registered"] == rc.REGISTERED_MODEL_CONFIG_SHA256
+    assert me.file_sha256("src/configs/model_configs/FLAC/AR/FLAC_AR.json") == \
+        rc.REGISTERED_MODEL_CONFIG_SHA256
+
+
+@pytest.mark.parametrize("key, value", [
+    ("device", "cpu"),
+    ("loader_sample_size", 8000),
+    ("loader_sample_rate", 16000),
+    ("loader_force_channels", "stereo"),
+    ("loader_random_crop", True),
+    ("loader_augs", True),
+    ("model_config_sha256", "0" * 64),
+])
+def test_a_loose_input_that_moved_is_a_stamped_deviation(tmp_path, key, value):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    context = dict(fixture, allow_non_canonical=False)
+    if key.startswith("loader_"):
+        context["loader"] = dict(rc.REGISTERED_LOADER, **{key: value})
+    else:
+        context[key] = value
+    with pytest.raises(ValueError, match="is not the registered"):
+        rc.build_report(results, context, n_boot=rc.BOOTSTRAP_N)
+    stamped = rc.build_report(results, dict(context, allow_non_canonical=True),
+                              n_boot=rc.BOOTSTRAP_N)
+    assert [d["input"] for d in stamped["protocol"]["deviations"]] == [key]
+    assert stamped["input_surface"][key]["matches_registered"] is False
+
+
+def test_a_bootstrap_at_another_level_is_a_stamped_deviation(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    with pytest.raises(ValueError, match="bootstrap_alpha .* is not the registered"):
+        rc.build_report(results, dict(fixture, allow_non_canonical=False),
+                        n_boot=rc.BOOTSTRAP_N, alpha=0.1)
+    stamped = rc.build_report(results, fixture, n_boot=rc.BOOTSTRAP_N, alpha=0.1)
+    assert [d["input"] for d in stamped["protocol"]["deviations"]] == ["bootstrap_alpha"]
+    assert stamped["protocol"]["bootstrap"]["alpha"] == 0.1
+
+
+def test_a_cpu_control_is_refused_at_startup_unless_it_is_declared(capsys):
+    base = ["--run-dir", "run", "--out-dir", "out", "--expect-bank-sha256", "a" * 64]
+    with pytest.raises(SystemExit, match="--device"):
+        rc.validate_args(rc.parse_args(base))                       # the cpu default
+    assert rc.validate_args(rc.parse_args(base + ["--non-canonical"])) is True
+    assert "cuda" in capsys.readouterr().out
+    assert rc.validate_args(rc.parse_args(base + ["--device", "cuda:1"])) is True
+
+
 def test_the_registered_values_are_the_ones_the_r1_report_enforces():
     # cross-pin (r9e): duplicated rather than imported into the module this round
     # so the control does not couple to r9d's file mid-flight; this assert is the
@@ -1226,7 +1478,7 @@ def test_the_binding_is_built_by_the_drivers_own_builder(tmp_path):
 
 def test_the_cli_defaults_are_the_registered_settings():
     args = rc.parse_args(["--run-dir", "run", "--out-dir", "out",
-                          "--expect-bank-sha256", "a" * 64])
+                          "--expect-bank-sha256", "a" * 64, "--device", "cuda"])
     assert args.bank_rule == rc.REGISTERED_BANK_RULE
     assert args.bootstrap_seed == rc.BOOTSTRAP_SEED and args.n_boot == rc.BOOTSTRAP_N
     assert args.metadata_root == os.path.join("AcousticRooms", "metadata")
@@ -1238,12 +1490,12 @@ def test_the_cli_defaults_are_the_registered_settings():
 
 
 def test_a_scoring_run_without_a_pre_registered_digest_is_refused_at_startup():
-    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out"])
+    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out", "--device", "cuda"])
     with pytest.raises(SystemExit, match="--expect-bank-sha256"):
         rc.validate_args(args)
     # ... and --non-canonical is the only way through, announced on stdout
     assert rc.validate_args(rc.parse_args(["--run-dir", "run", "--out-dir", "out",
-                                           "--non-canonical"])) is True
+                                           "--device", "cuda", "--non-canonical"])) is True
 
 
 def test_the_digest_mode_needs_no_run_and_prints_the_value_to_pre_register(
@@ -1262,6 +1514,7 @@ def test_the_digest_mode_needs_no_run_and_prints_the_value_to_pre_register(
     assert rc.main(["--print-bank-sha256",
                     "--context-manifest", fixture["context_manifest"],
                     "--metadata-root", fixture["metadata_root"],
+                    "--dataset-config", fixture["dataset_config"],
                     "--dataset-root", fixture["dataset_root"]]) == 0
     out = capsys.readouterr().out
     assert fixture["bank_document"]["sha256"] in out
@@ -1284,7 +1537,7 @@ def test_a_control_may_not_write_into_the_run_it_reports_against(tmp_path):
 
 def test_the_unregistered_bank_rule_is_announced_rather_than_silently_taken(capsys):
     args = rc.parse_args(["--run-dir", "run", "--out-dir", "out", "--non-canonical",
-                          "--bank-rule", "released_eligible_pool"])
+                          "--device", "cuda", "--bank-rule", "released_eligible_pool"])
     assert rc.validate_args(args) is True
     assert "not the registered" in capsys.readouterr().out
 
@@ -1296,7 +1549,8 @@ def test_the_unregistered_bank_rule_is_announced_rather_than_silently_taken(caps
     (["--n-boot", "128"], "bootstrap"),
 ])
 def test_a_canonical_run_refuses_a_deviating_setting_at_startup(argv, message):
-    base = ["--run-dir", "run", "--out-dir", "out", "--expect-bank-sha256", "a" * 64]
+    base = ["--run-dir", "run", "--out-dir", "out", "--expect-bank-sha256", "a" * 64,
+            "--device", "cuda"]
     with pytest.raises(SystemExit, match=message):
         rc.validate_args(rc.parse_args(base + argv))
     # ... and passes once the deviation is declared
