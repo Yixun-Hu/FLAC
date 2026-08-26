@@ -921,15 +921,27 @@ class TruthResolver:
             raise ValueError(f"{record['query_id']}: no pair metadata for (S{src_node}, "
                              f"R{rec_node}) under "
                              f"{os.path.join(self.metadata_root, scene, scene_id)!r}")
-        with open(path) as handle:
-            payload = json.load(handle)
+        # ONE read. The digest and the coordinates come out of the SAME buffer,
+        # so there is no window between hashing a file and parsing it in which
+        # the file could be swapped -- the r9i review's pair-JSON swap
+        # (meshgrid_report.py:924) was exactly that window, and closing it is a
+        # matter of construction rather than of a tighter check.
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        digest = hashlib.sha256(raw).hexdigest()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError(f"{record['query_id']}: {path} is not readable as JSON "
+                             f"({error}); the truth cannot be parsed out of the bytes that "
+                             "were digested") from error
         receiver = np.asarray(payload["rec_loc"], dtype=np.float64).reshape(3)
         source = np.asarray(payload["src_loc"], dtype=np.float64).reshape(3)
         if not (np.isfinite(receiver).all() and np.isfinite(source).all()):
             raise ValueError(f"{record['query_id']}: {path} carries a non-finite coordinate")
         self.pair_files[str(record["query_id"])] = {
             "path": os.path.relpath(path, self.metadata_root),
-            "sha256": me.file_sha256(path)}
+            "sha256": digest}
         return receiver, source
 
     def metadata_bank_digest(self):

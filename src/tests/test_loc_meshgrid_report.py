@@ -1898,3 +1898,88 @@ def test_the_bank_digest_can_reuse_records_a_caller_already_loaded(tmp_path):
                                                    records=fixture["records"])
     assert from_records["metadata_bank_sha256"] == from_file["metadata_bank_sha256"]
     assert from_records["n_pair_files"] == from_file["n_pair_files"]
+
+
+# --------------------------------------------------------------------------- #
+# r9j: the last items from the Codex r9i verify pass
+# --------------------------------------------------------------------------- #
+def test_the_truth_is_parsed_out_of_the_very_bytes_that_were_hashed(tmp_path):
+    """Item 1: hashing one read and parsing another leaves a swap window."""
+    fixture = build_fixture_run(tmp_path)
+    resolver = mr.TruthResolver(fixture["metadata_root"])
+    record = fixture["records"][0]
+
+    opened = []
+    real_open = open
+
+    def _spy(path, *args, **kwargs):
+        if str(path).endswith(".json") and "metadata" in str(path):
+            opened.append(str(path))
+        return real_open(path, *args, **kwargs)
+
+    import builtins
+    builtins.open = _spy
+    try:
+        receiver, truth = resolver.resolve(record)
+    finally:
+        builtins.open = real_open
+
+    # ONE read of the pair file: the digest and the coordinates share a buffer,
+    # so no swap can sit between them
+    assert len(opened) == 1, opened
+    assert resolver.pair_files[record["query_id"]]["sha256"] == \
+        me.file_sha256(opened[0])
+    assert truth.tolist() == list(FIXTURE_QUERIES[record["room_id"]][0][4])
+    assert receiver.tolist() == list(FIXTURE_QUERIES[record["room_id"]][0][2])
+
+
+def test_the_recorded_digest_is_of_the_bytes_that_produced_the_truth(tmp_path):
+    """A reader that returns different bytes on a second read cannot split them."""
+    fixture = build_fixture_run(tmp_path)
+    record = fixture["records"][0]
+    scene, scene_id = record["room_id"].split("/")
+    path = os.path.join(fixture["metadata_root"], scene, scene_id, "S001_R002.json")
+    honest = json.load(open(path))
+    mirrored = _mirrored_truth(record["room_id"])
+
+    calls = {"n": 0}
+    real_open = open
+    import builtins
+
+    def _swapping(target, *args, **kwargs):
+        # a reader that serves the honest bytes first and the mirrored bytes
+        # second -- the r9i attack. With one read it can only serve one.
+        if str(target) == path:
+            calls["n"] += 1
+            payload = honest if calls["n"] == 1 else dict(honest, src_loc=mirrored)
+            import io
+            data = json.dumps(payload).encode()
+            return io.BytesIO(data) if "b" in (args[0] if args else kwargs.get("mode", "r")) \
+                else io.StringIO(data.decode())
+        return real_open(target, *args, **kwargs)
+
+    builtins.open = _swapping
+    try:
+        resolver = mr.TruthResolver(fixture["metadata_root"])
+        _receiver, truth = resolver.resolve(record)
+    finally:
+        builtins.open = real_open
+
+    assert calls["n"] == 1                       # only one chance to serve bytes
+    digest = resolver.pair_files[record["query_id"]]["sha256"]
+    # the digest IS of the bytes the truth came out of
+    served = json.dumps(honest).encode()
+    import hashlib as _h
+    assert digest == _h.sha256(served).hexdigest()
+    assert truth.tolist() == honest["src_loc"]
+
+
+def test_an_unparseable_pair_file_is_refused_by_the_single_read_path(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    record = fixture["records"][0]
+    scene, scene_id = record["room_id"].split("/")
+    path = os.path.join(fixture["metadata_root"], scene, scene_id, "S001_R002.json")
+    with open(path, "wb") as handle:
+        handle.write(b"\xff\xfe not json at all")
+    with pytest.raises(ValueError, match="not readable as JSON"):
+        mr.TruthResolver(fixture["metadata_root"]).resolve(record)
