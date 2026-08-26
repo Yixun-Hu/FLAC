@@ -317,3 +317,6 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `cda347e` exp_22 r9d (2): probe gates before import, one-direction publish (B4/B5/M9, disclosures)
 - `613193e` `94eddaa` exp_22 r9g: complete batching stamps mandatory; probe computes+compares bank digest pre-import; publication gate unified; renames inside rollback
 - `fbdffc1` `e2bd859` `8528283` `40aab70` exp_22 r9h: one root for digest+scoring; byte continuity (hash-verified reads, verify-before-read); device/alpha/loader-values registered-bound
+- `4e9817a` `e1d6193` exp_22 r9j: read-once truth parse; observation tied to rows; journaled crash-atomic publication; fail-closed canonicality
+- `60d7a5d` exp_22 r9k: one read per pair file; verdict cannot outrank walk gates
+- `926093a` exp_22 r9j2: observation PINNED by pre-registered digest (print/expect-observation-bank-sha256)
