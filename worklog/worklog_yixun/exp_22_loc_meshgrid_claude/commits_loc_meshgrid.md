@@ -304,3 +304,5 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 
 **Suite after exp22-r8b:** **3,044 passed, 11 skipped, 0 failures**, 2 subtests passed
 (10 m 44 s) — 3,036 after r8 plus the 8 new r8b tests (engine file 130 → 138).
+- `bc1ebea` exp_22 r9 (1): meshgrid_report.py + tests — R1 aggregation, gates-before-numbers
+- `2d44d8e` exp_22 r9 (2): meshgrid_offgrid_probe.py + tests — §2 off-grid truth + calibration controls
