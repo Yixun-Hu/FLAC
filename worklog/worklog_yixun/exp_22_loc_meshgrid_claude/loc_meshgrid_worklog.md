@@ -115,3 +115,6 @@ RESOLVED: B2 B5 M6 M7 M8 + disclosures + retrieval model_config + K=1 cosine. Bl
 
 ## r9g + r9h delivered (2026-08-26 ~01:10 EDT)
 All r9f blocking items + residuals closed. Suite **3,358 / 11 / 0** at final HEAD; report+probe 184 tests, retrieval control 130. Frozen pre-registered digests UNCHANGED by the refactor (sparse bank recomputed = 39f0a119…, roots agree on the released config, loader values == REGISTERED_LOADER). Final Codex verify pass r9i launched.
+
+## Codex r9i: REJECT, 4-item minimal set (2026-08-26 ~02:20 EDT)
+12/18 rows RESOLVED. Blocking: (1) pair-JSON verify-then-REOPEN (retrieval :1278, report resolver :924) — parse the verified bytes; (2) off-grid live obs_wav unbound to the obs behind the frozen grid rows; (3) NPZ rename/bookkeeping crash gap; (4) fail-open canonicality joins (--non-canonical ignored in JSON/md path; retrieval top-level canonical ignores walk-derived digest_verified). r9j (report/probe) + r9k (retrieval) dispatched.
