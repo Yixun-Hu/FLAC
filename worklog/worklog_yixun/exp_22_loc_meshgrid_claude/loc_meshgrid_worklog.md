@@ -127,3 +127,6 @@ Retrieval control fully RESOLVED (all rows). Blocking: (1) probe's fresh resolve
 
 ## r9m delivered (2026-08-26 ~02:55 EDT)
 All three r9l items closed: probe truth from frozen-bank-verified buffers; observation byte->tensor single path (decode bit-identity to the released loader verified on real data); report rows+sidecars single-buffer parse cross-pinned to the engine's verifiers. Suite **3,409 / 11 / 0** (slice 502/1). All three frozen digests recomputed UNCHANGED. Verify pass r9n launched.
+
+## Codex r9n: REJECT, ONE blocker (2026-08-26 ~03:30 EDT)
+Items 1-2 RESOLVED. Sole remaining: probe CLI census verifies-then-discards rows/sidecars; the walk reopens them — a coherent row+sidecar replacement between phases can pass. r9m2 dispatched (bind walk reads to the census snapshot digests).
