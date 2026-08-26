@@ -408,7 +408,8 @@ def test_the_probe_summary_refuses_an_empty_record_set():
 # the CLI
 # --------------------------------------------------------------------------- #
 def test_the_cli_defaults_are_the_registered_protocol():
-    args = op.parse_args(["--ckpt-path", "c.ckpt", "--run-dir", "run", "--out-dir", "out"])
+    args = op.parse_args(["--ckpt-path", "c.ckpt", "--run-dir", "run", "--out-dir", "out",
+                          "--non-canonical"])
     assert args.seed == me.SEED and args.tau == me.TAU
     assert args.num_samples == me.NUM_SAMPLES
     assert args.k_prefixes == list(me.K_PREFIXES)
@@ -434,7 +435,7 @@ def test_the_cli_refuses_an_unregistered_protocol(argv):
 
 def test_a_control_may_not_write_into_the_run_it_reports_against(tmp_path):
     args = op.parse_args(["--ckpt-path", "c.ckpt", "--run-dir", str(tmp_path),
-                          "--out-dir", str(tmp_path)])
+                          "--out-dir", str(tmp_path), "--non-canonical"])
     with pytest.raises(SystemExit, match="may not be the scored run directory"):
         op.validate_args(args)
 
@@ -566,7 +567,8 @@ def test_the_binding_gate_runs_before_anything_reaches_a_device(tmp_path, monkey
                  "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
                  "--agree-ckpt", fixture["context_manifest"],
                  "--audit-report", fixture["audit_report"],
-                 "--context-manifest", fixture["context_manifest"]])
+                 "--context-manifest", fixture["context_manifest"],
+                 "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
     assert order == ["gate"]
 
 
@@ -576,6 +578,7 @@ def test_gate_run_touches_no_device_and_returns_the_whole_ladder(tmp_path, monke
                           "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
+                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
                           "--device", "cuda:0"])
     monkeypatch.setattr(op.torch, "load", lambda *a, **k: {"model_config": {}})
     monkeypatch.setattr(mq, "load_manifest",
@@ -590,10 +593,11 @@ def test_gate_run_touches_no_device_and_returns_the_whole_ladder(tmp_path, monke
 
     import localize_meshgrid as driver
     monkeypatch.setattr(driver, "build_run_binding", _binding)
-    monkeypatch.setattr(driver, "validate_checkpoint", lambda *a, **k: None)
+    monkeypatch.setattr(op, "_load_and_validate_checkpoint", lambda *a, **k: {})
     plan, manifest, binding, gate, _ckpt = op.gate_run(args, {},
                                                        fixture["context_manifest"],
-                                                       totals=fixture["totals"])
+                                                       totals=fixture["totals"],
+                                                       require_manifest_census=False)
     assert sorted(plan.rooms) == sorted(fx.FIXTURE_QUERIES)
     assert gate["census"]["n_queries"] == fixture["totals"]["queries"]
     assert gate["identity_join"]["n_queries"] == fixture["totals"]["queries"]
@@ -658,3 +662,224 @@ def test_the_probe_report_carries_the_run_gate_and_every_disclosure(tmp_path):
     assert "strictly beats every candidate" in markdown
     assert "ties the best" in markdown
     assert mr.TRUTH_BINDING_NOTE in markdown
+
+
+# --------------------------------------------------------------------------- #
+# r9d: the residuals the consolidated Codex r9c re-review left open
+# --------------------------------------------------------------------------- #
+def test_a_failed_gate_never_imports_eval_flac(tmp_path):
+    """B5: eval_FLAC's function defaults call torch.cuda.is_available() at import.
+
+    Run in a subprocess, because by the time this file executes the module may
+    already be resident from another test -- and the claim is about what a
+    refused run touches, which only a fresh interpreter can settle.
+    """
+    import subprocess
+    import sys
+    import textwrap
+
+    fixture = _probe_fixture(tmp_path)
+    script = textwrap.dedent(f"""
+        import sys
+        sys.path.insert(0, {os.getcwd()!r})
+        from src.localization import meshgrid_offgrid_probe as op
+        assert "eval_FLAC" not in sys.modules, "importing the control pulled eval_FLAC"
+        args = op.parse_args([
+            "--ckpt-path", {fixture["context_manifest"]!r},
+            "--run-dir", {fixture["shards"][0]!r},
+            "--out-dir", {fixture["out_dir"]!r},
+            "--audit-report", {fixture["audit_report"]!r},
+            "--context-manifest", {fixture["context_manifest"]!r},
+            "--expect-metadata-bank-sha256", {fixture["metadata_bank_sha256"]!r}])
+        try:
+            op.gate_run(args, {{}}, {fixture["context_manifest"]!r},
+                        totals={fixture["totals"]!r}, require_manifest_census=False)
+        except ValueError:
+            pass                      # WHICH gate refuses is not the claim here
+        else:
+            raise AssertionError("the gate should have refused this run")
+        assert "eval_FLAC" not in sys.modules, "a REFUSED run still imported eval_FLAC"
+        assert "eval_localization" not in sys.modules
+        print("OK")
+    """)
+    done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                          timeout=600)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "OK" in done.stdout
+
+
+def test_the_checkpoint_is_read_only_after_every_gate_has_passed(tmp_path, monkeypatch):
+    """The same claim, cheaply: a refused gate never reaches the checkpoint."""
+    import localize_meshgrid as driver
+
+    fixture = _probe_fixture(tmp_path)
+    touched = []
+    monkeypatch.setattr(op, "_load_and_validate_checkpoint",
+                        lambda *a, **k: touched.append("ckpt") or {})
+    # a binding that MATCHES, so the merge-report gate is the one that fires
+    monkeypatch.setattr(driver, "build_run_binding",
+                        lambda *a, **k: dict(fixture["binding"]))
+    args = op.parse_args(["--ckpt-path", fixture["context_manifest"],
+                          "--run-dir", fixture["shards"][0],
+                          "--out-dir", fixture["out_dir"],
+                          "--audit-report", fixture["audit_report"],
+                          "--context-manifest", fixture["context_manifest"],
+                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
+    with pytest.raises(ValueError, match="merge_report.json"):
+        op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+    assert touched == []
+
+    # and when every gate passes, the checkpoint IS read -- the test would be
+    # vacuous if the call had simply been removed
+    touched.clear()
+    args = op.parse_args(["--ckpt-path", fixture["context_manifest"],
+                          "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
+                          "--audit-report", fixture["audit_report"],
+                          "--context-manifest", fixture["context_manifest"],
+                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
+    op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                require_manifest_census=False)
+    assert touched == ["ckpt"]
+
+
+def test_a_canonical_control_requires_the_pre_registered_bank_digest():
+    base = ["--ckpt-path", "c.ckpt", "--run-dir", "r", "--out-dir", "o"]
+    with pytest.raises(SystemExit, match="requires the PRE-REGISTERED"):
+        op.validate_args(op.parse_args(base))
+    assert op.validate_args(op.parse_args(base + ["--non-canonical"])) is True
+    assert op.validate_args(op.parse_args(
+        base + ["--expect-metadata-bank-sha256", "a" * 64])) is True
+
+
+def test_the_probe_digest_mode_needs_nothing_but_the_tree():
+    args = op.parse_args(["--print-metadata-bank-digest"])
+    assert args.ckpt_path is None and args.run_dir is None
+    assert op.validate_args(args) is True
+
+
+def test_the_probe_canonical_status_names_each_relaxation(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    gate = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    gate["metadata_bank_expected"] = fixture["metadata_bank_sha256"]
+    assert op.probe_canonical_status(gate)["canonical"] is True
+
+    gate["metadata_bank_expected"] = None
+    status = op.probe_canonical_status(gate)
+    assert [reason["gate"] for reason in status["reasons"]] == ["metadata_bank"]
+    assert "NON-CANONICAL" in status["note"]
+
+    gate["single_shard"] = True
+    assert sorted(reason["gate"] for reason in op.probe_canonical_status(gate)["reasons"]) == \
+        ["merge_report", "metadata_bank"]
+
+
+def test_a_dump_carries_its_own_sensitivity_status_and_disclosures(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, non_canonical=False)
+    op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                          fixture["binding_sha256"], provenance={},
+                          tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    for record in records:
+        assert record["sensitivity_status"] == op.CANONICAL_STATUS_CANONICAL
+        with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert str(data["sensitivity_status"]) == op.CANONICAL_STATUS_CANONICAL
+            assert str(data["latency_scope_note"]) == mr.LATENCY_SCOPE_NOTE
+            assert str(data["truth_binding_note"]) == mr.TRUTH_BINDING_NOTE
+            assert json.loads(str(data["controls_elsewhere"])) == mr.CONTROLS_ELSEWHERE
+
+
+def test_a_non_canonical_run_stamps_every_dump_as_one(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, non_canonical=True)
+    for record in records:
+        assert record["sensitivity_status"] == op.CANONICAL_STATUS_NON_CANONICAL
+        staged = os.path.join(fixture["out_dir"], record["waveform_staged_path"])
+        with np.load(staged) as data:
+            assert "NON-CANONICAL" in str(data["sensitivity_status"])
+
+
+def test_the_manifest_is_written_before_any_final_leaves_quarantine(tmp_path, monkeypatch):
+    """M9: a crash during the move must not leave unmanifested finals."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    seen = {}
+
+    real_publish = op.publish_probe_waveforms
+
+    def _publish(out_dir, recs):
+        seen["manifest_existed"] = os.path.isfile(
+            os.path.join(str(out_dir), op.PROBE_REPORT_JSON))
+        seen["markdown_existed"] = os.path.isfile(
+            os.path.join(str(out_dir), op.PROBE_REPORT_MARKDOWN))
+        return real_publish(out_dir, recs)
+
+    monkeypatch.setattr(op, "publish_probe_waveforms", _publish)
+    op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                          fixture["binding_sha256"], provenance={},
+                          tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    assert seen["manifest_existed"] is True
+    assert seen["markdown_existed"] is True
+
+
+def test_a_failed_move_rolls_every_dump_back_into_quarantine(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    assert len(records) >= 2
+    # the second dump vanishes between staging and publication
+    os.remove(os.path.join(fixture["out_dir"], records[1]["waveform_staged_path"]))
+    with pytest.raises(ValueError, match="the staged dump"):
+        op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                              fixture["binding_sha256"], provenance={},
+                              tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    # the first one was moved and is rolled back: no partial published set
+    published = os.path.join(fixture["out_dir"], op.WAVEFORM_DIRNAME)
+    assert [name for name in os.listdir(published) if name.endswith(".npz")] == []
+    assert os.path.isfile(os.path.join(fixture["out_dir"],
+                                       records[0]["waveform_staged_path"]))
+
+
+def test_a_published_set_that_does_not_match_the_manifest_is_refused(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                          fixture["binding_sha256"], provenance={},
+                          tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    assert op.verify_published_probe(fixture["out_dir"], records)["verified"] is True
+    os.remove(os.path.join(fixture["out_dir"], records[0]["waveform_path"]))
+    with pytest.raises(ValueError, match="does not match the manifest"):
+        op.verify_published_probe(fixture["out_dir"], records)
+
+
+def test_the_off_grid_markdown_renders_the_latency_scope_and_controls(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate={"single_shard": False, "metadata_bank_expected": "a" * 64,
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
+    markdown = open(published["markdown"]).read()
+    assert mr.LATENCY_SCOPE_NOTE in markdown
+    assert "§2 controls that are NOT in this report" in markdown
+    for name in mr.CONTROLS_ELSEWHERE:
+        assert name in markdown
+    assert "NON-CANONICAL" not in markdown
+
+
+def test_a_non_canonical_control_says_so_in_its_markdown(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate={"single_shard": True, "metadata_bank_expected": None,
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
+    payload = json.load(open(published["json"]))
+    assert payload["canonical_status"]["canonical"] is False
+    markdown = open(published["markdown"]).read()
+    assert "NON-CANONICAL" in markdown
+    assert "`metadata_bank`" in markdown

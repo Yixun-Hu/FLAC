@@ -316,9 +316,17 @@ WAVEFORM_NOTE = ("off-grid truth generations [K, 1, T], the observation and the 
                  "bank they are calibrated against (announcement 08 exp_22 exemption: the "
                  "sixteen registered probe queries)")
 
+#: what a dump says about its own standing when the caller did not say.
+CANONICAL_STATUS_UNKNOWN = ("status not declared by the caller; consult the probe report's "
+                            "canonical_status")
+CANONICAL_STATUS_CANONICAL = "CANONICAL: every registered gate of the run and this control passed"
+CANONICAL_STATUS_NON_CANONICAL = (
+    "NON-CANONICAL: a gate was relaxed or unmet (see canonical_status in the probe report); "
+    "these generations are a diagnostic and may not be quoted as the registered result")
+
 
 def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, context_audio,
-                          truth_xyz, receiver_xyz, query_id=None):
+                          truth_xyz, receiver_xyz, query_id=None, status_label=None):
     """One probe query's dump, STAGED with its digest and its own labels.
 
     Staged, not published: a dump finalized the moment its query finished would
@@ -354,33 +362,66 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  subset=np.array(mr.SUBSET_LABEL),
                  agree_leakage_caveat=np.array(me.AGREE_LEAKAGE_CAVEAT),
                  scorer_readout_deviation=np.array(me.SCORER_READOUT_DEVIATION),
+                 # a dump gets read on its own, so it carries the same
+                 # disclosures the JSON does (Codex r9c review, disclosure minor)
+                 latency_scope_note=np.array(mr.LATENCY_SCOPE_NOTE),
+                 truth_binding_note=np.array(mr.TRUTH_BINDING_NOTE),
+                 controls_elsewhere=np.array(json.dumps(mr.CONTROLS_ELSEWHERE,
+                                                        sort_keys=True)),
+                 sensitivity_status=np.array(str(status_label or CANONICAL_STATUS_UNKNOWN)),
                  waveform_note=np.array(WAVEFORM_NOTE))
     os.replace(tmp, path)
     return {"waveform_path": os.path.join(WAVEFORM_DIRNAME, name),
+            "sensitivity_status": str(status_label or CANONICAL_STATUS_UNKNOWN),
             "waveform_staged_path": os.path.relpath(path, str(out_dir)),
             "waveform_sha256": me.file_sha256(path),
             "waveform_published": False,
             "waveform_note": WAVEFORM_NOTE}
 
 
+def _rollback_published(moved):
+    """Put every already-moved dump back in quarantine, best effort.
+
+    A half-moved set is the one state the publish contract forbids: either the
+    quarantine holds everything, or the published set is complete (Codex r9c
+    review, M9). Rolling a rename back is another rename, so the recovery is as
+    reliable as the move was.
+    """
+    for target, source in reversed(moved):
+        try:
+            os.makedirs(os.path.dirname(source), exist_ok=True)
+            os.replace(target, source)
+        except OSError:                       # noqa: PERF203 -- best effort by design
+            pass
+    return len(moved)
+
+
 def publish_probe_waveforms(out_dir, records):
     """Move every staged dump into place -- only once the control is complete.
 
     The digest was taken at staging time and the bytes do not change, so the
-    published file's sha256 is the one the manifest already records.
+    published file's sha256 is the one the manifest already records. Any failure
+    rolls every completed move back into quarantine, so the directory is never
+    left holding a partial published set.
     """
-    published = []
+    published, moved = [], []
     for record in records:
         source = os.path.join(str(out_dir), record["waveform_staged_path"])
         target = os.path.join(str(out_dir), record["waveform_path"])
         if not os.path.isfile(source):
+            _rollback_published(moved)
             raise ValueError(f"{record['query_id']}: the staged dump {source!r} is gone; the "
                              "control may not publish a manifest naming a file it cannot move")
         os.makedirs(os.path.dirname(target), exist_ok=True)
         os.replace(source, target)
-        if me.file_sha256(target) != record["waveform_sha256"]:
-            raise ValueError(f"{record['query_id']}: the published dump does not match the "
-                             "digest recorded at staging time")
+        moved.append((target, source))
+        try:
+            if me.file_sha256(target) != record["waveform_sha256"]:
+                raise ValueError(f"{record['query_id']}: the published dump does not match the "
+                                 "digest recorded at staging time")
+        except Exception:
+            _rollback_published(moved)
+            raise
         record["waveform_published"] = True
         published.append(record["waveform_path"])
     staging = os.path.join(str(out_dir), WAVEFORM_STAGING_DIRNAME)
@@ -389,18 +430,48 @@ def publish_probe_waveforms(out_dir, records):
     return published
 
 
+def probe_canonical_status(gate):
+    """Whether this control may be quoted as the registered off-grid result.
+
+    Mirrors ``meshgrid_report.canonical_status``: one authority, read by the
+    JSON, the Markdown and the embedded NPZ label alike.
+    """
+    gate = gate or {}
+    reasons = []
+    if gate.get("single_shard"):
+        reasons.append({"gate": "merge_report",
+                        "why": "the run this control ranks against publishes no census-gated "
+                               "merge receipt",
+                        "note": mr.SINGLE_SHARD_NOTE})
+    registered = gate.get("registered_protocol") or {}
+    if registered and not registered.get("is_registered", True):
+        reasons.append({"gate": "registered_protocol",
+                        "why": f"the run binding deviates on "
+                               f"{sorted(registered.get('deviations') or {})}",
+                        "note": mr.CKPT_SHA256_NOTE})
+    if not gate.get("metadata_bank_expected"):
+        reasons.append({"gate": "metadata_bank",
+                        "why": "no pre-registered pair-metadata bank digest was supplied",
+                        "note": mr.METADATA_BANK_PREREGISTRATION_NOTE})
+    return {"canonical": not reasons, "reasons": reasons,
+            "note": None if not reasons else mr.NON_CANONICAL_NOTE}
+
+
 def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
                        tau=me.TAU, prefixes=me.K_PREFIXES, gate=None):
     """Publish the probe's JSON + markdown, both stamped with every caveat.
 
-    The staged waveform dumps are moved into place FIRST and only here, so a
-    manifest and its files appear together or not at all.
+    The order is the contract (Codex r9c review, M9): the summary is computed,
+    then the JSON and the Markdown are written and flushed to disk, and only
+    then do the staged dumps leave quarantine -- with any failure during the move
+    rolling every completed one back. A crash therefore leaves either a
+    quarantine with no manifest, or a manifest whose every named file is present
+    and digest-verified; never a scatter of unmanifested finals.
     """
     os.makedirs(str(out_dir), exist_ok=True)
     records = list(records)
     # summarize FIRST: a refusal in here must not leave published dumps behind
     summary = summarize_probe(records, prefixes=prefixes)
-    publish_probe_waveforms(out_dir, records)
     report = {
         "experiment": "exp_22 loc_meshgrid R1 off-grid truth probe + AGREE calibration",
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -419,6 +490,7 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "run_gate": gate,
         "single_shard": bool((gate or {}).get("single_shard")),
         "single_shard_note": (gate or {}).get("single_shard_note"),
+        "canonical_status": probe_canonical_status(gate),
         # every artifact of this round carries the same disclosures, so an
         # off-grid output read on its own cannot lose them (r9 finding 10)
         "latency_scope_note": mr.LATENCY_SCOPE_NOTE,
@@ -434,14 +506,60 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "summary": summary,
     }
     path = os.path.join(str(out_dir), PROBE_REPORT_JSON)
-    me.write_json(path, mr.jsonable(report))
+    _write_json_durably(path, mr.jsonable(report))
     markdown = os.path.join(str(out_dir), PROBE_REPORT_MARKDOWN)
-    tmp = markdown + ".tmp"
-    with open(tmp, "w") as handle:
-        handle.write(render_markdown(report))
-    os.replace(tmp, markdown)
+    _write_text_durably(markdown, render_markdown(report))
+
+    # the manifest is on disk and fsynced; only now do the finals leave quarantine
+    publish_probe_waveforms(out_dir, records)
+    verify_published_probe(out_dir, records)
     return {"json": path, "markdown": markdown,
             "sha256": {"json": me.file_sha256(path), "markdown": me.file_sha256(markdown)}}
+
+
+def _fsync_path(path):
+    """Flush a written file, and the directory entry that names it, to disk."""
+    with open(path, "rb") as handle:
+        os.fsync(handle.fileno())
+    directory = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+    return path
+
+
+def _write_json_durably(path, payload):
+    """``meshgrid_engine.write_json`` plus the fsync the publish order needs."""
+    me.write_json(path, payload)
+    return _fsync_path(path)
+
+
+def _write_text_durably(path, text):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+    return _fsync_path(path)
+
+
+def verify_published_probe(out_dir, records):
+    """Every file the manifest names is present, and is the file it names."""
+    missing, wrong = [], []
+    for record in records:
+        path = os.path.join(str(out_dir), record["waveform_path"])
+        if not os.path.isfile(path):
+            missing.append(record["waveform_path"])
+        elif me.file_sha256(path) != record["waveform_sha256"]:
+            wrong.append(record["waveform_path"])
+    if missing or wrong:
+        raise ValueError(
+            f"the published dump set does not match the manifest just written: {len(missing)} "
+            f"file(s) missing (first {missing[:3]}) and {len(wrong)} with a different digest "
+            f"(first {wrong[:3]}); the control publishes a complete set or none")
+    return {"n_published": len(records), "verified": True}
 
 
 def summarize_probe(records, prefixes=me.K_PREFIXES):
@@ -501,7 +619,15 @@ def render_markdown(report):
     lines.append(f"- **AGREE leakage caveat:** {report['agree_leakage_caveat']}")
     lines.append(f"- **Scorer readout deviation:** {report['scorer_readout_deviation']}")
     lines.append(f"- **Truth binding:** {report['truth_binding_note']}")
+    lines.append(f"- **Latency scope:** {report['latency_scope_note']}")
     lines.append("")
+    status = report.get("canonical_status") or {}
+    if status.get("reasons"):
+        lines.append(f"> **{status['note']}**")
+        lines.append(">")
+        for reason in status["reasons"]:
+            lines.append(f"> - `{reason['gate']}` — {reason['why']}")
+        lines.append("")
     if report.get("single_shard"):
         lines.append(f"> **{report['single_shard_note']}**")
         lines.append("")
@@ -552,6 +678,13 @@ def render_markdown(report):
             f"{mr.format_number(record['calibration']['real_summary']['mean'], 4)} | "
             f"{mr.format_number(record['calibration']['generated_summary']['mean'], 4)} |")
     lines.append("")
+    lines.append("## §2 controls that are NOT in this report")
+    lines.append("")
+    for name, where in sorted(report["controls_elsewhere"].items()):
+        lines.append(f"- **{name}** — {where}")
+    lines.append("")
+    lines.append(f"_Latency scope:_ {report['latency_scope_note']}")
+    lines.append("")
     return "\n".join(lines) + "\n"
 
 
@@ -585,7 +718,8 @@ def load_grid_row(run_dir, query, binding_sha256=None, binding=None):
 def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
               binding_sha256=None, binding=None, seed=me.SEED, tau=me.TAU,
               num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
-              noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, on_record=None):
+              noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, non_canonical=None,
+              on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -615,6 +749,9 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         query_plans[query_id] = next(query for query in room_plan.queries
                                      if query.query_id == query_id)
 
+    status_label = (CANONICAL_STATUS_UNKNOWN if non_canonical is None else
+                    (CANONICAL_STATUS_NON_CANONICAL if non_canonical
+                     else CANONICAL_STATUS_CANONICAL))
     resolver = mr.TruthResolver(metadata_root)
     out, seen = [], set()
     for position, (obs_wav, raw_md) in enumerate(stream):
@@ -655,7 +792,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                                          md["context_audio"], waveforms)
         dump = write_probe_waveforms(out_dir, query.room_id, query.position, waveforms,
                                      obs_wav, md["context_audio"], truth, query.receiver_xyz,
-                                     query_id=query.query_id)
+                                     query_id=query.query_id, status_label=status_label)
 
         record_out = {
             "control_label": CONTROL_LABEL,
@@ -700,11 +837,12 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
 # --------------------------------------------------------------------------- #
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--ckpt-path", required=True,
-                        help="the frozen FLAC checkpoint the run was scored under")
-    parser.add_argument("--run-dir", required=True,
+    parser.add_argument("--ckpt-path", default=None,
+                        help="the frozen FLAC checkpoint the run was scored under; required "
+                             "except in --print-metadata-bank-digest mode")
+    parser.add_argument("--run-dir", default=None,
                         help="the MERGED I1 run directory the probe ranks against")
-    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--out-dir", default=None)
     parser.add_argument("--model-config",
                         default=os.path.join("src", "configs", "model_configs", "FLAC", "AR",
                                              "FLAC_AR.json"))
@@ -744,6 +882,18 @@ def parse_args(argv=None):
     parser.add_argument("--allow-protocol-deviation", action="store_true",
                         help="run even though the run binding is not the registered protocol; "
                              "the artifacts are then stamped as a sensitivity check")
+    parser.add_argument("--expect-metadata-bank-sha256", default=None,
+                        help="the PRE-REGISTERED pair-metadata bank digest the continuous "
+                             "truths must come out of. Required for a canonical control; "
+                             "obtain it with --print-metadata-bank-digest and commit it before "
+                             "any result exists")
+    parser.add_argument("--non-canonical", action="store_true",
+                        help="run without a pre-registered metadata-bank digest. "
+                             "Trust-on-first-use is not a canonical mode, so the report, the "
+                             "markdown and every NPZ are stamped NON-CANONICAL")
+    parser.add_argument("--print-metadata-bank-digest", action="store_true",
+                        help="PRE-REGISTRATION MODE: compute the pair-metadata bank digest from "
+                             "--context-manifest and --metadata-root, print it and exit")
     # the probe registers no dump case list: announcement 08 names its sixteen
     # queries directly. Present so build_run_binding can be reused unchanged.
     parser.add_argument("--dump-cases-sha256", default=None, help=argparse.SUPPRESS)
@@ -756,6 +906,15 @@ def _refuse(message):
 
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
+    if args.print_metadata_bank_digest:
+        return True
+    for name in ("ckpt_path", "run_dir", "out_dir"):
+        if not getattr(args, name):
+            _refuse(f"--{name.replace('_', '-')} is required to run the control")
+    if not args.expect_metadata_bank_sha256 and not args.non_canonical:
+        _refuse("a canonical off-grid control requires the PRE-REGISTERED pair-metadata bank "
+                f"digest. {mr.METADATA_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run "
+                "a diagnostic instead")
     if args.noise_policy != me.REGISTERED_NOISE_POLICY:
         _refuse(f"--noise-policy {args.noise_policy!r} cannot key an off-grid draw; "
                 f"{me.REGISTERED_NOISE_POLICY!r} is the registered policy and the only one "
@@ -776,7 +935,24 @@ def validate_args(args):
     return True
 
 
-def gate_run(args, model_config, agree_path, totals=None):
+def _load_and_validate_checkpoint(args, model_config):
+    """Read the checkpoint to CPU and validate it -- AFTER the artifact gates.
+
+    Isolated in its own function because ``validate_checkpoint`` is the first
+    thing in this tool that reaches ``eval_FLAC``, whose module-level function
+    defaults call ``torch.cuda.is_available()``. No allocation happens, but the
+    r9c review is right that a refused run should not have gone near the device
+    layer at all, so nothing calls this until every gate has passed.
+    """
+    from localize_meshgrid import validate_checkpoint
+
+    ckpt = torch.load(args.ckpt_path, map_location="cpu")
+    validate_checkpoint(args, model_config, ckpt)
+    return ckpt
+
+
+def gate_run(args, model_config, agree_path, totals=None,
+             require_manifest_census=True):
     """Every artifact gate, on CPU, BEFORE anything reaches a device.
 
     The r9 probe built its binding out of a LOADED AGREE model, which put the
@@ -787,15 +963,20 @@ def gate_run(args, model_config, agree_path, totals=None):
     registered protocol, merge report, row census, identity join -- is applied.
     Only after this returns does the caller load a model.
 
-    ``totals`` exists for fixtures, exactly as ``evaluate_run``'s does, and is
-    never passed by ``main``: a real run is always held to the registered census.
+    ``totals`` and ``require_manifest_census`` exist for fixtures, exactly as
+    ``evaluate_run``'s do, and are never passed by ``main``: a real run is always
+    held to the registered census.
     """
-    from localize_meshgrid import build_run_binding, validate_checkpoint
+    # localize_meshgrid itself imports only torch + src.localization, so the
+    # binding builder is safe to reach for here; validate_checkpoint is NOT --
+    # its body imports eval_localization -> eval_FLAC, whose function defaults
+    # evaluate torch.cuda.is_available() at import time (Codex r9c review, B5).
+    # It is therefore called only after every artifact gate has passed.
+    from localize_meshgrid import build_run_binding
 
     plan = me.load_audit_plan(args.audit_report, branch=args.branch)
-    manifest = mq.load_manifest(args.context_manifest)
-    ckpt = torch.load(args.ckpt_path, map_location="cpu")
-    validate_checkpoint(args, model_config, ckpt)
+    manifest = mq.load_manifest(args.context_manifest,
+                                require_census=require_manifest_census)
     binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
                                 agree_sha256=me.file_sha256(agree_path),
                                 model_config_sha256=me.file_sha256(args.model_config))
@@ -806,12 +987,29 @@ def gate_run(args, model_config, agree_path, totals=None):
         totals=totals, single_shard=args.single_shard,
         expect_ckpt_sha256=args.expect_ckpt_sha256,
         allow_protocol_deviation=args.allow_protocol_deviation))
+    if not args.expect_metadata_bank_sha256 and not args.non_canonical:
+        raise ValueError(
+            "a canonical off-grid control requires the PRE-REGISTERED pair-metadata bank "
+            f"digest. {mr.METADATA_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run a "
+            "diagnostic instead")
+    gate["metadata_bank_expected"] = args.expect_metadata_bank_sha256
+    gate["non_canonical"] = bool(args.non_canonical
+                                 or not args.expect_metadata_bank_sha256
+                                 or args.single_shard
+                                 or not gate["registered_protocol"]["is_registered"])
+    ckpt = _load_and_validate_checkpoint(args, model_config)
     return plan, manifest, binding, gate, ckpt
 
 
 def main(argv=None):
     args = parse_args(argv)
     validate_args(args)
+    if args.print_metadata_bank_digest:
+        verdict = mr.compute_metadata_bank_digest(args.context_manifest, args.metadata_root)
+        print(json.dumps(mr.jsonable(verdict), indent=2, sort_keys=True))
+        print(f"\nmetadata_bank_sha256 = {verdict['metadata_bank_sha256']}")
+        print(f"\n{mr.METADATA_BANK_PREREGISTRATION_NOTE}")
+        return 0
     print(f"{CONTROL_LABEL}\n")
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
     if args.single_shard:
@@ -860,7 +1058,8 @@ def main(argv=None):
         binding=gate["published"], seed=args.seed, tau=args.tau,
         num_samples=args.num_samples,
         prefixes=tuple(int(k) for k in args.k_prefixes), noise_policy=args.noise_policy,
-        source_chunk=args.source_chunk, on_record=_announce)
+        source_chunk=args.source_chunk, non_canonical=gate["non_canonical"],
+        on_record=_announce)
     published = write_probe_report(args.out_dir, probe_records, binding,
                                    gate["binding_sha256"],
                                    provenance={"run_dir": str(args.run_dir),
