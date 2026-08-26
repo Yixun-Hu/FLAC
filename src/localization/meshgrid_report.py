@@ -96,10 +96,11 @@ VISUALIZATION_T_LABEL = ("uncalibrated visualization softmax temperature T = 0.1
 VISUALIZATION_RULE = (
     "pre-registered quantile selection, computed AFTER every query is scored and a pure "
     "function of the results: the lowest-e_loc (sharp), the median-e_loc (ambiguous) and the "
-    "highest-e_loc (failure) query of the headline cell (log-mean-exp, K = 8). Queries are "
-    "ordered by (e_loc, global stream position), so ties are broken deterministically by the "
-    "smaller position; the median is the lower median at index (n - 1) // 2. Nothing is "
-    "hand-picked")
+    "highest-e_loc (failure) query of the headline cell (log-mean-exp, K = 8). Each quantile "
+    "first fixes an e_loc VALUE -- the minimum, the lower median at index (n - 1) // 2 of the "
+    "ascending errors, and the maximum -- and then names the query attaining that value with "
+    "the SMALLEST global stream position. The tie-break is therefore the same in all three "
+    "cases, including the highest-error one. Nothing is hand-picked")
 
 #: role of each aggregator, stamped into the report so a table cannot be read as
 #: promoting the diagnostic.
@@ -115,6 +116,71 @@ AGGREGATOR_ROLES = {
 ORACLE_TOLERANCE = 1e-9
 #: the metadata receiver must be the manifest receiver to this many metres.
 RECEIVER_TOLERANCE = 1e-6
+#: the loader's float32 ``md['source']`` vs the float64 pair-metadata difference.
+TRUTH_VECTOR_TOLERANCE = 1e-4
+
+#: The registered protocol constants (inherited plan §1.4; K fixed by Yixun
+#: 2026-08-21). A run binding that differs on any of these is a SENSITIVITY
+#: CHECK, not the canonical pass, so the report refuses it unless the deviation
+#: is explicitly allowed -- and then every artifact says so instead of continuing
+#: to call the settings pre-registered (Codex r9 review, finding 6).
+REGISTERED_PROTOCOL = {
+    "tau": me.TAU,
+    "k_prefixes": list(me.K_PREFIXES),
+    "num_samples": me.NUM_SAMPLES,
+    "seed": me.SEED,
+    "noise_policy": me.REGISTERED_NOISE_POLICY,
+    "steps": me.STEPS,
+    "cfg_scale": me.CFG_SCALE,
+    "cond_method": "vanilla",
+    "scorer_readout": me.SCORER_READOUT,
+    "cond_autocast": "default",
+}
+
+#: Artifact identities §1.4 pins BY DIGEST and that the published P1 binding
+#: reproduces, so they are enforced here rather than merely recorded.
+REGISTERED_ARTIFACT_SHA256 = {
+    "agree_ckpt_sha256": "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787",
+    "model_config_sha256": "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9",
+}
+
+#: ``ckpt_sha256`` is deliberately absent from the table above, and the reason
+#: has to travel with the report. §1.4 pins ``da12748586...``, which is the
+#: digest of the EMA EXTRACT; Yixun's 2026-08-24 decision 2d admits our own
+#: WRAPPED 40k checkpoints, hash-checked against that extract on arrival, so the
+#: run legitimately binds a different file (the published P1 binding is
+#: ``c4c67882...``). Pinning the plan's literal here would refuse the real pass.
+#: The digest is therefore always RECORDED and is enforced only against a value
+#: the operator supplies, with ``ckpt_sha256_pinned`` stamped either way.
+CKPT_SHA256_NOTE = (
+    "the inherited plan pins the EMA extract's digest (da12748586...) while Yixun's decision 2d "
+    "admits the wrapped 40k checkpoint that was hash-checked against it on arrival, so the run "
+    "binding's ckpt_sha256 is legitimately a different file's. It is recorded here always and "
+    "enforced only against an operator-supplied --expect-ckpt-sha256; ckpt_sha256_pinned says "
+    "which happened")
+
+#: A run that is not the census-gated merge of every shard is not the canonical
+#: pass, and the difference has to be visible in the artifact.
+SINGLE_SHARD_NOTE = (
+    "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
+    "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
+    "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
+    "source-row census -- were NOT applied. The artifact-hash joins, the identity join and the "
+    "row/sidecar digests still were. These numbers are a shard-local diagnostic and are not the "
+    "canonical 5,337-query P1 result")
+
+#: How the report authenticates the continuous truth it reads.
+TRUTH_BINDING_NOTE = (
+    "the continuous truth x*_s is pinned by no run artifact -- the engine is structurally unable "
+    "to read it and G1 publishes only the oracle DISTANCE -- so it is authenticated three ways "
+    "here. (1) The pair file's receiver must be the candidate manifest's. (2) The dense-grid "
+    "oracle re-derived from the G1 candidate block must equal the value the audit published; "
+    "that is a SCALAR and therefore not injective, so on its own it cannot separate two truths "
+    "mirrored inside one lattice cell (Codex r9 review, finding 3). (3) The pair metadata FILES "
+    "themselves are digested into a metadata-bank sha256 that is enforced against an "
+    "operator-supplied registered value, which is what actually closes the mirrored-truth gap "
+    "offline. Where a released loader stream is available -- the off-grid probe -- the truth is "
+    "additionally checked as a VECTOR against md['source'] + receiver, which is injective")
 
 #: What to do when the float16 sidecar's recomputed argmax differs from the
 #: row's float32 one.
@@ -128,26 +194,41 @@ RECEIVER_TOLERANCE = 1e-6
 #: float16 precision explains. Either way the published number always comes from
 #: the row's float32 score, never from the sidecar.
 #:
-#: Be precise about what "explained" can and cannot catch. If two score vectors
-#: over the SAME candidates disagree about the argmax, then the leader must have
-#: lost and the runner-up gained at least the gap between them, so the larger of
-#: the two moves is at least ``margin / 2`` -- i.e. ``margin <= 2 * deviation``
-#: holds for EVERY possible flip, by arithmetic. The "explained" branch is
-#: therefore a deliberate strictness setting, not a corruption detector; the
-#: corruption detectors are the row digest, the sidecar digest and the exact
-#: checks in :func:`evaluate_query` (which also pin the row's recorded ``margin``
-#: to its own scores, so a flip cannot be excused by an inflated margin).
+#: Be precise about what the margin rule can and cannot catch. If two score
+#: vectors over the SAME candidates disagree about the argmax, then the leader
+#: must have lost and the runner-up gained at least the gap between them, so the
+#: larger of the two moves is at least ``margin / 2`` -- i.e.
+#: ``margin <= 2 * deviation`` holds for EVERY possible flip, by arithmetic. That
+#: is why the flag is named :data:`argmax_flip_within_2dev` and not
+#: "explained_by_precision" (Codex r9 review, finding 7): the inequality states
+#: which flips are POSSIBLE, never that this one came from float16 rounding.
+#:
+#: What actually establishes the precision claim is a separate, ABSOLUTE check
+#: that runs for every cell whether or not an argmax moved: the sidecar must
+#: declare and carry float16, and the recomputed aggregate must sit inside the
+#: half-ulp bound a float16 quantization of the row's own similarities could
+#: produce (:func:`float16_quantization_bound`). A deviation above that bound
+#: means the sidecar is not a quantization of what the row was scored from, and
+#: it is a hard refusal under either policy.
 SIDECAR_ARGMAX_POLICIES = ("explained", "strict")
 SIDECAR_ARGMAX_POLICY = "explained"
+
+#: slack over the pure float16 half-ulp bound, absorbing the float32 rounding of
+#: the two aggregations themselves (the engine's and this recompute's).
+SIDECAR_FLOAT32_SLACK = 1e-5
+
 SIDECAR_ARGMAX_NOTE = (
     "per-sample similarities are published as float16 (the engine's SIMS_PRECISION_CAVEAT), so "
-    "an aggregate recomputed from the sidecar differs from the row's float32 aggregate by about "
-    "one float16 ulp. Under the engine's own stability rule a per-score bound eps can move a "
-    "top-1 gap by 2 eps, so a recomputed argmax may legitimately differ from the row's exactly "
-    "when the row's margin is <= 2x the measured sidecar deviation -- which, for two score "
-    "vectors over the same candidates, is every flip there can be. Those cases are COUNTED and "
-    "NAMED here; every published number is the row's float32 value, never the sidecar's, and "
-    "the row's own recorded margin is pinned to its own scores so it cannot excuse a flip")
+    "an aggregate recomputed from the sidecar differs from the row's float32 aggregate by at "
+    "most one float16 half-ulp plus float32 rounding -- an ABSOLUTE bound that is checked for "
+    "every cell, so a sidecar that is not a quantization of the row's own similarities is "
+    "refused even when no argmax moves. Separately, the engine's stability rule says a per-score "
+    "bound eps can move a top-1 gap by 2 eps; a recomputed argmax can therefore differ from the "
+    "row's whenever the row's margin is <= 2x the measured deviation, which for two score "
+    "vectors over the same candidates is every flip there can be. Those cases are COUNTED and "
+    "NAMED as argmax_flip_within_2dev; every published number is the row's float32 value, never "
+    "the sidecar's, and the row's own recorded margin is pinned to its own scores so it cannot "
+    "excuse a flip")
 
 #: §2 controls this report does NOT contain, named so a reader cannot mistake
 #: its silence for a null result. Both are published by their own tools.
@@ -233,6 +314,224 @@ def load_published_binding(run_dir):
                          f"{str(published.get('binding_sha256'))[:12]}... but hashes to "
                          f"{recomputed[:12]}...; it was edited after publication")
     return published, recomputed
+
+
+def assert_artifact_hashes(binding, plan, context_manifest):
+    """The files this report was HANDED are the ones the run was bound to.
+
+    Without this the binding authenticates only itself: a second, perfectly valid
+    G1 audit or D1 manifest could be passed on the command line and its geometry
+    and its context draws would silently decide every number, while the report
+    kept stamping the run's binding digest (Codex r9 review, finding 1). The
+    three digests are recomputed exactly as ``localize_meshgrid.build_run_binding``
+    computed them, so a match means byte identity and nothing weaker.
+    """
+    differing = {}
+    found = {"d1_manifest_sha256": me.file_sha256(context_manifest),
+             "g1_report_sha256": plan.report_sha256}
+    for field, value in found.items():
+        if binding.get(field) != value:
+            differing[field] = {"binding": binding.get(field), "supplied": value}
+
+    supplied_rooms = {room: me.file_sha256(path) for room, path in plan.rooms.items()}
+    bound_rooms = binding.get("room_manifest_sha256") or {}
+    if supplied_rooms != bound_rooms:
+        rooms = sorted(set(supplied_rooms) | set(bound_rooms))
+        first = next((room for room in rooms
+                      if supplied_rooms.get(room) != bound_rooms.get(room)), None)
+        differing["room_manifest_sha256"] = {
+            "n_rooms_differing": sum(1 for room in rooms
+                                     if supplied_rooms.get(room) != bound_rooms.get(room)),
+            "first_room": first,
+            "binding": bound_rooms.get(first), "supplied": supplied_rooms.get(first)}
+    if differing:
+        raise ValueError(
+            f"the artifacts this report was given are not the ones the run was bound to: "
+            f"{sorted(differing)} differ. First mismatch: {sorted(differing)[0]} = "
+            f"{differing[sorted(differing)[0]]!r}. A different -- even perfectly valid -- G1 "
+            "audit, D1 manifest or room manifest would decide the geometry and the context "
+            "draws behind every number while the report kept naming this run's binding")
+    return {"d1_manifest_sha256": found["d1_manifest_sha256"],
+            "g1_report_sha256": found["g1_report_sha256"],
+            "n_room_manifests": len(supplied_rooms)}
+
+
+def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None):
+    """A run presented as the canonical pass carries its census-gated merge.
+
+    ``merge_shards`` is where the merge-only gates live -- disjoint declared
+    rooms whose union is the registered set, ONE pinned advisory batching across
+    the whole pass, and the G1-derived source-row census. A hand-assembled
+    directory can satisfy every per-row check and still have skipped all of
+    them, so the merge report is required and re-joined here rather than merely
+    hashed if it happens to exist (Codex r9 review, finding 1).
+    """
+    totals = dict(me.REGISTERED_TOTALS if totals is None else totals)
+    path = os.path.join(str(run_dir), "merge_report.json")
+    if not os.path.isfile(path):
+        raise ValueError(
+            f"{run_dir} publishes no merge_report.json. The canonical R1 report is built on the "
+            "census-gated merge of every shard; a directory that was never merged has not "
+            "passed the disjoint-room, pinned-advisory or source-row gates. Pass "
+            "--single-shard to publish a shard-local diagnostic instead, which relaxes ONLY "
+            "this requirement")
+    with open(path) as handle:
+        report = json.load(handle)
+
+    reasons = []
+    if report.get("ok") is not True:
+        reasons.append(f"the merge report does not claim success (ok={report.get('ok')!r})")
+    if report.get("binding_sha256") != binding_sha256:
+        reasons.append(f"it was written under binding {str(report.get('binding_sha256'))[:12]}"
+                       f"... but this directory publishes {binding_sha256[:12]}...")
+    declared = sorted(report.get("declared_rooms") or [])
+    if declared != sorted(plan.rooms):
+        reasons.append(f"its declared rooms are not the audit's {len(plan.rooms)} "
+                       f"(declared {len(declared)}, first difference "
+                       f"{sorted(set(declared) ^ set(plan.rooms))[:1]})")
+    bound_rooms = sorted(binding.get("declared_rooms") or [])
+    if bound_rooms and bound_rooms != declared:
+        reasons.append("the merged binding's declared_rooms and the merge report's disagree")
+    advisory = report.get("advisory")
+    if advisory != binding.get("advisory"):
+        reasons.append(f"the advisory batching it pins ({advisory!r}) is not the one the merged "
+                       f"binding publishes ({binding.get('advisory')!r})")
+    if totals.get("queries") is not None and int(report.get("n_rows", -1)) != int(
+            totals["queries"]):
+        reasons.append(f"it merged {report.get('n_rows')} rows for a registered census of "
+                       f"{int(totals['queries'])}")
+    merged_totals = report.get("totals") or {}
+    for name in ("candidate_query_pairs", "source_rows", "generated_waveforms"):
+        wanted = totals.get(name)
+        if wanted is None:
+            continue
+        if int(merged_totals.get(name, -1)) != int(wanted):
+            reasons.append(f"its {name} census is {merged_totals.get(name)} for a registered "
+                           f"{int(wanted)}")
+    if reasons:
+        trailer = f" (and {len(reasons) - 1} more: {reasons[1:3]})" if len(reasons) > 1 else ""
+        raise ValueError(f"{path} does not authenticate this directory as the canonical merged "
+                         f"pass: {reasons[0]}{trailer}")
+    return {"merge_report_sha256": me.file_sha256(path), "declared_rooms": declared,
+            "advisory": advisory, "n_rows": int(report.get("n_rows", 0)),
+            "totals": {name: merged_totals.get(name)
+                       for name in ("candidate_query_pairs", "source_rows",
+                                    "generated_waveforms")},
+            "source_rows_derived_from": report.get("source_rows_derived_from")}
+
+
+def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False):
+    """The run binding IS the registered protocol, or the deviation is declared.
+
+    ``assert_row_protocol`` proves every row equals the binding; this proves the
+    binding equals the REGISTERED constants -- tau, the K ladder, the sample
+    count, the seed, the noise policy, the sampler settings, the conditioning
+    method and readout, plus the artifact digests §1.4 pins (Codex r9 review,
+    finding 6). A deviation refuses unless it is explicitly allowed, and when it
+    is allowed the verdict travels into the report and the markdown so no
+    artifact can keep calling the setting pre-registered.
+    """
+    deviations = {}
+    for field, wanted in REGISTERED_PROTOCOL.items():
+        found = binding.get(field)
+        if isinstance(wanted, list):
+            found = list(found or [])
+        if found != wanted:
+            deviations[field] = {"registered": wanted, "run": binding.get(field)}
+    for field, wanted in REGISTERED_ARTIFACT_SHA256.items():
+        if binding.get(field) != wanted:
+            deviations[field] = {"registered": wanted, "run": binding.get(field)}
+
+    ckpt_pinned = False
+    if expect_ckpt_sha256:
+        ckpt_pinned = True
+        if binding.get("ckpt_sha256") != str(expect_ckpt_sha256):
+            deviations["ckpt_sha256"] = {"registered": str(expect_ckpt_sha256),
+                                         "run": binding.get("ckpt_sha256")}
+    if deviations and not allow_deviation:
+        raise ValueError(
+            f"the run binding is not the registered protocol: {sorted(deviations)} differ. "
+            f"First: {sorted(deviations)[0]} = {deviations[sorted(deviations)[0]]!r}. A report "
+            "over a different tau, K ladder, seed, noise policy, sampler setting, scorer or "
+            "pinned artifact is a SENSITIVITY CHECK, not the canonical R1 result; pass "
+            f"--allow-protocol-deviation to publish it as one. {CKPT_SHA256_NOTE}")
+    return {"is_registered": not deviations, "deviations": deviations,
+            "checked": sorted(list(REGISTERED_PROTOCOL) + list(REGISTERED_ARTIFACT_SHA256)),
+            "ckpt_sha256": binding.get("ckpt_sha256"),
+            "ckpt_sha256_pinned": ckpt_pinned,
+            "ckpt_sha256_note": CKPT_SHA256_NOTE,
+            "deviation_allowed": bool(allow_deviation)}
+
+
+def plan_query_identities(plan, rooms=None):
+    """``{query_id: (room_id, position)}`` over the whole audit, dup-free.
+
+    A G1 manifest that named one query twice would let that query be scored --
+    and weighted -- twice, and one that quietly lost a query would produce
+    metrics over 5,336 while the census still said 5,337 (Codex r9 review,
+    finding 2). Duplicates are refused inside a room and across rooms.
+
+    This is the same rule ``meshgrid_retrieval_control.query_index`` applies per
+    room; kept here because the R1 report needs it over the WHOLE audit, and
+    pinned against that function by a test so the two cannot drift.
+    """
+    identities = {}
+    for room_id in sorted(plan.rooms if rooms is None else rooms):
+        room_plan = me.load_room_plan(plan, room_id)
+        seen = set()
+        for query in room_plan.queries:
+            if query.query_id in seen:
+                raise ValueError(f"{room_id}: the candidate manifest names "
+                                 f"{query.query_id!r} twice; the report cannot tell which entry "
+                                 "authenticates the query, and a duplicate would be weighted "
+                                 "twice")
+            seen.add(query.query_id)
+            if query.query_id in identities:
+                raise ValueError(f"{query.query_id!r} is published by both "
+                                 f"{identities[query.query_id][0]!r} and {room_id!r}; a query "
+                                 "belongs to exactly one room")
+            identities[query.query_id] = (room_id, int(query.position))
+    return identities
+
+
+def assert_identity_join(plan, records, rows):
+    """D1 identities == G1 plan queries == published rows, exactly and once each.
+
+    The census compares the ROWS to the D1 manifest and the room NAMES to the
+    audit; nothing compared the audit's actual query set to either, so a G1 plan
+    missing one query yielded partial metrics under a full-looking census
+    (Codex r9 review, finding 2). This is the final join, and it runs before a
+    single metric is taken.
+
+    It costs a second parse of the room manifests -- ~330 MB in production -- and
+    that is the price of the ordering: the join has to be complete before any
+    number is computed, and the metric pass reads the rooms one at a time.
+    """
+    plan_ids = plan_query_identities(plan)
+    expected = {str(record["query_id"]): (str(record["room_id"]), int(record["position"]))
+                for record in records}
+    published = {str(row["query_id"]): (str(row["room_id"]), int(row["position"]))
+                 for row in rows}
+
+    for label, left, right in (("G1 audit", plan_ids, expected),
+                               ("published rows", published, expected)):
+        missing = sorted(set(right) - set(left))
+        extra = sorted(set(left) - set(right))
+        if missing or extra:
+            raise ValueError(
+                f"the {label} does not cover exactly the registered D1 subset: {len(missing)} "
+                f"registered queries are absent (first {missing[:3]}) and {len(extra)} are "
+                f"present that the context manifest does not register (first {extra[:3]}). "
+                "Metrics may not be taken over a set that is not the registered one")
+        differing = sorted(key for key in right if left[key] != right[key])
+        if differing:
+            first = differing[0]
+            raise ValueError(
+                f"the {label} places {first!r} at {left[first]} but the context manifest "
+                f"registers {right[first]}; {len(differing)} identities disagree on room or "
+                "stream position")
+    return {"n_queries": len(expected), "n_rooms": len({room for room, _ in expected.values()}),
+            "joined": ["d1_context_manifest", "g1_candidate_manifests", "published_rows"]}
 
 
 def iter_row_paths(run_dir):
@@ -412,6 +711,11 @@ class TruthResolver:
     def __init__(self, metadata_root):
         self.metadata_root = str(metadata_root)
         self._cache = {}
+        #: ``query_id -> {path, sha256}`` for every pair file this resolver read.
+        #: The truth is not pinned by any run artifact, so the FILES it came out
+        #: of are digested and published; :func:`metadata_bank_digest` folds them
+        #: into one value an operator can register (Codex r9 review, finding 3).
+        self.pair_files = {}
 
     def _pair_path(self, room_id, src_node, rec_node):
         from src.localization.candidates import find_pair_metadata
@@ -444,7 +748,43 @@ class TruthResolver:
         source = np.asarray(payload["src_loc"], dtype=np.float64).reshape(3)
         if not (np.isfinite(receiver).all() and np.isfinite(source).all()):
             raise ValueError(f"{record['query_id']}: {path} carries a non-finite coordinate")
+        self.pair_files[str(record["query_id"])] = {
+            "path": os.path.relpath(path, self.metadata_root),
+            "sha256": me.file_sha256(path)}
         return receiver, source
+
+    def metadata_bank_digest(self):
+        """One digest over every pair file this resolver's truths came out of.
+
+        Canonical and order-free: the map is sorted by query id and covers the
+        root-relative path plus the file's exact bytes, so an edited ``src_loc``
+        anywhere in the bank changes it. This is what makes the truth pinnable
+        offline -- the scalar oracle check cannot separate two truths mirrored
+        inside one lattice cell, and this can.
+        """
+        from src.localization.crossarm import canonical_sha256
+
+        if not self.pair_files:
+            raise ValueError("no pair metadata has been resolved yet; there is nothing to digest")
+        return canonical_sha256({query_id: [entry["path"], entry["sha256"]]
+                                 for query_id, entry in sorted(self.pair_files.items())})
+
+
+def assert_metadata_bank(found, expected=None):
+    """The truths came out of the REGISTERED pair-metadata bank, when one is named.
+
+    Fail-closed about its own strength: with no registered digest the report
+    records what it read and stamps ``pinned = False``, because a digest that
+    authorizes itself authorizes nothing. Supplying the value on a later run is
+    what turns the record into a gate.
+    """
+    if expected and str(expected) != str(found):
+        raise ValueError(
+            f"the pair-metadata bank this report read hashes to {str(found)[:16]}... but the "
+            f"registered bank is {str(expected)[:16]}...; the continuous truths behind every "
+            "e_loc, every success and every baseline error are not the registered ones")
+    return {"metadata_bank_sha256": str(found), "pinned": bool(expected),
+            "note": TRUTH_BINDING_NOTE}
 
 
 def assert_receiver_matches(query_id, metadata_receiver, manifest_receiver,
@@ -458,6 +798,58 @@ def assert_receiver_matches(query_id, metadata_receiver, manifest_receiver,
             f"{np.asarray(metadata_receiver).tolist()} is {drift:.6g} m from the candidate "
             f"manifest's {np.asarray(manifest_receiver).tolist()}; the report is not resolving "
             "the same query the engine scored")
+    return drift
+
+
+def assert_grid_oracle(query_id, coordinates, published_oracle, truth,
+                       tolerance=ORACLE_TOLERANCE):
+    """The truth reproduces the dense-grid oracle the G1 audit published.
+
+    The shared form of the rule ``meshgrid_retrieval_control.assert_grid_oracle``
+    applies to a ``QueryPlan``; a test pins the two to the same verdict so they
+    cannot drift. Its strength is stated rather than implied: the oracle is a
+    SCALAR, so it catches a truth that moved off the query's own neighbourhood
+    and not every possible substitution -- two truths mirrored inside one lattice
+    cell share it. The injective checks are the metadata-bank digest
+    (:func:`assert_metadata_bank`) and, where a loader stream exists,
+    :func:`assert_truth_vector`.
+    """
+    coordinates = np.asarray(coordinates, dtype=np.float64)
+    truth = np.asarray(truth, dtype=np.float64).reshape(3)
+    derived = float(np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1).min())
+    delta = abs(derived - float(published_oracle))
+    if delta > float(tolerance):
+        raise ValueError(
+            f"{query_id}: the oracle re-derived from the candidate block and the pair metadata "
+            f"is {derived:.9f} m but the G1 manifest published {float(published_oracle):.9f} m "
+            f"(|delta| = {delta:.3g} > {float(tolerance):g}); the report's ground truth is not "
+            "the one the audit measured")
+    return delta
+
+
+def assert_truth_vector(query_id, truth, receiver, source_camera,
+                        tolerance=TRUTH_VECTOR_TOLERANCE):
+    """The truth is the loader's OWN target vector -- the injective check.
+
+    ``AR_md`` builds ``md['source']`` as ``src_loc - rec_loc`` in float32, so
+    ``md['source'] + receiver`` is the continuous truth expressed by a witness
+    that is not the pair file. Comparing the full 3-vector (not a distance)
+    cannot be satisfied by a mirrored-in-cell substitution, which is exactly the
+    hole a scalar oracle leaves (Codex r9 review, finding 3).
+
+    Reading the target here is legitimate for the same reason reading
+    ``src_loc`` is: this runs post hoc, after every prediction is frozen, in a
+    tool that produces no prediction.
+    """
+    recovered = (np.asarray(source_camera, dtype=np.float64).reshape(3)
+                 + np.asarray(receiver, dtype=np.float64).reshape(3))
+    truth = np.asarray(truth, dtype=np.float64).reshape(3)
+    drift = float(np.abs(recovered - truth).max())
+    if drift > float(tolerance):
+        raise ValueError(
+            f"{query_id}: the pair metadata's source {truth.tolist()} is {drift:.6g} m from the "
+            f"loader's own target {recovered.tolist()} (md['source'] + receiver); the truth this "
+            "report would measure against is not the one the query was held out from")
     return drift
 
 
@@ -477,6 +869,41 @@ def _stored_prediction(block, aggregator):
         block["mean_prediction_xyz"]
 
 
+def float16_quantization_bound(sims, slack=SIDECAR_FLOAT32_SLACK):
+    """The most a float16 sidecar can move either registered aggregate.
+
+    Round-to-nearest puts every stored sample within half an ulp of the value the
+    engine scored from. Both aggregates are 1-Lipschitz in the sup-norm of their
+    samples -- the mean obviously, and the log-mean-exp because its gradient is a
+    softmax whose weights are non-negative and sum to one -- so the aggregate
+    moves by at most that same half-ulp. ``slack`` absorbs the float32 rounding
+    of the two aggregations themselves.
+
+    A measured deviation ABOVE this bound is not a precision effect: it means the
+    sidecar is not a float16 quantization of the similarities the row was scored
+    from, which is the absolute check the r9 review found missing (finding 7).
+    """
+    array = np.asarray(sims, dtype=np.float16)
+    if array.size == 0:
+        raise ValueError("a quantization bound needs at least one sample")
+    return float(0.5 * float(np.abs(np.spacing(array)).max()) + float(slack))
+
+
+def assert_sidecar_dtype(row, sims):
+    """The sidecar IS the declared float16 array, in both the row and the bytes."""
+    declared = row.get("sims_dtype")
+    if declared != me.SIMS_DTYPE:
+        raise ValueError(f"{row['query_id']}: the row declares sims_dtype {declared!r}, not the "
+                         f"engine's {me.SIMS_DTYPE!r}; the float16 precision bound this report "
+                         "checks against would not apply")
+    found = np.asarray(sims).dtype
+    if found != np.dtype(me.SIMS_DTYPE):
+        raise ValueError(f"{row['query_id']}: the sidecar array is {found}, not the declared "
+                         f"{me.SIMS_DTYPE}; a widened or re-encoded sidecar is not the artifact "
+                         "the row's digest authenticates")
+    return str(found)
+
+
 def evaluate_query(row, sims, coordinates, truth, *, tau=None, radii=SUCCESS_RADII,
                    oracle_tolerance=ORACLE_TOLERANCE,
                    sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY):
@@ -486,16 +913,20 @@ def evaluate_query(row, sims, coordinates, truth, *, tau=None, radii=SUCCESS_RAD
     from the G1 npz (never from the row), and ``truth`` is the continuous source
     position from the pair metadata.
 
-    Three cross-checks run before any number is kept:
+    Four cross-checks run before any number is kept:
 
     1. the row's own float32 score vector must reproduce the row's argmax under
        the registered tie-break (``argmax_by_global_index``), the candidate
        coordinate it names and the top-1 margin it records -- all exact, and none
        of them may ever fail;
-    2. the aggregators recomputed from the float16 sidecar must agree with the
-       row, with a disagreement admitted only when the declared sidecar precision
-       explains it (see :data:`SIDECAR_ARGMAX_NOTE`);
-    3. the oracle re-derived from the candidate block and the metadata truth must
+    2. the sidecar must BE the declared float16 array, and each aggregate
+       recomputed from it must sit inside the absolute half-ulp bound a float16
+       quantization could produce -- checked whether or not an argmax moved;
+    3. an argmax that does move is classified against the engine's own stability
+       rule and either counted (``"explained"``) or refused (``"strict"``), and
+       is never allowed to change a published number (see
+       :data:`SIDECAR_ARGMAX_NOTE`);
+    4. the oracle re-derived from the candidate block and the metadata truth must
        equal the oracle G1 published in the row.
     """
     if sidecar_argmax_policy not in SIDECAR_ARGMAX_POLICIES:
@@ -509,24 +940,22 @@ def evaluate_query(row, sims, coordinates, truth, *, tau=None, radii=SUCCESS_RAD
                          f"{len(indices)} published candidate indices")
     truth = np.asarray(truth, dtype=np.float64).reshape(3)
 
-    sims_t = torch.as_tensor(np.asarray(sims, dtype=np.float32))
+    sims_dtype = assert_sidecar_dtype(row, sims)
+    sims_f16 = np.asarray(sims, dtype=np.float16)
+    sims_t = torch.as_tensor(sims_f16.astype(np.float32))
     if tuple(sims_t.shape) != (len(indices), int(row["num_samples"])):
         raise ValueError(f"{row['query_id']}: the sidecar is {tuple(sims_t.shape)} but the row "
                          f"declares ({len(indices)}, {row['num_samples']})")
     prefixes = tuple(int(k) for k in row["k_prefixes"])
     recomputed = me.nested_scores(sims_t, tau=tau, prefixes=prefixes)
 
-    # (3) the oracle, re-derived from the candidate block and the metadata truth
-    e_oracle = float(np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1).min())
+    # (4) the oracle, re-derived from the candidate block and the metadata truth
     published_oracle = float(row["e_oracle"])
-    oracle_delta = abs(e_oracle - published_oracle)
-    if oracle_delta > float(oracle_tolerance):
-        raise ValueError(
-            f"{row['query_id']}: the oracle re-derived from the candidate block and the pair "
-            f"metadata is {e_oracle:.9f} m but the G1 manifest published {published_oracle:.9f} "
-            f"m (|delta| = {oracle_delta:.3g} > {oracle_tolerance:g}); the report's ground "
-            "truth is not the one the audit measured")
-    oracle_row = int(np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1).argmin())
+    oracle_delta = assert_grid_oracle(row["query_id"], coordinates, published_oracle, truth,
+                                      tolerance=oracle_tolerance)
+    distances = np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1)
+    e_oracle = float(distances.min())
+    oracle_row = int(distances.argmin())
 
     out = {"query_id": row["query_id"], "room_id": row["room_id"],
            "position": int(row["position"]), "receiver_id": row.get("receiver_id"),
@@ -571,26 +1000,42 @@ def evaluate_query(row, sims, coordinates, truth, *, tau=None, radii=SUCCESS_RAD
                     f"{derived_margin:.6g}; an inflated margin would excuse an argmax that "
                     "could in fact flip, so it is refused rather than used")
 
-            # (2) the sidecar recompute
+            # (2) the sidecar recompute, against an ABSOLUTE float16 bound
             recomputed_scores = (recomputed[k]["scores"] if aggregator == "lme"
                                  else recomputed[k]["mean_scores"])
             deviation = float((recomputed_scores - stored).abs().max())
+            bound = float16_quantization_bound(sims_f16[:, :k])
+            if deviation > bound:
+                raise ValueError(
+                    f"{row['query_id']} K={k} {aggregator}: the aggregate recomputed from the "
+                    f"sidecar differs from the row's by {deviation:.3g}, above the "
+                    f"{bound:.3g} a float16 quantization of the row's own similarities could "
+                    f"produce (half-ulp + {SIDECAR_FLOAT32_SLACK:g} float32 slack). The sidecar "
+                    "is therefore not a quantization of what this row was scored from, and no "
+                    "argmax agreement can make it one")
+
             recomputed_row = me.argmax_by_global_index(recomputed_scores, indices)
             margin = derived_margin
-            explained = bool(margin <= me.ARGMAX_STABILITY_FACTOR * deviation)
+            within_2dev = bool(margin <= me.ARGMAX_STABILITY_FACTOR * deviation)
             agrees = recomputed_row == stored_row
-            if not agrees and (sidecar_argmax_policy == "strict" or not explained):
+            if not agrees and (sidecar_argmax_policy == "strict" or not within_2dev):
                 raise ValueError(
                     f"{row['query_id']} K={k} {aggregator}: the argmax recomputed from the "
                     f"float16 sidecar is candidate {indices[recomputed_row]} but the row "
                     f"records {stored_index}; the row's top-1 margin is {margin:.3g} and the "
                     f"measured sidecar deviation is {deviation:.3g} "
-                    f"({'within' if explained else 'NOT within'} the "
+                    f"({'within' if within_2dev else 'NOT within'} the "
                     f"{me.ARGMAX_STABILITY_FACTOR}x stability bound, policy "
                     f"{sidecar_argmax_policy!r}). {SIDECAR_ARGMAX_NOTE}")
             out["sidecar"][aggregator][k] = {
                 "max_abs_delta": deviation, "argmax_agrees": bool(agrees),
-                "margin": margin, "explained_by_precision": explained}
+                "margin": margin,
+                # named for what the inequality states -- which flips are
+                # POSSIBLE -- never for a cause it cannot establish (r9 finding 7)
+                "argmax_flip_within_2dev": within_2dev,
+                "float16_bound": bound,
+                "within_float16_bound": bool(deviation <= bound),
+                "sims_dtype": sims_dtype}
 
             best = float(stored[stored_row])
             e_loc = float(np.linalg.norm(coordinates[stored_row] - truth))
@@ -788,42 +1233,112 @@ LATENCY_SCOPE_NOTE = (
     "NOT included here; a wall-clock cost must add them separately")
 
 
-def latency_report(results, components=ROW_TIMING_COMPONENTS):
-    """Latency per query, per candidate and per generated RIR, from the rows."""
+#: the latency statistics the room-first aggregation and its bootstrap cover.
+LATENCY_STAT_NAMES = ("mean_seconds_per_query", "median_seconds_per_query",
+                      "seconds_per_candidate", "seconds_per_generated_rir")
+
+LATENCY_COMPLETENESS_NOTE = (
+    "a row whose timings_s is missing one of the five generation components would silently "
+    "under-report if the gap were read as a zero, so incomplete rows are NAMED and counted and "
+    "are excluded from the headline aggregate rather than folded into it. n_incomplete and "
+    "missing_components below say exactly which rows and which components; the pooled totals "
+    "cover the complete rows only")
+
+
+def _latency_room_block(bucket):
+    """One room's latency block from its complete rows."""
+    seconds = np.asarray(bucket["seconds"], dtype=np.float64)
+    pairs = float(sum(bucket["pairs"]))
+    waveforms = float(sum(bucket["waveforms"]))
+    total = float(seconds.sum())
+    return {"n_queries": int(seconds.size),
+            "mean_seconds_per_query": float(seconds.mean()),
+            "median_seconds_per_query": float(np.median(seconds)),
+            "min_seconds_per_query": float(seconds.min()),
+            "max_seconds_per_query": float(seconds.max()),
+            "seconds_per_candidate": total / pairs if pairs else 0.0,
+            "seconds_per_generated_rir": total / waveforms if waveforms else 0.0,
+            "total_seconds": total,
+            "candidate_query_pairs": int(pairs),
+            "generated_waveforms": int(waveforms)}
+
+
+def latency_report(results, components=ROW_TIMING_COMPONENTS, seed=BOOTSTRAP_SEED,
+                   n=BOOTSTRAP_N, alpha=BOOTSTRAP_ALPHA):
+    """Latency per query, candidate and generated RIR -- room-first, bootstrapped.
+
+    §2 registers latency beside the localization readouts, so it is aggregated
+    the same way they are: inside each room first, then averaged over rooms with
+    a room-bootstrap interval (Codex r9 review, finding 8). Its draw matrix is
+    built from its OWN room count, because a room can legitimately drop out of
+    this readout -- if every one of its rows is missing a timing component --
+    without dropping out of the metrics; when the room sets agree the matrix is
+    identical to the shared one, since both come from ``(seed, n, n_rooms)``.
+    """
+    components = tuple(components)
+    by_room, missing_components, incomplete = {}, {}, []
     totals = {name: 0.0 for name in components}
-    per_query, n_pairs, n_waveforms = [], 0, 0
-    missing = []
     for result in results:
         timings = result.get("latency_s") or {}
-        if not timings:
-            missing.append(result["query_id"])
+        absent = [name for name in components if name not in timings]
+        if absent:
+            for name in absent:
+                entry = missing_components.setdefault(name, {"n_rows": 0, "query_ids": []})
+                entry["n_rows"] += 1
+                if len(entry["query_ids"]) < 5:
+                    entry["query_ids"].append(result["query_id"])
+            incomplete.append({"query_id": result["query_id"], "room_id": result["room_id"],
+                               "missing": absent})
             continue
         seconds = 0.0
         for name in components:
-            value = float(timings.get(name, 0.0))
+            value = float(timings[name])
             totals[name] += value
             seconds += value
-        per_query.append(seconds)
-        n_pairs += int(result["n_candidates"])
-        n_waveforms += int(result["n_candidates"]) * int(result["num_samples"])
-    if missing:
-        raise ValueError(f"{len(missing)} rows carry no timings_s (first {missing[:3]}); "
-                         "§2 registers latency per query, candidate and generated RIR")
-    values = np.asarray(per_query, dtype=np.float64)
-    total = float(values.sum())
-    return {"n_queries": int(values.size),
-            "candidate_query_pairs": int(n_pairs),
-            "generated_waveforms": int(n_waveforms),
-            "total_seconds": total,
-            "seconds_per_query": {"mean": float(values.mean()),
-                                  "median": float(np.median(values)),
-                                  "min": float(values.min()), "max": float(values.max())},
-            "seconds_per_candidate": total / n_pairs if n_pairs else 0.0,
-            "seconds_per_generated_rir": total / n_waveforms if n_waveforms else 0.0,
-            "component_seconds": {name: float(totals[name]) for name in components},
-            "component_fraction": {name: (float(totals[name]) / total if total else 0.0)
-                                   for name in components},
-            "scope_note": LATENCY_SCOPE_NOTE}
+        bucket = by_room.setdefault(str(result["room_id"]),
+                                    {"seconds": [], "pairs": [], "waveforms": []})
+        bucket["seconds"].append(seconds)
+        bucket["pairs"].append(int(result["n_candidates"]))
+        bucket["waveforms"].append(int(result["n_candidates"]) * int(result["num_samples"]))
+
+    if not by_room:
+        raise ValueError(
+            f"no row carries all of {list(components)} in timings_s ({len(incomplete)} rows are "
+            "incomplete); §2 registers latency per query, candidate and generated RIR, and it "
+            "may not be reported over rows whose components were read as zeros")
+
+    per_room = {room: _latency_room_block(bucket) for room, bucket in by_room.items()}
+    complete = int(sum(block["n_queries"] for block in per_room.values()))
+    total = float(sum(block["total_seconds"] for block in per_room.values()))
+    pairs = int(sum(block["candidate_query_pairs"] for block in per_room.values()))
+    waveforms = int(sum(block["generated_waveforms"] for block in per_room.values()))
+    rooms_present = sorted(per_room)
+    rooms_dropped = sorted({str(entry["room_id"]) for entry in incomplete} - set(rooms_present))
+    return {
+        "n_queries": complete,
+        "n_incomplete": len(incomplete),
+        "incomplete_rows": incomplete[:10],
+        "missing_components": missing_components,
+        "rooms_without_a_complete_row": rooms_dropped,
+        "candidate_query_pairs": pairs,
+        "generated_waveforms": waveforms,
+        "total_seconds": total,
+        "per_room": per_room,
+        "across_rooms": across_rooms(per_room, names=list(LATENCY_STAT_NAMES), draws=None,
+                                     seed=seed, n=n, alpha=alpha),
+        "pooled": {"seconds_per_query": {
+                       "mean": total / complete if complete else 0.0,
+                       "total": total},
+                   "seconds_per_candidate": total / pairs if pairs else 0.0,
+                   "seconds_per_generated_rir": total / waveforms if waveforms else 0.0,
+                   "label": "pooled over queries (secondary; the registered aggregation is "
+                            "room-first)"},
+        "component_seconds": {name: float(totals[name]) for name in components},
+        "component_fraction": {name: (float(totals[name]) / total if total else 0.0)
+                               for name in components},
+        "components": list(components),
+        "completeness_note": LATENCY_COMPLETENESS_NOTE,
+        "scope_note": LATENCY_SCOPE_NOTE}
 
 
 # --------------------------------------------------------------------------- #
@@ -913,11 +1428,19 @@ def baseline_report(results, seeds=RANDOM_BASELINE_SEEDS, draws=None, radii=SUCC
             pooled_excess.append(max(0.0, e_loc - float(record["e_oracle"])))
     pooled_per_room = {room: room_block(values, radii=radii)
                        for room, values in pooled_by_room.items()}
+    registered = seeds == [int(s) for s in RANDOM_BASELINE_SEEDS]
     return {
         "rule": ("uniform draw over the query's IDENTICAL published valid candidate set; the "
                  "draw is keyed by sha256(seed, query_id) so it is independent of iteration "
-                 "order, and each pre-registered seed is one independent full repetition"),
+                 "order, and each seed is one independent full repetition"
+                 + (". The seeds below ARE the pre-registered ones" if registered else
+                    ". SENSITIVITY CHECK: these are NOT the pre-registered seeds "
+                    f"{list(RANDOM_BASELINE_SEEDS)}")),
         "seeds": seeds,
+        # stated, not implied: an artifact may not call a setting pre-registered
+        # when it is not (Codex r9 review, finding 6)
+        "seeds_are_registered": bool(registered),
+        "registered_seeds": [int(s) for s in RANDOM_BASELINE_SEEDS],
         "repetitions": repetitions,
         "summary_over_repetitions": summary,
         "all_draws": {"per_room": pooled_per_room,
@@ -1045,23 +1568,29 @@ def association_report(results, aggregator=HEADLINE_AGGREGATOR, k=HEADLINE_K, n_
 def select_visualization_cases(results, aggregator=HEADLINE_AGGREGATOR, k=HEADLINE_K):
     """The three quantile cases, as a pure function of the finished results.
 
-    Ordering is ``(e_loc, position)``; ties therefore go to the smaller global
-    stream position, and the median is the LOWER median at ``(n - 1) // 2`` so an
-    even-sized set has one named winner rather than an interpolated non-query.
+    Each quantile fixes an e_loc VALUE first -- the minimum, the lower median at
+    ``(n - 1) // 2`` of the ascending errors, and the maximum -- and then names
+    the query attaining it with the SMALLEST global stream position. Doing it in
+    that order is what makes the tie-break uniform: taking the last element of an
+    ascending sort would hand the highest-error case to the LARGEST tied
+    position, contradicting the rule the report prints beside the table (Codex r9
+    review, finding 10).
     """
     results = list(results)
     if not results:
         raise ValueError("visualization cases need at least one scored query")
-    ordered = sorted(results,
-                     key=lambda r: (float(r["by"][aggregator][k]["e_loc"]), int(r["position"])))
-    picks = (("lowest_e_loc", 0),
-             ("median_e_loc", (len(ordered) - 1) // 2),
-             ("highest_e_loc", len(ordered) - 1))
+    errors = sorted(float(r["by"][aggregator][k]["e_loc"]) for r in results)
+    wanted = (("lowest_e_loc", errors[0]),
+              ("median_e_loc", errors[(len(errors) - 1) // 2]),
+              ("highest_e_loc", errors[-1]))
     cases = []
-    for label, index in picks:
-        result = ordered[index]
+    for label, value in wanted:
+        attaining = [r for r in results
+                     if float(r["by"][aggregator][k]["e_loc"]) == value]
+        result = min(attaining, key=lambda r: int(r["position"]))
         entry = result["by"][aggregator][k]
-        cases.append({"quantile": label, "rank": int(index), "n_ranked": len(ordered),
+        cases.append({"quantile": label, "e_loc_quantile_value": float(value),
+                      "n_attaining": len(attaining), "n_ranked": len(results),
                       "query_id": result["query_id"], "room_id": result["room_id"],
                       "position": int(result["position"]),
                       "e_loc": float(entry["e_loc"]),
@@ -1090,7 +1619,9 @@ def build_case_payload(selection, rows_by_id, plans_by_id, results_by_id, run_di
         coordinates = np.asarray(query.coordinates, dtype=np.float64)
         entry = result["by"][aggregator][k]
         payload_cases.append({
-            "quantile": case["quantile"], "rank": case["rank"],
+            "quantile": case["quantile"],
+            "e_loc_quantile_value": case["e_loc_quantile_value"],
+            "n_attaining": case["n_attaining"], "n_ranked": case["n_ranked"],
             "query_id": query_id, "room_id": row["room_id"], "position": int(row["position"]),
             "receiver_id": row.get("receiver_id"),
             "receiver_xyz": [float(v) for v in row["receiver_xyz"]],
@@ -1126,6 +1657,11 @@ def build_case_payload(selection, rows_by_id, plans_by_id, results_by_id, run_di
         "subset": SUBSET_LABEL,
         "agree_leakage_caveat": me.AGREE_LEAKAGE_CAVEAT,
         "scorer_readout_deviation": me.SCORER_READOUT_DEVIATION,
+        "sims_precision_caveat": me.SIMS_PRECISION_CAVEAT,
+        # every artifact this round emits carries the same disclosures, so a case
+        # file read on its own cannot lose them (Codex r9 review, finding 10)
+        "latency_scope_note": LATENCY_SCOPE_NOTE,
+        "controls_elsewhere": CONTROLS_ELSEWHERE,
         "cases": payload_cases,
     }
 
@@ -1136,22 +1672,49 @@ def build_case_payload(selection, rows_by_id, plans_by_id, results_by_id, run_di
 def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=None,
                  radii=SUCCESS_RADII, sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY,
                  baseline_seeds=RANDOM_BASELINE_SEEDS, oracle_tolerance=ORACLE_TOLERANCE,
-                 require_manifest_census=True, on_query=None):
+                 require_manifest_census=True, single_shard=False,
+                 expect_ckpt_sha256=None, expect_metadata_bank_sha256=None,
+                 allow_protocol_deviation=False, source_provider=None, on_query=None):
     """Gate the artifacts, then evaluate every query. Returns the raw material.
 
-    The gates run first and in full -- binding, G1 chain, D1 manifest, row and
-    sidecar digests, the census -- and only then does a single room-major pass
-    compute anything. Inside a room, every query's row is authenticated against
-    the G1 plan BEFORE that room's first metric is taken.
+    The gates run first and in full, in this order, and every one of them is a
+    refusal:
+
+    1. the published binding is recomputed from its own content;
+    2. the D1 manifest, the G1 report and every room manifest THIS REPORT WAS
+       HANDED are the ones the binding pins (``assert_artifact_hashes``);
+    3. the binding is the registered protocol (``assert_registered_protocol``);
+    4. the directory is the census-gated merge of every shard
+       (``assert_merge_report``), unless ``single_shard`` explicitly downgrades
+       the report to a shard-local diagnostic -- which relaxes ONLY that
+       requirement and never a hash join;
+    5. every row and sidecar re-verifies against its own digest;
+    6. the census holds, per room and in total;
+    7. the D1 identities, the G1 plan's queries and the published rows are the
+       SAME set, once each (``assert_identity_join``).
+
+    Only then does a single room-major pass compute anything, and inside a room
+    every row is authenticated against the G1 plan before that room's first
+    metric is taken.
+
+    ``source_provider`` is an optional ``query_id -> md['source']`` callable. When
+    supplied, each truth is additionally checked as a VECTOR against the loader's
+    own target (:func:`assert_truth_vector`) -- the injective check the scalar
+    oracle cannot make. The report records whether it ran.
 
     ``require_manifest_census`` exists for fixtures, exactly as
     ``meshgrid_queries.build_manifest``'s does, and is never relaxed by the
-    production path: the CLI leaves it on, so a report can only ever be published
-    against the registered 6,337 -> 5,337 context manifest.
+    production path.
     """
     run_dir = str(run_dir)
     binding, binding_sha = load_published_binding(run_dir)
     plan = me.load_audit_plan(audit_report, branch=binding["branch"])
+    artifacts = assert_artifact_hashes(binding, plan, context_manifest)
+    registered = assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
+                                            allow_deviation=allow_protocol_deviation)
+    merge = (None if single_shard
+             else assert_merge_report(run_dir, binding, binding_sha, plan, totals=totals))
+
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
     rows = verify_rows(run_dir, binding_sha)
@@ -1162,13 +1725,14 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
         raise ValueError(f"the audit publishes rooms {sorted(plan.rooms)[:3]}... but the run "
                          f"publishes {census['rooms'][:3]}...; a report joins one audit to one "
                          "run")
+    identity_join = assert_identity_join(plan, records, rows)
 
     rows_by_id = {row["query_id"]: row for row in rows}
     records_by_id = {record["query_id"]: record for record in records}
     resolver = TruthResolver(metadata_root)
     seeds = [int(s) for s in baseline_seeds]
 
-    results, plans_by_id, receiver_drift = [], {}, []
+    results, plans_by_id, receiver_drift, truth_drift = [], {}, [], []
     for room_id in sorted(plan.rooms):
         room_plan = me.load_room_plan(plan, room_id)
         # phase A: every row of this room is authenticated against the G1 plan
@@ -1180,6 +1744,10 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             metadata_receiver, truth = resolver.resolve(records_by_id[query.query_id])
             receiver_drift.append(assert_receiver_matches(query.query_id, metadata_receiver,
                                                           query.receiver_xyz))
+            if source_provider is not None:
+                truth_drift.append(assert_truth_vector(
+                    query.query_id, truth, query.receiver_xyz,
+                    source_provider(query.query_id)))
             sims_path = os.path.join(run_dir, str(row["sims_path"]))
             sims = np.load(sims_path)
             result = evaluate_query(row, sims, query.coordinates, truth, tau=protocol["tau"],
@@ -1196,11 +1764,18 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             if on_query is not None:
                 on_query(result)
 
+    metadata_bank = assert_metadata_bank(resolver.metadata_bank_digest(),
+                                         expected=expect_metadata_bank_sha256)
     results.sort(key=lambda result: int(result["position"]))
     return {"binding": binding, "binding_sha256": binding_sha, "plan": plan,
             "manifest": manifest, "records": records, "rows": rows,
             "rows_by_id": rows_by_id, "plans_by_id": plans_by_id, "results": results,
-            "census": census, "protocol": protocol,
+            "census": census, "protocol": protocol, "artifacts": artifacts,
+            "registered_protocol": registered, "merge": merge,
+            "single_shard": bool(single_shard), "identity_join": identity_join,
+            "metadata_bank": metadata_bank,
+            "truth_vector_checked": source_provider is not None,
+            "max_truth_vector_drift_m": (float(max(truth_drift)) if truth_drift else None),
             "max_receiver_drift_m": float(max(receiver_drift)) if receiver_drift else 0.0,
             "baseline_seeds": seeds}
 
@@ -1214,21 +1789,28 @@ def sidecar_summary(results):
         for k in sorted(results[0]["sidecar"][aggregator]):
             deltas = np.asarray([r["sidecar"][aggregator][k]["max_abs_delta"]
                                  for r in results], dtype=np.float64)
+            bounds = np.asarray([r["sidecar"][aggregator][k]["float16_bound"]
+                                 for r in results], dtype=np.float64)
             disagreements = [r for r in results
                              if not r["sidecar"][aggregator][k]["argmax_agrees"]]
             out["by_cell"][aggregator][str(k)] = {
                 "n_queries": len(results),
                 "max_abs_delta": float(deltas.max()), "mean_abs_delta": float(deltas.mean()),
+                "max_float16_bound": float(bounds.max()),
+                "max_delta_over_bound": float((deltas / bounds).max()),
+                "all_within_float16_bound": bool(all(
+                    r["sidecar"][aggregator][k]["within_float16_bound"] for r in results)),
                 "n_argmax_disagreements": len(disagreements),
-                "all_explained_by_precision": all(
-                    r["sidecar"][aggregator][k]["explained_by_precision"]
+                "all_flips_within_2dev": all(
+                    r["sidecar"][aggregator][k]["argmax_flip_within_2dev"]
                     for r in disagreements)}
             for result in disagreements:
                 entry = result["sidecar"][aggregator][k]
                 named.append({"query_id": result["query_id"], "aggregator": aggregator,
                               "k": int(k), "margin": entry["margin"],
                               "sidecar_max_abs_delta": entry["max_abs_delta"],
-                              "explained_by_precision": entry["explained_by_precision"]})
+                              "float16_bound": entry["float16_bound"],
+                              "argmax_flip_within_2dev": entry["argmax_flip_within_2dev"]})
     out["argmax_disagreements"] = named
     out["n_argmax_disagreements"] = len(named)
     return out
@@ -1284,8 +1866,15 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "context_manifest_filtered_stream_sha256":
                 evaluated["manifest"].get("filtered_stream_sha256"),
             "metadata_root": str(metadata_root),
-            "merge_report_sha256": (me.file_sha256(merge_path)
-                                    if os.path.isfile(merge_path) else None),
+            "metadata_bank": evaluated["metadata_bank"],
+            "artifact_hash_join": evaluated["artifacts"],
+            "merge": evaluated["merge"],
+            "merge_report_sha256": ((evaluated["merge"] or {}).get("merge_report_sha256")
+                                    if evaluated["merge"] else
+                                    (me.file_sha256(merge_path)
+                                     if os.path.isfile(merge_path) else None)),
+            "single_shard": evaluated["single_shard"],
+            "single_shard_note": SINGLE_SHARD_NOTE if evaluated["single_shard"] else None,
         },
         "protocol": {
             "tau": float(evaluated["protocol"]["tau"]),
@@ -1299,9 +1888,17 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "aggregation": "room-first, then averaged over rooms (§2)",
             "bootstrap": {"seed": int(bootstrap_seed), "n_boot": int(n_boot),
                           "alpha": float(alpha), "unit": "room",
-                          "method": "percentile (linear interpolation)"},
+                          "method": "percentile (linear interpolation)",
+                          # stated, not implied (Codex r9 review, finding 6)
+                          "is_registered": bool(int(bootstrap_seed) == BOOTSTRAP_SEED
+                                                and int(n_boot) == BOOTSTRAP_N),
+                          "registered": {"seed": BOOTSTRAP_SEED, "n_boot": BOOTSTRAP_N}},
             "headline_cell": {"aggregator": HEADLINE_AGGREGATOR, "k": HEADLINE_K},
             "baseline_seeds": [int(s) for s in evaluated["baseline_seeds"]],
+            "baseline_seeds_are_registered":
+                bool([int(s) for s in evaluated["baseline_seeds"]]
+                     == [int(s) for s in RANDOM_BASELINE_SEEDS]),
+            "registered_protocol": evaluated["registered_protocol"],
             "sidecar_argmax_policy": str(sidecar_argmax_policy),
         },
         "census": census,
@@ -1313,16 +1910,27 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "note": "every entry below is a gate evaluate_run refuses on; a published report is "
                     "proof they passed, not a claim that they did",
             "binding_recomputed_from_content": True,
+            "supplied_artifacts_match_the_binding_hashes": True,
+            "binding_matches_the_registered_protocol":
+                evaluated["registered_protocol"]["is_registered"],
+            "merge_report_gates_applied": not evaluated["single_shard"],
             "g1_audit_chain_reverified": True,
             "d1_manifest_stream_and_census_reverified": True,
             "rows_and_sidecars_digest_verified": True,
+            "sidecar_dtype_and_float16_bound_checked": True,
             "rows_authenticated_against_g1_plan": True,
             "row_protocol_matches_binding": True,
+            "d1_g1_rows_identity_join": evaluated["identity_join"],
+            "metadata_bank_pinned": evaluated["metadata_bank"]["pinned"],
+            "truth_vector_checked_against_the_loader":
+                evaluated["truth_vector_checked"],
+            "max_truth_vector_drift_m": evaluated["max_truth_vector_drift_m"],
             "max_receiver_drift_m": evaluated["max_receiver_drift_m"],
+            "truth_binding_note": TRUTH_BINDING_NOTE,
         },
         "metrics": metrics,
         "oracle": oracle_report(results, draws=draws, **bootstrap),
-        "latency": latency_report(results),
+        "latency": latency_report(results, seed=bootstrap_seed, n=n_boot, alpha=alpha),
         "random_baseline": baseline_report(results, seeds=evaluated["baseline_seeds"],
                                            draws=draws, radii=radii, bootstrap=bootstrap),
         "associations": association_report(results),
@@ -1363,6 +1971,49 @@ def _stamp(report):
             f"_AGREE leakage_ {report['labels']['agree_leakage_caveat']}")
 
 
+def _sensitivity_banners(report):
+    """Loud, unmissable lines whenever a setting is not the registered one.
+
+    Mirrors the retrieval control's banner path: an artifact may not keep calling
+    a setting pre-registered once it is not (Codex r9 review, finding 6).
+    """
+    protocol, provenance = report["protocol"], report["provenance"]
+    lines = []
+    registered = protocol["registered_protocol"]
+    if not registered["is_registered"]:
+        lines.append(f"> **SENSITIVITY CHECK, not the registered protocol:** the run binding "
+                     f"differs from the registered constants on "
+                     f"{sorted(registered['deviations'])}. "
+                     f"{ {k: v for k, v in list(registered['deviations'].items())[:3]} }")
+        lines.append("")
+    if not protocol["bootstrap"]["is_registered"]:
+        lines.append(f"> **SENSITIVITY CHECK, not the registered bootstrap:** the pre-registered "
+                     f"settings are seed {protocol['bootstrap']['registered']['seed']} x "
+                     f"{protocol['bootstrap']['registered']['n_boot']:,} resamples.")
+        lines.append("")
+    if not protocol["baseline_seeds_are_registered"]:
+        lines.append(f"> **SENSITIVITY CHECK, not the registered baseline seeds:** the "
+                     f"pre-registered seeds are {list(RANDOM_BASELINE_SEEDS)}.")
+        lines.append("")
+    if provenance["single_shard"]:
+        lines.append(f"> **{provenance['single_shard_note']}**")
+        lines.append("")
+    if not provenance["metadata_bank"]["pinned"]:
+        lines.append(f"> **The pair-metadata bank is RECORDED, not pinned:** it hashes to "
+                     f"`{provenance['metadata_bank']['metadata_bank_sha256']}`. Supply that "
+                     "value as --expect-metadata-bank-sha256 on a later run to turn the record "
+                     "into a gate; until then the continuous truths are authenticated only by "
+                     "the receiver match and the scalar dense-grid oracle, which cannot "
+                     "separate two truths mirrored inside one lattice cell.")
+        lines.append("")
+    if not report["gates"]["truth_vector_checked_against_the_loader"]:
+        lines.append("> **The injective truth check did not run here:** no loader stream was "
+                     "supplied, so md['source'] + receiver was not compared against the pair "
+                     "metadata. The off-grid probe runs that check on its sixteen queries.")
+        lines.append("")
+    return lines
+
+
 def render_markdown(report):
     """The human-readable summary. Every table carries the three stamps."""
     lines = []
@@ -1388,9 +2039,10 @@ def render_markdown(report):
                  f"`{census['excluded_room']}` excluded ({census['n_excluded']:,} queries).")
     lines.append("")
     lines.append(f"Aggregation is room-first and intervals are 95% percentile intervals from "
-                 f"{protocol['bootstrap']['n_boot']:,} room resamples at pre-registered seed "
+                 f"{protocol['bootstrap']['n_boot']:,} room resamples at seed "
                  f"{protocol['bootstrap']['seed']}.")
     lines.append("")
+    lines.extend(_sensitivity_banners(report))
 
     for aggregator in AGGREGATORS:
         lines.append(f"## {aggregator.upper()} — {report['labels']['aggregator_roles'][aggregator]}")
@@ -1398,14 +2050,15 @@ def render_markdown(report):
         lines.append(_stamp(report))
         lines.append("")
         header = ("| K | median e_loc (m) | mean e_loc (m) | median e_excess (m) | "
-                  "success@0.5 | success@1.0 | oracle-norm@0.5 | oracle-norm@1.0 |")
+                  "mean e_excess (m) | success@0.5 | success@1.0 | oracle-norm@0.5 | "
+                  "oracle-norm@1.0 |")
         lines.append(header)
-        lines.append("|---|---|---|---|---|---|---|---|")
+        lines.append("|---|---|---|---|---|---|---|---|---|")
         for k in protocol["k_prefixes"]:
             cell = report["metrics"][aggregator][str(k)]["across_rooms"]
             lines.append(
                 f"| {k} | {_ci(cell['median_e_loc'], 3)} | {_ci(cell['mean_e_loc'], 3)} | "
-                f"{_ci(cell['median_e_excess'], 3)} | "
+                f"{_ci(cell['median_e_excess'], 3)} | {_ci(cell['mean_e_excess'], 3)} | "
                 f"{_ci(cell['success_raw@0.5'], 3)} | {_ci(cell['success_raw@1.0'], 3)} | "
                 f"{_ci(cell['success_oracle_normalized@0.5'], 3)} | "
                 f"{_ci(cell['success_oracle_normalized@1.0'], 3)} |")
@@ -1458,34 +2111,54 @@ def render_markdown(report):
     lines.append("")
     lines.append(f"{baseline['rule']}. Seeds {baseline['seeds']}.")
     lines.append("")
-    lines.append("| seed | median e_loc (m) | mean e_loc (m) | success@0.5 | oracle-norm@0.5 |")
-    lines.append("|---|---|---|---|---|")
+    lines.append("| seed | median e_loc (m) | mean e_loc (m) | success@0.5 | success@1.0 | "
+                 "oracle-norm@0.5 | oracle-norm@1.0 |")
+    lines.append("|---|---|---|---|---|---|---|")
     for repetition in baseline["repetitions"]:
         cell = repetition["across_rooms"]
         lines.append(f"| {repetition['seed']} | {_ci(cell['median_e_loc'], 3)} | "
                      f"{_ci(cell['mean_e_loc'], 3)} | {_ci(cell['success_raw@0.5'], 4)} | "
-                     f"{_ci(cell['success_oracle_normalized@0.5'], 4)} |")
+                     f"{_ci(cell['success_raw@1.0'], 4)} | "
+                     f"{_ci(cell['success_oracle_normalized@0.5'], 4)} | "
+                     f"{_ci(cell['success_oracle_normalized@1.0'], 4)} |")
     summary = baseline["summary_over_repetitions"]
-    lines.append(f"| **pooled** | {format_number(summary['median_e_loc']['mean'], 3)} "
-                 f"± {format_number(summary['median_e_loc']['sd'], 3)} | "
-                 f"{format_number(summary['mean_e_loc']['mean'], 3)} "
-                 f"± {format_number(summary['mean_e_loc']['sd'], 3)} | "
-                 f"{format_number(summary['success_raw@0.5']['mean'], 4)} "
-                 f"± {format_number(summary['success_raw@0.5']['sd'], 4)} | "
-                 f"{format_number(summary['success_oracle_normalized@0.5']['mean'], 4)} "
-                 f"± {format_number(summary['success_oracle_normalized@0.5']['sd'], 4)} |")
+    cells = " | ".join(
+        f"{format_number(summary[name]['mean'], 4)} ± {format_number(summary[name]['sd'], 4)}"
+        for name in ("median_e_loc", "mean_e_loc", "success_raw@0.5", "success_raw@1.0",
+                     "success_oracle_normalized@0.5", "success_oracle_normalized@1.0"))
+    lines.append(f"| **pooled** | {cells} |")
     lines.append("")
 
     latency = report["latency"]
-    lines.append("## Latency")
+    across = latency["across_rooms"]
+    lines.append("## Latency — room-first")
     lines.append("")
     lines.append(_stamp(report))
     lines.append("")
-    lines.append(f"- per query: mean {format_number(latency['seconds_per_query']['mean'], 3)} s, "
-                 f"median {format_number(latency['seconds_per_query']['median'], 3)} s")
-    lines.append(f"- per candidate: {format_number(latency['seconds_per_candidate'] * 1e3, 4)} ms")
-    lines.append(f"- per generated RIR: "
-                 f"{format_number(latency['seconds_per_generated_rir'] * 1e3, 4)} ms")
+    lines.append("| statistic | room-first point [95% CI] |")
+    lines.append("|---|---|")
+    lines.append(f"| mean s / query | {_ci(across['mean_seconds_per_query'], 4)} |")
+    lines.append(f"| median s / query | {_ci(across['median_seconds_per_query'], 4)} |")
+    lines.append(f"| ms / candidate | "
+                 f"{format_number(across['seconds_per_candidate']['point'] * 1e3, 4)} "
+                 f"[{format_number(across['seconds_per_candidate']['ci_lo'] * 1e3, 4)}, "
+                 f"{format_number(across['seconds_per_candidate']['ci_hi'] * 1e3, 4)}] |")
+    lines.append(f"| ms / generated RIR | "
+                 f"{format_number(across['seconds_per_generated_rir']['point'] * 1e3, 4)} "
+                 f"[{format_number(across['seconds_per_generated_rir']['ci_lo'] * 1e3, 4)}, "
+                 f"{format_number(across['seconds_per_generated_rir']['ci_hi'] * 1e3, 4)}] |")
+    lines.append("")
+    lines.append(f"Pooled (secondary): {format_number(latency['pooled']['seconds_per_candidate'] * 1e3, 4)}"
+                 f" ms / candidate over {latency['n_queries']:,} complete rows.")
+    if latency["n_incomplete"]:
+        named = {name: block["n_rows"]
+                 for name, block in latency["missing_components"].items()}
+        lines.append("")
+        lines.append(f"> **{latency['n_incomplete']:,} row(s) are missing a timing component "
+                     f"and are excluded from the numbers above:** {named}. First offenders: "
+                     f"{[entry['query_id'] for entry in latency['incomplete_rows'][:3]]}. "
+                     f"{latency['completeness_note']}")
+    lines.append("")
     lines.append(f"- scope: {latency['scope_note']}")
     lines.append("")
 
@@ -1511,19 +2184,36 @@ def render_markdown(report):
     lines.append(f"- oracle re-derivation vs G1: max |delta| "
                  f"{crosscheck['oracle']['max_abs_delta_m']:.3g} m "
                  f"(tolerance {crosscheck['oracle']['tolerance_m']:g} m)")
-    lines.append(f"- float16 sidecar recompute: "
+    flips = crosscheck["sidecar"]["argmax_disagreements"]
+    worst_ratio = max((block["max_delta_over_bound"]
+                       for by_k in crosscheck["sidecar"]["by_cell"].values()
+                       for block in by_k.values()), default=0.0)
+    lines.append(f"- float16 sidecar: every cell is inside the absolute half-ulp bound "
+                 f"(worst deviation is {format_number(worst_ratio, 3)}x the bound), and "
                  f"{crosscheck['sidecar']['n_argmax_disagreements']} argmax disagreement(s) "
-                 f"over {len(AGGREGATORS) * len(protocol['k_prefixes'])} cells, all explained "
-                 f"by the declared precision: "
-                 f"{format_number(all(entry['explained_by_precision'] for entry in crosscheck['sidecar']['argmax_disagreements']) if crosscheck['sidecar']['argmax_disagreements'] else True)}")
+                 f"over {len(AGGREGATORS) * len(protocol['k_prefixes'])} cells are all within "
+                 f"the 2x stability bound: "
+                 f"{format_number(all(entry['argmax_flip_within_2dev'] for entry in flips) if flips else True)}")
     lines.append(f"- max receiver drift (pair metadata vs candidate manifest): "
                  f"{report['gates']['max_receiver_drift_m']:.3g} m")
+    lines.append(f"- pair-metadata bank: "
+                 f"`{provenance['metadata_bank']['metadata_bank_sha256'][:16]}...` "
+                 f"({'pinned' if provenance['metadata_bank']['pinned'] else 'recorded only'})")
+    lines.append(f"- injective truth-vector check against the loader: "
+                 f"{format_number(report['gates']['truth_vector_checked_against_the_loader'])}")
+    lines.append(f"- artifact hash join (D1 / G1 / room manifests vs the binding): passed over "
+                 f"{provenance['artifact_hash_join']['n_room_manifests']} room manifests")
+    lines.append(f"- identity join (D1 == G1 == rows): "
+                 f"{report['gates']['d1_g1_rows_identity_join']['n_queries']:,} queries over "
+                 f"{report['gates']['d1_g1_rows_identity_join']['n_rooms']} rooms")
     lines.append("")
 
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
     for name, where in sorted(report["controls_elsewhere"].items()):
         lines.append(f"- **{name}** — {where}")
+    lines.append("")
+    lines.append(f"_Latency scope for every table above:_ {latency['scope_note']}")
     lines.append("")
 
     cases = report["visualization_cases"]
@@ -1582,6 +2272,22 @@ def parse_args(argv=None):
                         default=list(RANDOM_BASELINE_SEEDS))
     parser.add_argument("--sidecar-argmax-policy", default=SIDECAR_ARGMAX_POLICY,
                         choices=list(SIDECAR_ARGMAX_POLICIES))
+    parser.add_argument("--single-shard", action="store_true",
+                        help="publish a SHARD-LOCAL diagnostic from a directory that carries no "
+                             "merge_report.json. Relaxes only the merge-only gates; the "
+                             "artifact-hash joins, the identity join and every digest still "
+                             "apply, and the artifact is stamped as non-canonical")
+    parser.add_argument("--expect-ckpt-sha256", default=None,
+                        help="enforce the run binding's ckpt_sha256 against this value; without "
+                             "it the digest is recorded and ckpt_sha256_pinned is false")
+    parser.add_argument("--expect-metadata-bank-sha256", default=None,
+                        help="enforce the pair-metadata bank digest this report reads the "
+                             "continuous truths out of; without it the digest is recorded and "
+                             "the truths are not pinned against a registered bank")
+    parser.add_argument("--allow-protocol-deviation", action="store_true",
+                        help="publish even though the run binding is not the registered "
+                             "protocol; the report and the markdown are then stamped as a "
+                             "sensitivity check throughout")
     return parser.parse_args(argv)
 
 
@@ -1590,15 +2296,26 @@ def _refuse(message):
 
 
 def validate_args(args):
-    """The registered settings are the defaults; a change must be deliberate."""
+    """The registered settings are the defaults; a change must be DECLARED.
+
+    A deviation is no longer a console note that scrolls away: it is refused
+    unless ``--allow-protocol-deviation`` is passed, and when it is passed the
+    published artifacts stop calling the setting pre-registered (Codex r9 review,
+    finding 6).
+    """
+    deviating = []
     if int(args.bootstrap_seed) != BOOTSTRAP_SEED or int(args.n_boot) != BOOTSTRAP_N:
-        print(f"NOTE: the bootstrap is being run at seed {args.bootstrap_seed} x "
-              f"{args.n_boot} resamples, not the pre-registered "
-              f"{BOOTSTRAP_SEED} x {BOOTSTRAP_N}; this report is a sensitivity check, "
-              "not the registered one")
+        deviating.append(f"the bootstrap ({args.bootstrap_seed} x {args.n_boot} vs the "
+                         f"pre-registered {BOOTSTRAP_SEED} x {BOOTSTRAP_N})")
     if [int(s) for s in args.baseline_seeds] != list(RANDOM_BASELINE_SEEDS):
-        print(f"NOTE: the random baseline is being run at seeds {args.baseline_seeds}, not the "
-              f"pre-registered {list(RANDOM_BASELINE_SEEDS)}")
+        deviating.append(f"the baseline seeds ({list(args.baseline_seeds)} vs the "
+                         f"pre-registered {list(RANDOM_BASELINE_SEEDS)})")
+    if deviating and not args.allow_protocol_deviation:
+        _refuse(f"{' and '.join(deviating)} are not the pre-registered settings. Pass "
+                "--allow-protocol-deviation to publish this as a sensitivity check; the "
+                "artifacts will be stamped as one throughout")
+    for line in deviating:
+        print(f"SENSITIVITY CHECK: {line}")
     if int(args.n_boot) < 1:
         _refuse("--n-boot must be at least 1")
     return True
@@ -1609,13 +2326,22 @@ def main(argv=None):
     validate_args(args)
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
     print(f"SUBSET: {SUBSET_LABEL}")
+    if args.single_shard:
+        print(f"\n{SINGLE_SHARD_NOTE}\n")
 
     evaluated = evaluate_run(args.run_dir, args.audit_report, args.context_manifest,
                              args.metadata_root, baseline_seeds=args.baseline_seeds,
-                             sidecar_argmax_policy=args.sidecar_argmax_policy)
+                             sidecar_argmax_policy=args.sidecar_argmax_policy,
+                             single_shard=args.single_shard,
+                             expect_ckpt_sha256=args.expect_ckpt_sha256,
+                             expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
+                             allow_protocol_deviation=args.allow_protocol_deviation)
     print(f"gates passed: binding {evaluated['binding_sha256'][:12]}..., "
           f"{evaluated['census']['n_queries']:,} queries / "
-          f"{evaluated['census']['n_rooms']} rooms")
+          f"{evaluated['census']['n_rooms']} rooms, identity join over "
+          f"{evaluated['identity_join']['n_queries']:,} D1 == G1 == row identities")
+    print(f"pair-metadata bank {evaluated['metadata_bank']['metadata_bank_sha256']} "
+          f"({'PINNED' if evaluated['metadata_bank']['pinned'] else 'recorded only'})")
     report = build_report(evaluated, args.run_dir, args.audit_report, args.context_manifest,
                           args.metadata_root, bootstrap_seed=args.bootstrap_seed,
                           n_boot=args.n_boot,
