@@ -133,3 +133,6 @@ Items 1-2 RESOLVED. Sole remaining: probe CLI census verifies-then-discards rows
 
 ## r9m2 delivered (2026-08-26 ~04:00 EDT)
 Last blocker closed: census captures per-artifact BYTE digests (not self-recomputable claims-digests — proven by an exploit test that a coherent swap verifies against itself); every walk read bound to the snapshot. Suite **3,415 / 11 / 0** (slice 508/1). Frozen digests unchanged. Verify r9o launched.
+
+## R1 REPORTING STACK APPROVED (2026-08-26 ~04:30 EDT) — review campaign closed
+Codex r9o: **RESOLVED — APPROVE.** The stack (meshgrid_report / meshgrid_offgrid_probe / meshgrid_retrieval_control) may consume the P1 merged run as canonical with the three frozen digests (metadata 9f1322e5, sparse bank 39f0a119, observation ee2ba80a). Campaign r9→r9o: 8 fix rounds, 6 review passes, suite 3,044 → **3,415** (+371). Stack now FROZEN until the merge lands. On merge: (1) canonical report with both pins + --expect-ckpt-sha256; (2) off-grid probe run (GPU) with all three pins; (3) retrieval control run (GPU) with its pin; (4) quantile viz cases + results/analysis/HTML with subset + leakage labels; then Yixun's BF+YAW option-ii decision.
