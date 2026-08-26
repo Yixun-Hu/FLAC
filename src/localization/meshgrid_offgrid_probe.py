@@ -90,6 +90,16 @@ WAVEFORM_DIRNAME = "waveforms"
 PROBE_REPORT_JSON = "offgrid_probe_report.json"
 PROBE_REPORT_MARKDOWN = "offgrid_probe_report.md"
 
+#: the publish contract, stated inside the artifact that depends on it.
+PUBLICATION_ORDER_NOTE = (
+    "the manifest is written and fsynced BEFORE any dump leaves quarantine, so a crash can "
+    "never leave a finalized file no manifest names; the dumps are then moved with every rename "
+    "inside a rollback handler, so a failure mid-move returns the whole set to quarantine; and "
+    "the manifest is rewritten once publication is complete and every file has been re-verified "
+    "against the digest it was staged with. publication.completed = false therefore means the "
+    "dumps are in quarantine (or the process died between the move and the rewrite, which "
+    "verify_published_probe resolves), and true means the published set is complete")
+
 
 # --------------------------------------------------------------------------- #
 # the binding gate
@@ -142,13 +152,21 @@ def assert_probe_run_census(run_dir, binding, binding_sha256, plan, records,
     artifacts = mr.assert_artifact_hashes(binding, plan, context_manifest)
     registered = mr.assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
                                                allow_deviation=allow_protocol_deviation)
-    merge = (None if single_shard
-             else mr.assert_merge_report(run_dir, binding, binding_sha256, plan, totals=totals))
     rows = mr.verify_rows(run_dir, binding_sha256)
+    # the receipt is checked against the ROWS here too. r9d handed
+    # assert_merge_report derived=None from this path, so the control accepted a
+    # receipt no row supported and never looked at the batching stamps at all
+    # (Codex r9f review, B4) -- the one ladder, applied the one way.
+    derived = mr.derive_run_facts(rows)
+    batching = mr.assert_uniform_batching(rows, binding.get("advisory"))
+    merge = (None if single_shard
+             else mr.assert_merge_report(run_dir, binding, binding_sha256, plan, totals=totals,
+                                         derived=derived))
     census = mr.assert_census(rows, records, totals=totals)
     mr.assert_row_protocol(rows, binding)
     identity_join = mr.assert_identity_join(plan, records, rows)
     return {"artifacts": artifacts, "registered_protocol": registered, "merge": merge,
+            "derived": derived, "batching": batching,
             "census": census, "identity_join": identity_join,
             "single_shard": bool(single_shard),
             "single_shard_note": mr.SINGLE_SHARD_NOTE if single_shard else None}
@@ -379,18 +397,37 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
             "waveform_note": WAVEFORM_NOTE}
 
 
+def _fsync_dir(path):
+    """Flush a directory entry, so a rename survives a crash. Best effort."""
+    try:
+        handle = os.open(path, os.O_RDONLY)
+    except OSError:
+        return False
+    try:
+        os.fsync(handle)
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(handle)
+
+
 def _rollback_published(moved):
-    """Put every already-moved dump back in quarantine, best effort.
+    """Put every already-moved dump back in quarantine, and make it durable.
 
     A half-moved set is the one state the publish contract forbids: either the
     quarantine holds everything, or the published set is complete (Codex r9c
     review, M9). Rolling a rename back is another rename, so the recovery is as
-    reliable as the move was.
+    reliable as the move was -- and each reversal is followed by a directory
+    fsync, so a crash during the recovery cannot leave the reversal itself
+    half-durable (Codex r9f review, M9).
     """
     for target, source in reversed(moved):
         try:
             os.makedirs(os.path.dirname(source), exist_ok=True)
             os.replace(target, source)
+            _fsync_dir(os.path.dirname(source))
+            _fsync_dir(os.path.dirname(target))
         except OSError:                       # noqa: PERF203 -- best effort by design
             pass
     return len(moved)
@@ -405,29 +442,54 @@ def publish_probe_waveforms(out_dir, records):
     left holding a partial published set.
     """
     published, moved = [], []
-    for record in records:
-        source = os.path.join(str(out_dir), record["waveform_staged_path"])
-        target = os.path.join(str(out_dir), record["waveform_path"])
-        if not os.path.isfile(source):
-            _rollback_published(moved)
-            raise ValueError(f"{record['query_id']}: the staged dump {source!r} is gone; the "
-                             "control may not publish a manifest naming a file it cannot move")
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        os.replace(source, target)
-        moved.append((target, source))
-        try:
+    # EVERY step of the loop is inside the handler, the rename included. r9d left
+    # os.replace outside it, so a rename that failed part-way through -- a full
+    # disk, a permission change, a cross-device target -- kept the already-moved
+    # subset published (Codex r9f review, M9).
+    try:
+        for record in records:
+            source = os.path.join(str(out_dir), record["waveform_staged_path"])
+            target = os.path.join(str(out_dir), record["waveform_path"])
+            if not os.path.isfile(source):
+                raise ValueError(f"{record['query_id']}: the staged dump {source!r} is gone; "
+                                 "the control may not publish a manifest naming a file it "
+                                 "cannot move")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            os.replace(source, target)
+            moved.append((target, source))
+            _fsync_dir(os.path.dirname(target))
             if me.file_sha256(target) != record["waveform_sha256"]:
                 raise ValueError(f"{record['query_id']}: the published dump does not match the "
                                  "digest recorded at staging time")
-        except Exception:
-            _rollback_published(moved)
-            raise
-        record["waveform_published"] = True
-        published.append(record["waveform_path"])
+            record["waveform_published"] = True
+            published.append(record["waveform_path"])
+    except BaseException:
+        # BaseException, not Exception: a KeyboardInterrupt mid-loop must not be
+        # the one way to leave a partial published set behind
+        for record in records:
+            record["waveform_published"] = False
+        _rollback_published(moved)
+        raise
     staging = os.path.join(str(out_dir), WAVEFORM_STAGING_DIRNAME)
     if os.path.isdir(staging) and not os.listdir(staging):
         os.rmdir(staging)
     return published
+
+
+#: what the publication path needs out of the verified gate. r9d hand-listed a
+#: subset here and dropped ``metadata_bank_expected``, so the JSON and the
+#: Markdown always said non-canonical while the NPZ labels said canonical
+#: (Codex r9f review). One definition now, and a test pins that it carries
+#: everything ``probe_canonical_status`` reads.
+PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batching",
+                           "single_shard", "single_shard_note", "registered_protocol",
+                           "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
+                           "non_canonical")
+
+
+def publication_gate(gate):
+    """The verified gate, sliced for publication without losing a verdict."""
+    return {field: gate[field] for field in PUBLICATION_GATE_FIELDS if field in gate}
 
 
 def probe_canonical_status(gate):
@@ -504,16 +566,31 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "n_queries": len(records),
         "records": list(records),
         "summary": summary,
+        "publication": {"completed": False, "note": PUBLICATION_ORDER_NOTE},
     }
     path = os.path.join(str(out_dir), PROBE_REPORT_JSON)
-    _write_json_durably(path, mr.jsonable(report))
     markdown = os.path.join(str(out_dir), PROBE_REPORT_MARKDOWN)
+
+    # pass 1 -- the SAFETY NET. Every file is named with the digest it will have,
+    # and publication is honestly recorded as not yet done, so a crash during the
+    # move leaves a manifest that says so rather than one that lies.
+    _write_json_durably(path, mr.jsonable(report))
     _write_text_durably(markdown, render_markdown(report))
 
     # the manifest is on disk and fsynced; only now do the finals leave quarantine
     publish_probe_waveforms(out_dir, records)
-    verify_published_probe(out_dir, records)
-    return {"json": path, "markdown": markdown,
+    verified = verify_published_probe(out_dir, records)
+
+    # pass 2 -- the COMPLETION RECORD. r9d serialized the records before the
+    # publication flag was set, so a successful run persisted
+    # waveform_published=false (Codex r9f review, nit). The same payload is
+    # rewritten once publication is complete and verified.
+    report["records"] = list(records)
+    report["publication"] = {"completed": True, "n_published": verified["n_published"],
+                             "verified": True, "note": PUBLICATION_ORDER_NOTE}
+    _write_json_durably(path, mr.jsonable(report))
+    _write_text_durably(markdown, render_markdown(report))
+    return {"json": path, "markdown": markdown, "publication": report["publication"],
             "sha256": {"json": me.file_sha256(path), "markdown": me.file_sha256(markdown)}}
 
 
@@ -987,14 +1064,21 @@ def gate_run(args, model_config, agree_path, totals=None,
         totals=totals, single_shard=args.single_shard,
         expect_ckpt_sha256=args.expect_ckpt_sha256,
         allow_protocol_deviation=args.allow_protocol_deviation))
-    if not args.expect_metadata_bank_sha256 and not args.non_canonical:
-        raise ValueError(
-            "a canonical off-grid control requires the PRE-REGISTERED pair-metadata bank "
-            f"digest. {mr.METADATA_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run a "
-            "diagnostic instead")
+    # r9d only STORED the expected string here, so the control never read the
+    # tree it takes its truths from and any nonempty value passed (Codex r9f
+    # review, B3). The bank is computed over the same records the run is bound
+    # to and compared against the pre-registered digest -- and it happens here,
+    # before _load_and_validate_checkpoint, so a bank mismatch refuses without
+    # eval_FLAC ever being imported (B5 ordering preserved).
+    bank = mr.compute_metadata_bank_digest(args.context_manifest, args.metadata_root,
+                                           records=manifest["records"])
+    gate["metadata_bank"] = mr.assert_metadata_bank(
+        bank["metadata_bank_sha256"], expected=args.expect_metadata_bank_sha256,
+        allow_unpinned=args.non_canonical)
+    gate["metadata_bank_sha256"] = bank["metadata_bank_sha256"]
     gate["metadata_bank_expected"] = args.expect_metadata_bank_sha256
     gate["non_canonical"] = bool(args.non_canonical
-                                 or not args.expect_metadata_bank_sha256
+                                 or not gate["metadata_bank"]["pinned"]
                                  or args.single_shard
                                  or not gate["registered_protocol"]["is_registered"])
     ckpt = _load_and_validate_checkpoint(args, model_config)
@@ -1071,11 +1155,16 @@ def main(argv=None):
                                                "device": str(args.device)},
                                    tau=args.tau,
                                    prefixes=tuple(int(k) for k in args.k_prefixes),
-                                   gate={key: gate[key] for key in
-                                         ("census", "identity_join", "merge", "single_shard",
-                                          "single_shard_note", "registered_protocol")})
+                                   gate=publication_gate(gate))
+    status = json.load(open(published["json"]))["canonical_status"]
     print(f"\n{len(probe_records)} probe queries -> {published['json']}")
     print(f"  markdown -> {published['markdown']}")
+    if status["canonical"]:
+        print("  CANONICAL: every registered gate of the run and this control passed")
+    else:
+        print(f"  {status['note']}")
+        for reason in status["reasons"]:
+            print(f"    - {reason['gate']}: {reason['why']}")
     return 0
 
 

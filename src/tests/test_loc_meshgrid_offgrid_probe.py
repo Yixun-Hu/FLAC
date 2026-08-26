@@ -568,6 +568,7 @@ def test_the_binding_gate_runs_before_anything_reaches_a_device(tmp_path, monkey
                  "--agree-ckpt", fixture["context_manifest"],
                  "--audit-report", fixture["audit_report"],
                  "--context-manifest", fixture["context_manifest"],
+                 "--metadata-root", fixture["metadata_root"],
                  "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
     assert order == ["gate"]
 
@@ -578,6 +579,7 @@ def test_gate_run_touches_no_device_and_returns_the_whole_ladder(tmp_path, monke
                           "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
+                          "--metadata-root", fixture["metadata_root"],
                           "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
                           "--device", "cuda:0"])
     monkeypatch.setattr(op.torch, "load", lambda *a, **k: {"model_config": {}})
@@ -690,6 +692,7 @@ def test_a_failed_gate_never_imports_eval_flac(tmp_path):
             "--out-dir", {fixture["out_dir"]!r},
             "--audit-report", {fixture["audit_report"]!r},
             "--context-manifest", {fixture["context_manifest"]!r},
+            "--metadata-root", {fixture["metadata_root"]!r},
             "--expect-metadata-bank-sha256", {fixture["metadata_bank_sha256"]!r}])
         try:
             op.gate_run(args, {{}}, {fixture["context_manifest"]!r},
@@ -724,6 +727,7 @@ def test_the_checkpoint_is_read_only_after_every_gate_has_passed(tmp_path, monke
                           "--out-dir", fixture["out_dir"],
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
+                          "--metadata-root", fixture["metadata_root"],
                           "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
     with pytest.raises(ValueError, match="merge_report.json"):
         op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
@@ -737,6 +741,7 @@ def test_the_checkpoint_is_read_only_after_every_gate_has_passed(tmp_path, monke
                           "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
+                          "--metadata-root", fixture["metadata_root"],
                           "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
     op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
                 require_manifest_census=False)
@@ -883,3 +888,237 @@ def test_a_non_canonical_control_says_so_in_its_markdown(tmp_path):
     markdown = open(published["markdown"]).read()
     assert "NON-CANONICAL" in markdown
     assert "`metadata_bank`" in markdown
+
+
+# --------------------------------------------------------------------------- #
+# r9g: the residuals the Codex r9f verify pass left open in this control
+# --------------------------------------------------------------------------- #
+def _gate_args(fixture, run_dir=None, **extra):
+    argv = ["--ckpt-path", fixture["context_manifest"],
+            "--run-dir", run_dir or fixture["run_dir"],
+            "--out-dir", fixture["out_dir"],
+            "--audit-report", fixture["audit_report"],
+            "--context-manifest", fixture["context_manifest"],
+            "--metadata-root", fixture["metadata_root"]]
+    for flag, value in extra.items():
+        option = "--" + flag.replace("_", "-")
+        argv += [option] if value is True else [option, str(value)]
+    return op.parse_args(argv)
+
+
+def _matching_binding(monkeypatch, fixture):
+    """Make build_run_binding return the fixture's, so later gates are reached."""
+    import localize_meshgrid as driver
+
+    monkeypatch.setattr(driver, "build_run_binding", lambda *a, **k: dict(fixture["binding"]))
+    monkeypatch.setattr(op, "_load_and_validate_checkpoint", lambda *a, **k: {})
+
+
+def test_the_probe_computes_the_bank_and_compares_it_to_the_pin(tmp_path, monkeypatch):
+    """B3 residual: r9d stored the expected string and never read the tree."""
+    fixture = _probe_fixture(tmp_path)
+    _matching_binding(monkeypatch, fixture)
+
+    args = _gate_args(fixture, expect_metadata_bank_sha256=fixture["metadata_bank_sha256"])
+    _plan, _manifest, _binding, gate, _ckpt = op.gate_run(
+        args, {}, fixture["context_manifest"], totals=fixture["totals"],
+        require_manifest_census=False)
+    assert gate["metadata_bank_sha256"] == fixture["metadata_bank_sha256"]
+    assert gate["metadata_bank"]["pinned"] is True
+    assert gate["non_canonical"] is False
+
+    # a WRONG pin is refused -- which r9d could not do, having never computed it
+    wrong = _gate_args(fixture, expect_metadata_bank_sha256="a" * 64)
+    with pytest.raises(ValueError, match="not the registered ones"):
+        op.gate_run(wrong, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+
+
+def test_a_wrong_bank_pin_refuses_before_the_checkpoint_is_touched(tmp_path, monkeypatch):
+    """B3 + B5 together: the bank gate must precede the eval_FLAC import."""
+    import localize_meshgrid as driver
+
+    fixture = _probe_fixture(tmp_path)
+    touched = []
+    monkeypatch.setattr(driver, "build_run_binding", lambda *a, **k: dict(fixture["binding"]))
+    monkeypatch.setattr(op, "_load_and_validate_checkpoint",
+                        lambda *a, **k: touched.append("ckpt") or {})
+    args = _gate_args(fixture, expect_metadata_bank_sha256="a" * 64)
+    with pytest.raises(ValueError, match="not the registered ones"):
+        op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+    assert touched == []
+
+
+def test_an_edited_truth_tree_is_caught_by_the_probes_own_bank_gate(tmp_path, monkeypatch):
+    fixture = _probe_fixture(tmp_path)
+    _matching_binding(monkeypatch, fixture)
+    args = _gate_args(fixture, expect_metadata_bank_sha256=fixture["metadata_bank_sha256"])
+    op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                require_manifest_census=False)
+
+    mirrored = fx._mirrored_truth("A/A_idx_1")
+    path = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")
+    payload = json.load(open(path))
+    payload["src_loc"] = mirrored
+    with open(path, "w") as handle:
+        json.dump(payload, handle)
+    with pytest.raises(ValueError, match="not the registered ones"):
+        op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+
+
+def test_the_probe_run_gate_derives_the_receipt_from_the_rows(tmp_path):
+    """B4 residual: r9d passed derived=None, so nothing was cross-checked."""
+    fixture = _probe_fixture(tmp_path)
+    verdict = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    assert verdict["derived"]["source_rows"] == fixture["totals"]["source_rows"]
+    assert verdict["batching"]["batching"] == fx.FIXTURE_ADVISORY
+    assert verdict["merge"]["receipt_cross_checked_against_rows"] is True
+
+
+def test_the_probe_refuses_a_receipt_the_rows_do_not_support(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    path = os.path.join(fixture["run_dir"], "merge_report.json")
+    pristine = json.load(open(path))
+    totals = dict(pristine["totals"], source_rows=int(pristine["totals"]["source_rows"]) + 1)
+    me.write_json(path, dict(pristine, totals=totals))
+    with pytest.raises(ValueError, match="source_rows"):
+        op.assert_probe_run_census(
+            fixture["run_dir"], _published_binding(fixture["run_dir"]),
+            fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+            totals=dict(fixture["totals"], source_rows=totals["source_rows"]))
+
+
+def test_the_probe_refuses_mixed_or_stripped_batching(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    path = me.query_artifact_paths(fixture["run_dir"], "A/A_idx_1", 0)["row"]
+    row = json.load(open(path))
+    row["batching"] = {"batch_rows": 512, "source_chunk": 2}
+    row["row_sha256"] = me.row_digest(row)
+    me.write_json(path, row)
+    with pytest.raises(ValueError, match="different batchings"):
+        op.assert_probe_run_census(
+            fixture["run_dir"], _published_binding(fixture["run_dir"]),
+            fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+            totals=fixture["totals"])
+
+    row["batching"] = {}
+    row["row_sha256"] = me.row_digest(row)
+    me.write_json(path, row)
+    with pytest.raises(ValueError, match="no complete batching stamp"):
+        op.assert_probe_run_census(
+            fixture["run_dir"], _published_binding(fixture["run_dir"]),
+            fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+            totals=fixture["totals"])
+
+
+def test_the_publication_gate_carries_every_verdict_the_status_reads(tmp_path):
+    """Item 3: r9d hand-listed a subset and dropped metadata_bank_expected."""
+    fixture = _probe_fixture(tmp_path)
+    gate = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    gate.update({"metadata_bank_expected": fixture["metadata_bank_sha256"],
+                 "metadata_bank_sha256": fixture["metadata_bank_sha256"],
+                 "metadata_bank": {"pinned": True}, "non_canonical": False})
+    sliced = op.publication_gate(gate)
+    for field in ("single_shard", "registered_protocol", "metadata_bank_expected"):
+        assert field in sliced, f"{field} is read by probe_canonical_status"
+    assert op.probe_canonical_status(sliced) == op.probe_canonical_status(gate)
+    assert op.probe_canonical_status(sliced)["canonical"] is True
+
+
+def test_json_markdown_and_npz_agree_that_a_run_is_canonical(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, non_canonical=False)
+    gate = {"single_shard": False, "metadata_bank_expected": fixture["metadata_bank_sha256"],
+            "registered_protocol": {"is_registered": True, "deviations": {}}}
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate=op.publication_gate(gate))
+    payload = json.load(open(published["json"]))
+    markdown = open(published["markdown"]).read()
+    assert payload["canonical_status"]["canonical"] is True
+    assert "NON-CANONICAL" not in markdown
+    for record in payload["records"]:
+        assert record["sensitivity_status"] == op.CANONICAL_STATUS_CANONICAL
+        with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert str(data["sensitivity_status"]) == op.CANONICAL_STATUS_CANONICAL
+
+
+def test_json_markdown_and_npz_agree_that_a_run_is_not_canonical(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture, non_canonical=True)
+    gate = {"single_shard": False, "metadata_bank_expected": None,
+            "registered_protocol": {"is_registered": True, "deviations": {}}}
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate=op.publication_gate(gate))
+    payload = json.load(open(published["json"]))
+    markdown = open(published["markdown"]).read()
+    assert payload["canonical_status"]["canonical"] is False
+    assert "NON-CANONICAL" in markdown
+    for record in payload["records"]:
+        assert record["sensitivity_status"] == op.CANONICAL_STATUS_NON_CANONICAL
+        with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert "NON-CANONICAL" in str(data["sensitivity_status"])
+
+
+def test_a_rename_failure_mid_loop_leaves_quarantine_complete(tmp_path, monkeypatch):
+    """M9 residual: os.replace sat OUTSIDE the rollback handler."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    assert len(records) >= 2
+
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def _failing(src, dst):
+        # let the manifest's own tmp->final renames through; fail the Nth NPZ move
+        if str(dst).endswith(".npz"):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise OSError("injected rename failure on the 2nd dump")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(op.os, "replace", _failing)
+    with pytest.raises(OSError, match="injected rename failure"):
+        op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                              fixture["binding_sha256"], provenance={},
+                              tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    monkeypatch.undo()
+
+    # quarantine holds every dump again, and no final was left behind
+    staging = os.path.join(fixture["out_dir"], op.WAVEFORM_STAGING_DIRNAME)
+    published_dir = os.path.join(fixture["out_dir"], op.WAVEFORM_DIRNAME)
+    assert sorted(os.listdir(staging)) == sorted(
+        os.path.basename(record["waveform_staged_path"]) for record in records)
+    assert [name for name in os.listdir(published_dir) if name.endswith(".npz")] == []
+    assert all(record["waveform_published"] is False for record in records)
+    # the safety-net manifest is on disk and says publication did NOT complete
+    payload = json.load(open(os.path.join(fixture["out_dir"], op.PROBE_REPORT_JSON)))
+    assert payload["publication"]["completed"] is False
+
+
+def test_a_successful_run_records_publication_as_complete(tmp_path):
+    """The r9f nit: a successful JSON persisted waveform_published=false."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(fixture["out_dir"], records, fixture["binding"],
+                                      fixture["binding_sha256"], provenance={},
+                                      tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES)
+    payload = json.load(open(published["json"]))
+    assert payload["publication"]["completed"] is True
+    assert payload["publication"]["n_published"] == len(records)
+    assert payload["publication"]["verified"] is True
+    for record in payload["records"]:
+        assert record["waveform_published"] is True
+    assert published["sha256"]["json"] == me.file_sha256(published["json"])
+    assert "manifest is written and fsynced BEFORE" in payload["publication"]["note"]
