@@ -112,3 +112,6 @@ r9d closed all 8 residuals + both rulings (ckpt registry P1/BF/YAW pinned by rea
 
 ## Codex r9f: REJECT, minimal blocking set of 3 (2026-08-26 ~00:15 EDT)
 RESOLVED: B2 B5 M6 M7 M8 + disclosures + retrieval model_config + K=1 cosine. Blocking: (1) probe gate lacks derive_run_facts/uniform-batching and empty batching stamps pass via `if found`; (2) probe stores --expect-metadata-bank-sha256 without computing/comparing, and the CLI drops the expectation at publication (JSON/md vs NPZ canonicality divergence); (3) retrieval digests bytes under --dataset-root but scores obs from the dataset-config root (divergent roots), and re-reads truth/bank bytes post-gate without hash comparison; plus M9 os.replace outside rollback; input-surface device/alpha/loader-config residuals. r9g (probe/report) + r9h (retrieval) dispatched.
+
+## r9g + r9h delivered (2026-08-26 ~01:10 EDT)
+All r9f blocking items + residuals closed. Suite **3,358 / 11 / 0** at final HEAD; report+probe 184 tests, retrieval control 130. Frozen pre-registered digests UNCHANGED by the refactor (sparse bank recomputed = 39f0a119…, roots agree on the released config, loader values == REGISTERED_LOADER). Final Codex verify pass r9i launched.

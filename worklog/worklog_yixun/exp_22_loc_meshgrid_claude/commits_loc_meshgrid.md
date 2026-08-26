@@ -315,3 +315,5 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `a6e7176` exp_22 r9e: sparse bank pre-registered (bank_digest + --print/--expect-bank-sha256), K=1 score = raw cosine, model_config into binding, full input-surface canonicality
 - `52cb570` exp_22 r9d (1): report re-derives the merge receipt; pre-registered truth required (B1/B3/M6-M8)
 - `cda347e` exp_22 r9d (2): probe gates before import, one-direction publish (B4/B5/M9, disclosures)
+- `613193e` `94eddaa` exp_22 r9g: complete batching stamps mandatory; probe computes+compares bank digest pre-import; publication gate unified; renames inside rollback
+- `fbdffc1` `e2bd859` `8528283` `40aab70` exp_22 r9h: one root for digest+scoring; byte continuity (hash-verified reads, verify-before-read); device/alpha/loader-values registered-bound
