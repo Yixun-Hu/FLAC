@@ -181,10 +181,11 @@ def run_control(fixture, **kwargs):
     kwargs.setdefault("decoder", fixture["decoder"])
     kwargs.setdefault("bank_document", fixture["bank_document"])
     kwargs.setdefault("records", fixture["records"])
+    kwargs.setdefault("metadata_root", fixture["metadata_root"])
+    kwargs.setdefault("dataset_root", fixture["dataset_root"])
     records = kwargs.pop("records")
     return rc.run_retrieval(fixture["embedder"], list(fixture["items"]), records,
-                            fixture["plan"], metadata_root=fixture["metadata_root"],
-                            dataset_root=fixture["dataset_root"], **kwargs)
+                            fixture["plan"], **kwargs)
 
 
 def _by_id(results):
@@ -627,6 +628,14 @@ def test_the_truth_pair_is_verified_before_the_truth_is_read(tmp_path):
     with pytest.raises(ValueError,
                        match="truth-carrying pair file .* changed after the sparse-bank digest"):
         run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_a_cosmetically_different_root_is_not_a_different_file(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    # a trailing separator makes every joined path differ as a STRING while
+    # naming the same files; the digest join must not turn that into a refusal
+    assert run_control(fixture, dataset_root=fixture["dataset_root"] + os.sep,
+                       metadata_root=fixture["metadata_root"] + os.sep)
 
 
 def test_a_file_the_digest_never_covered_cannot_be_read_under_a_digest(tmp_path):

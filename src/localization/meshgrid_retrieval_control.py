@@ -809,12 +809,14 @@ def assert_observation_bytes(query_id, obs_wav, path, expected_sha256, sample_si
     rebuilt = observation_from_bytes(data, sample_size, where=str(path))
     observed = torch.as_tensor(obs_wav).detach().cpu().float().reshape(1, -1)
     if observed.shape != rebuilt.shape or not torch.equal(observed, rebuilt):
+        # the delta is only meaningful when the shapes agree; building the
+        # message must not itself raise
+        delta = (float((observed - rebuilt).abs().max())
+                 if observed.shape == rebuilt.shape else float("nan"))
         raise ValueError(
             f"{query_id}: the observation the loader delivered is not what the digested bytes "
             f"of {path} decode to (shapes {tuple(observed.shape)} vs {tuple(rebuilt.shape)}, "
-            f"max |delta| "
-            f"{float((observed - rebuilt[:, :observed.shape[-1]]).abs().max()) if observed.shape[-1] <= rebuilt.shape[-1] else float('nan'):.3g}). "
-            "The scored waveform did not come from the digested file")
+            f"max |delta| {delta:.3g}). The scored waveform did not come from the digested file")
     return True
 
 
@@ -1004,7 +1006,8 @@ def embed_bank(embedder, entries, decoder=None, cache=None, expected_sha256=None
             data = read_bytes(path)
             waveform = (decode_rir if decoder is None else decoder)(data, path)
         else:
-            waveform = verified_rir(path, expected_sha256.get(path), decoder=decoder)
+            waveform = verified_rir(path, expected_sha256.get(os.path.normpath(path)),
+                                    decoder=decoder)
         embedding = torch.as_tensor(embedder(waveform)).float().reshape(-1)
         if cache is not None:
             cache[path] = embedding
@@ -1176,11 +1179,13 @@ def _digest_hashes(bank_document, metadata_root, dataset_root, query_id):
     if recorded is None:
         raise ValueError(f"{query_id} is not in the sparse-bank digest document; the digest and "
                          "the pass do not cover the same subset")
-    hashes = {os.path.join(str(metadata_root), recorded["truth_pair"][0]):
+    # normpath on both sides: a trailing slash on a root is not a different file,
+    # and a lookup miss here would be a false refusal rather than a caught swap
+    hashes = {os.path.normpath(os.path.join(str(metadata_root), recorded["truth_pair"][0])):
                   recorded["truth_pair"][1]}
     for row in recorded["bank"]:
-        hashes[os.path.join(str(metadata_root), row[2])] = row[3]
-        hashes[os.path.join(str(dataset_root), row[4])] = row[5]
+        hashes[os.path.normpath(os.path.join(str(metadata_root), row[2]))] = row[3]
+        hashes[os.path.normpath(os.path.join(str(dataset_root), row[4]))] = row[5]
     return hashes, recorded
 
 
@@ -1265,7 +1270,8 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         if bank_document is not None:
             hashes, recorded = _digest_hashes(bank_document, metadata_root, dataset_root,
                                               query_id)
-            truth_pair = os.path.join(str(metadata_root), recorded["truth_pair"][0])
+            truth_pair = os.path.normpath(
+                os.path.join(str(metadata_root), recorded["truth_pair"][0]))
             if truth_pair not in verified_files:
                 assert_file_bytes(truth_pair, recorded["truth_pair"][1],
                                   "the truth-carrying pair file")
@@ -1286,7 +1292,7 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
             assert_bank_unchanged(query_id, bank["entries"], bank_document)
             # every POSITION file this bank read, once per run
             for entry in bank["entries"]:
-                pair_path = str(entry.pair_path)
+                pair_path = os.path.normpath(str(entry.pair_path))
                 if pair_path not in verified_files:
                     assert_file_bytes(pair_path, hashes.get(pair_path),
                                       "a bank entry's pair file")
