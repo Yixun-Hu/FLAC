@@ -1833,3 +1833,68 @@ def test_the_dataset_config_identity_is_part_of_the_registered_set(tmp_path):
     with pytest.raises(ValueError, match="dataset_config_sha256"):
         mr.assert_registered_protocol(dict(fixture["binding"],
                                            dataset_config_sha256="0" * 64))
+
+
+# --------------------------------------------------------------------------- #
+# r9g: the residuals the Codex r9f verify pass left open
+# --------------------------------------------------------------------------- #
+def test_a_stripped_batching_stamp_is_refused_not_skipped(tmp_path):
+    """B1 residual: `if found` let an empty stamp through untouched."""
+    fixture = build_fixture_run(tmp_path)
+    rows = mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])
+    assert mr.assert_uniform_batching(rows, FIXTURE_ADVISORY)["batching"] == FIXTURE_ADVISORY
+
+    for stripped in ({}, None):
+        edited = [dict(row) for row in rows]
+        edited[0]["batching"] = stripped
+        with pytest.raises(ValueError, match="no complete batching stamp"):
+            mr.assert_uniform_batching(edited, FIXTURE_ADVISORY)
+
+
+def test_a_partial_batching_stamp_is_refused(tmp_path):
+    """B1 residual: comparing only the keys present let source_chunk vanish."""
+    fixture = build_fixture_run(tmp_path)
+    rows = mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])
+    for missing in me.RUN_BINDING_ADVISORY:
+        partial = {key: value for key, value in FIXTURE_ADVISORY.items() if key != missing}
+        edited = [dict(row, batching=dict(partial)) for row in rows]
+        with pytest.raises(ValueError, match="no complete batching stamp"):
+            mr.assert_uniform_batching(edited, FIXTURE_ADVISORY)
+    # an extra key is not a valid stamp either
+    edited = [dict(row, batching=dict(FIXTURE_ADVISORY, extra=1)) for row in rows]
+    with pytest.raises(ValueError, match="no complete batching stamp"):
+        mr.assert_uniform_batching(edited, FIXTURE_ADVISORY)
+
+
+def test_a_re_signed_row_with_a_stripped_stamp_cannot_canonicalize(tmp_path):
+    """The exploit the r9f review named, end to end."""
+    fixture = build_fixture_run(tmp_path)
+    path = me.query_artifact_paths(fixture["run_dir"], "A/A_idx_1", 0)["row"]
+    row = json.load(open(path))
+    row["batching"] = {}                                 # stripped, then re-signed
+    row["row_sha256"] = me.row_digest(row)
+    me.write_json(path, row)
+    assert me.verify_query_artifact(path, binding_sha256=fixture["binding_sha256"])["ok"]
+    with pytest.raises(ValueError, match="no complete batching stamp"):
+        evaluate_fixture(fixture)
+
+
+def test_a_run_that_does_not_pin_its_advisory_batching_is_refused(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    rows = mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])
+    with pytest.raises(ValueError, match="does not pin the advisory batching"):
+        mr.assert_uniform_batching(rows, {"batch_rows": 8, "source_chunk": None})
+    with pytest.raises(ValueError, match="does not pin the advisory batching"):
+        mr.assert_uniform_batching(rows, None)
+
+
+def test_the_bank_digest_can_reuse_records_a_caller_already_loaded(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    from_file = mr.compute_metadata_bank_digest(fixture["context_manifest"],
+                                                fixture["metadata_root"],
+                                                require_manifest_census=False)
+    from_records = mr.compute_metadata_bank_digest(fixture["context_manifest"],
+                                                   fixture["metadata_root"],
+                                                   records=fixture["records"])
+    assert from_records["metadata_bank_sha256"] == from_file["metadata_bank_sha256"]
+    assert from_records["n_pair_files"] == from_file["n_pair_files"]

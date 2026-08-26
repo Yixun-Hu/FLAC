@@ -440,29 +440,60 @@ def plan_source_rows(plan, rooms=None):
 
 
 def assert_uniform_batching(rows, advisory):
-    """Every row was produced at ONE batching, and it is the one the run pins.
+    """Every row carries a COMPLETE batching stamp, and it is the one the run pins.
 
     ``merge_shards`` makes this check per row, but only a directory that actually
     went through it has been checked; a hand-assembled one has not (Codex r9c
     review, B1). Under the engine's own BATCHING_CAVEAT a changed batch shape
     moves a score by about one float16 ulp, so mixed stamps mean the cells are
     not comparable by construction.
+
+    Completeness is the point of this revision. r9d compared only the keys a row
+    happened to carry and skipped the comparison entirely for an empty stamp, so
+    a re-signed row with its ``batching`` stripped -- or with ``source_chunk``
+    removed -- canonicalised (Codex r9f review, B1). The engine stamps both
+    advisory fields into every row it writes, so anything less is a row that was
+    edited, and it is refused rather than partially checked. The run's own
+    advisory must be complete for the same reason: a canonical pass states the
+    batching it ran at, it does not leave it null.
     """
-    wanted = {key: (advisory or {}).get(key) for key in me.RUN_BINDING_ADVISORY}
+    fields = list(me.RUN_BINDING_ADVISORY)
+    wanted = {key: (advisory or {}).get(key) for key in fields}
+    unpinned = sorted(key for key in fields if wanted[key] is None)
+    if unpinned:
+        raise ValueError(
+            f"the published binding does not pin the advisory batching {unpinned}; a run that "
+            f"does not state the batch shapes it ran at cannot be compared cell to cell. "
+            f"{me.BATCHING_CAVEAT}")
+
+    incomplete = []
     stamps = {}
     for row in rows:
-        stamp = json.dumps(row.get("batching") or {}, sort_keys=True)
-        stamps.setdefault(stamp, []).append(row["query_id"])
+        stamp = row.get("batching")
+        if not isinstance(stamp, dict) or sorted(stamp) != sorted(fields):
+            incomplete.append({"query_id": row["query_id"],
+                               "batching": stamp,
+                               "missing": sorted(set(fields) - set(stamp or {}))})
+            continue
+        stamps.setdefault(json.dumps(stamp, sort_keys=True), []).append(row["query_id"])
+    if incomplete:
+        raise ValueError(
+            f"{len(incomplete)} row(s) carry no complete batching stamp (first "
+            f"{incomplete[:3]}); the engine stamps {fields} into every row it writes, so a "
+            "missing or partial stamp is an edited row and is refused rather than skipped")
+    if not stamps:
+        raise ValueError("no rows were offered to the batching check")
     if len(stamps) > 1:
         summary = {stamp: len(queries) for stamp, queries in sorted(stamps.items())}
         raise ValueError(
             f"the rows were produced at {len(stamps)} different batchings ({summary}); a merged "
             f"run states ONE. {me.BATCHING_CAVEAT}")
     found = json.loads(next(iter(stamps)))
-    if found and found != {key: wanted[key] for key in found}:
+    if found != wanted:
         raise ValueError(f"every row is stamped with batching {found} but the published binding "
                          f"pins {wanted}; the advisory values are not the ones the pass ran at")
-    return {"batching": found, "advisory": wanted, "n_rows": len(rows)}
+    return {"batching": found, "advisory": wanted, "n_rows": len(rows),
+            "fields": fields}
 
 
 def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None, derived=None):
@@ -919,7 +950,7 @@ class TruthResolver:
 
 
 def compute_metadata_bank_digest(context_manifest, metadata_root,
-                                 require_manifest_census=True):
+                                 require_manifest_census=True, records=None):
     """The pre-registration entry point: the bank digest, computed on its own.
 
     Deterministic and independent of any run -- it needs only the D1 manifest and
@@ -929,9 +960,15 @@ def compute_metadata_bank_digest(context_manifest, metadata_root,
     authority and cannot be corroborated from outside, but a digest registered
     before there are results to choose between makes an adversarially selected
     truth impossible.
+
+    ``records`` lets a caller that has already loaded (and census-verified) the
+    D1 manifest hand its records over instead of parsing the 16 MB file twice;
+    the digest is identical either way, because it is a pure function of the
+    query set and the tree.
     """
-    manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
-    records = manifest["records"]
+    if records is None:
+        records = mq.load_manifest(context_manifest,
+                                   require_census=require_manifest_census)["records"]
     resolver = TruthResolver(metadata_root)
     for record in records:
         resolver.resolve(record)
