@@ -124,3 +124,6 @@ All four r9i items closed + observation pin added. Suite **3,394 / 11 / 0** (loc
 
 ## Codex r9l: REJECT, 3 items — read-once family, report/probe only (2026-08-26 ~02:20 EDT)
 Retrieval control fully RESOLVED (all rows). Blocking: (1) probe's fresh resolver consumes runtime truth bytes post-gate; (2) observation pin reopens after decode + one-candidate functional tie non-injective — need single-buffer hash→decode; (3) NEW: report rows/sidecars verified-then-reopened. r9m dispatched (report/probe author).
+
+## r9m delivered (2026-08-26 ~02:55 EDT)
+All three r9l items closed: probe truth from frozen-bank-verified buffers; observation byte->tensor single path (decode bit-identity to the released loader verified on real data); report rows+sidecars single-buffer parse cross-pinned to the engine's verifiers. Suite **3,409 / 11 / 0** (slice 502/1). All three frozen digests recomputed UNCHANGED. Verify pass r9n launched.
