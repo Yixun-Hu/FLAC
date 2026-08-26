@@ -110,19 +110,35 @@ PROBE_REPORT_MARKDOWN = "offgrid_probe_report.md"
 #: while the only admissible difference is the batch-shape noise the engine
 #: already registers a bound for.
 OBSERVATION_BINDING_NOTE = (
-    "no registered artifact digests the observed RIR: the D1 record pins the eight CONTEXT RIRs "
-    "(verified per query by the engine's verify_context_record) and the row pins its own claims "
-    "and its similarity sidecar, but the observation itself is pinned nowhere (Codex r9i review, "
-    "item 2). Rather than invent a field, the live observation is tied to the frozen rows "
-    "FUNCTIONALLY: one candidate of the query is regenerated from the same keyed noise and the "
-    "same conditioning, and its cosine against the LIVE observation must reproduce the "
-    "similarity the row already published for that candidate, to within the engine's registered "
-    "SCORE_TOLERANCE plus the float16 half-ulp of the sidecar. Because s[x, k] = cos(E(h_obs), "
-    "E(h_hat[x, k])), a substituted observation moves that number directly. What this pins: that "
-    "the observation being scored here is the observation those rows were scored against. What "
-    "it does NOT pin: the observation's provenance in any absolute sense -- its bytes are "
-    "recorded below so a later round can pre-register them, exactly as the pair-metadata bank "
-    "was")
+    "the observed RIR is bound TWICE, because the two checks answer different questions and "
+    "neither answers the other's. (1) THE PIN, over SOURCE BYTES: the observation-bank digest "
+    "covers the on-disk bytes of the sixteen registered probe queries' RIR files, is computed "
+    "with no run and no model, and is PRE-REGISTERED before any result exists -- the same "
+    "chronology that closes the pair-metadata bank (Planner RULING 2). A canonical control "
+    "requires it back as --expect-observation-bank-sha256, recomputes it, and additionally "
+    "requires the file the released loader actually opened to hash to that query's pinned "
+    "digest, so a divergent dataset root cannot satisfy the bank while the loader reads "
+    "elsewhere. (2) THE TIE, over the TENSOR PATH: no registered run artifact digests the "
+    "observation -- the D1 record pins the eight CONTEXT RIRs (verified per query by the "
+    "engine's verify_context_record) and the row pins its own claims and its similarity "
+    "sidecar, but the observation is in none of them (Codex r9i review, item 2) -- so the live "
+    "observation is tied to the frozen rows FUNCTIONALLY: one candidate of the query is "
+    "regenerated from the same keyed noise and the same conditioning, and its cosine against the "
+    "LIVE observation must reproduce the similarity the row already published, to within the "
+    "engine's registered SCORE_TOLERANCE plus the float16 half-ulp of the sidecar. Because "
+    "s[x, k] = cos(E(h_obs), E(h_hat[x, k])), a substituted observation moves that number "
+    "directly. Together: the pin says these are the registered bytes, the tie says the tensor "
+    "those bytes decoded to is the one the frozen rows were scored against -- a byte-identical "
+    "file loaded through a changed crop or sample rate passes the pin and fails the tie")
+
+#: how the observation bank is pre-registered, stated the way the metadata bank's is.
+OBSERVATION_BANK_PREREGISTRATION_NOTE = (
+    "compute the digest with `python -m src.localization.meshgrid_offgrid_probe "
+    "--print-observation-digest --audit-report <G1> --context-manifest <D1> --dataset-root "
+    "<root>`, commit the value, and pass it back as --expect-observation-bank-sha256 on every "
+    "canonical run. It needs no run directory, no checkpoint and no GPU, so it can be -- and "
+    "must be -- frozen before any localization quality has been read; that ordering is the whole "
+    "argument, exactly as it is for the pair-metadata bank")
 
 #: the intent record that survives a hard crash.
 PUBLICATION_JOURNAL = "offgrid_publication_journal.json"
@@ -289,6 +305,136 @@ def generate_at_truth(engine, md, receiver_xyz, truth_xyz, *, query_id, seed=me.
     merged = me.expand_conditioning(context, source, rows, engine.device)
     latents = engine.sampler(noise, engine.cond_inputs_fn(merged))
     return engine.decoder(latents).clamp(-1.0, 1.0)
+
+
+#: where the released split's relpaths are rooted.
+DEFAULT_DATASET_ROOT = "AcousticRooms"
+
+
+def resolve_observation_path(dataset_root, record):
+    """``<dataset_root>/<relpath>`` -- the file the released loader opens."""
+    relpath = record.get("relpath") or record.get("path")
+    if not relpath:
+        raise ValueError(f"{record.get('query_id')!r}: the context manifest record carries no "
+                         "relpath, so its observed RIR cannot be located")
+    return os.path.join(str(dataset_root), str(relpath))
+
+
+def digest_file_once(path):
+    """``(sha256, n_bytes)`` from a SINGLE read -- the r9j item-1 pattern.
+
+    Nothing is parsed out of a wav, but the discipline is the same one the pair
+    metadata needed: whatever is later said about this file is said about the
+    bytes that were actually read, not about a second read of the same name.
+    """
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    return hashlib.sha256(raw).hexdigest(), len(raw)
+
+
+def compute_observation_bank_digest(audit_report, context_manifest,
+                                    dataset_root=DEFAULT_DATASET_ROOT,
+                                    require_manifest_census=True, branch=None):
+    """The PRE-REGISTRATION entry point for the observed RIRs.
+
+    Deterministic and run-free: the sixteen registered probe queries come from
+    the G1 audit's own rule (``registered_probe_queries``), their observed RIRs
+    are located through the D1 manifest's relpaths, and each is digested from a
+    single read. No checkpoint, no scorer, no GPU and no ``eval_FLAC`` import is
+    involved, so the value can be frozen before any localization quality exists
+    -- which is the entire argument for it (Planner RULING 2).
+    """
+    plan = me.load_audit_plan(audit_report, branch=branch)
+    manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
+    records = {str(record["query_id"]): record for record in manifest["records"]}
+
+    probes = me.registered_probe_queries(plan)
+    assert_registered_probe_set(probes, plan)
+
+    queries, missing = {}, []
+    for room_id in sorted(probes):
+        query_id = probes[room_id]
+        record = records.get(query_id)
+        if record is None:
+            missing.append(query_id)
+            continue
+        path = resolve_observation_path(dataset_root, record)
+        if not os.path.isfile(path):
+            missing.append(f"{query_id} -> {path}")
+            continue
+        digest, n_bytes = digest_file_once(path)
+        queries[query_id] = {"room_id": room_id,
+                             "relpath": str(record.get("relpath")),
+                             "path": path,
+                             "sha256": digest,
+                             "n_bytes": int(n_bytes)}
+    if missing:
+        raise ValueError(
+            f"{len(missing)} registered probe observation(s) could not be read (first "
+            f"{missing[:3]}); the bank covers all {len(probes)} or it is not the registered bank")
+
+    from src.localization.crossarm import canonical_sha256
+
+    bank = canonical_sha256({query_id: [entry["relpath"], entry["sha256"]]
+                             for query_id, entry in sorted(queries.items())})
+    return {"observation_bank_sha256": bank,
+            "n_queries": len(queries),
+            "queries": queries,
+            "dataset_root": str(dataset_root),
+            "audit_report": str(audit_report),
+            "audit_report_sha256": plan.report_sha256,
+            "context_manifest": str(context_manifest),
+            "context_manifest_sha256": me.file_sha256(context_manifest),
+            "how_to_register": OBSERVATION_BANK_PREREGISTRATION_NOTE,
+            "note": OBSERVATION_BINDING_NOTE}
+
+
+def assert_observation_bank(found, expected=None, allow_unpinned=False):
+    """The observations came out of the PRE-REGISTERED bank.
+
+    The same shape, and the same refusal, as the pair-metadata bank: recording a
+    digest and feeding it back later proves stability, not origin, so
+    trust-on-first-use is not a canonical mode.
+    """
+    if expected and str(expected) != str(found):
+        raise ValueError(
+            f"the observed-RIR bank this control reads hashes to {str(found)[:16]}... but the "
+            f"registered bank is {str(expected)[:16]}...; the observations behind every rank and "
+            "every calibration cosine are not the registered ones")
+    if not expected and not allow_unpinned:
+        raise ValueError(
+            "a canonical off-grid control requires the PRE-REGISTERED observed-RIR bank digest, "
+            f"and none was supplied. The bank this run reads hashes to {str(found)}. "
+            f"{OBSERVATION_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run a diagnostic "
+            "instead")
+    return {"observation_bank_sha256": str(found), "pinned": bool(expected),
+            "preregistration_note": OBSERVATION_BANK_PREREGISTRATION_NOTE,
+            "note": OBSERVATION_BINDING_NOTE}
+
+
+def assert_observation_source(query_id, loader_path, expected):
+    """The file the LOADER opened is the file the bank digested.
+
+    The bank is computed under ``--dataset-root``; the loader resolves its own
+    path from the dataset config. A divergent root would let a pristine tree
+    satisfy the frozen digest while the observations came from somewhere else --
+    the r9i review found exactly that shape of hole in the retrieval control, and
+    it is closed here by digesting what the loader actually read rather than
+    trusting the two roots to agree.
+    """
+    if not loader_path:
+        raise ValueError(f"{query_id}: the loader did not say which file it read, so its "
+                         "observation cannot be joined to the pre-registered bank")
+    if not os.path.isfile(str(loader_path)):
+        raise ValueError(f"{query_id}: the loader names {loader_path!r}, which is not a file")
+    found, n_bytes = digest_file_once(loader_path)
+    if found != str(expected):
+        raise ValueError(
+            f"{query_id}: the observation the loader read from {loader_path!r} hashes to "
+            f"{found[:16]}... but the pre-registered bank covers {str(expected)[:16]}...; the "
+            f"bank and the loader are not reading the same bytes. {OBSERVATION_BINDING_NOTE}")
+    return {"ok": True, "sha256": found, "n_bytes": int(n_bytes),
+            "loader_path": str(loader_path)}
 
 
 def observation_digests(obs_wav, source_path=None):
@@ -687,7 +833,8 @@ def recover_publication(out_dir):
 PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batching",
                            "single_shard", "single_shard_note", "registered_protocol",
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
-                           "observation_continuity",
+                           "observation_continuity", "observation_bank",
+                           "observation_bank_sha256", "observation_bank_expected",
                            "non_canonical", "non_canonical_declared")
 
 
@@ -719,6 +866,10 @@ def probe_canonical_status(gate):
         reasons.append({"gate": "metadata_bank",
                         "why": "no pre-registered pair-metadata bank digest was supplied",
                         "note": mr.METADATA_BANK_PREREGISTRATION_NOTE})
+    if not gate.get("observation_bank_expected"):
+        reasons.append({"gate": "observation_bank",
+                        "why": "no pre-registered observed-RIR bank digest was supplied",
+                        "note": OBSERVATION_BANK_PREREGISTRATION_NOTE})
     if gate.get("observation_continuity") and not gate["observation_continuity"].get("ok", True):
         reasons.append({"gate": "observation_continuity",
                         "why": gate["observation_continuity"].get(
@@ -1033,7 +1184,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
               binding_sha256=None, binding=None, seed=me.SEED, tau=me.TAU,
               num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
               noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, non_canonical=None,
-              verify_observation=True, on_record=None):
+              verify_observation=True, observation_bank=None, on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -1101,8 +1252,19 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         # generation and the observation-continuity check
         query_context = me.context_conditioning(engine.conditioner, md, engine.device)
 
-        # BEFORE anything is scored: prove the observation just loaded is the one
-        # these frozen rows were scored against (Codex r9i review, item 2)
+        # BEFORE anything is scored: the PIN -- the file the loader opened is the
+        # file the pre-registered bank digested (r9j2)
+        source = None
+        if observation_bank:
+            entry = (observation_bank.get("queries") or {}).get(query.query_id)
+            if entry is None:
+                raise ValueError(f"{query.query_id} is a registered probe query but the "
+                                 "pre-registered observation bank does not cover it")
+            source = assert_observation_source(query.query_id, raw_md.get("path"),
+                                               entry["sha256"])
+
+        # ... and the TIE: the tensor those bytes decoded to is the one these
+        # frozen rows were scored against (Codex r9i review, item 2)
         continuity = None
         if verify_observation:
             sims_path = os.path.join(str(run_dir), str(row["sims_path"]))
@@ -1131,6 +1293,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
             "truth_xyz": [float(v) for v in truth],
             "truth_vector_drift_m": float(truth_vector_drift),
             "observation_continuity": continuity,
+            "observation_source": source,
             "observation": observation_digests(obs_wav, raw_md.get("path")),
             "n_candidates": int(query.n_candidates), "num_samples": int(num_samples),
             "e_oracle": e_oracle,
@@ -1151,6 +1314,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         if on_record is not None:
             on_record(record_out)
 
+    for record in out:
+        record["observation_source_pinned"] = bool(observation_bank)
     if verify_observation:
         deltas = [record["observation_continuity"]["max_abs_delta"] for record in out]
         continuity_summary = {"ok": True, "checked": len(out),
@@ -1238,6 +1403,20 @@ def parse_args(argv=None):
     parser.add_argument("--print-metadata-bank-digest", action="store_true",
                         help="PRE-REGISTRATION MODE: compute the pair-metadata bank digest from "
                              "--context-manifest and --metadata-root, print it and exit")
+    parser.add_argument("--dataset-root", default=DEFAULT_DATASET_ROOT,
+                        help="where the split's relpaths are rooted; the observed RIRs are read "
+                             "from <root>/<relpath>")
+    parser.add_argument("--expect-observation-bank-sha256", default=None,
+                        help="the PRE-REGISTERED observed-RIR bank digest the sixteen probe "
+                             "observations must come out of. Required for a canonical control; "
+                             "obtain it with --print-observation-digest and commit it before "
+                             "any result exists")
+    parser.add_argument("--print-observation-digest", action="store_true",
+                        help="PRE-REGISTRATION MODE: compute the observed-RIR bank digest over "
+                             "the sixteen registered probe queries from --audit-report, "
+                             "--context-manifest and --dataset-root, print the per-query digests "
+                             "and the combined value, and exit. Needs no run directory, no "
+                             "checkpoint and no GPU")
     # the probe registers no dump case list: announcement 08 names its sixteen
     # queries directly. Present so build_run_binding can be reused unchanged.
     parser.add_argument("--dump-cases-sha256", default=None, help=argparse.SUPPRESS)
@@ -1250,7 +1429,11 @@ def _refuse(message):
 
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
-    if args.print_metadata_bank_digest:
+    if args.print_metadata_bank_digest and args.print_observation_digest:
+        _refuse("--print-metadata-bank-digest and --print-observation-digest are separate "
+                "pre-registration modes; run one at a time so each printed value is "
+                "unambiguous")
+    if args.print_metadata_bank_digest or args.print_observation_digest:
         return True
     for name in ("ckpt_path", "run_dir", "out_dir"):
         if not getattr(args, name):
@@ -1258,6 +1441,10 @@ def validate_args(args):
     if not args.expect_metadata_bank_sha256 and not args.non_canonical:
         _refuse("a canonical off-grid control requires the PRE-REGISTERED pair-metadata bank "
                 f"digest. {mr.METADATA_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run "
+                "a diagnostic instead")
+    if not args.expect_observation_bank_sha256 and not args.non_canonical:
+        _refuse("a canonical off-grid control requires the PRE-REGISTERED observed-RIR bank "
+                f"digest. {OBSERVATION_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run "
                 "a diagnostic instead")
     if args.noise_policy != me.REGISTERED_NOISE_POLICY:
         _refuse(f"--noise-policy {args.noise_policy!r} cannot key an off-grid draw; "
@@ -1344,9 +1531,23 @@ def gate_run(args, model_config, agree_path, totals=None,
         allow_unpinned=args.non_canonical)
     gate["metadata_bank_sha256"] = bank["metadata_bank_sha256"]
     gate["metadata_bank_expected"] = args.expect_metadata_bank_sha256
+    # the observed-RIR bank, on the same terms and in the same window as the
+    # pair-metadata bank: computed here, compared here, and both of them before
+    # _load_and_validate_checkpoint ever reaches eval_FLAC (r9j2)
+    observations = compute_observation_bank_digest(
+        args.audit_report, args.context_manifest, dataset_root=args.dataset_root,
+        require_manifest_census=require_manifest_census, branch=args.branch)
+    gate["observation_bank"] = assert_observation_bank(
+        observations["observation_bank_sha256"],
+        expected=args.expect_observation_bank_sha256, allow_unpinned=args.non_canonical)
+    gate["observation_bank"]["queries"] = observations["queries"]
+    gate["observation_bank_sha256"] = observations["observation_bank_sha256"]
+    gate["observation_bank_expected"] = args.expect_observation_bank_sha256
+
     gate["non_canonical_declared"] = bool(args.non_canonical)
     gate["non_canonical"] = bool(args.non_canonical
                                  or not gate["metadata_bank"]["pinned"]
+                                 or not gate["observation_bank"]["pinned"]
                                  or args.single_shard
                                  or not gate["registered_protocol"]["is_registered"])
     ckpt = _load_and_validate_checkpoint(args, model_config)
@@ -1361,6 +1562,20 @@ def main(argv=None):
         print(json.dumps(mr.jsonable(verdict), indent=2, sort_keys=True))
         print(f"\nmetadata_bank_sha256 = {verdict['metadata_bank_sha256']}")
         print(f"\n{mr.METADATA_BANK_PREREGISTRATION_NOTE}")
+        return 0
+    if args.print_observation_digest:
+        # no run directory, no checkpoint, no scorer, no eval_FLAC: this must be
+        # runnable before the merge exists, which is the point of it
+        verdict = compute_observation_bank_digest(args.audit_report, args.context_manifest,
+                                                  dataset_root=args.dataset_root,
+                                                  branch=args.branch)
+        print(json.dumps(mr.jsonable(verdict), indent=2, sort_keys=True))
+        print(f"\nper-query observed-RIR digests ({verdict['n_queries']} registered probe "
+              "queries):")
+        for query_id, entry in sorted(verdict["queries"].items()):
+            print(f"  {entry['sha256']}  {entry['n_bytes']:>9,} B  {query_id}")
+        print(f"\nobservation_bank_sha256 = {verdict['observation_bank_sha256']}")
+        print(f"\n{OBSERVATION_BANK_PREREGISTRATION_NOTE}")
         return 0
     print(f"{CONTROL_LABEL}\n")
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
@@ -1411,7 +1626,7 @@ def main(argv=None):
         num_samples=args.num_samples,
         prefixes=tuple(int(k) for k in args.k_prefixes), noise_policy=args.noise_policy,
         source_chunk=args.source_chunk, non_canonical=gate["non_canonical"],
-        on_record=_announce)
+        observation_bank=gate["observation_bank"], on_record=_announce)
     gate["observation_continuity"] = (probe_records[0]["observation_continuity_summary"]
                                       if probe_records else
                                       {"ok": False, "checked": 0,

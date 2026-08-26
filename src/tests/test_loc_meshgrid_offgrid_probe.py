@@ -41,10 +41,33 @@ def _probe_fixture(tmp_path):
     fixture = fx.build_fixture_run(tmp_path)
     fixture["engine"] = fx.SyntheticEngine()
     fixture["out_dir"] = str(tmp_path / "probe")
+
+    # materialize the observed-RIR files the pre-registered bank digests, and
+    # point the stream items at them, so the pin and the loader read one tree
+    root = str(tmp_path / "dataset")
+    items = []
+    for obs, md in fixture["items"]:
+        path = os.path.join(root, md["relpath"])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as handle:
+            handle.write(f"observed-rir:{md['relpath']}".encode())
+        items.append((obs, dict(md, path=path)))
+    fixture["items"] = items
+    fixture["dataset_root"] = root
+    # the PRE-REGISTRATION step, run exactly as the CLI runs it: no run dir, no
+    # checkpoint, no scorer
+    bank = op.compute_observation_bank_digest(fixture["audit_report"],
+                                              fixture["context_manifest"],
+                                              dataset_root=root,
+                                              require_manifest_census=False)
+    fixture["observation_bank"] = bank
+    fixture["observation_bank_sha256"] = bank["observation_bank_sha256"]
     return fixture
 
 
 def _run(fixture, **kwargs):
+    """Walk the fixture as a CANONICAL control unless the caller says otherwise."""
+    kwargs.setdefault("observation_bank", fixture["observation_bank"])
     return op.run_probe(fixture["engine"], list(fixture["items"]), fixture["records"],
                         fixture["plan"], fixture["run_dir"], fixture["out_dir"],
                         metadata_root=fixture["metadata_root"],
@@ -569,7 +592,10 @@ def test_the_binding_gate_runs_before_anything_reaches_a_device(tmp_path, monkey
                  "--audit-report", fixture["audit_report"],
                  "--context-manifest", fixture["context_manifest"],
                  "--metadata-root", fixture["metadata_root"],
-                 "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
+                 "--dataset-root", fixture["dataset_root"],
+                 "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+                 "--expect-observation-bank-sha256",
+                 fixture["observation_bank_sha256"]])
     assert order == ["gate"]
 
 
@@ -580,7 +606,10 @@ def test_gate_run_touches_no_device_and_returns_the_whole_ladder(tmp_path, monke
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
                           "--metadata-root", fixture["metadata_root"],
+                          "--dataset-root", fixture["dataset_root"],
                           "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+                          "--expect-observation-bank-sha256",
+                          fixture["observation_bank_sha256"],
                           "--device", "cuda:0"])
     monkeypatch.setattr(op.torch, "load", lambda *a, **k: {"model_config": {}})
     monkeypatch.setattr(mq, "load_manifest",
@@ -693,7 +722,9 @@ def test_a_failed_gate_never_imports_eval_flac(tmp_path):
             "--audit-report", {fixture["audit_report"]!r},
             "--context-manifest", {fixture["context_manifest"]!r},
             "--metadata-root", {fixture["metadata_root"]!r},
-            "--expect-metadata-bank-sha256", {fixture["metadata_bank_sha256"]!r}])
+            "--dataset-root", {fixture["dataset_root"]!r},
+            "--expect-metadata-bank-sha256", {fixture["metadata_bank_sha256"]!r},
+            "--expect-observation-bank-sha256", {fixture["observation_bank_sha256"]!r}])
         try:
             op.gate_run(args, {{}}, {fixture["context_manifest"]!r},
                         totals={fixture["totals"]!r}, require_manifest_census=False)
@@ -728,7 +759,10 @@ def test_the_checkpoint_is_read_only_after_every_gate_has_passed(tmp_path, monke
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
                           "--metadata-root", fixture["metadata_root"],
-                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
+                          "--dataset-root", fixture["dataset_root"],
+                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+                          "--expect-observation-bank-sha256",
+                          fixture["observation_bank_sha256"]])
     with pytest.raises(ValueError, match="merge_report.json"):
         op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
                     require_manifest_census=False)
@@ -742,7 +776,10 @@ def test_the_checkpoint_is_read_only_after_every_gate_has_passed(tmp_path, monke
                           "--audit-report", fixture["audit_report"],
                           "--context-manifest", fixture["context_manifest"],
                           "--metadata-root", fixture["metadata_root"],
-                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"]])
+                          "--dataset-root", fixture["dataset_root"],
+                          "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+                          "--expect-observation-bank-sha256",
+                          fixture["observation_bank_sha256"]])
     op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
                 require_manifest_census=False)
     assert touched == ["ckpt"]
@@ -754,7 +791,8 @@ def test_a_canonical_control_requires_the_pre_registered_bank_digest():
         op.validate_args(op.parse_args(base))
     assert op.validate_args(op.parse_args(base + ["--non-canonical"])) is True
     assert op.validate_args(op.parse_args(
-        base + ["--expect-metadata-bank-sha256", "a" * 64])) is True
+        base + ["--expect-metadata-bank-sha256", "a" * 64,
+                "--expect-observation-bank-sha256", "b" * 64])) is True
 
 
 def test_the_probe_digest_mode_needs_nothing_but_the_tree():
@@ -770,6 +808,7 @@ def test_the_probe_canonical_status_names_each_relaxation(tmp_path):
         fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
         totals=fixture["totals"])
     gate["metadata_bank_expected"] = fixture["metadata_bank_sha256"]
+    gate["observation_bank_expected"] = fixture["observation_bank_sha256"]
     assert op.probe_canonical_status(gate)["canonical"] is True
 
     gate["metadata_bank_expected"] = None
@@ -777,9 +816,13 @@ def test_the_probe_canonical_status_names_each_relaxation(tmp_path):
     assert [reason["gate"] for reason in status["reasons"]] == ["metadata_bank"]
     assert "NON-CANONICAL" in status["note"]
 
+    gate["observation_bank_expected"] = None
+    assert sorted(reason["gate"] for reason in op.probe_canonical_status(gate)["reasons"]) == \
+        ["metadata_bank", "observation_bank"]
+
     gate["single_shard"] = True
     assert sorted(reason["gate"] for reason in op.probe_canonical_status(gate)["reasons"]) == \
-        ["merge_report", "metadata_bank"]
+        ["merge_report", "metadata_bank", "observation_bank"]
 
 
 def test_a_dump_carries_its_own_sensitivity_status_and_disclosures(tmp_path):
@@ -866,6 +909,7 @@ def test_the_off_grid_markdown_renders_the_latency_scope_and_controls(tmp_path):
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
         gate={"single_shard": False, "metadata_bank_expected": "a" * 64,
+              "observation_bank_expected": "b" * 64,
               "registered_protocol": {"is_registered": True, "deviations": {}}})
     markdown = open(published["markdown"]).read()
     assert mr.LATENCY_SCOPE_NOTE in markdown
@@ -882,6 +926,7 @@ def test_a_non_canonical_control_says_so_in_its_markdown(tmp_path):
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
         gate={"single_shard": True, "metadata_bank_expected": None,
+              "observation_bank_expected": None,
               "registered_protocol": {"is_registered": True, "deviations": {}}})
     payload = json.load(open(published["json"]))
     assert payload["canonical_status"]["canonical"] is False
@@ -899,7 +944,11 @@ def _gate_args(fixture, run_dir=None, **extra):
             "--out-dir", fixture["out_dir"],
             "--audit-report", fixture["audit_report"],
             "--context-manifest", fixture["context_manifest"],
-            "--metadata-root", fixture["metadata_root"]]
+            "--metadata-root", fixture["metadata_root"],
+            "--dataset-root", fixture["dataset_root"],
+            "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+            "--expect-observation-bank-sha256", fixture["observation_bank_sha256"]]
+    # extras are appended, and argparse lets a later flag override an earlier one
     for flag, value in extra.items():
         option = "--" + flag.replace("_", "-")
         argv += [option] if value is True else [option, str(value)]
@@ -1025,7 +1074,10 @@ def test_the_publication_gate_carries_every_verdict_the_status_reads(tmp_path):
         totals=fixture["totals"])
     gate.update({"metadata_bank_expected": fixture["metadata_bank_sha256"],
                  "metadata_bank_sha256": fixture["metadata_bank_sha256"],
-                 "metadata_bank": {"pinned": True}, "non_canonical": False})
+                 "metadata_bank": {"pinned": True},
+                 "observation_bank_expected": fixture["observation_bank_sha256"],
+                 "observation_bank_sha256": fixture["observation_bank_sha256"],
+                 "observation_bank": {"pinned": True}, "non_canonical": False})
     sliced = op.publication_gate(gate)
     for field in ("single_shard", "registered_protocol", "metadata_bank_expected"):
         assert field in sliced, f"{field} is read by probe_canonical_status"
@@ -1037,6 +1089,7 @@ def test_json_markdown_and_npz_agree_that_a_run_is_canonical(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture, non_canonical=False)
     gate = {"single_shard": False, "metadata_bank_expected": fixture["metadata_bank_sha256"],
+            "observation_bank_expected": fixture["observation_bank_sha256"],
             "registered_protocol": {"is_registered": True, "deviations": {}}}
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
@@ -1056,6 +1109,7 @@ def test_json_markdown_and_npz_agree_that_a_run_is_not_canonical(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture, non_canonical=True)
     gate = {"single_shard": False, "metadata_bank_expected": None,
+            "observation_bank_expected": None,
             "registered_protocol": {"is_registered": True, "deviations": {}}}
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
@@ -1143,7 +1197,7 @@ def test_the_observation_is_tied_to_the_frozen_rows_it_is_ranked_against(tmp_pat
         assert 0 <= verdict["candidate_row"] < record["n_candidates"]
         assert verdict["num_samples"] == fx.FIXTURE_SAMPLES
         assert len(verdict["stored"]) == len(verdict["rederived"]) == fx.FIXTURE_SAMPLES
-        assert "pinned nowhere" in verdict["note"]
+        assert "THE TIE, over the TENSOR PATH" in verdict["note"]
 
 
 def test_a_substituted_observation_is_refused_against_the_frozen_rows(tmp_path):
@@ -1168,13 +1222,17 @@ def test_a_substituted_observation_is_refused_against_the_frozen_rows(tmp_path):
                      num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
 
 
-def test_the_continuity_check_names_what_it_does_and_does_not_pin():
+def test_the_observation_note_states_both_the_pin_and_the_tie():
     note = op.OBSERVATION_BINDING_NOTE
-    assert "the observation itself is pinned nowhere" in note
-    assert "CONTEXT RIRs" in note                 # what IS pinned, and by whom
-    assert "verify_context_record" in note
-    assert "What this pins" in note and "does NOT pin" in note
-    assert "invent" in note
+    assert "bound TWICE" in note
+    assert "THE PIN, over SOURCE BYTES" in note
+    assert "THE TIE, over the TENSOR PATH" in note
+    assert "PRE-REGISTERED before any result exists" in note
+    # it still says what no run artifact does
+    assert "the observation is in none of them" in note
+    assert "CONTEXT RIRs" in note and "verify_context_record" in note
+    # and why neither check subsumes the other
+    assert "passes the pin and fails the tie" in note
 
 
 def test_the_observation_digests_are_recorded_for_a_later_pre_registration(tmp_path):
@@ -1194,7 +1252,8 @@ def test_disabling_the_continuity_check_makes_the_control_non_canonical(tmp_path
     summary = records[0]["observation_continuity_summary"]
     assert summary["ok"] is False
     status = op.probe_canonical_status(
-        {"metadata_bank_expected": "a" * 64, "observation_continuity": summary})
+        {"metadata_bank_expected": "a" * 64, "observation_bank_expected": "b" * 64,
+         "observation_continuity": summary})
     assert status["canonical"] is False
     assert "observation_continuity" in [reason["gate"] for reason in status["reasons"]]
 
@@ -1205,6 +1264,7 @@ def test_a_declared_non_canonical_run_marks_json_markdown_and_npz(tmp_path):
     records = _run(fixture, non_canonical=True)
     gate = {"single_shard": False,
             "metadata_bank_expected": fixture["metadata_bank_sha256"],
+            "observation_bank_expected": fixture["observation_bank_sha256"],
             "registered_protocol": {"is_registered": True, "deviations": {}},
             "non_canonical": True, "non_canonical_declared": True}
     published = op.write_probe_report(
@@ -1225,7 +1285,8 @@ def test_a_declared_non_canonical_run_marks_json_markdown_and_npz(tmp_path):
 def test_the_status_can_never_be_more_canonical_than_the_gate(tmp_path):
     """Fail-closed: an unenumerated reason is still a reason."""
     status = op.probe_canonical_status(
-        {"metadata_bank_expected": "a" * 64, "single_shard": False,
+        {"metadata_bank_expected": "a" * 64, "observation_bank_expected": "b" * 64,
+         "single_shard": False,
          "registered_protocol": {"is_registered": True, "deviations": {}},
          "non_canonical": True})
     assert status["canonical"] is False
@@ -1234,7 +1295,8 @@ def test_the_status_can_never_be_more_canonical_than_the_gate(tmp_path):
     assert "non_canonical" in op.PUBLICATION_GATE_FIELDS
     assert "non_canonical_declared" in op.PUBLICATION_GATE_FIELDS
     sliced = op.publication_gate({"non_canonical": True, "non_canonical_declared": True,
-                                  "metadata_bank_expected": "a" * 64})
+                                  "metadata_bank_expected": "a" * 64,
+                                  "observation_bank_expected": "b" * 64})
     assert op.probe_canonical_status(sliced)["canonical"] is False
 
 
@@ -1327,3 +1389,198 @@ def test_a_complete_journal_is_not_rolled_back(tmp_path):
     for record in records:
         assert os.path.isfile(os.path.join(fixture["out_dir"], record["waveform_path"]))
     assert op.recover_publication(str(tmp_path / "nowhere"))["reason"] == "no journal"
+
+
+# --------------------------------------------------------------------------- #
+# r9j2: the observation is PINNED by a pre-registered digest, not only tied
+# --------------------------------------------------------------------------- #
+def test_the_observation_digest_mode_needs_no_run_no_ckpt_and_no_gpu(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    args = op.parse_args(["--print-observation-digest"])
+    assert args.run_dir is None and args.out_dir is None and args.ckpt_path is None
+    assert op.validate_args(args) is True
+
+    verdict = op.compute_observation_bank_digest(fixture["audit_report"],
+                                                 fixture["context_manifest"],
+                                                 dataset_root=fixture["dataset_root"],
+                                                 require_manifest_census=False)
+    # one entry per REGISTERED probe query -- the audit's own rule, not a list
+    probes = me.registered_probe_queries(fixture["plan"])
+    assert sorted(verdict["queries"]) == sorted(probes.values())
+    assert verdict["n_queries"] == len(probes)
+    for query_id, entry in verdict["queries"].items():
+        path = os.path.join(fixture["dataset_root"], entry["relpath"])
+        assert entry["sha256"] == me.file_sha256(path)
+        assert entry["n_bytes"] == os.path.getsize(path)
+    assert len(verdict["observation_bank_sha256"]) == 64
+    assert "--print-observation-digest" in verdict["how_to_register"]
+
+
+def test_the_observation_bank_digest_is_deterministic_and_content_addressed(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    again = op.compute_observation_bank_digest(fixture["audit_report"],
+                                               fixture["context_manifest"],
+                                               dataset_root=fixture["dataset_root"],
+                                               require_manifest_census=False)
+    assert again["observation_bank_sha256"] == fixture["observation_bank_sha256"]
+
+    # one edited observation byte changes it
+    entry = next(iter(fixture["observation_bank"]["queries"].values()))
+    path = os.path.join(fixture["dataset_root"], entry["relpath"])
+    with open(path, "ab") as handle:
+        handle.write(b"\x00")
+    moved = op.compute_observation_bank_digest(fixture["audit_report"],
+                                               fixture["context_manifest"],
+                                               dataset_root=fixture["dataset_root"],
+                                               require_manifest_census=False)
+    assert moved["observation_bank_sha256"] != fixture["observation_bank_sha256"]
+
+
+def test_a_missing_observation_refuses_rather_than_banking_fifteen(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    entry = next(iter(fixture["observation_bank"]["queries"].values()))
+    os.remove(os.path.join(fixture["dataset_root"], entry["relpath"]))
+    with pytest.raises(ValueError, match="could not be read"):
+        op.compute_observation_bank_digest(fixture["audit_report"],
+                                           fixture["context_manifest"],
+                                           dataset_root=fixture["dataset_root"],
+                                           require_manifest_census=False)
+
+
+def test_the_digest_reads_each_observation_exactly_once(tmp_path):
+    """The r9j item-1 pattern: what is said about a file is said about one read."""
+    fixture = _probe_fixture(tmp_path)
+    wanted = {os.path.realpath(os.path.join(fixture["dataset_root"], entry["relpath"]))
+              for entry in fixture["observation_bank"]["queries"].values()}
+    opened = []
+    real_open = open
+    import builtins
+
+    def _spy(path, *args, **kwargs):
+        if os.path.realpath(str(path)) in wanted:
+            opened.append(os.path.realpath(str(path)))
+        return real_open(path, *args, **kwargs)
+
+    builtins.open = _spy
+    try:
+        op.compute_observation_bank_digest(fixture["audit_report"],
+                                           fixture["context_manifest"],
+                                           dataset_root=fixture["dataset_root"],
+                                           require_manifest_census=False)
+    finally:
+        builtins.open = real_open
+    assert sorted(opened) == sorted(wanted)          # exactly one read each
+
+
+def test_a_canonical_probe_requires_the_pre_registered_observation_pin():
+    base = ["--ckpt-path", "c.ckpt", "--run-dir", "r", "--out-dir", "o",
+            "--expect-metadata-bank-sha256", "a" * 64]
+    with pytest.raises(SystemExit, match="PRE-REGISTERED observed-RIR bank"):
+        op.validate_args(op.parse_args(base))
+    assert op.validate_args(op.parse_args(base + ["--non-canonical"])) is True
+    assert op.validate_args(op.parse_args(
+        base + ["--expect-observation-bank-sha256", "b" * 64])) is True
+    # the two pre-registration modes are run one at a time
+    with pytest.raises(SystemExit, match="one at a time"):
+        op.validate_args(op.parse_args(["--print-metadata-bank-digest",
+                                        "--print-observation-digest"]))
+
+
+def test_a_wrong_observation_pin_refuses_before_the_checkpoint(tmp_path, monkeypatch):
+    """The pin is compared in the same pre-import window as the metadata bank."""
+    import localize_meshgrid as driver
+
+    fixture = _probe_fixture(tmp_path)
+    touched = []
+    monkeypatch.setattr(driver, "build_run_binding", lambda *a, **k: dict(fixture["binding"]))
+    monkeypatch.setattr(op, "_load_and_validate_checkpoint",
+                        lambda *a, **k: touched.append("ckpt") or {})
+    args = _gate_args(fixture)
+    args.expect_observation_bank_sha256 = "0" * 64
+    with pytest.raises(ValueError, match="not the registered ones"):
+        op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+    assert touched == []
+
+
+def test_the_gate_computes_and_pins_the_observation_bank(tmp_path, monkeypatch):
+    fixture = _probe_fixture(tmp_path)
+    _matching_binding(monkeypatch, fixture)
+    _plan, _manifest, _binding, gate, _ckpt = op.gate_run(
+        _gate_args(fixture), {}, fixture["context_manifest"], totals=fixture["totals"],
+        require_manifest_census=False)
+    assert gate["observation_bank_sha256"] == fixture["observation_bank_sha256"]
+    assert gate["observation_bank"]["pinned"] is True
+    assert sorted(gate["observation_bank"]["queries"]) == \
+        sorted(me.registered_probe_queries(fixture["plan"]).values())
+    assert gate["non_canonical"] is False
+    assert op.probe_canonical_status(op.publication_gate(gate))["canonical"] is True
+
+
+def test_an_unpinned_observation_bank_makes_the_control_non_canonical(tmp_path, monkeypatch):
+    fixture = _probe_fixture(tmp_path)
+    _matching_binding(monkeypatch, fixture)
+    args = _gate_args(fixture)
+    args.expect_observation_bank_sha256 = None
+    with pytest.raises(ValueError, match="requires the PRE-REGISTERED observed-RIR bank"):
+        op.gate_run(args, {}, fixture["context_manifest"], totals=fixture["totals"],
+                    require_manifest_census=False)
+    args.non_canonical = True
+    _plan, _manifest, _binding, gate, _ckpt = op.gate_run(
+        args, {}, fixture["context_manifest"], totals=fixture["totals"],
+        require_manifest_census=False)
+    assert gate["observation_bank"]["pinned"] is False
+    assert gate["non_canonical"] is True
+    status = op.probe_canonical_status(op.publication_gate(gate))
+    assert "observation_bank" in [reason["gate"] for reason in status["reasons"]]
+
+
+def test_the_loader_must_read_the_very_file_the_bank_digested(tmp_path):
+    """A divergent root cannot satisfy the bank while the loader reads elsewhere."""
+    fixture = _probe_fixture(tmp_path)
+    # a second, pristine tree that satisfies the frozen digest byte for byte
+    other = str(tmp_path / "elsewhere")
+    items = []
+    for obs, md in fixture["items"]:
+        path = os.path.join(other, md["relpath"])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as handle:                 # DIFFERENT bytes
+            handle.write(f"substituted:{md['relpath']}".encode())
+        items.append((obs, dict(md, path=path)))
+
+    with pytest.raises(ValueError, match="the bank and the loader are not reading the same"):
+        op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
+                     fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES,
+                     observation_bank=fixture["observation_bank"])
+
+
+def test_a_probe_run_records_which_source_bytes_it_verified(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    for record in records:
+        source = record["observation_source"]
+        assert source["ok"] is True
+        assert source["sha256"] == \
+            fixture["observation_bank"]["queries"][record["query_id"]]["sha256"]
+        assert record["observation_source_pinned"] is True
+
+
+def test_the_pin_and_the_tie_are_independent_gates(tmp_path):
+    """Byte-identical files loaded through a changed tensor path fail the tie."""
+    fixture = _probe_fixture(tmp_path)
+    items = list(fixture["items"])
+    obs, md = items[0]
+    # the FILE is untouched -- the bank still matches -- but the tensor the
+    # loader hands over is different, which only the functional tie can see
+    ramp = torch.arange(obs.shape[-1], dtype=obs.dtype).reshape(1, 1, -1) * 0.05
+    items[0] = (obs + ramp, md)
+    with pytest.raises(ValueError, match="not the observation those rows were scored against"):
+        op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
+                     fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES,
+                     observation_bank=fixture["observation_bank"])
