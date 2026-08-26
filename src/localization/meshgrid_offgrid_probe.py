@@ -215,7 +215,11 @@ def assert_probe_run_census(run_dir, binding, binding_sha256, plan, records,
     artifacts = mr.assert_artifact_hashes(binding, plan, context_manifest)
     registered = mr.assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
                                                allow_deviation=allow_protocol_deviation)
-    rows = mr.verify_rows(run_dir, binding_sha256)
+    # the census does not discard what it verified: it keeps the sha256 of the
+    # BYTES each row and sidecar had, and every later read is held to it, so a
+    # coherent replacement between the census and the walk cannot pass by
+    # recomputing its own self-digests (Codex r9n review)
+    rows, _sims, snapshot = mr.verify_rows_with_sidecars(run_dir, binding_sha256)
     # the receipt is checked against the ROWS here too. r9d handed
     # assert_merge_report derived=None from this path, so the control accepted a
     # receipt no row supported and never looked at the batching stamps at all
@@ -229,7 +233,8 @@ def assert_probe_run_census(run_dir, binding, binding_sha256, plan, records,
     mr.assert_row_protocol(rows, binding)
     identity_join = mr.assert_identity_join(plan, records, rows)
     return {"artifacts": artifacts, "registered_protocol": registered, "merge": merge,
-            "derived": derived, "batching": batching,
+            "derived": derived, "batching": batching, "artifact_snapshot": snapshot,
+            "artifact_snapshot_note": mr.ARTIFACT_SNAPSHOT_NOTE,
             "census": census, "identity_join": identity_join,
             "single_shard": bool(single_shard),
             "single_shard_note": mr.SINGLE_SHARD_NOTE if single_shard else None}
@@ -914,6 +919,7 @@ def recover_publication(out_dir):
 #: (Codex r9f review). One definition now, and a test pins that it carries
 #: everything ``probe_canonical_status`` reads.
 PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batching",
+                           "artifact_snapshot_note",
                            "single_shard", "single_shard_note", "registered_protocol",
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
                            "observation_continuity", "observation_bank",
@@ -1261,7 +1267,7 @@ def render_markdown(report):
 # --------------------------------------------------------------------------- #
 # the pass
 # --------------------------------------------------------------------------- #
-def load_grid_row(run_dir, query, binding_sha256=None, binding=None):
+def load_grid_row(run_dir, query, binding_sha256=None, binding=None, snapshot=None):
     """The published row the truth score is ranked against, fully joined first.
 
     A generic digest check proves a row is intact; it does not prove it is THIS
@@ -1280,6 +1286,10 @@ def load_grid_row(run_dir, query, binding_sha256=None, binding=None):
     if not verdict["ok"]:
         raise ValueError(f"{query.room_id} q{int(query.position):05d}: the published row cannot "
                          f"be used as the probe's grid reference: {verdict['reason']}")
+    # ... and it is the artifact the CENSUS verified, byte for byte. Without
+    # this the census's work expired the moment it returned (Codex r9n review).
+    if snapshot is not None:
+        mr.assert_matches_snapshot(query.query_id, verdict, snapshot)
     row = verdict["row"]
     mr.assert_row_matches_plan(row, query)
     if binding is not None:
@@ -1293,7 +1303,7 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
               num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
               noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, non_canonical=None,
               verify_observation=True, observation_bank=None, observation_decoder=None,
-              metadata_bank=None, on_record=None):
+              metadata_bank=None, artifact_snapshot=None, on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -1364,7 +1374,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         truth_vector_drift = mr.assert_truth_vector(query.query_id, truth, query.receiver_xyz,
                                                     raw_md["source"])
 
-        row = load_grid_row(run_dir, query, binding_sha256=binding_sha256, binding=binding)
+        row = load_grid_row(run_dir, query, binding_sha256=binding_sha256, binding=binding,
+                            snapshot=artifact_snapshot)
 
         # THE PIN, and the byte -> tensor single path. The observation file is
         # read ONCE, hashed against the frozen bank, and the tensor everything
@@ -1772,7 +1783,8 @@ def main(argv=None):
         source_chunk=args.source_chunk, non_canonical=gate["non_canonical"],
         observation_bank=gate["observation_bank"],
         observation_decoder=build_observation_decoder(model_config, args.dataset_config),
-        metadata_bank=gate["metadata_bank"], on_record=_announce)
+        metadata_bank=gate["metadata_bank"],
+        artifact_snapshot=gate["artifact_snapshot"], on_record=_announce)
     gate["observation_continuity"] = (probe_records[0]["observation_continuity_summary"]
                                       if probe_records else
                                       {"ok": False, "checked": 0,

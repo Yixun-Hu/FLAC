@@ -1805,3 +1805,133 @@ def test_the_observation_decoder_is_built_from_the_pinned_configs(tmp_path):
     assert tuple(verified["tensor"].shape) == (1, 32)
     with pytest.raises(ValueError, match="not the registered ones"):
         decoder(path, "0" * 64)
+
+
+# --------------------------------------------------------------------------- #
+# r9m2: the census's verdict does not expire when the census returns
+# --------------------------------------------------------------------------- #
+def _coherent_swap(run_dir, room_id, position, mutate_scores=True):
+    """Replace a row AND its sidecar coherently -- both self-digests recomputed.
+
+    This is the r9n exploit exactly: the replacement verifies against itself, so
+    a phase that re-reads and re-verifies accepts it. Only a binding to what an
+    EARLIER phase saw can tell the difference.
+    """
+    entry = me.query_artifact_paths(run_dir, room_id, position)
+    row = json.load(open(entry["row"]))
+    sims = np.load(entry["sims"])
+
+    forged = np.asarray(sims, dtype=np.float16).copy()
+    if mutate_scores and forged.shape[0] > 1:
+        # move a NON-headline candidate, so the continuity check's slice is
+        # untouched and only the ranking sees the difference
+        headline = int(row["by_k"][str(max(int(k) for k in row["by_k"]))]["prediction_row"])
+        row_index = 0 if headline != 0 else forged.shape[0] - 1
+        forged[row_index, :] = np.float16(0.99)
+    np.save(entry["sims"], forged)
+
+    # rebuild the row's own claims around the forged sidecar
+    largest = str(max(int(k) for k in row["by_k"]))
+    coordinates = np.asarray([row["by_k"][largest]["prediction_xyz"]] * forged.shape[0],
+                             dtype=np.float64)
+    rebuilt = me.score_query(torch.as_tensor(forged.astype(np.float32)),
+                             [int(i) for i in row["candidate_indices"]], coordinates,
+                             tau=float(row["tau"]),
+                             prefixes=tuple(int(k) for k in row["k_prefixes"]))
+    row["by_k"] = {str(k): block for k, block in rebuilt["by_k"].items()}
+    row["sims_sha256"] = me.file_sha256(entry["sims"])
+    row["row_sha256"] = me.row_digest(row)
+    me.write_json(entry["row"], row)
+    return entry
+
+
+def test_a_coherent_row_and_sidecar_swap_verifies_against_itself(tmp_path):
+    """The exploit is real: the replacement passes a fresh verification."""
+    fixture = _probe_fixture(tmp_path)
+    entry = _coherent_swap(fixture["run_dir"], "A/A_idx_1", 0)
+    verdict = mr.read_verified_query_artifact(entry["row"],
+                                              binding_sha256=fixture["binding_sha256"])
+    assert verdict["ok"] is True, verdict["reason"]
+
+
+def test_a_swap_between_the_census_and_the_walk_is_refused(tmp_path):
+    """... and binding to the census snapshot is what catches it."""
+    fixture = _probe_fixture(tmp_path)
+    gate = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    snapshot = gate["artifact_snapshot"]
+    assert sorted(snapshot) == sorted(r["query_id"] for r in fixture["records"])
+
+    _coherent_swap(fixture["run_dir"], "A/A_idx_1", 0)
+    with pytest.raises(ValueError, match="it was replaced between the two phases"):
+        _run(fixture, artifact_snapshot=snapshot)
+
+
+def test_the_walk_reads_are_bound_to_the_census_snapshot(tmp_path):
+    """A spy proves every grid artifact the walk reads is snapshot-bound."""
+    fixture = _probe_fixture(tmp_path)
+    gate = op.assert_probe_run_census(
+        fixture["run_dir"], _published_binding(fixture["run_dir"]),
+        fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
+        totals=fixture["totals"])
+    snapshot = gate["artifact_snapshot"]
+
+    checked = []
+    real = mr.assert_matches_snapshot
+
+    def _spy(query_id, verdict, snap):
+        checked.append((query_id, verdict["row_bytes_sha256"], verdict["sims_bytes_sha256"]))
+        return real(query_id, verdict, snap)
+
+    mr.assert_matches_snapshot = _spy
+    try:
+        records = _run(fixture, artifact_snapshot=snapshot)
+    finally:
+        mr.assert_matches_snapshot = real
+
+    assert len(checked) == len(records)
+    for query_id, row_digest, sims_digest in checked:
+        assert row_digest == snapshot[query_id]["row_bytes_sha256"]
+        assert sims_digest == snapshot[query_id]["sims_bytes_sha256"]
+
+
+def test_a_query_the_census_never_saw_supplies_no_grid_row(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    room = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    query = next(q for q in room.queries if q.position == 0)
+    with pytest.raises(ValueError, match="does not cover this query"):
+        op.load_grid_row(fixture["run_dir"], query,
+                         binding_sha256=fixture["binding_sha256"], snapshot={})
+
+
+def test_either_half_of_a_swap_is_caught_on_its_own(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    rows, _sims, snapshot = mr.verify_rows_with_sidecars(fixture["run_dir"],
+                                                         fixture["binding_sha256"])
+    room = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    query = next(q for q in room.queries if q.position == 0)
+    entry = me.query_artifact_paths(fixture["run_dir"], query.room_id, query.position)
+    assert op.load_grid_row(fixture["run_dir"], query,
+                            binding_sha256=fixture["binding_sha256"],
+                            snapshot=snapshot)["query_id"] == query.query_id
+
+    # the ROW's bytes move (a whitespace-only rewrite keeps every claim, and
+    # every self-digest, identical -- only the file's bytes differ)
+    row = json.load(open(entry["row"]))
+    with open(entry["row"], "w") as handle:
+        handle.write(json.dumps(row, sort_keys=True, indent=2) + "\n")
+    assert me.verify_query_artifact(entry["row"],
+                                    binding_sha256=fixture["binding_sha256"])["ok"] is True
+    with pytest.raises(ValueError, match="the row read now hashes to"):
+        op.load_grid_row(fixture["run_dir"], query,
+                         binding_sha256=fixture["binding_sha256"], snapshot=snapshot)
+
+
+def test_the_snapshot_note_says_why_self_digests_are_not_enough():
+    note = mr.ARTIFACT_SNAPSHOT_NOTE
+    assert "digests the row's CLAIMS" in note
+    assert "recomputes both" in note
+    assert "discards them therefore proves nothing" in note
+    assert "every later read is held to it" in note
