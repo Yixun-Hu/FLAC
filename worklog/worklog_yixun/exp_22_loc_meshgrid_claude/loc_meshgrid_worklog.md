@@ -121,3 +121,6 @@ All r9f blocking items + residuals closed. Suite **3,358 / 11 / 0** at final HEA
 
 ## r9j + r9k + r9j2 delivered; THIRD DIGEST FROZEN (2026-08-26 01:47 EDT, `date`-verified; earlier ~04:15 stamp was drift)
 All four r9i items closed + observation pin added. Suite **3,394 / 11 / 0** (localization slice 487/1). Observation bank `ee2ba80a…` frozen in `loc_meshgrid_preregistered_digests.json` (independently reproduced twice; chronology note: added after the first freeze but still before the P1 merge exists / any quality read — genuine pre-registration). Canonical probe runs now require BOTH --expect-metadata-bank-sha256 9f1322e5… AND --expect-observation-bank-sha256 ee2ba80a…. Final Codex verify r9l launched over r9j/r9k/r9j2.
+
+## Codex r9l: REJECT, 3 items — read-once family, report/probe only (2026-08-26 ~02:20 EDT)
+Retrieval control fully RESOLVED (all rows). Blocking: (1) probe's fresh resolver consumes runtime truth bytes post-gate; (2) observation pin reopens after decode + one-candidate functional tie non-injective — need single-buffer hash→decode; (3) NEW: report rows/sidecars verified-then-reopened. r9m dispatched (report/probe author).
