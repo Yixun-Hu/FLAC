@@ -37,6 +37,7 @@ waveform is saved with its sha256 and a manifest.
 """
 import argparse
 import hashlib
+import io
 import json
 import os
 
@@ -412,6 +413,81 @@ def assert_observation_bank(found, expected=None, allow_unpinned=False):
             "note": OBSERVATION_BINDING_NOTE}
 
 
+def decode_observation(raw, *, sample_rate, sample_size, force_channels="mono",
+                       fmt="wav"):
+    """Decode observation BYTES the way the released eval loader decodes the file.
+
+    ``SampleDataset.load_file`` -> ``PadCrop_Normalized_T(randomize=False)`` ->
+    the ``force_channels`` encoding, with ``augs`` off, which is what the eval
+    dataset config pins. Reproduced here over a buffer rather than a path so the
+    tensor that gets scored comes out of the bytes that were hashed; the result
+    is asserted bit-equal to the loader's own tensor, so a divergence is a
+    refusal rather than a silent second decode (Codex r9l review, item 2).
+    """
+    import torchaudio
+    from src.data.utils import Mono, PadCrop_Normalized_T, PseudoStereo, Stereo
+
+    audio, in_sr = torchaudio.load(io.BytesIO(raw), format=fmt)
+    if int(in_sr) != int(sample_rate):
+        from torchaudio import transforms as T
+
+        audio = T.Resample(in_sr, int(sample_rate), lowpass_filter_width=128)(audio)
+    chunk = PadCrop_Normalized_T(int(sample_size), int(sample_rate), randomize=False)(audio)[0]
+    encoding = torch.nn.Sequential(
+        Stereo() if force_channels == "stereo" else torch.nn.Identity(),
+        PseudoStereo(sample_rate=int(sample_rate)) if force_channels == "pseudostereo"
+        else torch.nn.Identity(),
+        Mono() if force_channels == "mono" else torch.nn.Identity())
+    return encoding(chunk)
+
+
+def read_verified_observation(path, expected, *, sample_rate, sample_size,
+                              force_channels="mono"):
+    """ONE read: hash the bytes against the pin, decode the SAME buffer.
+
+    r9j2 hashed the file AFTER the loader had already decoded it, so restoring
+    the registered file between the two made the pin pass over bytes nothing was
+    scored from (Codex r9l review, item 2). Here the digest and the tensor come
+    out of one buffer, and there is no second open to restore anything into.
+    """
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    if expected is not None and digest != str(expected):
+        raise ValueError(
+            f"the observation at {path!r} hashes to {digest[:16]}... but the pre-registered "
+            f"bank records {str(expected)[:16]}...; the bytes being decoded are not the "
+            f"registered ones. {OBSERVATION_BINDING_NOTE}")
+    tensor = decode_observation(raw, sample_rate=sample_rate, sample_size=sample_size,
+                                force_channels=force_channels)
+    return {"sha256": digest, "n_bytes": len(raw), "tensor": tensor, "path": str(path)}
+
+
+def assert_decoded_observation_matches(query_id, decoded, loader_tensor):
+    """The tensor decoded from the VERIFIED bytes is the loader's own tensor.
+
+    If these agree, the two are the same object in every sense that matters and
+    the verified one can be used everywhere below -- which is what makes the
+    byte-to-tensor path single. If they ever disagree, this control's decode and
+    the released loader's have diverged, and that is a refusal rather than a
+    silent choice between two tensors.
+    """
+    decoded = torch.as_tensor(decoded).detach().cpu().float()
+    loader = torch.as_tensor(loader_tensor).detach().cpu().float()
+    if decoded.numel() != loader.numel():
+        raise ValueError(
+            f"{query_id}: the observation decoded from the verified bytes has "
+            f"{decoded.numel()} samples but the loader handed over {loader.numel()}; the "
+            "control's decode and the released loader's have diverged")
+    if not torch.equal(decoded.reshape(-1), loader.reshape(-1)):
+        drift = float((decoded.reshape(-1) - loader.reshape(-1)).abs().max())
+        raise ValueError(
+            f"{query_id}: the observation decoded from the verified bytes is not the tensor the "
+            f"loader handed over (max |diff| {drift:.3g}); either the bytes on disk are not what "
+            f"the loader read, or the two decodes disagree. {OBSERVATION_BINDING_NOTE}")
+    return loader.reshape(loader_tensor.shape) if hasattr(loader_tensor, "shape") else loader
+
+
 def assert_observation_source(query_id, loader_path, expected):
     """The file the LOADER opened is the file the bank digested.
 
@@ -437,16 +513,23 @@ def assert_observation_source(query_id, loader_path, expected):
             "loader_path": str(loader_path)}
 
 
-def observation_digests(obs_wav, source_path=None):
-    """Record what the observation IS, so a later round can pre-register it."""
+def observation_digests(obs_wav, source_path=None, source_sha256=None):
+    """Record what the observation IS -- WITHOUT reopening the file.
+
+    ``source_sha256`` is the digest the verified single read already produced.
+    Recomputing it here would be a second open of the very file whose
+    single-read property is the point (Codex r9l review, item 2), so the file is
+    hashed here only when nothing verified it -- the unpinned, non-canonical
+    path, where there is no single-read guarantee to preserve.
+    """
     tensor = torch.as_tensor(obs_wav).detach().cpu().float().contiguous()
     out = {"tensor_sha256": hashlib.sha256(tensor.numpy().tobytes()).hexdigest(),
            "shape": [int(v) for v in tensor.shape],
            "source_path": None if source_path is None else str(source_path),
-           "source_sha256": None,
-           "pinned": False,
+           "source_sha256": None if source_sha256 is None else str(source_sha256),
+           "pinned": bool(source_sha256),
            "note": OBSERVATION_BINDING_NOTE}
-    if source_path and os.path.isfile(str(source_path)):
+    if source_sha256 is None and source_path and os.path.isfile(str(source_path)):
         out["source_sha256"] = me.file_sha256(str(source_path))
     return out
 
@@ -843,6 +926,28 @@ def publication_gate(gate):
     return {field: gate[field] for field in PUBLICATION_GATE_FIELDS if field in gate}
 
 
+def build_observation_decoder(model_config, dataset_config_path):
+    """A ``(path, expected_sha256) -> verified observation`` bound to the configs.
+
+    The sample rate, the sample size and the channel policy come from the very
+    model and dataset configs the released loader is built from -- both of which
+    the run binding already pins -- so the decode this control performs is the
+    decode the run performed, and :func:`assert_decoded_observation_matches`
+    refuses if that ever stops being true.
+    """
+    with open(str(dataset_config_path)) as handle:
+        dataset_config = json.load(handle)
+    force_channels = ("mono" if int(model_config.get("audio_channels", 1)) == 1
+                      else dataset_config.get("force_channels", "stereo"))
+
+    def _decode(path, expected):
+        return read_verified_observation(path, expected,
+                                         sample_rate=int(model_config["sample_rate"]),
+                                         sample_size=int(model_config["sample_size"]),
+                                         force_channels=force_channels)
+    return _decode
+
+
 def probe_canonical_status(gate):
     """Whether this control may be quoted as the registered off-grid result.
 
@@ -1168,15 +1273,18 @@ def load_grid_row(run_dir, query, binding_sha256=None, binding=None):
     row's protocol is checked against the binding on top of it.
     """
     paths = me.query_artifact_paths(str(run_dir), query.room_id, int(query.position))
-    verdict = me.verify_query_artifact(paths["row"], binding_sha256=binding_sha256)
+    # ONE read of the row and ONE of its sidecar, both parsed out of the buffers
+    # that were verified -- the probe used to verify, then reopen, then reopen
+    # the sidecar again for the continuity check (Codex r9l review, item 3)
+    verdict = mr.read_verified_query_artifact(paths["row"], binding_sha256=binding_sha256)
     if not verdict["ok"]:
         raise ValueError(f"{query.room_id} q{int(query.position):05d}: the published row cannot "
                          f"be used as the probe's grid reference: {verdict['reason']}")
-    me.assert_published_matches(str(run_dir), query, binding_sha256=binding_sha256)
-    with open(paths["row"]) as handle:
-        row = json.load(handle)
+    row = verdict["row"]
+    mr.assert_row_matches_plan(row, query)
     if binding is not None:
         mr.assert_row_protocol([row], binding)
+    row["_sims"] = verdict["sims"]
     return row
 
 
@@ -1184,7 +1292,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
               binding_sha256=None, binding=None, seed=me.SEED, tau=me.TAU,
               num_samples=me.NUM_SAMPLES, prefixes=me.K_PREFIXES,
               noise_policy=me.NOISE_KEY_POLICY, source_chunk=1, non_canonical=None,
-              verify_observation=True, observation_bank=None, on_record=None):
+              verify_observation=True, observation_bank=None, observation_decoder=None,
+              metadata_bank=None, on_record=None):
     """Walk the registered stream and run both controls on the sixteen queries.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -1217,7 +1326,19 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
     status_label = (CANONICAL_STATUS_UNKNOWN if non_canonical is None else
                     (CANONICAL_STATUS_NON_CANONICAL if non_canonical
                      else CANONICAL_STATUS_CANONICAL))
-    resolver = mr.TruthResolver(metadata_root)
+    # the runtime truth path consumes VERIFIED buffers: every pair file it reads
+    # must be one the frozen bank covered and must still hash to what the bank
+    # recorded, and the coordinates come out of that same buffer. r9j2 gated the
+    # bank and then built a fresh, unchecked resolver, so a pair JSON edited
+    # after the gate could still supply a mirrored src_loc (Codex r9l review,
+    # item 1). This mirrors the verified-pair pattern the retrieval control
+    # adopted in r9k; the two are cross-pinned by a test rather than shared,
+    # because the rounds may not edit each other's files.
+    resolver = mr.TruthResolver(
+        metadata_root,
+        expected=(None if metadata_bank is None else
+                  {query_id: entry["sha256"]
+                   for query_id, entry in (metadata_bank.get("queries") or {}).items()}))
     out, seen = [], set()
     for position, (obs_wav, raw_md) in enumerate(stream):
         record = by_position.get(position)
@@ -1244,32 +1365,51 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                                                     raw_md["source"])
 
         row = load_grid_row(run_dir, query, binding_sha256=binding_sha256, binding=binding)
+
+        # THE PIN, and the byte -> tensor single path. The observation file is
+        # read ONCE, hashed against the frozen bank, and the tensor everything
+        # below is scored from is decoded out of that same buffer. r9j2 hashed
+        # the file after the loader had already decoded it, so restoring the
+        # registered file in between made the pin pass over bytes nothing was
+        # scored from (Codex r9l review, item 2).
+        source, observation = None, obs_wav
+        if observation_bank:
+            entry = (observation_bank.get("queries") or {}).get(query.query_id)
+            if entry is None:
+                raise ValueError(f"{query.query_id} is a registered probe query but the "
+                                 "pre-registered observation bank does not cover it")
+            if observation_decoder is None:
+                raise ValueError(
+                    f"{query.query_id}: a pre-registered observation bank was supplied but no "
+                    "decoder, so the verified bytes could not be turned into the tensor that is "
+                    "scored; the pin would then cover a file nothing was decoded from")
+            verified = observation_decoder(raw_md.get("path"), entry["sha256"])
+            observation = assert_decoded_observation_matches(query.query_id, verified["tensor"],
+                                                             obs_wav)
+            source = {"ok": True, "sha256": verified["sha256"],
+                      "n_bytes": int(verified["n_bytes"]),
+                      "loader_path": str(verified["path"]),
+                      "decoded_from_verified_bytes": True,
+                      "note": OBSERVATION_BINDING_NOTE}
+
+        # ONE embedding, from the ONE verified tensor: the tie, the truth scores
+        # and the calibration all read this object, so they cannot disagree about
+        # what the observation was (Codex r9l review, item 2)
         obs_embedding = torch.as_tensor(
-            engine.embedder(torch.as_tensor(obs_wav).to(engine.device))
+            engine.embedder(torch.as_tensor(observation).to(engine.device))
         )[0].float().cpu()
 
         # the query's context branch, computed once and reused by both the truth
         # generation and the observation-continuity check
         query_context = me.context_conditioning(engine.conditioner, md, engine.device)
 
-        # BEFORE anything is scored: the PIN -- the file the loader opened is the
-        # file the pre-registered bank digested (r9j2)
-        source = None
-        if observation_bank:
-            entry = (observation_bank.get("queries") or {}).get(query.query_id)
-            if entry is None:
-                raise ValueError(f"{query.query_id} is a registered probe query but the "
-                                 "pre-registered observation bank does not cover it")
-            source = assert_observation_source(query.query_id, raw_md.get("path"),
-                                               entry["sha256"])
-
         # ... and the TIE: the tensor those bytes decoded to is the one these
-        # frozen rows were scored against (Codex r9i review, item 2)
+        # frozen rows were scored against (Codex r9i review, item 2). The sidecar
+        # is the one the row verification already parsed -- no reopen.
         continuity = None
         if verify_observation:
-            sims_path = os.path.join(str(run_dir), str(row["sims_path"]))
             continuity = assert_observation_continuity(
-                engine, query, md, query_context, row, np.load(sims_path), obs_embedding,
+                engine, query, md, query_context, row, row["_sims"], obs_embedding,
                 seed=seed, num_samples=num_samples, noise_policy=noise_policy,
                 source_chunk=source_chunk)
 
@@ -1282,7 +1422,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         calibration = calibration_record(engine.embedder, obs_embedding,
                                          md["context_audio"], waveforms)
         dump = write_probe_waveforms(out_dir, query.room_id, query.position, waveforms,
-                                     obs_wav, md["context_audio"], truth, query.receiver_xyz,
+                                     observation, md["context_audio"], truth,
+                                     query.receiver_xyz,
                                      query_id=query.query_id, status_label=status_label)
 
         record_out = {
@@ -1294,7 +1435,9 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
             "truth_vector_drift_m": float(truth_vector_drift),
             "observation_continuity": continuity,
             "observation_source": source,
-            "observation": observation_digests(obs_wav, raw_md.get("path")),
+            "observation": observation_digests(
+                observation, raw_md.get("path"),
+                source_sha256=None if source is None else source["sha256"]),
             "n_candidates": int(query.n_candidates), "num_samples": int(num_samples),
             "e_oracle": e_oracle,
             "truth_is_a_candidate": bool(distances.min() == 0.0),
@@ -1529,6 +1672,7 @@ def gate_run(args, model_config, agree_path, totals=None,
     gate["metadata_bank"] = mr.assert_metadata_bank(
         bank["metadata_bank_sha256"], expected=args.expect_metadata_bank_sha256,
         allow_unpinned=args.non_canonical)
+    gate["metadata_bank"]["queries"] = bank["queries"]
     gate["metadata_bank_sha256"] = bank["metadata_bank_sha256"]
     gate["metadata_bank_expected"] = args.expect_metadata_bank_sha256
     # the observed-RIR bank, on the same terms and in the same window as the
@@ -1626,7 +1770,9 @@ def main(argv=None):
         num_samples=args.num_samples,
         prefixes=tuple(int(k) for k in args.k_prefixes), noise_policy=args.noise_policy,
         source_chunk=args.source_chunk, non_canonical=gate["non_canonical"],
-        observation_bank=gate["observation_bank"], on_record=_announce)
+        observation_bank=gate["observation_bank"],
+        observation_decoder=build_observation_decoder(model_config, args.dataset_config),
+        metadata_bank=gate["metadata_bank"], on_record=_announce)
     gate["observation_continuity"] = (probe_records[0]["observation_continuity_summary"]
                                       if probe_records else
                                       {"ok": False, "checked": 0,

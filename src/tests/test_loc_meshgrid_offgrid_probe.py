@@ -42,18 +42,28 @@ def _probe_fixture(tmp_path):
     fixture["engine"] = fx.SyntheticEngine()
     fixture["out_dir"] = str(tmp_path / "probe")
 
-    # materialize the observed-RIR files the pre-registered bank digests, and
-    # point the stream items at them, so the pin and the loader read one tree
+    # materialize the observed-RIR files the pre-registered bank digests as REAL
+    # wavs whose decode is bit-equal to the tensor the fixture stream hands over,
+    # so the byte -> tensor single path is exercised rather than stubbed
+    import torchaudio
+
     root = str(tmp_path / "dataset")
     items = []
     for obs, md in fixture["items"]:
         path = os.path.join(root, md["relpath"])
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as handle:
-            handle.write(f"observed-rir:{md['relpath']}".encode())
+        torchaudio.save(path, obs.reshape(1, -1), FIXTURE_SAMPLE_RATE,
+                        encoding="PCM_F", bits_per_sample=32)
         items.append((obs, dict(md, path=path)))
     fixture["items"] = items
     fixture["dataset_root"] = root
+    fixture["sample_size"] = int(items[0][0].shape[-1])
+    fixture["observation_decoder"] = lambda path, expected: op.read_verified_observation(
+        path, expected, sample_rate=FIXTURE_SAMPLE_RATE,
+        sample_size=fixture["sample_size"], force_channels="mono")
+    fixture["metadata_bank"] = mr.compute_metadata_bank_digest(
+        fixture["context_manifest"], fixture["metadata_root"],
+        require_manifest_census=False)
     # the PRE-REGISTRATION step, run exactly as the CLI runs it: no run dir, no
     # checkpoint, no scorer
     bank = op.compute_observation_bank_digest(fixture["audit_report"],
@@ -65,10 +75,17 @@ def _probe_fixture(tmp_path):
     return fixture
 
 
-def _run(fixture, **kwargs):
+FIXTURE_SAMPLE_RATE = 22050
+
+
+def _run(fixture, stream=None, **kwargs):
     """Walk the fixture as a CANONICAL control unless the caller says otherwise."""
     kwargs.setdefault("observation_bank", fixture["observation_bank"])
-    return op.run_probe(fixture["engine"], list(fixture["items"]), fixture["records"],
+    kwargs.setdefault("observation_decoder", fixture["observation_decoder"])
+    kwargs.setdefault("metadata_bank", fixture["metadata_bank"])
+    return op.run_probe(fixture["engine"],
+                        list(fixture["items"] if stream is None else stream),
+                        fixture["records"],
                         fixture["plan"], fixture["run_dir"], fixture["out_dir"],
                         metadata_root=fixture["metadata_root"],
                         binding_sha256=fixture["binding_sha256"],
@@ -382,8 +399,14 @@ def test_the_probe_refuses_a_truth_whose_oracle_is_not_the_manifests(tmp_path):
     payload["src_loc"] = [1.11, 1.11, 0.61]
     with open(path, "w") as handle:
         json.dump(payload, handle)
-    with pytest.raises(ValueError, match="not the one the audit measured"):
+    # the verified-pair gate now catches the edit BEFORE the oracle does, which
+    # is the r9l item-1 fix: a pair file edited after the freeze cannot supply a
+    # truth at all
+    with pytest.raises(ValueError, match="the truth being read is not the registered one"):
         _run(fixture)
+    # ... and with no bank supplied the scalar oracle check is still the backstop
+    with pytest.raises(ValueError, match="not the one the audit measured"):
+        _run(fixture, metadata_bank=None)
 
 
 def test_the_probe_refuses_a_non_registered_noise_policy(tmp_path):
@@ -650,9 +673,12 @@ def test_the_probe_checks_the_truth_as_a_vector_against_the_loader(tmp_path):
     payload["src_loc"] = mirrored
     with open(path, "w") as handle:
         json.dump(payload, handle)
-    # the scalar oracle is blind to it; the vector check is not
-    with pytest.raises(ValueError, match="is not the one the query was held out from"):
+    # the verified-pair gate refuses it outright now; the vector check remains
+    # the backstop when no bank is supplied, and the scalar oracle is blind to it
+    with pytest.raises(ValueError, match="the truth being read is not the registered one"):
         _run(fixture)
+    with pytest.raises(ValueError, match="is not the one the query was held out from"):
+        _run(fixture, metadata_bank=None)
 
 
 def test_a_rank_one_tie_is_not_counted_as_beating_every_candidate(tmp_path):
@@ -1235,14 +1261,21 @@ def test_the_observation_note_states_both_the_pin_and_the_tie():
     assert "passes the pin and fails the tie" in note
 
 
-def test_the_observation_digests_are_recorded_for_a_later_pre_registration(tmp_path):
+def test_the_observation_digests_are_recorded_from_the_verified_read(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture)
     for record in records:
         observation = record["observation"]
         assert len(observation["tensor_sha256"]) == 64
-        assert observation["pinned"] is False     # recorded, not claimed
+        # the digest came from the ONE verified read, not from a second open
+        assert observation["pinned"] is True
+        assert observation["source_sha256"] == record["observation_source"]["sha256"]
         assert observation["shape"][0] == 1
+
+    # unpinned (non-canonical) runs still record what they read, and say so
+    unpinned = _run(fixture, observation_bank=None, observation_decoder=None)
+    for record in unpinned:
+        assert record["observation"]["pinned"] is False
 
 
 def test_disabling_the_continuity_check_makes_the_control_non_canonical(tmp_path):
@@ -1548,13 +1581,17 @@ def test_the_loader_must_read_the_very_file_the_bank_digested(tmp_path):
             handle.write(f"substituted:{md['relpath']}".encode())
         items.append((obs, dict(md, path=path)))
 
-    with pytest.raises(ValueError, match="the bank and the loader are not reading the same"):
+    # the decode reads THOSE bytes, so the pin fails on the bytes that would have
+    # been scored -- there is no second read to restore the registered file into
+    with pytest.raises(ValueError, match="the bytes being decoded are not the registered ones"):
         op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
                      fixture["run_dir"], fixture["out_dir"],
                      metadata_root=fixture["metadata_root"],
                      binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
                      num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES,
-                     observation_bank=fixture["observation_bank"])
+                     observation_bank=fixture["observation_bank"],
+                     observation_decoder=fixture["observation_decoder"],
+                     metadata_bank=fixture["metadata_bank"])
 
 
 def test_a_probe_run_records_which_source_bytes_it_verified(tmp_path):
@@ -1577,10 +1614,194 @@ def test_the_pin_and_the_tie_are_independent_gates(tmp_path):
     # loader hands over is different, which only the functional tie can see
     ramp = torch.arange(obs.shape[-1], dtype=obs.dtype).reshape(1, 1, -1) * 0.05
     items[0] = (obs + ramp, md)
+    # the FILE still satisfies the pin, so the single-path decode catches the
+    # divergence between the registered bytes and the tensor handed over
+    with pytest.raises(ValueError, match="not the tensor the loader handed over"):
+        _run(fixture, stream=items)
+    # and with no bank at all, the functional tie is what sees it
     with pytest.raises(ValueError, match="not the observation those rows were scored against"):
         op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
                      fixture["run_dir"], fixture["out_dir"],
                      metadata_root=fixture["metadata_root"],
                      binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
-                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES,
-                     observation_bank=fixture["observation_bank"])
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
+
+
+# --------------------------------------------------------------------------- #
+# r9m: verified buffers all the way through the probe
+# --------------------------------------------------------------------------- #
+def test_the_runtime_truth_comes_from_a_verified_pair_buffer(tmp_path):
+    """Item 1: r9j2 gated the bank, then built a fresh unchecked resolver.
+
+    This mirrors the verified-pair pattern the retrieval control adopted in r9k
+    (its own `assert_verified_pair` seam); the two are deliberately separate
+    implementations because a round may not edit another round's file, and the
+    cross-pin is this comment plus the shared TruthResolver they both call.
+    """
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    assert len(records) >= 1
+
+    # a pair file edited AFTER the freeze cannot supply a truth any more
+    mirrored = fx._mirrored_truth("A/A_idx_1")
+    path = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")
+    payload = json.load(open(path))
+    payload["src_loc"] = mirrored
+    with open(path, "w") as handle:
+        json.dump(payload, handle)
+    with pytest.raises(ValueError, match="the truth being read is not the registered one"):
+        _run(fixture)
+
+
+def test_a_pair_file_the_bank_never_covered_supplies_no_truth(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    empty = dict(fixture["metadata_bank"], queries={})
+    with pytest.raises(ValueError, match="does not cover this query"):
+        _run(fixture, metadata_bank=empty)
+
+
+def test_the_probe_reads_each_observation_exactly_once_at_runtime(tmp_path):
+    """Item 2: there is no second open to restore the registered file into."""
+    fixture = _probe_fixture(tmp_path)
+    probes = set(me.registered_probe_queries(fixture["plan"]).values())
+    watched = [md["path"] for _obs, md in fixture["items"]
+               if f"{md['idx']}|{md['relpath']}" in probes]
+    assert watched
+
+    opened = []
+    real_open = open
+    import builtins
+
+    def _spy(path, *args, **kwargs):
+        if isinstance(path, (str, bytes, os.PathLike)) and \
+                os.path.realpath(str(path)) in {os.path.realpath(p) for p in watched}:
+            opened.append(os.path.realpath(str(path)))
+        return real_open(path, *args, **kwargs)
+
+    builtins.open = _spy
+    try:
+        _run(fixture)
+    finally:
+        builtins.open = real_open
+    for path in watched:
+        assert opened.count(os.path.realpath(path)) == 1, opened
+
+
+def test_the_scored_tie_and_calibration_share_one_observation_tensor(tmp_path):
+    """The tie, the truth scores and the calibration read ONE embedding."""
+    fixture = _probe_fixture(tmp_path)
+    seen = []
+    real = op.calibration_record
+
+    def _spy(embedder, obs_embedding, context_audio, generated):
+        seen.append(obs_embedding)
+        return real(embedder, obs_embedding, context_audio, generated)
+
+    op.calibration_record = _spy
+    real_tie = op.assert_observation_continuity
+    ties = []
+
+    def _tie_spy(engine, query, md, context, row, sims, obs_embedding, **kwargs):
+        ties.append(obs_embedding)
+        return real_tie(engine, query, md, context, row, sims, obs_embedding, **kwargs)
+
+    op.assert_observation_continuity = _tie_spy
+    try:
+        records = _run(fixture)
+    finally:
+        op.calibration_record = real
+        op.assert_observation_continuity = real_tie
+
+    assert len(seen) == len(ties) == len(records)
+    for calibration_embedding, tie_embedding in zip(seen, ties):
+        # the SAME object, not merely equal tensors
+        assert calibration_embedding is tie_embedding
+
+
+def test_the_decoded_observation_is_bit_equal_to_the_loaders_tensor(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    for obs, md in fixture["items"]:
+        verified = fixture["observation_decoder"](md["path"], None)
+        assert torch.equal(verified["tensor"].reshape(-1), obs.reshape(-1))
+        assert verified["sha256"] == me.file_sha256(md["path"])
+    # and a divergent decode is a refusal, not a silent second tensor
+    obs, md = fixture["items"][0]
+    with pytest.raises(ValueError, match="not the tensor the loader handed over"):
+        op.assert_decoded_observation_matches("q", obs + 1.0, obs)
+    with pytest.raises(ValueError, match="the control's decode and the released loader's"):
+        op.assert_decoded_observation_matches("q", obs.reshape(-1)[:4], obs)
+
+
+def test_the_decoder_reproduces_the_released_eval_transform(tmp_path):
+    """The decode is the loader's: load -> pad/crop (no randomize) -> mono."""
+    import torchaudio
+    from src.data.utils import Mono, PadCrop_Normalized_T
+
+    path = str(tmp_path / "probe_obs.wav")
+    signal = torch.linspace(-0.5, 0.5, 40).reshape(1, -1)
+    torchaudio.save(path, signal, FIXTURE_SAMPLE_RATE, encoding="PCM_F", bits_per_sample=32)
+
+    verified = op.read_verified_observation(path, None, sample_rate=FIXTURE_SAMPLE_RATE,
+                                            sample_size=32, force_channels="mono")
+    audio, _sr = torchaudio.load(path, format="wav")
+    reference = torch.nn.Sequential(Mono())(
+        PadCrop_Normalized_T(32, FIXTURE_SAMPLE_RATE, randomize=False)(audio)[0])
+    assert torch.equal(verified["tensor"], reference)
+    assert verified["sha256"] == me.file_sha256(path)
+
+    # a wrong pin refuses on the bytes that would have been decoded
+    with pytest.raises(ValueError, match="the bytes being decoded are not the registered"):
+        op.read_verified_observation(path, "0" * 64, sample_rate=FIXTURE_SAMPLE_RATE,
+                                     sample_size=32)
+
+
+def test_a_bank_without_a_decoder_is_refused_rather_than_trusted(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    with pytest.raises(ValueError, match="no decoder"):
+        _run(fixture, observation_decoder=None)
+
+
+def test_the_probe_reads_each_grid_row_and_sidecar_exactly_once(tmp_path):
+    """Item 3 in the probe: load_grid_row keeps the sidecar it verified."""
+    fixture = _probe_fixture(tmp_path)
+    probes = me.registered_probe_queries(fixture["plan"])
+    watched = []
+    for room_id, query_id in probes.items():
+        room = me.load_room_plan(fixture["plan"], room_id)
+        query = next(q for q in room.queries if q.query_id == query_id)
+        entry = me.query_artifact_paths(fixture["run_dir"], query.room_id, query.position)
+        watched += [entry["row"], entry["sims"]]
+
+    opened = []
+    real_open = open
+    import builtins
+
+    def _spy(path, *args, **kwargs):
+        if isinstance(path, (str, bytes, os.PathLike)) and \
+                os.path.realpath(str(path)) in {os.path.realpath(p) for p in watched}:
+            opened.append(os.path.realpath(str(path)))
+        return real_open(path, *args, **kwargs)
+
+    builtins.open = _spy
+    try:
+        _run(fixture)
+    finally:
+        builtins.open = real_open
+    for path in watched:
+        assert opened.count(os.path.realpath(path)) == 1, (path, opened)
+
+
+def test_the_observation_decoder_is_built_from_the_pinned_configs(tmp_path):
+    model_config = {"sample_rate": FIXTURE_SAMPLE_RATE, "sample_size": 32, "audio_channels": 1}
+    decoder = op.build_observation_decoder(
+        model_config, os.path.join("src", "configs", "dataset_configs", "AR", "eval",
+                                   "acousticroom_unseeneval.json"))
+    import torchaudio
+
+    path = str(tmp_path / "obs.wav")
+    torchaudio.save(path, torch.zeros(1, 32), FIXTURE_SAMPLE_RATE,
+                    encoding="PCM_F", bits_per_sample=32)
+    verified = decoder(path, me.file_sha256(path))
+    assert tuple(verified["tensor"].shape) == (1, 32)
+    with pytest.raises(ValueError, match="not the registered ones"):
+        decoder(path, "0" * 64)
