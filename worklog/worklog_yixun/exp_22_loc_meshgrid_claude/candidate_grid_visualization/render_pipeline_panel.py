@@ -59,14 +59,16 @@ img[floorpix,:3] = (heat*shade)[floorpix]
 with np.errstate(invalid='ignore'):
     gl = ((np.abs((fx/0.5)-np.round(fx/0.5))<0.02)|(np.abs((fy/0.5)-np.round(fy/0.5))<0.02)) & floorpix
 img[gl,:3]*=0.88
-fig=plt.figure(figsize=(W/200,H/200),dpi=200)
-ax=fig.add_axes([0,0,1,1]); ax.axis('off')
+PAD = 230  # dedicated right margin strip for the colorbar (no overlap with the room)
+Wt = W + PAD
+fig=plt.figure(figsize=(Wt/200,H/200),dpi=200)
+ax=fig.add_axes([0,0,W/Wt,1]); ax.axis('off')
 ax.imshow(img,interpolation='bilinear'); ax.set_xlim(0,W); ax.set_ylim(H,0)
-cax=fig.add_axes([0.91,0.55,0.02,0.32])
+cax=fig.add_axes([(W+85)/Wt,0.16,40/Wt,0.68])
 cb=mcb.ColorbarBase(cax,cmap=cmap,orientation='vertical'); cb.set_ticks([])
 cb.outline.set_linewidth(0.8)
-cax.text(0.5,1.07,'high',transform=cax.transAxes,ha='center',fontsize=19)
-cax.text(0.5,-0.11,'low',transform=cax.transAxes,ha='center',fontsize=19)
+cax.text(0.5,1.045,'high',transform=cax.transAxes,ha='center',fontsize=19)
+cax.text(0.5,-0.075,'low',transform=cax.transAxes,ha='center',fontsize=19)
 out='worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/pipeline_panel_cafe_idx_1_heatmap.png'
 fig.savefig(out,transparent=True,dpi=200); plt.close(fig)
 import shutil; shutil.copy(out,'/home/yixunhu/codespace/-Neurips-2026-workshop-Sound-Localization/figs/pipeline_panel_cafe_idx_1_heatmap.png')
