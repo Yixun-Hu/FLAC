@@ -159,10 +159,12 @@ CONTROLS_ELSEWHERE = {
         "src/localization/meshgrid_offgrid_probe.py -- cos(E(h_obs), E(h_real,other)) against "
         "cos(E(h_obs), E(h_generated)) on the same sixteen queries",
     "agree_oracle_retrieval_over_the_metadata_bank":
-        "NOT IMPLEMENTED in the r9 deliverables. §2 also registers an AGREE oracle retrieval "
-        "over real candidate-bank RIRs where an exact dataset RIR exists, labelled "
-        "sparse/metadata-bank and never confused with the dense-grid model oracle. It needs a "
-        "real-RIR bank this reporting path does not build; it is outstanding, not null",
+        "src/localization/meshgrid_retrieval_control.py -- built (r9b), run pending. AGREE "
+        "nearest-neighbour retrieval over the real dataset RIRs that exist at each query's own "
+        "receiver (other sources; the query's own pair excluded), labelled sparse/metadata-bank "
+        "and never confused with the dense-grid model oracle: its candidate set is not the "
+        "grid and its oracle floor is the sparse bank's own. When it has been run, its "
+        "retrieval_control_handoff.json carries the numbers this entry should name",
     "score_ablations": "deferred by §2 unless separately approved (waveform / multiscale STFT)",
 }
 

@@ -911,8 +911,12 @@ def test_the_report_names_the_registered_controls_it_does_not_contain(tmp_path):
     assert "meshgrid_offgrid_probe.py" in elsewhere["off_grid_truth_probe"]
     assert "meshgrid_offgrid_probe.py" in \
         elsewhere["real_vs_generated_agree_calibration"]
-    # the one §2 control nobody built: named, so silence is not read as a null
-    assert "NOT IMPLEMENTED" in elsewhere["agree_oracle_retrieval_over_the_metadata_bank"]
+    # the sparse/metadata-bank control: named with its tool and its state, so
+    # silence is read neither as a null nor as a published number (r9b)
+    sparse = elsewhere["agree_oracle_retrieval_over_the_metadata_bank"]
+    assert "meshgrid_retrieval_control.py" in sparse
+    assert "built (r9b), run pending" in sparse
+    assert "sparse/metadata-bank" in sparse and "retrieval_control_handoff.json" in sparse
     markdown = mr.render_markdown(report)
     assert "controls that are NOT in this report" in markdown
 
