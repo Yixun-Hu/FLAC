@@ -9,6 +9,6 @@
   "usage": "every canonical report/control run MUST pass --expect-metadata-bank-sha256 / --expect-bank-sha256; every canonical probe run additionally --expect-observation-bank-sha256; absence or mismatch is non-canonical or refused",
   "observation_bank_sha256": "ee2ba80ad4f27b61f4d48e24b4c31cd0d7af5891259aa4f92385cb4400841c6b",
   "observation_bank_scope": "16 registered probe queries' observed-RIR source bytes (one per room, S001_R001 by the registered lexicographic-first rule); computed by `python -m src.localization.meshgrid_offgrid_probe --print-observation-digest --audit-report outputs_loc/exp22/g1_audit/geometry_audit_report.json --context-manifest outputs_loc/exp22/d1_context_manifest.json --dataset-root AcousticRooms`; independently reproduced by the r9j2 Coder's dry run",
-  "observation_bank_frozen_utc": "2026-08-26T08:15:00Z",
+  "observation_bank_frozen_utc": "2026-08-26T05:47:00Z",
   "observation_bank_chronology_note": "added AFTER the first freeze (metadata/sparse banks) but STILL before the P1 merge exists and before any exp_22 localization quality has been read anywhere \u2014 so it remains genuine pre-registration, not post-hoc selection (same argument as Planner ruling 2)"
 }

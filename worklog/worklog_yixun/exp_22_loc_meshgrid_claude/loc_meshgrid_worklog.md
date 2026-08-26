@@ -119,5 +119,5 @@ All r9f blocking items + residuals closed. Suite **3,358 / 11 / 0** at final HEA
 ## Codex r9i: REJECT, 4-item minimal set (2026-08-26 ~02:20 EDT)
 12/18 rows RESOLVED. Blocking: (1) pair-JSON verify-then-REOPEN (retrieval :1278, report resolver :924) — parse the verified bytes; (2) off-grid live obs_wav unbound to the obs behind the frozen grid rows; (3) NPZ rename/bookkeeping crash gap; (4) fail-open canonicality joins (--non-canonical ignored in JSON/md path; retrieval top-level canonical ignores walk-derived digest_verified). r9j (report/probe) + r9k (retrieval) dispatched.
 
-## r9j + r9k + r9j2 delivered; THIRD DIGEST FROZEN (2026-08-26 ~04:15 EDT)
+## r9j + r9k + r9j2 delivered; THIRD DIGEST FROZEN (2026-08-26 01:47 EDT, `date`-verified; earlier ~04:15 stamp was drift)
 All four r9i items closed + observation pin added. Suite **3,394 / 11 / 0** (localization slice 487/1). Observation bank `ee2ba80a…` frozen in `loc_meshgrid_preregistered_digests.json` (independently reproduced twice; chronology note: added after the first freeze but still before the P1 merge exists / any quality read — genuine pre-registration). Canonical probe runs now require BOTH --expect-metadata-bank-sha256 9f1322e5… AND --expect-observation-bank-sha256 ee2ba80a…. Final Codex verify r9l launched over r9j/r9k/r9j2.
