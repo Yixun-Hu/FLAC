@@ -1983,3 +1983,204 @@ def test_an_unparseable_pair_file_is_refused_by_the_single_read_path(tmp_path):
         handle.write(b"\xff\xfe not json at all")
     with pytest.raises(ValueError, match="not readable as JSON"):
         mr.TruthResolver(fixture["metadata_root"]).resolve(record)
+
+
+# --------------------------------------------------------------------------- #
+# r9m: verify-and-parse from one buffer, all the way through the metrics
+# --------------------------------------------------------------------------- #
+class _ReadSpy:
+    """Counts opens of the paths it is told to watch, by real path."""
+
+    def __init__(self, paths):
+        self.wanted = {os.path.realpath(str(p)) for p in paths}
+        self.opened = []
+        self._real = open
+
+    def __enter__(self):
+        import builtins
+
+        def _spy(path, *args, **kwargs):
+            try:
+                real = os.path.realpath(str(path))
+            except TypeError:                        # a file descriptor, not a path
+                real = None
+            if real in self.wanted:
+                self.opened.append(real)
+            return self._real(path, *args, **kwargs)
+
+        builtins.open = _spy
+        return self
+
+    def __exit__(self, *exc):
+        import builtins
+
+        builtins.open = self._real
+        return False
+
+    def count(self, path):
+        return self.opened.count(os.path.realpath(str(path)))
+
+
+def _artifact_paths(fixture):
+    paths = []
+    for row in mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"]):
+        entry = me.query_artifact_paths(fixture["run_dir"], row["room_id"], row["position"])
+        paths += [entry["row"], entry["sims"]]
+    return paths
+
+
+def test_a_full_evaluation_reads_every_row_and_sidecar_exactly_once(tmp_path):
+    """Item 3: r9j verified a row, reopened it, then reopened its sidecar."""
+    fixture = build_fixture_run(tmp_path)
+    paths = _artifact_paths(fixture)
+    assert len(paths) == 2 * fixture["totals"]["queries"]
+
+    with _ReadSpy(paths) as spy:
+        evaluated = evaluate_fixture(fixture)
+    assert len(evaluated["results"]) == fixture["totals"]["queries"]
+    for path in paths:
+        assert spy.count(path) == 1, f"{path} was opened {spy.count(path)} times"
+
+
+def test_the_verified_row_and_sidecar_are_the_objects_the_metrics_consume(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    rows, sims = mr.verify_rows_with_sidecars(fixture["run_dir"], fixture["binding_sha256"])
+    assert sorted(sims) == sorted(row["query_id"] for row in rows)
+    for row in rows:
+        block = sims[row["query_id"]]
+        assert list(block.shape) == list(row["sims_shape"])
+        assert block.dtype == np.dtype(me.SIMS_DTYPE)
+
+    evaluated = evaluate_fixture(fixture)
+    # the very arrays the verification parsed are what evaluate_run carried
+    for query_id, block in evaluated["sims_by_id"].items():
+        assert np.array_equal(block, sims[query_id])
+    assert "read EXACTLY ONCE" in evaluated["single_read_note"]
+
+
+def test_a_coordinated_row_and_sidecar_substitution_cannot_be_staged(tmp_path):
+    """The exploit: verify the honest pair, then serve a coherent forged pair."""
+    fixture = build_fixture_run(tmp_path)
+    entry = me.query_artifact_paths(fixture["run_dir"], "A/A_idx_1", 0)
+    honest_row = open(entry["row"], "rb").read()
+    honest_sims = open(entry["sims"], "rb").read()
+
+    calls = {"row": 0, "sims": 0}
+    real_open = open
+    import builtins
+
+    def _swapping(path, *args, **kwargs):
+        # a reader that serves the honest artifacts first and forged ones after:
+        # with one read each it never gets the second chance
+        target = os.path.realpath(str(path)) if isinstance(path, (str, bytes, os.PathLike)) \
+            else None
+        if target == os.path.realpath(entry["row"]):
+            calls["row"] += 1
+        elif target == os.path.realpath(entry["sims"]):
+            calls["sims"] += 1
+        return real_open(path, *args, **kwargs)
+
+    builtins.open = _swapping
+    try:
+        evaluate_fixture(fixture)
+    finally:
+        builtins.open = real_open
+    assert calls == {"row": 1, "sims": 1}
+    # the bytes on disk are untouched, and they are the ones that were used
+    assert open(entry["row"], "rb").read() == honest_row
+    assert open(entry["sims"], "rb").read() == honest_sims
+
+
+def test_the_single_buffer_verdict_agrees_with_the_engines_own(tmp_path):
+    """Cross-pin: the report's reader and the engine's verifier, one verdict."""
+    fixture = build_fixture_run(tmp_path)
+    entry = me.query_artifact_paths(fixture["run_dir"], "A/A_idx_1", 0)
+    sha = fixture["binding_sha256"]
+    pristine_row = open(entry["row"], "rb").read()
+    pristine_sims = open(entry["sims"], "rb").read()
+
+    def _verdicts():
+        return (mr.read_verified_query_artifact(entry["row"], binding_sha256=sha),
+                me.verify_query_artifact(entry["row"], binding_sha256=sha))
+
+    mine, theirs = _verdicts()
+    assert mine["ok"] is theirs["ok"] is True
+    assert mine["query_id"] == theirs["query_id"]
+
+    def _edit_oracle():
+        row = json.loads(pristine_row)
+        row["e_oracle"] = 0.0
+        me.write_json(entry["row"], row)
+
+    def _edit_binding():
+        row = json.loads(pristine_row)
+        row["binding_sha256"] = "0" * 64
+        row["row_sha256"] = me.row_digest(row)
+        me.write_json(entry["row"], row)
+
+    def _append_to_sims():
+        with open(entry["sims"], "ab") as handle:
+            handle.write(b"\x00")
+
+    def _reshape_sims():
+        np.save(entry["sims"], np.zeros((1, 1), dtype=np.float16))
+
+    def _drop_sims():
+        os.remove(entry["sims"])
+
+    for name, mutate in (("edited row", _edit_oracle),
+                         ("foreign binding", _edit_binding),
+                         ("appended sidecar", _append_to_sims),
+                         ("reshaped sidecar", _reshape_sims),
+                         ("missing sidecar", _drop_sims)):
+        mutate()
+        mine, theirs = _verdicts()
+        assert mine["ok"] is False and theirs["ok"] is False, name
+        # the SAME reason, so the two readers cannot drift apart
+        assert mine["reason"] == theirs["reason"], name
+        with open(entry["row"], "wb") as handle:
+            handle.write(pristine_row)
+        with open(entry["sims"], "wb") as handle:
+            handle.write(pristine_sims)
+
+    mine, theirs = _verdicts()
+    assert mine["ok"] is theirs["ok"] is True          # the restore is complete
+
+
+def test_the_row_plan_join_agrees_with_the_engines_own(tmp_path):
+    """Cross-pin: assert_row_matches_plan and assert_published_matches."""
+    fixture = build_fixture_run(tmp_path)
+    room = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    query = room.queries[0]
+    rows = {row["query_id"]: row
+            for row in mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])}
+    assert mr.assert_row_matches_plan(rows[query.query_id], query) is True
+    assert me.assert_published_matches(fixture["run_dir"], query,
+                                       binding_sha256=fixture["binding_sha256"]) is True
+
+    other = next(q for q in room.queries if q.query_id != query.query_id)
+    with pytest.raises(ValueError, match="does not match the candidate manifest"):
+        mr.assert_row_matches_plan(rows[query.query_id], other)
+
+
+def test_the_resolver_can_be_held_to_the_pre_registered_pair_digests(tmp_path):
+    """Item 1's shared half: a pair file the bank never covered supplies nothing."""
+    fixture = build_fixture_run(tmp_path)
+    bank = mr.compute_metadata_bank_digest(fixture["context_manifest"],
+                                           fixture["metadata_root"],
+                                           require_manifest_census=False)
+    expected = {qid: entry["sha256"] for qid, entry in bank["queries"].items()}
+    assert sorted(expected) == sorted(record["query_id"] for record in fixture["records"])
+
+    resolver = mr.TruthResolver(fixture["metadata_root"], expected=expected)
+    for record in fixture["records"]:
+        resolver.resolve(record)
+
+    # an edit after the freeze is refused, on the buffer the truth would come from
+    _spoof_truth(fixture)
+    with pytest.raises(ValueError, match="the truth being read is not the registered one"):
+        mr.TruthResolver(fixture["metadata_root"],
+                         expected=expected).resolve(fixture["records"][0])
+    # ... and a query the bank never covered cannot supply one either
+    with pytest.raises(ValueError, match="does not cover this query"):
+        mr.TruthResolver(fixture["metadata_root"], expected={}).resolve(fixture["records"][0])

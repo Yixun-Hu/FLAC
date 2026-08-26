@@ -41,6 +41,7 @@ per-query values are also reported, labelled as a secondary.
 """
 import argparse
 import hashlib
+import io
 import json
 import math
 import os
@@ -728,31 +729,142 @@ def iter_row_paths(run_dir):
                 yield os.path.join(room_dir, name)
 
 
-def verify_rows(run_dir, binding_sha256):
-    """Re-accept every row from its own bytes -- row digest AND sidecar digest.
+#: what the verify-and-parse contract promises, stated where it is relied on.
+SINGLE_READ_NOTE = (
+    "a row and its similarity sidecar are each read EXACTLY ONCE: the bytes are hashed and the "
+    "object is parsed out of that same buffer, and the metrics path then consumes the parsed "
+    "object rather than reopening the file. r9j's report verified a row and then reopened it, "
+    "and reopened its sidecar again for the metrics, which left two windows in which a "
+    "coordinated row+sidecar substitution could change accepted predictions and e_loc while "
+    "every digest still matched (Codex r9l review, item 3). The windows are closed by "
+    "construction rather than by a tighter check")
 
-    Returns the rows in ascending stream position. A single rejection refuses
-    the whole report: a partial artifact set cannot be aggregated into a census-
-    complete number.
+
+def read_verified_query_artifact(row_path, binding_sha256=None):
+    """One read of the row, one of its sidecar, verified from those buffers.
+
+    Mirrors ``meshgrid_engine.verify_query_artifact`` check for check -- and a
+    test pins the two to the same verdict on a healthy artifact and on every
+    tampering it distinguishes -- but returns the PARSED row and sidecar so the
+    caller never has to open either again.
     """
-    rows, rejected = [], []
+    row_path = str(row_path)
+    verdict = {"ok": False, "query_id": None, "row_path": row_path, "row": None, "sims": None}
+    try:
+        with open(row_path, "rb") as handle:
+            raw = handle.read()
+        row = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError) as error:   # noqa: BLE001 -- a verdict
+        return dict(verdict, reason=f"the row is unreadable: {error}")
+    verdict["query_id"] = row.get("query_id")
+
+    out_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(row_path))))
+    sims_path = os.path.join(out_dir, str(row.get("sims_path", "")))
+    if not os.path.isfile(sims_path):
+        return dict(verdict, reason=f"the sims sidecar {row.get('sims_path')!r} is missing")
+    with open(sims_path, "rb") as handle:
+        sims_raw = handle.read()
+    if hashlib.sha256(sims_raw).hexdigest() != row.get("sims_sha256"):
+        return dict(verdict, reason="the sims sidecar does not match the digest the row records")
+    try:
+        sims = np.load(io.BytesIO(sims_raw), allow_pickle=False)
+    except ValueError as error:                                  # noqa: BLE001 -- a verdict
+        return dict(verdict, reason=f"the sims sidecar does not load: {error}")
+
+    shape = [int(v) for v in sims.shape] if sims.ndim == 2 else list(sims.shape)
+    if shape != list(row.get("sims_shape", [])):
+        return dict(verdict, reason=f"the sims sidecar is {shape}, not the recorded "
+                                    f"{row.get('sims_shape')}")
+    if shape != [int(row.get("n_candidates", -1)), int(row.get("num_samples", -1))]:
+        return dict(verdict, reason=f"the sims sidecar is {shape} but the row declares "
+                                    f"{row.get('n_candidates')} candidates x "
+                                    f"{row.get('num_samples')} samples")
+    prefixes = row.get("k_prefixes") or me.K_PREFIXES
+    if sorted(str(k) for k in (row.get("by_k") or {})) != sorted(str(k) for k in prefixes):
+        return dict(verdict, reason=f"the row publishes prefixes {sorted(row.get('by_k') or {})} "
+                                    f"for a declared {list(prefixes)}")
+    if "row_sha256" not in row:
+        return dict(verdict, reason="the row carries no row_sha256; its predictions, oracle "
+                                    "and candidate indices are unauthenticated")
+    if me.row_digest(row) != row.get("row_sha256"):
+        return dict(verdict, reason="the row does not match its own row_sha256; a prediction, "
+                                    "oracle, candidate index, receiver or binding field was "
+                                    "edited after publication")
+    if binding_sha256 is not None and row.get("binding_sha256") != str(binding_sha256):
+        return dict(verdict, reason=f"the row was produced under binding "
+                                    f"{str(row.get('binding_sha256'))[:12]}... but this run is "
+                                    f"{str(binding_sha256)[:12]}...")
+    if row.get("waveform_path"):
+        dump_path = os.path.join(out_dir, str(row["waveform_path"]))
+        if not os.path.isfile(dump_path):
+            return dict(verdict, reason=f"the waveform dump {row['waveform_path']!r} the row "
+                                        "names is missing")
+        with open(dump_path, "rb") as handle:
+            if hashlib.sha256(handle.read()).hexdigest() != row.get("waveform_sha256"):
+                return dict(verdict, reason="the waveform dump does not match the digest the "
+                                            "row records")
+    return dict(verdict, ok=True, reason=None, row=row, sims=sims,
+                position=row.get("position"), room_id=row.get("room_id"))
+
+
+def verify_rows_with_sidecars(run_dir, binding_sha256):
+    """Every row AND its sidecar, parsed from the buffers that were verified.
+
+    Returns ``(rows, sims_by_query_id)``. The sidecars are held in memory -- 142
+    MB of float16 over the registered subset -- precisely so the metrics pass
+    cannot reopen one.
+    """
+    rows, sims, rejected = [], {}, []
     for path in iter_row_paths(run_dir):
-        verdict = me.verify_query_artifact(path, binding_sha256=binding_sha256)
+        verdict = read_verified_query_artifact(path, binding_sha256=binding_sha256)
         if not verdict["ok"]:
             rejected.append({"row": path, "reason": verdict["reason"],
                              "query_id": verdict.get("query_id")})
             continue
-        with open(path) as handle:
-            row = json.load(handle)
+        row = verdict["row"]
         row["_row_path"] = path
         rows.append(row)
+        sims[str(row["query_id"])] = verdict["sims"]
     if rejected:
         raise ValueError(
             f"{len(rejected)} published row(s) do not re-verify and the report refuses to "
             f"aggregate a partial artifact set; first {rejected[:3]}")
     if not rows:
         raise ValueError(f"{run_dir} publishes no rows")
-    return sorted(rows, key=lambda row: int(row["position"]))
+    return sorted(rows, key=lambda row: int(row["position"])), sims
+
+
+def verify_rows(run_dir, binding_sha256):
+    """Re-accept every row from its own bytes -- row digest AND sidecar digest.
+
+    The rows only; :func:`verify_rows_with_sidecars` is the form the evaluation
+    uses, because it keeps the sidecar it verified.
+    """
+    return verify_rows_with_sidecars(run_dir, binding_sha256)[0]
+
+
+def assert_row_matches_plan(row, query):
+    """A published row IS this query's row -- from the row already in hand.
+
+    The in-memory form of ``meshgrid_engine.assert_published_matches``, which
+    re-reads the file. Same comparisons, same refusal; a test pins the two
+    against each other so they cannot drift.
+    """
+    published = [int(i) for i in row.get("candidate_indices", [])]
+    expected = [int(i) for i in query.candidate_indices]
+    mismatches = [name for name, left, right in (
+        ("query_id", row.get("query_id"), query.query_id),
+        ("room_id", row.get("room_id"), query.room_id),
+        ("position", int(row.get("position", -1)), query.position),
+        ("receiver_id", row.get("receiver_id"), query.receiver_id),
+        ("branch", row.get("branch"), query.branch),
+        ("n_candidates", int(row.get("n_candidates", -1)), query.n_candidates),
+        ("candidate_indices", published, expected)) if left != right]
+    if mismatches:
+        raise ValueError(f"{query.query_id}: the published row does not match the candidate "
+                         f"manifest on {mismatches}; a report may not take a number out of a row "
+                         "that describes a different query")
+    return True
 
 
 def assert_census(rows, records, totals=None):
@@ -887,8 +999,15 @@ class TruthResolver:
     the continuous truth enters -- after every prediction is already frozen.
     """
 
-    def __init__(self, metadata_root):
+    def __init__(self, metadata_root, expected=None):
         self.metadata_root = str(metadata_root)
+        #: ``{query_id: sha256}`` from the frozen pair-metadata bank. When given,
+        #: every pair file this resolver reads must be one the bank covered AND
+        #: must still hash to what the bank recorded -- so a runtime truth cannot
+        #: come from a file the gate never saw, nor from one edited after it
+        #: (Codex r9l review, item 1). The digest compared is the one taken from
+        #: the very buffer the coordinates are parsed out of.
+        self.expected = None if expected is None else dict(expected)
         self._cache = {}
         #: ``query_id -> {path, sha256}`` for every pair file this resolver read.
         #: The truth is not pinned by any run artifact, so the FILES it came out
@@ -935,6 +1054,18 @@ class TruthResolver:
             raise ValueError(f"{record['query_id']}: {path} is not readable as JSON "
                              f"({error}); the truth cannot be parsed out of the bytes that "
                              "were digested") from error
+        if self.expected is not None:
+            query_id = str(record["query_id"])
+            wanted = self.expected.get(query_id)
+            if wanted is None:
+                raise ValueError(
+                    f"{query_id}: the pre-registered pair-metadata bank does not cover this "
+                    "query, so no file on disk may supply its truth")
+            if digest != str(wanted):
+                raise ValueError(
+                    f"{query_id}: {path} hashes to {digest[:16]}... but the pre-registered bank "
+                    f"records {str(wanted)[:16]}...; the truth being read is not the registered "
+                    f"one. {TRUTH_BINDING_NOTE}")
         receiver = np.asarray(payload["rec_loc"], dtype=np.float64).reshape(3)
         source = np.asarray(payload["src_loc"], dtype=np.float64).reshape(3)
         if not (np.isfinite(receiver).all() and np.isfinite(source).all()):
@@ -985,6 +1116,10 @@ def compute_metadata_bank_digest(context_manifest, metadata_root,
     for record in records:
         resolver.resolve(record)
     return {"metadata_bank_sha256": resolver.metadata_bank_digest(),
+            # per-query digests, so the runtime truth path can be held to the
+            # very files the bank covered (Codex r9l review, item 1)
+            "queries": {query_id: dict(entry)
+                        for query_id, entry in sorted(resolver.pair_files.items())},
             "n_pair_files": len(resolver.pair_files),
             "n_records": len(records),
             "context_manifest": str(context_manifest),
@@ -1996,7 +2131,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
 
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
-    rows = verify_rows(run_dir, binding_sha)
+    rows, sims_by_id = verify_rows_with_sidecars(run_dir, binding_sha)
     # the receipt is checked against the ROWS, so the rows come first now
     derived = derive_run_facts(rows)
     batching = assert_uniform_batching(rows, binding.get("advisory"))
@@ -2021,9 +2156,10 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     for room_id in sorted(plan.rooms):
         room_plan = me.load_room_plan(plan, room_id)
         # phase A: every row of this room is authenticated against the G1 plan
-        # before phase B takes a single number out of it
+        # before phase B takes a single number out of it -- from the row already
+        # verified and parsed, never by reopening the file (Codex r9l, item 3)
         for query in room_plan.queries:
-            me.assert_published_matches(run_dir, query, binding_sha256=binding_sha)
+            assert_row_matches_plan(rows_by_id[query.query_id], query)
         for query in room_plan.queries:
             row = rows_by_id[query.query_id]
             metadata_receiver, truth = resolver.resolve(records_by_id[query.query_id])
@@ -2033,8 +2169,9 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
                 truth_drift.append(assert_truth_vector(
                     query.query_id, truth, query.receiver_xyz,
                     source_provider(query.query_id)))
-            sims_path = os.path.join(run_dir, str(row["sims_path"]))
-            sims = np.load(sims_path)
+            # the sidecar parsed out of the bytes that were verified -- there is
+            # no second open of it anywhere in this function
+            sims = sims_by_id[query.query_id]
             result = evaluate_query(row, sims, query.coordinates, truth, tau=protocol["tau"],
                                     radii=radii, oracle_tolerance=oracle_tolerance,
                                     sidecar_argmax_policy=sidecar_argmax_policy)
@@ -2060,7 +2197,8 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             "registered_protocol": registered, "merge": merge, "derived": derived,
             "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
-            "metadata_bank": metadata_bank,
+            "metadata_bank": metadata_bank, "sims_by_id": sims_by_id,
+            "single_read_note": SINGLE_READ_NOTE,
             "truth_vector_checked": source_provider is not None,
             "max_truth_vector_drift_m": (float(max(truth_drift)) if truth_drift else None),
             "max_receiver_drift_m": float(max(receiver_drift)) if receiver_drift else 0.0,
