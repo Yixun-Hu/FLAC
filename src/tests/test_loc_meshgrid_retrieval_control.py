@@ -159,6 +159,8 @@ def build_control_fixture(tmp_path, pre_register=True):
     fixture["bank_rule"] = rc.REGISTERED_BANK_RULE
     fixture["device"] = rc.REGISTERED_DEVICE
     fixture["loader"] = dict(rc.REGISTERED_LOADER)
+    # the startup root gate the driver runs; joined into canonicality (r9k item 2)
+    fixture["roots_agree"] = True
     fixture["allow_non_canonical"] = True
     # a dataset config whose root IS the fixture tree, so the digest and the
     # loader resolve one root (r9h item 1)
@@ -615,6 +617,109 @@ def test_a_pair_file_swapped_after_the_gate_refuses(tmp_path):
     with pytest.raises(ValueError,
                        match="pair file .* changed after the sparse-bank digest"):
         run_control(fixture, bank_document=fixture["bank_document"])
+
+
+def test_a_pair_file_is_read_exactly_once_under_a_digest(tmp_path, monkeypatch):
+    # r9i finding 1: verifying bytes and then REOPENING the file to parse a
+    # truth or a position leaves a window for a timed swap. One read, hashed and
+    # parsed from the same buffer, closes it by construction.
+    fixture = build_control_fixture(tmp_path)
+    reads = []
+    real_read = rc.read_bytes
+    monkeypatch.setattr(rc, "read_bytes", lambda path: (reads.append(os.path.normpath(str(path)))
+                                                        or real_read(path)))
+    run_control(fixture)
+
+    pairs = [path for path in reads if path.endswith(".json")]
+    assert pairs, "no pair file was read at all"
+    assert len(pairs) == len(set(pairs)), \
+        f"a pair file was opened more than once: {sorted(p for p in pairs if pairs.count(p) > 1)}"
+
+
+def test_a_swap_between_the_hash_and_the_parse_is_impossible_by_construction(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    path = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S002_R002.json")
+    verified = rc.verified_pair(path, hashlib.sha256(open(path, "rb").read()).hexdigest())
+    tables = rc.room_bank(fixture["metadata_root"], fixture["dataset_root"], "A/A_idx_1",
+                          _ir_relpath("A/A_idx_1", 1, 2), strict=True)
+    tables.adopt_payload(2, 2, verified)
+
+    # the file is replaced AFTER the buffer was hashed and parsed; what the walk
+    # consumes is still the verified buffer, not whatever is on disk now
+    with open(path, "w") as handle:
+        json.dump({"src_loc": [9.0, 9.0, 9.0], "rec_loc": [9.0, 9.0, 9.0]}, handle)
+    source, receiver, _path = tables.payload(2, 2)
+    assert source.tolist() == FIXTURE_SOURCES["A/A_idx_1"][2]
+    assert receiver.tolist() == FIXTURE_RECEIVERS["A/A_idx_1"][2]
+
+
+def test_a_strict_room_bank_refuses_to_open_a_pair_file(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    tables = rc.room_bank(fixture["metadata_root"], fixture["dataset_root"], "A/A_idx_1",
+                          _ir_relpath("A/A_idx_1", 1, 2), strict=True)
+    with pytest.raises(ValueError, match="would be re-opened"):
+        tables.payload(2, 2)
+    # ... and the un-strict tables still read it, for the no-digest path
+    loose = rc.room_bank(fixture["metadata_root"], fixture["dataset_root"], "A/A_idx_1",
+                         _ir_relpath("A/A_idx_1", 1, 2))
+    assert loose.payload(2, 2)[0].tolist() == FIXTURE_SOURCES["A/A_idx_1"][2]
+
+
+def test_verified_pair_parses_the_buffer_it_hashed(tmp_path, monkeypatch):
+    path = str(tmp_path / "S001_R002.json")
+    with open(path, "w") as handle:
+        json.dump({"src_loc": [1.0, 2.0, 3.0], "rec_loc": [4.0, 5.0, 6.0]}, handle)
+    data = open(path, "rb").read()
+    sha = hashlib.sha256(data).hexdigest()
+
+    reads = []
+    real_read = rc.read_bytes
+    monkeypatch.setattr(rc, "read_bytes", lambda p: (reads.append(str(p)) or real_read(p)))
+    parsed = rc.verified_pair(path, sha)
+    assert len(reads) == 1                              # one open, not two
+    assert parsed["src_loc"].tolist() == [1.0, 2.0, 3.0]
+    assert parsed["rec_loc"].tolist() == [4.0, 5.0, 6.0]
+    assert parsed["sha256"] == sha
+
+    with pytest.raises(ValueError, match="changed after the sparse-bank digest"):
+        rc.verified_pair(path, "0" * 64)
+    # an unverified read is still ONE read, and says nothing about the bytes
+    assert rc.verified_pair(path, None)["sha256"] == sha
+
+
+def test_a_payload_offered_for_the_wrong_pair_is_refused(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    path = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S002_R002.json")
+    verified = rc.verified_pair(path, None)
+    tables = rc.room_bank(fixture["metadata_root"], fixture["dataset_root"], "A/A_idx_1",
+                          _ir_relpath("A/A_idx_1", 1, 2), strict=True)
+    with pytest.raises(ValueError, match="was offered for"):
+        tables.adopt_payload(3, 2, verified)
+
+
+def test_the_truth_comes_out_of_the_verified_buffer(tmp_path, monkeypatch):
+    fixture = build_control_fixture(tmp_path)
+    truth_path = os.path.normpath(
+        os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json"))
+    tampered = json.dumps({"src_loc": [7.0, 7.0, 7.0], "rec_loc": [0.0, 0.0, 0.5]}).encode()
+
+    # every read of the truth pair AFTER the first returns other bytes: if the
+    # walk read it twice, the truth (and e_loc) would come from the second read
+    state = {"n": 0}
+    real_read = rc.read_bytes
+
+    def counting_read(path):
+        if os.path.normpath(str(path)) == truth_path:
+            state["n"] += 1
+            if state["n"] > 1:
+                return tampered
+        return real_read(path)
+
+    monkeypatch.setattr(rc, "read_bytes", counting_read)
+    results = run_control(fixture)
+    assert state["n"] == 1
+    truth = _by_id(results)[_query_id("A/A_idx_1", 0)]["truth_xyz"]
+    assert truth == FIXTURE_SOURCES["A/A_idx_1"][1]
 
 
 def test_a_pair_file_is_verified_before_a_position_is_read_out_of_it(tmp_path, monkeypatch):
@@ -1392,6 +1497,76 @@ def test_a_report_that_was_not_told_what_it_used_cannot_state_canonicality(tmp_p
     context = {key: value for key, value in fixture.items() if key != missing}
     with pytest.raises(ValueError, match="cannot state canonicality"):
         rc.build_report(results, context, n_boot=64)
+
+
+def _canonical_claims(payload):
+    """Every ``canonical``-ish boolean anywhere in an artifact, by JSON path."""
+    found = {}
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                where = f"{path}.{key}"
+                # every claim that THIS RUN's numbers are pinned. (
+                # sparse_bank_pre_registered is deliberately not here: it is a
+                # narrower statement about the gate, and it stays true)
+                if key in ("canonical",
+                           "truth_bytes_pinned_by_pre_registered_bank_digest"):
+                    found[where] = value
+                walk(value, where)
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, f"{path}[{index}]")
+
+    walk(payload, "")
+    return found
+
+
+@pytest.mark.parametrize("broken", list(rc.WALK_GATES))
+def test_a_failed_byte_gate_can_never_coexist_with_a_canonical_claim(tmp_path, broken):
+    fixture = build_control_fixture(tmp_path)
+    # a walk that did not verify the bytes end to end, with every INPUT still at
+    # its registered value: r9i finding 4 is that this used to publish
+    # protocol.canonical = true
+    if broken == "one_dataset_root_for_the_digest_and_the_loader":
+        results = run_control(fixture)
+        context = dict(fixture, roots_agree=False)
+    else:
+        results = run_control(fixture, bank_document=None)
+        context = dict(fixture)
+
+    with pytest.raises(ValueError, match="walk_byte_gates"):
+        rc.build_report(results, dict(context, allow_non_canonical=False),
+                        n_boot=rc.BOOTSTRAP_N)
+
+    report = rc.build_report(results, dict(context, allow_non_canonical=True),
+                             n_boot=rc.BOOTSTRAP_N)
+    assert report["protocol"]["canonical"] is False
+    assert report["protocol"]["walk_gates"][broken] is False
+    assert report["gates"][broken] is False
+    deviation = next(d for d in report["protocol"]["deviations"]
+                     if d["input"] == "walk_byte_gates")
+    assert broken in deviation["used"]
+    assert rc.WALK_GATE_NOTE in deviation["why_it_matters"]
+
+    published = rc.write_report(fixture["out_dir"], report)
+    for name in ("json", "handoff"):
+        payload = json.load(open(published["paths"][name]))
+        claims = _canonical_claims(payload)
+        assert claims, f"the {name} artifact makes no canonicality claim at all"
+        assert not any(claims.values()), f"{name} still claims {claims}"
+    markdown = open(published["paths"]["markdown"]).read()
+    assert markdown.splitlines()[2].startswith("> **NON-CANONICAL")
+    assert rc.NON_CANONICAL_NOTE in markdown
+    assert "CANONICAL RUN** — every registered input" not in markdown
+    assert json.load(open(published["paths"]["handoff"]))["status"] == "run (NON-CANONICAL)"
+
+
+def test_the_assessment_refuses_to_state_canonicality_without_the_walk_gates(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    with pytest.raises(ValueError, match="what the WALK established"):
+        rc.assess_canonicality(fixture, bank_rule=rc.REGISTERED_BANK_RULE,
+                               bootstrap_seed=rc.BOOTSTRAP_SEED, n_boot=rc.BOOTSTRAP_N)
 
 
 def test_a_fully_registered_run_is_stamped_canonical(tmp_path):

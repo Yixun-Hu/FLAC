@@ -51,9 +51,11 @@ scalar consistency check saying the control and the audit describe the same
 query, and NOT a proof of the truth vector -- that claim reduces to the bank
 digest alone), and the result set must be exactly the registered
 census. After the gate, the bytes stay bound: every digested file this control
-re-reads is hashed again on the read that consumes it, and the observation must
-be the file the loader opened AND decode to the tensor the loader delivered
-(:func:`assert_observation_bytes`). Ground truth is resolved post hoc from the dataset's own pair metadata
+reads is hashed and PARSED from one buffer -- a position or a truth comes out of
+exactly the bytes that were verified, never out of a second open
+(:func:`verified_pair`, :class:`RoomBank` in ``strict`` mode) -- and the
+observation must be the file the loader opened AND decode to the tensor the
+loader delivered (:func:`assert_observation_bytes`). Ground truth is resolved post hoc from the dataset's own pair metadata
 through the SAME seam the r9 report uses
 (``meshgrid_report.TruthResolver``) -- there is no second resolver -- and the
 loader item stays wrapped in ``GuardedMetadata``, so this control cannot read
@@ -522,19 +524,57 @@ def ir_index(ir_room_dir):
     return found
 
 
+def parse_pair_payload(data, path):
+    """``(src_loc, rec_loc)`` parsed from pair-metadata BYTES.
+
+    Takes bytes rather than a path so the caller can hash and parse ONE buffer:
+    a position or a truth is then read out of exactly the bytes that were
+    verified, and a swap between the hash and the parse is impossible rather
+    than merely unlikely (Codex r9i review, finding 1).
+    """
+    payload = json.loads(data)
+    source = np.asarray(payload["src_loc"], dtype=np.float64).reshape(3)
+    receiver = np.asarray(payload["rec_loc"], dtype=np.float64).reshape(3)
+    if not (np.isfinite(source).all() and np.isfinite(receiver).all()):
+        raise ValueError(f"{path} carries a non-finite coordinate")
+    return source, receiver
+
+
+def verified_pair(path, expected_sha256, what="pair file"):
+    """A digested pair file, read ONCE: hash the bytes, refuse, parse THOSE bytes.
+
+    ``expected_sha256=None`` means there is no digest to verify against and the
+    read is unverified -- the state the report publishes as its byte gates being
+    false. A digest that names the file and a hash that does not match is always
+    a refusal.
+    """
+    data = read_bytes(path)
+    found = hashlib.sha256(data).hexdigest()
+    if expected_sha256 is not None:
+        assert_file_bytes(path, expected_sha256, what, found=found)
+    source, receiver = parse_pair_payload(data, path)
+    return {"src_loc": source, "rec_loc": receiver, "sha256": found, "path": str(path)}
+
+
 class RoomBank:
     """One room's pair metadata and IR files, listed once and reused.
 
     A room is walked by up to a thousand queries, so the two directory listings
     and every pair payload are read once. Nothing here is query-specific.
+
+    ``strict`` is the byte-continuity mode: with it set, this object may not open
+    a pair file at all -- every payload must have been ADOPTED from a buffer the
+    caller already hashed (:meth:`adopt_payload`), so there is no second read for
+    a timed swap to land in.
     """
 
-    def __init__(self, room_id, meta_dir, ir_dir):
+    def __init__(self, room_id, meta_dir, ir_dir, strict=False):
         self.room_id = str(room_id)
         self.meta_dir = str(meta_dir)
         self.ir_dir = str(ir_dir)
         self.pairs = pair_index(self.meta_dir)
         self.irs = ir_index(self.ir_dir)
+        self.strict = bool(strict)
         self._payloads = {}
         # grouped ONCE: a room is walked by up to a thousand queries, and each
         # of them asks the same two questions about its own receiver
@@ -546,17 +586,29 @@ class RoomBank:
         for (src, rec), path in self.irs.items():
             self._irs_at.setdefault(int(rec), {})[int(src)] = path
 
+    def adopt_payload(self, src_node, rec_node, parsed):
+        """Take a pair's positions from a buffer the CALLER hashed and parsed."""
+        key = (int(src_node), int(rec_node))
+        path = self.pairs[key]
+        if os.path.normpath(str(parsed["path"])) != os.path.normpath(str(path)):
+            raise ValueError(f"{self.room_id}: a payload read from {parsed['path']!r} was "
+                             f"offered for S{key[0]:03d}_R{key[1]:03d}, whose file is {path!r}")
+        self._payloads[key] = (np.asarray(parsed["src_loc"], dtype=np.float64).reshape(3),
+                               np.asarray(parsed["rec_loc"], dtype=np.float64).reshape(3),
+                               str(path))
+        return self._payloads[key]
+
     def payload(self, src_node, rec_node):
         key = (int(src_node), int(rec_node))
         if key not in self._payloads:
             path = self.pairs[key]
-            with open(path) as handle:
-                payload = json.load(handle)
-            source = np.asarray(payload["src_loc"], dtype=np.float64).reshape(3)
-            receiver = np.asarray(payload["rec_loc"], dtype=np.float64).reshape(3)
-            if not (np.isfinite(source).all() and np.isfinite(receiver).all()):
-                raise ValueError(f"{path} carries a non-finite coordinate")
-            self._payloads[key] = (source, receiver, path)
+            if self.strict:
+                raise ValueError(
+                    f"{self.room_id}: S{key[0]:03d}_R{key[1]:03d} would be re-opened at {path!r} "
+                    "after its bytes were verified. Under a sparse-bank digest every position "
+                    "is parsed from the buffer that was hashed, so a re-read is refused rather "
+                    "than allowed to race a swap (Codex r9i review, finding 1)")
+            self._payloads[key] = parse_pair_payload(read_bytes(path), path) + (str(path),)
         return self._payloads[key]
 
     def at_receiver(self, rec_node):
@@ -568,21 +620,25 @@ class RoomBank:
         return dict(self._irs_at.get(int(rec_node), {}))
 
 
-def room_bank(metadata_root, dataset_root, room_id, relpath, cache=None):
+def room_bank(metadata_root, dataset_root, room_id, relpath, cache=None, strict=False):
     """The room tables for the query at ``relpath``, memoized in ``cache``.
 
     The IR directory is derived from the D1 record's own ``relpath`` -- the
     identity the manifest pins -- rather than from a second room-to-directory
-    convention.
+    convention. ``strict`` forbids the tables from opening a pair file at all
+    (see :class:`RoomBank`); it is set once, when the room is first built, and a
+    later call may only tighten it.
     """
     scene, scene_id = str(room_id).split("/")
     meta_dir = os.path.join(str(metadata_root), scene, scene_id)
     ir_dir = os.path.dirname(os.path.join(str(dataset_root), str(relpath)))
     key = (str(room_id), meta_dir, ir_dir)
     if cache is None:
-        return RoomBank(room_id, meta_dir, ir_dir)
+        return RoomBank(room_id, meta_dir, ir_dir, strict=strict)
     if key not in cache:
-        cache[key] = RoomBank(room_id, meta_dir, ir_dir)
+        cache[key] = RoomBank(room_id, meta_dir, ir_dir, strict=strict)
+    elif strict:
+        cache[key].strict = True
     return cache[key]
 
 
@@ -1224,7 +1280,6 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         raise ValueError(f"unknown bank rule {bank_rule!r} (expected one of {list(BANK_RULES)})")
     by_position = {int(record["position"]): record for record in records}
     me.assert_room_blocks(records)
-    resolver = mr.TruthResolver(metadata_root)
     rooms, embeddings, results, seen = {}, {}, [], set()
     current_room, current_index, finished_rooms, oracle_deltas = None, {}, set(), []
     #: pair files whose bytes this run already checked against the digest. A file
@@ -1263,36 +1318,45 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
             raise ValueError(f"stream position {position}: the loader returned no observed "
                              "waveform; there is nothing to retrieve against")
 
-        # the bytes the digest covered, rejoined to the roots being read now.
-        # Taken BEFORE the truth is resolved, because the truth is read out of one
-        # of these very files.
+        # ONE read per pair file, hashed and PARSED from the same buffer, before
+        # anything reads a position or a truth out of it. The parsed values are
+        # then carried into the walk -- the path is never handed on -- so a swap
+        # between the hash and the consumption is impossible by construction
+        # (Codex r9i review, finding 1).
         hashes, recorded = ({}, None)
+        tables = room_bank(metadata_root, dataset_root, room_id, str(record["relpath"]),
+                           cache=rooms, strict=bank_document is not None)
+        src_node, rec_node = parse_ir_filename(os.path.basename(str(record["relpath"])))
         if bank_document is not None:
             hashes, recorded = _digest_hashes(bank_document, metadata_root, dataset_root,
                                               query_id)
-            # BEFORE USE, not after: the digest document already names every pair
-            # file this query will read, so each one is verified before anything
-            # reads a position or a truth out of it
             truth_pair = os.path.normpath(
                 os.path.join(str(metadata_root), recorded["truth_pair"][0]))
-            for path, sha256, what in (
-                    [(truth_pair, recorded["truth_pair"][1], "the truth-carrying pair file")]
-                    + [(os.path.normpath(os.path.join(str(metadata_root), row[2])), row[3],
+            for identity, path, sha256, what in (
+                    [((src_node, rec_node), truth_pair, recorded["truth_pair"][1],
+                      "the truth-carrying pair file")]
+                    + [((int(row[0]), int(row[1])),
+                        os.path.normpath(os.path.join(str(metadata_root), row[2])), row[3],
                         "a bank entry's pair file") for row in recorded["bank"]]):
                 if path not in verified_files:
-                    assert_file_bytes(path, sha256, what)
+                    tables.adopt_payload(identity[0], identity[1],
+                                         verified_pair(path, sha256, what))
                     verified_files.add(path)
 
-        metadata_receiver, truth = resolver.resolve(record)
+        # the truth comes out of the ADOPTED buffer -- the same bytes that were
+        # hashed -- rather than out of a second open of the same path. Which file
+        # it is stays the shared seam: RoomBank.pairs IS candidates._pair_files,
+        # the listing meshgrid_report.TruthResolver resolves through.
+        metadata_source, metadata_receiver, _truth_path = tables.payload(src_node, rec_node)
+        truth = np.asarray(metadata_source, dtype=np.float64).reshape(3)
         mr.assert_receiver_matches(query_id, metadata_receiver, query.receiver_xyz)
         oracle_deltas.append(assert_grid_oracle(query, truth))
         grid = {"e_oracle_grid": float(query.oracle),
                 "n_grid_candidates": int(query.n_candidates)}
         bank = build_query_bank(metadata_root, dataset_root, room_id,
                                 str(record["relpath"]), rule=bank_rule, cache=rooms)
-        # the truth resolver and the bank read the same pair file through two
-        # different listings (find_pair_metadata / pair_index); this asserts they
-        # agree, so the bank is built at the receiver the truth was resolved at
+        # the bank's own receiver (read from the same adopted buffer) must be the
+        # manifest's, so the bank is built at the receiver the truth belongs to
         mr.assert_receiver_matches(query_id, bank["receiver_xyz"], query.receiver_xyz)
         if bank_document is not None:
             assert_bank_unchanged(query_id, bank["entries"], bank_document)
@@ -1502,8 +1566,25 @@ def observed_inputs(context, *, bank_rule, bootstrap_seed, n_boot, alpha=BOOTSTR
     return observed
 
 
+#: The gates the WALK establishes, which a canonical run must all have passed.
+#: They are not inputs -- nobody sets them -- but a run whose bytes were never
+#: bound to the pre-registered digest cannot be canonical whatever its inputs
+#: were, so the assessment joins them (Codex r9i review, finding 4).
+WALK_GATES = ("bank_membership_rechecked_against_the_digest",
+              "digested_bytes_reverified_on_every_post_gate_read",
+              "observation_is_the_digested_file_and_decodes_to_the_scored_tensor",
+              "one_dataset_root_for_the_digest_and_the_loader")
+WALK_GATE_NOTE = (
+    "a canonical run is one whose numbers are bound to the pre-registered bytes END TO END: the "
+    "walk must have been driven against the sparse-bank digest document (membership re-checked, "
+    "every digested file hashed on the read that consumed it, the observation proven to be the "
+    "digested file and to decode to the scored tensor) and the digest and the loader must have "
+    "read one root. A run missing any of them is a sensitivity check no matter how registered "
+    "its settings were")
+
+
 def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, alpha=BOOTSTRAP_ALPHA,
-                        radii=SUCCESS_RADII):
+                        radii=SUCCESS_RADII, walk_gates=None):
     """Every registered input that deviates, named -- or an empty list.
 
     The rule is one sentence: a canonical run of this control uses the registered
@@ -1534,7 +1615,19 @@ def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, alpha=BOO
         deviations.append({"input": "sparse_bank_sha256",
                            "used": gate.get("sparse_bank_sha256"), "registered": None,
                            "why_it_matters": NON_CANONICAL_BANK_NOTE})
+
+    # the walk's own verdict, joined here so a top-level "canonical" can never
+    # outrank a byte gate that did not run (Codex r9i review, finding 4)
+    if walk_gates is None:
+        raise ValueError("the report cannot state canonicality: it was not told what the WALK "
+                         f"established ({list(WALK_GATES)}); a canonical claim that ignores the "
+                         "byte gates is exactly what r9i refused")
+    failed = sorted(name for name in WALK_GATES if not walk_gates.get(name))
+    if failed:
+        deviations.append({"input": "walk_byte_gates", "used": failed, "registered": True,
+                           "why_it_matters": WALK_GATE_NOTE})
     return {"canonical": not deviations, "deviations": deviations, "observed": observed,
+            "walk_gates": {name: bool(walk_gates.get(name)) for name in WALK_GATES},
             "note": None if not deviations else NON_CANONICAL_NOTE}
 
 
@@ -1592,12 +1685,21 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
     census = assert_retrieval_census(results, context["records"],
                                      totals=totals or context.get("totals"))
     bank = bank_report(results)
+    bank_gate = dict(context.get("bank_gate") or {})
+    # the WALK's verdict first, then canonicality -- never the other way round:
+    # every one of these is derived from the rows or from a startup gate, and a
+    # canonical claim may not outrank them (Codex r9i review, finding 4)
+    digest_verified = all(bool(result.get("digest_verified")) for result in results)
+    walk_gates = {"bank_membership_rechecked_against_the_digest": digest_verified,
+                  "digested_bytes_reverified_on_every_post_gate_read": digest_verified,
+                  "observation_is_the_digested_file_and_decodes_to_the_scored_tensor":
+                      digest_verified,
+                  "one_dataset_root_for_the_digest_and_the_loader":
+                      bool(context.get("roots_agree", False))}
     assessment = assert_canonical(
         assess_canonicality(context, bank_rule=bank["rule"], bootstrap_seed=bootstrap_seed,
-                            n_boot=n_boot, alpha=alpha, radii=radii),
+                            n_boot=n_boot, alpha=alpha, radii=radii, walk_gates=walk_gates),
         allow_non_canonical=bool(context.get("allow_non_canonical")))
-    bank_gate = dict(context.get("bank_gate") or {})
-    digest_verified = all(bool(result.get("digest_verified")) for result in results)
     draws = mr.room_bootstrap_draws(census["n_rooms"], seed=bootstrap_seed, n=n_boot)
     bootstrap = {"seed": bootstrap_seed, "n": n_boot, "alpha": alpha}
 
@@ -1681,9 +1783,12 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "sparse_bank_pre_registered": bool(bank_gate.get("canonical")),
             "sparse_bank_mode": bank_gate.get("mode"),
             "bank_digest_algorithm": BANK_DIGEST_ALGORITHM,
-            # the one-line verdict every table is read under
+            # the one-line verdict every table is read under. It JOINS the walk
+            # gates below, so it cannot be true while one of them is false
             "canonical": bool(assessment["canonical"]),
             "deviations": assessment["deviations"],
+            "walk_gates": assessment["walk_gates"],
+            "walk_gate_note": WALK_GATE_NOTE,
         },
         "census": census,
         "input_surface": input_surface(assessment),
@@ -1696,19 +1801,18 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             # renamed in r9e: the scalar check establishes agreement with the
             # audit, NOT the identity of the truth vector (Codex r9c, BLOCKER 2)
             "grid_oracle_rederived_matches_the_g1_scalar": True,
+            # END TO END, or the claim is bigger than the evidence: the digest
+            # must have matched a pre-registered value AND every walk gate must
+            # have held (r9i finding 4). A pre-registration nothing was checked
+            # against pins nothing, and neither does one taken over a tree the
+            # loader did not read from.
             "truth_bytes_pinned_by_pre_registered_bank_digest":
-                bool(bank_gate.get("canonical")),
-            # derived from the ROWS, not from the caller: every query stamps
-            # whether it was walked against the digest document
-            "bank_membership_rechecked_against_the_digest": digest_verified,
-            # membership alone is not byte continuity (Codex r9f review): every
-            # digested file re-read after the gate is hashed on the read that
-            # consumes it, and the observation must decode to the scored tensor
-            "digested_bytes_reverified_on_every_post_gate_read": digest_verified,
-            "observation_is_the_digested_file_and_decodes_to_the_scored_tensor":
-                digest_verified,
-            "one_dataset_root_for_the_digest_and_the_loader":
-                bool(context.get("roots_agree", False)),
+                bool(bank_gate.get("canonical")) and all(walk_gates.values()),
+            # derived from the ROWS (every query stamps whether it was walked
+            # against the digest document) and from the startup root gate -- the
+            # SAME dict the canonicality assessment consumed, so the verdict and
+            # the gate list cannot disagree
+            **{name: bool(value) for name, value in walk_gates.items()},
             "bank_excludes_the_query_own_pair": True,
             "bank_excludes_any_entry_on_the_target": True,
             "census_is_the_registered_subset": True,
@@ -2192,6 +2296,10 @@ def main(argv=None):
                             metadata_root=args.metadata_root, dataset_root=args.dataset_root,
                             bank_rule=args.bank_rule, bank_document=document,
                             sample_size=loader["loader_sample_size"], on_record=_announce)
+    # RE-asserted after the walk, not remembered from startup: the report's
+    # canonicality joins this gate, so it is established again against the tree
+    # the pass actually finished on (Codex r9i review, finding 4)
+    roots = assert_roots_agree(args.dataset_root, args.dataset_config)
     report = build_report(results, {
         "records": records, "binding": dict(binding, **gate["recorded_not_checked"]),
         "binding_sha256": gate["binding_sha256"], "run_dir": str(args.run_dir),
@@ -2203,7 +2311,7 @@ def main(argv=None):
         "scorer_readout": me.SCORER_READOUT, "tau": float(args.tau),
         "device": str(args.device), "loader": loader,
         "gate": gate, "bank_gate": bank_gate,
-        "roots_agree": True,
+        "roots_agree": bool(roots),
         "allow_non_canonical": bool(args.non_canonical),
     }, bootstrap_seed=args.bootstrap_seed, n_boot=args.n_boot)
     published = write_report(args.out_dir, report)
