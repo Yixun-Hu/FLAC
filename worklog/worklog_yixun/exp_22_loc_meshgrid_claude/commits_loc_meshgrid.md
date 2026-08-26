@@ -310,3 +310,5 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `dc46a70` exp_22 r9b (2): report controls_elsewhere -> "built (r9b), run pending"
 - `9ba13cf` exp_22 r9b (3): truth-pinning hardening (dense-grid oracle re-derivation gate)
 - `b3f08e0` exp_22 r9b (4): context-overlap disclosure
+- `0a06416` exp_22 r9c (1): report joins artifacts to the run it names (B1-B3, M6-M8, minors)
+- `f92cb26` exp_22 r9c (2): offgrid probe gates before device, stages dumps (B4, B5, M9)
