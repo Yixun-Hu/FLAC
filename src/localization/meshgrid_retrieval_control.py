@@ -37,8 +37,12 @@ the fields that decide ITS numbers -- the scorer, its readout, the D1 context
 manifest, the G1 audit and the dataset config -- and records, rather than
 requires, the generation-only fields (:data:`BINDING_SCOPE_NOTE`).
 
-Everything that decides a number is still gated before it is computed: the
-published run binding must hash to its own content and agree with this control's
+Everything that decides a number is gated before it is computed: the sparse bank
+itself -- every pair-metadata JSON and every RIR waveform it is built from -- must
+hash to a digest frozen BEFORE these artifacts existed (:func:`bank_digest`,
+:func:`assert_bank_digest`; PLANNER RULING 2), which is also the only thing here
+that pins the continuous truth (:data:`TRUTH_INTEGRITY_NOTE`), the published run
+binding must hash to its own content and agree with this control's
 inputs, every query's context draw must re-verify against the frozen D1 manifest
 (``meshgrid_engine.verify_context_record``), the pair metadata's receiver must be
 the G1 manifest's receiver, the dense-grid oracle re-derived from that room's
@@ -152,23 +156,178 @@ TRUTH_COINCIDENCE_TOLERANCE = 1e-6
 RELEASED_SAMPLE_RATE = 22050
 
 #: the run-binding fields that decide THIS control's numbers.
-RETRIEVAL_BINDING_FIELDS = ("agree_ckpt_sha256", "scorer_readout", "d1_manifest_sha256",
-                            "g1_report_sha256", "room_manifest_sha256", "branch",
-                            "dataset_config", "dataset_config_sha256")
+#:
+#: ``model_config_sha256`` is here since r9e: it is the config the released
+#: dataloader is built from, so its ``sample_rate``/``sample_size`` decide the
+#: observed waveform and therefore every cosine (Codex r9c review, BLOCKER 3).
+RETRIEVAL_BINDING_FIELDS = ("agree_ckpt_sha256", "scorer_readout", "model_config_sha256",
+                            "d1_manifest_sha256", "g1_report_sha256", "room_manifest_sha256",
+                            "branch", "dataset_config", "dataset_config_sha256")
+#: run-binding fields this control gates against their REGISTERED value instead
+#: of against the run's. ``tau`` is the whole list and the reason is exact: it is
+#: inert here (the K = 1 score is the raw cosine), so matching the run would make
+#: a stamped tau sensitivity check impossible to express, while matching the
+#: registered constant is what the comparison against the R1 cell needs.
+RETRIEVAL_BINDING_REGISTERED_ONLY = ("tau",)
 #: the rest of the run binding: recorded from the published run, never required.
 RETRIEVAL_BINDING_NOT_CHECKED = tuple(field for field in me.RUN_BINDING_FIELDS
-                                      if field not in RETRIEVAL_BINDING_FIELDS)
+                                      if field not in RETRIEVAL_BINDING_FIELDS
+                                      and field not in RETRIEVAL_BINDING_REGISTERED_ONLY)
 BINDING_SCOPE_NOTE = (
     "this control generates nothing -- there is no FLAC forward pass in it -- so the fields "
-    "that decide a GENERATION (the checkpoint, the model config, the sampler steps, the CFG "
-    "scale, the noise policy and its seed, the sample count and the nested prefixes, the "
-    "conditioning method and its autocast, the dump authority) cannot change any number here. "
-    "They are recorded from the published run binding and reported, and they do not refuse the "
-    "control. tau is in that list too: at K = 1 the registered log-mean-exp aggregate is the "
-    "cosine itself, so tau cancels. What IS checked is everything that decides a cosine: the "
-    "AGREE checkpoint, its readout, the D1 context manifest (the stream this control walks), "
-    "the G1 audit and room manifests (the receivers and the dense-grid oracle it contrasts "
-    "against) and the dataset config")
+    "that decide a GENERATION (the checkpoint, the sampler steps, the CFG scale, the noise "
+    "policy and its seed, the sample count and the nested prefixes, the conditioning method and "
+    "its autocast, the dump authority) cannot change any number here. They are recorded from "
+    "the published run binding and reported, and they do not refuse the control. What IS "
+    "checked is everything that decides a cosine: the AGREE checkpoint, its readout, the MODEL "
+    "CONFIG the observed-RIR loader is built from, the D1 context manifest (the stream this "
+    "control walks), the G1 audit and room manifests (the receivers and the dense-grid oracle "
+    "it contrasts against) and the dataset config. tau is in a THIRD class "
+    "(RETRIEVAL_BINDING_REGISTERED_ONLY): it is gated against its REGISTERED value rather than "
+    "against the run's, because it is inert here -- the K = 1 score is the raw cosine -- and "
+    "gating it against the run would make a stamped tau sensitivity check inexpressible")
+
+#: The AGREE checkpoint §1.4 pins BY DIGEST. Duplicated from
+#: ``meshgrid_report.REGISTERED_ARTIFACT_SHA256['agree_ckpt_sha256']`` rather than
+#: imported this round: r9d is editing that file in parallel, so the two are held
+#: equal by a cross-pin test (``test_the_registered_values_are_the_ones_the_r1_
+#: report_enforces``) and collapse into one constant in a later round.
+REGISTERED_AGREE_SHA256 = "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+
+#: How each result-affecting input is held.
+#:
+#: ``gated_against_registered`` -- compared with a value pinned in code; a
+#: difference is a refusal unless the run is declared non-canonical, and is then
+#: stamped everywhere. ``gated_against_run_binding`` -- compared field by field
+#: with the published run's binding. ``gated_against_pre_registration`` --
+#: compared with a digest the operator froze BEFORE the artifacts existed
+#: (PLANNER RULING 2). ``stamped_not_checked`` -- recorded with the reason it
+#: cannot move a number here.
+INPUT_CLASSES = ("gated_against_registered", "gated_against_run_binding",
+                 "gated_against_pre_registration", "stamped_not_checked")
+
+_GENERATION_ONLY = ("this control generates nothing, so a generation setting cannot move any "
+                    "number in it; recorded from the published run binding")
+
+
+def _surface_entry(input_class, why, registered=None, in_run_binding=False):
+    entry = {"class": input_class, "why": why, "in_run_binding": bool(in_run_binding)}
+    if input_class == "gated_against_registered":
+        entry["registered"] = registered
+    return entry
+
+
+#: EVERY input that can move a number in this control, and how each is held.
+#:
+#: The r9c review's MAJOR was that a partition of ``RUN_BINDING_FIELDS`` is
+#: syntactically complete and semantically empty: the inputs that decide a
+#: retrieval score mostly live OUTSIDE the run binding. This table is the full
+#: surface, and a test asserts the run binding is a strict subset of it.
+RESULT_AFFECTING_INPUTS = {
+    # --- gated against a value pinned in code -----------------------------
+    "agree_ckpt_sha256": _surface_entry(
+        "gated_against_registered",
+        "the scorer itself: a different AGREE checkpoint is a different embedding space and "
+        "therefore a different ranking", registered=REGISTERED_AGREE_SHA256, in_run_binding=True),
+    "scorer_readout": _surface_entry(
+        "gated_against_registered",
+        "the deterministic VAE-mean readout; the sampled path draws from AGREE's bottleneck and "
+        "would make the cosines jitter", registered=me.SCORER_READOUT, in_run_binding=True),
+    "tau": _surface_entry(
+        "gated_against_registered",
+        "INERT in this control since r9e -- the K = 1 score is the raw cosine, so tau cannot "
+        "enter the arithmetic -- but the R1 cell these numbers are read beside was computed at "
+        "tau = 0.1, so a different tau means a different protocol and is stamped",
+        registered=me.TAU, in_run_binding=True),
+    "bank_rule": _surface_entry(
+        "gated_against_registered",
+        "decides bank MEMBERSHIP (the released selector's f\"S00{node}\" pool omits S010)",
+        registered=REGISTERED_BANK_RULE),
+    "bootstrap_seed": _surface_entry(
+        "gated_against_registered", "decides every published interval",
+        registered=BOOTSTRAP_SEED),
+    "n_boot": _surface_entry(
+        "gated_against_registered", "decides every published interval",
+        registered=BOOTSTRAP_N),
+    "success_radii_m": _surface_entry(
+        "gated_against_registered", "decides the success columns",
+        registered=[float(r) for r in SUCCESS_RADII]),
+    # --- gated against the published run binding ---------------------------
+    "model_config_sha256": _surface_entry(
+        "gated_against_run_binding",
+        "builds the released dataloader: sample_rate and sample_size decide the observed "
+        "waveform and therefore every cosine (Codex r9c review, BLOCKER 3)", in_run_binding=True),
+    "dataset_config": _surface_entry(
+        "gated_against_run_binding", "names the split the stream is walked over",
+        in_run_binding=True),
+    "dataset_config_sha256": _surface_entry(
+        "gated_against_run_binding", "the split's exact bytes", in_run_binding=True),
+    "d1_manifest_sha256": _surface_entry(
+        "gated_against_run_binding", "the registered stream, its order and its context draws",
+        in_run_binding=True),
+    "g1_report_sha256": _surface_entry(
+        "gated_against_run_binding", "the audit whose receivers and oracles are joined here",
+        in_run_binding=True),
+    "room_manifest_sha256": _surface_entry(
+        "gated_against_run_binding", "the per-room candidate blocks the oracle is re-derived "
+        "from", in_run_binding=True),
+    "branch": _surface_entry(
+        "gated_against_run_binding", "which candidate block the manifests resolve to",
+        in_run_binding=True),
+    # --- gated against a pre-registered digest -----------------------------
+    "sparse_bank_sha256": _surface_entry(
+        "gated_against_pre_registration",
+        "the BYTES the control reads: every observed RIR, every pair file a truth or a bank "
+        "position comes from, and every bank waveform -- plus bank membership. Pre-registered "
+        "before the merged run exists, which is what makes post-hoc selection impossible "
+        "(PLANNER RULING 2)"),
+    # --- recorded, with the reason they cannot move a number ---------------
+    "metadata_root": _surface_entry(
+        "stamped_not_checked",
+        "a PATH decides nothing; the bytes under it are bound by sparse_bank_sha256, which "
+        "digests every pair file this control reads"),
+    "dataset_root": _surface_entry(
+        "stamped_not_checked",
+        "a PATH decides nothing; the waveform bytes under it are bound by sparse_bank_sha256"),
+    "device": _surface_entry(
+        "stamped_not_checked",
+        "the AGREE tower is deterministic at fixed batching; the device changes throughput and, "
+        "at most, the last bits of a cosine, which is disclosed by the engine's BATCHING_CAVEAT"),
+}
+RESULT_AFFECTING_INPUTS.update({
+    field: _surface_entry("stamped_not_checked", _GENERATION_ONLY, in_run_binding=True)
+    for field in RETRIEVAL_BINDING_NOT_CHECKED})
+
+#: what a run that deviates from any registered setting must say, everywhere.
+NON_CANONICAL_NOTE = (
+    "NON-CANONICAL RUN: at least one registered input of this control deviates from its "
+    "pre-registered value, so these numbers are a SENSITIVITY CHECK and not the canonical "
+    "sparse/metadata-bank result. The deviations are listed beside this note; a canonical run "
+    "has none")
+
+NON_CANONICAL_BANK_NOTE = (
+    "the sparse-bank digest was RECORDED, not gated: no --expect-bank-sha256 was supplied, so "
+    "the bytes behind every cosine, every bank position and every continuous truth are "
+    "authorized only by their own existence. A digest that vouches for itself vouches for "
+    "nothing (PLANNER RULING 2), so this run is non-canonical; freeze this value before the "
+    "artifacts exist and pass it back to make the record a gate")
+
+#: exactly what the scalar oracle re-derivation does and does not establish.
+GRID_ORACLE_ESTABLISHES = (
+    "ESTABLISHES that the continuous truth this control resolved is consistent with the "
+    "distance the G1 audit published for this query's candidate block -- i.e. that the report "
+    "and the audit are describing the same query. It does NOT establish that the truth VECTOR "
+    "is the registered one: the oracle is a scalar and is not injective, so two truths mirrored "
+    "inside one lattice cell share it (Codex r9 review, finding 3). That integrity claim is "
+    "made by sparse_bank_sha256 and by nothing else here")
+
+TRUTH_INTEGRITY_NOTE = (
+    "the continuous truth x*_s is pinned by no run artifact -- the engine is structurally unable "
+    "to read it and G1 publishes only the oracle DISTANCE -- so in this control truth integrity "
+    "REDUCES TO the sparse-bank digest: every truth is read from a pair-metadata JSON, and every "
+    "such file is digested into sparse_bank_sha256 by path and by exact bytes. When that digest "
+    "is pre-registered, an edited src_loc anywhere in the bank changes it and the run refuses; "
+    "when it is not, no gate here pins the truth vector and the artifact says so")
 
 REPORT_JSON = "retrieval_control_report.json"
 REPORT_MARKDOWN = "retrieval_control_report.md"
@@ -422,6 +581,145 @@ def build_query_bank(metadata_root, dataset_root, room_id, relpath,
             "self_pair_rule": SELF_PAIR_RULE}
 
 
+# --------------------------------------------------------------------------- #
+# the sparse-bank digest: the bytes every number here is made of
+# --------------------------------------------------------------------------- #
+BANK_DIGEST_ALGORITHM = (
+    "loc_meshgrid_sparse_bank/v1: canonical_sha256 (sorted-key, type-sensitive, whitespace-free "
+    "JSON -- crossarm.canonical_bytes) over {'algorithm', 'rule', 'n_queries', 'queries'}, where "
+    "'queries' maps each registered query_id to {'position', 'relpath', 'observation_sha256', "
+    "'truth_pair': [metadata-root-relative pair path, sha256 of its bytes], 'bank': [[src_node, "
+    "rec_node, pair path, pair sha256, wav path, wav sha256], ... in ascending numeric "
+    "identity], 'missing_ir': [[src, rec], ...]}. Every byte this control reads is in the "
+    "document: the observed RIR, the pair file the continuous truth is read from, and each bank "
+    "entry's position file and waveform -- and so is MEMBERSHIP, because the per-query "
+    "enumeration is part of the digested document, so a file appearing or disappearing changes "
+    "the digest even when no byte of an existing file moved")
+
+
+def bank_digest(metadata_root, dataset_root, records, rule=REGISTERED_BANK_RULE, cache=None,
+                file_digest=None, on_query=None):
+    """Digest the sparse bank of the whole registered subset -> the gate's value.
+
+    Pure, GPU-free and side-effect-free: it reads the same files the pass will
+    read and hashes them, so the operator can freeze the value BEFORE the merged
+    run exists (PLANNER RULING 2) and the pass can be refused when the tree it
+    finds is a different one.
+
+    Returns the digest, the document it was taken over and the file counts. Each
+    distinct file is hashed once, however many banks it appears in.
+    """
+    from src.localization.crossarm import canonical_sha256
+
+    file_digest = me.file_sha256 if file_digest is None else file_digest
+    cache = {} if cache is None else cache
+    digests, queries = {}, {}
+    pair_files, wav_files, n_entries = set(), set(), 0
+
+    def _sha(path):
+        path = str(path)
+        if path not in digests:
+            digests[path] = file_digest(path)
+        return digests[path]
+
+    for record in sorted(records, key=lambda record: int(record["position"])):
+        query_id = str(record["query_id"])
+        if query_id in queries:
+            raise ValueError(f"the record set names {query_id!r} twice; one query is one bank")
+        relpath = str(record["relpath"])
+        room_id = str(record["room_id"])
+        bank = build_query_bank(metadata_root, dataset_root, room_id, relpath, rule=rule,
+                                cache=cache)
+        tables = room_bank(metadata_root, dataset_root, room_id, relpath, cache=cache)
+        src_node, rec_node = parse_ir_filename(os.path.basename(relpath))
+        truth_pair = tables.pairs[(src_node, rec_node)]
+        observation = os.path.join(str(dataset_root), relpath)
+
+        rows = []
+        for entry in bank["entries"]:
+            rows.append([int(entry.src_node), int(entry.rec_node),
+                         os.path.relpath(entry.pair_path, str(metadata_root)),
+                         _sha(entry.pair_path),
+                         os.path.relpath(entry.ir_path, str(dataset_root)),
+                         _sha(entry.ir_path)])
+            pair_files.add(entry.pair_path)
+            wav_files.add(entry.ir_path)
+        n_entries += len(rows)
+        pair_files.add(truth_pair)
+        wav_files.add(observation)
+        queries[query_id] = {
+            "position": int(record["position"]),
+            "relpath": relpath,
+            "observation_sha256": _sha(observation),
+            "truth_pair": [os.path.relpath(truth_pair, str(metadata_root)), _sha(truth_pair)],
+            "bank": rows,
+            "missing_ir": [[int(src), int(rec)] for src, rec in bank["missing_ir"]],
+        }
+        if on_query is not None:
+            on_query(query_id, queries[query_id])
+
+    document = {"algorithm": BANK_DIGEST_ALGORITHM, "rule": str(rule),
+                "n_queries": len(queries), "queries": queries}
+    return {"sha256": canonical_sha256(document), "algorithm": BANK_DIGEST_ALGORITHM,
+            "rule": str(rule), "n_queries": len(queries), "n_bank_entries": int(n_entries),
+            "n_pair_files": len(pair_files), "n_wav_files": len(wav_files),
+            "queries": queries}
+
+
+def assert_bank_digest(found, expected=None, allow_non_canonical=False):
+    """The bank this run reads is the PRE-REGISTERED one, or the run is not canonical.
+
+    Three outcomes, and only three: the digest matches a value frozen before the
+    artifacts existed (canonical); no value was frozen and the operator has
+    explicitly asked for a non-canonical run (recorded, stamped); or a refusal.
+    A supplied value that does not match is ALWAYS a refusal -- ``--non-canonical``
+    excuses the absence of a pre-registration, never a contradiction of one.
+    """
+    found = str(found)
+    if expected:
+        if str(expected) != found:
+            raise ValueError(
+                f"the sparse bank this run reads hashes to {found[:16]}... but the registered "
+                f"bank is {str(expected)[:16]}...; this is not the pre-registered sparse bank, "
+                "so the bytes behind every cosine, every bank position and every continuous "
+                "truth are not the registered ones. --non-canonical cannot excuse this: it "
+                "excuses the ABSENCE of a pre-registration, not a contradiction of one")
+        return {"sparse_bank_sha256": found, "canonical": True, "mode": "pre_registered",
+                "expected": str(expected),
+                "note": "the sparse bank matches the digest frozen before these artifacts "
+                        "existed"}
+    if not allow_non_canonical:
+        raise ValueError(
+            "a canonical run requires the pre-registered sparse-bank digest: pass "
+            f"--expect-bank-sha256 (this tree hashes to {found}). Compute and freeze it with "
+            "--print-bank-sha256 before the artifacts exist, or pass --non-canonical to record "
+            f"it instead of gating on it. {NON_CANONICAL_BANK_NOTE}")
+    return {"sparse_bank_sha256": found, "canonical": False,
+            "mode": "recorded_not_pre_registered", "expected": None,
+            "note": NON_CANONICAL_BANK_NOTE}
+
+
+def assert_bank_unchanged(query_id, entries, document):
+    """The bank built during the pass is the one the digest was taken over.
+
+    The digest is a gate taken before the walk; this closes the window between
+    them for MEMBERSHIP, which is the part a moved file changes without touching
+    any byte the pass re-reads.
+    """
+    recorded = (document or {}).get("queries", {}).get(str(query_id))
+    if recorded is None:
+        raise ValueError(f"{query_id} is not in the sparse-bank digest document; the digest and "
+                         "the pass do not cover the same subset")
+    found = [[int(entry.src_node), int(entry.rec_node)] for entry in entries]
+    wanted = [[int(row[0]), int(row[1])] for row in recorded["bank"]]
+    if found != wanted:
+        raise ValueError(
+            f"{query_id}: the sparse bank changed after the sparse-bank digest was taken "
+            f"(now {found[:4]}, digested {wanted[:4]}); the files under the dataset root moved "
+            "between the gate and the pass")
+    return True
+
+
 def assert_bank_order(entries):
     """The bank is ordered by parsed numeric identity -- the tie-break's authority."""
     identities = [entry.identity for entry in entries]
@@ -493,16 +791,23 @@ def bank_sims(obs_embedding, bank_embeddings):
     return sc.cosine_sims(obs, bank.reshape(bank.shape[0], 1, bank.shape[1]))[:, 0]
 
 
-def bank_scores(sims, tau=me.TAU):
-    """The registered aggregate of a one-sample bank -> ``[M]``.
+def bank_scores(sims):
+    """The score of a one-sample bank: the cosine itself -> ``[M]``.
 
-    Read through ``meshgrid_engine.nested_scores`` at K = 1, so the control uses
-    the engine's aggregator rather than a second scoring rule. At K = 1 the
-    plan's ``S = tau * (logsumexp(s / tau) - log K)`` is the cosine itself, which
-    is why tau decides nothing here.
+    The plan's aggregate at K = 1 is ``S = tau * (logsumexp(s / tau) - log 1)``,
+    which is ALGEBRAICALLY the cosine -- and r9b computed it that way, through
+    the engine's aggregator. The r9c review's MAJOR is that the algebra is not
+    the arithmetic: a float32 divide, an exp/log and a multiply can move a score
+    by an ulp, and two adjacent cosines that differ can come back equal, handing
+    the decision to the tie-break. The score is therefore taken directly, so it
+    is the cosine bit for bit; the equivalence stays true and stays a comment.
+
+    A copy, never a view: the caller keeps the similarities as published.
     """
-    sims = torch.as_tensor(sims).float().reshape(-1)
-    return me.nested_scores(sims.reshape(-1, 1), tau=tau, prefixes=(1,))[1]["scores"]
+    values = torch.as_tensor(sims).float().reshape(-1)
+    if not bool(torch.isfinite(values).all()):
+        raise ValueError("bank similarities must be finite (no NaN or Inf)")
+    return values.clone()
 
 
 def predict_row(scores, entries):
@@ -521,7 +826,7 @@ def predict_row(scores, entries):
 
 
 def evaluate_bank_query(entries, sims, truth, *, query_id, room_id, position, receiver_id,
-                        receiver_xyz, tau=me.TAU, radii=SUCCESS_RADII, bank=None,
+                        receiver_xyz, radii=SUCCESS_RADII, bank=None,
                         grid=None, bank_rule=REGISTERED_BANK_RULE):
     """Every §2 readout for one query, against the SPARSE bank."""
     truth = np.asarray(truth, dtype=np.float64).reshape(3)
@@ -530,7 +835,7 @@ def evaluate_bank_query(entries, sims, truth, *, query_id, room_id, position, re
         raise ValueError(f"{query_id}: {sims.numel()} similarities for {len(entries)} bank "
                          "entries")
     assert_bank_excludes_the_target(entries, truth, query_id)
-    scores = bank_scores(sims, tau=tau)
+    scores = bank_scores(sims)
     row = predict_row(scores, entries)
 
     positions = np.stack([np.asarray(entry.src_xyz, dtype=np.float64) for entry in entries])
@@ -626,8 +931,8 @@ def assert_grid_oracle(query, truth, tolerance=mr.ORACLE_TOLERANCE):
 
 
 def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_root,
-                  bank_rule=REGISTERED_BANK_RULE, tau=me.TAU, radii=SUCCESS_RADII,
-                  reader=read_rir, on_record=None):
+                  bank_rule=REGISTERED_BANK_RULE, radii=SUCCESS_RADII,
+                  reader=read_rir, bank_document=None, on_record=None):
     """Walk the registered stream and score every query against its sparse bank.
 
     The stream is the released loader in D1 order and is walked ONCE, exactly as
@@ -640,8 +945,16 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
     stream is room-contiguous, which ``assert_room_blocks`` asserts rather than
     assumes), so the largest room's 137 MB of index lists is held once and
     released -- and every query is authenticated against its own room's
-    candidate block: its receiver, and the dense-grid oracle that pins the truth
-    this control resolved.
+    candidate block: its receiver, and the dense-grid oracle that must equal the
+    one the audit published (:func:`assert_grid_oracle` -- a scalar consistency
+    check, NOT a proof of the truth vector; see :data:`TRUTH_INTEGRITY_NOTE`).
+
+    ``bank_document`` is the enumeration :func:`bank_digest` was taken over. The
+    driver always supplies it, and then every query's bank membership is
+    re-checked against it, closing the window between the digest gate and the
+    pass. When it is absent the report says so
+    (``gates.bank_membership_rechecked_against_the_digest``), because a gate that
+    did not run may not be reported as one that did.
     """
     if bank_rule not in BANK_RULES:
         raise ValueError(f"unknown bank rule {bank_rule!r} (expected one of {list(BANK_RULES)})")
@@ -693,6 +1006,8 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         # different listings (find_pair_metadata / pair_index); this asserts they
         # agree, so the bank is built at the receiver the truth was resolved at
         mr.assert_receiver_matches(query_id, bank["receiver_xyz"], query.receiver_xyz)
+        if bank_document is not None:
+            assert_bank_unchanged(query_id, bank["entries"], bank_document)
 
         obs_embedding = torch.as_tensor(embedder(torch.as_tensor(obs_wav)))[0].float()
         sims = bank_sims(obs_embedding,
@@ -701,7 +1016,7 @@ def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_roo
         result = evaluate_bank_query(
             bank["entries"], sims, truth, query_id=query_id, room_id=room_id,
             position=position, receiver_id=query.receiver_id,
-            receiver_xyz=query.receiver_xyz, tau=tau, radii=radii, bank=bank, grid=grid,
+            receiver_xyz=query.receiver_xyz, radii=radii, bank=bank, grid=grid,
             bank_rule=bank_rule)
         result["e_oracle_grid_delta"] = float(oracle_deltas[-1])
         results.append(result)
@@ -808,18 +1123,19 @@ def sparse_oracle_report(results, draws=None, **bootstrap):
 
 
 def grid_oracle_crosscheck(results):
-    """How far the truth-pinning oracle re-derivation sat from what G1 published."""
+    """How far the re-derived dense-grid oracle sat from the one G1 published."""
     deltas = np.asarray([float(result.get("e_oracle_grid_delta", 0.0)) for result in results],
                         dtype=np.float64)
     return {"n_queries": int(deltas.size), "max_abs_delta_m": float(deltas.max()),
             "mean_abs_delta_m": float(deltas.mean()),
             "tolerance_m": float(mr.ORACLE_TOLERANCE),
+            "establishes": GRID_ORACLE_ESTABLISHES,
             "note": "the control re-derives the DENSE-GRID oracle min_c ||c - x*_s|| from the "
                     "G1 candidate block and the pair metadata's src_loc and requires it to "
-                    "equal the value the audit published. That is what pins the continuous "
-                    "truth this control measures its own errors against; it is a scalar and "
-                    "therefore not injective, so it catches a truth that moved, not every "
-                    "possible substitution"}
+                    "equal the value the audit published. It is a scalar and therefore not "
+                    "injective; what pins the truth VECTOR is the pre-registered sparse-bank "
+                    "digest, which covers the pair file the truth is read from "
+                    "(TRUTH_INTEGRITY_NOTE)"}
 
 
 def oracle_contrast(results):
@@ -846,14 +1162,110 @@ def oracle_contrast(results):
     }
 
 
+# --------------------------------------------------------------------------- #
+# canonicality: which registered inputs this run actually used
+# --------------------------------------------------------------------------- #
+def observed_inputs(context, *, bank_rule, bootstrap_seed, n_boot, radii=SUCCESS_RADII):
+    """What each named input WAS on this run, for the surface report and the gate."""
+    binding = dict(context.get("binding") or {})
+    observed = {
+        "agree_ckpt_sha256": context.get("agree_ckpt_sha256"),
+        "scorer_readout": context.get("scorer_readout"),
+        "tau": context.get("tau"),
+        "bank_rule": bank_rule,
+        "bootstrap_seed": int(bootstrap_seed),
+        "n_boot": int(n_boot),
+        "success_radii_m": [float(r) for r in radii],
+        "sparse_bank_sha256": (context.get("bank_gate") or {}).get("sparse_bank_sha256"),
+        "metadata_root": context.get("metadata_root"),
+        "dataset_root": context.get("dataset_root"),
+        "device": context.get("device"),
+    }
+    for field in me.RUN_BINDING_FIELDS:
+        observed.setdefault(field, binding.get(field))
+    return observed
+
+
+def assess_canonicality(context, *, bank_rule, bootstrap_seed, n_boot, radii=SUCCESS_RADII):
+    """Every registered input that deviates, named -- or an empty list.
+
+    The rule is one sentence: a canonical run of this control uses the registered
+    value of every ``gated_against_registered`` input AND a pre-registered sparse
+    bank. Anything else is a sensitivity check that must say so in every
+    artifact.
+    """
+    observed = observed_inputs(context, bank_rule=bank_rule, bootstrap_seed=bootstrap_seed,
+                               n_boot=n_boot, radii=radii)
+    deviations = []
+    for name, entry in sorted(RESULT_AFFECTING_INPUTS.items()):
+        if entry["class"] != "gated_against_registered":
+            continue
+        used, registered = observed.get(name), entry["registered"]
+        if used is None:
+            raise ValueError(f"the report cannot state canonicality: the run did not record "
+                             f"which {name!r} it used, and this input is gated against its "
+                             f"registered value ({registered!r})")
+        if used != registered:
+            deviations.append({"input": name, "used": used, "registered": registered,
+                               "why_it_matters": entry["why"]})
+    gate = dict(context.get("bank_gate") or {})
+    if not gate:
+        raise ValueError("the report cannot state canonicality: no sparse-bank gate was "
+                         "recorded, so nothing pins the bytes behind these numbers "
+                         "(assert_bank_digest)")
+    if not gate.get("canonical"):
+        deviations.append({"input": "sparse_bank_sha256",
+                           "used": gate.get("sparse_bank_sha256"), "registered": None,
+                           "why_it_matters": NON_CANONICAL_BANK_NOTE})
+    return {"canonical": not deviations, "deviations": deviations, "observed": observed,
+            "note": None if not deviations else NON_CANONICAL_NOTE}
+
+
+def assert_canonical(assessment, allow_non_canonical=False):
+    """A deviation is a refusal unless the operator declared a sensitivity run."""
+    if assessment["canonical"] or allow_non_canonical:
+        return assessment
+    first = assessment["deviations"][0]
+    raise ValueError(
+        f"{first['input']} = {first['used']!r} is not the registered value "
+        f"({first['registered']!r}), and {len(assessment['deviations'])} registered input(s) "
+        f"deviate in total ({sorted(d['input'] for d in assessment['deviations'])}). A canonical "
+        f"run uses the registered value of every one of them. {NON_CANONICAL_NOTE}. Pass "
+        "--non-canonical (allow_non_canonical=True) to publish this as a stamped sensitivity "
+        "check instead")
+
+
+def input_surface(assessment):
+    """The full result-affecting input surface, with what this run used."""
+    observed = assessment["observed"]
+    deviating = {deviation["input"] for deviation in assessment["deviations"]}
+    surface = {}
+    for name, entry in sorted(RESULT_AFFECTING_INPUTS.items()):
+        row = {"class": entry["class"], "why": entry["why"],
+               "in_run_binding": bool(entry["in_run_binding"]),
+               "used": observed.get(name)}
+        if entry["class"] == "gated_against_registered":
+            row["registered"] = entry["registered"]
+            row["matches_registered"] = name not in deviating
+        if entry["class"] == "gated_against_pre_registration":
+            row["pre_registered"] = name not in deviating
+        surface[name] = row
+    return surface
+
+
 def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTSTRAP_SEED,
                  n_boot=BOOTSTRAP_N, alpha=BOOTSTRAP_ALPHA, totals=None):
     """The machine-readable control report: every §2 readout, every label.
 
-    ``context`` is the run context mapping -- ``records`` and ``binding_sha256``
-    are required, and ``binding``, ``run_dir``, ``audit_report``,
-    ``context_manifest``, ``metadata_root``, ``dataset_root``, ``totals`` and
-    ``gate`` are recorded as provenance when present.
+    ``context`` is the run context mapping. ``records``, ``binding_sha256``,
+    ``bank_gate`` (from :func:`assert_bank_digest`) and the observed values of
+    every ``gated_against_registered`` input (``agree_ckpt_sha256``,
+    ``scorer_readout``, ``tau``) are REQUIRED, because the report has to state
+    canonicality and cannot state it about inputs it was not told. ``binding``,
+    ``run_dir``, ``audit_report``, ``context_manifest``, ``metadata_root``,
+    ``dataset_root``, ``device`` and ``totals`` are recorded as provenance when
+    present. ``allow_non_canonical`` turns a deviation from a refusal into a
+    stamped sensitivity check.
     """
     if not results:
         raise ValueError("a retrieval control report needs at least one scored query")
@@ -862,6 +1274,12 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
                          "a control number with no binding cannot be placed beside that run's")
     census = assert_retrieval_census(results, context["records"],
                                      totals=totals or context.get("totals"))
+    bank = bank_report(results)
+    assessment = assert_canonical(
+        assess_canonicality(context, bank_rule=bank["rule"], bootstrap_seed=bootstrap_seed,
+                            n_boot=n_boot, radii=radii),
+        allow_non_canonical=bool(context.get("allow_non_canonical")))
+    bank_gate = dict(context.get("bank_gate") or {})
     draws = mr.room_bootstrap_draws(census["n_rooms"], seed=bootstrap_seed, n=n_boot)
     bootstrap = {"seed": bootstrap_seed, "n": n_boot, "alpha": alpha}
 
@@ -874,7 +1292,6 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
         all_excess.append(float(result["e_excess"]))
     per_room = {room: mr.room_block(values, radii=radii) for room, values in by_room.items()}
 
-    bank = bank_report(results)
     binding = dict(context.get("binding") or {})
     return {
         "experiment": "exp_22 loc_meshgrid R1 sparse/metadata-bank AGREE retrieval control",
@@ -891,6 +1308,10 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
             "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
             "binding_scope": BINDING_SCOPE_NOTE,
+            "truth_integrity": TRUTH_INTEGRITY_NOTE,
+            "bank_digest_algorithm": BANK_DIGEST_ALGORITHM,
+            # present ONLY when it applies, so its presence is the signal
+            **({"non_canonical": NON_CANONICAL_NOTE} if not assessment["canonical"] else {}),
         },
         "provenance": {
             "run_dir": context.get("run_dir"),
@@ -912,8 +1333,14 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "preprocessing": "clamp to [-1, 1] -> first 8,000 samples -> pad to 10,240 "
                              "(src/localization/agree_embed.preprocess_for_scoring), the same "
                              "function the engine scored with",
-            "score": "cos(E(h_obs), E(h_real)); read through the engine's nested_scores at "
-                     "K = 1, where the registered log-mean-exp aggregate IS the cosine",
+            "score": "cos(E(h_obs), E(h_real)), taken DIRECTLY. The plan's K = 1 aggregate "
+                     "tau * (logsumexp(s / tau) - log 1) is algebraically the same number, but "
+                     "computing it that way is a float32 divide, exp/log and multiply that can "
+                     "move a score by an ulp and manufacture a tie, so the cosine is the score "
+                     "bit for bit (Codex r9c review, MAJOR)",
+            "tau": context.get("tau"),
+            "tau_is_registered": bool(context.get("tau") == me.TAU),
+            "tau_note": RESULT_AFFECTING_INPUTS["tau"]["why"],
             "num_samples": 1,
             "generated_waveforms": 0,
             "tie_break": "highest score, ties broken by the smallest parsed (src_node, "
@@ -931,15 +1358,30 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
                           "is_registered": bool(int(bootstrap_seed) == BOOTSTRAP_SEED
                                                 and int(n_boot) == BOOTSTRAP_N),
                           "registered": {"seed": BOOTSTRAP_SEED, "n_boot": BOOTSTRAP_N}},
+            # the sparse bank's identity, and whether it was GATED or merely read
+            "sparse_bank_sha256": bank_gate.get("sparse_bank_sha256"),
+            "sparse_bank_pre_registered": bool(bank_gate.get("canonical")),
+            "sparse_bank_mode": bank_gate.get("mode"),
+            "bank_digest_algorithm": BANK_DIGEST_ALGORITHM,
+            # the one-line verdict every table is read under
+            "canonical": bool(assessment["canonical"]),
+            "deviations": assessment["deviations"],
         },
         "census": census,
+        "input_surface": input_surface(assessment),
         "gates": {
             "note": "every entry below is a gate the control refuses on; a published report is "
                     "proof they passed, not a claim that they did",
             "binding_checked_against_published_run": bool(context.get("gate") is not None),
             "d1_context_draw_reverified_per_query": True,
             "pair_metadata_receiver_matches_g1": True,
-            "grid_oracle_rederived_pins_the_truth": True,
+            # renamed in r9e: the scalar check establishes agreement with the
+            # audit, NOT the identity of the truth vector (Codex r9c, BLOCKER 2)
+            "grid_oracle_rederived_matches_the_g1_scalar": True,
+            "truth_bytes_pinned_by_pre_registered_bank_digest":
+                bool(bank_gate.get("canonical")),
+            "bank_membership_rechecked_against_the_digest":
+                bool(context.get("bank_membership_rechecked", False)),
             "bank_excludes_the_query_own_pair": True,
             "bank_excludes_any_entry_on_the_target": True,
             "census_is_the_registered_subset": True,
@@ -965,10 +1407,17 @@ def build_handoff(report, report_sha256=None):
     """The compact record the R1 report ingests for its ``controls_elsewhere``."""
     across = report["metrics"]["across_rooms"]
     oracle = report["sparse_oracle"]["across_rooms"]
+    canonical = bool(report["protocol"]["canonical"])
     return {
         "control_key": CONTROL_KEY,
         "control_label": CONTROL_LABEL,
-        "status": "run",
+        "status": "run (canonical)" if canonical else "run (NON-CANONICAL)",
+        "canonical": canonical,
+        "deviations": report["protocol"]["deviations"],
+        "non_canonical_note": None if canonical else NON_CANONICAL_NOTE,
+        "sparse_bank_sha256": report["protocol"]["sparse_bank_sha256"],
+        "sparse_bank_pre_registered": report["protocol"]["sparse_bank_pre_registered"],
+        "truth_integrity": TRUTH_INTEGRITY_NOTE,
         "created_utc": report["created_utc"],
         "report_json": REPORT_JSON,
         "report_markdown": REPORT_MARKDOWN,
@@ -1005,12 +1454,28 @@ def render_markdown(report):
     stamp = (f"_binding_ `{provenance['binding_sha256']}` · _subset_ {report['labels']['subset']}"
              f" · _AGREE leakage_ {report['labels']['agree_leakage_caveat']}")
     lines = ["# exp_22 R1 — sparse/metadata-bank AGREE retrieval control", ""]
+    # the verdict is the FIRST thing on the page: every table below is read under
+    # it, so it cannot sit at the bottom
+    if protocol["canonical"]:
+        lines.append(f"> **CANONICAL RUN** — every registered input matches its pre-registered "
+                     f"value and the sparse bank was gated against the pre-registered digest "
+                     f"`{str(protocol['sparse_bank_sha256'])[:16]}...`.")
+    else:
+        lines.append(f"> **NON-CANONICAL RUN** — {report['labels']['non_canonical']}.")
+        for deviation in protocol["deviations"]:
+            lines.append(f">   - `{deviation['input']}` = `{deviation['used']}` "
+                         f"(registered: `{deviation['registered']}`) — "
+                         f"{deviation['why_it_matters']}")
+    lines.append("")
     lines.append(f"Generated {report['created_utc']}.")
     lines.append("")
     lines.append(f"> **{report['control_label']}**")
     lines.append("")
     lines.append(f"- **Scope:** {report['labels']['subset']}")
     lines.append(f"- **Run binding:** `{provenance['binding_sha256']}`")
+    lines.append(f"- **Sparse bank:** `{protocol['sparse_bank_sha256']}` "
+                 f"({protocol['sparse_bank_mode']})")
+    lines.append(f"- **Truth integrity:** {report['labels']['truth_integrity']}")
     lines.append(f"- **Self-pair rule:** {report['labels']['self_pair_rule']}")
     lines.append(f"- **Overlap with the model's conditioning:** "
                  f"{report['labels']['context_overlap']}")
@@ -1177,7 +1642,7 @@ def build_retrieval_binding(args, plan, agree_sha256):
     from localize_meshgrid import build_run_binding
 
     full = build_run_binding(args, plan, ckpt_sha256=None, agree_sha256=agree_sha256,
-                             model_config_sha256=None)
+                             model_config_sha256=me.file_sha256(args.model_config))
     return {field: full[field] for field in RETRIEVAL_BINDING_FIELDS}
 
 
@@ -1186,9 +1651,23 @@ def build_retrieval_binding(args, plan, agree_sha256):
 # --------------------------------------------------------------------------- #
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--run-dir", required=True,
+    # NOT required at parse time: --print-bank-sha256 runs BEFORE the merged run
+    # exists (PLANNER RULING 2), so it cannot be made to name one. validate_args
+    # requires them for every mode that scores anything.
+    parser.add_argument("--run-dir", default=None,
                         help="the MERGED I1 run directory this control is reported beside")
-    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--print-bank-sha256", action="store_true",
+                        help="compute the sparse-bank digest over the registered subset, print "
+                             "it and exit -- the pre-registration step; touches no run, no "
+                             "scorer and no device")
+    parser.add_argument("--expect-bank-sha256", default=None,
+                        help="the PRE-REGISTERED sparse-bank digest; required for a canonical "
+                             "run")
+    parser.add_argument("--non-canonical", action="store_true",
+                        help="publish a stamped SENSITIVITY CHECK: allows a missing "
+                             "--expect-bank-sha256 and any deviation from a registered input, "
+                             "and marks every artifact non-canonical")
     parser.add_argument("--context-manifest",
                         default=os.path.join("outputs_loc", "exp22",
                                              "d1_context_manifest.json"))
@@ -1235,35 +1714,82 @@ def _refuse(message):
 
 
 def validate_args(args):
-    """Startup refusals -- before a checkpoint is read or a device is touched."""
+    """Startup refusals -- before a checkpoint is read or a device is touched.
+
+    Every deviation from a registered input is refused here unless
+    ``--non-canonical`` declares the run a sensitivity check; the same rule is
+    then applied again by :func:`build_report`, from the values actually used, so
+    a flag alone cannot make an artifact claim canonicality.
+    """
     if args.bank_rule not in BANK_RULES:
         _refuse(f"unknown bank rule {args.bank_rule!r} (expected one of {list(BANK_RULES)})")
-    if args.bank_rule != REGISTERED_BANK_RULE:
-        print(f"NOTE: --bank-rule {args.bank_rule!r} is not the registered "
-              f"{REGISTERED_BANK_RULE!r}; this run is a sensitivity check, not the registered "
-              f"control. {BANK_RULE_NOTE}")
     if int(args.n_boot) < 1:
         _refuse("--n-boot must be at least 1")
-    if int(args.bootstrap_seed) != BOOTSTRAP_SEED or int(args.n_boot) != BOOTSTRAP_N:
-        print(f"NOTE: the bootstrap is being run at seed {args.bootstrap_seed} x "
-              f"{args.n_boot} resamples, not the pre-registered {BOOTSTRAP_SEED} x "
-              f"{BOOTSTRAP_N}")
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
+
+    if args.print_bank_sha256:
+        # the pre-registration mode: it names no run and publishes no number
+        return True
+    for name, value in (("--run-dir", args.run_dir), ("--out-dir", args.out_dir)):
+        if not value:
+            _refuse(f"{name} is required for a scoring run (only --print-bank-sha256 may omit "
+                    "it)")
     if os.path.abspath(str(args.out_dir)) == os.path.abspath(str(args.run_dir)):
         _refuse("--out-dir may not be the scored run directory: a control never writes into "
                 "the artifact set it reports against")
+
+    deviations = []
+    if args.bank_rule != REGISTERED_BANK_RULE:
+        deviations.append(f"--bank-rule {args.bank_rule!r} is not the registered "
+                          f"{REGISTERED_BANK_RULE!r} ({BANK_RULE_NOTE})")
+    if float(args.tau) != float(me.TAU):
+        deviations.append(f"--tau {args.tau} is not the registered {me.TAU} "
+                          f"({RESULT_AFFECTING_INPUTS['tau']['why']})")
+    if int(args.bootstrap_seed) != BOOTSTRAP_SEED or int(args.n_boot) != BOOTSTRAP_N:
+        deviations.append(f"the bootstrap {args.bootstrap_seed} x {args.n_boot} is not the "
+                          f"registered {BOOTSTRAP_SEED} x {BOOTSTRAP_N}")
+    if not args.expect_bank_sha256:
+        deviations.append("no --expect-bank-sha256 was supplied, so the sparse bank would be "
+                          f"recorded rather than gated ({NON_CANONICAL_BANK_NOTE})")
+    if deviations and not args.non_canonical:
+        _refuse("this run deviates from the registered protocol and does not declare it:\n  - "
+                + "\n  - ".join(deviations)
+                + f"\n{NON_CANONICAL_NOTE}. Pass --non-canonical to publish it as a stamped "
+                  "sensitivity check")
+    for deviation in deviations:
+        print(f"NOTE (non-canonical): {deviation}")
     return True
 
 
 def main(argv=None):
     args = parse_args(argv)
     validate_args(args)
+
+    if args.print_bank_sha256:
+        # PRE-REGISTRATION MODE (PLANNER RULING 2). No run, no scorer, no device:
+        # this is what the main session freezes BEFORE the merged run exists, so
+        # a post-hoc choice of bank is impossible.
+        manifest = mq.load_manifest(args.context_manifest)
+        digest = bank_digest(args.metadata_root, args.dataset_root, manifest["records"],
+                             rule=args.bank_rule)
+        print(f"{BANK_DIGEST_ALGORITHM}\n")
+        print(f"queries        {digest['n_queries']:,}")
+        print(f"bank entries   {digest['n_bank_entries']:,}")
+        print(f"pair files     {digest['n_pair_files']:,}")
+        print(f"waveform files {digest['n_wav_files']:,}")
+        print(f"bank rule      {digest['rule']}")
+        print(f"\nsparse_bank_sha256 {digest['sha256']}")
+        print(f"\nfreeze it, then run the control with "
+              f"--expect-bank-sha256 {digest['sha256']}")
+        return 0
+
     print(f"{CONTROL_LABEL}\n")
     print(f"SELF-PAIR RULE: {SELF_PAIR_RULE}")
     print(f"BANK RULE: {args.bank_rule} -- {BANK_RULE_NOTE}")
     print(f"AGREE LEAKAGE CAVEAT: {AGREE_LEAKAGE_CAVEAT}")
-    print(f"SPARSE ORACLE: {SPARSE_ORACLE_LABEL}\n")
+    print(f"SPARSE ORACLE: {SPARSE_ORACLE_LABEL}")
+    print(f"TRUTH INTEGRITY: {TRUTH_INTEGRITY_NOTE}\n")
 
     from localize_meshgrid import _iter_items as iter_stream_items
 
@@ -1276,13 +1802,24 @@ def main(argv=None):
     manifest = mq.load_manifest(args.context_manifest)
     records = manifest["records"]
 
-    # the gate runs on FILE digests, before the scorer is built or a device is
+    # the gates run on FILE digests, before the scorer is built or a device is
     # touched: nothing is loaded until the control is known to continue this run
-    binding = build_retrieval_binding(args, plan, me.file_sha256(agree_path))
+    agree_sha256 = me.file_sha256(agree_path)
+    binding = build_retrieval_binding(args, plan, agree_sha256)
     gate = assert_retrieval_binding(args.run_dir, binding)
     print(f"binding gate passed against {args.run_dir}: {gate['binding_sha256'][:12]}... "
           f"({len(gate['checked'])} fields checked, "
           f"{len(gate['recorded_not_checked'])} recorded)")
+
+    print("digesting the sparse bank (every pair file and every waveform it reads)...",
+          flush=True)
+    document = bank_digest(args.metadata_root, args.dataset_root, records,
+                           rule=args.bank_rule)
+    bank_gate = assert_bank_digest(document["sha256"], expected=args.expect_bank_sha256,
+                                   allow_non_canonical=bool(args.non_canonical))
+    print(f"sparse bank {document['sha256'][:16]}... ({bank_gate['mode']}): "
+          f"{document['n_bank_entries']:,} entries over {document['n_wav_files']:,} waveforms "
+          f"and {document['n_pair_files']:,} pair files")
 
     from src.localization.agree_embed import embed_rirs, load_agree_audio
 
@@ -1309,18 +1846,26 @@ def main(argv=None):
 
     results = run_retrieval(embedder, iter_stream_items(loader), records, plan,
                             metadata_root=args.metadata_root, dataset_root=args.dataset_root,
-                            bank_rule=args.bank_rule, tau=args.tau, on_record=_announce)
+                            bank_rule=args.bank_rule, bank_document=document,
+                            on_record=_announce)
     report = build_report(results, {
         "records": records, "binding": dict(binding, **gate["recorded_not_checked"]),
         "binding_sha256": gate["binding_sha256"], "run_dir": str(args.run_dir),
         "audit_report": str(args.audit_report),
         "context_manifest": str(args.context_manifest),
         "metadata_root": str(args.metadata_root), "dataset_root": str(args.dataset_root),
-        "agree_ckpt": str(agree_path), "device": str(args.device), "gate": gate,
+        "agree_ckpt": str(agree_path), "agree_ckpt_sha256": agree_sha256,
+        "scorer_readout": me.SCORER_READOUT, "tau": float(args.tau),
+        "device": str(args.device), "gate": gate, "bank_gate": bank_gate,
+        "bank_membership_rechecked": True,
+        "allow_non_canonical": bool(args.non_canonical),
     }, bootstrap_seed=args.bootstrap_seed, n_boot=args.n_boot)
     published = write_report(args.out_dir, report)
 
     across = report["metrics"]["across_rooms"]
+    verdict = "CANONICAL" if report["protocol"]["canonical"] else "NON-CANONICAL"
+    print(f"\n{verdict}: {sorted(d['input'] for d in report['protocol']['deviations']) or 'no'} "
+          f"deviation(s) from the registered protocol")
     print(f"\nSPARSE/METADATA-BANK RETRIEVAL, room-first over "
           f"{report['census']['n_rooms']} rooms:")
     for name in flat_stat_names():

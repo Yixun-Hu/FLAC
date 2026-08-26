@@ -119,14 +119,31 @@ class FakeReader:
                 + base)
 
 
-def build_control_fixture(tmp_path):
-    """The r9 run fixture plus the dataset tree and the control's inputs."""
+def build_control_fixture(tmp_path, pre_register=True):
+    """The r9 run fixture plus the dataset tree and the control's inputs.
+
+    The sparse-bank digest is computed and PRE-REGISTERED by default (the r9e
+    canonical model), so a fixture report is canonical except for whatever the
+    test deliberately deviates -- and ``allow_non_canonical`` is on, because most
+    tests run a 64-resample bootstrap rather than the registered 10,000.
+    """
     fixture = fx.build_fixture_run(tmp_path)
     fixture["dataset_root"] = _write_dataset_tree(tmp_path, fixture["metadata_root"])
     fixture["embedder"] = fx.SyntheticEngine()._embed
     fixture["reader"] = FakeReader()
     fixture["out_dir"] = str(tmp_path / "retrieval")
     fixture["totals"] = rc.retrieval_totals(rooms=2, queries=4)
+    document = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                              fixture["records"])
+    fixture["bank_document"] = document
+    fixture["bank_gate"] = rc.assert_bank_digest(
+        document["sha256"], expected=document["sha256"] if pre_register else None,
+        allow_non_canonical=not pre_register)
+    fixture["agree_ckpt_sha256"] = rc.REGISTERED_AGREE_SHA256
+    fixture["scorer_readout"] = me.SCORER_READOUT
+    fixture["tau"] = me.TAU
+    fixture["bank_rule"] = rc.REGISTERED_BANK_RULE
+    fixture["allow_non_canonical"] = True
     return fixture
 
 
@@ -342,6 +359,137 @@ def test_the_bank_is_ordered_by_parsed_numeric_identity(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# the sparse-bank digest: the bytes the numbers are made of (r9c BLOCKER)
+# --------------------------------------------------------------------------- #
+def test_the_digest_algorithm_is_documented():
+    for phrase in ("canonical_sha256", "observation", "truth", "bank", "MEMBERSHIP"):
+        assert phrase in rc.BANK_DIGEST_ALGORITHM
+
+
+def test_the_digest_covers_every_byte_the_control_reads(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    base = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                          fixture["records"])
+    assert base["n_queries"] == 4
+    assert base["n_wav_files"] > 0 and base["n_pair_files"] > 0
+    assert base["algorithm"] == rc.BANK_DIGEST_ALGORITHM
+    assert base["rule"] == rc.REGISTERED_BANK_RULE
+
+    def digest():
+        return rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                              fixture["records"])["sha256"]
+
+    assert digest() == base["sha256"]                     # reproducible
+
+    # (a) a bank entry's WAVEFORM bytes
+    wav = os.path.join(fixture["dataset_root"], _ir_relpath("A/A_idx_1", 2, 2))
+    original = open(wav, "rb").read()
+    with open(wav, "wb") as handle:
+        handle.write(original + b"!")
+    assert digest() != base["sha256"]
+    with open(wav, "wb") as handle:
+        handle.write(original)
+    assert digest() == base["sha256"]
+
+    # (b) a bank entry's POSITION file
+    pair = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S002_R002.json")
+    payload = json.load(open(pair))
+    with open(pair, "w") as handle:
+        json.dump(dict(payload, src_loc=[9.0, 9.0, 9.0]), handle)
+    assert digest() != base["sha256"]
+    with open(pair, "w") as handle:
+        json.dump(payload, handle)
+    assert digest() == base["sha256"]
+
+    # (c) the TRUTH-carrying pair file of the query itself
+    truth_pair = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")
+    payload = json.load(open(truth_pair))
+    with open(truth_pair, "w") as handle:
+        json.dump(dict(payload, src_loc=[1.2, 1.1, 0.6]), handle)
+    assert digest() != base["sha256"]
+    with open(truth_pair, "w") as handle:
+        json.dump(payload, handle)
+
+    # (d) the OBSERVED RIR's bytes
+    observation = os.path.join(fixture["dataset_root"], _ir_relpath("A/A_idx_1", 1, 2))
+    original = open(observation, "rb").read()
+    with open(observation, "wb") as handle:
+        handle.write(original + b"?")
+    assert digest() != base["sha256"]
+    with open(observation, "wb") as handle:
+        handle.write(original)
+
+    # (e) MEMBERSHIP: restoring an IR file the bank was missing changes it too
+    restored = os.path.join(fixture["dataset_root"],
+                            _ir_relpath(MISSING_IR[0], MISSING_IR[1], MISSING_IR[2]))
+    with open(restored, "wb") as handle:
+        handle.write(b"restored")
+    assert digest() != base["sha256"]
+    os.remove(restored)
+    assert digest() == base["sha256"]
+
+    # ... and a file no bank reads does not. The name is deliberately one the
+    # RELEASED selector can still parse: a stem without an underscore breaks
+    # AR_md's own int(fn.split("_")[0][1:]) long before any bank is built, and
+    # that tree anomaly is the D1 materialization's to refuse, not this test's
+    with open(os.path.join(fixture["dataset_root"], "ir", "A", "A_idx_1",
+                           "S999_R002_notes.txt"), "w") as handle:
+        handle.write("not an IR")
+    assert digest() == base["sha256"]
+
+
+def test_the_digest_does_not_depend_on_the_order_the_records_arrive_in(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    forward = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                             fixture["records"])
+    backward = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                              list(reversed(fixture["records"])))
+    assert forward["sha256"] == backward["sha256"]
+
+
+def test_the_digest_changes_with_the_bank_rule(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    numeric = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                             fixture["records"], rule="numeric_identity")
+    released = rc.bank_digest(fixture["metadata_root"], fixture["dataset_root"],
+                              fixture["records"], rule="released_eligible_pool")
+    assert numeric["sha256"] != released["sha256"]
+    assert released["rule"] == "released_eligible_pool"
+
+
+def test_a_canonical_run_requires_a_pre_registered_digest():
+    found = "a" * 64
+    gate = rc.assert_bank_digest(found, expected=found)
+    assert gate["canonical"] is True and gate["mode"] == "pre_registered"
+    assert gate["sparse_bank_sha256"] == found
+
+    with pytest.raises(ValueError, match="requires the pre-registered sparse-bank digest"):
+        rc.assert_bank_digest(found, expected=None)
+
+    recorded = rc.assert_bank_digest(found, expected=None, allow_non_canonical=True)
+    assert recorded["canonical"] is False
+    assert recorded["mode"] == "recorded_not_pre_registered"
+    assert rc.NON_CANONICAL_BANK_NOTE in recorded["note"]
+
+    with pytest.raises(ValueError, match="not the pre-registered sparse bank"):
+        rc.assert_bank_digest(found, expected="b" * 64)
+    # ... and a mismatch is not excusable by --non-canonical: the operator DID
+    # pre-register a value and the tree does not match it
+    with pytest.raises(ValueError, match="not the pre-registered sparse bank"):
+        rc.assert_bank_digest(found, expected="b" * 64, allow_non_canonical=True)
+
+
+def test_the_walk_refuses_a_bank_that_moved_after_the_digest(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    document = fixture["bank_document"]
+    assert run_control(fixture, bank_document=document)                 # the happy path
+
+    os.remove(os.path.join(fixture["dataset_root"], _ir_relpath("A/A_idx_1", 2, 2)))
+    with pytest.raises(ValueError, match="changed after the sparse-bank digest"):
+        run_control(fixture, bank_document=document)
+
+
+# --------------------------------------------------------------------------- #
 # the score and the prediction
 # --------------------------------------------------------------------------- #
 def _entries(nodes, rec=2, xyz=None):
@@ -370,15 +518,34 @@ def test_the_prediction_is_the_bank_entrys_own_source_position():
     assert entries[row].src_xyz.tolist() == [4.0, 5.0, 6.0]
 
 
-def test_the_score_is_the_cosine_and_the_registered_k1_aggregate_agree():
-    sims = torch.tensor([0.10, -0.25, 0.99], dtype=torch.float32)
-    scores = rc.bank_scores(sims, tau=me.TAU)
-    assert scores.shape == sims.shape
-    assert scores.tolist() == pytest.approx(sims.tolist(), abs=1e-6)
-    # the aggregator is the engine's own, read at K = 1 (log-mean-exp of one
-    # sample is that sample), so there is no second scoring rule here
-    direct = me.nested_scores(sims.reshape(-1, 1), tau=me.TAU, prefixes=(1,))[1]["scores"]
-    assert scores.tolist() == pytest.approx(direct.tolist(), abs=0.0)
+def test_the_score_is_the_cosine_bit_for_bit():
+    # r9c review, MAJOR: the K = 1 log-mean-exp equals the cosine ALGEBRAICALLY,
+    # but tau * (logsumexp(s / tau) - log 1) is a float32 divide, exp/log and
+    # multiply, which can move a score by an ulp and turn two adjacent scores
+    # into a tie. The score IS the cosine, and this pins that bit for bit.
+    sims = torch.tensor([0.1, -0.25, 0.99, 0.30000001, 0.3, 1.0, -1.0], dtype=torch.float32)
+    scores = rc.bank_scores(sims)
+    assert torch.equal(scores, sims)
+    assert scores.dtype == torch.float32
+    assert scores.data_ptr() != sims.data_ptr()          # a copy, never an alias
+
+    # the algebraic equivalence is still true, and it is still only algebraic:
+    # the engine's aggregator is allowed to differ in the last bits
+    lme = me.nested_scores(sims.reshape(-1, 1), tau=me.TAU, prefixes=(1,))[1]["scores"]
+    assert scores.tolist() == pytest.approx(lme.tolist(), abs=1e-6)
+
+
+def test_the_score_never_reaches_for_tau():
+    import inspect
+
+    for name in ("bank_scores", "evaluate_bank_query", "run_retrieval"):
+        signature = inspect.signature(getattr(rc, name))
+        assert "tau" not in signature.parameters, f"{name} still takes tau"
+    # the compiled body, not the docstring: the docstring is allowed to explain
+    # the algebra it deliberately does not compute
+    names = set(rc.bank_scores.__code__.co_names)
+    for forbidden in ("nested_scores", "logsumexp", "log", "aggregate"):
+        assert forbidden not in names
 
 
 # --------------------------------------------------------------------------- #
@@ -391,7 +558,7 @@ def test_the_sparse_oracle_is_the_nearest_bank_source_to_the_truth():
     sims = torch.tensor([0.9, 0.1, 0.2])                 # S002 wins
     result = rc.evaluate_bank_query(entries, sims, truth, query_id="0|q.wav",
                                     room_id="A/A_idx_1", position=0, receiver_id="r",
-                                    receiver_xyz=[0.0, 0.0, 0.5], tau=me.TAU)
+                                    receiver_xyz=[0.0, 0.0, 0.5])
     distances = np.linalg.norm(np.stack([e.src_xyz for e in entries]) - truth, axis=1)
     assert result["e_oracle_sparse"] == pytest.approx(float(distances.min()))
     assert result["oracle_src_node"] == 5                # the nearest is S005
@@ -683,7 +850,7 @@ def test_the_sparse_oracle_block_is_labelled_as_the_banks_own(tmp_path):
     assert "not comparable" in contrast["note"]
 
 
-def test_the_report_records_the_oracle_crosscheck_that_pins_the_truth(tmp_path):
+def test_the_scalar_oracle_check_no_longer_claims_to_pin_the_truth(tmp_path):
     fixture = build_control_fixture(tmp_path)
     results = run_control(fixture)
     report = rc.build_report(results, fixture, n_boot=64)
@@ -692,7 +859,28 @@ def test_the_report_records_the_oracle_crosscheck_that_pins_the_truth(tmp_path):
     assert crosscheck["max_abs_delta_m"] <= mr.ORACLE_TOLERANCE
     assert crosscheck["tolerance_m"] == mr.ORACLE_TOLERANCE
     assert "not injective" in crosscheck["note"]
-    assert report["gates"]["grid_oracle_rederived_pins_the_truth"] is True
+    # what it establishes, and what it does not (r9c review, BLOCKER 2)
+    assert crosscheck["establishes"] == rc.GRID_ORACLE_ESTABLISHES
+    assert "does NOT establish" in rc.GRID_ORACLE_ESTABLISHES
+    assert report["gates"]["grid_oracle_rederived_matches_the_g1_scalar"] is True
+    assert report["gates"]["truth_bytes_pinned_by_pre_registered_bank_digest"] is True
+    assert "pins_the_truth" not in json.dumps(report["gates"])
+
+    # the truth-integrity claim reduces to the bank digest, and says so
+    assert rc.TRUTH_INTEGRITY_NOTE == report["labels"]["truth_integrity"]
+    for phrase in ("pair-metadata JSON", "sparse-bank digest", "REDUCES TO"):
+        assert phrase in rc.TRUTH_INTEGRITY_NOTE
+
+
+def test_an_unpinned_bank_leaves_the_truth_claim_false(tmp_path):
+    fixture = build_control_fixture(tmp_path, pre_register=False)
+    results = run_control(fixture)
+    report = rc.build_report(results, fixture, n_boot=64)
+    assert report["gates"]["truth_bytes_pinned_by_pre_registered_bank_digest"] is False
+    assert report["gates"]["grid_oracle_rederived_matches_the_g1_scalar"] is True
+    assert report["protocol"]["canonical"] is False
+    assert any("sparse_bank" in deviation["input"]
+               for deviation in report["protocol"]["deviations"])
 
 
 def test_an_unregistered_setting_is_labelled_a_sensitivity_check(tmp_path):
@@ -773,7 +961,7 @@ def test_the_handoff_names_the_control_the_r1_report_is_waiting_for(tmp_path):
     assert handoff["control_key"] == rc.CONTROL_KEY
     assert handoff["control_key"] in mr.CONTROLS_ELSEWHERE
     assert handoff["control_label"] == rc.CONTROL_LABEL
-    assert handoff["status"] == "run"
+    assert handoff["status"].startswith("run (")
     assert handoff["report_json"] == os.path.basename(published["paths"]["json"])
     assert handoff["report_sha256"] == published["sha256"]["json"]
     assert handoff["binding_sha256"] == fixture["binding_sha256"]
@@ -789,18 +977,152 @@ def test_the_handoff_names_the_control_the_r1_report_is_waiting_for(tmp_path):
 # --------------------------------------------------------------------------- #
 # the driver: the binding gate and the CLI
 # --------------------------------------------------------------------------- #
-def test_the_checked_and_unchecked_binding_fields_partition_the_run_binding():
-    assert set(rc.RETRIEVAL_BINDING_FIELDS).isdisjoint(rc.RETRIEVAL_BINDING_NOT_CHECKED)
-    assert set(rc.RETRIEVAL_BINDING_FIELDS) | set(rc.RETRIEVAL_BINDING_NOT_CHECKED) == \
-        set(me.RUN_BINDING_FIELDS)
+def test_the_binding_fields_partition_the_run_binding_three_ways():
+    lists = (rc.RETRIEVAL_BINDING_FIELDS, rc.RETRIEVAL_BINDING_REGISTERED_ONLY,
+             rc.RETRIEVAL_BINDING_NOT_CHECKED)
+    assert sum(len(names) for names in lists) == len(me.RUN_BINDING_FIELDS)
+    assert set().union(*(set(names) for names in lists)) == set(me.RUN_BINDING_FIELDS)
+    # gated against the registered value rather than against the run's, because
+    # it is inert here and a stamped tau deviation must stay expressible
+    assert rc.RETRIEVAL_BINDING_REGISTERED_ONLY == ("tau",)
     for field in ("agree_ckpt_sha256", "scorer_readout", "d1_manifest_sha256",
                   "g1_report_sha256", "room_manifest_sha256", "branch",
-                  "dataset_config_sha256"):
+                  "dataset_config_sha256",
+                  # r9c review, BLOCKER 3: this config builds the observed-RIR
+                  # loader, so its sample rate/size move obs_wav and every cosine
+                  "model_config_sha256"):
         assert field in rc.RETRIEVAL_BINDING_FIELDS
     # nothing this control never uses is allowed to refuse it
     for field in ("ckpt_sha256", "steps", "cfg_scale", "noise_policy", "num_samples"):
         assert field in rc.RETRIEVAL_BINDING_NOT_CHECKED
     assert "generates nothing" in rc.BINDING_SCOPE_NOTE
+
+
+def test_the_input_surface_covers_every_result_affecting_input():
+    surface = rc.RESULT_AFFECTING_INPUTS
+    # the run binding is a SUBSET of the surface, not the whole of it (r9c
+    # review, MAJOR: a syntactically complete partition of RUN_BINDING_FIELDS
+    # still omitted the inputs that live outside it)
+    assert set(me.RUN_BINDING_FIELDS) < set(surface)
+    for outside in ("sparse_bank_sha256", "metadata_root", "dataset_root", "tau",
+                    "bank_rule", "bootstrap_seed", "n_boot", "success_radii_m", "device"):
+        assert outside in surface, f"{outside} is a result-affecting input and is not named"
+
+    for name, entry in surface.items():
+        assert entry["class"] in rc.INPUT_CLASSES, name
+        assert entry.get("why"), f"{name} has no reason"
+        assert isinstance(entry.get("in_run_binding"), bool), name
+        assert entry["in_run_binding"] == (name in me.RUN_BINDING_FIELDS), name
+        if entry["class"] == "gated_against_registered":
+            assert "registered" in entry, name
+
+    # the classification and the binding lists cannot drift apart
+    for field in rc.RETRIEVAL_BINDING_FIELDS:
+        assert surface[field]["class"] in ("gated_against_run_binding",
+                                           "gated_against_registered")
+    for field in rc.RETRIEVAL_BINDING_REGISTERED_ONLY:
+        assert surface[field]["class"] == "gated_against_registered"
+    for field in rc.RETRIEVAL_BINDING_NOT_CHECKED:
+        assert surface[field]["class"] == "stamped_not_checked"
+
+
+def test_the_registered_values_are_the_ones_the_r1_report_enforces():
+    # cross-pin (r9e): duplicated rather than imported into the module this round
+    # so the control does not couple to r9d's file mid-flight; this assert is the
+    # pin, and the two constants collapse into one in a later round
+    assert rc.REGISTERED_AGREE_SHA256 == \
+        "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+    assert rc.REGISTERED_AGREE_SHA256 == mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"]
+    assert rc.RESULT_AFFECTING_INPUTS["scorer_readout"]["registered"] == me.SCORER_READOUT
+    assert rc.RESULT_AFFECTING_INPUTS["tau"]["registered"] == me.TAU == 0.1
+    assert rc.RESULT_AFFECTING_INPUTS["bank_rule"]["registered"] == rc.REGISTERED_BANK_RULE
+    assert rc.RESULT_AFFECTING_INPUTS["bootstrap_seed"]["registered"] == rc.BOOTSTRAP_SEED
+
+
+def test_the_input_surface_report_carries_what_was_actually_used(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    report = rc.build_report(run_control(fixture), fixture, n_boot=64)
+    surface = report["input_surface"]
+    assert set(surface) == set(rc.RESULT_AFFECTING_INPUTS)
+    assert surface["agree_ckpt_sha256"]["used"] == rc.REGISTERED_AGREE_SHA256
+    assert surface["agree_ckpt_sha256"]["matches_registered"] is True
+    assert surface["n_boot"]["used"] == 64
+    assert surface["n_boot"]["matches_registered"] is False
+    assert surface["sparse_bank_sha256"]["used"] == fixture["bank_document"]["sha256"]
+    assert surface["metadata_root"]["class"] == "stamped_not_checked"
+    assert surface["ckpt_sha256"]["used"] == fixture["binding"]["ckpt_sha256"]
+
+
+@pytest.mark.parametrize("field, value", [
+    ("agree_ckpt_sha256", "0" * 64),
+    ("scorer_readout", "sample"),
+    ("tau", 0.2),
+    ("bank_rule", "released_eligible_pool"),
+    ("bootstrap_seed", 7),
+])
+def test_a_deviation_from_a_registered_setting_is_refused_unless_it_is_stamped(
+        tmp_path, field, value):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    if field == "bank_rule":
+        results = [dict(result, bank_rule=value) for result in results]
+    context = dict(fixture, allow_non_canonical=False)
+    context[field] = value
+    kwargs = {"n_boot": rc.BOOTSTRAP_N}
+    if field == "bootstrap_seed":
+        kwargs = {"n_boot": rc.BOOTSTRAP_N, "bootstrap_seed": value}
+    with pytest.raises(ValueError, match="is not the registered"):
+        rc.build_report(results, context, **kwargs)
+
+    stamped = rc.build_report(results, dict(context, allow_non_canonical=True), **kwargs)
+    assert stamped["protocol"]["canonical"] is False
+    assert [d["input"] for d in stamped["protocol"]["deviations"]] == [field]
+    assert rc.NON_CANONICAL_NOTE in rc.render_markdown(stamped)
+
+
+@pytest.mark.parametrize("missing", ["bank_gate", "agree_ckpt_sha256", "scorer_readout", "tau"])
+def test_a_report_that_was_not_told_what_it_used_cannot_state_canonicality(tmp_path, missing):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    context = {key: value for key, value in fixture.items() if key != missing}
+    with pytest.raises(ValueError, match="cannot state canonicality"):
+        rc.build_report(results, context, n_boot=64)
+
+
+def test_a_fully_registered_run_is_stamped_canonical(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    report = rc.build_report(run_control(fixture),
+                             dict(fixture, allow_non_canonical=False), n_boot=rc.BOOTSTRAP_N)
+    assert report["protocol"]["canonical"] is True
+    assert report["protocol"]["deviations"] == []
+    assert report["protocol"]["sparse_bank_sha256"] == fixture["bank_document"]["sha256"]
+    assert report["protocol"]["sparse_bank_pre_registered"] is True
+    markdown = rc.render_markdown(report)
+    assert rc.NON_CANONICAL_NOTE not in markdown
+    assert "CANONICAL" in markdown
+
+    published = rc.write_report(fixture["out_dir"], report)
+    handoff = json.load(open(published["paths"]["handoff"]))
+    assert handoff["canonical"] is True and handoff["deviations"] == []
+    assert handoff["sparse_bank_sha256"] == fixture["bank_document"]["sha256"]
+    assert handoff["status"] == "run (canonical)"
+
+
+def test_a_non_canonical_run_says_so_in_every_artifact(tmp_path):
+    fixture = build_control_fixture(tmp_path, pre_register=False)
+    report = rc.build_report(run_control(fixture), fixture, n_boot=64)
+    published = rc.write_report(fixture["out_dir"], report)
+    payload = json.load(open(published["paths"]["json"]))
+    handoff = json.load(open(published["paths"]["handoff"]))
+    markdown = open(published["paths"]["markdown"]).read()
+
+    assert payload["protocol"]["canonical"] is False
+    assert payload["labels"]["non_canonical"] == rc.NON_CANONICAL_NOTE
+    assert handoff["canonical"] is False
+    assert handoff["status"] == "run (NON-CANONICAL)"
+    assert sorted(d["input"] for d in handoff["deviations"]) == ["n_boot", "sparse_bank_sha256"]
+    assert rc.NON_CANONICAL_NOTE in markdown
+    assert markdown.splitlines()[2].startswith("> **NON-CANONICAL")
 
 
 def test_the_control_accepts_the_runs_own_binding(tmp_path):
@@ -819,12 +1141,29 @@ def test_the_control_accepts_the_runs_own_binding(tmp_path):
     ("room_manifest_sha256", {"A/A_idx_1": "0" * 64}),
     ("branch", "full_height"),
     ("dataset_config_sha256", "0" * 64),
+    # the config that builds the observed-RIR loader (r9c review, BLOCKER 3)
+    ("model_config_sha256", "0" * 64),
 ])
 def test_the_control_refuses_a_binding_that_moved(tmp_path, field, value):
     fixture = build_control_fixture(tmp_path)
     binding = dict(fixture["binding"])
     binding[field] = value
     with pytest.raises(ValueError, match=field):
+        rc.assert_retrieval_binding(fixture["run_dir"], binding)
+
+
+def test_a_model_config_that_is_not_the_runs_refuses_before_anything_is_scored(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    args = rc.parse_args(["--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
+                          "--context-manifest", fixture["context_manifest"],
+                          "--audit-report", fixture["audit_report"],
+                          "--dataset-config", fixture["context_manifest"],
+                          # a real file that is NOT the config the run bound
+                          "--model-config", fixture["audit_report"]])
+    binding = rc.build_retrieval_binding(args, fixture["plan"],
+                                         agree_sha256=fixture["binding"]["agree_ckpt_sha256"])
+    assert binding["model_config_sha256"] == me.file_sha256(fixture["audit_report"])
+    with pytest.raises(ValueError, match="model_config_sha256"):
         rc.assert_retrieval_binding(fixture["run_dir"], binding)
 
 
@@ -874,24 +1213,60 @@ def test_the_binding_is_built_by_the_drivers_own_builder(tmp_path):
                           "--audit-report", fixture["audit_report"],
                           "--dataset-config", fixture["context_manifest"]])
     built = rc.build_retrieval_binding(args, fixture["plan"], agree_sha256="c" * 64)
-    full = localize_meshgrid.build_run_binding(args, fixture["plan"], ckpt_sha256=None,
-                                               agree_sha256="c" * 64, model_config_sha256=None)
+    full = localize_meshgrid.build_run_binding(
+        args, fixture["plan"], ckpt_sha256=None, agree_sha256="c" * 64,
+        model_config_sha256=me.file_sha256(args.model_config))
     assert set(built) == set(rc.RETRIEVAL_BINDING_FIELDS)
     assert built == {field: full[field] for field in rc.RETRIEVAL_BINDING_FIELDS}
     assert built["agree_ckpt_sha256"] == "c" * 64
     assert built["scorer_readout"] == me.SCORER_READOUT
     assert built["branch"] == fixture["plan"].branch
+    assert built["model_config_sha256"] == me.file_sha256(args.model_config)
 
 
 def test_the_cli_defaults_are_the_registered_settings():
-    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out"])
+    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out",
+                          "--expect-bank-sha256", "a" * 64])
     assert args.bank_rule == rc.REGISTERED_BANK_RULE
     assert args.bootstrap_seed == rc.BOOTSTRAP_SEED and args.n_boot == rc.BOOTSTRAP_N
     assert args.metadata_root == os.path.join("AcousticRooms", "metadata")
     assert args.dataset_root == "AcousticRooms"
     assert args.context_manifest == os.path.join("outputs_loc", "exp22",
                                                  "d1_context_manifest.json")
+    assert args.non_canonical is False
     assert rc.validate_args(args) is True
+
+
+def test_a_scoring_run_without_a_pre_registered_digest_is_refused_at_startup():
+    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out"])
+    with pytest.raises(SystemExit, match="--expect-bank-sha256"):
+        rc.validate_args(args)
+    # ... and --non-canonical is the only way through, announced on stdout
+    assert rc.validate_args(rc.parse_args(["--run-dir", "run", "--out-dir", "out",
+                                           "--non-canonical"])) is True
+
+
+def test_the_digest_mode_needs_no_run_and_prints_the_value_to_pre_register(
+        tmp_path, capsys, monkeypatch):
+    fixture = build_control_fixture(tmp_path)
+    # the REAL manifest loader, with only its 6,337 -> 5,337 census relaxed for
+    # the four-query fixture. The production path keeps the census (main() calls
+    # mq.load_manifest with its default), so this relaxation exists nowhere but
+    # here -- the same fixture seam mr.evaluate_run's require_manifest_census is
+    real_loader = mq.load_manifest
+    monkeypatch.setattr(mq, "load_manifest",
+                        lambda path, require_census=True: real_loader(path,
+                                                                     require_census=False))
+    # the pre-registration happens BEFORE the P1 merge exists, so this mode may
+    # not require a run directory (PLANNER RULING 2)
+    assert rc.main(["--print-bank-sha256",
+                    "--context-manifest", fixture["context_manifest"],
+                    "--metadata-root", fixture["metadata_root"],
+                    "--dataset-root", fixture["dataset_root"]]) == 0
+    out = capsys.readouterr().out
+    assert fixture["bank_document"]["sha256"] in out
+    assert rc.BANK_DIGEST_ALGORITHM.split(":")[0] in out
+    assert "--expect-bank-sha256" in out
 
 
 @pytest.mark.parametrize("argv", [["--bank-rule", "nonsense"], ["--n-boot", "0"],
@@ -908,7 +1283,21 @@ def test_a_control_may_not_write_into_the_run_it_reports_against(tmp_path):
 
 
 def test_the_unregistered_bank_rule_is_announced_rather_than_silently_taken(capsys):
-    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out",
+    args = rc.parse_args(["--run-dir", "run", "--out-dir", "out", "--non-canonical",
                           "--bank-rule", "released_eligible_pool"])
     assert rc.validate_args(args) is True
     assert "not the registered" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("argv, message", [
+    (["--bank-rule", "released_eligible_pool"], "--bank-rule"),
+    (["--tau", "0.2"], "--tau"),
+    (["--bootstrap-seed", "7"], "bootstrap"),
+    (["--n-boot", "128"], "bootstrap"),
+])
+def test_a_canonical_run_refuses_a_deviating_setting_at_startup(argv, message):
+    base = ["--run-dir", "run", "--out-dir", "out", "--expect-bank-sha256", "a" * 64]
+    with pytest.raises(SystemExit, match=message):
+        rc.validate_args(rc.parse_args(base + argv))
+    # ... and passes once the deviation is declared
+    assert rc.validate_args(rc.parse_args(base + argv + ["--non-canonical"])) is True
