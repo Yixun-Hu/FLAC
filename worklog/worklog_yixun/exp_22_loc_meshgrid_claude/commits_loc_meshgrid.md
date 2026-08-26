@@ -313,3 +313,5 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `0a06416` exp_22 r9c (1): report joins artifacts to the run it names (B1-B3, M6-M8, minors)
 - `f92cb26` exp_22 r9c (2): offgrid probe gates before device, stages dumps (B4, B5, M9)
 - `a6e7176` exp_22 r9e: sparse bank pre-registered (bank_digest + --print/--expect-bank-sha256), K=1 score = raw cosine, model_config into binding, full input-surface canonicality
+- `52cb570` exp_22 r9d (1): report re-derives the merge receipt; pre-registered truth required (B1/B3/M6-M8)
+- `cda347e` exp_22 r9d (2): probe gates before import, one-direction publish (B4/B5/M9, disclosures)

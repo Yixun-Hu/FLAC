@@ -1,0 +1,10 @@
+{
+  "registration": "exp_22 pre-registered truth/bank digests (Planner ruling 2, Codex r9c B3 closure)",
+  "frozen_utc": "2026-08-26T03:20:00Z",
+  "frozen_before": "the P1 merged run exists; no localization quality of any exp_22 arm has been read",
+  "metadata_bank_sha256": "9f1322e538dccbf36c330f3a629c1ad37913627db7b93290c0c14cc9bf47fe74",
+  "metadata_bank_scope": "5,337 pair files for the 5,337 registered queries; computed by `python -m src.localization.meshgrid_report --print-metadata-bank-digest --context-manifest outputs_loc/exp22/d1_context_manifest.json --metadata-root AcousticRooms/metadata`",
+  "sparse_bank_sha256": "39f0a1191651d8500561dda25f7e220a50c353a63d232f4d86daff25827a1efb",
+  "sparse_bank_scope": "5,337 queries / 47,132 bank entries (pair JSONs + wav bytes + membership); computed by `python -m src.localization.meshgrid_retrieval_control --print-bank-sha256 --context-manifest outputs_loc/exp22/d1_context_manifest.json --audit-report outputs_loc/exp22/g1_audit/geometry_audit_report.json --metadata-root AcousticRooms/metadata --dataset-root AcousticRooms`; independently reproduced by the r9e Coder's own run",
+  "usage": "every canonical report/control run MUST pass --expect-metadata-bank-sha256 / --expect-bank-sha256 with these values; absence or mismatch is non-canonical or refused"
+}
