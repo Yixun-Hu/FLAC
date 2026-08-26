@@ -235,7 +235,8 @@ def _fixture_binding(plan, context_manifest, **overrides):
     """
     binding = {
         "model_config_sha256": mr.REGISTERED_ARTIFACT_SHA256["model_config_sha256"],
-        "ckpt_sha256": "b" * 64,
+        # the registered P1 arm, so the admissible-arm registry passes (r9d M6)
+        "ckpt_sha256": mr.REGISTERED_CKPT_SHA256["P1"],
         "agree_ckpt_sha256": mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"],
         "d1_manifest_sha256": me.file_sha256(context_manifest),
         "g1_report_sha256": plan.report_sha256,
@@ -246,7 +247,9 @@ def _fixture_binding(plan, context_manifest, **overrides):
         "noise_policy": me.REGISTERED_NOISE_POLICY, "steps": me.STEPS,
         "cfg_scale": me.CFG_SCALE, "cond_method": "vanilla",
         "scorer_readout": me.SCORER_READOUT, "cond_autocast": "default",
-        "dataset_config_sha256": "9" * 64, "dump_cases_sha256": None,
+        "dataset_config_sha256":
+            mr.REGISTERED_ARTIFACT_SHA256["dataset_config_sha256"],
+        "dump_cases_sha256": None,
         "dataset_config": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
     }
     binding.update(overrides)
@@ -325,8 +328,14 @@ def build_fixture_run(tmp_path, merged=True):
         run_dir = _score(str(tmp_path / "run"))
         shards = [run_dir]
 
+    metadata_root = _write_metadata(tmp_path)
+    # the PRE-REGISTRATION step, run exactly as the CLI runs it: the digest is
+    # computed from the D1 manifest and the tree alone, before any evaluation
+    preregistered = mr.compute_metadata_bank_digest(manifest_path, metadata_root,
+                                                    require_manifest_census=False)
     return {"run_dir": run_dir, "audit_report": audit_report, "plan": plan,
-            "context_manifest": manifest_path, "metadata_root": _write_metadata(tmp_path),
+            "context_manifest": manifest_path, "metadata_root": metadata_root,
+            "metadata_bank_sha256": preregistered["metadata_bank_sha256"],
             "binding": binding, "binding_sha256": binding_sha, "merged": merged,
             "shards": shards, "records": records, "items": items, "totals": totals}
 
@@ -340,10 +349,19 @@ def fixture_source_provider(fixture):
 
 
 def evaluate_fixture(fixture, **kwargs):
+    """Evaluate the fixture as a CANONICAL run unless the caller says otherwise."""
     kwargs.setdefault("single_shard", not fixture["merged"])
+    kwargs.setdefault("expect_metadata_bank_sha256", fixture["metadata_bank_sha256"])
+    kwargs.setdefault("totals", fixture["totals"])
     return mr.evaluate_run(fixture["run_dir"], fixture["audit_report"],
                            fixture["context_manifest"], fixture["metadata_root"],
-                           totals=fixture["totals"], require_manifest_census=False, **kwargs)
+                           require_manifest_census=False, **kwargs)
+
+
+def evaluate_unpinned(fixture, **kwargs):
+    """Evaluate WITHOUT the pre-registered bank -- explicitly non-canonical."""
+    return evaluate_fixture(fixture, expect_metadata_bank_sha256=None,
+                            allow_unpinned_metadata_bank=True, **kwargs)
 
 
 # --------------------------------------------------------------------------- #
@@ -1161,8 +1179,13 @@ def test_the_report_refuses_a_run_whose_rooms_are_not_the_audits(tmp_path):
     for name in os.listdir(room_dir):
         os.remove(os.path.join(room_dir, name))
     os.rmdir(room_dir)
-    with pytest.raises(ValueError, match="have no published row"):
+    # the merge receipt now claims totals the surviving rows cannot supply, and
+    # that is caught before the census even runs (r9d B1)
+    with pytest.raises(ValueError, match="but the rows themselves yield"):
         evaluate_fixture(fixture)
+    # ... and with the receipt out of the way the identity join still catches it
+    with pytest.raises(ValueError, match="have no published row"):
+        evaluate_fixture(fixture, single_shard=True)
 
 
 def test_the_report_refuses_a_manifest_that_is_not_the_registered_census(tmp_path):
@@ -1381,9 +1404,9 @@ def _spoof_truth(fixture, room_id="A/A_idx_1", stem="S001_R002"):
 def test_the_scalar_oracle_cannot_see_a_mirrored_in_cell_truth(tmp_path):
     """B3: the r9 checks were rec_loc + a scalar, and both are non-injective."""
     fixture = build_fixture_run(tmp_path)
-    honest = evaluate_fixture(fixture)
+    honest = evaluate_unpinned(fixture)
     mirrored = _spoof_truth(fixture)
-    spoofed = evaluate_fixture(fixture)
+    spoofed = evaluate_unpinned(fixture)
     # the oracle gate is silent -- which is precisely why it is not the whole check
     assert spoofed["results"][0]["truth_xyz"] == pytest.approx(mirrored)
     assert spoofed["results"][0]["e_oracle"] == pytest.approx(honest["results"][0]["e_oracle"])
@@ -1411,12 +1434,62 @@ def test_a_pinned_metadata_bank_refuses_the_mirrored_truth(tmp_path):
         evaluate_fixture(fixture, expect_metadata_bank_sha256=registered)
 
 
-def test_the_metadata_bank_digest_is_recorded_even_when_it_is_not_pinned(tmp_path):
+def test_a_canonical_report_requires_the_pre_registered_bank_digest(tmp_path):
+    """B3 RULING 2: trust-on-first-use is not a canonical mode."""
     fixture = build_fixture_run(tmp_path)
-    bank = evaluate_fixture(fixture)["metadata_bank"]
+    with pytest.raises(ValueError, match="requires the PRE-REGISTERED pair-metadata bank"):
+        mr.evaluate_run(fixture["run_dir"], fixture["audit_report"],
+                        fixture["context_manifest"], fixture["metadata_root"],
+                        totals=fixture["totals"], require_manifest_census=False)
+    bank = evaluate_unpinned(fixture)["metadata_bank"]
     assert len(bank["metadata_bank_sha256"]) == 64
     assert bank["pinned"] is False
-    assert "mirrored inside one lattice cell" in bank["note"]
+    assert "PRE-REGISTRATION" in bank["note"]
+    assert "--print-metadata-bank-digest" in bank["preregistration_note"]
+
+
+def test_the_digest_cli_computes_the_value_a_canonical_run_needs(tmp_path):
+    """The pre-registration entry point: no run, no results, just the tree."""
+    fixture = build_fixture_run(tmp_path)
+    verdict = mr.compute_metadata_bank_digest(fixture["context_manifest"],
+                                              fixture["metadata_root"],
+                                              require_manifest_census=False)
+    assert verdict["metadata_bank_sha256"] == fixture["metadata_bank_sha256"]
+    assert verdict["n_pair_files"] == verdict["n_records"] == fixture["totals"]["queries"]
+    # deterministic, and it is exactly what evaluate_run then demands back
+    assert mr.compute_metadata_bank_digest(
+        fixture["context_manifest"], fixture["metadata_root"],
+        require_manifest_census=False)["metadata_bank_sha256"] == \
+        verdict["metadata_bank_sha256"]
+    assert evaluate_fixture(fixture)["metadata_bank"]["pinned"] is True
+
+    # and an edit to the tree after registration changes it
+    _spoof_truth(fixture)
+    assert mr.compute_metadata_bank_digest(
+        fixture["context_manifest"], fixture["metadata_root"],
+        require_manifest_census=False)["metadata_bank_sha256"] != \
+        verdict["metadata_bank_sha256"]
+
+
+def test_the_digest_mode_needs_no_run_directory():
+    args = mr.parse_args(["--print-metadata-bank-digest"])
+    assert args.run_dir is None and args.out_dir is None
+    assert mr.validate_args(args) is True
+    # ... while a report still requires both
+    with pytest.raises(SystemExit, match="--run-dir is required"):
+        mr.validate_args(mr.parse_args(["--out-dir", "o", "--non-canonical"]))
+    with pytest.raises(SystemExit, match="--out-dir is required"):
+        mr.validate_args(mr.parse_args(["--run-dir", "r", "--non-canonical"]))
+
+
+def test_the_cli_refuses_a_canonical_run_without_the_pre_registered_digest():
+    with pytest.raises(SystemExit, match="requires the PRE-REGISTERED"):
+        mr.validate_args(mr.parse_args(["--run-dir", "r", "--out-dir", "o"]))
+    assert mr.validate_args(mr.parse_args(
+        ["--run-dir", "r", "--out-dir", "o", "--non-canonical"])) is True
+    assert mr.validate_args(mr.parse_args(
+        ["--run-dir", "r", "--out-dir", "o",
+         "--expect-metadata-bank-sha256", "a" * 64])) is True
 
 
 def test_the_truth_vector_check_is_the_injective_one():
@@ -1444,16 +1517,39 @@ def test_the_binding_must_be_the_registered_protocol(tmp_path):
         assert field in verdict["deviations"]
 
 
-def test_the_checkpoint_digest_is_recorded_and_pinned_only_on_request(tmp_path):
+def test_the_checkpoint_must_be_one_of_the_registered_admissible_arms(tmp_path):
+    """M6 RULING 1: r9c let ANY checkpoint count as registered."""
     fixture = build_fixture_run(tmp_path)
     verdict = mr.assert_registered_protocol(fixture["binding"])
-    assert verdict["ckpt_sha256"] == fixture["binding"]["ckpt_sha256"]
-    assert verdict["ckpt_sha256_pinned"] is False
-    assert "EMA extract" in verdict["ckpt_sha256_note"]
-    assert mr.assert_registered_protocol(
-        fixture["binding"], expect_ckpt_sha256="b" * 64)["ckpt_sha256_pinned"] is True
+    assert verdict["arm"] == "P1"
+    assert verdict["ckpt_sha256_pinned"] is True
+    assert verdict["registered_arms"] == mr.REGISTERED_CKPT_SHA256
+    # every admissible arm passes ...
+    for arm, digest in mr.REGISTERED_CKPT_SHA256.items():
+        assert mr.assert_registered_protocol(
+            dict(fixture["binding"], ckpt_sha256=digest))["arm"] == arm
+    # ... and nothing else does
     with pytest.raises(ValueError, match="ckpt_sha256"):
-        mr.assert_registered_protocol(fixture["binding"], expect_ckpt_sha256="0" * 64)
+        mr.assert_registered_protocol(dict(fixture["binding"], ckpt_sha256="b" * 64))
+    relaxed = mr.assert_registered_protocol(dict(fixture["binding"], ckpt_sha256="b" * 64),
+                                            allow_deviation=True)
+    assert relaxed["arm"] is None and relaxed["is_registered"] is False
+    # a narrower expectation can still single out one arm
+    with pytest.raises(ValueError, match="ckpt_sha256"):
+        mr.assert_registered_protocol(fixture["binding"],
+                                      expect_ckpt_sha256=mr.REGISTERED_CKPT_SHA256["BF"])
+
+
+def test_the_registered_arm_registry_is_the_real_exp20_checkpoints():
+    """The pinned digests must still BE the files on disk (Planner RULING 1)."""
+    for arm, digest in mr.REGISTERED_CKPT_SHA256.items():
+        path = os.path.join("weights", "exp20", f"{arm}_40k.ckpt")
+        if not os.path.isfile(path):
+            pytest.skip(f"{path} is not on this machine")
+        assert me.file_sha256(path) == digest
+    # P1 is the checkpoint the published P1 binding names
+    assert mr.REGISTERED_CKPT_SHA256["P1"] == \
+        "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c"
 
 
 def test_a_deviating_run_refuses_and_then_stamps_itself_a_sensitivity_check(tmp_path):
@@ -1470,7 +1566,7 @@ def test_a_deviating_run_refuses_and_then_stamps_itself_a_sensitivity_check(tmp_
 
 
 def test_deviating_seeds_refuse_at_the_cli_unless_declared():
-    base = ["--run-dir", "r", "--out-dir", "o"]
+    base = ["--run-dir", "r", "--out-dir", "o", "--non-canonical"]
     with pytest.raises(SystemExit, match="not the pre-registered settings"):
         mr.validate_args(mr.parse_args(base + ["--n-boot", "10"]))
     with pytest.raises(SystemExit, match="not the pre-registered settings"):
@@ -1492,8 +1588,9 @@ def test_a_deviating_baseline_stops_calling_itself_pre_registered():
 def test_the_published_report_carries_the_new_gates_and_banners(tmp_path):
     fixture = build_fixture_run(tmp_path)
     evaluated = evaluate_fixture(fixture, source_provider=fixture_source_provider(fixture))
+    # the REGISTERED bootstrap, so nothing in this report is a sensitivity check
     report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
-                             fixture["context_manifest"], fixture["metadata_root"], n_boot=128)
+                             fixture["context_manifest"], fixture["metadata_root"])
     gates = report["gates"]
     assert gates["supplied_artifacts_match_the_binding_hashes"] is True
     assert gates["binding_matches_the_registered_protocol"] is True
@@ -1508,7 +1605,9 @@ def test_the_published_report_carries_the_new_gates_and_banners(tmp_path):
     assert "mean e_excess (m)" in markdown             # the omitted model column
     assert markdown.count("success@1.0") >= 2          # model AND baseline tables
     assert "Latency — room-first" in markdown
-    assert "RECORDED, not pinned" in markdown          # the unpinned-bank banner
+    assert "NON-CANONICAL" not in markdown             # every gate was met
+    assert report["canonical_status"]["canonical"] is True
+    assert report["canonical_status"]["reasons"] == []
 
 
 def test_the_case_file_and_the_probe_outputs_carry_the_latency_scope(tmp_path):
@@ -1540,3 +1639,197 @@ def test_the_registered_artifact_digests_are_the_ones_on_disk():
     assert mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"] == \
         "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
     assert "ckpt_sha256" not in mr.REGISTERED_ARTIFACT_SHA256
+
+
+# --------------------------------------------------------------------------- #
+# r9d: the residuals the consolidated Codex r9c re-review left open
+# --------------------------------------------------------------------------- #
+def test_the_merge_receipt_is_re_derived_from_the_rows_not_believed(tmp_path):
+    """B1: a receipt copies, so every number in it is rebuilt from the rows."""
+    fixture = build_fixture_run(tmp_path)
+    rows = mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])
+    derived = mr.derive_run_facts(rows)
+    assert derived["candidate_query_pairs"] == fixture["totals"]["candidate_query_pairs"]
+    assert derived["generated_waveforms"] == fixture["totals"]["generated_waveforms"]
+    # the row-derived source-row census is the per-receiver union of the rows'
+    # OWN candidate index lists, and it must equal the G1 plan's derivation
+    assert derived["source_rows"] == fixture["totals"]["source_rows"]
+    assert derived["source_rows"] == mr.plan_source_rows(fixture["plan"])
+    assert derived["n_receivers"] >= 1
+
+    evaluated = evaluate_fixture(fixture)
+    assert evaluated["merge"]["receipt_cross_checked_against_rows"] is True
+    assert evaluated["merge"]["source_rows_from_rows"] == derived["source_rows"]
+    assert evaluated["merge"]["source_rows_from_g1_plan"] == derived["source_rows"]
+
+
+def test_a_receipt_that_the_rows_do_not_support_is_refused(tmp_path):
+    """A hand-assembled directory can carry a genuine-looking receipt."""
+    fixture = build_fixture_run(tmp_path)
+    path = os.path.join(fixture["run_dir"], "merge_report.json")
+    pristine = json.load(open(path))
+    for field, pattern in (("source_rows", "source_rows"),
+                           ("candidate_query_pairs", "candidate_query_pairs"),
+                           ("generated_waveforms", "generated_waveforms")):
+        totals = dict(pristine["totals"])
+        totals[field] = int(totals[field]) + 1
+        me.write_json(path, dict(pristine, totals=totals))
+        # the census against the REGISTERED totals fires first for some fields,
+        # so accept either refusal as long as the field is named
+        with pytest.raises(ValueError, match=pattern):
+            evaluate_fixture(fixture, totals=dict(fixture["totals"], **{field: totals[field]}))
+    me.write_json(path, pristine)
+    assert evaluate_fixture(fixture)["merge"]["n_rows"] == 4
+
+
+def test_mixed_effective_batching_is_refused_however_good_the_receipt(tmp_path):
+    """B1: a directory stitched from shards run at different batch_rows."""
+    fixture = build_fixture_run(tmp_path)
+    rows = mr.verify_rows(fixture["run_dir"], fixture["binding_sha256"])
+    assert mr.assert_uniform_batching(rows, FIXTURE_ADVISORY)["batching"] == FIXTURE_ADVISORY
+
+    mixed = [dict(row) for row in rows]
+    mixed[0]["batching"] = {"batch_rows": 512, "source_chunk": 2}
+    with pytest.raises(ValueError, match="different batchings"):
+        mr.assert_uniform_batching(mixed, FIXTURE_ADVISORY)
+    # uniform, but not the batching the run pins
+    other = [dict(row, batching={"batch_rows": 512, "source_chunk": 2}) for row in rows]
+    with pytest.raises(ValueError, match="not the ones the pass ran at"):
+        mr.assert_uniform_batching(other, FIXTURE_ADVISORY)
+
+
+def test_a_row_stamped_with_another_batching_is_caught_end_to_end(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    path = me.query_artifact_paths(fixture["run_dir"], "A/A_idx_1", 0)["row"]
+    row = json.load(open(path))
+    row["batching"] = {"batch_rows": 512, "source_chunk": 2}
+    row["row_sha256"] = me.row_digest(row)               # re-signed, so digests pass
+    me.write_json(path, row)
+    assert me.verify_query_artifact(path, binding_sha256=fixture["binding_sha256"])["ok"]
+    with pytest.raises(ValueError, match="different batchings"):
+        evaluate_fixture(fixture)
+
+
+def test_the_float16_bound_uses_both_adjacent_representables(tmp_path):
+    """M7: np.spacing follows the away-from-zero gap, which is the SMALLER one
+    at a negative binade boundary, halving the bound and refusing honest
+    roundoff (Codex r9c review, M7)."""
+    boundary = _f16([[-0.5, -0.5]])
+    naive = 0.5 * float(np.abs(np.spacing(np.asarray(boundary))).max())
+    honest = mr.float16_half_ulp(boundary)
+    assert honest == pytest.approx(2.0 * naive)          # exactly twice
+    assert honest == pytest.approx(
+        0.5 * abs(float(np.float16(-0.5) - np.nextafter(np.float16(-0.5),
+                                                        np.float16(-np.inf)))))
+    # the positive boundary was already right, and stays right
+    assert mr.float16_half_ulp(_f16([[0.5, 0.5]])) == pytest.approx(honest)
+
+
+def test_a_negative_binade_boundary_no_longer_refuses_honest_roundoff():
+    """The regression the naive bound would have caused, end to end."""
+    coordinates = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
+    # values just below -0.5 quantize to -0.5, moving by ~3.7e-4 -- inside the
+    # true half-ulp of 2.44e-4 + slack, but ABOVE the toward-zero half-ulp
+    stored = [[-0.50018, -0.50018], [-0.26, -0.26]]
+    sidecar = _f16(stored)
+    assert float(sidecar[0, 0]) == -0.5
+    row = _hand_row(sidecar, coordinates, scored_from=stored)
+    row["e_oracle"] = 0.0
+    naive = 0.5 * float(np.abs(np.spacing(np.asarray(sidecar))).max()) \
+        + mr.SIDECAR_FLOAT32_SLACK
+    honest = mr.float16_quantization_bound(sidecar)
+    assert honest > naive
+    # with the honest bound this is accepted; with the naive one it would refuse
+    entry = mr.evaluate_query(row, sidecar, coordinates, [0.0, 0.0, 0.0])["sidecar"]["lme"][2]
+    assert entry["within_float16_bound"] is True
+    assert entry["max_abs_delta"] <= honest
+
+
+def test_latency_is_never_a_clean_canonical_block_when_rows_were_dropped():
+    """M8: exclusions can be selective, so the endpoint says so itself."""
+    complete = _timed(_synthetic_results({"A/A_idx_1": [1.0, 2.0],
+                                          "B/B_idx_2": [3.0, 4.0]}))
+    for index, result in enumerate(complete):
+        result["position"] = index
+    clean = mr.latency_report(complete, n=64)
+    assert clean["canonical"] is True
+    assert clean["non_canonical_note"] is None
+    assert clean["n_incomplete"] == 0
+
+    complete[0]["latency_s"].pop("decode")
+    dirty = mr.latency_report(complete, n=64)
+    assert dirty["canonical"] is False
+    assert "NON-CANONICAL LATENCY" in dirty["non_canonical_note"]
+    assert dirty["n_rows_offered"] == 4 and dirty["n_queries"] == 3
+    # named per component AND per room (r9d M8)
+    assert dirty["missing_components"]["decode"]["by_room"] == {"A/A_idx_1": 1}
+
+
+def test_a_room_that_loses_every_row_is_named_not_silently_dropped():
+    results = _timed(_synthetic_results({"A/A_idx_1": [1.0], "B/B_idx_2": [2.0, 3.0]}))
+    for index, result in enumerate(results):
+        result["position"] = index
+    results[0]["latency_s"].pop("embed")                 # room A's only row
+    report = mr.latency_report(results, n=64)
+    assert report["canonical"] is False
+    assert report["rooms_without_a_complete_row"] == ["A/A_idx_1"]
+    assert sorted(report["per_room"]) == ["B/B_idx_2"]
+    assert report["missing_components"]["embed"]["by_room"] == {"A/A_idx_1": 1}
+
+
+def test_the_canonical_status_names_every_reason_it_is_not_canonical(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    assert report["canonical_status"]["canonical"] is True
+
+    # each relaxation adds exactly one named reason
+    unpinned = evaluate_unpinned(fixture)
+    status = mr.canonical_status(unpinned)
+    assert [reason["gate"] for reason in status["reasons"]] == ["metadata_bank"]
+    assert status["canonical"] is False
+    assert "NON-CANONICAL" in status["note"]
+
+    shard = build_fixture_run(tmp_path / "shard", merged=False)
+    shard_status = mr.canonical_status(evaluate_fixture(shard))
+    assert "merge_report" in [reason["gate"] for reason in shard_status["reasons"]]
+
+
+def test_a_non_canonical_report_says_so_at_the_top_of_its_markdown(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_unpinned(fixture)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"], n_boot=128)
+    assert report["canonical_status"]["canonical"] is False
+    markdown = mr.render_markdown(report)
+    header = markdown.split("## ")[0]
+    assert "NON-CANONICAL" in header
+    assert "metadata_bank" in header
+    assert "PRE-REGISTERED" in markdown
+
+
+def test_a_non_canonical_latency_block_is_labelled_in_the_markdown(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    evaluated["results"][0]["latency_s"].pop("decode")
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"], n_boot=128)
+    assert report["latency"]["canonical"] is False
+    assert "latency_completeness" in [reason["gate"]
+                                      for reason in report["canonical_status"]["reasons"]]
+    markdown = mr.render_markdown(report)
+    assert "## Latency — room-first (NON-CANONICAL)" in markdown
+    assert "| component | rows missing it | by room |" in markdown
+
+
+def test_the_dataset_config_identity_is_part_of_the_registered_set(tmp_path):
+    """M6: the observed-RIR loader is built from it, so it decides every score."""
+    fixture = build_fixture_run(tmp_path)
+    assert "dataset_config_sha256" in mr.REGISTERED_ARTIFACT_SHA256
+    assert mr.REGISTERED_ARTIFACT_SHA256["dataset_config_sha256"] == \
+        me.file_sha256(os.path.join("src", "configs", "dataset_configs", "AR", "eval",
+                                    "acousticroom_unseeneval.json"))
+    with pytest.raises(ValueError, match="dataset_config_sha256"):
+        mr.assert_registered_protocol(dict(fixture["binding"],
+                                           dataset_config_sha256="0" * 64))

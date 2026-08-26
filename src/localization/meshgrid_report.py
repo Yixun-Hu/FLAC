@@ -138,26 +138,40 @@ REGISTERED_PROTOCOL = {
 }
 
 #: Artifact identities §1.4 pins BY DIGEST and that the published P1 binding
-#: reproduces, so they are enforced here rather than merely recorded.
+#: reproduces, so they are enforced here rather than merely recorded. The
+#: dataset config joins them per the r9c review: it is what the observed-RIR
+#: loader is built from, so a changed sample rate or size would move every
+#: score while the binding still passed.
 REGISTERED_ARTIFACT_SHA256 = {
     "agree_ckpt_sha256": "3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787",
     "model_config_sha256": "f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9",
+    "dataset_config_sha256": "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55",
 }
 
-#: ``ckpt_sha256`` is deliberately absent from the table above, and the reason
-#: has to travel with the report. §1.4 pins ``da12748586...``, which is the
-#: digest of the EMA EXTRACT; Yixun's 2026-08-24 decision 2d admits our own
-#: WRAPPED 40k checkpoints, hash-checked against that extract on arrival, so the
-#: run legitimately binds a different file (the published P1 binding is
-#: ``c4c67882...``). Pinning the plan's literal here would refuse the real pass.
-#: The digest is therefore always RECORDED and is enforced only against a value
-#: the operator supplies, with ``ckpt_sha256_pinned`` stamped either way.
+#: The REGISTERED admissible-arm checkpoint registry (Planner RULING 1,
+#: 2026-08-25) -- the sha256 of each of ``weights/exp20/{P1,BF,YAW}_40k.ckpt``.
+#:
+#: r9c recorded ``ckpt_sha256`` without pinning it, on the reading that §1.4's
+#: ``da12748586...`` names the EMA EXTRACT while Yixun's decision 2d admits our
+#: wrapped 40k checkpoints "hash-checked against their EMA extract on arrival".
+#: The r9c review found that cross-check never happened -- the rsync did not
+#: arrive -- so the justification did not hold and ANY checkpoint counted as
+#: registered. The Planner resolved the identity BY AUTHORITY instead
+#: ("P1_40k_clean_hybrid_EMA.ckpt is our trained P1 40k checkpoint") and pinned
+#: the three admissible arms by their real digests. P1 is byte-identical to the
+#: checkpoint the published P1 binding names.
+REGISTERED_CKPT_SHA256 = {
+    "P1": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
+    "BF": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328",
+    "YAW": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7",
+}
+
 CKPT_SHA256_NOTE = (
-    "the inherited plan pins the EMA extract's digest (da12748586...) while Yixun's decision 2d "
-    "admits the wrapped 40k checkpoint that was hash-checked against it on arrival, so the run "
-    "binding's ckpt_sha256 is legitimately a different file's. It is recorded here always and "
-    "enforced only against an operator-supplied --expect-ckpt-sha256; ckpt_sha256_pinned says "
-    "which happened")
+    "the registered admissible arms are weights/exp20/{P1,BF,YAW}_40k.ckpt, pinned by digest "
+    "(Planner RULING 1, 2026-08-25). The inherited plan §1.4 names da12748586..., which is the "
+    "EMA EXTRACT's digest; decision 2d admits our wrapped 40k checkpoints and Yixun resolved "
+    "their identity by authority after the extract rsync never arrived, so the wrapped digests "
+    "are the registered ones. A canonical report refuses any other checkpoint")
 
 #: A run that is not the census-gated merge of every shard is not the canonical
 #: pass, and the difference has to be visible in the artifact.
@@ -165,22 +179,55 @@ SINGLE_SHARD_NOTE = (
     "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
     "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
     "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
-    "source-row census -- were NOT applied. The artifact-hash joins, the identity join and the "
-    "row/sidecar digests still were. These numbers are a shard-local diagnostic and are not the "
-    "canonical 5,337-query P1 result")
+    "source-row census -- were NOT applied. The artifact-hash joins, the identity join, the "
+    "row/sidecar digests and the row-derived batching and source-row derivations still were. "
+    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query P1 result")
+
+#: Why a merge receipt is re-derived rather than believed.
+MERGE_DERIVATION_NOTE = (
+    "merge_report.json is a RECEIPT and receipts copy: a directory assembled by hand can carry a "
+    "genuine one and never have met a single merge gate (Codex r9c review, B1). So everything "
+    "the receipt claims is re-derived from the rows themselves before it is believed -- the "
+    "candidate-query pairs and generated waveforms from the row contents, the source-row census "
+    "from the per-receiver union of the rows' own candidate index lists, and the effective "
+    "batching from every row's stamp -- and the receipt has to agree with all of it. The G1 plan "
+    "yields the same source-row count a second, independent way, and that must agree too")
 
 #: How the report authenticates the continuous truth it reads.
+#:
+#: Planner RULING 2 (2026-08-25) settles what this can and cannot be: full
+#: independence from the AcousticRooms pair-metadata tree is impossible, because
+#: that tree IS the truth authority -- G1's oracle and the loader's
+#: ``md['source']`` both derive from the same JSONs (``AR_md.py:31``), so the
+#: probe's vector check proves the two readings agree, not that either is right.
+#: The honest closure is PRE-REGISTRATION rather than provenance.
 TRUTH_BINDING_NOTE = (
     "the continuous truth x*_s is pinned by no run artifact -- the engine is structurally unable "
-    "to read it and G1 publishes only the oracle DISTANCE -- so it is authenticated three ways "
-    "here. (1) The pair file's receiver must be the candidate manifest's. (2) The dense-grid "
-    "oracle re-derived from the G1 candidate block must equal the value the audit published; "
-    "that is a SCALAR and therefore not injective, so on its own it cannot separate two truths "
-    "mirrored inside one lattice cell (Codex r9 review, finding 3). (3) The pair metadata FILES "
-    "themselves are digested into a metadata-bank sha256 that is enforced against an "
-    "operator-supplied registered value, which is what actually closes the mirrored-truth gap "
-    "offline. Where a released loader stream is available -- the off-grid probe -- the truth is "
-    "additionally checked as a VECTOR against md['source'] + receiver, which is injective")
+    "to read it and G1 publishes only the oracle DISTANCE -- and it cannot be pinned by an "
+    "independent witness either, because the AcousticRooms pair-metadata tree IS the authority "
+    "the loader's md['source'] and G1's oracle both read (Planner RULING 2). What closes it is "
+    "PRE-REGISTRATION: the metadata-bank digest is computed over that tree and committed BEFORE "
+    "the merged run exists and before any localization quality has been read, so no post-hoc "
+    "selection of a favourable truth is possible, and a canonical report REQUIRES that "
+    "pre-registered digest. On top of it the pair file's receiver must be the candidate "
+    "manifest's, the re-derived dense-grid oracle must equal the audit's (a SCALAR, and so not "
+    "injective on its own), and where a loader stream exists the truth is checked as a full "
+    "VECTOR -- which detects a tree edited after registration, and is circular as an origin "
+    "argument, which is why it is not offered as one")
+
+#: What a run that is not the canonical P1 result must say about itself.
+NON_CANONICAL_NOTE = (
+    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
+    "was relaxed or could not be met. The reasons are listed beside this note; every number "
+    "below is a diagnostic and none may be quoted as the canonical result")
+
+#: How the metadata-bank digest is pre-registered.
+METADATA_BANK_PREREGISTRATION_NOTE = (
+    "compute the digest with `python -m src.localization.meshgrid_report --print-metadata-bank-"
+    "digest --context-manifest <D1> --metadata-root <tree>`, commit the value, and pass it back "
+    "as --expect-metadata-bank-sha256 on every canonical run. The digest's power comes from "
+    "WHEN it is committed, not from where it is computed: registered before the merge exists "
+    "and before any quality is read, it makes an adversarially chosen truth impossible")
 
 #: What to do when the float16 sidecar's recomputed argmax differs from the
 #: row's float32 one.
@@ -356,7 +403,69 @@ def assert_artifact_hashes(binding, plan, context_manifest):
             "n_room_manifests": len(supplied_rooms)}
 
 
-def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None):
+def derive_run_facts(rows):
+    """Re-derive from the ROWS what a merge receipt would otherwise be believed on.
+
+    ``source_rows`` is the engine's per-(receiver, candidate) conditioner-call
+    census. ``merge_shards`` derives it from the G1 plan; here it is derived a
+    second, independent way -- the union of each receiver's own published
+    candidate index lists -- so a receipt that claims a number no row supports is
+    caught (Codex r9c review, B1). The effective batching every row stamps is
+    collected too: a directory assembled from shards run at different
+    ``batch_rows`` would carry a genuine-looking receipt and mixed arithmetic.
+    """
+    unions, pairs, waveforms, batchings = {}, 0, 0, {}
+    for row in rows:
+        indices = row["candidate_indices"]
+        pairs += len(indices)
+        waveforms += len(indices) * int(row["num_samples"])
+        unions.setdefault(str(row["receiver_id"]), set()).update(int(i) for i in indices)
+        stamp = json.dumps(row.get("batching") or {}, sort_keys=True)
+        batchings.setdefault(stamp, []).append(row["query_id"])
+    return {"candidate_query_pairs": int(pairs),
+            "generated_waveforms": int(waveforms),
+            "source_rows": int(sum(len(members) for members in unions.values())),
+            "n_receivers": len(unions),
+            "batching_stamps": {stamp: {"n_rows": len(queries),
+                                        "query_ids": sorted(queries)[:3]}
+                                for stamp, queries in batchings.items()},
+            "note": MERGE_DERIVATION_NOTE}
+
+
+def plan_source_rows(plan, rooms=None):
+    """The G1 plan's own source-row census -- ``merge_shards``'s derivation."""
+    return int(sum(len(group.union)
+                   for room_id in sorted(plan.rooms if rooms is None else rooms)
+                   for group in me.receiver_groups(me.load_room_plan(plan, room_id))))
+
+
+def assert_uniform_batching(rows, advisory):
+    """Every row was produced at ONE batching, and it is the one the run pins.
+
+    ``merge_shards`` makes this check per row, but only a directory that actually
+    went through it has been checked; a hand-assembled one has not (Codex r9c
+    review, B1). Under the engine's own BATCHING_CAVEAT a changed batch shape
+    moves a score by about one float16 ulp, so mixed stamps mean the cells are
+    not comparable by construction.
+    """
+    wanted = {key: (advisory or {}).get(key) for key in me.RUN_BINDING_ADVISORY}
+    stamps = {}
+    for row in rows:
+        stamp = json.dumps(row.get("batching") or {}, sort_keys=True)
+        stamps.setdefault(stamp, []).append(row["query_id"])
+    if len(stamps) > 1:
+        summary = {stamp: len(queries) for stamp, queries in sorted(stamps.items())}
+        raise ValueError(
+            f"the rows were produced at {len(stamps)} different batchings ({summary}); a merged "
+            f"run states ONE. {me.BATCHING_CAVEAT}")
+    found = json.loads(next(iter(stamps)))
+    if found and found != {key: wanted[key] for key in found}:
+        raise ValueError(f"every row is stamped with batching {found} but the published binding "
+                         f"pins {wanted}; the advisory values are not the ones the pass ran at")
+    return {"batching": found, "advisory": wanted, "n_rows": len(rows)}
+
+
+def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None, derived=None):
     """A run presented as the canonical pass carries its census-gated merge.
 
     ``merge_shards`` is where the merge-only gates live -- disjoint declared
@@ -365,6 +474,11 @@ def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None):
     directory can satisfy every per-row check and still have skipped all of
     them, so the merge report is required and re-joined here rather than merely
     hashed if it happens to exist (Codex r9 review, finding 1).
+
+    ``derived`` closes the copyability the r9c review found: a receipt is
+    evidence only once every number in it has been re-derived from the rows, so
+    the caller passes :func:`derive_run_facts` and the receipt must agree with
+    it AND with the G1 plan's own source-row census.
     """
     totals = dict(me.REGISTERED_TOTALS if totals is None else totals)
     path = os.path.join(str(run_dir), "merge_report.json")
@@ -408,6 +522,21 @@ def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None):
         if int(merged_totals.get(name, -1)) != int(wanted):
             reasons.append(f"its {name} census is {merged_totals.get(name)} for a registered "
                            f"{int(wanted)}")
+    # the receipt is only evidence once the rows say the same thing
+    plan_rows = plan_source_rows(plan)
+    if derived is not None:
+        for name in ("candidate_query_pairs", "generated_waveforms", "source_rows"):
+            if int(merged_totals.get(name, -1)) != int(derived[name]):
+                reasons.append(f"it claims {name} = {merged_totals.get(name)} but the rows "
+                               f"themselves yield {derived[name]}")
+        if int(derived["source_rows"]) != plan_rows:
+            reasons.append(f"the rows' per-receiver candidate unions yield "
+                           f"{derived['source_rows']} source rows but the G1 plan yields "
+                           f"{plan_rows}; the two independent derivations disagree")
+    elif int(merged_totals.get("source_rows", -1)) != plan_rows:
+        reasons.append(f"it claims source_rows = {merged_totals.get('source_rows')} but the G1 "
+                       f"plan yields {plan_rows}")
+
     if reasons:
         trailer = f" (and {len(reasons) - 1} more: {reasons[1:3]})" if len(reasons) > 1 else ""
         raise ValueError(f"{path} does not authenticate this directory as the canonical merged "
@@ -417,7 +546,20 @@ def assert_merge_report(run_dir, binding, binding_sha256, plan, totals=None):
             "totals": {name: merged_totals.get(name)
                        for name in ("candidate_query_pairs", "source_rows",
                                     "generated_waveforms")},
-            "source_rows_derived_from": report.get("source_rows_derived_from")}
+            "source_rows_derived_from": report.get("source_rows_derived_from"),
+            "source_rows_from_g1_plan": plan_rows,
+            "source_rows_from_rows": (None if derived is None
+                                      else int(derived["source_rows"])),
+            "receipt_cross_checked_against_rows": derived is not None,
+            "derivation_note": MERGE_DERIVATION_NOTE}
+
+
+def registered_arm(ckpt_sha256):
+    """Which admissible arm a checkpoint digest is, or ``None``."""
+    for arm, digest in REGISTERED_CKPT_SHA256.items():
+        if str(ckpt_sha256) == digest:
+            return arm
+    return None
 
 
 def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False):
@@ -426,10 +568,12 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
     ``assert_row_protocol`` proves every row equals the binding; this proves the
     binding equals the REGISTERED constants -- tau, the K ladder, the sample
     count, the seed, the noise policy, the sampler settings, the conditioning
-    method and readout, plus the artifact digests §1.4 pins (Codex r9 review,
-    finding 6). A deviation refuses unless it is explicitly allowed, and when it
-    is allowed the verdict travels into the report and the markdown so no
-    artifact can keep calling the setting pre-registered.
+    method and readout, the artifact digests §1.4 pins, the dataset config the
+    observed RIRs are loaded through, and the CHECKPOINT, which must be one of
+    the three admissible arms (Planner RULING 1; r9c left any digest passing).
+    A deviation refuses unless it is explicitly allowed, and when it is allowed
+    the verdict travels into the report and the markdown so no artifact can keep
+    calling the setting pre-registered.
     """
     deviations = {}
     for field, wanted in REGISTERED_PROTOCOL.items():
@@ -442,23 +586,27 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
         if binding.get(field) != wanted:
             deviations[field] = {"registered": wanted, "run": binding.get(field)}
 
-    ckpt_pinned = False
-    if expect_ckpt_sha256:
-        ckpt_pinned = True
-        if binding.get("ckpt_sha256") != str(expect_ckpt_sha256):
-            deviations["ckpt_sha256"] = {"registered": str(expect_ckpt_sha256),
-                                         "run": binding.get("ckpt_sha256")}
+    arm = registered_arm(binding.get("ckpt_sha256"))
+    if arm is None:
+        deviations["ckpt_sha256"] = {"registered": dict(REGISTERED_CKPT_SHA256),
+                                     "run": binding.get("ckpt_sha256")}
+    if expect_ckpt_sha256 and binding.get("ckpt_sha256") != str(expect_ckpt_sha256):
+        deviations["ckpt_sha256"] = {"registered": str(expect_ckpt_sha256),
+                                     "run": binding.get("ckpt_sha256")}
     if deviations and not allow_deviation:
         raise ValueError(
             f"the run binding is not the registered protocol: {sorted(deviations)} differ. "
             f"First: {sorted(deviations)[0]} = {deviations[sorted(deviations)[0]]!r}. A report "
-            "over a different tau, K ladder, seed, noise policy, sampler setting, scorer or "
-            "pinned artifact is a SENSITIVITY CHECK, not the canonical R1 result; pass "
-            f"--allow-protocol-deviation to publish it as one. {CKPT_SHA256_NOTE}")
+            "over a different tau, K ladder, seed, noise policy, sampler setting, scorer, "
+            "checkpoint or pinned artifact is a SENSITIVITY CHECK, not the canonical R1 result; "
+            f"pass --allow-protocol-deviation to publish it as one. {CKPT_SHA256_NOTE}")
     return {"is_registered": not deviations, "deviations": deviations,
-            "checked": sorted(list(REGISTERED_PROTOCOL) + list(REGISTERED_ARTIFACT_SHA256)),
+            "checked": sorted(list(REGISTERED_PROTOCOL) + list(REGISTERED_ARTIFACT_SHA256)
+                              + ["ckpt_sha256"]),
             "ckpt_sha256": binding.get("ckpt_sha256"),
-            "ckpt_sha256_pinned": ckpt_pinned,
+            "arm": arm,
+            "registered_arms": dict(REGISTERED_CKPT_SHA256),
+            "ckpt_sha256_pinned": bool(arm is not None or expect_ckpt_sha256),
             "ckpt_sha256_note": CKPT_SHA256_NOTE,
             "deviation_allowed": bool(allow_deviation)}
 
@@ -770,20 +918,57 @@ class TruthResolver:
                                  for query_id, entry in sorted(self.pair_files.items())})
 
 
-def assert_metadata_bank(found, expected=None):
-    """The truths came out of the REGISTERED pair-metadata bank, when one is named.
+def compute_metadata_bank_digest(context_manifest, metadata_root,
+                                 require_manifest_census=True):
+    """The pre-registration entry point: the bank digest, computed on its own.
 
-    Fail-closed about its own strength: with no registered digest the report
-    records what it read and stamps ``pinned = False``, because a digest that
-    authorizes itself authorizes nothing. Supplying the value on a later run is
-    what turns the record into a gate.
+    Deterministic and independent of any run -- it needs only the D1 manifest and
+    the metadata tree -- so the value can be computed and COMMITTED before the
+    merged run exists and before any localization quality has been read. That
+    ordering is the whole argument (Planner RULING 2): the tree is the truth
+    authority and cannot be corroborated from outside, but a digest registered
+    before there are results to choose between makes an adversarially selected
+    truth impossible.
+    """
+    manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
+    records = manifest["records"]
+    resolver = TruthResolver(metadata_root)
+    for record in records:
+        resolver.resolve(record)
+    return {"metadata_bank_sha256": resolver.metadata_bank_digest(),
+            "n_pair_files": len(resolver.pair_files),
+            "n_records": len(records),
+            "context_manifest": str(context_manifest),
+            "context_manifest_sha256": me.file_sha256(context_manifest),
+            "metadata_root": str(metadata_root),
+            "how_to_register": METADATA_BANK_PREREGISTRATION_NOTE,
+            "note": TRUTH_BINDING_NOTE}
+
+
+def assert_metadata_bank(found, expected=None, allow_unpinned=False):
+    """The truths came out of the PRE-REGISTERED pair-metadata bank.
+
+    A canonical report requires ``expected``. Recording the digest and feeding it
+    back on the next run proves stability, not origin (Codex r9c review, B3), so
+    trust-on-first-use is not a canonical mode: without a pre-registered value
+    the caller must say ``allow_unpinned`` and the whole report is stamped
+    non-canonical.
     """
     if expected and str(expected) != str(found):
         raise ValueError(
             f"the pair-metadata bank this report read hashes to {str(found)[:16]}... but the "
             f"registered bank is {str(expected)[:16]}...; the continuous truths behind every "
             "e_loc, every success and every baseline error are not the registered ones")
+    if not expected and not allow_unpinned:
+        raise ValueError(
+            "a canonical report requires the PRE-REGISTERED pair-metadata bank digest, and none "
+            f"was supplied. The bank this run reads hashes to {str(found)}. "
+            f"{METADATA_BANK_PREREGISTRATION_NOTE}. Recording a digest now and feeding it back "
+            "later would prove only that the tree did not change in between, which is why "
+            "trust-on-first-use is not a canonical mode; pass --non-canonical to publish a "
+            "diagnostic instead")
     return {"metadata_bank_sha256": str(found), "pinned": bool(expected),
+            "preregistration_note": METADATA_BANK_PREREGISTRATION_NOTE,
             "note": TRUTH_BINDING_NOTE}
 
 
@@ -869,11 +1054,33 @@ def _stored_prediction(block, aggregator):
         block["mean_prediction_xyz"]
 
 
+def float16_half_ulp(sims):
+    """Half the LARGER gap to either float16 neighbour, per stored sample.
+
+    Round-to-nearest puts the original value inside
+    ``[y - gap_below / 2, y + gap_above / 2]``, and at a binade boundary those
+    two gaps differ by a factor of two. ``np.spacing`` reports only one of them
+    -- the gap away from zero -- which is the larger one for a positive boundary
+    like ``0.5`` and the SMALLER one for a negative boundary like ``-0.5``. Using
+    it alone therefore halves the bound on negative boundaries and refuses honest
+    roundoff (Codex r9c review, M7). Both neighbours are consulted here.
+    """
+    array = np.asarray(sims, dtype=np.float16)
+    if array.size == 0:
+        raise ValueError("a quantization bound needs at least one sample")
+    up = np.abs(np.nextafter(array, np.float16(np.inf)).astype(np.float64)
+                - array.astype(np.float64))
+    down = np.abs(array.astype(np.float64)
+                  - np.nextafter(array, np.float16(-np.inf)).astype(np.float64))
+    return float(0.5 * float(np.maximum(up, down).max()))
+
+
 def float16_quantization_bound(sims, slack=SIDECAR_FLOAT32_SLACK):
     """The most a float16 sidecar can move either registered aggregate.
 
     Round-to-nearest puts every stored sample within half an ulp of the value the
-    engine scored from. Both aggregates are 1-Lipschitz in the sup-norm of their
+    engine scored from (:func:`float16_half_ulp`, which takes the larger of the
+    two adjacent gaps). Both aggregates are 1-Lipschitz in the sup-norm of their
     samples -- the mean obviously, and the log-mean-exp because its gradient is a
     softmax whose weights are non-negative and sum to one -- so the aggregate
     moves by at most that same half-ulp. ``slack`` absorbs the float32 rounding
@@ -883,10 +1090,7 @@ def float16_quantization_bound(sims, slack=SIDECAR_FLOAT32_SLACK):
     sidecar is not a float16 quantization of the similarities the row was scored
     from, which is the absolute check the r9 review found missing (finding 7).
     """
-    array = np.asarray(sims, dtype=np.float16)
-    if array.size == 0:
-        raise ValueError("a quantization bound needs at least one sample")
-    return float(0.5 * float(np.abs(np.spacing(array)).max()) + float(slack))
+    return float(float16_half_ulp(sims) + float(slack))
 
 
 def assert_sidecar_dtype(row, sims):
@@ -1240,9 +1444,17 @@ LATENCY_STAT_NAMES = ("mean_seconds_per_query", "median_seconds_per_query",
 LATENCY_COMPLETENESS_NOTE = (
     "a row whose timings_s is missing one of the five generation components would silently "
     "under-report if the gap were read as a zero, so incomplete rows are NAMED and counted and "
-    "are excluded from the headline aggregate rather than folded into it. n_incomplete and "
-    "missing_components below say exactly which rows and which components; the pooled totals "
-    "cover the complete rows only")
+    "are excluded from the aggregate rather than folded into it. n_incomplete and "
+    "missing_components below say exactly which rows, which components and which rooms; the "
+    "pooled totals cover the complete rows only")
+
+LATENCY_NON_CANONICAL_NOTE = (
+    "NON-CANONICAL LATENCY: at least one row was excluded for a missing timing component, so "
+    "this endpoint is NOT the registered latency of the pass. Excluding rows is not neutral -- "
+    "missingness can be selective (a room, a shard, a slow receiver group) and can bias the "
+    "per-room means or drop a room out of the room-first average entirely (Codex r9c review, "
+    "M8). The exclusions are named per component and per room below; a canonical latency "
+    "endpoint requires every row to carry all five components")
 
 
 def _latency_room_block(bucket):
@@ -1276,15 +1488,21 @@ def latency_report(results, components=ROW_TIMING_COMPONENTS, seed=BOOTSTRAP_SEE
     identical to the shared one, since both come from ``(seed, n, n_rooms)``.
     """
     components = tuple(components)
+    results = list(results)
     by_room, missing_components, incomplete = {}, {}, []
     totals = {name: 0.0 for name in components}
+    rooms_seen = set()
     for result in results:
+        rooms_seen.add(str(result["room_id"]))
         timings = result.get("latency_s") or {}
         absent = [name for name in components if name not in timings]
         if absent:
             for name in absent:
-                entry = missing_components.setdefault(name, {"n_rows": 0, "query_ids": []})
+                entry = missing_components.setdefault(
+                    name, {"n_rows": 0, "query_ids": [], "by_room": {}})
                 entry["n_rows"] += 1
+                entry["by_room"][str(result["room_id"])] = \
+                    entry["by_room"].get(str(result["room_id"]), 0) + 1
                 if len(entry["query_ids"]) < 5:
                     entry["query_ids"].append(result["query_id"])
             incomplete.append({"query_id": result["query_id"], "room_id": result["room_id"],
@@ -1313,9 +1531,15 @@ def latency_report(results, components=ROW_TIMING_COMPONENTS, seed=BOOTSTRAP_SEE
     pairs = int(sum(block["candidate_query_pairs"] for block in per_room.values()))
     waveforms = int(sum(block["generated_waveforms"] for block in per_room.values()))
     rooms_present = sorted(per_room)
-    rooms_dropped = sorted({str(entry["room_id"]) for entry in incomplete} - set(rooms_present))
+    rooms_dropped = sorted(rooms_seen - set(rooms_present))
+    canonical = not incomplete
     return {
+        # a latency endpoint built on a subset of the rows is never a clean
+        # canonical block, however few were dropped (Codex r9c review, M8)
+        "canonical": canonical,
+        "non_canonical_note": None if canonical else LATENCY_NON_CANONICAL_NOTE,
         "n_queries": complete,
+        "n_rows_offered": len(results),
         "n_incomplete": len(incomplete),
         "incomplete_rows": incomplete[:10],
         "missing_components": missing_components,
@@ -1674,7 +1898,8 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
                  baseline_seeds=RANDOM_BASELINE_SEEDS, oracle_tolerance=ORACLE_TOLERANCE,
                  require_manifest_census=True, single_shard=False,
                  expect_ckpt_sha256=None, expect_metadata_bank_sha256=None,
-                 allow_protocol_deviation=False, source_provider=None, on_query=None):
+                 allow_protocol_deviation=False, allow_unpinned_metadata_bank=False,
+                 source_provider=None, on_query=None):
     """Gate the artifacts, then evaluate every query. Returns the raw material.
 
     The gates run first and in full, in this order, and every one of them is a
@@ -1683,15 +1908,22 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     1. the published binding is recomputed from its own content;
     2. the D1 manifest, the G1 report and every room manifest THIS REPORT WAS
        HANDED are the ones the binding pins (``assert_artifact_hashes``);
-    3. the binding is the registered protocol (``assert_registered_protocol``);
-    4. the directory is the census-gated merge of every shard
-       (``assert_merge_report``), unless ``single_shard`` explicitly downgrades
-       the report to a shard-local diagnostic -- which relaxes ONLY that
-       requirement and never a hash join;
-    5. every row and sidecar re-verifies against its own digest;
+    3. the binding is the registered protocol, including the admissible-arm
+       checkpoint registry (``assert_registered_protocol``);
+    4. every row and sidecar re-verifies against its own digest, and every row
+       carries the SAME effective batching, which is the one the run pins
+       (``assert_uniform_batching``);
+    5. the merge receipt is re-derived from the rows -- pairs, waveforms and the
+       per-receiver source-row union -- and must agree with them and with the G1
+       plan (``derive_run_facts`` + ``assert_merge_report``), unless
+       ``single_shard`` explicitly downgrades the report to a shard-local
+       diagnostic, which relaxes ONLY the receipt and never a hash join or a
+       derivation;
     6. the census holds, per room and in total;
     7. the D1 identities, the G1 plan's queries and the published rows are the
-       SAME set, once each (``assert_identity_join``).
+       SAME set, once each (``assert_identity_join``);
+    8. the pair-metadata bank is the PRE-REGISTERED one
+       (``assert_metadata_bank``), which a canonical report requires.
 
     Only then does a single room-major pass compute anything, and inside a room
     every row is authenticated against the G1 plan before that room's first
@@ -1712,12 +1944,16 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     artifacts = assert_artifact_hashes(binding, plan, context_manifest)
     registered = assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
                                             allow_deviation=allow_protocol_deviation)
-    merge = (None if single_shard
-             else assert_merge_report(run_dir, binding, binding_sha, plan, totals=totals))
 
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
     rows = verify_rows(run_dir, binding_sha)
+    # the receipt is checked against the ROWS, so the rows come first now
+    derived = derive_run_facts(rows)
+    batching = assert_uniform_batching(rows, binding.get("advisory"))
+    merge = (None if single_shard
+             else assert_merge_report(run_dir, binding, binding_sha, plan, totals=totals,
+                                      derived=derived))
     census = assert_census(rows, records, totals=totals)
     protocol = assert_row_protocol(rows, binding)
 
@@ -1765,19 +2001,59 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
                 on_query(result)
 
     metadata_bank = assert_metadata_bank(resolver.metadata_bank_digest(),
-                                         expected=expect_metadata_bank_sha256)
+                                         expected=expect_metadata_bank_sha256,
+                                         allow_unpinned=allow_unpinned_metadata_bank)
     results.sort(key=lambda result: int(result["position"]))
     return {"binding": binding, "binding_sha256": binding_sha, "plan": plan,
             "manifest": manifest, "records": records, "rows": rows,
             "rows_by_id": rows_by_id, "plans_by_id": plans_by_id, "results": results,
             "census": census, "protocol": protocol, "artifacts": artifacts,
-            "registered_protocol": registered, "merge": merge,
+            "registered_protocol": registered, "merge": merge, "derived": derived,
+            "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
             "metadata_bank": metadata_bank,
             "truth_vector_checked": source_provider is not None,
             "max_truth_vector_drift_m": (float(max(truth_drift)) if truth_drift else None),
             "max_receiver_drift_m": float(max(receiver_drift)) if receiver_drift else 0.0,
             "baseline_seeds": seeds}
+
+
+def canonical_status(evaluated, report=None):
+    """Whether this is THE registered result, and every reason it is not.
+
+    One place decides it, so the JSON, the markdown and the console can never
+    disagree about whether a number may be quoted as canonical.
+    """
+    reasons = []
+    if evaluated["single_shard"]:
+        reasons.append({"gate": "merge_report",
+                        "why": "the directory publishes no census-gated merge receipt",
+                        "note": SINGLE_SHARD_NOTE})
+    if not evaluated["registered_protocol"]["is_registered"]:
+        reasons.append({"gate": "registered_protocol",
+                        "why": f"the run binding deviates on "
+                               f"{sorted(evaluated['registered_protocol']['deviations'])}",
+                        "note": CKPT_SHA256_NOTE})
+    if not evaluated["metadata_bank"]["pinned"]:
+        reasons.append({"gate": "metadata_bank",
+                        "why": "no pre-registered pair-metadata bank digest was supplied",
+                        "note": METADATA_BANK_PREREGISTRATION_NOTE})
+    if report is not None:
+        if not report["protocol"]["bootstrap"]["is_registered"]:
+            reasons.append({"gate": "bootstrap",
+                            "why": "the room bootstrap is not the pre-registered seed x n",
+                            "note": None})
+        if not report["protocol"]["baseline_seeds_are_registered"]:
+            reasons.append({"gate": "baseline_seeds",
+                            "why": "the random baseline did not run the pre-registered seeds",
+                            "note": None})
+        if not report["latency"]["canonical"]:
+            reasons.append({"gate": "latency_completeness",
+                            "why": f"{report['latency']['n_incomplete']} row(s) lack a timing "
+                                   "component, so the latency endpoint is non-canonical",
+                            "note": LATENCY_NON_CANONICAL_NOTE})
+    return {"canonical": not reasons, "reasons": reasons,
+            "note": None if not reasons else NON_CANONICAL_NOTE}
 
 
 def sidecar_summary(results):
@@ -1875,6 +2151,8 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                                      if os.path.isfile(merge_path) else None)),
             "single_shard": evaluated["single_shard"],
             "single_shard_note": SINGLE_SHARD_NOTE if evaluated["single_shard"] else None,
+            "derived_from_rows": evaluated["derived"],
+            "effective_batching": evaluated["batching"],
         },
         "protocol": {
             "tau": float(evaluated["protocol"]["tau"]),
@@ -1914,6 +2192,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "binding_matches_the_registered_protocol":
                 evaluated["registered_protocol"]["is_registered"],
             "merge_report_gates_applied": not evaluated["single_shard"],
+            "merge_receipt_rederived_from_rows": bool(
+                (evaluated["merge"] or {}).get("receipt_cross_checked_against_rows")),
+            "effective_batching_uniform_and_pinned": True,
             "g1_audit_chain_reverified": True,
             "d1_manifest_stream_and_census_reverified": True,
             "rows_and_sidecars_digest_verified": True,
@@ -1938,6 +2219,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                        "oracle": oracle_crosscheck_summary(results)},
     }
     report["visualization_cases"] = select_visualization_cases(results)
+    # one authority for "may this be quoted as the registered result", read by
+    # the JSON, the markdown and the console alike
+    report["canonical_status"] = canonical_status(evaluated, report)
     return report
 
 
@@ -1979,6 +2263,13 @@ def _sensitivity_banners(report):
     """
     protocol, provenance = report["protocol"], report["provenance"]
     lines = []
+    status = report["canonical_status"]
+    if not status["canonical"]:
+        lines.append(f"> **{status['note']}**")
+        lines.append(">")
+        for reason in status["reasons"]:
+            lines.append(f"> - `{reason['gate']}` — {reason['why']}")
+        lines.append("")
     registered = protocol["registered_protocol"]
     if not registered["is_registered"]:
         lines.append(f"> **SENSITIVITY CHECK, not the registered protocol:** the run binding "
@@ -1999,12 +2290,11 @@ def _sensitivity_banners(report):
         lines.append(f"> **{provenance['single_shard_note']}**")
         lines.append("")
     if not provenance["metadata_bank"]["pinned"]:
-        lines.append(f"> **The pair-metadata bank is RECORDED, not pinned:** it hashes to "
-                     f"`{provenance['metadata_bank']['metadata_bank_sha256']}`. Supply that "
-                     "value as --expect-metadata-bank-sha256 on a later run to turn the record "
-                     "into a gate; until then the continuous truths are authenticated only by "
-                     "the receiver match and the scalar dense-grid oracle, which cannot "
-                     "separate two truths mirrored inside one lattice cell.")
+        lines.append(f"> **NON-CANONICAL — the pair-metadata bank is not PRE-REGISTERED:** it "
+                     f"hashes to `{provenance['metadata_bank']['metadata_bank_sha256']}`. "
+                     "Recording it here and feeding it back later would prove only that the tree "
+                     "did not change in between, not where the truth came from. "
+                     f"{provenance['metadata_bank']['preregistration_note']}")
         lines.append("")
     if not report["gates"]["truth_vector_checked_against_the_loader"]:
         lines.append("> **The injective truth check did not run here:** no loader stream was "
@@ -2131,10 +2421,14 @@ def render_markdown(report):
 
     latency = report["latency"]
     across = latency["across_rooms"]
-    lines.append("## Latency — room-first")
+    lines.append("## Latency — room-first"
+                 + ("" if latency["canonical"] else " (NON-CANONICAL)"))
     lines.append("")
     lines.append(_stamp(report))
     lines.append("")
+    if not latency["canonical"]:
+        lines.append(f"> **{latency['non_canonical_note']}**")
+        lines.append("")
     lines.append("| statistic | room-first point [95% CI] |")
     lines.append("|---|---|")
     lines.append(f"| mean s / query | {_ci(across['mean_seconds_per_query'], 4)} |")
@@ -2151,11 +2445,22 @@ def render_markdown(report):
     lines.append(f"Pooled (secondary): {format_number(latency['pooled']['seconds_per_candidate'] * 1e3, 4)}"
                  f" ms / candidate over {latency['n_queries']:,} complete rows.")
     if latency["n_incomplete"]:
-        named = {name: block["n_rows"]
-                 for name, block in latency["missing_components"].items()}
         lines.append("")
-        lines.append(f"> **{latency['n_incomplete']:,} row(s) are missing a timing component "
-                     f"and are excluded from the numbers above:** {named}. First offenders: "
+        lines.append(f"**{latency['n_incomplete']:,} of {latency['n_rows_offered']:,} row(s) "
+                     f"were excluded for a missing timing component:**")
+        lines.append("")
+        lines.append("| component | rows missing it | by room |")
+        lines.append("|---|---|---|")
+        for name, block in sorted(latency["missing_components"].items()):
+            by_room = ", ".join(f"{room} x{count}"
+                                for room, count in sorted(block["by_room"].items()))
+            lines.append(f"| {name} | {block['n_rows']:,} | {by_room} |")
+        lines.append("")
+        if latency["rooms_without_a_complete_row"]:
+            lines.append(f"Rooms with NO complete row (dropped from the room-first average): "
+                         f"{latency['rooms_without_a_complete_row']}")
+            lines.append("")
+        lines.append(f"First offenders: "
                      f"{[entry['query_id'] for entry in latency['incomplete_rows'][:3]]}. "
                      f"{latency['completeness_note']}")
     lines.append("")
@@ -2254,8 +2559,15 @@ def write_report(out_dir, report, case_payload):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--run-dir", required=True,
-                        help="the MERGED I1 run directory (rows/, sidecars, run_binding.json)")
+    parser.add_argument("--run-dir", default=None,
+                        help="the MERGED I1 run directory (rows/, sidecars, run_binding.json). "
+                             "Required for a report; omitted by "
+                             "--print-metadata-bank-digest, which needs no run")
+    parser.add_argument("--print-metadata-bank-digest", action="store_true",
+                        help="PRE-REGISTRATION MODE: compute the pair-metadata bank digest from "
+                             "--context-manifest and --metadata-root, print it and exit. Commit "
+                             "the value BEFORE the merged run exists, then pass it back as "
+                             "--expect-metadata-bank-sha256 on every canonical run")
     parser.add_argument("--audit-report",
                         default=os.path.join("outputs_loc", "exp22", "g1_audit",
                                              "geometry_audit_report.json"))
@@ -2265,7 +2577,9 @@ def parse_args(argv=None):
     parser.add_argument("--metadata-root",
                         default=os.path.join("AcousticRooms", "metadata"),
                         help="the dataset metadata root the continuous truth is read from")
-    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--out-dir", default=None,
+                        help="where the report is published; required unless "
+                             "--print-metadata-bank-digest")
     parser.add_argument("--bootstrap-seed", type=int, default=BOOTSTRAP_SEED)
     parser.add_argument("--n-boot", type=int, default=BOOTSTRAP_N)
     parser.add_argument("--baseline-seeds", type=int, nargs="+",
@@ -2278,12 +2592,17 @@ def parse_args(argv=None):
                              "artifact-hash joins, the identity join and every digest still "
                              "apply, and the artifact is stamped as non-canonical")
     parser.add_argument("--expect-ckpt-sha256", default=None,
-                        help="enforce the run binding's ckpt_sha256 against this value; without "
-                             "it the digest is recorded and ckpt_sha256_pinned is false")
+                        help="narrow the admissible checkpoint to exactly this digest; by "
+                             "default any of the three registered arms is accepted")
     parser.add_argument("--expect-metadata-bank-sha256", default=None,
-                        help="enforce the pair-metadata bank digest this report reads the "
-                             "continuous truths out of; without it the digest is recorded and "
-                             "the truths are not pinned against a registered bank")
+                        help="the PRE-REGISTERED pair-metadata bank digest the continuous truths "
+                             "must come out of. Required for a canonical report; obtain it with "
+                             "--print-metadata-bank-digest and commit it before any result "
+                             "exists")
+    parser.add_argument("--non-canonical", action="store_true",
+                        help="publish a diagnostic without a pre-registered metadata-bank "
+                             "digest. Trust-on-first-use is not a canonical mode, so the report "
+                             "and the markdown are stamped NON-CANONICAL throughout")
     parser.add_argument("--allow-protocol-deviation", action="store_true",
                         help="publish even though the run binding is not the registered "
                              "protocol; the report and the markdown are then stamped as a "
@@ -2303,6 +2622,18 @@ def validate_args(args):
     published artifacts stop calling the setting pre-registered (Codex r9 review,
     finding 6).
     """
+    if args.print_metadata_bank_digest:
+        if args.run_dir or args.out_dir:
+            print("NOTE: --print-metadata-bank-digest needs neither --run-dir nor --out-dir; "
+                  "they are ignored")
+        return True
+    for name in ("run_dir", "out_dir"):
+        if not getattr(args, name):
+            _refuse(f"--{name.replace('_', '-')} is required to publish a report")
+    if not args.expect_metadata_bank_sha256 and not args.non_canonical:
+        _refuse("a canonical report requires the PRE-REGISTERED pair-metadata bank digest. "
+                f"{METADATA_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to publish a "
+                "diagnostic instead")
     deviating = []
     if int(args.bootstrap_seed) != BOOTSTRAP_SEED or int(args.n_boot) != BOOTSTRAP_N:
         deviating.append(f"the bootstrap ({args.bootstrap_seed} x {args.n_boot} vs the "
@@ -2324,6 +2655,14 @@ def validate_args(args):
 def main(argv=None):
     args = parse_args(argv)
     validate_args(args)
+    if args.print_metadata_bank_digest:
+        verdict = compute_metadata_bank_digest(args.context_manifest, args.metadata_root)
+        print(json.dumps(jsonable(verdict), indent=2, sort_keys=True))
+        print(f"\nmetadata_bank_sha256 = {verdict['metadata_bank_sha256']}")
+        print(f"  over {verdict['n_pair_files']:,} pair files for "
+              f"{verdict['n_records']:,} registered queries")
+        print(f"\n{METADATA_BANK_PREREGISTRATION_NOTE}")
+        return 0
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
     print(f"SUBSET: {SUBSET_LABEL}")
     if args.single_shard:
@@ -2335,7 +2674,8 @@ def main(argv=None):
                              single_shard=args.single_shard,
                              expect_ckpt_sha256=args.expect_ckpt_sha256,
                              expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
-                             allow_protocol_deviation=args.allow_protocol_deviation)
+                             allow_protocol_deviation=args.allow_protocol_deviation,
+                             allow_unpinned_metadata_bank=args.non_canonical)
     print(f"gates passed: binding {evaluated['binding_sha256'][:12]}..., "
           f"{evaluated['census']['n_queries']:,} queries / "
           f"{evaluated['census']['n_rooms']} rooms, identity join over "
@@ -2351,6 +2691,14 @@ def main(argv=None):
                                {r["query_id"]: r for r in evaluated["results"]},
                                args.run_dir, evaluated["plan"])
     published = write_report(args.out_dir, report, cases)
+
+    status = report["canonical_status"]
+    if status["canonical"]:
+        print("\nCANONICAL: every registered gate passed")
+    else:
+        print(f"\n{status['note']}")
+        for reason in status["reasons"]:
+            print(f"  - {reason['gate']}: {reason['why']}")
 
     headline = report["metrics"][HEADLINE_AGGREGATOR][str(HEADLINE_K)]["across_rooms"]
     print(f"\nHEADLINE ({HEADLINE_AGGREGATOR}, K={HEADLINE_K}), room-first over "
