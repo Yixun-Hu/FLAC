@@ -41,7 +41,10 @@ Everything that decides a number is still gated before it is computed: the
 published run binding must hash to its own content and agree with this control's
 inputs, every query's context draw must re-verify against the frozen D1 manifest
 (``meshgrid_engine.verify_context_record``), the pair metadata's receiver must be
-the G1 manifest's receiver, and the row set must be exactly the registered
+the G1 manifest's receiver, the dense-grid oracle re-derived from that room's
+candidate block must equal the one G1 published -- which is what pins the
+continuous truth this control measures its own errors against
+(:func:`assert_grid_oracle`) -- and the result set must be exactly the registered
 census. Ground truth is resolved post hoc from the dataset's own pair metadata
 through the SAME seam the r9 report uses
 (``meshgrid_report.TruthResolver``) -- there is no second resolver -- and the
@@ -569,27 +572,50 @@ def evaluate_bank_query(entries, sims, truth, *, query_id, room_id, position, re
 # --------------------------------------------------------------------------- #
 # walking the registered stream
 # --------------------------------------------------------------------------- #
-def query_geometry(plan):
-    """``{query_id: receiver + dense-grid oracle}`` from the verified G1 audit.
+def query_index(room_plan):
+    """``{query_id: QueryPlan}`` for one room, refusing a duplicated identity.
 
-    Only scalars are kept: a room's candidate manifest is up to 137 MB of index
-    lists, and this control needs the receiver it must agree with and the
-    dense-grid oracle it reports as a contrast -- not the coordinates.
+    A G1 manifest that named one query twice would silently decide which
+    receiver and which oracle the control checked against, so the duplicate is a
+    refusal rather than a last-one-wins.
     """
-    geometry = {}
-    for room_id in sorted(plan.rooms):
-        room_plan = me.load_room_plan(plan, room_id)
-        for query in room_plan.queries:
-            geometry[query.query_id] = {
-                "room_id": str(query.room_id), "position": int(query.position),
-                "receiver_id": str(query.receiver_id),
-                "receiver_xyz": np.asarray(query.receiver_xyz, dtype=np.float64),
-                "e_oracle_grid": float(query.oracle),
-                "n_grid_candidates": int(query.n_candidates)}
-    return geometry
+    index = {}
+    for query in room_plan.queries:
+        if query.query_id in index:
+            raise ValueError(f"{room_plan.room_id}: the candidate manifest names "
+                             f"{query.query_id!r} twice; the control cannot tell which entry "
+                             "authenticates the query")
+        index[query.query_id] = query
+    return index
 
 
-def run_retrieval(embedder, stream, records, geometry, *, metadata_root, dataset_root,
+def assert_grid_oracle(query, truth, tolerance=mr.ORACLE_TOLERANCE):
+    """The truth this control resolved is the one G1 measured against this grid.
+
+    The continuous truth is not pinned by any artifact -- the engine is
+    structurally unable to read it and G1 publishes only the oracle DISTANCE --
+    so it is authenticated the same way the r9 report and the off-grid probe
+    authenticate it: re-derive ``min_c ||c - x*_s||`` from the room's candidate
+    block and require it to equal the value the audit published. Be precise about
+    the strength of that check: the oracle distance is a scalar and is therefore
+    NOT injective, so it catches a truth that moved off the query's own
+    neighbourhood, not every possible substitution (Codex r9 review, finding 3).
+    Without it, an edited ``src_loc`` would silently move every e_loc here.
+    """
+    coordinates = np.asarray(query.coordinates, dtype=np.float64)
+    truth = np.asarray(truth, dtype=np.float64).reshape(3)
+    derived = float(np.linalg.norm(coordinates - truth.reshape(1, 3), axis=1).min())
+    delta = abs(derived - float(query.oracle))
+    if delta > float(tolerance):
+        raise ValueError(
+            f"{query.query_id}: the dense-grid oracle re-derived from the G1 candidate block "
+            f"and the pair metadata is {derived:.9f} m but the manifest published "
+            f"{float(query.oracle):.9f} m (|delta| = {delta:.3g} > {float(tolerance):g}); the "
+            "control is not looking at the same query the audit measured")
+    return delta
+
+
+def run_retrieval(embedder, stream, records, plan, *, metadata_root, dataset_root,
                   bank_rule=REGISTERED_BANK_RULE, tau=me.TAU, radii=SUCCESS_RADII,
                   reader=read_rir, on_record=None):
     """Walk the registered stream and score every query against its sparse bank.
@@ -599,12 +625,21 @@ def run_retrieval(embedder, stream, records, geometry, *, metadata_root, dataset
     complete pass -- and because verifying that draw
     (``meshgrid_engine.verify_context_record``) is what proves this control is
     looking at the registered stream rather than a re-materialized one.
+
+    The G1 plan is read ROOM BY ROOM as the stream reaches each room (the D1
+    stream is room-contiguous, which ``assert_room_blocks`` asserts rather than
+    assumes), so the largest room's 137 MB of index lists is held once and
+    released -- and every query is authenticated against its own room's
+    candidate block: its receiver, and the dense-grid oracle that pins the truth
+    this control resolved.
     """
     if bank_rule not in BANK_RULES:
         raise ValueError(f"unknown bank rule {bank_rule!r} (expected one of {list(BANK_RULES)})")
     by_position = {int(record["position"]): record for record in records}
+    me.assert_room_blocks(records)
     resolver = mr.TruthResolver(metadata_root)
     rooms, embeddings, results, seen = {}, {}, [], set()
+    current_room, current_index, finished_rooms, oracle_deltas = None, {}, set(), []
 
     for position, (obs_wav, raw_md) in enumerate(stream):
         record = by_position.get(position)
@@ -613,35 +648,52 @@ def run_retrieval(embedder, stream, records, geometry, *, metadata_root, dataset
         md = me.GuardedMetadata(raw_md)
         me.verify_context_record(md, record, position)
         query_id = str(record["query_id"])
+        room_id = str(record["room_id"])
         if query_id in seen:
             raise ValueError(f"{query_id} arrives twice in the stream; a control scores each "
                              "query once")
-        if query_id not in geometry:
+        if room_id != current_room:
+            if room_id in finished_rooms:
+                raise ValueError(f"room {room_id!r} reappears in the stream after it was left; "
+                                 "the D1 stream is room-contiguous and the control walks it once")
+            if current_room is not None:
+                finished_rooms.add(current_room)
+            if room_id not in plan.rooms:
+                raise ValueError(f"the G1 audit publishes no candidate manifest for room "
+                                 f"{room_id!r}; the control joins one audit to one manifest")
+            current_room = room_id
+            current_index = query_index(me.load_room_plan(plan, room_id))
+        if query_id not in current_index:
             raise ValueError(f"{query_id} is in the D1 manifest but not in the G1 audit's "
-                             "queries; the control joins one audit to one manifest")
-        grid = geometry[query_id]
+                             f"queries for {room_id!r}; the control joins one audit to one "
+                             "manifest")
+        query = current_index[query_id]
         if obs_wav is None:
             raise ValueError(f"stream position {position}: the loader returned no observed "
                              "waveform; there is nothing to retrieve against")
 
         metadata_receiver, truth = resolver.resolve(record)
-        mr.assert_receiver_matches(query_id, metadata_receiver, grid["receiver_xyz"])
-        bank = build_query_bank(metadata_root, dataset_root, str(record["room_id"]),
+        mr.assert_receiver_matches(query_id, metadata_receiver, query.receiver_xyz)
+        oracle_deltas.append(assert_grid_oracle(query, truth))
+        grid = {"e_oracle_grid": float(query.oracle),
+                "n_grid_candidates": int(query.n_candidates)}
+        bank = build_query_bank(metadata_root, dataset_root, room_id,
                                 str(record["relpath"]), rule=bank_rule, cache=rooms)
         # the truth resolver and the bank read the same pair file through two
         # different listings (find_pair_metadata / pair_index); this asserts they
         # agree, so the bank is built at the receiver the truth was resolved at
-        mr.assert_receiver_matches(query_id, bank["receiver_xyz"], grid["receiver_xyz"])
+        mr.assert_receiver_matches(query_id, bank["receiver_xyz"], query.receiver_xyz)
 
         obs_embedding = torch.as_tensor(embedder(torch.as_tensor(obs_wav)))[0].float()
         sims = bank_sims(obs_embedding,
                          embed_bank(embedder, bank["entries"], reader=reader,
                                     cache=embeddings))
         result = evaluate_bank_query(
-            bank["entries"], sims, truth, query_id=query_id, room_id=str(record["room_id"]),
-            position=position, receiver_id=grid["receiver_id"],
-            receiver_xyz=grid["receiver_xyz"], tau=tau, radii=radii, bank=bank, grid=grid,
+            bank["entries"], sims, truth, query_id=query_id, room_id=room_id,
+            position=position, receiver_id=query.receiver_id,
+            receiver_xyz=query.receiver_xyz, tau=tau, radii=radii, bank=bank, grid=grid,
             bank_rule=bank_rule)
+        result["e_oracle_grid_delta"] = float(oracle_deltas[-1])
         results.append(result)
         seen.add(query_id)
         if on_record is not None:
@@ -745,6 +797,21 @@ def sparse_oracle_report(results, draws=None, **bootstrap):
     return block
 
 
+def grid_oracle_crosscheck(results):
+    """How far the truth-pinning oracle re-derivation sat from what G1 published."""
+    deltas = np.asarray([float(result.get("e_oracle_grid_delta", 0.0)) for result in results],
+                        dtype=np.float64)
+    return {"n_queries": int(deltas.size), "max_abs_delta_m": float(deltas.max()),
+            "mean_abs_delta_m": float(deltas.mean()),
+            "tolerance_m": float(mr.ORACLE_TOLERANCE),
+            "note": "the control re-derives the DENSE-GRID oracle min_c ||c - x*_s|| from the "
+                    "G1 candidate block and the pair metadata's src_loc and requires it to "
+                    "equal the value the audit published. That is what pins the continuous "
+                    "truth this control measures its own errors against; it is a scalar and "
+                    "therefore not injective, so it catches a truth that moved, not every "
+                    "possible substitution"}
+
+
 def oracle_contrast(results):
     """Sparse-bank oracle vs the dense-grid oracle, side by side and named."""
     paired = [(float(r["e_oracle_sparse"]), float(r["e_oracle_grid"])) for r in results
@@ -842,11 +909,17 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
                          "rec_node) identity (meshgrid_engine.argmax_by_global_index over the "
                          "bank's identity order)",
             "bank_rule": bank["rule"],
+            # stated, not implied: an artifact may not call a setting
+            # pre-registered when it is not (Codex r9 review, finding 6)
+            "bank_rule_is_registered": bool(bank["rule"] == REGISTERED_BANK_RULE),
             "success_radii_m": [float(r) for r in radii],
             "aggregation": "room-first, then averaged over rooms (§2)",
             "bootstrap": {"seed": int(bootstrap_seed), "n_boot": int(n_boot),
                           "alpha": float(alpha), "unit": "room",
-                          "method": "percentile (linear interpolation)"},
+                          "method": "percentile (linear interpolation)",
+                          "is_registered": bool(int(bootstrap_seed) == BOOTSTRAP_SEED
+                                                and int(n_boot) == BOOTSTRAP_N),
+                          "registered": {"seed": BOOTSTRAP_SEED, "n_boot": BOOTSTRAP_N}},
         },
         "census": census,
         "gates": {
@@ -855,6 +928,7 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
             "binding_checked_against_published_run": bool(context.get("gate") is not None),
             "d1_context_draw_reverified_per_query": True,
             "pair_metadata_receiver_matches_g1": True,
+            "grid_oracle_rederived_pins_the_truth": True,
             "bank_excludes_the_query_own_pair": True,
             "bank_excludes_any_entry_on_the_target": True,
             "census_is_the_registered_subset": True,
@@ -867,6 +941,7 @@ def build_report(results, context, *, radii=SUCCESS_RADII, bootstrap_seed=BOOTST
         },
         "sparse_oracle": sparse_oracle_report(results, draws=draws, **bootstrap),
         "oracle_contrast": oracle_contrast(results),
+        "crosscheck": {"grid_oracle": grid_oracle_crosscheck(results)},
         "bank": bank,
         "results": results,
     }
@@ -953,6 +1028,15 @@ def render_markdown(report):
                  f"{protocol['bootstrap']['n_boot']:,} room resamples at seed "
                  f"{protocol['bootstrap']['seed']}. The oracle-normalized rows are measured "
                  f"against the SPARSE-BANK oracle.")
+    if not protocol["bootstrap"]["is_registered"]:
+        lines.append("")
+        lines.append(f"> **SENSITIVITY CHECK, not the registered bootstrap:** the pre-registered "
+                     f"settings are seed {protocol['bootstrap']['registered']['seed']} x "
+                     f"{protocol['bootstrap']['registered']['n_boot']:,} resamples.")
+    if not protocol["bank_rule_is_registered"]:
+        lines.append("")
+        lines.append(f"> **SENSITIVITY CHECK, not the registered bank:** the registered rule is "
+                     f"`{REGISTERED_BANK_RULE}`.")
     lines.append("")
 
     lines.append("## Per room")
@@ -1193,9 +1277,8 @@ def main(argv=None):
     def embedder(wavs):
         return embed_rirs(agree.model, wavs, args.device, readout=me.SCORER_READOUT)
 
-    geometry = query_geometry(plan)
     print(f"G1 audit re-verified: {len(plan.rooms)} rooms, branch {plan.branch}, "
-          f"{len(geometry)} queries")
+          f"{plan.n_queries} queries")
 
     loader, facts = mq.build_release_stack(args.dataset_config, args.model_config)
     me.assert_release_rng_state(manifest)
@@ -1210,7 +1293,7 @@ def main(argv=None):
                   f"{record['n_candidates']}  e_loc {record['e_loc']:.3f} m "
                   f"(sparse oracle {record['e_oracle_sparse']:.3f} m)", flush=True)
 
-    results = run_retrieval(embedder, iter_stream_items(loader), records, geometry,
+    results = run_retrieval(embedder, iter_stream_items(loader), records, plan,
                             metadata_root=args.metadata_root, dataset_root=args.dataset_root,
                             bank_rule=args.bank_rule, tau=args.tau, on_record=_announce)
     report = build_report(results, {

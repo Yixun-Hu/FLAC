@@ -125,7 +125,6 @@ def build_control_fixture(tmp_path):
     fixture["dataset_root"] = _write_dataset_tree(tmp_path, fixture["metadata_root"])
     fixture["embedder"] = fx.SyntheticEngine()._embed
     fixture["reader"] = FakeReader()
-    fixture["geometry"] = rc.query_geometry(fixture["plan"])
     fixture["out_dir"] = str(tmp_path / "retrieval")
     fixture["totals"] = rc.retrieval_totals(rooms=2, queries=4)
     return fixture
@@ -133,8 +132,10 @@ def build_control_fixture(tmp_path):
 
 def run_control(fixture, **kwargs):
     kwargs.setdefault("reader", fixture["reader"])
-    return rc.run_retrieval(fixture["embedder"], list(fixture["items"]), fixture["records"],
-                            fixture["geometry"], metadata_root=fixture["metadata_root"],
+    kwargs.setdefault("records", fixture["records"])
+    records = kwargs.pop("records")
+    return rc.run_retrieval(fixture["embedder"], list(fixture["items"]), records,
+                            fixture["plan"], metadata_root=fixture["metadata_root"],
                             dataset_root=fixture["dataset_root"], **kwargs)
 
 
@@ -467,7 +468,7 @@ def test_the_control_refuses_a_truncated_stream(tmp_path):
     fixture = build_control_fixture(tmp_path)
     with pytest.raises(ValueError, match="the stream ended before"):
         rc.run_retrieval(fixture["embedder"], list(fixture["items"])[:2], fixture["records"],
-                         fixture["geometry"], metadata_root=fixture["metadata_root"],
+                         fixture["plan"], metadata_root=fixture["metadata_root"],
                          dataset_root=fixture["dataset_root"], reader=fixture["reader"])
 
 
@@ -482,13 +483,57 @@ def test_the_control_refuses_a_receiver_that_is_not_the_manifests(tmp_path):
         run_control(fixture)
 
 
+def test_the_control_refuses_a_truth_whose_grid_oracle_is_not_the_manifests(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    path = os.path.join(fixture["metadata_root"], "A", "A_idx_1", "S001_R002.json")
+    payload = json.load(open(path))
+    payload["src_loc"] = [1.11, 1.11, 0.61]           # the truth moves off its cell
+    with open(path, "w") as handle:
+        json.dump(payload, handle)
+    with pytest.raises(ValueError, match="not looking at the same query"):
+        run_control(fixture)
+
+
+def test_a_g1_room_manifest_that_names_one_query_twice_is_refused(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    room_plan = me.load_room_plan(fixture["plan"], "A/A_idx_1")
+    assert set(rc.query_index(room_plan)) == {q.query_id for q in room_plan.queries}
+    room_plan.queries = room_plan.queries + [room_plan.queries[0]]
+    with pytest.raises(ValueError, match="twice"):
+        rc.query_index(room_plan)
+
+
+def test_a_room_the_audit_does_not_publish_is_refused(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    records = [dict(record) for record in fixture["records"]]
+    records[3]["room_id"] = "C/C_idx_3"
+    with pytest.raises(ValueError, match="no candidate manifest for room"):
+        run_control(fixture, records=records)
+
+
+def test_a_query_the_audit_does_not_publish_in_that_room_is_refused(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    records = [dict(record) for record in fixture["records"]]
+    records[3]["room_id"] = "A/A_idx_1"               # B's query, claimed for room A
+    with pytest.raises(ValueError, match="not in the G1 audit's queries"):
+        run_control(fixture, records=records)
+
+
+def test_a_stream_whose_rooms_are_not_contiguous_is_refused(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    records = [dict(record) for record in fixture["records"]]
+    records[1]["room_id"] = "B/B_idx_2"               # A at 0 and 2, B at 1 and 3
+    with pytest.raises(ValueError, match="not contiguous"):
+        run_control(fixture, records=records)
+
+
 def test_the_control_refuses_a_context_draw_that_is_not_the_registered_one(tmp_path):
     fixture = build_control_fixture(tmp_path)
     records = [dict(record) for record in fixture["records"]]
     records[0]["context_audio_sha256"] = ["0" * 64] * 8
     with pytest.raises(ValueError, match="context audio digest"):
         rc.run_retrieval(fixture["embedder"], list(fixture["items"]), records,
-                         fixture["geometry"], metadata_root=fixture["metadata_root"],
+                         fixture["plan"], metadata_root=fixture["metadata_root"],
                          dataset_root=fixture["dataset_root"], reader=fixture["reader"])
 
 
@@ -503,7 +548,7 @@ def test_the_control_never_reads_the_held_out_target_from_the_loader(tmp_path):
 
     items = [(wav, Tripwire(md)) for wav, md in fixture["items"]]
     results = rc.run_retrieval(fixture["embedder"], items, fixture["records"],
-                               fixture["geometry"], metadata_root=fixture["metadata_root"],
+                               fixture["plan"], metadata_root=fixture["metadata_root"],
                                dataset_root=fixture["dataset_root"], reader=fixture["reader"])
     assert len(results) == 4
 
@@ -512,7 +557,7 @@ def test_a_query_with_no_observation_is_refused(tmp_path):
     fixture = build_control_fixture(tmp_path)
     items = [(None, md) for _wav, md in fixture["items"]]
     with pytest.raises(ValueError, match="no observed waveform"):
-        rc.run_retrieval(fixture["embedder"], items, fixture["records"], fixture["geometry"],
+        rc.run_retrieval(fixture["embedder"], items, fixture["records"], fixture["plan"],
                          metadata_root=fixture["metadata_root"],
                          dataset_root=fixture["dataset_root"], reader=fixture["reader"])
 
@@ -623,6 +668,38 @@ def test_the_sparse_oracle_block_is_labelled_as_the_banks_own(tmp_path):
     contrast = report["oracle_contrast"]
     assert contrast["n_queries"] == 4
     assert "not comparable" in contrast["note"]
+
+
+def test_the_report_records_the_oracle_crosscheck_that_pins_the_truth(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    report = rc.build_report(results, fixture, n_boot=64)
+    crosscheck = report["crosscheck"]["grid_oracle"]
+    assert crosscheck["n_queries"] == 4
+    assert crosscheck["max_abs_delta_m"] <= mr.ORACLE_TOLERANCE
+    assert crosscheck["tolerance_m"] == mr.ORACLE_TOLERANCE
+    assert "not injective" in crosscheck["note"]
+    assert report["gates"]["grid_oracle_rederived_pins_the_truth"] is True
+
+
+def test_an_unregistered_setting_is_labelled_a_sensitivity_check(tmp_path):
+    fixture = build_control_fixture(tmp_path)
+    results = run_control(fixture)
+    registered = rc.build_report(results, fixture, n_boot=rc.BOOTSTRAP_N)
+    assert registered["protocol"]["bootstrap"]["is_registered"] is True
+    assert registered["protocol"]["bank_rule_is_registered"] is True
+    assert "SENSITIVITY CHECK" not in rc.render_markdown(registered)
+
+    other = rc.build_report(results, fixture, n_boot=64, bootstrap_seed=7)
+    assert other["protocol"]["bootstrap"]["is_registered"] is False
+    assert other["protocol"]["bootstrap"]["registered"] == {"seed": rc.BOOTSTRAP_SEED,
+                                                            "n_boot": rc.BOOTSTRAP_N}
+    assert "SENSITIVITY CHECK, not the registered bootstrap" in rc.render_markdown(other)
+
+    released = rc.build_report([dict(r, bank_rule="released_eligible_pool") for r in results],
+                               fixture, n_boot=64)
+    assert released["protocol"]["bank_rule_is_registered"] is False
+    assert "SENSITIVITY CHECK, not the registered bank" in rc.render_markdown(released)
 
 
 def test_the_census_refuses_a_partial_pass(tmp_path):
