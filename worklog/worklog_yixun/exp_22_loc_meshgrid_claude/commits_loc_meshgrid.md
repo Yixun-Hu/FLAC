@@ -321,3 +321,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `60d7a5d` exp_22 r9k: one read per pair file; verdict cannot outrank walk gates
 - `926093a` exp_22 r9j2: observation PINNED by pre-registered digest (print/expect-observation-bank-sha256)
 - `a94346d` `dd715f0` exp_22 r9m: rows/sidecars/probe-truth/observation all parsed from verified buffers (read-once everywhere); frozen digests re-verified unchanged
+- `4315a91` `2d1034c` exp_22 r9m2: byte-level artifact snapshot; census keeps what it verified, walk held to it

@@ -130,3 +130,6 @@ All three r9l items closed: probe truth from frozen-bank-verified buffers; obser
 
 ## Codex r9n: REJECT, ONE blocker (2026-08-26 ~03:30 EDT)
 Items 1-2 RESOLVED. Sole remaining: probe CLI census verifies-then-discards rows/sidecars; the walk reopens them — a coherent row+sidecar replacement between phases can pass. r9m2 dispatched (bind walk reads to the census snapshot digests).
+
+## r9m2 delivered (2026-08-26 ~04:00 EDT)
+Last blocker closed: census captures per-artifact BYTE digests (not self-recomputable claims-digests — proven by an exploit test that a coherent swap verifies against itself); every walk read bound to the snapshot. Suite **3,415 / 11 / 0** (slice 508/1). Frozen digests unchanged. Verify r9o launched.
