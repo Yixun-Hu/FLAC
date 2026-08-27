@@ -1,0 +1,14 @@
+diff --git a/src/lib/geogram/basic/algorithm.h b/src/lib/geogram/basic/algorithm.h
+index 5d776a5e..cfbe3769 100644
+--- a/src/lib/geogram/basic/algorithm.h
++++ b/src/lib/geogram/basic/algorithm.h
+@@ -208,8 +208,7 @@ namespace GEO {
+     inline void random_shuffle(
+         const ITERATOR& begin, const ITERATOR& end
+     ) {
+-\tstd::random_device rng;
+-\tstd::mt19937 urng(rng());
++\tstd::mt19937 urng(42);
+ \tstd::shuffle(begin, end, urng);
+     }
+ 

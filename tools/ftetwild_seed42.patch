@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 20df19a..af7826b 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -47,6 +47,7 @@ option(FLOAT_TETWILD_ENABLE_TBB "Enable TBB" ON)
+ option(FLOAT_TETWILD_USE_FLOAT "Use floats instead of double" OFF)
+ option(FLOAT_TETWILD_WITH_SANITIZERS "Use sanitizers" OFF)
+ option(FLOAT_TETWILD_WITH_EXACT_ENVELOPE "Use exact envelope" OFF)
++option(FLOAT_TETWILD_BUILD_TESTS "Build fTetWild unit tests" ON)
+ 
+ # Sanitizer options
+ option(SANITIZE_ADDRESS "Sanitize Address" OFF)
+@@ -176,7 +177,7 @@ endif()
+ add_subdirectory(src)
+ 
+ # Compile extras only if this is a top-level project
+-if(FLOAT_TETWILD_TOPLEVEL_PROJECT)
++if(FLOAT_TETWILD_TOPLEVEL_PROJECT AND FLOAT_TETWILD_BUILD_TESTS)
+     # Unit tests
+     include(CTest)
+     enable_testing()
+diff --git a/src/TriangleInsertion.cpp b/src/TriangleInsertion.cpp
+index bc4b168..a67286a 100644
+--- a/src/TriangleInsertion.cpp
++++ b/src/TriangleInsertion.cpp
+@@ -145,8 +145,7 @@ void floatTetWild::sort_input_faces(const std::vector<Vector3>&  input_vertices,
+ 
+     if (mesh.params.not_sort_input)
+         return;
+-    std::random_device rd;  // obtain a random number from hardware
+-    std::mt19937 g(rd());   // seed the generator
++    std::mt19937 g(42);
+ 
+     std::shuffle(sorted_f_ids.begin(), sorted_f_ids.end(), g);
+ 

@@ -86,3 +86,17 @@ Record `ListeningRoom_idx_2` as an upstream geometry-asset omission and exclude 
 ### Consequence
 
 `ListeningRoom_idx_2` accounts for 1,000 of the 6,337 unseen queries. The exp_09 test denominator is therefore exactly **5,337 queries in 16 rooms**. Results must be labeled “mesh-available preflight subset,” not the complete published unseen-room protocol; no other room/query may be removed.
+
+## Query 6 — execute the real-RIR diagnostic upper bound and visualization
+
+### Verbatim
+
+> 做一下诊断上界和对应可视化
+
+### Summary
+
+Execute the already pre-registered sparse/metadata-bank AGREE control on both completed, non-overlapping 64-query pilots. For each held-out observation, use every released real RIR at the same receiver as the candidate bank, replace FLAC-generated waveforms with those real candidate RIRs, preserve the existing nested `K={1,4,8}`, cosine, and `tau=0.1` log-mean-exp score, and visualize the resulting primary-K score field.
+
+### Interpretation guardrail
+
+Runtime inspection and a repeat smoke established that AGREE's VAE acoustic encoder samples a latent even in `eval()` mode. Reusing the target feature as both query and candidate would therefore manufacture a score of one and would not match the experiment's scoring path. The control instead encodes the observation once and independently encodes each real candidate eight times under fixed, role-separated per-query seeds. K=1/4/8 use nested prefixes and the same log-mean-exp implementation as the FLAC arms. Rank-1/error-zero is measured rather than assumed. Report target margin, uncalibrated visualization mass, entropy, and hardest-negative distance, and label this sparse ground-truth-RIR upper bound separately from the dense-grid geometric oracle.

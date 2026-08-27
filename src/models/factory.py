@@ -11,6 +11,11 @@ def create_model_from_config(model_config):
     elif model_type == 'diffusion_cond':
         from .diffusion import create_diffusion_cond_from_config
         return create_diffusion_cond_from_config(model_config)
+    elif model_type == 'few_shot_rir_waveform':
+        from src.baselines.few_shot_rir_waveform import FewShotRIRWaveform
+        config = dict(model_config.get('model', {}))
+        config.setdefault('output_samples', int(model_config['sample_size']))
+        return FewShotRIRWaveform(**config)
     else:
         raise NotImplementedError(f'Unknown model type: {model_type}')
 

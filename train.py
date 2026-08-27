@@ -51,6 +51,37 @@ def construct_trainer(args, strategy, callbacks, logger, checkpoint_dir, val_arg
     """Construct the pl.Trainer from the assembled kwargs (the tested Trainer boundary)."""
     return pl.Trainer(**build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args))
 
+def build_checkpoint_callbacks(args, checkpoint_dir, model_config, has_validation):
+    """Build periodic checkpoints plus reconstruction-selected Few-ShotRIR state."""
+    callbacks = [
+        pl.callbacks.ModelCheckpoint(
+            every_n_train_steps=args.checkpoint_every,
+            dirpath=checkpoint_dir,
+            save_top_k=-1,
+        )
+    ]
+    if model_config.get("model_type") == "few_shot_rir_waveform":
+        if not has_validation:
+            raise ValueError(
+                "Few-ShotRIR training requires a validation dataset for checkpoint selection"
+            )
+        if args.val_every <= 0:
+            raise ValueError(
+                "Few-ShotRIR training requires --val-every > 0 for checkpoint selection"
+            )
+        callbacks.append(
+            pl.callbacks.ModelCheckpoint(
+                monitor="val/reconstruction_loss",
+                mode="min",
+                dirpath=checkpoint_dir,
+                filename="best-{step:08d}",
+                auto_insert_metric_name=False,
+                save_top_k=1,
+                save_last=True,
+            )
+        )
+    return callbacks
+
 def main():
     torch.set_float32_matmul_precision('medium') 
     torch.multiprocessing.set_sharing_strategy('file_system')
@@ -140,7 +171,12 @@ def main():
         logger = None
         checkpoint_dir = args.save_dir if args.save_dir else None
         
-    ckpt_callback = pl.callbacks.ModelCheckpoint(every_n_train_steps=args.checkpoint_every, dirpath=checkpoint_dir, save_top_k=-1)
+    checkpoint_callbacks = build_checkpoint_callbacks(
+        args,
+        checkpoint_dir,
+        model_config,
+        has_validation=val_dl is not None,
+    )
     save_model_config_callback = ModelConfigEmbedderCallback(model_config)
         
     #Combine args and config dicts
@@ -182,7 +218,7 @@ def main():
     trainer = construct_trainer(
         args,
         strategy=strategy,
-        callbacks=[ckpt_callback, exc_callback, save_model_config_callback],
+        callbacks=[*checkpoint_callbacks, exc_callback, save_model_config_callback],
         logger=logger,
         checkpoint_dir=checkpoint_dir,
         val_args=val_args,

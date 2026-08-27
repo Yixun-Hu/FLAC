@@ -75,6 +75,9 @@ def create_training_wrapper_from_config(model_config, model):
             cond_method = training_config.get("cond_method", "vanilla"),
             frame_avg_angles = training_config.get("frame_avg_angles", None),
         )
+    elif model_type == 'few_shot_rir_waveform':
+        from .few_shot_rir_waveform import FewShotRIRWaveformTrainingWrapper
+        return FewShotRIRWaveformTrainingWrapper(model, training_config)
     
     else:
         raise NotImplementedError(f'Unknown model type: {model_type}')
