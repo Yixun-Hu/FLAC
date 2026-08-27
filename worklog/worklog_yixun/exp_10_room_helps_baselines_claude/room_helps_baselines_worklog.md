@@ -106,3 +106,12 @@
 - **Diagnostic accuracy** — The one-query-per-room, three-frequency real-RIR OMP diagnostic had mean localization error `1.22 m` at `K_ctx=1` and `1.56 m` at `K_ctx=8`. These are smoke diagnostics only, not formal localization estimates.
 - **Artifacts** — The completed summary records `run_manifest_sha256=ca0db653a26e2216fa6c8f99f1ed2925a52b72a77c15892f799d5f165f4c7312` under `fem_nine_room_threefreq_seed42_h022_mkl_parallel2`.
 - **Next gate** — Run a bounded all-102-bin preflight before projecting or launching the full-band nine-room subset.
+
+## 2026-08-27T07:40:00-04:00 — Launch recovery of seven missing FEM rooms
+
+- **Authorization** — Yixun reversed the earlier nine-room-only shortcut and instructed that the remaining seven authoritative-geometry rooms be meshed and audited.
+- **Scope** — The missing rooms are Auditorium 1, Cafe 1, MeetingRoom 20/32, Office 10/11, and Restaurants 24. The completed optimized manifest remains the only destination, so every accepted room shares the exact H0.22, edge-utilization, fTetWild-binary, and eight-thread identity already frozen for the first nine rooms.
+- **Resource strategy** — Added `run_fem_h022_missing_meshes.sh`. Two ordinary-room workers run concurrently at eight fTetWild threads each; after they exit, Auditorium and Cafe run sequentially to bound peak memory and working-file storage. Manifest commits remain serialized by the existing advisory lock.
+- **Validation** — Launcher syntax and diff checks passed; the fTetWild binary hash matches the final manifest; targeted meshing/pipeline/solver regression passed (`31 passed`). Pre-launch capacity was approximately `171 GiB` available RAM and `97 GiB` available disk.
+- **Launch** — Detached host PID `1559546` started successfully. Worker A began MeetingRoom 20 and worker B began MeetingRoom 32; the combined log is `fem_h022_missing_meshes.background.log`.
+- **Prior failure context** — MeetingRoom 32 previously excluded one frozen point, Office 11 previously exceeded the surface-to-volume snap tolerance, and the old Auditorium mesh contained disconnected tetrahedral components. The current path retains fail-closed point/surface gates and now selects/audits the dominant connected air component; no prior failed artifact is silently accepted.
