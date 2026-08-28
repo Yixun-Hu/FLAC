@@ -91,3 +91,9 @@ Train tail: 291,210 records at effective batch 64 leaves 10 globally / 5 per ran
 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_launch.sh
 ```
 REGISTERED mode: all recipe values pinned in-script (config FLAC_AR_BFC.json, 40k steps, ckpt 2500, wandb, DDP 32×2 SyncBN bf16-mixed seed 42, no val loader, no resume). Rate-gate baseline 13.94 s/step co-tenant (steps 100–300, ±25% same-tenancy).
+
+## Eval block (34 cells) — LAUNCHED 2026-08-28 12:10 EDT
+```bash
+bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_eval_driver.sh
+```
+DRY_RUN inventory verified 34/34 beforehand; teed to bf_fa_cartesian_2026-08-28_12-10-00_evalblock.log.

@@ -259,3 +259,24 @@ Failure triage per SOP: infra (node/VRAM/co-tenant contention/wandb) → retry/r
 - **Goal** — Evaluate acceptance criterion 3.
 - **Result** — `passed`. Window steps 100→302: 47:06 / 202 steps = **13.99 s/step** vs baseline 13.94 (±25% gate) — PASS. Loss 1.22 @256 mirroring the probe trajectory; gates all passed at launch; no failure signatures. Criteria 1–3 satisfied; 4 (ckpt cadence) verifies at step 2500 (~16:45 EDT... correction: ~9.7 h from 05:50 launch ≈ 15:30 EDT at current pace); 5 verified in the assembled argv at launch.
 - **Next** — Persistent watch (ckpt boundaries + failure signatures + exit). Next human-relevant events: first ckpt ~15:30 EDT; exp12A completion (~Sun night) → expected BFC speedup; 40k ~Tue afternoon → eval block.
+
+## 2026-08-22T15:30:00-04:00 — First boundary checkpoint (step 2500) on cadence; acceptance criterion 4 first evidence
+
+- **Goal / Result** — Monitor reported `epoch=0-step=2500.ckpt` at the expected time (~15:2x EDT); size and pace checked below (appended by the Planner at verification). Criteria 1–3 previously satisfied; 4 now evidenced at its first boundary; run remains healthy.
+- **Next** — Quiet monitoring; expected regime change when exp12A completes (~Sun night).
+
+## 2026-08-23T01:30:00-04:00 — Step-5000 boundary; ETD re-anchored (weekday errata + exp12A's true pace)
+
+- **Goal / Result** — `epoch=1-step=5000.ckpt` at 01:08, 9h42m after the 2500 boundary = 13.98 s/step, dead steady; loss 0.584. **Errata: 08-22 was SATURDAY** (earlier entries said Friday; dates correct, weekday labels wrong). exp12A re-anchored from its own checkpoints: 32.5k/67.5k at 08-22 22:46, 5.9 s/step under co-tenancy → **exp12A ETD ~Tue 08-25 ~08:00 EDT** (the "Sun night" figure was its pre-exp_21 pace). Therefore exp_21: co-tenant to ~19k steps by Tue morning, then exclusive ~6 s/step → **40k ETD ~Wed 08-26 evening EDT** (was reported as "Tue afternoon" — slip ≈ 1 day, from the weekday mislabel + exp12A's slowdown under our co-tenancy, both now corrected).
+- **Next** — Quiet monitoring; boundary cadence ~9.7 h.
+
+## 2026-08-25T20:35:00-04:00 — Step-22500 on cadence; NO speedup — a NEW sibling run replaced exp12A; ETD re-anchored
+
+- **Goal / Result** — `epoch=4-step=22500.ckpt` at 20:21, 13.97 s/step steady, loss 0.472. The expected exclusive-GPU speedup did NOT materialize: exp12A completed 67.5k at 08:08, but a **new training run was launched from `~/codespace/exp-12-arms` at ~09:23** (PIDs 1619936/1620346, 11h elapsed) — Yixun's follow-on, not ours, untouched. exp_21 therefore remains co-tenant at ~14 s/step for the foreseeable run.
+- **ETD re-anchor:** 17,470 steps remaining × 13.97 s ≈ 67.8 h → **40k ≈ Fri 08-28 ~16:00 EDT** under continued co-tenancy (was "Wed evening", which assumed exclusive GPUs from Tue). If the sibling run ends sooner, the ETD improves proportionally (~6 s/step exclusive).
+- **Next** — Quiet monitoring; report the revised ETD to Yixun.
+
+## 2026-08-28T12:00:00-04:00 — TRAINING COMPLETE (40,000/40,000, rc=0); eval block launching
+
+- **Goal / Result** — `passed`. Registered run reached max_steps=40000 at 11:50:55, rc=0, final loss 0.438. Endpoint `epoch=8-step=40000.ckpt` verified: 723,922,667 bytes (family-typical), sha256 `a96f5dca2a6de8f0…` (full digest computed by eval per record), 16/16 boundary ckpts on the 2500 cadence. Naming matches B-F exactly (epoch=8-step=40000) as the protocol module expects. Wall clock: 6d06h01m launch-to-finish (co-tenant throughout; final hours faster as the sibling load fell). All five acceptance criteria satisfied.
+- **Next** — Eval driver: DRY_RUN inventory check → live 34-cell run (10 BFC + 4 grid + 10 BFre + 10 P1re), teed log; results/analysis after.
