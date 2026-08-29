@@ -125,8 +125,13 @@ OBSERVATION_BINDING_NOTE = (
     "sidecar, but the observation is in none of them (Codex r9i review, item 2) -- so the live "
     "observation is tied to the frozen rows FUNCTIONALLY: one candidate of the query is "
     "regenerated from the same keyed noise and the same conditioning, and its cosine against the "
-    "LIVE observation must reproduce the similarity the row already published, to within the "
-    "engine's registered SCORE_TOLERANCE plus the float16 half-ulp of the sidecar. Because "
+    "LIVE observation must reproduce the similarity the row already published. The admissible "
+    "difference is NOT the engine's SCORE_TOLERANCE -- that is an AGGREGATE bound, and this "
+    "is a per-sample comparison at a different batch shape -- and as of r9r it is not "
+    "established at all: the honest drift was MEASURED at up to 3.63e-3 and the closest "
+    "measured substitution at 6.67e-3, too close together to place a bound between them, so "
+    "the tie runs with a PROVISIONAL tolerance and the control is stamped non-canonical "
+    "(TIE_BOUND_NOT_ESTABLISHED). Because "
     "s[x, k] = cos(E(h_obs), E(h_hat[x, k])), a substituted observation moves that number "
     "directly. Together: the pin says these are the registered bytes, the tie says the tensor "
     "those bytes decoded to is the one the frozen rows were scored against -- a byte-identical "
@@ -539,73 +544,173 @@ def observation_digests(obs_wav, source_path=None, source_sha256=None):
     return out
 
 
-#: The engine's own measured changed-batching magnitude, mirrored rather than
-#: imported because the engine states it in prose (``BATCHING_CAVEAT``,
-#: meshgrid_engine.py:921 -- "measured: max |diff| 3.9e-3 between the batch-1
-#: context call and an 8-candidate call"). A test cross-pins this literal to that
-#: text so the two cannot drift apart.
-ENGINE_CHANGED_BATCHING_DRIFT = 3.9e-3
+#: The r9r MEASUREMENT this module's tie bound has to answer to.
+#:
+#: Not an argument -- a measurement, published at
+#: ``outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.{json,md}``
+#: and mirrored into the experiment folder, produced by
+#: :mod:`src.localization.meshgrid_drift_measurement` on 2026-08-29 against the
+#: merged P1 run. Sample: the deterministic seeded rule (seed 20260828), 4
+#: queries per room across all 16 rooms -- the registered probe query plus 3
+#: drawn without replacement -- times 2 candidates (the row's headline
+#: prediction plus one drawn), measured on BOTH devices: 256 tie measurements,
+#: 8,064 ordered substitution pairs, 16 whole-query matched-batching replays
+#: (11,577 candidates, 92,616 generated waveforms).
+#:
+#: Logs: ``loc_meshgrid_2026-08-28_23:49:00_r9r_drift_cuda{0,1}.log`` and
+#: ``loc_meshgrid_2026-08-29_*_r9r_drift_merge.log`` in the experiment folder.
+R9R_MEASUREMENT = {
+    "artifact": "outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json",
+    "date": "2026-08-29",
+    "selection_seed": 20260828,
+    "n_tie_measurements": 256,
+    "n_substitution_pairs": 8064,
+    "n_matched_replay_candidates": 11577,
+    # (1) the tie's own path, the gate's path: what honest regeneration costs
+    "tie_max_abs_delta": 3.6296844482421875e-3,
+    "tie_excess_over_half_ulp_max": 3.5076141357421875e-3,
+    "tie_q99_abs_delta": 2.93e-3,
+    "tie_median_abs_delta": 5.13e-4,
+    "tie_max_abs_aggregate_delta": 1.1619329452514648e-3,
+    "n_tie_aggregate_above_score_tolerance": 4,
+    # (2) the SAME queries replayed at the run's own batching: the control
+    "matched_max_abs_delta": 2.440810203552246e-4,
+    "matched_max_abs_aggregate_delta": 0.0,
+    "matched_float16_bit_exact": True,
+    # (3) what a substituted observation actually moves
+    "substitution_min": 6.668746471405029e-3,
+    "substitution_median": 0.569884,
+    "substitution_max": 1.409295,
+    # (4) and therefore
+    "candidate_bound_at_safety_1_5": 5.3e-3,
+    "separation_of_candidate_bound": 1.3,
+    "min_separation_required": 5.0,
+    "bound_established": False,
+}
 
-#: The tie's admissible difference, and why it is NOT ``SCORE_TOLERANCE``.
+#: WHY THIS ROUND DERIVES NO BOUND -- the r9r verdict, in one place.
 #:
-#: ``meshgrid_engine.SCORE_TOLERANCE`` (1e-3) is the registered bound on
-#: ``|S_a - S_b|`` -- the AGGREGATE log-mean-exp score -- between two passes of
-#: the same protocol. The tie compares something else twice over:
+#: The batching diagnosis is now CONFIRMED end to end and in cosine units, which
+#: r9p's conditioner-token number never was. Replaying whole queries at the run's
+#: own batching (``batch_rows=256``, ``source_chunk=16``, through
+#: ``ReceiverCache`` and the engine's own ``_score_one_query``) reproduces the
+#: frozen sidecar BIT-EXACTLY -- rounding the replay back to float16 returns the
+#: stored array element for element across 11,577 candidates, and the float32
+#: aggregate matches the row's published score to exactly 0.0. The tie's
+#: single-position path, on the same queries, moves per-sample cosines by up to
+#: 3.63e-3 and aggregates by up to 1.16e-3, past ``SCORE_TOLERANCE`` on 4 of 256
+#: measurements. The GPU is NOT a factor: the two devices returned identical
+#: numbers to every digit, so the drift is batch shape and nothing else.
 #:
-#: * it compares PER-SAMPLE cosines ``s[x, k]``, not the aggregate. The aggregate
-#:   averages K = 8 of them, which suppresses independent noise by about
-#:   ``sqrt(8) = 2.83``, so an aggregate bound of 1e-3 corresponds to roughly
-#:   2.8e-3 per sample. The field failure measured 2.93e-3.
-#: * it regenerates ONE candidate alone, so its batch shapes are not the run's.
-#:   The frozen rows were produced at ``batch_rows=256`` -- 32 candidates x 8
-#:   draws through the DiT per forward -- with the source branch chunked at
-#:   ``source_chunk=16``, i.e. batch-16 ViT forwards; the tie generates 8 rows and
-#:   calls the source branch on its single position, i.e. batch 1 whatever chunk
-#:   is passed (``source_conditioning`` chunks the position list). That is exactly
-#:   the batch-1-versus-many comparison the engine measured: its real-stack
-#:   cache-parity run records conditioner outputs moving by up to 3.90625e-3
-#:   between a batch-1 call and an 8-candidate call, with ``source_vit`` -- one of
-#:   the branches re-run here -- at 1.953e-3.
+#: But the bound cannot be derived, because the two distributions do not
+#: separate. A substituted observation -- measured, not assumed -- moves the tie
+#: by as little as 6.67e-3 (Office_idx_11, two receivers of the SAME room). A
+#: bound at the measured honest maximum times even a 1.5x safety factor is
+#: 5.3e-3, which is 1.3x below the worst adversary. A gate with 30% headroom
+#: against the closest substitution is not a canonical gate, so r9r STOPS here
+#: rather than picking a number, and this control cannot be canonical while the
+#: bound is unestablished.
 #:
-#: So the fixed-batching aggregate bound was the wrong yardstick for a
-#: differently-batched per-sample regeneration, and it refused honest
-#: regeneration noise on the real merged run (MeetingRoom_idx_20 S001_R001,
-#: candidate 57: 2.93e-3 against a 1.24e-3 tolerance) while the byte pin and the
-#: decode-equality check both passed.
-#:
-#: Detection power survives with orders of magnitude to spare. The tie exists to
-#: catch a DIFFERENT observation, and ``s[x, k] = cos(E(h_obs), E(h_hat))`` moves
-#: by O(0.1-1) when the observation changes -- that same query's own cosines span
-#: -0.294 to 0.746 -- which is 25x to 250x this tolerance. The measured delta is
-#: now published per query beside the tolerance, so the actual separation is on
-#: the record rather than asserted.
-CHANGED_BATCHING_TIE_TOLERANCE = ENGINE_CHANGED_BATCHING_DRIFT
+#: What the measurement DOES show is the way out, and it is not a tolerance: at
+#: MATCHED batching the tie is bit-exact, so its admissible difference is the
+#: sidecar's own half-ulp (2.44e-4) and the separation against the same 6.67e-3
+#: adversary is 27x. Whether the tie moves to a matched-batching regeneration is
+#: an architecture decision, and it is Yixun's, not this module's.
+TIE_BOUND_NOT_ESTABLISHED = (
+    "NO ADMISSIBLE BOUND (r9r, 2026-08-29). The tie's honest drift was MEASURED on the merged P1 "
+    "run rather than derived: 256 measurements across all 16 rooms give a maximum per-sample "
+    "|delta| of 3.63e-3 (excess over the sidecar's float16 half-ulp 3.51e-3) and a maximum "
+    "aggregate shift of 1.16e-3, above the engine's SCORE_TOLERANCE on 4 of 256. The SAME "
+    "queries replayed at the run's own batching are bit-exact -- float16 round-trip identical "
+    "over 11,577 candidates, aggregate delta exactly 0.0 -- so the drift is batch shape, and the "
+    "two GPUs agreed to every digit, so it is not the device. The substituted-observation "
+    "movement was also measured, over 8,064 ordered cross pairs: minimum 6.67e-3, median 0.570. "
+    "A bound at the honest maximum x 1.5 is 5.3e-3, only 1.3x below that minimum, so no bound is "
+    "adopted and this control is NOT canonical while that stands. r9p's superseded reasoning -- "
+    "a sqrt(K) step that assumed independent errors the measurement shows are sign-coherent, and "
+    "a 3.9e-3 conditioner-token magnitude that was never in cosine units -- is retired (Codex "
+    "r9q). Full distributions: outputs_loc/exp22/r9r_drift_measurement/merged/")
 
-TIE_TOLERANCE_NOTE = (
-    "the tie regenerates ONE candidate alone, so its batch shapes are not the ones the frozen "
-    "rows were produced at (batch_rows=256, i.e. 32 candidates x 8 draws per forward, with the "
-    "source branch chunked at 16 positions -- against 8 generated rows and a single-position "
-    "source call here), and it compares PER-SAMPLE cosines rather than the aggregate score. "
-    "meshgrid_engine's "
-    "SCORE_TOLERANCE is the registered bound on the AGGREGATE between two passes at different "
-    "batching, so it is the wrong yardstick twice over -- it does not carry the sqrt(K) the "
-    "aggregate gets for free, and it is not what the engine measured for a changed batch shape. "
-    "The bound used here is the engine's own measured changed-batching magnitude (3.9e-3, "
-    "BATCHING_CAVEAT) plus the sidecar's float16 half-ulp. A substituted observation moves these "
-    "cosines by O(0.1-1), 25x to 250x that, so the gate still bites; the measured delta is "
-    "published per query so the separation can be read rather than trusted")
+#: what the query's own cosine span is, and what it is NOT.
+DYNAMIC_RANGE_NOTE = (
+    "query_cosine_span is the spread of THIS query's own stored cosines and query_cosine_span_"
+    "over_delta divides it by the measured drift. Both are DYNAMIC RANGE, not detection "
+    "evidence: they say nothing about how far a substituted observation moves this number. r9p "
+    "published the ratio as 'separation_vs_span' and read it as substitution evidence, which "
+    "Codex r9q rejected (item 3). The measured detection margin is measured_substitution_min -- "
+    "the smallest movement over the r9r measurement's 8,064 ordered substituted-observation "
+    "pairs -- and it is carried beside these two so the difference cannot be misread again")
+
+#: The value the tie still compares against while no bound is established.
+#:
+#: PROVISIONAL AND NOT ADMISSIBLE. It is r9p's number, kept only so the control
+#: still runs and still reports its measured deltas; see
+#: :data:`TIE_BOUND_NOT_ESTABLISHED` for why no measured bound replaces it and
+#: :data:`R9R_MEASUREMENT` for the distributions. Every artifact this module
+#: writes is stamped non-canonical on that basis, so nothing can quote a result
+#: that passed an unestablished gate.
+CHANGED_BATCHING_TIE_TOLERANCE = 3.9e-3
+
+TIE_TOLERANCE_NOTE = TIE_BOUND_NOT_ESTABLISHED
 
 
 def observation_continuity_tolerance(stored):
-    """The only admissible difference between the two derivations of one cosine.
+    """The difference the tie currently admits -- PROVISIONAL, not established.
 
-    The engine's measured changed-batching magnitude plus the half-ulp the
-    float16 sidecar itself introduces. Both are registered numbers -- see
-    :data:`CHANGED_BATCHING_TIE_TOLERANCE` for why the fixed-batching aggregate
-    bound is not the right one here.
+    ``CHANGED_BATCHING_TIE_TOLERANCE`` plus the half-ulp the float16 sidecar
+    itself introduces. The half-ulp term is correct and stays; the first term is
+    r9p's number, which the r9r measurement did not confirm and could not
+    replace -- see :data:`TIE_BOUND_NOT_ESTABLISHED`. Every artifact that reads
+    this is stamped non-canonical on that basis.
     """
     return float(CHANGED_BATCHING_TIE_TOLERANCE) + mr.float16_half_ulp(
         np.asarray(stored, dtype=np.float16))
+
+
+def tie_candidate_row(row, aggregator=mr.HEADLINE_AGGREGATOR):
+    """Which candidate the tie lands on: the row's own headline prediction.
+
+    Factored out so the r9r drift measurement selects the same candidate the
+    gate does when it measures the gate's own case, rather than a second copy
+    of the rule that could drift from it.
+    """
+    largest = str(max(int(k) for k in row["by_k"]))
+    block = row["by_k"][largest]
+    candidate_row = int(block["prediction_row"] if aggregator == "lme"
+                        else block["mean_prediction_row"])
+    return candidate_row, int(row["candidate_indices"][candidate_row]), int(largest)
+
+
+def regenerate_tie_embeddings(engine, query, md, context, candidate_row, candidate_index, *,
+                              seed=me.SEED, num_samples=me.NUM_SAMPLES,
+                              noise_policy=me.NOISE_KEY_POLICY, source_chunk=1):
+    """The tie's regeneration, as ``[1, K, D]`` embeddings -- ONE implementation.
+
+    The gate calls this, and so does the r9r drift measurement
+    (:mod:`src.localization.meshgrid_drift_measurement`), so the distribution
+    the bound is derived from is measured through the code path the bound is
+    then applied to. A second copy would let the two diverge silently, which is
+    precisely the failure the measurement exists to close.
+
+    Note the batch shapes, because they are the measured quantity: ONE position
+    through the source branch (batch 1 whatever ``source_chunk`` says, since
+    ``source_conditioning`` chunks the position list) and ``num_samples``
+    generated rows through the DiT, the VAE and AGREE -- against production's
+    16-position source calls and 256-row forwards.
+    """
+    num_samples = int(num_samples)
+    coordinates = np.asarray(query.coordinates, dtype=np.float64)
+    position_cam = (coordinates[candidate_row]
+                    - np.asarray(query.receiver_xyz, dtype=np.float64)).reshape(1, 3)
+
+    source = me.source_conditioning(engine.conditioner, {"depth": md["depth"]}, position_cam,
+                                    engine.device, chunk=int(source_chunk))
+    noise = me.noise_block(seed, query.query_id, [int(candidate_index)], num_samples,
+                           engine.latent_shape, policy=noise_policy, device=engine.device)
+    merged = me.expand_conditioning(context, source,
+                                    torch.zeros(num_samples, dtype=torch.long), engine.device)
+    wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
+    return torch.as_tensor(engine.embedder(wavs)).float().reshape(1, num_samples, -1).cpu()
 
 
 def assert_observation_continuity(engine, query, md, context, row, sims, obs_embedding, *,
@@ -623,34 +728,24 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
     """
     from src.localization.scoring import cosine_sims
 
-    largest = str(max(int(k) for k in row["by_k"]))
-    block = row["by_k"][largest]
-    candidate_row = int(block["prediction_row"] if aggregator == "lme"
-                        else block["mean_prediction_row"])
-    candidate_index = int(row["candidate_indices"][candidate_row])
+    candidate_row, candidate_index, largest = tie_candidate_row(row, aggregator=aggregator)
     num_samples = int(num_samples)
 
     stored = np.asarray(sims, dtype=np.float16)[candidate_row, :num_samples]
-    coordinates = np.asarray(query.coordinates, dtype=np.float64)
-    position_cam = (coordinates[candidate_row]
-                    - np.asarray(query.receiver_xyz, dtype=np.float64)).reshape(1, 3)
-
-    source = me.source_conditioning(engine.conditioner, {"depth": md["depth"]}, position_cam,
-                                    engine.device, chunk=int(source_chunk))
-    noise = me.noise_block(seed, query.query_id, [candidate_index], num_samples,
-                           engine.latent_shape, policy=noise_policy, device=engine.device)
-    merged = me.expand_conditioning(context, source,
-                                    torch.zeros(num_samples, dtype=torch.long), engine.device)
-    wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
-    embeddings = torch.as_tensor(engine.embedder(wavs)).float().reshape(1, num_samples, -1)
+    embeddings = regenerate_tie_embeddings(engine, query, md, context, candidate_row,
+                                           candidate_index, seed=seed, num_samples=num_samples,
+                                           noise_policy=noise_policy, source_chunk=source_chunk)
     rederived = cosine_sims(torch.as_tensor(obs_embedding).float().reshape(-1),
                             embeddings)[0].double().numpy()
 
     delta = float(np.abs(rederived - stored.astype(np.float64)).max())
     tolerance = observation_continuity_tolerance(stored)
-    # the query's own cosine span is the scale a SUBSTITUTED observation moves
-    # on, so publishing it beside the delta lets a reader see the separation
-    # rather than take it on faith (Codex r9p)
+    # the query's own cosine span is DYNAMIC RANGE, not detection evidence: it
+    # says how far this query's cosines spread, which is not how far a
+    # substituted observation moves them. r9p divided one by the other and
+    # called the ratio "separation" (Codex r9q, item 3). It is still published,
+    # because a reader wants the scale, but it is labelled for what it is and
+    # the real detection margin now comes from the r9r measurement
     whole = np.asarray(sims, dtype=np.float64)
     span = float(whole.max() - whole.min())
     verdict = {"ok": bool(delta <= tolerance),
@@ -663,7 +758,13 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
                "float16_half_ulp_component": float(tolerance
                                                    - CHANGED_BATCHING_TIE_TOLERANCE),
                "query_cosine_span": span,
-               "separation_vs_span": (float(span / delta) if delta > 0 else float("inf")),
+               "query_cosine_span_over_delta": (float(span / delta) if delta > 0
+                                                else float("inf")),
+               "dynamic_range_note": DYNAMIC_RANGE_NOTE,
+               "measured_substitution_min": float(R9R_MEASUREMENT["substitution_min"]),
+               "measured_separation": (float(R9R_MEASUREMENT["substitution_min"] / tolerance)
+                                       if tolerance > 0 else float("inf")),
+               "bound_established": bool(R9R_MEASUREMENT["bound_established"]),
                "k": int(largest),
                "candidate_index": candidate_index, "candidate_row": candidate_row,
                "num_samples": num_samples,
@@ -675,12 +776,12 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
         raise ValueError(
             f"{query.query_id}: the observation this control loaded does not reproduce the "
             f"similarities the frozen row published for candidate {candidate_index} -- max "
-            f"|delta| {delta:.3g} against a tolerance of {tolerance:.3g} (the engine's measured "
-            f"changed-batching magnitude plus the sidecar's float16 half-ulp; this query's own "
-            f"cosines span {span:.3g}, so a substituted observation would move them by far more "
-            f"than this). s[x, k] = cos(E(h_obs), "
-            "E(h_hat)), so the observation being scored here is not the observation those rows "
-            f"were scored against. {OBSERVATION_BINDING_NOTE}")
+            f"|delta| {delta:.3g} against a PROVISIONAL tolerance of {tolerance:.3g}. For scale, "
+            f"the r9r measurement puts honest single-position regeneration at up to "
+            f"{R9R_MEASUREMENT['tie_max_abs_delta']:.3g} and the closest measured substituted "
+            f"observation at {R9R_MEASUREMENT['substitution_min']:.3g} (8,064 ordered pairs). "
+            "s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here is not the "
+            f"observation those rows were scored against. {OBSERVATION_BINDING_NOTE}")
     return verdict
 
 
@@ -837,8 +938,20 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  tie_within_tolerance=np.array(bool((continuity or {}).get("within_tolerance",
                                                                            False))),
                  tie_refused=np.array(bool((continuity or {}).get("refused", False))),
+                 tie_headroom=np.array(float((continuity or {}).get("headroom",
+                                                                     float("nan")))),
+                 # dynamic range, labelled as such -- NOT detection evidence
                  tie_query_cosine_span=np.array(float((continuity or {}).get(
                      "query_cosine_span", float("nan")))),
+                 tie_query_cosine_span_over_delta=np.array(float((continuity or {}).get(
+                     "query_cosine_span_over_delta", float("nan")))),
+                 tie_dynamic_range_note=np.array(DYNAMIC_RANGE_NOTE),
+                 # the MEASURED detection margin and where the bound stands
+                 tie_measured_substitution_min=np.array(
+                     float(R9R_MEASUREMENT["substitution_min"])),
+                 tie_measured_separation=np.array(float((continuity or {}).get(
+                     "measured_separation", float("nan")))),
+                 tie_bound_established=np.array(bool(R9R_MEASUREMENT["bound_established"])),
                  tie_tolerance_note=np.array(TIE_TOLERANCE_NOTE),
                  waveform_note=np.array(WAVEFORM_NOTE))
     os.replace(tmp, path)
@@ -1013,6 +1126,7 @@ PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batch
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
                            "observation_continuity", "observation_bank",
                            "observation_bank_sha256", "observation_bank_expected",
+                           "tie_bound_established",
                            "non_canonical", "non_canonical_declared")
 
 
@@ -1075,6 +1189,19 @@ def probe_canonical_status(gate):
                         "why": gate["observation_continuity"].get(
                             "why", "the live observation could not be tied to the frozen rows"),
                         "note": OBSERVATION_BINDING_NOTE})
+    # r9r: the tie PASSING is not enough while what it passes against is a
+    # provisional number the measurement declined to confirm. A control whose
+    # gate has no established bound may not be quoted as the registered result,
+    # so the status says so rather than leaving the reader to know it
+    if not gate.get("tie_bound_established", R9R_MEASUREMENT["bound_established"]):
+        reasons.append({"gate": "observation_continuity_bound",
+                        "why": "the tie's tolerance is provisional: the r9r measurement puts "
+                               "honest drift at up to "
+                               f"{R9R_MEASUREMENT['tie_max_abs_delta']:.3g} and the closest "
+                               f"measured substitution at "
+                               f"{R9R_MEASUREMENT['substitution_min']:.3g}, which do not "
+                               "separate widely enough to place a bound between them",
+                        "note": TIE_BOUND_NOT_ESTABLISHED})
     # The operator's own declaration. r9d propagated it and r9g put it in the
     # publication slice, but nothing READ it, so a valid pin plus --non-canonical
     # produced canonical JSON/Markdown beside non-canonical NPZs (Codex r9i
@@ -1344,19 +1471,22 @@ def render_markdown(report):
             f"{mr.format_number(record['calibration']['real_summary']['mean'], 4)} | "
             f"{mr.format_number(record['calibration']['generated_summary']['mean'], 4)} |")
     lines.append("")
-    lines.append("## Observation-continuity tie — measured delta vs tolerance")
+    lines.append("## Observation-continuity tie — measured delta vs PROVISIONAL tolerance")
     lines.append("")
     lines.append(f"> {report.get('tie_tolerance_note') or TIE_TOLERANCE_NOTE}")
     lines.append("")
+    lines.append(f"> _Dynamic range, not detection:_ {DYNAMIC_RANGE_NOTE}")
+    lines.append("")
     # "max abs delta" rather than "max |delta|": raw pipes would split the cell
-    lines.append("| room | query | max abs delta | tolerance | headroom | within | "
-                 "query cosine span | separation |")
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("| room | query | max abs delta | tolerance (provisional) | headroom | within | "
+                 "dyn. range: query cosine span | dyn. range: span / delta | "
+                 "measured substitution min | measured separation |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|")
     for record in report["records"]:
         tie = record.get("observation_continuity")
         if not tie:
             lines.append(f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
-                         "not checked | — | — | — | — | — |")
+                         "not checked | — | — | — | — | — | — | — |")
             continue
         lines.append(
             f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
@@ -1365,7 +1495,9 @@ def render_markdown(report):
             f"{mr.format_number(tie['headroom'], 6)} | "
             f"{mr.format_number(tie['within_tolerance'])} | "
             f"{mr.format_number(tie['query_cosine_span'], 4)} | "
-            f"{mr.format_number(tie['separation_vs_span'], 1)}x |")
+            f"{mr.format_number(tie['query_cosine_span_over_delta'], 1)}x | "
+            f"{mr.format_number(tie['measured_substitution_min'], 6)} | "
+            f"{mr.format_number(tie['measured_separation'], 2)}x |")
     lines.append("")
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
@@ -1587,7 +1719,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
     if verify_observation:
         deltas = [record["observation_continuity"]["max_abs_delta"] for record in out]
         tolerances = [record["observation_continuity"]["tolerance"] for record in out]
-        separations = [record["observation_continuity"]["separation_vs_span"] for record in out]
+        spans = [record["observation_continuity"]["query_cosine_span_over_delta"]
+                 for record in out]
         continuity_summary = {"ok": True, "checked": len(out),
                               "max_abs_delta": (max(deltas) if deltas else 0.0),
                               "min_headroom": (min(t - d for d, t in zip(deltas, tolerances))
@@ -1595,8 +1728,18 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "tolerance": (max(tolerances) if tolerances else 0.0),
                               "changed_batching_component":
                                   float(CHANGED_BATCHING_TIE_TOLERANCE),
-                              "min_separation_vs_span": (min(separations) if separations
-                                                         else float("inf")),
+                              # dynamic range, named as such (Codex r9q item 3)
+                              "min_query_cosine_span_over_delta": (min(spans) if spans
+                                                                   else float("inf")),
+                              "dynamic_range_note": DYNAMIC_RANGE_NOTE,
+                              # the MEASURED margin, and the standing verdict
+                              "measured_substitution_min":
+                                  float(R9R_MEASUREMENT["substitution_min"]),
+                              "measured_separation":
+                                  (float(R9R_MEASUREMENT["substitution_min"] / max(tolerances))
+                                   if tolerances else float("inf")),
+                              "bound_established":
+                                  bool(R9R_MEASUREMENT["bound_established"]),
                               "per_query_delta": {record["query_id"]:
                                                   record["observation_continuity"][
                                                       "max_abs_delta"] for record in out},
@@ -1826,6 +1969,9 @@ def gate_run(args, model_config, agree_path, totals=None,
     gate["observation_bank_sha256"] = observations["observation_bank_sha256"]
     gate["observation_bank_expected"] = args.expect_observation_bank_sha256
 
+    # r9r: the standing verdict on the tie's bound, stamped by the gate rather
+    # than read from a flag, so no invocation can assert an established bound
+    gate["tie_bound_established"] = bool(R9R_MEASUREMENT["bound_established"])
     gate["non_canonical_declared"] = bool(args.non_canonical)
     gate["non_canonical"] = bool(args.non_canonical
                                  or not gate["metadata_bank"]["pinned"]
