@@ -71,8 +71,8 @@ def occluded(P, eps=0.06):
 # --- compose ---
 PAD_R = 460  # legend margin
 Wt = W + PAD_R
-fig = plt.figure(figsize=(Wt/200, (H+230)/200), dpi=200)
-ax = fig.add_axes([0, 0, W/Wt, H/(H+230)]); ax.axis('off')
+fig = plt.figure(figsize=(Wt/200, H/200), dpi=200)
+ax = fig.add_axes([0, 0, W/Wt, 1]); ax.axis('off')
 ax.imshow(img, interpolation='bilinear', zorder=1); ax.set_xlim(0,W); ax.set_ylim(H,0)
 
 zlevels = sorted(set(np.round(pts[:,2],3)))
@@ -86,16 +86,11 @@ for i in order:
     x, y, _ = project(pts[i:i+1]); zi = zlevels.index(round(float(pts[i,2]),3))
     a = 0.14 if occ[i] else 0.85
     ax.scatter(x, y, s=13, c=blues[zi], alpha=a, linewidths=0, zorder=3)
-x, y, _ = project(near[None])
-ax.scatter(x, y, marker='P', s=260, c='#18a05c', edgecolors='white', linewidths=1.2, zorder=7)
 
-fig.text(0.012, 0.965, 'Actual Candidate Grid for One Localization Query', fontsize=26, fontweight='bold', color='#1a2433', va='top')
-fig.text(0.012, 0.912, f"Cafe/Cafe_idx_1  ·  query 0  ·  S006_R008_hybrid_IR.wav  ·  0.5 m spacing  ·  {len(pts)} candidates (registered z-band bank)", fontsize=14, color='#5a6472', va='top')
-handles = [Line2D([],[], marker='s', ls='', mfc='#d9dce1', mec='none', ms=13, label='Room mesh (cutaway, z < 2.4 m)')]
-handles += [Line2D([],[], marker='o', ls='', mfc=blues[i], mec='none', ms=9, label=f"Candidate grid, z={z:.1f} m ({counts[z]})") for i, z in enumerate(zlevels)]
-handles += [Line2D([],[], marker='P', ls='', mfc='#18a05c', mec='white', ms=12, label='Nearest grid point')]
-fig.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.995, 0.90), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
-fig.text(0.995, 0.03, 'Occluded candidates drawn faint  ·  Ground truth is not inserted into the grid', ha='right', fontsize=11.5, color='#8a919b')
+
+handles = [Line2D([],[], marker='s', ls='', mfc='#d9dce1', mec='none', ms=13, label='Room mesh')]
+handles += [Line2D([],[], marker='o', ls='', mfc=blues[i], mec='none', ms=9, label=f"Candidate grid, z={z:.1f} m") for i, z in enumerate(zlevels)]
+fig.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.995, 0.97), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
 out = 'worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/candidate_grid_case_cafe_idx_1_q0.png'
 fig.savefig(out, dpi=200, facecolor='white'); plt.close(fig)
 print(f'wrote {out}: {len(pts)} candidates at z levels {zlevels}, oracle {oracle:.3f} m')
