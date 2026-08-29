@@ -280,3 +280,20 @@ Failure triage per SOP: infra (node/VRAM/co-tenant contention/wandb) → retry/r
 
 - **Goal / Result** — `passed`. Registered run reached max_steps=40000 at 11:50:55, rc=0, final loss 0.438. Endpoint `epoch=8-step=40000.ckpt` verified: 723,922,667 bytes (family-typical), sha256 `a96f5dca2a6de8f0…` (full digest computed by eval per record), 16/16 boundary ckpts on the 2500 cadence. Naming matches B-F exactly (epoch=8-step=40000) as the protocol module expects. Wall clock: 6d06h01m launch-to-finish (co-tenant throughout; final hours faster as the sibling load fell). All five acceptance criteria satisfied.
 - **Next** — Eval driver: DRY_RUN inventory check → live 34-cell run (10 BFC + 4 grid + 10 BFre + 10 P1re), teed log; results/analysis after.
+
+## 2026-08-28T12:20:00-04:00 — Eval driver REFUSED (fail-closed, correct): other session's P1_CURVE campaign running
+
+- **Goal / Result** — First driver invocation (11:57:36, source_sha `5988ab18`) refused: its another-eval_FLAC-running guard detected the concurrent session's `exp07_P1_CURVE_S60000_K8_s42` cell (vanilla trajectory-curve protocol, no collision with our filenames — unique eval-names — but the guard is deliberately global). Infra-class, not a bug; exactly the cross-session scenario the guard encodes. Driver is admission-gate idempotent → relaunch is safe and duplicate-proof.
+- **Next** — Monitor armed: 10 consecutive quiet minutes (no eval_FLAC on the box) → relaunch the driver. If their campaign is long (a full trajectory grid can run many hours), surface the contention to Yixun for arbitration rather than queue silently past ~18:00 EDT.
+
+## 2026-08-28T13:35:00-04:00 — Eval failure triaged INFRA (accelerate device_map sharding); driver relaunched under GPU pin
+
+- **Goal / Result** — First live cell failed rc=1: `Expected all tensors on the same device, cuda:1 and cuda:0` in the AGREE retrieval metric (DINOv3 via accelerate hooks). **INFRA, not a bug:** AGREE's HF model loads with device_map=auto; with both GPUs free (first time for our evals — training always occupied them), accelerate sharded it across devices. exp_17 precedent: eval workers run under an explicit CUDA_VISIBLE_DEVICES pin. Remedy is environment-only (device placement is not an announcement-05 protocol surface). Messy cleanup disclosed: killing the nohup parent left driver children + one orphan cell alive through two exit-144 rounds; verified clean now (0 processes, 0 JSONs — failed cells wrote nothing, admission-gate resume is unaffected).
+- **Command / Validation** — Relaunch: `CUDA_VISIBLE_DEVICES=0 bash bfc_eval_driver.sh` (sequential single-GPU; the driver's own another-eval_FLAC guard precludes a second instance by design). 34 cells ≈ 6–11 h.
+
+## 2026-08-28T14:00:00-04:00 — Yixun: trajectory screen APPROVED (K8 s42 all ckpts, concurrent GPU 1); launched
+
+- **Goal** — Band context for the 40k endpoint (Yixun's mid-eval query + approval; addresses the standing single-draw-from-band lesson).
+- **Change** — `bfc_traj_screen.sh` (Planner-written one-off; review batched into the results-round consolidated review per SOP). Resume-safe skip-if-exists; mirrors the registered protocol flags; single-seed screen cells named `exp21_BFC_TRAJ_S{step}_K8_s42` (structurally table-excluded). Concurrent-with-driver = deliberate, logged exception to the one-eval-at-a-time convention (separate GPU, distinct filenames; Yixun chose concurrent over after-block).
+- **Command / Validation** — bash -n OK; launched nohup, log `bf_fa_cartesian_2026-08-28_14-00-00_trajscreen.log`.
+- **Next** — Both streams feed the results round: registered block (GPU 0) + trajectory (GPU 1) → table gate → readout → results/analysis/HTML.

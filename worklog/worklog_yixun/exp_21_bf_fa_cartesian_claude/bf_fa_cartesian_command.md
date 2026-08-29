@@ -97,3 +97,14 @@ REGISTERED mode: all recipe values pinned in-script (config FLAC_AR_BFC.json, 40
 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_eval_driver.sh
 ```
 DRY_RUN inventory verified 34/34 beforehand; teed to bf_fa_cartesian_2026-08-28_12-10-00_evalblock.log.
+
+## Eval block RELAUNCH with GPU pin — 2026-08-28 13:35 EDT (12:59 launch failed infra: accelerate sharding across free GPUs; cells wrote no JSONs)
+```bash
+CUDA_VISIBLE_DEVICES=0 bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_eval_driver.sh
+```
+
+## Trajectory screen (Yixun-approved) — LAUNCHED 2026-08-28 ~14:00 EDT, GPU 1 concurrent
+```bash
+bash worklog/worklog_yixun/exp_21_bf_fa_cartesian_claude/bfc_traj_screen.sh
+```
+K8 s42, 15 pre-40k ckpts, registered protocol flags, eval-names exp21_BFC_TRAJ_S{step}_K8_s42. Single-seed screen (table-excluded by design). Concurrency = deliberate logged exception (distinct GPU/filenames).
