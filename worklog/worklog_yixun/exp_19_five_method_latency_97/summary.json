@@ -1,0 +1,1196 @@
+{
+  "by_room": {
+    "Apartments_idx_42": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 11.092402970185503,
+          "mean_seconds": 11.092402970185503,
+          "median_seconds": 11.092402970185503,
+          "minimum_seconds": 11.092402970185503,
+          "p90_seconds": 11.092402970185503,
+          "query_count": 1,
+          "summed_seconds": 11.092402970185503
+        },
+        "fem_agree": {
+          "maximum_seconds": 110.9029243348632,
+          "mean_seconds": 110.9029243348632,
+          "median_seconds": 110.9029243348632,
+          "minimum_seconds": 110.9029243348632,
+          "p90_seconds": 110.9029243348632,
+          "query_count": 1,
+          "summed_seconds": 110.9029243348632
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.9041331969201565,
+          "mean_seconds": 0.9041331969201565,
+          "median_seconds": 0.9041331969201565,
+          "minimum_seconds": 0.9041331969201565,
+          "p90_seconds": 0.9041331969201565,
+          "query_count": 1,
+          "summed_seconds": 0.9041331969201565
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 9.994439369998872,
+          "mean_seconds": 9.994439369998872,
+          "median_seconds": 9.994439369998872,
+          "minimum_seconds": 9.994439369998872,
+          "p90_seconds": 9.994439369998872,
+          "query_count": 1,
+          "summed_seconds": 9.994439369998872
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 13.802610608981922,
+          "mean_seconds": 13.802610608981922,
+          "median_seconds": 13.802610608981922,
+          "minimum_seconds": 13.802610608981922,
+          "p90_seconds": 13.802610608981922,
+          "query_count": 1,
+          "summed_seconds": 13.802610608981922
+        }
+      },
+      "query_count": 1
+    },
+    "Apartments_idx_50": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 14.132549148984253,
+          "mean_seconds": 13.959214276101973,
+          "median_seconds": 14.054855339927599,
+          "minimum_seconds": 13.749510360881686,
+          "p90_seconds": 14.100737825827673,
+          "query_count": 7,
+          "summed_seconds": 97.7144999327138
+        },
+        "fem_agree": {
+          "maximum_seconds": 72.37359369709156,
+          "mean_seconds": 67.21376773721671,
+          "median_seconds": 66.50026846420951,
+          "minimum_seconds": 65.41283491300419,
+          "p90_seconds": 69.48232865571045,
+          "query_count": 7,
+          "summed_seconds": 470.496374160517
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.0802497980184853,
+          "mean_seconds": 0.9591294314512717,
+          "median_seconds": 0.9302356131374836,
+          "minimum_seconds": 0.8948262119665742,
+          "p90_seconds": 1.0338092057965695,
+          "query_count": 7,
+          "summed_seconds": 6.713906020158902
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 12.80104401987046,
+          "mean_seconds": 12.657738812167995,
+          "median_seconds": 12.769427018007264,
+          "minimum_seconds": 12.43945324094966,
+          "p90_seconds": 12.794622110202909,
+          "query_count": 7,
+          "summed_seconds": 88.60417168517597
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 19.198468229034916,
+          "mean_seconds": 18.279163127465704,
+          "median_seconds": 18.297155623091385,
+          "minimum_seconds": 17.590366257121786,
+          "p90_seconds": 18.783167487895117,
+          "query_count": 7,
+          "summed_seconds": 127.95414189225994
+        }
+      },
+      "query_count": 7
+    },
+    "Bathrooms_idx_14": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 2.1301122091244906,
+          "mean_seconds": 2.074144620070001,
+          "median_seconds": 2.0691273350967094,
+          "minimum_seconds": 2.060742347035557,
+          "p90_seconds": 2.088395660719834,
+          "query_count": 8,
+          "summed_seconds": 16.59315696056001
+        },
+        "fem_agree": {
+          "maximum_seconds": 15.944143212400377,
+          "mean_seconds": 14.679215255717281,
+          "median_seconds": 14.3819720861502,
+          "minimum_seconds": 14.040066154673696,
+          "p90_seconds": 15.77126700982917,
+          "query_count": 8,
+          "summed_seconds": 117.43372204573825
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.28361561917699873,
+          "mean_seconds": 0.18139972892822698,
+          "median_seconds": 0.16078503511380404,
+          "minimum_seconds": 0.12524480000138283,
+          "p90_seconds": 0.260148562095128,
+          "query_count": 8,
+          "summed_seconds": 1.4511978314258158
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 2.201738278148696,
+          "mean_seconds": 1.752389559027506,
+          "median_seconds": 1.6842702695867047,
+          "minimum_seconds": 1.6689050381537527,
+          "p90_seconds": 1.8787811497226357,
+          "query_count": 8,
+          "summed_seconds": 14.019116472220048
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 2.5000505538191646,
+          "mean_seconds": 2.35403814871097,
+          "median_seconds": 2.347219294984825,
+          "minimum_seconds": 2.170101597905159,
+          "p90_seconds": 2.499486172036268,
+          "query_count": 8,
+          "summed_seconds": 18.83230518968776
+        }
+      },
+      "query_count": 8
+    },
+    "Bathrooms_idx_18": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 3.975502563873306,
+          "mean_seconds": 3.6790089608402923,
+          "median_seconds": 3.6394894670229405,
+          "minimum_seconds": 3.4635889360215515,
+          "p90_seconds": 3.892928790836595,
+          "query_count": 8,
+          "summed_seconds": 29.432071686722338
+        },
+        "fem_agree": {
+          "maximum_seconds": 19.653721747919917,
+          "mean_seconds": 17.240290918620303,
+          "median_seconds": 16.855365661904216,
+          "minimum_seconds": 15.78174748388119,
+          "p90_seconds": 19.331096725002862,
+          "query_count": 8,
+          "summed_seconds": 137.92232734896243
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.38790663005784154,
+          "mean_seconds": 0.27384658422670327,
+          "median_seconds": 0.2655715624568984,
+          "minimum_seconds": 0.22677730792202055,
+          "p90_seconds": 0.30807587411254644,
+          "query_count": 8,
+          "summed_seconds": 2.190772673813626
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 3.4540368819143623,
+          "mean_seconds": 3.174456451757578,
+          "median_seconds": 3.1362880954984576,
+          "minimum_seconds": 2.967948802979663,
+          "p90_seconds": 3.378196854889393,
+          "query_count": 8,
+          "summed_seconds": 25.395651614060625
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 4.995483133941889,
+          "mean_seconds": 4.415118445380358,
+          "median_seconds": 4.319327727542259,
+          "minimum_seconds": 3.9877517430577427,
+          "p90_seconds": 4.8305063604842875,
+          "query_count": 8,
+          "summed_seconds": 35.320947563042864
+        }
+      },
+      "query_count": 8
+    },
+    "Bedrooms_idx_18": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 3.99898271006532,
+          "mean_seconds": 3.861867991363397,
+          "median_seconds": 3.8513955015223473,
+          "minimum_seconds": 3.754064526874572,
+          "p90_seconds": 3.9549556913087143,
+          "query_count": 8,
+          "summed_seconds": 30.894943930907175
+        },
+        "fem_agree": {
+          "maximum_seconds": 24.19312472641468,
+          "mean_seconds": 22.806299894524273,
+          "median_seconds": 22.656868826248683,
+          "minimum_seconds": 21.272832721937448,
+          "p90_seconds": 24.16614204372745,
+          "query_count": 8,
+          "summed_seconds": 182.45039915619418
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.2993118059821427,
+          "mean_seconds": 0.2599885949748568,
+          "median_seconds": 0.2587050284491852,
+          "minimum_seconds": 0.2279785298742354,
+          "p90_seconds": 0.2841845064656809,
+          "query_count": 8,
+          "summed_seconds": 2.0799087597988546
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 3.443308016983792,
+          "mean_seconds": 3.3346107172837947,
+          "median_seconds": 3.328912116587162,
+          "minimum_seconds": 3.2384940169285983,
+          "p90_seconds": 3.4104813252110033,
+          "query_count": 8,
+          "summed_seconds": 26.676885738270357
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 4.97112535010092,
+          "mean_seconds": 4.726178075041389,
+          "median_seconds": 4.716209684032947,
+          "minimum_seconds": 4.513180313166231,
+          "p90_seconds": 4.896971760108135,
+          "query_count": 8,
+          "summed_seconds": 37.80942460033111
+        }
+      },
+      "query_count": 8
+    },
+    "Bedrooms_idx_33": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 3.924310619942844,
+          "mean_seconds": 3.8209248648490757,
+          "median_seconds": 3.8301093104528263,
+          "minimum_seconds": 3.6941641410812736,
+          "p90_seconds": 3.9194767020875587,
+          "query_count": 8,
+          "summed_seconds": 30.567398918792605
+        },
+        "fem_agree": {
+          "maximum_seconds": 24.970957605168223,
+          "mean_seconds": 23.182288303185487,
+          "median_seconds": 23.293111477745697,
+          "minimum_seconds": 21.236598409013823,
+          "p90_seconds": 24.52660276393872,
+          "query_count": 8,
+          "summed_seconds": 185.4583064254839
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.3525002698879689,
+          "mean_seconds": 0.28632805426605046,
+          "median_seconds": 0.26940046693198383,
+          "minimum_seconds": 0.23912539100274444,
+          "p90_seconds": 0.34261796264909206,
+          "query_count": 8,
+          "summed_seconds": 2.2906244341284037
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 3.3969523329287767,
+          "mean_seconds": 3.304286872706143,
+          "median_seconds": 3.317299493472092,
+          "minimum_seconds": 3.1816017508972436,
+          "p90_seconds": 3.394855202361941,
+          "query_count": 8,
+          "summed_seconds": 26.434294981649145
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 4.850699061062187,
+          "mean_seconds": 4.571907163364813,
+          "median_seconds": 4.527212215936743,
+          "minimum_seconds": 4.240744123933837,
+          "p90_seconds": 4.7651627018349245,
+          "query_count": 8,
+          "summed_seconds": 36.5752573069185
+        }
+      },
+      "query_count": 8
+    },
+    "LivingRoomsWithHallway_idx_25": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 9.129646409768611,
+          "mean_seconds": 8.966602082364261,
+          "median_seconds": 8.915573128964752,
+          "minimum_seconds": 8.821345597039908,
+          "p90_seconds": 9.122090650629252,
+          "query_count": 5,
+          "summed_seconds": 44.833010411821306
+        },
+        "fem_agree": {
+          "maximum_seconds": 76.26957120583393,
+          "mean_seconds": 73.70185351399705,
+          "median_seconds": 73.90861546597444,
+          "minimum_seconds": 69.4575233750511,
+          "p90_seconds": 75.91703300788068,
+          "query_count": 5,
+          "summed_seconds": 368.50926756998524
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.6300147380679846,
+          "mean_seconds": 0.5911609043832868,
+          "median_seconds": 0.5880792939569801,
+          "minimum_seconds": 0.5581078589893878,
+          "p90_seconds": 0.6243211612105369,
+          "query_count": 5,
+          "summed_seconds": 2.955804521916434
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 8.143192154122517,
+          "mean_seconds": 8.010427628271282,
+          "median_seconds": 7.970853948965669,
+          "minimum_seconds": 7.909651947207749,
+          "p90_seconds": 8.130630859313532,
+          "query_count": 5,
+          "summed_seconds": 40.05213814135641
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 11.216080124024302,
+          "mean_seconds": 11.195063367020339,
+          "median_seconds": 11.202888782834634,
+          "minimum_seconds": 11.160002675140277,
+          "p90_seconds": 11.212407552450895,
+          "query_count": 5,
+          "summed_seconds": 55.975316835101694
+        }
+      },
+      "query_count": 5
+    },
+    "LivingRoomsWithHallway_idx_30": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 17.94348942488432,
+          "mean_seconds": 17.7155580142779,
+          "median_seconds": 17.90007941192016,
+          "minimum_seconds": 17.411203454015777,
+          "p90_seconds": 17.930643218522892,
+          "query_count": 7,
+          "summed_seconds": 124.0089060999453
+        },
+        "fem_agree": {
+          "maximum_seconds": 151.70517657278106,
+          "mean_seconds": 132.48655230838008,
+          "median_seconds": 130.24701106757857,
+          "minimum_seconds": 124.31259770318866,
+          "p90_seconds": 144.67275259322489,
+          "query_count": 7,
+          "summed_seconds": 927.4058661586605
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.241510234074667,
+          "mean_seconds": 1.182775292678603,
+          "median_seconds": 1.192080499837175,
+          "minimum_seconds": 1.1210667069535702,
+          "p90_seconds": 1.2323467993177473,
+          "query_count": 7,
+          "summed_seconds": 8.279427048750222
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 16.272723896894604,
+          "mean_seconds": 16.058650038238348,
+          "median_seconds": 16.229254673002288,
+          "minimum_seconds": 15.751509585883468,
+          "p90_seconds": 16.267688284721224,
+          "query_count": 7,
+          "summed_seconds": 112.41055026766844
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 23.952144633047283,
+          "mean_seconds": 22.18628520970898,
+          "median_seconds": 21.866711613023654,
+          "minimum_seconds": 21.635858326917514,
+          "p90_seconds": 23.048550607217475,
+          "query_count": 7,
+          "summed_seconds": 155.30399646796286
+        }
+      },
+      "query_count": 7
+    },
+    "MeetingRoom_idx_20": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 14.870681508909911,
+          "mean_seconds": 14.623055277537787,
+          "median_seconds": 14.638947019935586,
+          "minimum_seconds": 14.392183137824759,
+          "p90_seconds": 14.814514505024999,
+          "query_count": 8,
+          "summed_seconds": 116.9844422203023
+        },
+        "fem_agree": {
+          "maximum_seconds": 93.19268107693642,
+          "mean_seconds": 87.53248821588932,
+          "median_seconds": 86.3275021566078,
+          "minimum_seconds": 83.55313491611741,
+          "p90_seconds": 92.29597367858514,
+          "query_count": 8,
+          "summed_seconds": 700.2599057271145
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.0297318119555712,
+          "mean_seconds": 0.9634118506219238,
+          "median_seconds": 0.9636360516306013,
+          "minimum_seconds": 0.9077290350105613,
+          "p90_seconds": 1.0138330480549484,
+          "query_count": 8,
+          "summed_seconds": 7.70729480497539
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 13.511645337101072,
+          "mean_seconds": 13.217236530035734,
+          "median_seconds": 13.223698761430569,
+          "minimum_seconds": 12.997022628085688,
+          "p90_seconds": 13.40896380697377,
+          "query_count": 8,
+          "summed_seconds": 105.73789224028587
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 18.906464252155274,
+          "mean_seconds": 18.513425557903247,
+          "median_seconds": 18.530309221940115,
+          "minimum_seconds": 18.246342384023592,
+          "p90_seconds": 18.703822258650327,
+          "query_count": 8,
+          "summed_seconds": 148.10740446322598
+        }
+      },
+      "query_count": 8
+    },
+    "MeetingRoom_idx_32": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 7.013535544043407,
+          "mean_seconds": 6.841083660023287,
+          "median_seconds": 6.8564625000581145,
+          "minimum_seconds": 6.698567359009758,
+          "p90_seconds": 6.96254044030793,
+          "query_count": 8,
+          "summed_seconds": 54.728669280186296
+        },
+        "fem_agree": {
+          "maximum_seconds": 38.5093802229967,
+          "mean_seconds": 35.13779040091322,
+          "median_seconds": 34.76330731273629,
+          "minimum_seconds": 32.471237695775926,
+          "p90_seconds": 37.38686435716227,
+          "query_count": 8,
+          "summed_seconds": 281.10232320730574
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.6000106369610876,
+          "mean_seconds": 0.48140955812414177,
+          "median_seconds": 0.47331413347274065,
+          "minimum_seconds": 0.42110282299108803,
+          "p90_seconds": 0.5588906595017761,
+          "query_count": 8,
+          "summed_seconds": 3.851276464993134
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 6.213901520939544,
+          "mean_seconds": 6.061819049617043,
+          "median_seconds": 6.068102412042208,
+          "minimum_seconds": 5.938741800142452,
+          "p90_seconds": 6.179983690194786,
+          "query_count": 8,
+          "summed_seconds": 48.49455239693634
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 8.67508457112126,
+          "mean_seconds": 8.346553968876833,
+          "median_seconds": 8.38360914203804,
+          "minimum_seconds": 8.110655545955524,
+          "p90_seconds": 8.531374509492888,
+          "query_count": 8,
+          "summed_seconds": 66.77243175101466
+        }
+      },
+      "query_count": 8
+    },
+    "Office_idx_10": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 16.333084407029673,
+          "mean_seconds": 16.11948607825408,
+          "median_seconds": 16.29343419894576,
+          "minimum_seconds": 15.836460552876815,
+          "p90_seconds": 16.32253251839429,
+          "query_count": 7,
+          "summed_seconds": 112.83640254777856
+        },
+        "fem_agree": {
+          "maximum_seconds": 124.170909171924,
+          "mean_seconds": 113.85707938800832,
+          "median_seconds": 114.07846883195452,
+          "minimum_seconds": 106.56635238602757,
+          "p90_seconds": 119.62867350503802,
+          "query_count": 7,
+          "summed_seconds": 796.9995557160582
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.0582836570683867,
+          "mean_seconds": 1.0293452017607965,
+          "median_seconds": 1.0203264551237226,
+          "minimum_seconds": 1.0110843901056796,
+          "p90_seconds": 1.0553783639799803,
+          "query_count": 7,
+          "summed_seconds": 7.205416412325576
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 14.749323099851608,
+          "mean_seconds": 14.561128123463797,
+          "median_seconds": 14.659843267174438,
+          "minimum_seconds": 14.320422837045044,
+          "p90_seconds": 14.743586823856457,
+          "query_count": 7,
+          "summed_seconds": 101.92789686424658
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 22.192810755921528,
+          "mean_seconds": 20.700192651977495,
+          "median_seconds": 20.405113402055576,
+          "minimum_seconds": 19.973946251906455,
+          "p90_seconds": 21.603056386020036,
+          "query_count": 7,
+          "summed_seconds": 144.90134856384248
+        }
+      },
+      "query_count": 7
+    },
+    "Office_idx_11": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 25.81395731214434,
+          "mean_seconds": 25.55045724470013,
+          "median_seconds": 25.74149215046782,
+          "minimum_seconds": 25.030722555937245,
+          "p90_seconds": 25.807028021663427,
+          "query_count": 6,
+          "summed_seconds": 153.3027434682008
+        },
+        "fem_agree": {
+          "maximum_seconds": 280.1152545840014,
+          "mean_seconds": 262.64988623691414,
+          "median_seconds": 271.040696526994,
+          "minimum_seconds": 224.85458697378635,
+          "p90_seconds": 280.1083099038806,
+          "query_count": 6,
+          "summed_seconds": 1575.8993174214847
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.7198931919410825,
+          "mean_seconds": 1.6273681377448763,
+          "median_seconds": 1.601067820098251,
+          "minimum_seconds": 1.576578876003623,
+          "p90_seconds": 1.7042357580503449,
+          "query_count": 6,
+          "summed_seconds": 9.764208826469257
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 23.372805878985673,
+          "mean_seconds": 23.145062993164174,
+          "median_seconds": 23.263359451084398,
+          "minimum_seconds": 22.766651985934004,
+          "p90_seconds": 23.354194091516547,
+          "query_count": 6,
+          "summed_seconds": 138.87037795898505
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 34.5163105011452,
+          "mean_seconds": 32.572945585513175,
+          "median_seconds": 32.16186112747528,
+          "minimum_seconds": 31.652147026034072,
+          "p90_seconds": 33.75253363151569,
+          "query_count": 6,
+          "summed_seconds": 195.43767351307906
+        }
+      },
+      "query_count": 6
+    },
+    "Restaurants_idx_22": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 18.76939680892974,
+          "mean_seconds": 18.45223249096307,
+          "median_seconds": 18.454004289465956,
+          "minimum_seconds": 18.146956173004583,
+          "p90_seconds": 18.735325577273034,
+          "query_count": 8,
+          "summed_seconds": 147.61785992770456
+        },
+        "fem_agree": {
+          "maximum_seconds": 181.54073236417025,
+          "mean_seconds": 179.94421090980177,
+          "median_seconds": 181.21366796898656,
+          "minimum_seconds": 172.46213870472275,
+          "p90_seconds": 181.43768519542647,
+          "query_count": 8,
+          "summed_seconds": 1439.5536872784141
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.2919568109791726,
+          "mean_seconds": 1.1946355255204253,
+          "median_seconds": 1.190956483478658,
+          "minimum_seconds": 1.118891084101051,
+          "p90_seconds": 1.2468307334929705,
+          "query_count": 8,
+          "summed_seconds": 9.557084204163402
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 16.985295557882637,
+          "mean_seconds": 16.714888020127546,
+          "median_seconds": 16.73104644799605,
+          "minimum_seconds": 16.466551069170237,
+          "p90_seconds": 16.942937270668335,
+          "query_count": 8,
+          "summed_seconds": 133.71910416102037
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 23.195694216061383,
+          "mean_seconds": 23.01204861854785,
+          "median_seconds": 23.045881332014687,
+          "minimum_seconds": 22.608416877221316,
+          "p90_seconds": 23.166146484529598,
+          "query_count": 8,
+          "summed_seconds": 184.0963889483828
+        }
+      },
+      "query_count": 8
+    },
+    "Restaurants_idx_24": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 16.831293599912897,
+          "mean_seconds": 16.595206192112528,
+          "median_seconds": 16.593262196402065,
+          "minimum_seconds": 16.32045419793576,
+          "p90_seconds": 16.801362893590703,
+          "query_count": 8,
+          "summed_seconds": 132.76164953690022
+        },
+        "fem_agree": {
+          "maximum_seconds": 161.80370609415695,
+          "mean_seconds": 154.5682920757681,
+          "median_seconds": 159.9532967825653,
+          "minimum_seconds": 136.9363217917271,
+          "p90_seconds": 161.57044780291616,
+          "query_count": 8,
+          "summed_seconds": 1236.546336606145
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.2518778028897941,
+          "mean_seconds": 1.1287661647656932,
+          "median_seconds": 1.0979101475095376,
+          "minimum_seconds": 1.0606083520688117,
+          "p90_seconds": 1.2144713584333657,
+          "query_count": 8,
+          "summed_seconds": 9.030129318125546
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 15.141076470026746,
+          "mean_seconds": 14.974681047722697,
+          "median_seconds": 14.988280059420504,
+          "minimum_seconds": 14.718374949181452,
+          "p90_seconds": 15.133995850919746,
+          "query_count": 8,
+          "summed_seconds": 119.79744838178158
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 22.529697522055358,
+          "mean_seconds": 21.11029667814728,
+          "median_seconds": 21.01622836047318,
+          "minimum_seconds": 20.46427177800797,
+          "p90_seconds": 21.587532347021625,
+          "query_count": 8,
+          "summed_seconds": 168.88237342517823
+        }
+      },
+      "query_count": 8
+    }
+  },
+  "by_scene": {
+    "Apartments": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 14.132549148984253,
+          "mean_seconds": 13.600862862862414,
+          "median_seconds": 13.939087865874171,
+          "minimum_seconds": 11.092402970185503,
+          "p90_seconds": 14.09543593863491,
+          "query_count": 8,
+          "summed_seconds": 108.80690290289931
+        },
+        "fem_agree": {
+          "maximum_seconds": 110.9029243348632,
+          "mean_seconds": 72.67491231192253,
+          "median_seconds": 66.79035505012143,
+          "minimum_seconds": 65.41283491300419,
+          "p90_seconds": 83.93239288842305,
+          "query_count": 8,
+          "summed_seconds": 581.3992984953802
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.0802497980184853,
+          "mean_seconds": 0.9522549021348823,
+          "median_seconds": 0.9254215735709295,
+          "minimum_seconds": 0.8948262119665742,
+          "p90_seconds": 1.0260691070929169,
+          "query_count": 8,
+          "summed_seconds": 7.618039217079058
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 12.80104401987046,
+          "mean_seconds": 12.324826381896855,
+          "median_seconds": 12.661477689514868,
+          "minimum_seconds": 9.994439369998872,
+          "p90_seconds": 12.793551791924983,
+          "query_count": 8,
+          "summed_seconds": 98.59861105517484
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 19.198468229034916,
+          "mean_seconds": 17.719594062655233,
+          "median_seconds": 18.140486965538003,
+          "minimum_seconds": 13.802610608981922,
+          "p90_seconds": 18.71395069770515,
+          "query_count": 8,
+          "summed_seconds": 141.75675250124186
+        }
+      },
+      "query_count": 8
+    },
+    "Bathrooms": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 3.975502563873306,
+          "mean_seconds": 2.8765767904551467,
+          "median_seconds": 2.796850572573021,
+          "minimum_seconds": 2.060742347035557,
+          "p90_seconds": 3.8250505194300786,
+          "query_count": 16,
+          "summed_seconds": 46.02522864728235
+        },
+        "fem_agree": {
+          "maximum_seconds": 19.653721747919917,
+          "mean_seconds": 15.959753087168792,
+          "median_seconds": 15.862945348140784,
+          "minimum_seconds": 14.040066154673696,
+          "p90_seconds": 18.322320768609643,
+          "query_count": 16,
+          "summed_seconds": 255.35604939470068
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.38790663005784154,
+          "mean_seconds": 0.22762315657746512,
+          "median_seconds": 0.24863736191764474,
+          "minimum_seconds": 0.12524480000138283,
+          "p90_seconds": 0.2787391560850665,
+          "query_count": 16,
+          "summed_seconds": 3.641970505239442
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 3.4540368819143623,
+          "mean_seconds": 2.463423005392542,
+          "median_seconds": 2.5848435405641794,
+          "minimum_seconds": 1.6689050381537527,
+          "p90_seconds": 3.307991956593469,
+          "query_count": 16,
+          "summed_seconds": 39.414768086280674
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 4.995483133941889,
+          "mean_seconds": 3.384578297045664,
+          "median_seconds": 3.2439011484384537,
+          "minimum_seconds": 2.170101597905159,
+          "p90_seconds": 4.702817908488214,
+          "query_count": 16,
+          "summed_seconds": 54.15325275273062
+        }
+      },
+      "query_count": 16
+    },
+    "Bedrooms": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 3.99898271006532,
+          "mean_seconds": 3.8413964281062363,
+          "median_seconds": 3.834230518899858,
+          "minimum_seconds": 3.6941641410812736,
+          "p90_seconds": 3.9301987944636494,
+          "query_count": 16,
+          "summed_seconds": 61.46234284969978
+        },
+        "fem_agree": {
+          "maximum_seconds": 24.970957605168223,
+          "mean_seconds": 22.99429409885488,
+          "median_seconds": 23.160386386560276,
+          "minimum_seconds": 21.236598409013823,
+          "p90_seconds": 24.26464485062752,
+          "query_count": 16,
+          "summed_seconds": 367.9087055816781
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 0.3525002698879689,
+          "mean_seconds": 0.27315832462045364,
+          "median_seconds": 0.26272946153767407,
+          "minimum_seconds": 0.2279785298742354,
+          "p90_seconds": 0.32660158607177436,
+          "query_count": 16,
+          "summed_seconds": 4.370533193927258
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 3.443308016983792,
+          "mean_seconds": 3.319448794994969,
+          "median_seconds": 3.3232179895276204,
+          "minimum_seconds": 3.1816017508972436,
+          "p90_seconds": 3.396682537975721,
+          "query_count": 16,
+          "summed_seconds": 53.1111807199195
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 4.97112535010092,
+          "mean_seconds": 4.649042619203101,
+          "median_seconds": 4.6650335169397295,
+          "minimum_seconds": 4.240744123933837,
+          "p90_seconds": 4.857945355586708,
+          "query_count": 16,
+          "summed_seconds": 74.38468190724961
+        }
+      },
+      "query_count": 16
+    },
+    "LivingRoomsWithHallway": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 17.94348942488432,
+          "mean_seconds": 14.070159709313884,
+          "median_seconds": 17.43116535851732,
+          "minimum_seconds": 8.821345597039908,
+          "p90_seconds": 17.921997340768577,
+          "query_count": 12,
+          "summed_seconds": 168.8419165117666
+        },
+        "fem_agree": {
+          "maximum_seconds": 151.70517657278106,
+          "mean_seconds": 107.99292781072047,
+          "median_seconds": 124.68210039555561,
+          "minimum_seconds": 69.4575233750511,
+          "p90_seconds": 139.0120193674695,
+          "query_count": 12,
+          "summed_seconds": 1295.9151337286457
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.241510234074667,
+          "mean_seconds": 0.9362692975555547,
+          "median_seconds": 1.1327915840083733,
+          "minimum_seconds": 0.5581078589893878,
+          "p90_seconds": 1.2234284025384112,
+          "query_count": 12,
+          "summed_seconds": 11.235231570666656
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 16.272723896894604,
+          "mean_seconds": 12.705224034085404,
+          "median_seconds": 15.780168138910085,
+          "minimum_seconds": 7.909651947207749,
+          "p90_seconds": 16.263923462550157,
+          "query_count": 12,
+          "summed_seconds": 152.46268840902485
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 23.952144633047283,
+          "mean_seconds": 17.606609441922046,
+          "median_seconds": 21.656351247918792,
+          "minimum_seconds": 11.160002675140277,
+          "p90_seconds": 22.398401537514292,
+          "query_count": 12,
+          "summed_seconds": 211.27931330306455
+        }
+      },
+      "query_count": 12
+    },
+    "MeetingRoom": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 14.870681508909911,
+          "mean_seconds": 10.732069468780537,
+          "median_seconds": 10.702859340934083,
+          "minimum_seconds": 6.698567359009758,
+          "p90_seconds": 14.785469904425554,
+          "query_count": 16,
+          "summed_seconds": 171.7131115004886
+        },
+        "fem_agree": {
+          "maximum_seconds": 93.19268107693642,
+          "mean_seconds": 61.33513930840127,
+          "median_seconds": 61.031257569557056,
+          "minimum_seconds": 32.471237695775926,
+          "p90_seconds": 90.48893139255233,
+          "query_count": 16,
+          "summed_seconds": 981.3622289344203
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.0297318119555712,
+          "mean_seconds": 0.7224107043730328,
+          "median_seconds": 0.7538698359858245,
+          "minimum_seconds": 0.42110282299108803,
+          "p90_seconds": 0.998946996522136,
+          "query_count": 16,
+          "summed_seconds": 11.558571269968525
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 13.511645337101072,
+          "mean_seconds": 9.639527789826388,
+          "median_seconds": 9.605462074512616,
+          "minimum_seconds": 5.938741800142452,
+          "p90_seconds": 13.357606641482562,
+          "query_count": 16,
+          "summed_seconds": 154.23244463722222
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 18.906464252155274,
+          "mean_seconds": 13.42998976339004,
+          "median_seconds": 13.460713477572426,
+          "minimum_seconds": 8.110655545955524,
+          "p90_seconds": 18.616580725531094,
+          "query_count": 16,
+          "summed_seconds": 214.87983621424064
+        }
+      },
+      "query_count": 16
+    },
+    "Office": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 25.81395731214434,
+          "mean_seconds": 20.47224200122918,
+          "median_seconds": 16.333084407029673,
+          "minimum_seconds": 15.836460552876815,
+          "p90_seconds": 25.789036197541282,
+          "query_count": 13,
+          "summed_seconds": 266.13914601597935
+        },
+        "fem_agree": {
+          "maximum_seconds": 280.1152545840014,
+          "mean_seconds": 182.53068254904176,
+          "median_seconds": 124.170909171924,
+          "minimum_seconds": 106.56635238602757,
+          "p90_seconds": 279.1274737768341,
+          "query_count": 13,
+          "summed_seconds": 2372.898873137543
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.7198931919410825,
+          "mean_seconds": 1.3053557875996025,
+          "median_seconds": 1.0582836570683867,
+          "minimum_seconds": 1.0110843901056796,
+          "p90_seconds": 1.6735255349427463,
+          "query_count": 13,
+          "summed_seconds": 16.969625238794833
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 23.372805878985673,
+          "mean_seconds": 18.522944217171663,
+          "median_seconds": 14.749323099851608,
+          "minimum_seconds": 14.320422837045044,
+          "p90_seconds": 23.328890817658976,
+          "query_count": 13,
+          "summed_seconds": 240.79827482323162
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 34.5163105011452,
+          "mean_seconds": 26.17992477514781,
+          "median_seconds": 22.192810755921528,
+          "minimum_seconds": 19.973946251906455,
+          "p90_seconds": 32.86428337590769,
+          "query_count": 13,
+          "summed_seconds": 340.33902207692154
+        }
+      },
+      "query_count": 13
+    },
+    "Restaurants": {
+      "methods": {
+        "fa_bf_flac": {
+          "maximum_seconds": 18.76939680892974,
+          "mean_seconds": 17.5237193415378,
+          "median_seconds": 17.48912488645874,
+          "minimum_seconds": 16.32045419793576,
+          "p90_seconds": 18.696428929339163,
+          "query_count": 16,
+          "summed_seconds": 280.3795094646048
+        },
+        "fem_agree": {
+          "maximum_seconds": 181.54073236417025,
+          "mean_seconds": 167.25625149278494,
+          "median_seconds": 167.13292239943985,
+          "minimum_seconds": 136.9363217917271,
+          "p90_seconds": 181.3793174891034,
+          "query_count": 16,
+          "summed_seconds": 2676.100023884559
+        },
+        "few_shot_rir": {
+          "maximum_seconds": 1.2919568109791726,
+          "mean_seconds": 1.1617008451430593,
+          "median_seconds": 1.170345653546974,
+          "minimum_seconds": 1.0606083520688117,
+          "p90_seconds": 1.239684394444339,
+          "query_count": 16,
+          "summed_seconds": 18.58721352228895
+        },
+        "vanilla_flac": {
+          "maximum_seconds": 16.985295557882637,
+          "mean_seconds": 15.844784533925122,
+          "median_seconds": 15.803813769598491,
+          "minimum_seconds": 14.718374949181452,
+          "p90_seconds": 16.91023790894542,
+          "query_count": 16,
+          "summed_seconds": 253.51655254280195
+        },
+        "yawaug_flac": {
+          "maximum_seconds": 23.195694216061383,
+          "mean_seconds": 22.061172648347565,
+          "median_seconds": 22.569057199638337,
+          "minimum_seconds": 20.46427177800797,
+          "p90_seconds": 23.14607088197954,
+          "query_count": 16,
+          "summed_seconds": 352.97876237356104
+        }
+      },
+      "query_count": 16
+    }
+  },
+  "configurations": {
+    "fa_bf_flac": {
+      "hardware": "RTX A6000",
+      "recorded_execution": "joint K_gen=1/4/8 GPU pass"
+    },
+    "fem_agree": {
+      "hardware": "12-thread CPU FEM + RTX A6000 scoring",
+      "recorded_execution": "Depth-AABB + 102-bin FEM + AGREE K=1/4/8 scoring"
+    },
+    "few_shot_rir": {
+      "hardware": "RTX A6000",
+      "recorded_execution": "joint K_ctx=1/8 GPU pass"
+    },
+    "vanilla_flac": {
+      "hardware": "RTX A6000",
+      "recorded_execution": "joint K_gen=1/4/8 GPU pass"
+    },
+    "yawaug_flac": {
+      "hardware": "RTX A6000",
+      "recorded_execution": "joint K_gen=1/4/8 GPU pass"
+    }
+  },
+  "fem_components": {
+    "agree_score_mean_seconds": 2.242906789208964,
+    "combined_mean_seconds": 87.94783827996832,
+    "fem_forward_mean_seconds": 85.70493149075935
+  },
+  "overall": {
+    "fa_bf_flac": {
+      "maximum_seconds": 25.81395731214434,
+      "mean_seconds": 11.374929462811554,
+      "median_seconds": 13.823320391820744,
+      "minimum_seconds": 2.060742347035557,
+      "p90_seconds": 18.411291843792426,
+      "query_count": 97,
+      "summed_seconds": 1103.3681578927208
+    },
+    "fem_agree": {
+      "maximum_seconds": 280.1152545840014,
+      "mean_seconds": 87.94783827996832,
+      "median_seconds": 73.48533181217499,
+      "minimum_seconds": 14.040066154673696,
+      "p90_seconds": 181.21126933079213,
+      "query_count": 97,
+      "summed_seconds": 8530.940313156927
+    },
+    "few_shot_rir": {
+      "maximum_seconds": 1.7198931919410825,
+      "mean_seconds": 0.7626926238965435,
+      "median_seconds": 0.9161289487965405,
+      "minimum_seconds": 0.12524480000138283,
+      "p90_seconds": 1.2267391000874341,
+      "query_count": 97,
+      "summed_seconds": 73.98118451796472
+    },
+    "vanilla_flac": {
+      "maximum_seconds": 23.372805878985673,
+      "mean_seconds": 10.228190930656243,
+      "median_seconds": 12.553528361022472,
+      "minimum_seconds": 1.6689050381537527,
+      "p90_seconds": 16.69869065359235,
+      "query_count": 97,
+      "summed_seconds": 992.1345202736557
+    },
+    "yawaug_flac": {
+      "maximum_seconds": 34.5163105011452,
+      "mean_seconds": 14.327542485866081,
+      "median_seconds": 17.98381830798462,
+      "minimum_seconds": 2.170101597905159,
+      "p90_seconds": 23.10382217722945,
+      "query_count": 97,
+      "summed_seconds": 1389.7716211290099
+    }
+  },
+  "per_candidate": {
+    "fa_bf_flac": {
+      "amortized_seconds": 0.06398191695521721,
+      "candidate_evaluations": 17245,
+      "maximum_seconds": 0.07637962718770185,
+      "mean_seconds": 0.06569813549950759,
+      "median_seconds": 0.06426302989965062,
+      "minimum_seconds": 0.061957234049349615,
+      "p90_seconds": 0.06915488431827144,
+      "query_count": 97,
+      "summed_seconds": 6.372719143452237
+    },
+    "fem_agree": {
+      "amortized_seconds": 0.49469065312594535,
+      "candidate_evaluations": 17245,
+      "maximum_seconds": 0.6933202109499005,
+      "mean_seconds": 0.4583789179879726,
+      "median_seconds": 0.44247572681527925,
+      "minimum_seconds": 0.2972824668934293,
+      "p90_seconds": 0.619291488803866,
+      "query_count": 97,
+      "summed_seconds": 44.462755044833344
+    },
+    "few_shot_rir": {
+      "amortized_seconds": 0.004290007800403869,
+      "candidate_evaluations": 17245,
+      "maximum_seconds": 0.010129129256321383,
+      "mean_seconds": 0.00460905584137356,
+      "median_seconds": 0.0042812859191774175,
+      "minimum_seconds": 0.003818740901368775,
+      "p90_seconds": 0.005465962523261885,
+      "query_count": 97,
+      "summed_seconds": 0.44707841661323533
+    },
+    "vanilla_flac": {
+      "amortized_seconds": 0.05753172051456397,
+      "candidate_evaluations": 17245,
+      "maximum_seconds": 0.0815458621536554,
+      "mean_seconds": 0.05824414444623469,
+      "median_seconds": 0.05801178724148179,
+      "minimum_seconds": 0.056310070631707745,
+      "p90_seconds": 0.05975484843116387,
+      "query_count": 97,
+      "summed_seconds": 5.649682011284765
+    },
+    "yawaug_flac": {
+      "amortized_seconds": 0.08058983016114873,
+      "candidate_evaluations": 17245,
+      "maximum_seconds": 0.09256460348627081,
+      "mean_seconds": 0.0812277438654647,
+      "median_seconds": 0.08054656757417174,
+      "minimum_seconds": 0.07579807814693561,
+      "p90_seconds": 0.08576542696166055,
+      "query_count": 97,
+      "summed_seconds": 7.879091154950076
+    }
+  },
+  "schema_version": 1,
+  "scope": {
+    "aggregation": "query micro",
+    "checkpoint_startup_included": false,
+    "query_count": 97,
+    "room_count": 14,
+    "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316"
+  },
+  "sha256": "bb7f5aea7a8ca52612529d70999442e7d8cb7ad52b6bed67566064228e3fe627"
+}

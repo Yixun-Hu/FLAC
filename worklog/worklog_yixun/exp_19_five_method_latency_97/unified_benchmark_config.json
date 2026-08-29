@@ -1,0 +1,43 @@
+{
+  "agree_candidate_batch_size": 32,
+  "agree_checkpoint": "/home/zhixuanzhao/projects/Frame_Average/FLAC-C4-FA-reproduction/weights/AGREE/AGREE_fullAR.pt",
+  "candidate_batch_size": 64,
+  "context_manifest": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json",
+  "cuda_visible_devices": "0",
+  "dataset_root": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms",
+  "device": "cuda:0",
+  "fem_solver_threads": 24,
+  "fem_workers": 1,
+  "geometry_audit": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json",
+  "methods": {
+    "fa_bf_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/BF_40k_clean_hybrid_EMA.ckpt",
+      "conditioning_method": "fa_invariant",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    },
+    "few_shot_rir": {
+      "checkpoint": "worklog/worklog_yixun/exp_10_room_helps_baselines_claude/few_shot_rir_train_seed42_run2/best-00100000.ckpt",
+      "model_config": "src/configs/model_configs/baselines/FewShotRIR_Waveform_AR.json"
+    },
+    "vanilla_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/P1_40k_clean_hybrid_EMA.ckpt",
+      "conditioning_method": "vanilla",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    },
+    "yawaug_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/YAWAUG_AR_40k_epoch8-step40000.ckpt",
+      "conditioning_method": "vanilla",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    }
+  },
+  "mkl_runtime": "/opt/anaconda3/lib/libmkl_rt.so",
+  "mplconfigdir": "/tmp/matplotlib-five-method-latency",
+  "output_root": "worklog/worklog_yixun/exp_20_unified_five_method_latency",
+  "python": "/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/bin/python",
+  "repeat_count": 1,
+  "schema_version": 1,
+  "score_seed": 42,
+  "selection": "worklog/worklog_yixun/exp_14_depth_aabb_matched_protocol/depth_aabb_matched_14room_97.json",
+  "tau": 0.1,
+  "warmup_query_count": 0
+}

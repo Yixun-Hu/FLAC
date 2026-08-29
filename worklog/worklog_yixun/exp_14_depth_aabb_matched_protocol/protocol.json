@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "decision": "Depth-AABB is the matched-input FEM baseline",
+  "primary_model_label": "FEM-Sabine (Depth-AABB)",
+  "comparison_models": [
+    "Vanilla FLAC 40k",
+    "FA-BF FLAC 40k",
+    "YAWAUG FLAC AR 40k",
+    "Few-ShotRIR-Waveform 100k",
+    "FEM-Sabine (Depth-AABB)"
+  ],
+  "model_roles": {
+    "FEM-Sabine (Depth-AABB)": "matched-input primary baseline",
+    "FEM-Sabine (Full-Mesh)": "privileged-geometry oracle only",
+    "FEM-Sabine (Depth-Polar)": "incomplete-coverage diagnostic only",
+    "FEM-Sabine (Depth-BoundedCompletion)": "negative ablation only"
+  },
+  "geometry_contract": {
+    "input": "one fixed receiver-centered metric depth panorama",
+    "padding_m": 0.05,
+    "official_unseen_room_mesh_read": false,
+    "candidate_dependent_reconstruction": false,
+    "candidate_policy": "frozen and identical; no candidate filtering or score substitution",
+    "strict_inside_gate": [
+      "receiver",
+      "target_source",
+      "all_context_sources",
+      "all_candidates"
+    ]
+  },
+  "score_contract": {
+    "flac_k_gen": [1, 4, 8],
+    "few_shot_k_ctx": 8,
+    "fem_k_ctx": 8,
+    "fem_is_deterministic_and_has_no_k_gen": true,
+    "metrics": [
+      "median_localization_error_m",
+      "success_rate_at_0_5m",
+      "success_rate_at_1_0m",
+      "resolution_aware_success_rate_at_0_5m"
+    ]
+  },
+  "primary_scope": {
+    "description": "14-room paired complete-query scope; Auditorium and Cafe excluded",
+    "source_base_query_count": 112,
+    "strict_paired_base_query_count": 97,
+    "strict_query_coverage_fraction": 0.8660714285714286,
+    "flac_k_slices": 3,
+    "aligned_flac_query_configuration_count": 291,
+    "unique_depth_aabb_fem_solves": 97,
+    "manifest": "depth_aabb_matched_14room_97.json",
+    "manifest_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316"
+  },
+  "secondary_scope": {
+    "description": "all 16 rooms, coverage-conditioned paired scope",
+    "source_base_query_count": 128,
+    "strict_paired_base_query_count": 112,
+    "strict_query_coverage_fraction": 0.875,
+    "flac_k_slices": 3,
+    "aligned_flac_query_configuration_count": 336,
+    "unique_depth_aabb_fem_solves": 112,
+    "manifest": "depth_aabb_matched_16room_112.json",
+    "manifest_sha256": "67bdd25f3df704bc1c57558e7cb68cfaa5d9e60758f2c70e87a59eddc33bcfa9"
+  },
+  "reporting_rules": [
+    "Report K_gen=1, 4, and 8 as three paired slices, not as 384 independent samples.",
+    "Reuse each deterministic FEM result across the three FLAC K_gen slices without rerunning or relabeling FEM as K_gen.",
+    "Recompute every model aggregate on the exact paired manifest for that table.",
+    "Report Depth-AABB coverage beside localization metrics.",
+    "Do not assign artificial scores or failures to candidates outside the reconstructed domain."
+  ]
+}
