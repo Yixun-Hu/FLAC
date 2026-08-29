@@ -1,0 +1,145 @@
+binding gate passed against outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged: 6fb7116ed2b8... (19 fields)
+room -> shard from the run's merge report; shard -> device {'cafe': 'cuda:0', 'rest15': 'cuda:1'}
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchmetrics/utilities/imports.py:22: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import DistributionNotFound, get_distribution
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Using EMA model
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+weights: ema, latent (32, 10)
+Seed set to 42
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+release call graph reproduced: ['seed_everything', 'build_dataloader', 'build_metric_stack', 'create_iterator']
+  Cafe/Cafe_idx_1 q00076 (same-gpu, 0.4s)
+  Cafe/Cafe_idx_1 q00265 (same-gpu, 0.2s)
+  Cafe/Cafe_idx_1 q00788 (same-gpu, 314.3s) matched max |delta| 0.000244 over 5295 candidates
+  Cafe/Cafe_idx_1 q00902 (same-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_32 q00981 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_32 q00997 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_32 q01031 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_32 q01139 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_20 q01200 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_20 q01208 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_20 q01238 (CROSS-gpu, 0.2s)
+  MeetingRoom/MeetingRoom_idx_20 q01389 (CROSS-gpu, 0.2s)
+  Office/Office_idx_10 q01483 (CROSS-gpu, 0.2s)
+  Office/Office_idx_10 q01536 (CROSS-gpu, 0.2s)
+  Office/Office_idx_10 q01545 (CROSS-gpu, 0.2s)
+  Office/Office_idx_10 q01639 (CROSS-gpu, 0.2s)
+  Office/Office_idx_11 q01757 (CROSS-gpu, 0.2s)
+  Office/Office_idx_11 q01823 (CROSS-gpu, 0.2s)
+  Office/Office_idx_11 q01832 (CROSS-gpu, 0.2s)
+  Office/Office_idx_11 q01889 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_18 q02006 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_18 q02057 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_18 q02089 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_18 q02139 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_33 q02231 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_33 q02343 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_33 q02387 (CROSS-gpu, 0.2s)
+  Bedrooms/Bedrooms_idx_33 q02389 (CROSS-gpu, 0.2s)
+  Auditorium/Auditorium_idx_1 q03450 (CROSS-gpu, 0.2s)
+  Auditorium/Auditorium_idx_1 q03876 (CROSS-gpu, 0.2s)
+  Auditorium/Auditorium_idx_1 q03896 (CROSS-gpu, 0.2s)
+  Auditorium/Auditorium_idx_1 q04281 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_14 q04551 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_14 q04594 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_14 q04616 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_14 q04639 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_18 q04721 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_18 q04755 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_18 q04777 (CROSS-gpu, 0.2s)
+  Bathrooms/Bathrooms_idx_18 q04889 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_50 q04960 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_50 q05008 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_50 q05139 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_50 q05148 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_42 q05315 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_42 q05347 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_42 q05381 (CROSS-gpu, 0.2s)
+  Apartments/Apartments_idx_42 q05389 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 q05434 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 q05519 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 q05540 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 q05615 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 q05653 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 q05726 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 q05827 (CROSS-gpu, 0.2s)
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 q05864 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_22 q06027 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_22 q06038 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_22 q06040 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_22 q06063 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_24 q06202 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_24 q06286 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_24 q06299 (CROSS-gpu, 0.2s)
+  Restaurants/Restaurants_idx_24 q06304 (CROSS-gpu, 0.2s)
+# exp_22 r9r observation-continuity drift measurement
+
+- created: `2026-08-29T03:59:51+00:00`
+- run: `outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged`
+- device: `cuda:0`, shard devices: `{"cafe": "cuda:0", "rest15": "cuda:1"}`
+- sample: 64 queries / 130 (query, candidate) measurements, seed 20260828
+
+## Selection rule
+
+> DETERMINISTIC SELECTION RULE. Rooms are taken in sorted order. Within room i (0-based over the sorted room list) the first selected query is the room's REGISTERED PROBE QUERY -- the one the gate itself checks, so the measured population contains every case the gate will ever see -- and the remaining QUERIES_PER_ROOM-1 are drawn without replacement by numpy.random.default_rng([DRIFT_SELECTION_SEED, i]) from the room's other queries sorted by position. Within each selected query the first candidate is the row's OWN headline prediction row (tie_candidate_row, the gate's rule, not a copy of it) and the second is drawn by numpy.random.default_rng([DRIFT_SELECTION_SEED, position]) from the row's other candidate rows. Nothing about the sample depends on a delta, so it cannot be steered toward or away from the answer
+
+## The two paths
+
+> THE TWO PATHS. 'tie' is the gate's path: the source branch is called on ONE candidate position (batch 1, whatever source_chunk says, because source_conditioning chunks the position list) and num_samples rows go through the DiT, the VAE and AGREE. 'matched' is the run's own path: the receiver's whole candidate union through the source branch at the run's source_chunk, then the query's candidates in batch_rows-sized forwards -- ReceiverCache + meshgrid_engine._score_one_query, the same functions the scored pass called. A 'matched' delta is what remains when batch shape is held equal, so it separates batch-shape drift from everything else that could move a cosine
+
+## The GPU axis
+
+> THE GPU AXIS. The P1 pass ran as two shards on two devices, so a row's drift depends on whether it is re-derived on the device that produced it. The room -> shard map is read from the run's own merge_report.json; the shard -> device map is external knowledge (the operator's launch record) and is passed in explicitly and stamped into this artifact rather than inferred. 'same_gpu' means the measuring device is the one that produced the row
+
+## 1. Regeneration drift
+
+| path | slice | candidates | per-sample max | per-sample q99 | per-sample median | per-candidate max | aggregate max | aggregate > SCORE_TOLERANCE | sign-coherent |
+|---|---|---|---|---|---|---|---|---|---|
+| matched | all | 2 | 0.000231 | 0.000225 | 0.000074 | 0.000231 | 0.000000 | 0 of 2 | 0.000 |
+| matched | same_gpu | 2 | 0.000231 | 0.000225 | 0.000074 | 0.000231 | 0.000000 | 0 of 2 | 0.000 |
+| tie | all | 128 | 0.003630 | 0.001394 | 0.000212 | 0.003630 | 0.001162 | 2 of 128 | 0.055 |
+| tie | cross_gpu | 120 | 0.003630 | 0.001397 | 0.000216 | 0.003630 | 0.001162 | 2 of 120 | 0.058 |
+| tie | same_gpu | 8 | 0.000755 | 0.000631 | 0.000150 | 0.000755 | 0.000208 | 0 of 8 | 0.000 |
+
+### Matched-batching replay (the bit-exactness control)
+
+| room | query | candidates | union | max abs delta | share above sidecar half-ulp | aggregate max | aggregate > SCORE_TOLERANCE |
+|---|---|---|---|---|---|---|---|
+| Cafe/Cafe_idx_1 | `788` | 5295 | 5295 | 0.000244 | 0.0000 | 0.000000 | 0 of 5295 |
+
+## 2. Substitution movement
+
+> THE DETECTION MARGIN. For each measured query the tie's re-derived generations are scored against every OTHER measured query's observation and compared to the SAME frozen sidecar slice, which is exactly the arithmetic the gate would perform if it were handed the wrong observation. The minimum over all ordered cross pairs is the worst case the gate must still catch. This replaces r9p's 'separation_vs_span', which divided a query's own cosine SPAN by its drift: dynamic range, not substitution evidence (Codex r9q, item 3)
+
+- ordered cross pairs: **4032**
+- minimum: **0.006669**, median 0.569884, max 1.409295
+- same-room pairs: n=192, min 0.006669
+- cross-room pairs: n=3840, min 0.009063
+
+
+measurement -> outputs_loc/exp22/r9r_drift_measurement/cuda0/drift_measurement.json
