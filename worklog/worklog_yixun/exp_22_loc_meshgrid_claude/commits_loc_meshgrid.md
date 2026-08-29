@@ -330,3 +330,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `084244b` exp_22 r9y: fail-closed environment capture; CUDA_VISIBLE_DEVICES-aware UUID resolution; persisted 4-axis comparison
 - `4fc81b4` exp_22 r9z2: emission fails closed; record designates its execution card (equality, not membership)
 - `9c90a19` exp_22 r9z4: runtime-UUID designation (inference deleted); genuinely non-empty facts
+- `41720e1` exp_22 r9z6: test-only — emission regression routed through write_launch_record, non-vacuous

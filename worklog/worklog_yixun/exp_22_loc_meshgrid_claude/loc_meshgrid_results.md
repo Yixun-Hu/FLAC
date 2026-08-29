@@ -27,7 +27,7 @@
 - Off-grid probe + calibration canonical under the r9s **matched-batching tie** (bit-exact whole-query replay; r9r measurement: matched replay reproduces the frozen sidecars element-for-element over 92,616 waveforms; substitution movement min 6.67e-3 vs half-ulp tolerance = 27× separation). Changed-batching regeneration kept as a labeled non-gating diagnostic (max 3.63e-3, coherent signs — the r9p/r9q episode is fully recorded in the worklog + reviews r9q/r9r).
 - Latency (generation loop only, scope disclosed): 60.3 ms/candidate, 7.54 ms/RIR; per-query mean 40.9 s at this bank density.
 - Waveform dumps (announcement 08, exemption 2e): 16 off-grid probes on NAS `checkpoints/exp22_loc_meshgrid/`; quantile viz cases registered (`ca3d16b1…`), renders pending.
-- Review chain: rounds r9→r9t (9 fix + 7 verify), suite 3,044 → 3,471; stack APPROVE r9o; probe-gate episode re-reviewed r9q (REJECT) → r9r measurement → RULING 3 → r9s → v3 canonical (r9t verdict pending at time of writing; this doc updates on its arrival).
+- Review chain: rounds r9→r9t (9 fix + 7 verify), suite 3,044 → 3,471; stack APPROVE r9o; probe-gate episode re-reviewed r9q (REJECT) → r9r measurement → RULING 3 → r9s → v3 canonical Final state: probe hardened through r9t->r9z7 (matched-batching tie w/ measured 85.4x substitution margin over 85,376 pairs; elementwise half-ulp + exact-aggregate criteria; fail-closed launch provenance w/ CUDA-runtime-designated card) — **probe v8 CANONICAL, Codex r9z7: APPROVE, control set complete and canonical**.
 
 ## Boundaries
 
