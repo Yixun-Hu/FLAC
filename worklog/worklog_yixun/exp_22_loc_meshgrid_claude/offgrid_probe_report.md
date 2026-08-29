@@ -1,6 +1,6 @@
 # exp_22 R1 — off-grid truth probe + real-vs-generated AGREE calibration
 
-Generated 2026-08-29T06:51:28+00:00.
+Generated 2026-08-29T07:43:28+00:00.
 
 > **OFF-GRID TRUTH CONTROL -- this probe generates at the CONTINUOUS ground-truth source position x*_s and therefore READS THE HELD-OUT TARGET, by design and by registration (inherited plan §2). Its generation is NEVER inserted into any candidate set, never competes in any argmax, never becomes a prediction and never enters any published localization metric; it exists only to report how the truth position would have SCORED against the grid the engine actually searched**
 
@@ -59,7 +59,16 @@ Mean gap (real − generated): 0.1133
 
 > _Cost:_ COST OF THE TIE: the matched-batching replay generates every candidate of each probe query at the row's own batch_rows, so it is not free -- about 10 minutes for the sixteen registered probe queries at the P1 run's own throughput, dominated by Cafe_idx_1's 5,295 candidates and Auditorium_idx_1's 3,722. That is the price of a gate whose expectation is bit-exactness rather than a tolerance; the superseded single-candidate check cost 8 generations per query and bought a bound that could not be established (r9r)
 
-> _Dynamic range, not detection:_ query_cosine_span is the spread of THIS query's own stored cosines and query_cosine_span_over_delta divides it by the measured drift. Both are DYNAMIC RANGE, not detection evidence: they say nothing about how far a substituted observation moves this number. r9p published the ratio as 'separation_vs_span' and read it as substitution evidence, which Codex r9q rejected (item 3). The measured detection margin is measured_substitution_min -- the smallest movement over the r9r measurement's 8,064 ordered substituted-observation pairs -- and it is carried beside these two so the difference cannot be misread again
+> _Dynamic range, not detection:_ query_cosine_span is the spread of THIS query's own stored cosines and query_cosine_span_over_delta divides it by the measured drift. Both are DYNAMIC RANGE, not detection evidence: they say nothing about how far a substituted observation moves this number. r9p published the ratio as 'separation_vs_span' and read it as substitution evidence, which Codex r9q rejected (item 3). The measured detection margin is measured_substitution_min -- the smallest movement over the MATCHED path's 85,376 ordered substituted-observation pairs (r9u), which is the path this gate runs on. It is carried beside these two so the difference cannot be misread again, and it is NOT the retired path's 8,064-pair figure, which described a regeneration this gate no longer performs (Codex r9v residual 1)
+
+### Evidence for this gate — MATCHED path only
+
+- measured on `matched_batching_whole_query_replay`, artifact `outputs_loc/exp22/r9r_drift_measurement/matched_substitution/matched_substitution_measurement.json`
+- honest replay: 16 queries / 11,577 candidates, max abs delta 0.00024408, aggregate 0.00000000, float16 round-trip exact yes, 0 cells over their own bound
+- substituted observations: **85,376 ordered pairs** over 5,337 donors — min **0.020848** (same-room 5,321 pairs, min 0.020848; same-receiver 143 pairs, min 0.181649), 0 undetected
+- separation: **85.4x** against a 0.00024414 tolerance (required >= 5.0x)
+
+> _Retired path (retired_changed_batching_single_candidate), SUPERSEDED for detection power (Codex r9t blocker 1); still the non-gating diagnostic's own reference distribution:_ its substitution minimum 0.006669 over 8,064 pairs is NOT this gate's margin; its drift distribution (median 0.000513, q99 0.002930, max 0.003630 over 256 measurements) is the non-gating diagnostic's reference. Artifact `outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json`
 
 | room | query | candidates replayed | batching | max abs delta | tolerance (half-ulp) | headroom | aggregate abs delta | bit-exact | dyn. range: query cosine span | dyn. range: span / delta | measured substitution min | measured separation | diagnostic (non-gating) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

@@ -326,3 +326,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `743a623` `0d06fc0` `85fa2b7` exp_22 r9r: empirical drift measurement (matched batching BIT-EXACT; changed-batching 3.63e-3 vs substitution min 6.67e-3 = 1.3x -> NO bound derived); gate honestly reports TIE_BOUND_NOT_ESTABLISHED
 - `c1b4f18` exp_22 r9s: MATCHED_BATCHING_TIE — whole-query replay at the row's stamped batching, half-ulp + exact-aggregate criteria; changed-batching demoted to non-gating diagnostic
 - `c45fe8f` `d25d247` `f692767` exp_22 r9u: matched-path substitution (min 0.0208, 85,376 pairs, 85.4x separation -> ADMISSIBLE); elementwise+round-trip gating; fail-closed presence; --launch-record/--retrieval-handoff admission criteria
+- `83fd2c9` exp_22 r9w: matched-path-only evidence block; launch-record tracked-dirty semantics + environment comparison
