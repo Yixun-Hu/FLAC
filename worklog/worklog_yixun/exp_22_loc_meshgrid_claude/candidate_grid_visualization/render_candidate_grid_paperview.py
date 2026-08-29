@@ -86,22 +86,14 @@ for i in order:
     x, y, _ = project(pts[i:i+1]); zi = zlevels.index(round(float(pts[i,2]),3))
     a = 0.14 if occ[i] else 0.85
     ax.scatter(x, y, s=13, c=blues[zi], alpha=a, linewidths=0, zorder=3)
-for P, kw in [(ctx, dict(marker='D', s=150, c='#e0402a', edgecolors='white', linewidths=1.2, zorder=6)),
-              (receiver[None], dict(marker='^', s=260, c='#1a2433', edgecolors='white', linewidths=1.4, zorder=7)),
-              (gt[None], dict(marker='*', s=560, c='#f5a300', edgecolors='#7a5200', linewidths=1.2, zorder=8)),
-              (near[None], dict(marker='P', s=260, c='#18a05c', edgecolors='white', linewidths=1.2, zorder=7))]:
-    x, y, _ = project(np.atleast_2d(P)); ax.scatter(x, y, **kw)
-nx, ny, _ = project(near[None])
-ax.annotate(f"{oracle:.3f} m", (float(nx[0])+18, float(ny[0])-16), color='#e0700a', fontsize=15, fontweight='bold', zorder=9)
+x, y, _ = project(near[None])
+ax.scatter(x, y, marker='P', s=260, c='#18a05c', edgecolors='white', linewidths=1.2, zorder=7)
 
 fig.text(0.012, 0.965, 'Actual Candidate Grid for One Localization Query', fontsize=26, fontweight='bold', color='#1a2433', va='top')
 fig.text(0.012, 0.912, f"Cafe/Cafe_idx_1  ·  query 0  ·  S006_R008_hybrid_IR.wav  ·  0.5 m spacing  ·  {len(pts)} candidates (registered z-band bank)", fontsize=14, color='#5a6472', va='top')
 handles = [Line2D([],[], marker='s', ls='', mfc='#d9dce1', mec='none', ms=13, label='Room mesh (cutaway, z < 2.4 m)')]
 handles += [Line2D([],[], marker='o', ls='', mfc=blues[i], mec='none', ms=9, label=f"Candidate grid, z={z:.1f} m ({counts[z]})") for i, z in enumerate(zlevels)]
-handles += [Line2D([],[], marker='^', ls='', mfc='#1a2433', mec='white', ms=13, label='Receiver'),
-            Line2D([],[], marker='D', ls='', mfc='#e0402a', mec='white', ms=10, label='Context sources (8)'),
-            Line2D([],[], marker='*', ls='', mfc='#f5a300', mec='#7a5200', ms=17, label='Target source (ground truth)'),
-            Line2D([],[], marker='P', ls='', mfc='#18a05c', mec='white', ms=12, label='Nearest grid point')]
+handles += [Line2D([],[], marker='P', ls='', mfc='#18a05c', mec='white', ms=12, label='Nearest grid point')]
 fig.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.995, 0.90), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
 fig.text(0.995, 0.03, 'Occluded candidates drawn faint  ·  Ground truth is not inserted into the grid', ha='right', fontsize=11.5, color='#8a919b')
 out = 'worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/candidate_grid_case_cafe_idx_1_q0.png'
