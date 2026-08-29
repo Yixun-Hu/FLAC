@@ -365,11 +365,19 @@ def compare_environment(record, environment, device=None):
 
     status_capture = environment.get("git_status_capture") or {}
     live_dirty = environment.get("git_status_dirty")
-    if not status_capture.get("ok") or live_dirty is None:
+    recorded_dirty = record.get("git_status_dirty")
+    if not isinstance(recorded_dirty, bool):
+        # NO bool(None) PATH (Codex r9z shred 1): an absent or null dirty field
+        # is not "clean", it is a record that never stated the fact
+        _axis("git_tracked_clean", recorded_dirty, live_dirty, False,
+              f"the record's tracked-tree state is {recorded_dirty!r}, not a boolean; a record "
+              "that does not state whether its tree was clean cannot vouch that its git SHA "
+              "describes the code that ran")
+    elif not status_capture.get("ok") or live_dirty is None:
         _axis("git_tracked_clean", record.get("git_status_dirty"), None, False,
               f"the live tracked-tree state could not be captured: "
               f"{status_capture.get('error') or 'no git_status_dirty in the environment'}")
-    elif bool(record.get("git_status_dirty")):
+    elif recorded_dirty:
         _axis("git_tracked_clean", True, live_dirty, False,
               "the RECORD was written from a tracked-dirty tree "
               f"({record.get('git_tracked_changes') or 'changes not enumerated'}), so its git "
@@ -394,32 +402,49 @@ def compare_environment(record, environment, device=None):
     else:
         _axis("hostname", record.get("hostname"), environment["hostname"], True)
 
+    # THE DESIGNATED CARD, not the recorded SET (Codex r9z shred 2). Membership
+    # passes a run that changed CUDA_VISIBLE_DEVICES between emit and run onto a
+    # DIFFERENT card the set happens to contain; equality does not. The recorded
+    # set stays published for context, but it decides nothing.
+    designated = record.get("execution_gpu_uuid")
     recorded_uuids = sorted({str(gpu.get("uuid") or "") for gpu in (record.get("gpus") or [])})
     gpu_capture = environment.get("gpu_capture") or {}
-    if device is None:
-        _axis("gpu_uuid", recorded_uuids, None, False,
+    if not designated:
+        _axis("gpu_uuid", None, None, False,
+              "the record designates no execution GPU UUID, so there is no card for this run to "
+              "be held to; it was written before the designation existed, or by a path that "
+              "could not resolve one")
+    elif device is None:
+        _axis("gpu_uuid", designated, None, False,
               "no executing device was supplied, so the physical card this run uses was never "
               "identified")
     elif not gpu_capture.get("ok") or not environment.get("gpus"):
-        _axis("gpu_uuid", recorded_uuids, None, False,
+        _axis("gpu_uuid", designated, None, False,
               f"the live GPU enumeration could not be captured: "
               f"{gpu_capture.get('error') or 'no gpus in the environment'}")
     else:
         resolved = resolve_physical_gpu(device, environment["gpus"],
                                         environment.get("cuda_visible_devices"))
         if not resolved["ok"]:
-            _axis("gpu_uuid", recorded_uuids, None, False, resolved["error"])
-        elif str(resolved["gpu"]["uuid"]) not in set(recorded_uuids):
-            _axis("gpu_uuid", recorded_uuids, resolved["gpu"]["uuid"], False,
+            _axis("gpu_uuid", designated, None, False, resolved["error"])
+        elif str(resolved["gpu"]["uuid"]) != str(designated):
+            _axis("gpu_uuid", designated, resolved["gpu"]["uuid"], False,
                   f"the run executes on {resolved['gpu']['uuid']} (logical {device}, physical "
                   f"index {resolved['gpu']['index']}, visible devices "
-                  f"{resolved.get('visible_source')!r}) and the record lists {recorded_uuids}, "
-                  "so the card in use is not one the record identifies")
+                  f"{resolved.get('visible_source')!r}) but the record designates "
+                  f"{designated} (emitted for {record.get('execution_device')!r} with visible "
+                  f"devices {record.get('execution_visible_devices')!r}); the card in use is not "
+                  f"the card this record was written for"
+                  + (", though it is among the ones it enumerates -- which is exactly why "
+                     "membership is not the test" if str(resolved["gpu"]["uuid"])
+                     in set(recorded_uuids) else ""))
         else:
-            _axis("gpu_uuid", recorded_uuids, resolved["gpu"]["uuid"], True)
+            _axis("gpu_uuid", designated, resolved["gpu"]["uuid"], True)
             axes[-1]["physical_index"] = int(resolved["gpu"]["index"])
             axes[-1]["logical_index"] = int(resolved["logical_index"])
             axes[-1]["visible_devices"] = resolved.get("visible_source")
+            axes[-1]["recorded_visible_devices"] = record.get("execution_visible_devices")
+            axes[-1]["recorded_uuid_set"] = recorded_uuids
 
     verified = bool(axes and len(axes) == len(ENVIRONMENT_AXES)
                     and all(axis["verdict"] == "pass" for axis in axes))
@@ -429,17 +454,69 @@ def compare_environment(record, environment, device=None):
             "capture_failure_note": CAPTURE_FAILURE_NOTE}
 
 
-def build_launch_record(argv, *, emit_flag="--emit-launch-record",
+def build_launch_record(argv, *, device=None, emit_flag="--emit-launch-record",
                         record_flag="--launch-record", environment=None):
     """Everything SOP:37 wants, gathered from the machine that is about to run.
 
     ``argv`` is stored with the emit/record flag pair stripped, so the record
     written by ``--emit-launch-record PATH`` describes exactly the run that
     ``--launch-record PATH`` then performs.
+
+    EMISSION FAILS CLOSED TOO (Codex r9z shred 1). r9y hardened admission but
+    still let emission write whatever it managed to capture, so a machine whose
+    git could not run produced a record with ``git_status_dirty: None`` -- a
+    field admission then had to treat as a value. A record that cannot state
+    every fact it exists to state is not written at all.
+
+    THE DESIGNATED CARD (Codex r9z shred 2). The executing device's PHYSICAL
+    UUID is resolved here, through the emission-time ``CUDA_VISIBLE_DEVICES``,
+    and stored as ``execution_gpu_uuid``. Admission then requires the run-time
+    resolution to EQUAL it: membership in the recorded set is not enough,
+    because a visibility change between emit and run can land on a different
+    card that the set happens to contain.
     """
     environment = current_environment() if environment is None else dict(environment)
+    refusals = []
+    for field, capture, why in (
+            ("git_sha", environment.get("git_sha_capture") or {},
+             "the source commit"),
+            ("git_status_dirty", environment.get("git_status_capture") or {},
+             "the tracked-tree state"),
+            ("hostname", environment.get("hostname_capture") or {}, "the hostname"),
+            ("gpus", environment.get("gpu_capture") or {}, "the GPU enumeration")):
+        if not capture.get("ok"):
+            refusals.append(f"{why} could not be captured: "
+                            f"{capture.get('error') or 'no verdict was recorded'}")
+        elif environment.get(field) is None:
+            refusals.append(f"{why} came back empty despite a successful capture")
+    # the tracked-dirty field must be a BOOL, never None: that is the one field
+    # whose false value is legitimate, which is exactly why it must not be able
+    # to arrive absent (CAPTURE_FAILURE_NOTE)
+    if not refusals and not isinstance(environment.get("git_status_dirty"), bool):
+        refusals.append("the tracked-tree state is not a boolean, so the record would carry a "
+                        "dirty field that means nothing")
+    resolved = None
+    if not refusals:
+        resolved = resolve_physical_gpu(device, environment.get("gpus") or [],
+                                        environment.get("cuda_visible_devices"))
+        if not resolved["ok"]:
+            refusals.append(f"the executing device could not be resolved to a physical card: "
+                            f"{resolved['error']}")
+    if refusals:
+        raise ValueError(
+            "this launch record cannot be written -- " + "; ".join(refusals)
+            + f". A record that cannot state a fact must not record a value for it. "
+              f"{LAUNCH_RECORD_NOTE} {CAPTURE_FAILURE_NOTE}")
+
     record = {"argv": strip_launch_flags(argv, flags=(emit_flag, record_flag)),
               "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              # the card this record DESIGNATES, resolved at emission through the
+              # emission-time visibility, beside the full set it was chosen from
+              "execution_device": str(device),
+              "execution_gpu_uuid": str(resolved["gpu"]["uuid"]),
+              "execution_gpu_index": int(resolved["gpu"]["index"]),
+              "execution_logical_index": int(resolved["logical_index"]),
+              "execution_visible_devices": resolved.get("visible_source"),
               "note": LAUNCH_RECORD_NOTE}
     record.update({key: environment.get(key) for key in
                    ("git_sha", "git_status_dirty", "git_tracked_changes", "untracked_paths",
@@ -463,8 +540,8 @@ def strip_launch_flags(argv, flags=("--emit-launch-record", "--launch-record")):
     return out
 
 
-def write_launch_record(path, argv):
-    record = build_launch_record(argv)
+def write_launch_record(path, argv, device=None):
+    record = build_launch_record(argv, device=device)
     me.write_json(str(path), record)
     return record
 
@@ -533,7 +610,9 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
 
     return {"path": str(path), "sha256": digest, "n_bytes": len(raw),
             "argv": recorded, "git_sha": str(record["git_sha"]),
-            "git_status_dirty": bool(record.get("git_status_dirty")),
+            # a bool by now: the git_tracked_clean axis refuses anything else,
+            # so there is no bool(None) left anywhere (Codex r9z shred 1)
+            "git_status_dirty": record["git_status_dirty"],
             "git_tracked_changes": list(record.get("git_tracked_changes") or []),
             # informational, never a refusal: this repo's runtime dirs are
             # untracked by design (DIRTY_SEMANTICS_NOTE)
@@ -542,6 +621,10 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
             "hostname": str(record["hostname"]),
             "gpus": record["gpus"],
             "executing_device": (None if device is None else str(device)),
+            "execution_gpu_uuid": record.get("execution_gpu_uuid"),
+            "execution_gpu_index": record.get("execution_gpu_index"),
+            "execution_visible_devices": record.get("execution_visible_devices"),
+            "recorded_execution_device": record.get("execution_device"),
             # the whole comparison, axis by axis, so a reviewer reads what
             # passed instead of trusting a boolean (Codex r9x residual 4c)
             "environment_comparison": comparison["axes"],
@@ -2895,7 +2978,7 @@ def main(argv=None):
     if args.emit_launch_record:
         # PROVENANCE MODE: no gates, no checkpoint, no GPU work -- it exists so
         # the record can be written from the very command about to be run
-        record = write_launch_record(args.emit_launch_record, argv)
+        record = write_launch_record(args.emit_launch_record, argv, device=args.device)
         print(json.dumps(mr.jsonable(record), indent=2, sort_keys=True))
         print(f"\nlaunch record -> {args.emit_launch_record}")
         print(f"\nnow run the identical command with --launch-record "
