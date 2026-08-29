@@ -2099,29 +2099,29 @@ def test_the_tolerance_is_the_sidecar_half_ulp_and_nothing_else():
 
 def test_the_separation_the_gate_rests_on_is_the_measured_one():
     """r9u: measured on the MATCHED path, against the gate's own tolerance."""
-    measurement = op.R9R_MEASUREMENT
-    separation = (measurement["matched_substitution_min"]
-                  / measurement["matched_batching_tolerance"])
-    assert separation == pytest.approx(measurement["matched_batching_separation"], rel=1e-3)
+    measurement = op.MATCHED_PATH_EVIDENCE
+    separation = (op.MATCHED_PATH_EVIDENCE["substitution_min"]
+                  / op.MATCHED_PATH_EVIDENCE["tolerance"])
+    assert separation == pytest.approx(op.MATCHED_PATH_EVIDENCE["separation"], rel=1e-3)
     assert separation > 5 and separation > 80
     # the retired path's number would have given a very different answer, which
     # is precisely why quoting it for this gate was wrong
-    assert (measurement["substitution_min"]
-            / measurement["matched_batching_tolerance"]) < separation / 3
+    assert (op.RETIRED_PATH_EVIDENCE["substitution_min"]
+            / op.MATCHED_PATH_EVIDENCE["tolerance"]) < separation / 3
     # ... where the retired changed-batching bound could only manage 1.3x
-    assert op.R9R_MEASUREMENT["separation_of_candidate_bound"] < 2
-    assert op.R9R_MEASUREMENT["changed_batching_bound_established"] is False
+    assert op.RETIRED_PATH_EVIDENCE["separation_of_candidate_bound"] < 2
+    assert op.RETIRED_PATH_EVIDENCE["bound_established"] is False
 
 
 def test_the_matched_batching_replay_is_what_the_measurement_actually_showed():
     """The evidence the gate's expectation rests on."""
-    measurement = op.R9R_MEASUREMENT
-    assert measurement["matched_float16_bit_exact"] is True
-    assert measurement["matched_max_abs_aggregate_delta"] == 0.0
-    assert measurement["matched_max_abs_delta"] == pytest.approx(2.44e-4, abs=1e-6)
-    assert measurement["tie_max_abs_delta"] > 10 * measurement["matched_max_abs_delta"]
-    assert measurement["tie_max_abs_aggregate_delta"] > me.SCORE_TOLERANCE
-    assert measurement["n_tie_aggregate_above_score_tolerance"] == 4
+    measurement = op.MATCHED_PATH_EVIDENCE
+    assert op.MATCHED_PATH_EVIDENCE["float16_bit_exact"] is True
+    assert op.MATCHED_PATH_EVIDENCE["max_abs_aggregate_delta"] == 0.0
+    assert op.MATCHED_PATH_EVIDENCE["max_abs_delta"] == pytest.approx(2.44e-4, abs=1e-6)
+    assert op.RETIRED_PATH_EVIDENCE["max_abs_delta"] > 10 * op.MATCHED_PATH_EVIDENCE["max_abs_delta"]
+    assert op.RETIRED_PATH_EVIDENCE["max_abs_aggregate_delta"] > me.SCORE_TOLERANCE
+    assert op.RETIRED_PATH_EVIDENCE["n_aggregate_above_score_tolerance"] == 4
 
 
 def test_the_measured_constants_match_the_published_artifact():
@@ -2129,15 +2129,15 @@ def test_the_measured_constants_match_the_published_artifact():
     if not os.path.isfile(R9R_ARTIFACT):
         pytest.skip(f"{R9R_ARTIFACT} is not in this checkout")
     published = json.load(open(R9R_ARTIFACT))
-    measurement = op.R9R_MEASUREMENT
+    measurement = op.MATCHED_PATH_EVIDENCE
     assert published["substitution"]["overall"]["min"] == pytest.approx(
-        measurement["substitution_min"], rel=1e-9)
-    assert published["substitution"]["n_pairs"] == measurement["n_substitution_pairs"]
-    assert published["bound"]["ok"] is measurement["changed_batching_bound_established"] is False
+        op.RETIRED_PATH_EVIDENCE["substitution_min"], rel=1e-9)
+    assert published["substitution"]["n_pairs"] == op.RETIRED_PATH_EVIDENCE["n_substitution_pairs"]
+    assert published["bound"]["ok"] is op.RETIRED_PATH_EVIDENCE["bound_established"] is False
     tie = [pair for pair in published["pairs"] if pair["path"] == "tie"]
-    assert len(tie) == measurement["n_tie_measurements"]
+    assert len(tie) == op.RETIRED_PATH_EVIDENCE["n_measurements"]
     assert max(pair["max_abs_delta"] for pair in tie) == pytest.approx(
-        measurement["tie_max_abs_delta"], rel=1e-9)
+        op.RETIRED_PATH_EVIDENCE["max_abs_delta"], rel=1e-9)
     # the gate's own expectation, in the artifact that established it
     matched = [pair for pair in published["pairs"] if pair["path"] == "matched"]
     assert max(pair["abs_aggregate_delta"] for pair in matched) == 0.0
@@ -2267,7 +2267,9 @@ def test_a_substituted_observation_is_still_refused_by_the_new_gate(tmp_path):
     assert delta > 100 * op.observation_continuity_tolerance(
         np.asarray([0.5] * 8, dtype=np.float16))
     # the refusal cites the measured adversary and the batching it replayed at
-    assert f"{op.R9R_MEASUREMENT['matched_substitution_min']:.3g}" in message
+    assert f"{op.MATCHED_PATH_EVIDENCE['substitution_min']:.3g}" in message
+    # and the pair count it belongs to, so the refusal cannot misattribute it
+    assert f"{op.MATCHED_PATH_EVIDENCE['n_substitution_pairs']:,} ordered pairs" in message
     assert f"batch_rows={fx.FIXTURE_ADVISORY['batch_rows']}" in message
     assert "bit-exact" in message
 
@@ -2281,10 +2283,10 @@ def test_the_changed_batching_check_survives_as_a_labelled_diagnostic(tmp_path):
         assert "NON-GATING DIAGNOSTIC" in diagnostic["note"]
         assert diagnostic["max_abs_delta"] >= 0.0
         reference = diagnostic["reference_distribution"]
-        assert reference["n_measurements"] == op.R9R_MEASUREMENT["n_tie_measurements"]
-        assert reference["max"] == op.R9R_MEASUREMENT["tie_max_abs_delta"]
-        assert reference["median"] == op.R9R_MEASUREMENT["tie_median_abs_delta"]
-        assert reference["artifact"] == op.R9R_MEASUREMENT["artifact"]
+        assert reference["n_measurements"] == op.RETIRED_PATH_EVIDENCE["n_measurements"]
+        assert reference["max"] == op.RETIRED_PATH_EVIDENCE["max_abs_delta"]
+        assert reference["median"] == op.RETIRED_PATH_EVIDENCE["median_abs_delta"]
+        assert reference["artifact"] == op.RETIRED_PATH_EVIDENCE["artifact"]
         assert len(diagnostic["rederived"]) == fx.FIXTURE_SAMPLES
 
 
@@ -2316,9 +2318,9 @@ def test_the_verdict_labels_dynamic_range_as_dynamic_range(tmp_path):
     assert "separation_vs_span" in tie["dynamic_range_note"]        # names what it retires
     assert "separation_vs_span" not in tie
     assert tie["measured_substitution_min"] == \
-        op.R9R_MEASUREMENT["matched_substitution_min"]
+        op.MATCHED_PATH_EVIDENCE["substitution_min"]
     assert tie["measured_separation"] == pytest.approx(
-        op.R9R_MEASUREMENT["matched_substitution_min"] / tie["tolerance_max"])
+        op.MATCHED_PATH_EVIDENCE["substitution_min"] / tie["tolerance_max"])
     assert tie["measured_separation"] > 20
 
 
@@ -2334,13 +2336,25 @@ def test_every_artifact_publishes_the_gate_and_its_margin(tmp_path):
     assert payload["tie_tolerance_note"] == op.MATCHED_BATCHING_TIE
     assert payload["tie_cost_note"] == op.MATCHED_BATCHING_TIE_COST_NOTE
     assert payload["changed_batching_diagnostic_note"] == op.CHANGED_BATCHING_DIAGNOSTIC_NOTE
-    # the report carries the evidence the gate rests on, not just its verdict
+    # r9v residual 1: the evidence block is the MATCHED path's, whole and alone
     evidence = payload["tie_evidence"]
-    assert evidence["matched_float16_bit_exact"] is True
-    assert evidence["matched_max_abs_aggregate_delta"] == 0.0
-    assert evidence["n_matched_replay_candidates"] == 11577
-    assert evidence["substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
-    assert evidence["artifact"].startswith("outputs_loc/exp22/r9r_drift_measurement")
+    assert evidence == op.MATCHED_PATH_EVIDENCE
+    assert evidence["path"] == "matched_batching_whole_query_replay"
+    assert evidence["float16_bit_exact"] is True
+    assert evidence["max_abs_aggregate_delta"] == 0.0
+    assert evidence["n_replay_candidates"] == 11577
+    assert evidence["n_substitution_pairs"] == 85376
+    assert "matched_substitution" in evidence["artifact"]
+    # nothing from the retired path leaked into it
+    assert evidence["n_substitution_pairs"] != \
+        op.RETIRED_PATH_EVIDENCE["n_substitution_pairs"]
+    assert evidence["substitution_min"] != op.RETIRED_PATH_EVIDENCE["substitution_min"]
+    assert evidence["artifact"] != op.RETIRED_PATH_EVIDENCE["artifact"]
+    # ... and the retired numbers appear only under their own label
+    retired = payload["retired_path_evidence"]
+    assert retired == op.RETIRED_PATH_EVIDENCE
+    assert "SUPERSEDED" in retired["label"]
+    assert retired["superseded_by"] == evidence["artifact"]
     for record in payload["records"]:
         tie = record["observation_continuity"]
         for field in ("max_abs_delta", "tolerance", "headroom", "within_tolerance", "refused",
@@ -2367,7 +2381,7 @@ def test_every_artifact_publishes_the_gate_and_its_margin(tmp_path):
             assert float(data["tie_aggregate_max_abs_delta"]) == 0.0
             assert bool(data["tie_float16_bit_exact"]) is True
             assert float(data["tie_measured_substitution_min"]) == pytest.approx(
-                op.R9R_MEASUREMENT["matched_substitution_min"])
+                op.MATCHED_PATH_EVIDENCE["substitution_min"])
             assert float(data["tie_measured_separation"]) > 20
             assert "DYNAMIC RANGE" in str(data["tie_dynamic_range_note"])
             assert "about 10 minutes" in str(data["tie_cost_note"])
@@ -2382,9 +2396,11 @@ def test_the_tie_table_is_a_well_formed_markdown_table(tmp_path):
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
         gate=_canonical_gate(fixture, records))
     markdown = open(published["markdown"]).read().split("\n")
+    # the evidence block now sits between the heading and the table, so the
+    # table is found by its own header rather than by an offset
     start = next(i for i, line in enumerate(markdown)
-                 if line.startswith("## Observation-continuity tie"))
-    table = [line for line in markdown[start:start + 10 + len(records)]
+                 if line.startswith("| room | query | candidates replayed"))
+    table = [line for line in markdown[start:start + 2 + len(records)]
              if line.startswith("|")]
     assert len(table) == 2 + len(records)                 # header, rule, one per query
     widths = {line.count("|") for line in table}
@@ -2406,7 +2422,7 @@ def test_the_run_summary_reports_the_gate_not_just_a_flag(tmp_path):
     assert summary["min_query_cosine_span_over_delta"] > 0.0
     assert "min_separation_vs_span" not in summary
     assert summary["measured_substitution_min"] == \
-        op.R9R_MEASUREMENT["matched_substitution_min"]
+        op.MATCHED_PATH_EVIDENCE["substitution_min"]
     assert "about 10 minutes" in summary["cost_note"]
     assert "NON-GATING" in summary["changed_batching_diagnostic_note"]
 
@@ -2416,44 +2432,44 @@ def test_the_run_summary_reports_the_gate_not_just_a_flag(tmp_path):
 # --------------------------------------------------------------------------- #
 def test_the_margin_now_comes_from_the_matched_path(tmp_path):
     """Blocker 1: r9s quoted a margin measured on the RETIRED path."""
-    measurement = op.R9R_MEASUREMENT
-    assert measurement["matched_substitution_min"] > 0.0
-    assert measurement["n_matched_substitution_pairs"] == 85376
-    assert measurement["n_matched_donor_observations"] == 5337
+    measurement = op.MATCHED_PATH_EVIDENCE
+    assert op.MATCHED_PATH_EVIDENCE["substitution_min"] > 0.0
+    assert op.MATCHED_PATH_EVIDENCE["n_substitution_pairs"] == 85376
+    assert op.MATCHED_PATH_EVIDENCE["n_donor_observations"] == 5337
     # the retired path's number is kept, but it is not what the gate quotes
-    assert measurement["substitution_min"] != measurement["matched_substitution_min"]
+    assert op.RETIRED_PATH_EVIDENCE["substitution_min"] != op.MATCHED_PATH_EVIDENCE["substitution_min"]
     # the gate's own note quotes the matched numbers and names what it retires
     for phrase in ("85,376", "0.020848", "85.4x", "RETIRED", "same-receiver"):
         assert phrase in op.MATCHED_BATCHING_TIE, phrase
     fixture = _probe_fixture(tmp_path)
     tie = _run(fixture)[0]["observation_continuity"]
-    assert tie["measured_substitution_min"] == measurement["matched_substitution_min"]
+    assert tie["measured_substitution_min"] == op.MATCHED_PATH_EVIDENCE["substitution_min"]
     assert tie["measured_separation"] == pytest.approx(
-        measurement["matched_substitution_min"] / tie["tolerance_max"])
+        op.MATCHED_PATH_EVIDENCE["substitution_min"] / tie["tolerance_max"])
 
 
 def test_the_matched_margin_matches_its_own_artifact():
     """The artifact join, on the measurement the gate's number comes from."""
     path = next((candidate for candidate in
-                 (op.R9R_MEASUREMENT["matched_artifact"],
-                  op.R9R_MEASUREMENT["matched_artifact_mirror"])
+                 (op.MATCHED_PATH_EVIDENCE["artifact"],
+                  op.MATCHED_PATH_EVIDENCE["artifact_mirror"])
                  if os.path.isfile(candidate)), None)
     if path is None:
         pytest.skip("neither the matched-path artifact nor its tracked mirror is present")
     published = json.load(open(path))
     assert published["path"] == "matched_batching_whole_query_replay"
     assert published["substitution"]["overall"]["min"] == pytest.approx(
-        op.R9R_MEASUREMENT["matched_substitution_min"], rel=1e-7)
+        op.MATCHED_PATH_EVIDENCE["substitution_min"], rel=1e-7)
     assert published["substitution"]["same_receiver"]["min"] == pytest.approx(
-        op.R9R_MEASUREMENT["matched_substitution_same_receiver_min"], rel=1e-7)
+        op.MATCHED_PATH_EVIDENCE["substitution_same_receiver_min"], rel=1e-7)
     assert published["n_donor_observations"] == \
-        op.R9R_MEASUREMENT["n_matched_donor_observations"]
+        op.MATCHED_PATH_EVIDENCE["n_donor_observations"]
     assert published["substitution"]["n_pairs"] == \
-        op.R9R_MEASUREMENT["n_matched_substitution_pairs"]
+        op.MATCHED_PATH_EVIDENCE["n_substitution_pairs"]
     assert published["substitution"]["n_pairs_undetected"] == 0
     assert published["gate"]["ok"] is True
     assert published["gate"]["separation_ratio"] == pytest.approx(
-        op.R9R_MEASUREMENT["matched_batching_separation"], rel=1e-6)
+        op.MATCHED_PATH_EVIDENCE["separation"], rel=1e-6)
     # every replay in it was bit-exact, which is the gate's own expectation
     for query in published["queries"]:
         assert query["float16_bit_exact"] is True
@@ -2573,11 +2589,27 @@ def test_the_run_summary_states_what_complete_means(tmp_path):
 # --------------------------------------------------------------------------- #
 # r9u item D: launch provenance and the §2 reconciliation
 # --------------------------------------------------------------------------- #
+_FIXTURE_GPUS = [{"index": 0, "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+                  "name": "NVIDIA RTX A6000"},
+                 {"index": 1, "uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+                  "name": "NVIDIA RTX A6000"}]
+
+
+def _environment(**overrides):
+    """The executing machine a launch record is compared against."""
+    env = {"git_sha": "a" * 40, "git_status_dirty": False, "git_tracked_changes": [],
+           "untracked_paths": ["outputs_loc/", "AcousticRooms"], "hostname": "neuronic",
+           "gpus": [dict(gpu) for gpu in _FIXTURE_GPUS], "cuda_visible_devices": None}
+    env.update(overrides)
+    return env
+
+
 def _launch_record(tmp_path, argv, **overrides):
     record = {"argv": list(argv), "git_sha": "a" * 40, "hostname": "neuronic",
-              "gpus": [{"index": 0, "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
-                        "name": "NVIDIA RTX A6000"}],
-              "git_status_dirty": False, "recorded_utc": "2026-08-29T01:00:00+00:00"}
+              "gpus": [dict(gpu) for gpu in _FIXTURE_GPUS],
+              "git_status_dirty": False, "git_tracked_changes": [],
+              "untracked_paths": ["outputs_loc/", "AcousticRooms"],
+              "recorded_utc": "2026-08-29T01:00:00+00:00"}
     record.update(overrides)
     path = str(tmp_path / "launch.json")
     me.write_json(path, record)
@@ -2599,10 +2631,10 @@ def test_a_launch_record_for_a_different_command_is_refused(tmp_path):
     argv = ["--run-dir", "x", "--launch-record", "l.json"]
     path, _record = _launch_record(tmp_path, ["--run-dir", "OTHER"])
     with pytest.raises(ValueError, match="written for a different command"):
-        op.read_verified_launch_record(path, argv)
+        op.read_verified_launch_record(path, argv, environment=_environment())
     # the same command, with the flag pair on either side, verifies
     path, _record = _launch_record(tmp_path, ["--run-dir", "x"])
-    verified = op.read_verified_launch_record(path, argv)
+    verified = op.read_verified_launch_record(path, argv, environment=_environment())
     assert verified["sha256"] == me.file_sha256(path)
     assert verified["git_sha"] == "a" * 40
 
@@ -2616,15 +2648,19 @@ def test_a_launch_record_without_physical_gpu_identity_is_refused(tmp_path):
             ({"hostname": ""}, "is missing")):
         path, _record = _launch_record(tmp_path, argv, **broken)
         with pytest.raises(ValueError, match=match):
-            op.read_verified_launch_record(path, argv)
+            op.read_verified_launch_record(path, argv, environment=_environment())
 
 
 def test_a_launch_record_that_does_not_cover_the_device_is_refused(tmp_path):
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv)
-    assert op.read_verified_launch_record(path, argv, device="cuda:0")["hostname"] == "neuronic"
+    assert op.read_verified_launch_record(
+        path, argv, device="cuda:0", environment=_environment())["hostname"] == "neuronic"
+    # a record listing only GPU 0 cannot vouch for a run on cuda:1
+    path, _record = _launch_record(tmp_path, argv, gpus=[dict(_FIXTURE_GPUS[0])])
     with pytest.raises(ValueError, match="does not cover the card"):
-        op.read_verified_launch_record(path, argv, device="cuda:1")
+        op.read_verified_launch_record(path, argv, device="cuda:1",
+                                       environment=_environment())
 
 
 def test_the_retrieval_entry_reports_the_siblings_own_status(tmp_path):
@@ -2719,3 +2755,227 @@ def test_the_report_carries_the_provenance_and_the_reconciliation(tmp_path):
     entry = payload["controls_elsewhere"]["agree_oracle_retrieval_over_the_metadata_bank"]
     assert "run pending" not in entry and "run (canonical)" in entry
     assert "run pending" not in open(published["markdown"]).read()
+
+
+# --------------------------------------------------------------------------- #
+# r9w: the two residuals Codex r9v left open
+# --------------------------------------------------------------------------- #
+def test_the_gates_evidence_is_the_matched_path_and_nothing_else():
+    """Residual 1: r9u's tie_evidence joined retired numbers to a matched ratio."""
+    evidence = op.tie_evidence()
+    assert evidence == op.MATCHED_PATH_EVIDENCE
+    assert evidence["path"] == "matched_batching_whole_query_replay"
+    assert evidence["n_substitution_pairs"] == 85376
+    assert evidence["substitution_min"] == pytest.approx(0.020847943)
+    assert evidence["substitution_same_receiver_min"] == pytest.approx(0.181648567)
+    assert evidence["separation"] == pytest.approx(85.393173)
+    assert "matched_substitution" in evidence["artifact"]
+    # the retired figures are absent from it under ANY key
+    values = set(str(value) for value in evidence.values())
+    assert str(op.RETIRED_PATH_EVIDENCE["substitution_min"]) not in values
+    assert str(op.RETIRED_PATH_EVIDENCE["n_substitution_pairs"]) not in values
+    assert op.RETIRED_PATH_EVIDENCE["artifact"] not in values
+    # mutating the returned copy cannot reach the module constant
+    evidence["substitution_min"] = 999.0
+    assert op.MATCHED_PATH_EVIDENCE["substitution_min"] != 999.0
+
+
+def test_the_retired_numbers_only_appear_under_a_retired_label():
+    retired = op.retired_path_evidence()
+    assert retired["path"] == "retired_changed_batching_single_candidate"
+    assert "SUPERSEDED" in retired["label"]
+    assert retired["superseded_by"] == op.MATCHED_PATH_EVIDENCE["artifact"]
+    assert retired["n_substitution_pairs"] == 8064
+    assert retired["substitution_min"] == pytest.approx(0.006668746471405029)
+    assert retired["bound_established"] is False
+    # the module no longer offers a union anyone could slice by mistake
+    assert not hasattr(op, "R9R_MEASUREMENT")
+
+
+def test_no_published_surface_attributes_the_margin_to_the_retired_count(tmp_path):
+    """Residual 1: the markdown attributed 85.4x to the retired 8,064 pairs."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate=_canonical_gate(fixture, records))
+    markdown = open(published["markdown"]).read()
+    # the matched margin and the matched count travel together ...
+    assert "85,376 ordered pairs" in markdown
+    assert "### Evidence for this gate — MATCHED path only" in markdown
+    # ... and every mention of the retired count is inside a retired label
+    for line in markdown.split("\n"):
+        if "8,064" in line or "8064" in line:
+            assert ("Retired path" in line or "retired" in line.lower()), line
+            assert "85.4" not in line and "0.020848" not in line, line
+    # the tie note no longer credits the matched margin to the retired sample
+    assert "85,376" in op.DYNAMIC_RANGE_NOTE
+    assert "8,064-pair figure" in op.DYNAMIC_RANGE_NOTE     # named, as retired
+
+    with np.load(os.path.join(fixture["out_dir"],
+                              json.load(open(published["json"]))["records"][0]["waveform_path"])
+                 ) as data:
+        assert int(data["tie_measured_substitution_pairs"]) == 85376
+        assert str(data["tie_measured_substitution_path"]) == \
+            "matched_batching_whole_query_replay"
+        assert "matched_substitution" in str(data["tie_evidence_artifact"])
+        assert "SUPERSEDED" in str(data["tie_retired_path_label"])
+
+
+def test_the_evidence_block_matches_the_matched_artifacts_own_values():
+    """The pin Codex asked for: the block IS the artifact, field for field."""
+    path = next((candidate for candidate in (op.MATCHED_PATH_EVIDENCE["artifact"],
+                                             op.MATCHED_PATH_EVIDENCE["artifact_mirror"])
+                 if os.path.isfile(candidate)), None)
+    if path is None:
+        pytest.skip("neither the matched-path artifact nor its tracked mirror is present")
+    published = json.load(open(path))
+    evidence = op.tie_evidence()
+    substitution = published["substitution"]
+    assert published["path"] == evidence["path"]
+    assert published["n_queries"] == evidence["n_replayed_queries"]
+    assert published["n_donor_observations"] == evidence["n_donor_observations"]
+    assert substitution["n_pairs"] == evidence["n_substitution_pairs"]
+    assert substitution["n_pairs_undetected"] == evidence["n_substitution_undetected"]
+    assert substitution["overall"]["min"] == pytest.approx(evidence["substitution_min"], rel=1e-7)
+    assert substitution["overall"]["median"] == pytest.approx(evidence["substitution_median"],
+                                                              rel=1e-6)
+    assert substitution["same_room"]["n"] == evidence["n_substitution_same_room_pairs"]
+    assert substitution["same_receiver"]["n"] == evidence["n_substitution_same_receiver_pairs"]
+    assert substitution["same_receiver"]["min"] == pytest.approx(
+        evidence["substitution_same_receiver_min"], rel=1e-7)
+    assert published["gate"]["separation_ratio"] == pytest.approx(evidence["separation"],
+                                                                  rel=1e-6)
+    assert published["gate"]["tolerance_max"] == pytest.approx(evidence["tolerance"])
+    assert sum(query["n_candidates"] for query in published["queries"]) == \
+        evidence["n_replay_candidates"]
+    assert all(query["float16_bit_exact"] for query in published["queries"]) is \
+        evidence["float16_bit_exact"]
+    assert max(query["honest_aggregate_max_abs_delta"] for query in published["queries"]) == \
+        evidence["max_abs_aggregate_delta"]
+    assert sum(query["n_cells_over_own_tolerance"] for query in published["queries"]) == \
+        evidence["n_cells_over_own_tolerance"]
+
+
+# --------------------------------------------------------------------------- #
+# r9w residual 4: dirty means TRACKED, and the record is compared to the machine
+# --------------------------------------------------------------------------- #
+def test_dirty_means_tracked_and_untracked_is_informational(tmp_path, monkeypatch):
+    """Residual 4a: r9u read dirty:true off untracked runtime dirs."""
+    calls = []
+
+    class _Done:
+        def __init__(self, stdout):
+            self.stdout, self.returncode = stdout, 0
+
+    def _fake_run(command, **_kwargs):
+        calls.append(list(command))
+        if command[:2] == ["git", "rev-parse"]:
+            return _Done("b" * 40 + "\n")
+        if command[:2] == ["git", "status"]:
+            if "--untracked-files=no" in command:
+                return _Done("")                       # tracked tree is CLEAN
+            return _Done("?? outputs_loc/\n?? AcousticRooms\n")
+        if command[0] == "nvidia-smi":
+            return _Done("0, GPU-aaaa, NVIDIA RTX A6000\n")
+        return _Done("")
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    environment = op.current_environment()
+    assert environment["git_status_dirty"] is False        # untracked does NOT count
+    assert environment["git_tracked_changes"] == []
+    assert environment["untracked_paths"] == ["AcousticRooms", "outputs_loc/"]
+    assert ["git", "status", "--porcelain", "--untracked-files=no"] in calls
+    assert "TRACKED modifications and staged changes only" in \
+        environment["dirty_semantics_note"]
+
+    record = op.build_launch_record(["--run-dir", "x"], environment=environment)
+    assert record["git_status_dirty"] is False
+    assert record["untracked_paths"] == ["AcousticRooms", "outputs_loc/"]
+    assert record["git_sha"] == "b" * 40
+
+
+def test_a_tracked_dirty_record_refuses(tmp_path):
+    """Residual 4a: its SHA does not describe the code it ran."""
+    argv = ["--run-dir", "x"]
+    path, _record = _launch_record(tmp_path, argv, git_status_dirty=True,
+                                   git_tracked_changes=[" M src/localization/x.py"])
+    with pytest.raises(ValueError, match="RECORD was written from a tracked-dirty tree"):
+        op.read_verified_launch_record(path, argv, environment=_environment())
+    # ... and a tree that goes dirty between writing the record and running it
+    path, _record = _launch_record(tmp_path, argv)
+    with pytest.raises(ValueError, match="TRACKED modifications right now"):
+        op.read_verified_launch_record(
+            path, argv, environment=_environment(git_status_dirty=True,
+                                                 git_tracked_changes=[" M train.py"]))
+    # untracked paths never refuse, however many there are on either side
+    path, _record = _launch_record(tmp_path, argv,
+                                   untracked_paths=["outputs_loc/", "weights/", "wandb/"])
+    verified = op.read_verified_launch_record(
+        path, argv, environment=_environment(
+            untracked_paths=["outputs_loc/", "AcousticRooms", "HAA", "wandb/"]))
+    assert verified["n_untracked_paths"] == 3          # the RECORD's, reported as-is
+    assert verified["git_status_dirty"] is False
+
+
+def test_each_environment_mismatch_axis_refuses_by_name(tmp_path):
+    """Residual 4b: the record is COMPARED, not merely stored."""
+    argv = ["--run-dir", "x"]
+    path, _record = _launch_record(tmp_path, argv)
+    # the happy path first, so the axes below are the only thing that changed
+    verified = op.read_verified_launch_record(path, argv, device="cuda:1",
+                                              environment=_environment())
+    assert verified["environment_verified"] is True
+    assert verified["executing_device"] == "cuda:1"
+
+    for environment, match in (
+            (_environment(git_sha="c" * 40), "git SHA"),
+            (_environment(hostname="someone-elses-box"), "hostname"),
+            (_environment(gpus=[{"index": 0, "uuid": "GPU-different"},
+                                {"index": 1, "uuid": "GPU-alsodifferent"}]), "physical GPU"),
+            (_environment(gpus=[dict(_FIXTURE_GPUS[0])]), "exposes no GPU at index 1")):
+        with pytest.raises(ValueError, match=match):
+            op.read_verified_launch_record(path, argv, device="cuda:1",
+                                           environment=environment)
+
+
+def test_the_executing_card_must_be_one_the_record_names(tmp_path):
+    """A record from the same host and commit, but the other machine's cards."""
+    argv = ["--run-dir", "x"]
+    path, _record = _launch_record(tmp_path, argv)
+    # index 0 exists on both sides, but it is a DIFFERENT physical card
+    swapped = _environment(gpus=[{"index": 0, "uuid": "GPU-99999999-0000-0000-0000-000000000000"},
+                                 dict(_FIXTURE_GPUS[1])])
+    with pytest.raises(ValueError, match="the card in use is not one the record identifies"):
+        op.read_verified_launch_record(path, argv, device="cuda:0", environment=swapped)
+    # ... while cuda:1 on that same machine still matches the record
+    assert op.read_verified_launch_record(path, argv, device="cuda:1",
+                                          environment=swapped)["environment_verified"] is True
+
+
+def test_the_verified_record_publishes_both_dirty_fields(tmp_path):
+    argv = ["--run-dir", "x"]
+    path, _record = _launch_record(tmp_path, argv)
+    verified = op.read_verified_launch_record(path, argv, environment=_environment())
+    assert verified["git_status_dirty"] is False
+    assert verified["git_tracked_changes"] == []
+    assert verified["untracked_paths"] == ["outputs_loc/", "AcousticRooms"]
+    assert verified["n_untracked_paths"] == 2
+    assert "auditable" in verified["dirty_semantics_note"]
+    assert "COMPARES the record against the executing environment" in verified["note"]
+
+
+def test_the_live_environment_reports_this_repos_own_shape():
+    """Not a fake: the real helper, on the real tree."""
+    environment = op.current_environment()
+    assert len(str(environment["git_sha"])) == 40
+    assert isinstance(environment["git_status_dirty"], bool)
+    # this repository's runtime directories are untracked by design, which is
+    # exactly what made r9u's record read dirty (Codex r9v residual 4a)
+    assert isinstance(environment["untracked_paths"], list)
+    assert environment["hostname"]
+    for gpu in environment["gpus"]:
+        assert str(gpu["uuid"]).startswith("GPU-")

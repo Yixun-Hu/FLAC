@@ -162,16 +162,29 @@ LAUNCH_RECORD_NOTE = (
     "are about to run: replace --launch-record PATH with --emit-launch-record PATH, which writes "
     "the record and exits, then run the same command with --launch-record PATH. The recorded "
     "argv is compared against the run's own argv, so a record written for a different command "
-    "refuses rather than vouching for this one")
+    "refuses rather than vouching for this one. Admission then COMPARES the record against the "
+    "executing environment -- git SHA equal to HEAD, same hostname, the executing device's "
+    "nvidia-smi UUID among the recorded ones, and a clean TRACKED tree both when the record was "
+    "written and while it runs -- and names any mismatch (Codex r9v residual 4b)")
 
 
-def build_launch_record(argv, *, emit_flag="--emit-launch-record",
-                        record_flag="--launch-record"):
-    """Everything SOP:37 wants, gathered from the machine that is about to run.
+DIRTY_SEMANTICS_NOTE = (
+    "WHAT 'DIRTY' MEANS (Codex r9v residual 4a). git_status_dirty is TRACKED modifications and "
+    "staged changes only -- `git status --porcelain --untracked-files=no` -- because that is the "
+    "question the record has to answer: is the code that ran the code that is committed. "
+    "Untracked paths are listed separately under untracked_paths and are INFORMATIONAL: this "
+    "repository's runtime directories (outputs_loc/, AcousticRooms/, weights/, wandb/) are "
+    "gitignored-or-untracked by design, and r9u's record read dirty:true from exactly those "
+    "while its tracked tree at HEAD 57b6f52 was clean. Recording both fields makes that "
+    "auditable instead of ambiguous, and a TRACKED-dirty record refuses canonical admission")
 
-    ``argv`` is stored with the emit/record flag pair stripped, so the record
-    written by ``--emit-launch-record PATH`` describes exactly the run that
-    ``--launch-record PATH`` then performs.
+
+def current_environment():
+    """The machine as it is RIGHT NOW -- what a launch record is checked against.
+
+    Separate from :func:`build_launch_record` so admission can compare the two:
+    a record is a claim about an environment, and a claim nothing is checked
+    against vouches for nothing (Codex r9v residual 4b).
     """
     import platform
     import subprocess
@@ -191,14 +204,38 @@ def build_launch_record(argv, *, emit_flag="--emit-launch-record",
         if len(parts) >= 2 and parts[0].isdigit():
             gpus.append({"index": int(parts[0]), "uuid": parts[1],
                          "name": parts[2] if len(parts) > 2 else None})
-    return {"argv": strip_launch_flags(argv, flags=(emit_flag, record_flag)),
-            "git_sha": _capture(["git", "rev-parse", "HEAD"]),
-            "git_status_dirty": bool(_capture(["git", "status", "--porcelain"])),
+    # TRACKED only: --untracked-files=no. The untracked list is gathered
+    # separately and never decides anything (DIRTY_SEMANTICS_NOTE)
+    tracked = _capture(["git", "status", "--porcelain", "--untracked-files=no"])
+    everything = _capture(["git", "status", "--porcelain", "--untracked-files=normal"]) or ""
+    untracked = sorted(line[3:] for line in everything.splitlines()
+                       if line.startswith("?? "))
+    return {"git_sha": _capture(["git", "rev-parse", "HEAD"]),
+            "git_status_dirty": bool(tracked),
+            "git_tracked_changes": sorted((tracked or "").splitlines()),
+            "untracked_paths": untracked,
             "hostname": platform.node(),
             "gpus": gpus,
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-            "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "note": LAUNCH_RECORD_NOTE}
+            "dirty_semantics_note": DIRTY_SEMANTICS_NOTE}
+
+
+def build_launch_record(argv, *, emit_flag="--emit-launch-record",
+                        record_flag="--launch-record", environment=None):
+    """Everything SOP:37 wants, gathered from the machine that is about to run.
+
+    ``argv`` is stored with the emit/record flag pair stripped, so the record
+    written by ``--emit-launch-record PATH`` describes exactly the run that
+    ``--launch-record PATH`` then performs.
+    """
+    environment = current_environment() if environment is None else dict(environment)
+    record = {"argv": strip_launch_flags(argv, flags=(emit_flag, record_flag)),
+              "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "note": LAUNCH_RECORD_NOTE}
+    record.update({key: environment.get(key) for key in
+                   ("git_sha", "git_status_dirty", "git_tracked_changes", "untracked_paths",
+                    "hostname", "gpus", "cuda_visible_devices", "dirty_semantics_note")})
+    return record
 
 
 def strip_launch_flags(argv, flags=("--emit-launch-record", "--launch-record")):
@@ -223,12 +260,19 @@ def write_launch_record(path, argv):
     return record
 
 
-def read_verified_launch_record(path, argv, device=None):
+def read_verified_launch_record(path, argv, device=None, environment=None):
     """ONE read: hash the bytes, parse the same buffer, then hold it to the run.
 
-    A record that names a different command, a different machine's GPUs or no
-    GPU at all is refused rather than recorded: the point of the field is that
-    it identifies the physical run, so an unusable value is worse than none.
+    Two rounds of checks, both fail-closed. The record's own shape first -- it
+    must name this command, a full commit id, a host and real nvidia-smi UUIDs.
+    Then, and this is what r9u was missing (Codex r9v residual 4b), the record is
+    COMPARED against the environment executing right now: the same commit at
+    HEAD, the same hostname, the executing device's physical UUID among the
+    recorded ones, and a clean TRACKED tree on both sides. A claim nobody checks
+    against the machine it claims about vouches for nothing.
+
+    ``environment`` is injectable so the comparison itself can be tested on
+    every axis; production passes ``None`` and reads the live machine.
     """
     with open(str(path), "rb") as handle:
         raw = handle.read()
@@ -265,13 +309,61 @@ def read_verified_launch_record(path, argv, device=None):
                 f"this run is on {device!r} but the launch record lists GPU indices "
                 f"{sorted(int(gpu.get('index', -1)) for gpu in record['gpus'])}; the record does "
                 f"not cover the card the run used. {LAUNCH_RECORD_NOTE}")
+
+    # AGAINST THE EXECUTING ENVIRONMENT (Codex r9v residual 4b). Up to here the
+    # record has only been checked for internal shape; a claim nobody compares
+    # to the machine it claims about vouches for nothing.
+    environment = current_environment() if environment is None else dict(environment)
+    checks = []
+    if environment.get("git_sha") and str(record["git_sha"]) != str(environment["git_sha"]):
+        checks.append(f"git SHA: the record says {str(record['git_sha'])[:12]}... and HEAD is "
+                      f"{str(environment['git_sha'])[:12]}..., so the code that ran is not the "
+                      "code the record names")
+    if environment.get("hostname") and str(record["hostname"]) != str(environment["hostname"]):
+        checks.append(f"hostname: the record says {record['hostname']!r} and this machine is "
+                      f"{environment['hostname']!r}")
+    if bool(record.get("git_status_dirty")):
+        checks.append("the RECORD was written from a tracked-dirty tree "
+                      f"({record.get('git_tracked_changes') or 'changes not enumerated'}), so "
+                      "its git SHA does not describe the code it ran")
+    if bool(environment.get("git_status_dirty")):
+        checks.append("this tree has TRACKED modifications right now "
+                      f"({environment.get('git_tracked_changes') or 'changes not enumerated'}), "
+                      "so the running code is not the committed code the record names")
+    if device is not None and str(device).startswith("cuda") and environment.get("gpus"):
+        wanted = int(str(device).split(":")[-1]) if ":" in str(device) else 0
+        live = {int(gpu.get("index", -1)): str(gpu.get("uuid") or "")
+                for gpu in environment["gpus"]}
+        recorded_uuids = {str(gpu.get("uuid") or "") for gpu in record["gpus"]}
+        executing = live.get(wanted)
+        if executing is None:
+            checks.append(f"this machine exposes no GPU at index {wanted}, which is the device "
+                          f"{device!r} the run is using")
+        elif executing not in recorded_uuids:
+            checks.append(f"physical GPU: the run executes on {executing} and the record lists "
+                          f"{sorted(recorded_uuids)}, so the card in use is not one the record "
+                          "identifies")
+    if checks:
+        raise ValueError(
+            f"the launch record at {path!r} does not describe the environment this run is "
+            f"executing in -- {'; '.join(checks)}. {LAUNCH_RECORD_NOTE} "
+            f"{DIRTY_SEMANTICS_NOTE}")
+
     return {"path": str(path), "sha256": digest, "n_bytes": len(raw),
             "argv": recorded, "git_sha": str(record["git_sha"]),
             "git_status_dirty": bool(record.get("git_status_dirty")),
+            "git_tracked_changes": list(record.get("git_tracked_changes") or []),
+            # informational, never a refusal: this repo's runtime dirs are
+            # untracked by design (DIRTY_SEMANTICS_NOTE)
+            "untracked_paths": list(record.get("untracked_paths") or []),
+            "n_untracked_paths": len(record.get("untracked_paths") or []),
             "hostname": str(record["hostname"]),
             "gpus": record["gpus"],
+            "executing_device": (None if device is None else str(device)),
+            "environment_verified": True,
             "cuda_visible_devices": record.get("cuda_visible_devices"),
             "recorded_utc": record.get("recorded_utc"),
+            "dirty_semantics_note": DIRTY_SEMANTICS_NOTE,
             "note": LAUNCH_RECORD_NOTE}
 
 
@@ -754,79 +846,115 @@ def observation_digests(obs_wav, source_path=None, source_sha256=None):
     return out
 
 
-#: The r9r MEASUREMENT this module's tie bound has to answer to.
+#: THE GATE'S EVIDENCE -- the matched path, and ONLY the matched path.
 #:
-#: Not an argument -- a measurement, published at
-#: ``outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.{json,md}``
-#: and mirrored into the experiment folder, produced by
-#: :mod:`src.localization.meshgrid_drift_measurement` on 2026-08-29 against the
-#: merged P1 run. Sample: the deterministic seeded rule (seed 20260828), 4
-#: queries per room across all 16 rooms -- the registered probe query plus 3
-#: drawn without replacement -- times 2 candidates (the row's headline
-#: prediction plus one drawn), measured on BOTH devices: 256 tie measurements,
-#: 8,064 ordered substitution pairs, 16 whole-query matched-batching replays
-#: (11,577 candidates, 92,616 generated waveforms).
+#: Split from the retired path's numbers deliberately (Codex r9v residual 1).
+#: r9u kept both in one dict and the report then sliced a "tie_evidence" block
+#: that joined the retired 6.67e-3 / 8,064 to the matched 85.4x separation, and
+#: the markdown attributed the new margin to the old pair count. Two dicts make
+#: that mistake unavailable rather than merely discouraged: nothing the gate
+#: publishes may read from :data:`RETIRED_PATH_EVIDENCE`.
 #:
-#: Logs: ``loc_meshgrid_2026-08-28_23:49:00_r9r_drift_cuda{0,1}.log`` and
-#: ``loc_meshgrid_2026-08-29_*_r9r_drift_merge.log`` in the experiment folder.
-R9R_MEASUREMENT = {
+#: Measured 2026-08-29 by :mod:`src.localization.meshgrid_drift_measurement`
+#: ``--matched-substitution`` against the merged P1 run on cuda:0 (663 s), log
+#: ``loc_meshgrid_2026-08-29_01:51:30_r9u_matched_substitution.log``: each of the
+#: sixteen registered probe queries replayed ONCE at its row's own stamped
+#: batching, its generated embeddings cached, and every other in-scope query's
+#: observation scored against them.
+MATCHED_PATH_EVIDENCE = {
+    "path": "matched_batching_whole_query_replay",
+    "date": "2026-08-29",
+    "artifact": "outputs_loc/exp22/r9r_drift_measurement/matched_substitution/"
+                "matched_substitution_measurement.json",
+    # the tracked mirror, so the evidence join survives a fresh checkout. Same
+    # distributions; only the 85,376 raw pair records stay in outputs_loc
+    "artifact_mirror": "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/"
+                       "r9r_drift_measurement/matched_substitution_measurement.json",
+    "log": "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/"
+           "loc_meshgrid_2026-08-29_01:51:30_r9u_matched_substitution.log",
+    # (1) the honest replay: what the gate expects to see every time
+    "n_replayed_queries": 16,
+    "n_replay_candidates": 11577,
+    "max_abs_delta": 2.440810203552246e-4,
+    "max_abs_aggregate_delta": 0.0,
+    "float16_bit_exact": True,
+    "n_cells_over_own_tolerance": 0,
+    "wall_seconds": 663,
+    # (2) the adversary, measured on THIS path
+    "n_substitution_pairs": 85376,
+    "n_donor_observations": 5337,
+    "substitution_min": 2.0847943e-2,
+    "substitution_median": 0.630453,
+    "substitution_max": 1.465234,
+    "substitution_same_room_min": 2.0847943e-2,
+    "n_substitution_same_room_pairs": 5321,
+    "substitution_same_receiver_min": 0.181648567,
+    "n_substitution_same_receiver_pairs": 143,
+    "substitution_cross_room_min": 0.09369415,
+    "n_substitution_undetected": 0,
+    # (3) and therefore
+    "tolerance": 2.44140625e-4,
+    "separation": 85.393173,
+    "min_separation_required": 5.0,
+}
+
+#: THE RETIRED PATH's numbers -- superseded, never the gate's evidence.
+#:
+#: r9r measured the single-candidate, changed-batching regeneration: its drift
+#: distribution is still the diagnostic's reference (that IS the path the
+#: diagnostic runs), and its substitution distribution is kept only so the
+#: record of what r9s wrongly quoted survives. Codex r9t blocker 1 is exactly
+#: this: agreement between two paths on the RIGHT observation bounds nothing
+#: about the WRONG one, so 6.67e-3 over 8,064 pairs never described the matched
+#: gate. Labelled at every use.
+#:
+#: Artifact ``outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json``
+#: (retired_path_label.json beside it), logs
+#: ``loc_meshgrid_2026-08-28_23:49:00_r9r_drift_cuda{0,1}.log``. Sample: seed
+#: 20260828, 4 queries per room over 16 rooms x 2 candidates, both devices.
+RETIRED_PATH_EVIDENCE = {
+    "path": "retired_changed_batching_single_candidate",
+    "superseded_by": MATCHED_PATH_EVIDENCE["artifact"],
+    "label": "SUPERSEDED for detection power (Codex r9t blocker 1); still the "
+             "non-gating diagnostic's own reference distribution",
     "artifact": "outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json",
     "date": "2026-08-29",
     "selection_seed": 20260828,
-    "n_tie_measurements": 256,
+    # the diagnostic's reference distribution -- this part is NOT superseded,
+    # because the diagnostic still runs exactly this path
+    "n_measurements": 256,
+    "max_abs_delta": 3.6296844482421875e-3,
+    "excess_over_half_ulp_max": 3.5076141357421875e-3,
+    "q99_abs_delta": 2.93e-3,
+    "median_abs_delta": 5.13e-4,
+    "max_abs_aggregate_delta": 1.1619329452514648e-3,
+    "n_aggregate_above_score_tolerance": 4,
+    # the substitution distribution that never described the matched gate
     "n_substitution_pairs": 8064,
-    "n_matched_replay_candidates": 11577,
-    # (1) the tie's own path, the gate's path: what honest regeneration costs
-    "tie_max_abs_delta": 3.6296844482421875e-3,
-    "tie_excess_over_half_ulp_max": 3.5076141357421875e-3,
-    "tie_q99_abs_delta": 2.93e-3,
-    "tie_median_abs_delta": 5.13e-4,
-    "tie_max_abs_aggregate_delta": 1.1619329452514648e-3,
-    "n_tie_aggregate_above_score_tolerance": 4,
-    # (2) the SAME queries replayed at the run's own batching: the control
-    "matched_max_abs_delta": 2.440810203552246e-4,
-    "matched_max_abs_aggregate_delta": 0.0,
-    "matched_float16_bit_exact": True,
-    # (3) what a substituted observation moves on the RETIRED path. Kept as the
-    # diagnostic's own reference; it is NOT the matched gate's margin, which is
-    # what r9s wrongly quoted from it (Codex r9t blocker 1)
     "substitution_min": 6.668746471405029e-3,
     "substitution_median": 0.569884,
     "substitution_max": 1.409295,
-    # (3b) r9u: the margin MEASURED ON THE GATE'S OWN PATH. Each of the sixteen
-    # registered probe queries replayed once at its row's stamped batching, its
-    # generated embeddings cached, and every other in-scope query's observation
-    # scored against them -- 85,376 ordered pairs, including 5,321 same-room and
-    # 143 same-receiver ones, which the sixteen-query set alone could not supply.
-    # Artifact: matched_substitution_measurement.json; log
-    # loc_meshgrid_2026-08-29_01:51:30_r9u_matched_substitution.log
-    "matched_artifact": "outputs_loc/exp22/r9r_drift_measurement/matched_substitution/"
-                        "matched_substitution_measurement.json",
-    # the tracked mirror, so the join below survives a fresh checkout. Same
-    # distributions; only the 85,376 raw pair records are left in outputs_loc
-    "matched_artifact_mirror": "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/"
-                               "r9r_drift_measurement/matched_substitution_measurement.json",
-    "n_matched_substitution_pairs": 85376,
-    "n_matched_donor_observations": 5337,
-    "matched_substitution_min": 2.0847943e-2,
-    "matched_substitution_median": 0.630453,
-    "matched_substitution_max": 1.465234,
-    "matched_substitution_same_room_min": 2.0847943e-2,
-    "matched_substitution_same_receiver_min": 0.181648567,
-    "n_matched_substitution_undetected": 0,
-    "matched_replay_wall_seconds": 663,
-    # (4) and therefore
+    # r9r's verdict on the changed-batching bound: it could not be established,
+    # which is what sent the gate to matched batching (r9s, RULING 3)
     "candidate_bound_at_safety_1_5": 5.3e-3,
     "separation_of_candidate_bound": 1.3,
-    "min_separation_required": 5.0,
-    # r9r's verdict on the CHANGED-batching bound: it could not be established,
-    # which is what sent the gate to matched batching (r9s, RULING 3)
-    "changed_batching_bound_established": False,
-    # ... and the gate that IS adoptable, measured on its own path in r9u:
-    # 0.020848 / 2.44140625e-4
-    "matched_batching_separation": 85.393173,
-    "matched_batching_tolerance": 2.44140625e-4,
+    "bound_established": False,
 }
+
+
+def tie_evidence():
+    """What the GATE rests on -- matched path only, artifact path included.
+
+    A function rather than a slice of a bigger dict, so no future caller can
+    reach past it into the retired numbers (Codex r9v residual 1).
+    """
+    return dict(MATCHED_PATH_EVIDENCE)
+
+
+def retired_path_evidence():
+    """The superseded numbers, under a label that says so."""
+    return dict(RETIRED_PATH_EVIDENCE)
+
 
 #: THE GATE (r9s, Planner RULING 3). Adopted on the r9r measurement's evidence.
 #:
@@ -921,8 +1049,10 @@ DYNAMIC_RANGE_NOTE = (
     "evidence: they say nothing about how far a substituted observation moves this number. r9p "
     "published the ratio as 'separation_vs_span' and read it as substitution evidence, which "
     "Codex r9q rejected (item 3). The measured detection margin is measured_substitution_min -- "
-    "the smallest movement over the r9r measurement's 8,064 ordered substituted-observation "
-    "pairs -- and it is carried beside these two so the difference cannot be misread again")
+    "the smallest movement over the MATCHED path's 85,376 ordered substituted-observation pairs "
+    "(r9u), which is the path this gate runs on. It is carried beside these two so the "
+    "difference cannot be misread again, and it is NOT the retired path's 8,064-pair figure, "
+    "which described a regeneration this gate no longer performs (Codex r9v residual 1)")
 
 TIE_TOLERANCE_NOTE = MATCHED_BATCHING_TIE
 
@@ -1023,11 +1153,17 @@ def changed_batching_diagnostic(engine, query, md, context, row, sims, obs_embed
     rederived = cosine_sims(torch.as_tensor(obs_embedding).float().reshape(-1),
                             embeddings)[0].double().numpy()
     delta = float(np.abs(rederived - stored.astype(np.float64)).max())
-    reference = {"n_measurements": int(R9R_MEASUREMENT["n_tie_measurements"]),
-                 "median": float(R9R_MEASUREMENT["tie_median_abs_delta"]),
-                 "q99": float(R9R_MEASUREMENT["tie_q99_abs_delta"]),
-                 "max": float(R9R_MEASUREMENT["tie_max_abs_delta"]),
-                 "artifact": str(R9R_MEASUREMENT["artifact"])}
+    # the reference distribution is the RETIRED path's, which is correct here and
+    # only here: this diagnostic IS that path. It is labelled so, and it is never
+    # the gate's evidence (Codex r9v residual 1)
+    retired = RETIRED_PATH_EVIDENCE
+    reference = {"path": str(retired["path"]),
+                 "label": str(retired["label"]),
+                 "n_measurements": int(retired["n_measurements"]),
+                 "median": float(retired["median_abs_delta"]),
+                 "q99": float(retired["q99_abs_delta"]),
+                 "max": float(retired["max_abs_delta"]),
+                 "artifact": str(retired["artifact"])}
     return {"gating": False,
             "max_abs_delta": delta,
             "inside_reference_distribution": bool(delta <= reference["max"]),
@@ -1147,9 +1283,9 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
                "query_cosine_span_over_delta": (float(span / delta) if delta > 0
                                                 else float("inf")),
                "dynamic_range_note": DYNAMIC_RANGE_NOTE,
-               "measured_substitution_min": float(R9R_MEASUREMENT["matched_substitution_min"]),
+               "measured_substitution_min": float(MATCHED_PATH_EVIDENCE["substitution_min"]),
                "measured_separation": (
-                   float(R9R_MEASUREMENT["matched_substitution_min"]
+                   float(MATCHED_PATH_EVIDENCE["substitution_min"]
                          / float(cell_tolerance.max())) if cell_tolerance.max() > 0
                    else float("inf")),
                "k": int(largest),
@@ -1183,7 +1319,8 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
             f"{aggregate_delta:.3g} against an exact 0. At matched batching the computation is "
             f"bit-exact (r9r: 11,577 candidates, zero exceptions), so this is not numerical "
             f"noise. The closest measured substituted observation moves the tie by "
-            f"{R9R_MEASUREMENT['matched_substitution_min']:.3g} on this same path. "
+            f"{MATCHED_PATH_EVIDENCE['substitution_min']:.3g} on this same path "
+            f"({MATCHED_PATH_EVIDENCE['n_substitution_pairs']:,} ordered pairs). "
             f"s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here "
             f"is not the observation those rows were scored against. {OBSERVATION_BINDING_NOTE}")
     return verdict
@@ -1352,7 +1489,14 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  tie_dynamic_range_note=np.array(DYNAMIC_RANGE_NOTE),
                  # the MEASURED detection margin and where the bound stands
                  tie_measured_substitution_min=np.array(
-                     float(R9R_MEASUREMENT["matched_substitution_min"])),
+                     float(MATCHED_PATH_EVIDENCE["substitution_min"])),
+                 # the count the margin belongs to, so a dump read alone cannot
+                 # attribute it to the retired path's 8,064 (Codex r9v residual 1)
+                 tie_measured_substitution_pairs=np.array(
+                     int(MATCHED_PATH_EVIDENCE["n_substitution_pairs"])),
+                 tie_measured_substitution_path=np.array(str(MATCHED_PATH_EVIDENCE["path"])),
+                 tie_evidence_artifact=np.array(str(MATCHED_PATH_EVIDENCE["artifact"])),
+                 tie_retired_path_label=np.array(str(RETIRED_PATH_EVIDENCE["label"])),
                  tie_measured_separation=np.array(float((continuity or {}).get(
                      "measured_separation", float("nan")))),
                  tie_gate=np.array("matched_batching_replay"),
@@ -1712,11 +1856,12 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         # the top of the report so neither has to be rediscovered from a record
         "tie_cost_note": MATCHED_BATCHING_TIE_COST_NOTE,
         "changed_batching_diagnostic_note": CHANGED_BATCHING_DIAGNOSTIC_NOTE,
-        "tie_evidence": {key: R9R_MEASUREMENT[key] for key in
-                         ("artifact", "matched_float16_bit_exact",
-                          "matched_max_abs_aggregate_delta", "n_matched_replay_candidates",
-                          "substitution_min", "n_substitution_pairs",
-                          "matched_batching_separation")},
+        # THE GATE'S EVIDENCE: matched path only, with its own artifact path and
+        # its own pair count. r9u sliced a block that joined the retired
+        # 6.67e-3 / 8,064 to the matched separation (Codex r9v residual 1)
+        "tie_evidence": tie_evidence(),
+        # ... and the superseded numbers, under a label, never mixed in
+        "retired_path_evidence": retired_path_evidence(),
         # reconciled against the sibling control's own handoff when one was
         # supplied, so the bundle cannot contradict itself about §2 (r9t B5)
         "controls_elsewhere": (reconcile_controls_elsewhere(None)
@@ -1936,6 +2081,43 @@ def render_markdown(report):
     lines.append(f"> _Cost:_ {MATCHED_BATCHING_TIE_COST_NOTE}")
     lines.append("")
     lines.append(f"> _Dynamic range, not detection:_ {DYNAMIC_RANGE_NOTE}")
+    lines.append("")
+    # the evidence block, spelled out with the counts each number belongs to --
+    # r9u's markdown attributed the matched margin to the retired path's pair
+    # count (Codex r9v residual 1)
+    evidence = report.get("tie_evidence") or tie_evidence()
+    retired = report.get("retired_path_evidence") or retired_path_evidence()
+    lines.append("### Evidence for this gate — MATCHED path only")
+    lines.append("")
+    lines.append(f"- measured on `{evidence['path']}`, artifact "
+                 f"`{evidence['artifact']}`")
+    lines.append(f"- honest replay: {evidence['n_replayed_queries']} queries / "
+                 f"{evidence['n_replay_candidates']:,} candidates, max abs delta "
+                 f"{mr.format_number(evidence['max_abs_delta'], 8)}, aggregate "
+                 f"{mr.format_number(evidence['max_abs_aggregate_delta'], 8)}, float16 "
+                 f"round-trip exact {mr.format_number(evidence['float16_bit_exact'])}, "
+                 f"{evidence['n_cells_over_own_tolerance']} cells over their own bound")
+    lines.append(f"- substituted observations: **{evidence['n_substitution_pairs']:,} ordered "
+                 f"pairs** over {evidence['n_donor_observations']:,} donors — min "
+                 f"**{mr.format_number(evidence['substitution_min'], 6)}** "
+                 f"(same-room {evidence['n_substitution_same_room_pairs']:,} pairs, min "
+                 f"{mr.format_number(evidence['substitution_same_room_min'], 6)}; "
+                 f"same-receiver {evidence['n_substitution_same_receiver_pairs']} pairs, min "
+                 f"{mr.format_number(evidence['substitution_same_receiver_min'], 6)}), "
+                 f"{evidence['n_substitution_undetected']} undetected")
+    lines.append(f"- separation: **{mr.format_number(evidence['separation'], 1)}x** against a "
+                 f"{mr.format_number(evidence['tolerance'], 8)} tolerance (required >= "
+                 f"{mr.format_number(evidence['min_separation_required'], 1)}x)")
+    lines.append("")
+    lines.append(f"> _Retired path ({retired['path']}), {retired['label']}:_ its substitution "
+                 f"minimum {mr.format_number(retired['substitution_min'], 6)} over "
+                 f"{retired['n_substitution_pairs']:,} pairs is NOT this gate's margin; its "
+                 f"drift distribution (median "
+                 f"{mr.format_number(retired['median_abs_delta'], 6)}, q99 "
+                 f"{mr.format_number(retired['q99_abs_delta'], 6)}, max "
+                 f"{mr.format_number(retired['max_abs_delta'], 6)} over "
+                 f"{retired['n_measurements']} measurements) is the non-gating diagnostic's "
+                 f"reference. Artifact `{retired['artifact']}`")
     lines.append("")
     # "max abs delta" rather than "max |delta|": raw pipes would split the cell
     lines.append("| room | query | candidates replayed | batching | max abs delta | "
@@ -2230,9 +2412,9 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "dynamic_range_note": DYNAMIC_RANGE_NOTE,
                               # the MEASURED margin, and the standing verdict
                               "measured_substitution_min":
-                                  float(R9R_MEASUREMENT["matched_substitution_min"]),
+                                  float(MATCHED_PATH_EVIDENCE["substitution_min"]),
                               "measured_separation":
-                                  (float(R9R_MEASUREMENT["matched_substitution_min"]
+                                  (float(MATCHED_PATH_EVIDENCE["substitution_min"]
                                          / max(tolerances)) if tolerances else float("inf")),
                               "changed_batching_diagnostic_note":
                                   CHANGED_BATCHING_DIAGNOSTIC_NOTE,
