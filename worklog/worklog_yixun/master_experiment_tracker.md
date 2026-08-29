@@ -30,3 +30,9 @@ Living index — one row per experiment; updated at every session handoff/compac
 **Sibling work (merged 2026-07-15, PR #1):** zhixuan's `Yaw-equi-ViT` — `CylindricalViT` equivariant geometry encoder (`src/models/cyl_vit.py`) + matched ablations under `worklog/worklog_zhixuan/` (namespace convention adopted). Additive-gated (`arch: cyl_vit`); our arms verified bit-identical post-merge (init hash unchanged).
 
 **In flight right now (2026-08-14 ~14:10, Opus 5 seat):** nothing of ours training. exp_14 DS-PA running to its 5,000 pause point (Yixun-ordered), then held; DS-CS3 held; exp_16 ARE-V HELD (fix round on the r1 review, no launch). Yixun's exp12C ~50k/67.5k (~8/15 early).
+
+## exp_22 loc_meshgrid — P1 arm CLOSED (2026-08-29, Codex r9z7 APPROVE)
+- **Verdicts (canonical, LME K=8, room-first, 95% room-bootstrap):** P1 Vanilla@40k median e_loc **1.394 m** [0.863, 2.131], success@0.5 **0.183**, success@1.0 **0.505** — beats random (3.081 m / 0.028 / 0.182, PRIMARY CRITERION PASS) and beats sparse real-RIR AGREE retrieval (1.943 m / 0.108 / 0.332). Two-regime: Auditorium 5.03 m / Cafe 4.67 m fail; other 14 rooms 0.71–1.22 m. K flat. Truth-rank control: off-grid truth never beats grid (median rank 41). Real-vs-generated AGREE gap 0.113.
+- **Key artifacts:** `exp_22_loc_meshgrid_claude/loc_meshgrid_results.md` (final), R1 report + retrieval + probe v8 reports beside it; pre-registered digests `loc_meshgrid_preregistered_digests.json`; merged run `outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged` (71.2M waveforms, census-exact); probe dumps on NAS `checkpoints/exp22_loc_meshgrid/`.
+- **Review chain:** r9→r9z7 (14 fix rounds, 12 Codex passes), suite 3,044→3,524.
+- **AWAITING YIXUN:** BF@40k + YAW@40k mesh arms (option ii; ~3 days both, all pins frozen); cross-hardware tie policy; Ruling 3 veto window.

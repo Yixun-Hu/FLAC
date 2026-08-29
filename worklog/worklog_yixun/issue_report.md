@@ -73,3 +73,8 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 - **OPEN (Yixun to assign):** `src/tests/test_yaw_aug_record_control.py::test_committed_record_agrees_with_exp11_registry` permanently red — exp_15's control asserts exp_11's registry lacks `final_ckpt_sha256`, false since `0776122` (2026-08-17). One-line fix owned by exp_15/exp_11, not exp_18.
 - **Environment (this box):** flash_attn ABSENT in `flac` env (DiT fallback attention; recorded in every exp_18 provenance; internally consistent). setuptools pinned <81 to restore pkg_resources. pytest 9.1.1 installed.
 - **Dataset facts discovered by exp_18's gates (documented, not bugs):** one near-silent RIR in the seen split (Office_idx_15/S009_R092 — release loader silently substitutes it); duplicate-position source labels in 2 seen rooms (Bathrooms 11/16); LRH_idx_30 S10 metadata-only. Unseen split clean on all three.
+
+## exp_22 closure state (2026-08-29)
+- OPEN DECISIONS (Yixun): (1) BF+YAW mesh arms per option ii; (2) exact-aggregate tie is A6000-architecture-bound — decision needed only before any cross-hardware rerun of the off-grid control; (3) Planner Ruling 3 (matched-batching tie) veto window.
+- Known caveats: AGREE_fullAR leakage label on all exp_22 absolute levels; mesh subset 16/17 rooms; canonical-heading only; sparse-retrieval bank slightly supersets released selector pool (S010 blindspot, disclosed).
+- Deferred optional: quantile viz renders (registered case list ca3d16b1) + real-score pipeline panel.
