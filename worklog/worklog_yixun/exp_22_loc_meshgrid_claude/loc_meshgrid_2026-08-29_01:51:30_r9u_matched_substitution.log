@@ -1,0 +1,102 @@
+binding gate passed against outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged: 6fb7116ed2b8... (19 fields)
+room -> shard from the run's merge report; shard -> device {'cafe': 'cuda:0', 'rest15': 'cuda:1'}
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchmetrics/utilities/imports.py:22: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import DistributionNotFound, get_distribution
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Using EMA model
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+weights: ema, latent (32, 10)
+Seed set to 42
+Running json scandir...
+Found 6337 files in 17 subfolders
+Max audio length for metric computation: 8000
+Loading AGREE model from checkpoint:  weights/AGREE/AGREE_fullAR.pt
+Image model facebook/dinov3-vits16-pretrain-lvd1689m loaded, trainable params: 21.00M
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loaded pretrained weights from weights/FLAC/VAE.ckpt
+Done loading AGREE model
+AGREE model loaded successfully
+release call graph reproduced: ['seed_everything', 'build_dataloader', 'build_metric_stack', 'create_iterator']
+  Cafe/Cafe_idx_1 q00788: 5295 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 300.6s
+  MeetingRoom/MeetingRoom_idx_32 q01139: 107 candidates at 256/16, honest max |delta| 0.00012 (cell tolerance <= 0.000122, 0 over), aggregate 0, 6.6s
+  MeetingRoom/MeetingRoom_idx_20 q01389: 231 candidates at 256/16, honest max |delta| 0.000238 (cell tolerance <= 0.000244, 0 over), aggregate 0, 13.7s
+  Office/Office_idx_10 q01639: 255 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 15.0s
+  Office/Office_idx_11 q01889: 404 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 23.6s
+  Bedrooms/Bedrooms_idx_18 q02139: 56 candidates at 256/16, honest max |delta| 0.000122 (cell tolerance <= 0.000122, 0 over), aggregate 0, 3.4s
+  Bedrooms/Bedrooms_idx_33 q02389: 58 candidates at 256/16, honest max |delta| 0.000216 (cell tolerance <= 0.000244, 0 over), aggregate 0, 3.5s
+  Auditorium/Auditorium_idx_1 q04281: 3722 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 211.0s
+  Bathrooms/Bathrooms_idx_14 q04639: 26 candidates at 256/16, honest max |delta| 0.000103 (cell tolerance <= 0.000122, 0 over), aggregate 0, 1.6s
+  Bathrooms/Bathrooms_idx_18 q04889: 54 candidates at 256/16, honest max |delta| 0.000122 (cell tolerance <= 0.000122, 0 over), aggregate 0, 3.4s
+  Apartments/Apartments_idx_50 q05139: 220 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 13.5s
+  Apartments/Apartments_idx_42 q05389: 176 candidates at 256/16, honest max |delta| 0.000178 (cell tolerance <= 0.000244, 0 over), aggregate 0, 10.7s
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 q05615: 280 candidates at 256/16, honest max |delta| 0.000244 (cell tolerance <= 0.000244, 0 over), aggregate 0, 16.7s
+  LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 q05864: 140 candidates at 256/16, honest max |delta| 0.000219 (cell tolerance <= 0.000244, 0 over), aggregate 0, 8.5s
+  Restaurants/Restaurants_idx_22 q06063: 292 candidates at 256/16, honest max |delta| 0.000236 (cell tolerance <= 0.000244, 0 over), aggregate 0, 16.7s
+  Restaurants/Restaurants_idx_24 q06304: 261 candidates at 256/16, honest max |delta| 0.000242 (cell tolerance <= 0.000244, 0 over), aggregate 0, 14.9s
+retired-path label -> outputs_loc/exp22/r9r_drift_measurement/merged/retired_path_label.json
+# exp_22 r9u matched-path substitution measurement
+
+- created: `2026-08-29T06:06:51+00:00`
+- run: `outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged`, device `cuda:0`
+- path: **matched_batching_whole_query_replay** (supersedes `outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json` for the detection margin)
+- donor observations: **5337** (every in-scope query, so a same-room, same-receiver substitution is representable)
+
+> MATCHED-PATH DETECTION MARGIN (r9u, Codex r9t blocker 1). r9r measured substituted-observation movement against generations from the RETIRED single-candidate, changed-batching path, and r9s then quoted that margin for the matched-batching gate. Agreement between two paths on the RIGHT observation does not bound how far the WRONG one moves a cosine, so the number had to be measured where the gate actually lives. Here it is: each registered probe query is replayed ONCE at the row's own batching -- the gate's own replay -- its generated embeddings E(h_hat) are cached, and every other probe query's observation is scored against them. No regeneration: once E(h_hat) is held, a substitution is a dot product. Reported against the frozen sidecar (max |cos(E(obs_wrong), E(h_hat)) - stored|, which is literally what the gate computes) and against the right observation's own cosines (max |cos(E(obs_wrong), E(h_hat)) - cos(E(obs_right), E(h_hat))|, the movement itself)
+
+## Honest replay, per probe query
+
+| room | query | candidates | batching | max abs delta | cell tolerance (max) | cells over own tolerance | aggregate abs delta | bit-exact | seconds |
+|---|---|---|---|---|---|---|---|---|---|
+| Cafe/Cafe_idx_1 | `788` | 5,295 | 256/16 | 0.00024396 | 0.00024414 | 0 | 0.00000000 | yes | 300.6 |
+| MeetingRoom/MeetingRoom_idx_32 | `1139` | 107 | 256/16 | 0.00011954 | 0.00012207 | 0 | 0.00000000 | yes | 6.6 |
+| MeetingRoom/MeetingRoom_idx_20 | `1389` | 231 | 256/16 | 0.00023836 | 0.00024414 | 0 | 0.00000000 | yes | 13.7 |
+| Office/Office_idx_10 | `1639` | 255 | 256/16 | 0.00024408 | 0.00024414 | 0 | 0.00000000 | yes | 15.0 |
+| Office/Office_idx_11 | `1889` | 404 | 256/16 | 0.00024402 | 0.00024414 | 0 | 0.00000000 | yes | 23.6 |
+| Bedrooms/Bedrooms_idx_18 | `2139` | 56 | 256/16 | 0.00012177 | 0.00012207 | 0 | 0.00000000 | yes | 3.4 |
+| Bedrooms/Bedrooms_idx_33 | `2389` | 58 | 256/16 | 0.00021589 | 0.00024414 | 0 | 0.00000000 | yes | 3.5 |
+| Auditorium/Auditorium_idx_1 | `4281` | 3,722 | 256/16 | 0.00024414 | 0.00024414 | 0 | 0.00000000 | yes | 211.0 |
+| Bathrooms/Bathrooms_idx_14 | `4639` | 26 | 256/16 | 0.00010318 | 0.00012207 | 0 | 0.00000000 | yes | 1.6 |
+| Bathrooms/Bathrooms_idx_18 | `4889` | 54 | 256/16 | 0.00012192 | 0.00012207 | 0 | 0.00000000 | yes | 3.4 |
+| Apartments/Apartments_idx_50 | `5139` | 220 | 256/16 | 0.00024366 | 0.00024414 | 0 | 0.00000000 | yes | 13.5 |
+| Apartments/Apartments_idx_42 | `5389` | 176 | 256/16 | 0.00017786 | 0.00024414 | 0 | 0.00000000 | yes | 10.7 |
+| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 | `5615` | 280 | 256/16 | 0.00024408 | 0.00024414 | 0 | 0.00000000 | yes | 16.7 |
+| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 | `5864` | 140 | 256/16 | 0.00021857 | 0.00024414 | 0 | 0.00000000 | yes | 8.5 |
+| Restaurants/Restaurants_idx_22 | `6063` | 292 | 256/16 | 0.00023592 | 0.00024414 | 0 | 0.00000000 | yes | 16.7 |
+| Restaurants/Restaurants_idx_24 | `6304` | 261 | 256/16 | 0.00024229 | 0.00024414 | 0 | 0.00000000 | yes | 14.9 |
+
+## Substituted observations, on the same replay
+
+- ordered cross pairs: **85376**
+- vs the frozen sidecar (the gate's own arithmetic): min **0.020848**, median 0.630453, max 1.465234
+- movement itself: min 0.020848, median 0.630445
+- same-room pairs: n=5321, min 0.020848
+- SAME-RECEIVER pairs (the nearest adversary): n=143, min 0.181649
+- cross-room pairs: n=80055, min 0.093694
+- pairs the ELEMENTWISE gate would not have caught: **0**
+
+## The gate
+
+- tolerance (most permissive cell): **0.00024414**
+- matched-path substitution minimum: **0.020848**
+- separation: **85.4x** (required >= 5.0x)
+- every pair detected elementwise: yes
+- admissible: **YES** -- the matched gate's half-ulp tolerance clears the measured matched-path adversary by the required factor
+
+
+matched-path measurement -> outputs_loc/exp22/r9r_drift_measurement/matched_substitution/matched_substitution_measurement.json
