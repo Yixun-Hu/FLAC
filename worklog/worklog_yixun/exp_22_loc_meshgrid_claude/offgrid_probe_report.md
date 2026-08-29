@@ -1,6 +1,6 @@
 # exp_22 R1 — off-grid truth probe + real-vs-generated AGREE calibration
 
-Generated 2026-08-29T09:17:47+00:00.
+Generated 2026-08-29T10:12:38+00:00.
 
 > **OFF-GRID TRUTH CONTROL -- this probe generates at the CONTINUOUS ground-truth source position x*_s and therefore READS THE HELD-OUT TARGET, by design and by registration (inherited plan §2). Its generation is NEVER inserted into any candidate set, never competes in any argmax, never becomes a prediction and never enters any published localization metric; it exists only to report how the truth position would have SCORED against the grid the engine actually searched**
 
