@@ -2605,6 +2605,35 @@ def _ok(value):
     return {"ok": True, "value": value, "error": None}
 
 
+def _failed(error="the command could not be run"):
+    return {"ok": False, "value": None, "error": error}
+
+
+def _runtime(uuid=None, logical_index=0, device_count=2, name="NVIDIA RTX A6000"):
+    """What the CUDA RUNTIME answers for the device it is about to use.
+
+    r9z4 stopped inferring the card from CUDA_VISIBLE_DEVICES and NVML indices
+    and asks the runtime instead, so this -- not the nvidia-smi list -- is the
+    seam that decides the designation.
+    """
+    return {"ok": True, "uuid": uuid or _FIXTURE_GPUS[logical_index]["uuid"],
+            "logical_index": logical_index, "device_count": device_count,
+            "name": name, "error": None}
+
+
+def _runtime_failed(error="the CUDA runtime reports no available device"):
+    return {"ok": False, "uuid": None, "logical_index": 0, "error": error}
+
+
+def _verify(path, argv, device="cuda:0", environment=None, runtime=None, uuid=None):
+    """Admission with both seams supplied -- the default is a healthy machine."""
+    logical = int(str(device).split(":")[-1]) if ":" in str(device) else 0
+    return op.read_verified_launch_record(
+        path, argv, device=device,
+        environment=_environment() if environment is None else environment,
+        runtime=_runtime(uuid, logical) if runtime is None else runtime)
+
+
 def _environment(**overrides):
     """The executing machine a launch record is compared against.
 
@@ -2629,9 +2658,9 @@ def _environment(**overrides):
 def _launch_record(tmp_path, argv, device="cuda:0", **overrides):
     """A record as ``build_launch_record`` writes one, designation included.
 
-    r9z2 made the DESIGNATED execution card part of the contract, so a record
-    without one is refused; the helper designates the card ``device`` names
-    under an unset CUDA_VISIBLE_DEVICES unless a caller overrides it.
+    r9z2 made the DESIGNATED execution card part of the contract and r9z4 made
+    the CUDA runtime the thing that names it, so the helper designates the card
+    the runtime would report for ``device`` unless a caller overrides it.
     """
     logical = int(str(device).split(":")[-1]) if ":" in str(device) else 0
     record = {"argv": list(argv), "git_sha": "a" * 40, "hostname": "neuronic",
@@ -2640,9 +2669,10 @@ def _launch_record(tmp_path, argv, device="cuda:0", **overrides):
               "untracked_paths": ["outputs_loc/", "AcousticRooms"],
               "execution_device": str(device),
               "execution_gpu_uuid": _FIXTURE_GPUS[logical]["uuid"],
-              "execution_gpu_index": _FIXTURE_GPUS[logical]["index"],
               "execution_logical_index": logical,
-              "execution_visible_devices": "unset: logical ordinals are the physical ones",
+              "execution_gpu_name": "NVIDIA RTX A6000",
+              "execution_runtime_device_count": len(_FIXTURE_GPUS),
+              "execution_uuid_source": "cuda_runtime",
               "recorded_utc": "2026-08-29T01:00:00+00:00"}
     record.update(overrides)
     path = str(tmp_path / "launch.json")
@@ -2653,7 +2683,8 @@ def _launch_record(tmp_path, argv, device="cuda:0", **overrides):
 def test_the_launch_record_is_written_from_the_command_it_describes(tmp_path):
     argv = ["--run-dir", "x", "--emit-launch-record", str(tmp_path / "l.json"), "--device",
             "cuda:0"]
-    record = op.write_launch_record(str(tmp_path / "l.json"), argv, device="cuda:0")
+    record = op.build_launch_record(argv, device="cuda:0", environment=_environment(),
+                                    runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
     # the flag pair is stripped, so the record describes the RUN, not the emit
     assert record["argv"] == ["--run-dir", "x", "--device", "cuda:0"]
     assert record["hostname"]
@@ -2665,12 +2696,10 @@ def test_a_launch_record_for_a_different_command_is_refused(tmp_path):
     argv = ["--run-dir", "x", "--launch-record", "l.json"]
     path, _record = _launch_record(tmp_path, ["--run-dir", "OTHER"])
     with pytest.raises(ValueError, match="written for a different command"):
-        op.read_verified_launch_record(path, argv, device="cuda:0",
-                                       environment=_environment())
+        _verify(path, argv)
     # the same command, with the flag pair on either side, verifies
     path, _record = _launch_record(tmp_path, ["--run-dir", "x"])
-    verified = op.read_verified_launch_record(path, argv, device="cuda:0",
-                                              environment=_environment())
+    verified = _verify(path, argv)
     assert verified["sha256"] == me.file_sha256(path)
     assert verified["git_sha"] == "a" * 40
 
@@ -2679,28 +2708,13 @@ def test_a_launch_record_without_physical_gpu_identity_is_refused(tmp_path):
     argv = ["--run-dir", "x"]
     for broken, match in (
             ({"gpus": []}, "is missing"),
-            ({"gpus": [{"index": 0, "uuid": "0"}],
-              "execution_gpu_uuid": "0"}, "not nvidia-smi UUIDs"),
+            ({"gpus": [{"index": 0, "uuid": "0"}]}, "not nvidia-smi UUIDs"),
             ({"git_sha": "abc"}, "not a full"),
             ({"hostname": ""}, "is missing")):
         path, _record = _launch_record(tmp_path, argv, **broken)
         with pytest.raises(ValueError, match=match):
-            op.read_verified_launch_record(path, argv, device="cuda:0",
-                                           environment=_environment())
+            _verify(path, argv)
 
-
-def test_a_launch_record_that_does_not_cover_the_device_is_refused(tmp_path):
-    argv = ["--run-dir", "x"]
-    path, _record = _launch_record(tmp_path, argv)
-    assert op.read_verified_launch_record(
-        path, argv, device="cuda:0", environment=_environment())["hostname"] == "neuronic"
-    # a record listing only GPU 0 cannot vouch for a run on cuda:1 -- caught by
-    # the physical-UUID axis now, not by a logical-index shape check (r9y 4b)
-    path, _record = _launch_record(tmp_path, argv, device="cuda:0",
-                                   gpus=[dict(_FIXTURE_GPUS[0])])
-    with pytest.raises(ValueError, match="not the card this record was written for"):
-        op.read_verified_launch_record(path, argv, device="cuda:1",
-                                       environment=_environment())
 
 
 def test_the_retrieval_entry_reports_the_siblings_own_status(tmp_path):
@@ -2933,81 +2947,70 @@ def test_dirty_means_tracked_and_untracked_is_informational(tmp_path, monkeypatc
         environment["dirty_semantics_note"]
 
     record = op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                                    environment=environment)
+                                    environment=environment,
+                                    runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
     assert record["git_status_dirty"] is False
     assert record["untracked_paths"] == ["AcousticRooms", "outputs_loc/"]
     assert record["git_sha"] == "b" * 40
 
 
+
 def test_a_tracked_dirty_record_refuses(tmp_path):
-    """Residual 4a: its SHA does not describe the code it ran."""
+    """r9w 4a: its SHA does not describe the code it ran."""
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv, git_status_dirty=True,
                                    git_tracked_changes=[" M src/localization/x.py"])
     with pytest.raises(ValueError, match="RECORD was written from a tracked-dirty tree"):
-        op.read_verified_launch_record(path, argv, device="cuda:0",
-                                       environment=_environment())
+        _verify(path, argv)
     # ... and a tree that goes dirty between writing the record and running it
     path, _record = _launch_record(tmp_path, argv)
     with pytest.raises(ValueError, match="TRACKED modifications right now"):
-        op.read_verified_launch_record(
-            path, argv, device="cuda:0",
-            environment=_environment(git_status_dirty=True,
-                                     git_status_capture=_ok(" M train.py"),
-                                     git_tracked_changes=[" M train.py"]))
+        _verify(path, argv, environment=_environment(
+            git_status_dirty=True, git_status_capture=_ok(" M train.py"),
+            git_tracked_changes=[" M train.py"]))
     # untracked paths never refuse, however many there are on either side
     path, _record = _launch_record(tmp_path, argv,
                                    untracked_paths=["outputs_loc/", "weights/", "wandb/"])
-    verified = op.read_verified_launch_record(
-        path, argv, device="cuda:0", environment=_environment(
-            untracked_paths=["outputs_loc/", "AcousticRooms", "HAA", "wandb/"]))
+    verified = _verify(path, argv, environment=_environment(
+        untracked_paths=["outputs_loc/", "AcousticRooms", "HAA", "wandb/"]))
     assert verified["n_untracked_paths"] == 3          # the RECORD's, reported as-is
     assert verified["git_status_dirty"] is False
 
 
 def test_each_environment_mismatch_axis_refuses_by_name(tmp_path):
-    """Residual 4b: the record is COMPARED, not merely stored."""
+    """r9w 4b: the record is COMPARED, not merely stored."""
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv, device="cuda:1")
-    # the happy path first, so the axes below are the only thing that changed
-    verified = op.read_verified_launch_record(path, argv, device="cuda:1",
-                                              environment=_environment())
+    verified = _verify(path, argv, device="cuda:1")
     assert verified["environment_verified"] is True
     assert verified["executing_device"] == "cuda:1"
 
-    for environment, match in (
-            (_environment(git_sha="c" * 40), "git SHA"),
-            (_environment(hostname="someone-elses-box"), "hostname"),
-            (_environment(gpus=[{"index": 0, "uuid": "GPU-different"},
-                                {"index": 1, "uuid": "GPU-alsodifferent"}]),
+    for environment, runtime, match in (
+            (_environment(git_sha="c" * 40), None, "git SHA"),
+            (_environment(hostname="someone-elses-box"), None, "hostname"),
+            (None, _runtime("GPU-somebodyelses", 1),
              "not the card this record was written for"),
-            (_environment(gpus=[dict(_FIXTURE_GPUS[0])]),
-             "only 1 device.* visible to the CUDA runtime")):
+            (None, _runtime_failed("the CUDA runtime exposes 1 device"),
+             "runtime could not identify the card")):
         with pytest.raises(ValueError, match=match):
-            op.read_verified_launch_record(path, argv, device="cuda:1",
-                                           environment=environment)
+            _verify(path, argv, device="cuda:1", environment=environment, runtime=runtime)
 
 
 def test_the_executing_card_must_be_the_DESIGNATED_one(tmp_path):
-    """A record from the same host and commit, but the other machine's cards."""
+    """r9z2: same host, same commit, but a different physical card."""
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv, device="cuda:0")
-    # index 0 exists on both sides, but it is a DIFFERENT physical card
-    swapped = _environment(gpus=[{"index": 0, "uuid": "GPU-99999999-0000-0000-0000-000000000000"},
-                                 dict(_FIXTURE_GPUS[1])])
     with pytest.raises(ValueError, match="not the card this record was written for"):
-        op.read_verified_launch_record(path, argv, device="cuda:0", environment=swapped)
-    # ... and the card the record designates still verifies wherever it sits
+        _verify(path, argv, runtime=_runtime("GPU-99999999-0000-0000-0000-000000000000", 0))
+    # ... and the card the record designates verifies wherever the runtime puts it
     path, _record = _launch_record(tmp_path, argv, device="cuda:1")
-    assert op.read_verified_launch_record(
-        path, argv, device="cuda:1", environment=swapped)["environment_verified"] is True
+    assert _verify(path, argv, device="cuda:1")["environment_verified"] is True
 
 
 def test_the_verified_record_publishes_both_dirty_fields(tmp_path):
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv)
-    verified = op.read_verified_launch_record(path, argv, device="cuda:0",
-                                              environment=_environment())
+    verified = _verify(path, argv)
     assert verified["git_status_dirty"] is False
     assert verified["git_tracked_changes"] == []
     assert verified["untracked_paths"] == ["outputs_loc/", "AcousticRooms"]
@@ -3021,34 +3024,30 @@ def test_the_live_environment_reports_this_repos_own_shape():
     environment = op.current_environment()
     assert len(str(environment["git_sha"])) == 40
     assert isinstance(environment["git_status_dirty"], bool)
-    # this repository's runtime directories are untracked by design, which is
-    # exactly what made r9u's record read dirty (Codex r9v residual 4a)
     assert isinstance(environment["untracked_paths"], list)
     assert environment["hostname"]
     for gpu in environment["gpus"]:
         assert str(gpu["uuid"]).startswith("GPU-")
+    # CUDA_DEVICE_ORDER is recorded as CONTEXT: the runtime is asked directly,
+    # so neither it nor CUDA_VISIBLE_DEVICES decides which card a run used
+    assert "cuda_device_order" in environment
+    assert "context only" in op.RUNTIME_UUID_NOTE or "CONTEXT ONLY" in op.RUNTIME_UUID_NOTE
 
 
 # --------------------------------------------------------------------------- #
 # r9y: capture failures fail CLOSED (Codex r9x residual 4)
 # --------------------------------------------------------------------------- #
-def _failed(error="the command could not be run"):
-    return {"ok": False, "value": None, "error": error}
-
-
 def test_a_failed_capture_is_never_mistaken_for_a_value():
-    """4a: r9w's bool(None) read a git that could not run as a clean tree."""
+    """r9w's bool(None) read a git that could not run as a clean tree."""
     captured = op._capture(["git", "status", "--porcelain", "--untracked-files=no"])
     assert set(captured) == {"ok", "value", "error"}
-    # a CLEAN tree and a FAILED capture are different objects now
     missing = op._capture(["definitely-not-a-real-binary-r9y"])
     assert missing["ok"] is False and missing["value"] is None and missing["error"]
     assert bool(missing["value"]) == bool("")      # the old shape could not tell them apart
-    assert missing["ok"] != captured["ok"] or not captured["ok"]
 
 
 def test_every_capture_failure_axis_refuses_by_name(tmp_path):
-    """4a: no empty-string equality, no skip-then-verified, on any axis."""
+    """No empty-string equality, no skip-then-verified, on any axis."""
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv)
     for broken, match in (
@@ -3058,46 +3057,44 @@ def test_every_capture_failure_axis_refuses_by_name(tmp_path):
               "git_status_capture": _failed("git status exited 128")},
              "the live tracked-tree state could not be captured"),
             ({"hostname": None, "hostname_capture": _failed("empty hostname")},
-             "the live hostname could not be captured"),
-            ({"gpus": [], "gpu_capture": _failed("nvidia-smi not found")},
-             "the live GPU enumeration could not be captured")):
+             "the live hostname could not be captured")):
         with pytest.raises(ValueError, match=match):
-            op.read_verified_launch_record(path, argv, device="cuda:0",
-                                           environment=_environment(**broken))
+            _verify(path, argv, environment=_environment(**broken))
+    # the GPU axis fails through the RUNTIME now, not through the enumeration
+    with pytest.raises(ValueError, match="runtime could not identify the card"):
+        _verify(path, argv, runtime=_runtime_failed("nvidia driver not loaded"))
 
 
 def test_a_failed_capture_cannot_leave_the_record_verified(tmp_path):
-    """4a + 4c: the axis that could not be checked is a FAILURE, not a skip."""
+    """The axis that could not be checked is a FAILURE, not a skip."""
     record = {"git_sha": "a" * 40, "hostname": "neuronic", "git_status_dirty": False,
               "gpus": [dict(gpu) for gpu in _FIXTURE_GPUS],
               "execution_device": "cuda:0",
               "execution_gpu_uuid": _FIXTURE_GPUS[0]["uuid"]}
     comparison = op.compare_environment(
         record, _environment(git_sha=None, git_sha_capture=_failed("git is gone")),
-        device="cuda:0")
+        device="cuda:0", runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
     assert comparison["verified"] is False
     assert comparison["n_passed"] == len(op.ENVIRONMENT_AXES) - 1
     failed = [axis for axis in comparison["axes"] if axis["verdict"] == "fail"]
     assert [axis["axis"] for axis in failed] == ["git_sha"]
     assert failed[0]["live"] is None and "git is gone" in failed[0]["why"]
     # an empty live value must never equal an empty recorded one into a pass
-    blank = op.compare_environment({"git_sha": "", "hostname": "", "git_status_dirty": False,
-                                    "gpus": [], "execution_gpu_uuid": _FIXTURE_GPUS[0]["uuid"]},
-                                   _environment(git_sha=None,
-                                                git_sha_capture=_failed("no git"),
-                                                hostname=None,
-                                                hostname_capture=_failed("no host")),
-                                   device="cuda:0")
+    blank = op.compare_environment(
+        {"git_sha": "", "hostname": "", "git_status_dirty": False, "gpus": [],
+         "execution_gpu_uuid": _FIXTURE_GPUS[0]["uuid"]},
+        _environment(git_sha=None, git_sha_capture=_failed("no git"),
+                     hostname=None, hostname_capture=_failed("no host")),
+        device="cuda:0", runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
     assert blank["verified"] is False
     assert {axis["axis"] for axis in blank["axes"] if axis["verdict"] == "fail"} >= \
         {"git_sha", "hostname"}
 
 
 def test_no_executing_device_is_a_failure_not_a_skip(tmp_path):
-    """4a: r9w returned environment_verified with the GPU axis never evaluated."""
+    """r9w returned environment_verified with the GPU axis never evaluated."""
     record = {"git_sha": "a" * 40, "hostname": "neuronic", "git_status_dirty": False,
               "gpus": [dict(gpu) for gpu in _FIXTURE_GPUS],
-              "execution_device": "cuda:0",
               "execution_gpu_uuid": _FIXTURE_GPUS[0]["uuid"]}
     comparison = op.compare_environment(record, _environment(), device=None)
     assert comparison["verified"] is False
@@ -3106,76 +3103,10 @@ def test_no_executing_device_is_a_failure_not_a_skip(tmp_path):
     assert "never identified" in gpu["why"]
 
 
-# --------------------------------------------------------------------------- #
-# r9y 4b: the logical ordinal is not the physical index
-# --------------------------------------------------------------------------- #
-def test_cuda_visible_devices_remaps_the_logical_ordinal():
-    """cuda:0 under CUDA_VISIBLE_DEVICES=1 is PHYSICAL GPU 1."""
-    gpus = [dict(gpu) for gpu in _FIXTURE_GPUS]
-    unset = op.resolve_physical_gpu("cuda:0", gpus, None)
-    assert unset["ok"] and unset["gpu"]["index"] == 0
-    assert unset["gpu"]["uuid"] == _FIXTURE_GPUS[0]["uuid"]
-
-    remapped = op.resolve_physical_gpu("cuda:0", gpus, "1")
-    assert remapped["ok"] and remapped["gpu"]["index"] == 1
-    assert remapped["gpu"]["uuid"] == _FIXTURE_GPUS[1]["uuid"]
-
-    # reversed order: cuda:0 is physical 1, cuda:1 is physical 0
-    assert op.resolve_physical_gpu("cuda:0", gpus, "1,0")["gpu"]["index"] == 1
-    assert op.resolve_physical_gpu("cuda:1", gpus, "1,0")["gpu"]["index"] == 0
-    # a UUID-valued variable resolves too
-    by_uuid = op.resolve_physical_gpu("cuda:0", gpus, _FIXTURE_GPUS[1]["uuid"])
-    assert by_uuid["gpu"]["index"] == 1
-
-
-def test_an_unresolvable_visible_devices_setting_refuses():
-    gpus = [dict(gpu) for gpu in _FIXTURE_GPUS]
-    for value, match in ((" ", "no device at all"),
-                         ("banana", "neither an index nor a GPU- UUID"),
-                         ("7", "not among the cards this machine enumerates")):
-        resolved = op.resolve_physical_gpu("cuda:0", gpus, value)
-        assert resolved["ok"] is False
-        assert re.search(match, resolved["error"]), (value, resolved["error"])
-    # an ordinal past the visible list names no card
-    beyond = op.resolve_physical_gpu("cuda:1", gpus, "0")
-    assert beyond["ok"] is False and "only 1 device" in beyond["error"]
-    # ... and a non-CUDA device identifies no physical card at all
-    assert op.resolve_physical_gpu("cpu", gpus, None)["ok"] is False
-
-
-def test_the_gpu_axis_compares_the_remapped_physical_card(tmp_path):
-    """The record must name the card the run REALLY executes on."""
-    argv = ["--run-dir", "x"]
-    # a record listing only physical GPU 0, run as cuda:0 with the OTHER card visible
-    path, _record = _launch_record(tmp_path, argv, device="cuda:0",
-                                   gpus=[dict(_FIXTURE_GPUS[0])])
-    with pytest.raises(ValueError, match="not the card this record was written for"):
-        op.read_verified_launch_record(path, argv, device="cuda:0",
-                                       environment=_environment(cuda_visible_devices="1"))
-    # the same run with the matching record verifies, and records the mapping
-    path, _record = _launch_record(tmp_path, argv, device="cuda:0",
-                                   gpus=[dict(_FIXTURE_GPUS[1])],
-                                   execution_gpu_uuid=_FIXTURE_GPUS[1]["uuid"],
-                                   execution_gpu_index=1,
-                                   execution_visible_devices="1")
-    verified = op.read_verified_launch_record(
-        path, argv, device="cuda:0", environment=_environment(cuda_visible_devices="1"))
-    gpu = next(axis for axis in verified["environment_comparison"]
-               if axis["axis"] == "gpu_uuid")
-    assert gpu["verdict"] == "pass"
-    assert gpu["logical_index"] == 0 and gpu["physical_index"] == 1
-    assert gpu["visible_devices"] == "1"
-    assert gpu["live"] == _FIXTURE_GPUS[1]["uuid"]
-
-
-# --------------------------------------------------------------------------- #
-# r9y 4c: the comparison is persisted, and verified means all axes passed
-# --------------------------------------------------------------------------- #
 def test_the_whole_comparison_is_persisted_for_audit(tmp_path):
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv, device="cuda:1")
-    verified = op.read_verified_launch_record(path, argv, device="cuda:1",
-                                              environment=_environment())
+    verified = _verify(path, argv, device="cuda:1")
     assert verified["environment_verified"] is True
     assert verified["environment_axes_passed"] == len(op.ENVIRONMENT_AXES) == 4
     assert verified["environment_axes_expected"] == 4
@@ -3184,36 +3115,38 @@ def test_the_whole_comparison_is_persisted_for_audit(tmp_path):
     for axis in axes.values():
         assert axis["verdict"] == "pass"
         assert set(axis) >= {"axis", "recorded", "live", "verdict", "why"}
-    # each axis carries BOTH sides, so the comparison can be re-read
     assert axes["git_sha"]["recorded"] == axes["git_sha"]["live"] == "a" * 40
     assert axes["hostname"]["recorded"] == axes["hostname"]["live"] == "neuronic"
-    assert axes["gpu_uuid"]["live"] == _FIXTURE_GPUS[1]["uuid"]
-    assert axes["gpu_uuid"]["recorded"] == _FIXTURE_GPUS[1]["uuid"]   # the DESIGNATION
-    # ... and the live environment is kept beside the record's own claims
+    assert axes["gpu_uuid"]["recorded"] == axes["gpu_uuid"]["live"] == _FIXTURE_GPUS[1]["uuid"]
+    assert axes["gpu_uuid"]["source"] == "cuda_runtime"
+    # the nvidia-smi set rides along as CONTEXT, not as the test
+    assert axes["gpu_uuid"]["nvidia_smi_uuid_set"] == \
+        sorted(gpu["uuid"] for gpu in _FIXTURE_GPUS)
     assert verified["live_environment"]["git_sha"] == "a" * 40
-    assert verified["live_environment"]["hostname"] == "neuronic"
     assert "fail closed" in verified["capture_failure_note"].lower()
 
 
 def test_verified_requires_every_axis_present_and_passed():
     record = {"git_sha": "a" * 40, "hostname": "neuronic", "git_status_dirty": False,
               "gpus": [dict(gpu) for gpu in _FIXTURE_GPUS],
-              "execution_device": "cuda:0",
               "execution_gpu_uuid": _FIXTURE_GPUS[0]["uuid"]}
-    passed = op.compare_environment(record, _environment(), device="cuda:0")
+    live = _runtime(_FIXTURE_GPUS[0]["uuid"], 0)
+    passed = op.compare_environment(record, _environment(), device="cuda:0", runtime=live)
     assert passed["verified"] is True and passed["n_axes"] == len(op.ENVIRONMENT_AXES)
-    for broken in (_environment(git_sha="c" * 40),
-                   _environment(hostname="elsewhere"),
-                   _environment(git_status_dirty=True, git_status_capture=_ok(" M x.py")),
-                   _environment(gpus=[{"index": 0, "uuid": "GPU-someoneelse"}])):
-        comparison = op.compare_environment(record, broken, device="cuda:0")
+    for environment, runtime in ((_environment(git_sha="c" * 40), live),
+                                 (_environment(hostname="elsewhere"), live),
+                                 (_environment(git_status_dirty=True,
+                                               git_status_capture=_ok(" M x.py")), live),
+                                 (_environment(), _runtime("GPU-someoneelse", 0))):
+        comparison = op.compare_environment(record, environment, device="cuda:0",
+                                            runtime=runtime)
         assert comparison["verified"] is False
         assert comparison["n_passed"] < len(op.ENVIRONMENT_AXES)
         assert comparison["failures"]
 
 
 def test_an_unverified_environment_cannot_canonicalize():
-    """4c: environment_verified is an admission criterion, not a decoration."""
+    """environment_verified is an admission criterion, not a decoration."""
     base = {"single_shard": False, "metadata_bank_expected": "a" * 64,
             "observation_bank_expected": "b" * 64,
             "registered_protocol": {"is_registered": True, "deviations": {}},
@@ -3222,7 +3155,7 @@ def test_an_unverified_environment_cannot_canonicalize():
                                        "per_query_delta": {str(i): 0.0 for i in range(16)}}}
     assert op.probe_canonical_status(
         dict(base, launch_record=dict(_FIXTURE_LAUNCH)))["canonical"] is True
-    for record in ({"sha256": "c" * 64},                       # r9w's shape: no verdict
+    for record in ({"sha256": "c" * 64},
                    dict(_FIXTURE_LAUNCH, environment_verified=False,
                         environment_axes_passed=3)):
         status = op.probe_canonical_status(dict(base, launch_record=record))
@@ -3234,10 +3167,10 @@ def test_an_unverified_environment_cannot_canonicalize():
 
 
 # --------------------------------------------------------------------------- #
-# r9z2: the last two fail-open shreds (Codex r9z)
+# r9z2 + r9z4: emission fails closed, and the RUNTIME names the card
 # --------------------------------------------------------------------------- #
 def test_emission_refuses_when_a_capture_failed(tmp_path):
-    """Shred 1: r9y hardened admission and let emission write dirty=None."""
+    """r9y hardened admission and let emission write dirty=None."""
     for broken, match in (
             ({"git_status_dirty": None,
               "git_status_capture": _failed("git status exited 128")},
@@ -3250,127 +3183,200 @@ def test_emission_refuses_when_a_capture_failed(tmp_path):
              "the GPU enumeration could not be captured")):
         with pytest.raises(ValueError, match=match):
             op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                                   environment=_environment(**broken))
-    # a capture that "succeeded" but produced nothing is refused just as hard
-    with pytest.raises(ValueError, match="came back empty despite a successful capture"):
-        op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                               environment=_environment(git_sha=None,
-                                                        git_sha_capture=_ok("")))
-    # ... and a non-boolean dirty field can never be written
+                                   environment=_environment(**broken),
+                                   runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
     with pytest.raises(ValueError, match="not a boolean"):
         op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                               environment=_environment(git_status_dirty="probably"))
-    # nothing was written by any refusal
-    assert not os.path.exists(str(tmp_path / "launch.json"))
+                               environment=_environment(git_status_dirty="probably"),
+                               runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
 
 
-def test_emission_refuses_a_device_it_cannot_resolve(tmp_path):
-    """A record that cannot designate a card is not a record."""
-    for device, match in ((None, "not a CUDA device"),
-                          ("cpu", "not a CUDA device"),
-                          ("cuda:5", "only 2 device")):
+def test_emission_refuses_an_EMPTY_captured_fact_through_write(tmp_path):
+    """r9z3 shred 1: an empty string is as unusable as a missing one.
+
+    Exercised through ``write_launch_record`` itself, because that is the entry
+    point the operator uses and the one that must leave nothing behind.
+    """
+    path = str(tmp_path / "launch.json")
+    for broken, match in (
+            ({"git_sha": "", "git_sha_capture": _ok("")},
+             "the source commit came back as an empty string"),
+            ({"git_sha": "   ", "git_sha_capture": _ok("   ")},
+             "the source commit came back as an empty string"),
+            ({"hostname": "", "hostname_capture": _ok("")},
+             "the hostname came back as an empty string"),
+            ({"gpus": [], "gpu_capture": _ok("")},
+             "the GPU enumeration came back as an empty list")):
         with pytest.raises(ValueError, match=match):
-            op.build_launch_record(["--run-dir", "x"], device=device,
-                                   environment=_environment())
+            op.build_launch_record(["--run-dir", "x"], device="cuda:0",
+                                   environment=_environment(**broken),
+                                   runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
+        assert not os.path.exists(path), "a refused emission must leave no record"
+
+    # ... and the same through write_launch_record, with nothing written
+    import src.localization.meshgrid_offgrid_probe as module
+
+    real = module.current_environment
+    module.current_environment = lambda: _environment(hostname="", hostname_capture=_ok(""))
+    try:
+        with pytest.raises(ValueError, match="the hostname came back as an empty string"):
+            op.write_launch_record(path, ["--run-dir", "x"], device="cuda:0",
+                                   runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
+    finally:
+        module.current_environment = real
+    assert not os.path.exists(path)
+
+
+def test_emission_refuses_a_device_the_runtime_cannot_answer_for(tmp_path):
+    """r9z3 shred 2: no fallback to inference when the runtime cannot answer."""
+    with pytest.raises(ValueError, match="runtime could not identify the card"):
+        op.build_launch_record(["--run-dir", "x"], device="cuda:0",
+                               environment=_environment(),
+                               runtime=_runtime_failed("this torch exposes no device UUID"))
+    # the real resolver, on devices no runtime can answer for
+    for device, match in ((None, "not a CUDA device"), ("cpu", "not a CUDA device"),
+                          ("cuda:none", "names no ordinal")):
+        assert op.runtime_gpu_uuid(device)["ok"] is False
+        assert re.search(match, op.runtime_gpu_uuid(device)["error"])
 
 
 def test_admission_refuses_a_record_whose_dirty_field_is_absent(tmp_path):
-    """Shred 1: no bool(None) path -- absent is not clean."""
+    """r9z shred 1: no bool(None) path -- absent is not clean."""
     argv = ["--run-dir", "x"]
     for value in (None, "false", 0, "unknown"):
         path, _record = _launch_record(tmp_path, argv, git_status_dirty=value)
         with pytest.raises(ValueError, match="not a boolean"):
-            op.read_verified_launch_record(path, argv, device="cuda:0",
-                                           environment=_environment())
-    # the field missing entirely is the same refusal
+            _verify(path, argv)
     path, record = _launch_record(tmp_path, argv)
     record.pop("git_status_dirty")
     me.write_json(path, record)
     with pytest.raises(ValueError, match="does not state whether its tree was clean"):
-        op.read_verified_launch_record(path, argv, device="cuda:0",
-                                       environment=_environment())
+        _verify(path, argv)
 
 
-def test_the_record_designates_the_card_it_was_emitted_for():
-    """Shred 2: the designation is resolved at EMISSION time."""
-    record = op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                                    environment=_environment())
-    assert record["execution_gpu_uuid"] == _FIXTURE_GPUS[0]["uuid"]
-    assert record["execution_gpu_index"] == 0 and record["execution_logical_index"] == 0
-    assert record["execution_device"] == "cuda:0"
-    assert "unset" in record["execution_visible_devices"]
-    # the full visible set and the emission-time variable travel with it
-    assert [gpu["uuid"] for gpu in record["gpus"]] == \
-        [gpu["uuid"] for gpu in _FIXTURE_GPUS]
-    assert record["cuda_visible_devices"] is None
+# --------------------------------------------------------------------------- #
+# r9z4 shred 2: the RUNTIME names the card, and nothing infers it
+# --------------------------------------------------------------------------- #
+def test_the_designation_comes_from_the_cuda_runtime(monkeypatch):
+    """The real ``runtime_gpu_uuid``, against a mocked torch.cuda."""
+    import torch
 
-    # ... and the emission-time visibility decides which card cuda:0 designates
-    remapped = op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                                      environment=_environment(cuda_visible_devices="1"))
-    assert remapped["execution_gpu_uuid"] == _FIXTURE_GPUS[1]["uuid"]
-    assert remapped["execution_gpu_index"] == 1
-    assert remapped["execution_visible_devices"] == "1"
-    assert remapped["cuda_visible_devices"] == "1"
+    class _Props:
+        def __init__(self, uuid, name="NVIDIA RTX A6000"):
+            self.uuid, self.name = uuid, name
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    # torch 2.7 hands back a _CUuuid whose str() is the BARE hex form
+    monkeypatch.setattr(torch.cuda, "get_device_properties",
+                        lambda index: _Props("6ac2604a-e84e-0615-1221-ccbed7c268da"
+                                             if index else
+                                             "0a1aaa90-3043-0321-2b0c-c35b9036624e"))
+    resolved = op.runtime_gpu_uuid("cuda:0")
+    assert resolved["ok"] is True
+    # normalized to the nvidia-smi spelling, so an equality test means what it says
+    assert resolved["uuid"] == "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e"
+    assert resolved["logical_index"] == 0 and resolved["device_count"] == 2
+    assert op.runtime_gpu_uuid("cuda:1")["uuid"] == \
+        "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"
+    assert op.normalize_gpu_uuid("GPU-abc") == op.normalize_gpu_uuid("abc") == "GPU-abc"
+
+    # an ordinal the runtime does not have
+    beyond = op.runtime_gpu_uuid("cuda:5")
+    assert beyond["ok"] is False and "exposes 2 device" in beyond["error"]
 
 
-def test_a_visibility_change_onto_a_DIFFERENT_card_refuses(tmp_path):
-    """Shred 2: membership would have passed this; equality does not."""
+def test_an_unavailable_runtime_uuid_refuses_rather_than_inferring(monkeypatch):
+    """r9z3: older torch, or no CUDA -- refuse, never fall back to a guess."""
+    import torch
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    unavailable = op.runtime_gpu_uuid("cuda:0")
+    assert unavailable["ok"] is False and "no available device" in unavailable["error"]
+
+    class _OldProps:
+        name = "NVIDIA RTX A6000"                      # no .uuid at all
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+    monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: _OldProps())
+    old = op.runtime_gpu_uuid("cuda:0")
+    assert old["ok"] is False
+    assert "does not expose a device UUID" in old["error"]
+    assert "inferring" in old["error"]
+    # and emission refuses on it rather than writing a guessed designation
+    with pytest.raises(ValueError, match="runtime could not identify the card"):
+        op.build_launch_record(["--run-dir", "x"], device="cuda:0",
+                               environment=_environment())
+
+
+def test_visibility_and_order_permutations_cannot_move_the_designation(tmp_path):
+    """r9z3: the runtime answers for the card it uses, whatever the env says.
+
+    The old inference mapped the ordinal through CUDA_VISIBLE_DEVICES onto
+    nvidia-smi's index order, which CUDA_DEVICE_ORDER can permute independently.
+    Here the environment is permuted every way and the verdict does not move,
+    because the designation and the check both come from the runtime.
+    """
     argv = ["--run-dir", "x"]
-    # emitted with the variable unset, so cuda:0 designated physical GPU 0 ...
-    record = op.build_launch_record(argv, device="cuda:0", environment=_environment())
-    path = str(tmp_path / "launch.json")
-    me.write_json(path, record)
-    assert record["execution_gpu_uuid"] == _FIXTURE_GPUS[0]["uuid"]
-    # ... and the record enumerates BOTH cards, so the run's card is a member
-    assert _FIXTURE_GPUS[1]["uuid"] in {gpu["uuid"] for gpu in record["gpus"]}
-    with pytest.raises(ValueError, match="not the card this record was written for") as raised:
-        op.read_verified_launch_record(path, argv, device="cuda:0",
-                                       environment=_environment(cuda_visible_devices="1"))
-    assert "which is exactly why membership is not the test" in str(raised.value)
+    path, record = _launch_record(tmp_path, argv, device="cuda:0")
+    designated = record["execution_gpu_uuid"]
+    # same card, wildly different environments -> still verified
+    for environment in (_environment(cuda_visible_devices="1"),
+                        _environment(cuda_visible_devices="1,0",
+                                     cuda_device_order="PCI_BUS_ID"),
+                        _environment(cuda_device_order="FASTEST_FIRST"),
+                        _environment(gpus=list(reversed([dict(gpu)
+                                                         for gpu in _FIXTURE_GPUS])))):
+        verified = _verify(path, argv, environment=environment,
+                           runtime=_runtime(designated, 0))
+        assert verified["environment_verified"] is True
+        gpu = next(axis for axis in verified["environment_comparison"]
+                   if axis["axis"] == "gpu_uuid")
+        assert gpu["live"] == designated and gpu["source"] == "cuda_runtime"
+    # a DIFFERENT card refuses, however friendly the environment looks
+    with pytest.raises(ValueError, match="not the card this record was written for"):
+        _verify(path, argv, environment=_environment(),
+                runtime=_runtime(_FIXTURE_GPUS[1]["uuid"], 0))
 
 
-def test_the_SAME_card_through_a_different_mapping_passes(tmp_path):
-    """Shred 2, the other direction: the card is what matters, not the ordinal."""
+def test_the_SAME_card_through_a_different_ordinal_passes(tmp_path):
+    """The card is what matters, not the ordinal it was reached by."""
     argv = ["--run-dir", "x"]
-    # emitted for cuda:1 with the variable unset -> physical GPU 1
-    record = op.build_launch_record(argv, device="cuda:1", environment=_environment())
+    record = op.build_launch_record(argv, device="cuda:1", environment=_environment(),
+                                    runtime=_runtime(_FIXTURE_GPUS[1]["uuid"], 1))
     path = str(tmp_path / "launch.json")
     me.write_json(path, record)
     assert record["execution_gpu_uuid"] == _FIXTURE_GPUS[1]["uuid"]
-    # run as cuda:0 with CUDA_VISIBLE_DEVICES=1: a different ordinal and a
-    # different mapping, but the SAME physical card
-    verified = op.read_verified_launch_record(
-        path, argv, device="cuda:0", environment=_environment(cuda_visible_devices="1"))
+    assert record["execution_uuid_source"] == "cuda_runtime"
+    # run as cuda:0 under a fence that makes ordinal 0 the same physical card
+    verified = _verify(path, argv, device="cuda:0",
+                       environment=_environment(cuda_visible_devices="1"),
+                       runtime=_runtime(_FIXTURE_GPUS[1]["uuid"], 0))
     assert verified["environment_verified"] is True
     gpu = next(axis for axis in verified["environment_comparison"]
                if axis["axis"] == "gpu_uuid")
-    assert gpu["verdict"] == "pass"
     assert gpu["recorded"] == gpu["live"] == _FIXTURE_GPUS[1]["uuid"]
-    assert gpu["logical_index"] == 0 and gpu["physical_index"] == 1
+    assert gpu["logical_index"] == 0
     assert gpu["visible_devices"] == "1"
-    assert "unset" in gpu["recorded_visible_devices"]      # emitted differently
 
 
 def test_a_record_without_a_designation_cannot_be_admitted(tmp_path):
-    """Records written before r9z2 designate nothing, so they verify nothing."""
+    """Records written before the designation existed verify nothing."""
     argv = ["--run-dir", "x"]
     path, record = _launch_record(tmp_path, argv)
-    for field in ("execution_gpu_uuid",):
-        stripped = dict(record)
-        stripped.pop(field)
-        me.write_json(path, stripped)
-        with pytest.raises(ValueError, match="designates no execution GPU UUID"):
-            op.read_verified_launch_record(path, argv, device="cuda:0",
-                                           environment=_environment())
+    record.pop("execution_gpu_uuid")
+    me.write_json(path, record)
+    with pytest.raises(ValueError, match="designates no execution GPU UUID"):
+        _verify(path, argv)
 
 
 def test_the_verified_record_publishes_the_designation(tmp_path):
     argv = ["--run-dir", "x"]
     path, _record = _launch_record(tmp_path, argv, device="cuda:0")
-    verified = op.read_verified_launch_record(path, argv, device="cuda:0",
-                                              environment=_environment())
+    verified = _verify(path, argv)
     assert verified["execution_gpu_uuid"] == _FIXTURE_GPUS[0]["uuid"]
-    assert verified["execution_gpu_index"] == 0
+    assert verified["execution_uuid_source"] == "cuda_runtime"
     assert verified["recorded_execution_device"] == "cuda:0"
     assert verified["git_status_dirty"] is False           # a real bool, not a coercion
     assert verified["environment_verified"] is True

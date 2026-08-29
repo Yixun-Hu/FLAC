@@ -163,9 +163,11 @@ LAUNCH_RECORD_NOTE = (
     "the record and exits, then run the same command with --launch-record PATH. The recorded "
     "argv is compared against the run's own argv, so a record written for a different command "
     "refuses rather than vouching for this one. Admission then COMPARES the record against the "
-    "executing environment -- git SHA equal to HEAD, same hostname, the executing device's "
-    "nvidia-smi UUID among the recorded ones, and a clean TRACKED tree both when the record was "
-    "written and while it runs -- and names any mismatch (Codex r9v residual 4b)")
+    "executing environment -- git SHA equal to HEAD, same hostname, a clean TRACKED tree both "
+    "when the record was written and while it runs, and the CUDA runtime's own UUID for the "
+    "executing device EQUAL to the one the record designated at emission (not merely among the "
+    "nvidia-smi entries it enumerated, which are context) -- and names any mismatch (Codex r9v "
+    "residual 4b, r9z shred 2, r9z3)")
 
 
 DIRTY_SEMANTICS_NOTE = (
@@ -217,64 +219,82 @@ def _capture(command, timeout=60):
     return {"ok": True, "value": done.stdout.strip(), "error": None}
 
 
-def parse_visible_devices(cuda_visible_devices, gpus):
-    """Logical CUDA ordinals -> the PHYSICAL cards they name.
+#: how the executing card is identified, and why nothing infers it.
+RUNTIME_UUID_NOTE = (
+    "THE RUNTIME ANSWERS FOR ITS OWN DEVICE (Codex r9z3). r9z2 resolved the executing card by "
+    "mapping the logical ordinal through CUDA_VISIBLE_DEVICES onto nvidia-smi's index order. "
+    "That inference is wrong in general: CUDA_DEVICE_ORDER selects between FASTEST_FIRST (the "
+    "default) and PCI_BUS_ID, so the CUDA runtime's ordinals need not follow NVML's indices at "
+    "all, and the two orderings can disagree without either being wrong. The designation is now "
+    "taken from the runtime itself -- torch.cuda.get_device_properties(<ordinal>).uuid, which "
+    "answers for the device the run will actually use under whatever visibility and ordering are "
+    "in force -- at emission AND at admission, and the two must be equal. The nvidia-smi "
+    "enumeration is still recorded, as CONTEXT ONLY: it says what the machine had, not which "
+    "card was used. If the runtime cannot answer -- no CUDA, an ordinal it does not have, or a "
+    "torch too old to expose the UUID -- emission refuses rather than falling back to a guess")
 
-    ``CUDA_VISIBLE_DEVICES`` renumbers the runtime's devices, so ``cuda:0`` is
-    only physical GPU 0 when the variable is unset. r9w compared the logical
-    ordinal straight against nvidia-smi's physical index -- which is right on
-    this box only because the variable happens to be unset (Codex r9x residual
-    4b). The variable admits indices and UUIDs; both are resolved here, and
-    anything unresolvable is an error rather than a silent identity mapping.
+
+def normalize_gpu_uuid(value):
+    """``GPU-<hex>`` from whatever form a UUID arrives in.
+
+    ``torch.cuda.get_device_properties(...).uuid`` is a ``_CUuuid`` whose ``str``
+    is the bare hex form; nvidia-smi prints the same value with a ``GPU-``
+    prefix. One spelling, so an equality test means what it looks like.
     """
-    by_index = {int(gpu["index"]): gpu for gpu in gpus if gpu.get("index") is not None}
-    by_uuid = {str(gpu.get("uuid") or ""): gpu for gpu in gpus}
-    raw = None if cuda_visible_devices is None else str(cuda_visible_devices).strip()
-    if raw is None:
-        return {"ok": True, "visible": [by_index[key] for key in sorted(by_index)],
-                "source": "unset: logical ordinals are the physical ones", "error": None}
-    if raw == "":
-        return {"ok": False, "visible": [], "source": "empty",
-                "error": "CUDA_VISIBLE_DEVICES is set but empty, so the runtime sees no device "
-                         "at all and no logical ordinal can name a card"}
-    visible = []
-    for token in [part.strip() for part in raw.split(",") if part.strip()]:
-        if token.startswith("GPU-"):
-            gpu = by_uuid.get(token)
-        elif token.lstrip("-").isdigit():
-            gpu = by_index.get(int(token))
-        else:
-            return {"ok": False, "visible": [], "source": raw,
-                    "error": f"CUDA_VISIBLE_DEVICES entry {token!r} is neither an index nor a "
-                             "GPU- UUID, so the logical ordering cannot be resolved"}
-        if gpu is None:
-            return {"ok": False, "visible": [], "source": raw,
-                    "error": f"CUDA_VISIBLE_DEVICES names {token!r}, which is not among the "
-                             f"cards this machine enumerates "
-                             f"({sorted(by_index) or 'none'})"}
-        visible.append(gpu)
-    return {"ok": True, "visible": visible, "source": raw, "error": None}
+    text = str(value).strip()
+    if not text:
+        return ""
+    return text if text.startswith("GPU-") else f"GPU-{text}"
 
 
-def resolve_physical_gpu(device, gpus, cuda_visible_devices=None):
-    """The PHYSICAL card a logical ``cuda:N`` actually executes on."""
+def runtime_gpu_uuid(device):
+    """The UUID the CUDA RUNTIME reports for the device this run will use.
+
+    Not inferred from an ordinal, an environment variable or an NVML index --
+    asked of the runtime that is about to execute, which is the only party that
+    knows how ``CUDA_VISIBLE_DEVICES`` and ``CUDA_DEVICE_ORDER`` combine on this
+    machine. See :data:`RUNTIME_UUID_NOTE`.
+    """
     text = str(device)
     if not text.startswith("cuda"):
-        return {"ok": False, "gpu": None, "logical_index": None,
-                "error": f"the executing device {device!r} is not a CUDA device, so no physical "
-                         "card identifies this run"}
-    logical = int(text.split(":")[-1]) if ":" in text else 0
-    mapping = parse_visible_devices(cuda_visible_devices, gpus)
-    if not mapping["ok"]:
-        return {"ok": False, "gpu": None, "logical_index": logical, "error": mapping["error"]}
-    visible = mapping["visible"]
-    if logical >= len(visible):
-        return {"ok": False, "gpu": None, "logical_index": logical,
-                "error": f"the run uses {device!r} but only {len(visible)} device(s) are visible "
-                         f"to the CUDA runtime ({mapping['source']}), so that ordinal names no "
-                         "card"}
-    return {"ok": True, "gpu": visible[logical], "logical_index": logical,
-            "visible_source": mapping["source"], "error": None}
+        return {"ok": False, "uuid": None, "logical_index": None,
+                "error": f"the executing device {device!r} is not a CUDA device, so the runtime "
+                         "has no card to answer for"}
+    try:
+        logical = int(text.split(":")[-1]) if ":" in text else 0
+    except ValueError:
+        return {"ok": False, "uuid": None, "logical_index": None,
+                "error": f"the executing device {device!r} names no ordinal the runtime can "
+                         "resolve"}
+    try:
+        import torch
+    except ImportError as error:                                 # noqa: BLE001 -- recorded
+        return {"ok": False, "uuid": None, "logical_index": logical,
+                "error": f"torch could not be imported, so the runtime cannot be asked: {error}"}
+    if not torch.cuda.is_available():
+        return {"ok": False, "uuid": None, "logical_index": logical,
+                "error": "the CUDA runtime reports no available device, so nothing can answer "
+                         "for the card this run would use"}
+    count = int(torch.cuda.device_count())
+    if logical >= count:
+        return {"ok": False, "uuid": None, "logical_index": logical, "device_count": count,
+                "error": f"the run uses {device!r} but the CUDA runtime exposes {count} "
+                         "device(s), so that ordinal names no card"}
+    try:
+        properties = torch.cuda.get_device_properties(logical)
+    except (RuntimeError, AssertionError, AttributeError) as error:   # noqa: BLE001 -- recorded
+        return {"ok": False, "uuid": None, "logical_index": logical, "device_count": count,
+                "error": f"the runtime could not describe device {logical}: {error}"}
+    raw = getattr(properties, "uuid", None)
+    uuid = normalize_gpu_uuid(raw) if raw is not None else ""
+    if not uuid or uuid == "GPU-":
+        return {"ok": False, "uuid": None, "logical_index": logical, "device_count": count,
+                "error": "this torch does not expose a device UUID "
+                         "(torch.cuda.get_device_properties(...).uuid), so the card cannot be "
+                         "identified without inferring it -- which is what this check exists to "
+                         "stop"}
+    return {"ok": True, "uuid": uuid, "logical_index": logical, "device_count": count,
+            "name": getattr(properties, "name", None), "error": None}
 
 
 def current_environment():
@@ -332,11 +352,14 @@ def current_environment():
             "gpus": gpus,
             "gpu_capture": gpu_capture,
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+            # context only: the runtime is asked directly, so neither of these
+            # decides which card a run used (RUNTIME_UUID_NOTE)
+            "cuda_device_order": os.environ.get("CUDA_DEVICE_ORDER"),
             "capture_failure_note": CAPTURE_FAILURE_NOTE,
             "dirty_semantics_note": DIRTY_SEMANTICS_NOTE}
 
 
-def compare_environment(record, environment, device=None):
+def compare_environment(record, environment, device=None, runtime=None):
     """One verdict per axis: recorded value, live value, pass or why not.
 
     Persisted whole into the report's provenance, so the check a canonical run
@@ -402,13 +425,14 @@ def compare_environment(record, environment, device=None):
     else:
         _axis("hostname", record.get("hostname"), environment["hostname"], True)
 
-    # THE DESIGNATED CARD, not the recorded SET (Codex r9z shred 2). Membership
-    # passes a run that changed CUDA_VISIBLE_DEVICES between emit and run onto a
-    # DIFFERENT card the set happens to contain; equality does not. The recorded
-    # set stays published for context, but it decides nothing.
+    # THE DESIGNATED CARD, asked of the RUNTIME (Codex r9z shred 2, r9z3). The
+    # nvidia-smi set is context: membership in it passes a run that changed
+    # visibility onto a different card the set happens to contain, and mapping
+    # an ordinal onto NVML indices is wrong whenever CUDA_DEVICE_ORDER disagrees
+    # with NVML's ordering. The runtime answers for the card it will actually
+    # use, at emission and here, and the two must be EQUAL (RUNTIME_UUID_NOTE).
     designated = record.get("execution_gpu_uuid")
     recorded_uuids = sorted({str(gpu.get("uuid") or "") for gpu in (record.get("gpus") or [])})
-    gpu_capture = environment.get("gpu_capture") or {}
     if not designated:
         _axis("gpu_uuid", None, None, False,
               "the record designates no execution GPU UUID, so there is no card for this run to "
@@ -418,33 +442,31 @@ def compare_environment(record, environment, device=None):
         _axis("gpu_uuid", designated, None, False,
               "no executing device was supplied, so the physical card this run uses was never "
               "identified")
-    elif not gpu_capture.get("ok") or not environment.get("gpus"):
-        _axis("gpu_uuid", designated, None, False,
-              f"the live GPU enumeration could not be captured: "
-              f"{gpu_capture.get('error') or 'no gpus in the environment'}")
     else:
-        resolved = resolve_physical_gpu(device, environment["gpus"],
-                                        environment.get("cuda_visible_devices"))
-        if not resolved["ok"]:
-            _axis("gpu_uuid", designated, None, False, resolved["error"])
-        elif str(resolved["gpu"]["uuid"]) != str(designated):
-            _axis("gpu_uuid", designated, resolved["gpu"]["uuid"], False,
-                  f"the run executes on {resolved['gpu']['uuid']} (logical {device}, physical "
-                  f"index {resolved['gpu']['index']}, visible devices "
-                  f"{resolved.get('visible_source')!r}) but the record designates "
-                  f"{designated} (emitted for {record.get('execution_device')!r} with visible "
-                  f"devices {record.get('execution_visible_devices')!r}); the card in use is not "
-                  f"the card this record was written for"
-                  + (", though it is among the ones it enumerates -- which is exactly why "
-                     "membership is not the test" if str(resolved["gpu"]["uuid"])
-                     in set(recorded_uuids) else ""))
+        live = runtime_gpu_uuid(device) if runtime is None else dict(runtime)
+        if not live.get("ok"):
+            _axis("gpu_uuid", designated, None, False,
+                  f"the CUDA runtime could not identify the card this run uses: "
+                  f"{live.get('error') or 'no verdict was recorded'}")
+        elif normalize_gpu_uuid(live["uuid"]) != normalize_gpu_uuid(designated):
+            _axis("gpu_uuid", designated, live["uuid"], False,
+                  f"the runtime reports {live['uuid']} for {device!r} but the record designates "
+                  f"{designated} (emitted for {record.get('execution_device')!r}); the card in "
+                  f"use is not the card this record was written for"
+                  + (", though it is among the ones nvidia-smi enumerated -- which is exactly "
+                     "why membership is not the test"
+                     if normalize_gpu_uuid(live["uuid"])
+                     in {normalize_gpu_uuid(uuid) for uuid in recorded_uuids} else ""))
         else:
-            _axis("gpu_uuid", designated, resolved["gpu"]["uuid"], True)
-            axes[-1]["physical_index"] = int(resolved["gpu"]["index"])
-            axes[-1]["logical_index"] = int(resolved["logical_index"])
-            axes[-1]["visible_devices"] = resolved.get("visible_source")
-            axes[-1]["recorded_visible_devices"] = record.get("execution_visible_devices")
-            axes[-1]["recorded_uuid_set"] = recorded_uuids
+            _axis("gpu_uuid", designated, live["uuid"], True)
+            axes[-1]["logical_index"] = live.get("logical_index")
+            axes[-1]["runtime_device_count"] = live.get("device_count")
+            axes[-1]["source"] = "cuda_runtime"
+            # context only: what the machine had, not which card was used
+            axes[-1]["nvidia_smi_uuid_set"] = recorded_uuids
+            axes[-1]["visible_devices"] = environment.get("cuda_visible_devices")
+            axes[-1]["device_order"] = environment.get("cuda_device_order")
+
 
     verified = bool(axes and len(axes) == len(ENVIRONMENT_AXES)
                     and all(axis["verdict"] == "pass" for axis in axes))
@@ -455,7 +477,7 @@ def compare_environment(record, environment, device=None):
 
 
 def build_launch_record(argv, *, device=None, emit_flag="--emit-launch-record",
-                        record_flag="--launch-record", environment=None):
+                        record_flag="--launch-record", environment=None, runtime=None):
     """Everything SOP:37 wants, gathered from the machine that is about to run.
 
     ``argv`` is stored with the emit/record flag pair stripped, so the record
@@ -477,50 +499,61 @@ def build_launch_record(argv, *, device=None, emit_flag="--emit-launch-record",
     """
     environment = current_environment() if environment is None else dict(environment)
     refusals = []
-    for field, capture, why in (
+    for field, capture, why, kind in (
             ("git_sha", environment.get("git_sha_capture") or {},
-             "the source commit"),
+             "the source commit", "text"),
             ("git_status_dirty", environment.get("git_status_capture") or {},
-             "the tracked-tree state"),
-            ("hostname", environment.get("hostname_capture") or {}, "the hostname"),
-            ("gpus", environment.get("gpu_capture") or {}, "the GPU enumeration")):
+             "the tracked-tree state", "bool"),
+            ("hostname", environment.get("hostname_capture") or {}, "the hostname", "text"),
+            ("gpus", environment.get("gpu_capture") or {}, "the GPU enumeration", "list")):
+        value = environment.get(field)
         if not capture.get("ok"):
             refusals.append(f"{why} could not be captured: "
                             f"{capture.get('error') or 'no verdict was recorded'}")
-        elif environment.get(field) is None:
+        elif value is None:
             refusals.append(f"{why} came back empty despite a successful capture")
-    # the tracked-dirty field must be a BOOL, never None: that is the one field
-    # whose false value is legitimate, which is exactly why it must not be able
-    # to arrive absent (CAPTURE_FAILURE_NOTE)
-    if not refusals and not isinstance(environment.get("git_status_dirty"), bool):
-        refusals.append("the tracked-tree state is not a boolean, so the record would carry a "
-                        "dirty field that means nothing")
+        # NON-EMPTY, not merely non-None (Codex r9z3 shred 1). An empty string is
+        # what a capture that "succeeded" and produced nothing looks like, and it
+        # is exactly as unusable as a missing one
+        elif kind == "text" and not str(value).strip():
+            refusals.append(f"{why} came back as an empty string despite a successful capture")
+        elif kind == "list" and not list(value):
+            refusals.append(f"{why} came back as an empty list despite a successful capture")
+        # the tracked-dirty field must be a BOOL: that is the one field whose
+        # false value is legitimate, which is exactly why it must not be able to
+        # arrive absent or as something else (CAPTURE_FAILURE_NOTE)
+        elif kind == "bool" and not isinstance(value, bool):
+            refusals.append("the tracked-tree state is not a boolean, so the record would carry "
+                            "a dirty field that means nothing")
     resolved = None
     if not refusals:
-        resolved = resolve_physical_gpu(device, environment.get("gpus") or [],
-                                        environment.get("cuda_visible_devices"))
-        if not resolved["ok"]:
-            refusals.append(f"the executing device could not be resolved to a physical card: "
-                            f"{resolved['error']}")
+        # THE RUNTIME, not an inference (RUNTIME_UUID_NOTE)
+        resolved = runtime_gpu_uuid(device) if runtime is None else dict(runtime)
+        if not resolved.get("ok"):
+            refusals.append(f"the CUDA runtime could not identify the card this run would use: "
+                            f"{resolved.get('error') or 'no verdict was recorded'}")
     if refusals:
         raise ValueError(
             "this launch record cannot be written -- " + "; ".join(refusals)
             + f". A record that cannot state a fact must not record a value for it. "
-              f"{LAUNCH_RECORD_NOTE} {CAPTURE_FAILURE_NOTE}")
+              f"{LAUNCH_RECORD_NOTE} {CAPTURE_FAILURE_NOTE} {RUNTIME_UUID_NOTE}")
 
     record = {"argv": strip_launch_flags(argv, flags=(emit_flag, record_flag)),
               "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-              # the card this record DESIGNATES, resolved at emission through the
-              # emission-time visibility, beside the full set it was chosen from
+              # the card this record DESIGNATES, taken from the CUDA runtime at
+              # emission. The nvidia-smi set below is context, never the test
               "execution_device": str(device),
-              "execution_gpu_uuid": str(resolved["gpu"]["uuid"]),
-              "execution_gpu_index": int(resolved["gpu"]["index"]),
-              "execution_logical_index": int(resolved["logical_index"]),
-              "execution_visible_devices": resolved.get("visible_source"),
+              "execution_gpu_uuid": normalize_gpu_uuid(resolved["uuid"]),
+              "execution_logical_index": resolved.get("logical_index"),
+              "execution_gpu_name": resolved.get("name"),
+              "execution_runtime_device_count": resolved.get("device_count"),
+              "execution_uuid_source": "cuda_runtime",
+              "runtime_uuid_note": RUNTIME_UUID_NOTE,
               "note": LAUNCH_RECORD_NOTE}
     record.update({key: environment.get(key) for key in
                    ("git_sha", "git_status_dirty", "git_tracked_changes", "untracked_paths",
-                    "hostname", "gpus", "cuda_visible_devices", "dirty_semantics_note")})
+                    "hostname", "gpus", "cuda_visible_devices", "cuda_device_order",
+                    "dirty_semantics_note")})
     return record
 
 
@@ -540,13 +573,14 @@ def strip_launch_flags(argv, flags=("--emit-launch-record", "--launch-record")):
     return out
 
 
-def write_launch_record(path, argv, device=None):
-    record = build_launch_record(argv, device=device)
+def write_launch_record(path, argv, device=None, runtime=None):
+    record = build_launch_record(argv, device=device, runtime=runtime)
     me.write_json(str(path), record)
     return record
 
 
-def read_verified_launch_record(path, argv, device=None, environment=None):
+def read_verified_launch_record(path, argv, device=None, environment=None,
+                                runtime=None):
     """ONE read: hash the bytes, parse the same buffer, then hold it to the run.
 
     Two rounds of checks, both fail-closed. The record's own shape first -- it
@@ -600,7 +634,7 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
     # rather than being skipped, and environment_verified is true only when all
     # four axes affirmatively passed.
     environment = current_environment() if environment is None else dict(environment)
-    comparison = compare_environment(record, environment, device=device)
+    comparison = compare_environment(record, environment, device=device, runtime=runtime)
     if comparison["failures"]:
         raise ValueError(
             f"the launch record at {path!r} does not describe the environment this run is "
@@ -622,8 +656,8 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
             "gpus": record["gpus"],
             "executing_device": (None if device is None else str(device)),
             "execution_gpu_uuid": record.get("execution_gpu_uuid"),
-            "execution_gpu_index": record.get("execution_gpu_index"),
-            "execution_visible_devices": record.get("execution_visible_devices"),
+            "execution_gpu_name": record.get("execution_gpu_name"),
+            "execution_uuid_source": record.get("execution_uuid_source"),
             "recorded_execution_device": record.get("execution_device"),
             # the whole comparison, axis by axis, so a reviewer reads what
             # passed instead of trusting a boolean (Codex r9x residual 4c)
