@@ -179,45 +179,254 @@ DIRTY_SEMANTICS_NOTE = (
     "auditable instead of ambiguous, and a TRACKED-dirty record refuses canonical admission")
 
 
+CAPTURE_FAILURE_NOTE = (
+    "CAPTURE FAILURES FAIL CLOSED (Codex r9x residual 4). Every environment fact this comparison "
+    "needs is captured with an explicit verdict, never with a value that doubles as its own "
+    "failure. r9w read the tracked-dirty state from `git status --porcelain --untracked-files=no` "
+    "and passed it through bool(): a clean tree returns an empty string and a FAILED capture "
+    "returned None, and bool() maps both to False, so a git that could not run read as 'clean'. "
+    "The same shape sat in the SHA and hostname comparisons, which were guarded by `if "
+    "environment.get(...)` and therefore SKIPPED when the capture failed, while the record still "
+    "came back environment_verified. An unavailable fact is now a refusal with a named reason, "
+    "and environment_verified is true only when every axis affirmatively passed")
+
+#: the axes a launch record is held to. environment_verified needs all of them.
+ENVIRONMENT_AXES = ("git_sha", "git_tracked_clean", "hostname", "gpu_uuid")
+
+
+def _capture(command, timeout=60):
+    """``{"ok", "value", "error"}`` -- a capture that cannot be mistaken for a value.
+
+    The whole point is that ``ok`` is separate from ``value``: an empty stdout is
+    a legitimate answer for ``git status`` and a total failure for ``git
+    rev-parse``, and only the caller knows which. Returning ``None`` for both, as
+    r9w did, is what let a failed capture read as a clean tree.
+    """
+    import subprocess
+
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
+                              check=False)
+    except (OSError, subprocess.SubprocessError) as error:       # noqa: BLE001 -- recorded
+        return {"ok": False, "value": None,
+                "error": f"{' '.join(str(part) for part in command)!r} could not be run: {error}"}
+    if done.returncode != 0:
+        return {"ok": False, "value": None,
+                "error": f"{' '.join(str(part) for part in command)!r} exited "
+                         f"{done.returncode}: {(done.stderr or '').strip()[:200]}"}
+    return {"ok": True, "value": done.stdout.strip(), "error": None}
+
+
+def parse_visible_devices(cuda_visible_devices, gpus):
+    """Logical CUDA ordinals -> the PHYSICAL cards they name.
+
+    ``CUDA_VISIBLE_DEVICES`` renumbers the runtime's devices, so ``cuda:0`` is
+    only physical GPU 0 when the variable is unset. r9w compared the logical
+    ordinal straight against nvidia-smi's physical index -- which is right on
+    this box only because the variable happens to be unset (Codex r9x residual
+    4b). The variable admits indices and UUIDs; both are resolved here, and
+    anything unresolvable is an error rather than a silent identity mapping.
+    """
+    by_index = {int(gpu["index"]): gpu for gpu in gpus if gpu.get("index") is not None}
+    by_uuid = {str(gpu.get("uuid") or ""): gpu for gpu in gpus}
+    raw = None if cuda_visible_devices is None else str(cuda_visible_devices).strip()
+    if raw is None:
+        return {"ok": True, "visible": [by_index[key] for key in sorted(by_index)],
+                "source": "unset: logical ordinals are the physical ones", "error": None}
+    if raw == "":
+        return {"ok": False, "visible": [], "source": "empty",
+                "error": "CUDA_VISIBLE_DEVICES is set but empty, so the runtime sees no device "
+                         "at all and no logical ordinal can name a card"}
+    visible = []
+    for token in [part.strip() for part in raw.split(",") if part.strip()]:
+        if token.startswith("GPU-"):
+            gpu = by_uuid.get(token)
+        elif token.lstrip("-").isdigit():
+            gpu = by_index.get(int(token))
+        else:
+            return {"ok": False, "visible": [], "source": raw,
+                    "error": f"CUDA_VISIBLE_DEVICES entry {token!r} is neither an index nor a "
+                             "GPU- UUID, so the logical ordering cannot be resolved"}
+        if gpu is None:
+            return {"ok": False, "visible": [], "source": raw,
+                    "error": f"CUDA_VISIBLE_DEVICES names {token!r}, which is not among the "
+                             f"cards this machine enumerates "
+                             f"({sorted(by_index) or 'none'})"}
+        visible.append(gpu)
+    return {"ok": True, "visible": visible, "source": raw, "error": None}
+
+
+def resolve_physical_gpu(device, gpus, cuda_visible_devices=None):
+    """The PHYSICAL card a logical ``cuda:N`` actually executes on."""
+    text = str(device)
+    if not text.startswith("cuda"):
+        return {"ok": False, "gpu": None, "logical_index": None,
+                "error": f"the executing device {device!r} is not a CUDA device, so no physical "
+                         "card identifies this run"}
+    logical = int(text.split(":")[-1]) if ":" in text else 0
+    mapping = parse_visible_devices(cuda_visible_devices, gpus)
+    if not mapping["ok"]:
+        return {"ok": False, "gpu": None, "logical_index": logical, "error": mapping["error"]}
+    visible = mapping["visible"]
+    if logical >= len(visible):
+        return {"ok": False, "gpu": None, "logical_index": logical,
+                "error": f"the run uses {device!r} but only {len(visible)} device(s) are visible "
+                         f"to the CUDA runtime ({mapping['source']}), so that ordinal names no "
+                         "card"}
+    return {"ok": True, "gpu": visible[logical], "logical_index": logical,
+            "visible_source": mapping["source"], "error": None}
+
+
 def current_environment():
-    """The machine as it is RIGHT NOW -- what a launch record is checked against.
+    """The machine as it is RIGHT NOW, with a verdict on every capture.
 
     Separate from :func:`build_launch_record` so admission can compare the two:
     a record is a claim about an environment, and a claim nothing is checked
-    against vouches for nothing (Codex r9v residual 4b).
+    against vouches for nothing (Codex r9v residual 4b). Each fact carries its
+    own ``*_capture`` verdict so an unavailable one cannot be mistaken for a
+    benign value (Codex r9x residual 4a; :data:`CAPTURE_FAILURE_NOTE`).
     """
     import platform
-    import subprocess
 
-    def _capture(command):
-        try:
-            done = subprocess.run(command, capture_output=True, text=True, timeout=60,
-                                  check=False)
-        except (OSError, subprocess.SubprocessError):            # noqa: BLE001 -- recorded
-            return None
-        return done.stdout.strip() if done.returncode == 0 else None
-
-    gpus = []
-    listed = _capture(["nvidia-smi", "--query-gpu=index,uuid,name", "--format=csv,noheader"])
-    for line in (listed or "").splitlines():
-        parts = [part.strip() for part in line.split(",")]
-        if len(parts) >= 2 and parts[0].isdigit():
-            gpus.append({"index": int(parts[0]), "uuid": parts[1],
-                         "name": parts[2] if len(parts) > 2 else None})
+    sha = _capture(["git", "rev-parse", "HEAD"])
     # TRACKED only: --untracked-files=no. The untracked list is gathered
     # separately and never decides anything (DIRTY_SEMANTICS_NOTE)
     tracked = _capture(["git", "status", "--porcelain", "--untracked-files=no"])
-    everything = _capture(["git", "status", "--porcelain", "--untracked-files=normal"]) or ""
-    untracked = sorted(line[3:] for line in everything.splitlines()
-                       if line.startswith("?? "))
-    return {"git_sha": _capture(["git", "rev-parse", "HEAD"]),
-            "git_status_dirty": bool(tracked),
-            "git_tracked_changes": sorted((tracked or "").splitlines()),
+    everything = _capture(["git", "status", "--porcelain", "--untracked-files=normal"])
+    listed = _capture(["nvidia-smi", "--query-gpu=index,uuid,name", "--format=csv,noheader"])
+
+    gpus, gpu_capture = [], dict(listed)
+    if listed["ok"]:
+        for line in (listed["value"] or "").splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) >= 2 and parts[0].isdigit():
+                gpus.append({"index": int(parts[0]), "uuid": parts[1],
+                             "name": parts[2] if len(parts) > 2 else None})
+        if not gpus:
+            gpu_capture = {"ok": False, "value": listed["value"],
+                           "error": "nvidia-smi ran but enumerated no usable index/UUID rows, so "
+                                    "no physical card can be identified"}
+        elif not all(str(gpu["uuid"]).startswith("GPU-") for gpu in gpus):
+            gpu_capture = {"ok": False, "value": listed["value"],
+                           "error": f"nvidia-smi returned entries that are not GPU- UUIDs: "
+                                    f"{[gpu['uuid'] for gpu in gpus][:3]}"}
+
+    hostname = platform.node()
+    host_capture = ({"ok": True, "value": hostname, "error": None} if hostname else
+                    {"ok": False, "value": None,
+                     "error": "platform.node() returned an empty hostname, so this machine does "
+                              "not identify itself"})
+    untracked = sorted(line[3:] for line in (everything["value"] or "").splitlines()
+                       if line.startswith("?? ")) if everything["ok"] else []
+    return {"git_sha": sha["value"] if sha["ok"] else None,
+            "git_sha_capture": sha,
+            # None, not False: "could not look" is not "nothing changed"
+            "git_status_dirty": (bool(tracked["value"]) if tracked["ok"] else None),
+            "git_status_capture": tracked,
+            "git_tracked_changes": sorted((tracked["value"] or "").splitlines())
+                                   if tracked["ok"] else [],
             "untracked_paths": untracked,
-            "hostname": platform.node(),
+            "untracked_capture": everything,
+            "hostname": hostname or None,
+            "hostname_capture": host_capture,
             "gpus": gpus,
+            "gpu_capture": gpu_capture,
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+            "capture_failure_note": CAPTURE_FAILURE_NOTE,
             "dirty_semantics_note": DIRTY_SEMANTICS_NOTE}
+
+
+def compare_environment(record, environment, device=None):
+    """One verdict per axis: recorded value, live value, pass or why not.
+
+    Persisted whole into the report's provenance, so the check a canonical run
+    passed is auditable rather than implied by a single boolean (Codex r9x
+    residual 4c). Every axis must be present and pass; a capture that failed is
+    a refusal with the capture's own error, never a skip.
+    """
+    axes = []
+
+    def _axis(name, recorded, live, ok, why=None):
+        axes.append({"axis": name, "recorded": recorded, "live": live,
+                     "verdict": "pass" if ok else "fail", "why": why})
+
+    sha_capture = environment.get("git_sha_capture") or {}
+    if not sha_capture.get("ok") or not environment.get("git_sha"):
+        _axis("git_sha", record.get("git_sha"), None, False,
+              f"the live commit could not be captured: "
+              f"{sha_capture.get('error') or 'no git_sha in the environment'}")
+    elif str(record.get("git_sha")) != str(environment["git_sha"]):
+        _axis("git_sha", record.get("git_sha"), environment["git_sha"], False,
+              f"the record says {str(record.get('git_sha'))[:12]}... and HEAD is "
+              f"{str(environment['git_sha'])[:12]}..., so the code that ran is not the code the "
+              "record names")
+    else:
+        _axis("git_sha", record.get("git_sha"), environment["git_sha"], True)
+
+    status_capture = environment.get("git_status_capture") or {}
+    live_dirty = environment.get("git_status_dirty")
+    if not status_capture.get("ok") or live_dirty is None:
+        _axis("git_tracked_clean", record.get("git_status_dirty"), None, False,
+              f"the live tracked-tree state could not be captured: "
+              f"{status_capture.get('error') or 'no git_status_dirty in the environment'}")
+    elif bool(record.get("git_status_dirty")):
+        _axis("git_tracked_clean", True, live_dirty, False,
+              "the RECORD was written from a tracked-dirty tree "
+              f"({record.get('git_tracked_changes') or 'changes not enumerated'}), so its git "
+              "SHA does not describe the code it ran")
+    elif bool(live_dirty):
+        _axis("git_tracked_clean", record.get("git_status_dirty"), True, False,
+              "this tree has TRACKED modifications right now "
+              f"({environment.get('git_tracked_changes') or 'changes not enumerated'}), so the "
+              "running code is not the committed code the record names")
+    else:
+        _axis("git_tracked_clean", False, False, True)
+
+    host_capture = environment.get("hostname_capture") or {}
+    if not host_capture.get("ok") or not environment.get("hostname"):
+        _axis("hostname", record.get("hostname"), None, False,
+              f"the live hostname could not be captured: "
+              f"{host_capture.get('error') or 'no hostname in the environment'}")
+    elif str(record.get("hostname")) != str(environment["hostname"]):
+        _axis("hostname", record.get("hostname"), environment["hostname"], False,
+              f"the record says {record.get('hostname')!r} and this machine is "
+              f"{environment['hostname']!r}")
+    else:
+        _axis("hostname", record.get("hostname"), environment["hostname"], True)
+
+    recorded_uuids = sorted({str(gpu.get("uuid") or "") for gpu in (record.get("gpus") or [])})
+    gpu_capture = environment.get("gpu_capture") or {}
+    if device is None:
+        _axis("gpu_uuid", recorded_uuids, None, False,
+              "no executing device was supplied, so the physical card this run uses was never "
+              "identified")
+    elif not gpu_capture.get("ok") or not environment.get("gpus"):
+        _axis("gpu_uuid", recorded_uuids, None, False,
+              f"the live GPU enumeration could not be captured: "
+              f"{gpu_capture.get('error') or 'no gpus in the environment'}")
+    else:
+        resolved = resolve_physical_gpu(device, environment["gpus"],
+                                        environment.get("cuda_visible_devices"))
+        if not resolved["ok"]:
+            _axis("gpu_uuid", recorded_uuids, None, False, resolved["error"])
+        elif str(resolved["gpu"]["uuid"]) not in set(recorded_uuids):
+            _axis("gpu_uuid", recorded_uuids, resolved["gpu"]["uuid"], False,
+                  f"the run executes on {resolved['gpu']['uuid']} (logical {device}, physical "
+                  f"index {resolved['gpu']['index']}, visible devices "
+                  f"{resolved.get('visible_source')!r}) and the record lists {recorded_uuids}, "
+                  "so the card in use is not one the record identifies")
+        else:
+            _axis("gpu_uuid", recorded_uuids, resolved["gpu"]["uuid"], True)
+            axes[-1]["physical_index"] = int(resolved["gpu"]["index"])
+            axes[-1]["logical_index"] = int(resolved["logical_index"])
+            axes[-1]["visible_devices"] = resolved.get("visible_source")
+
+    verified = bool(axes and len(axes) == len(ENVIRONMENT_AXES)
+                    and all(axis["verdict"] == "pass" for axis in axes))
+    return {"axes": axes, "verified": verified,
+            "n_axes": len(axes), "n_passed": sum(1 for a in axes if a["verdict"] == "pass"),
+            "failures": [axis for axis in axes if axis["verdict"] != "pass"],
+            "capture_failure_note": CAPTURE_FAILURE_NOTE}
 
 
 def build_launch_record(argv, *, emit_flag="--emit-launch-record",
@@ -302,52 +511,25 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
     if not all(uuid.startswith("GPU-") for uuid in uuids):
         raise ValueError(f"the launch record's GPU entries {uuids[:3]} are not nvidia-smi UUIDs; "
                          f"a logical index does not identify a physical card. {LAUNCH_RECORD_NOTE}")
-    if device is not None and str(device).startswith("cuda"):
-        wanted = int(str(device).split(":")[-1]) if ":" in str(device) else 0
-        if wanted not in {int(gpu.get("index", -1)) for gpu in record["gpus"]}:
-            raise ValueError(
-                f"this run is on {device!r} but the launch record lists GPU indices "
-                f"{sorted(int(gpu.get('index', -1)) for gpu in record['gpus'])}; the record does "
-                f"not cover the card the run used. {LAUNCH_RECORD_NOTE}")
+    # NOTE: r9w compared the logical ordinal against the record's PHYSICAL
+    # indices here. That check is gone rather than fixed: under
+    # CUDA_VISIBLE_DEVICES the two numbering schemes are different things, and
+    # the gpu_uuid axis below answers the real question -- which physical card
+    # is this run executing on, and does the record name it (Codex r9x 4b).
 
-    # AGAINST THE EXECUTING ENVIRONMENT (Codex r9v residual 4b). Up to here the
-    # record has only been checked for internal shape; a claim nobody compares
-    # to the machine it claims about vouches for nothing.
+    # AGAINST THE EXECUTING ENVIRONMENT (Codex r9v residual 4b, r9x residual 4).
+    # Up to here the record has only been checked for internal shape. Every axis
+    # is now compared and its verdict kept: a failed capture refuses by name
+    # rather than being skipped, and environment_verified is true only when all
+    # four axes affirmatively passed.
     environment = current_environment() if environment is None else dict(environment)
-    checks = []
-    if environment.get("git_sha") and str(record["git_sha"]) != str(environment["git_sha"]):
-        checks.append(f"git SHA: the record says {str(record['git_sha'])[:12]}... and HEAD is "
-                      f"{str(environment['git_sha'])[:12]}..., so the code that ran is not the "
-                      "code the record names")
-    if environment.get("hostname") and str(record["hostname"]) != str(environment["hostname"]):
-        checks.append(f"hostname: the record says {record['hostname']!r} and this machine is "
-                      f"{environment['hostname']!r}")
-    if bool(record.get("git_status_dirty")):
-        checks.append("the RECORD was written from a tracked-dirty tree "
-                      f"({record.get('git_tracked_changes') or 'changes not enumerated'}), so "
-                      "its git SHA does not describe the code it ran")
-    if bool(environment.get("git_status_dirty")):
-        checks.append("this tree has TRACKED modifications right now "
-                      f"({environment.get('git_tracked_changes') or 'changes not enumerated'}), "
-                      "so the running code is not the committed code the record names")
-    if device is not None and str(device).startswith("cuda") and environment.get("gpus"):
-        wanted = int(str(device).split(":")[-1]) if ":" in str(device) else 0
-        live = {int(gpu.get("index", -1)): str(gpu.get("uuid") or "")
-                for gpu in environment["gpus"]}
-        recorded_uuids = {str(gpu.get("uuid") or "") for gpu in record["gpus"]}
-        executing = live.get(wanted)
-        if executing is None:
-            checks.append(f"this machine exposes no GPU at index {wanted}, which is the device "
-                          f"{device!r} the run is using")
-        elif executing not in recorded_uuids:
-            checks.append(f"physical GPU: the run executes on {executing} and the record lists "
-                          f"{sorted(recorded_uuids)}, so the card in use is not one the record "
-                          "identifies")
-    if checks:
+    comparison = compare_environment(record, environment, device=device)
+    if comparison["failures"]:
         raise ValueError(
             f"the launch record at {path!r} does not describe the environment this run is "
-            f"executing in -- {'; '.join(checks)}. {LAUNCH_RECORD_NOTE} "
-            f"{DIRTY_SEMANTICS_NOTE}")
+            f"executing in -- "
+            + "; ".join(f"{axis['axis']}: {axis['why']}" for axis in comparison["failures"])
+            + f". {LAUNCH_RECORD_NOTE} {DIRTY_SEMANTICS_NOTE} {CAPTURE_FAILURE_NOTE}")
 
     return {"path": str(path), "sha256": digest, "n_bytes": len(raw),
             "argv": recorded, "git_sha": str(record["git_sha"]),
@@ -360,9 +542,21 @@ def read_verified_launch_record(path, argv, device=None, environment=None):
             "hostname": str(record["hostname"]),
             "gpus": record["gpus"],
             "executing_device": (None if device is None else str(device)),
-            "environment_verified": True,
+            # the whole comparison, axis by axis, so a reviewer reads what
+            # passed instead of trusting a boolean (Codex r9x residual 4c)
+            "environment_comparison": comparison["axes"],
+            "environment_axes_passed": comparison["n_passed"],
+            "environment_axes_expected": len(ENVIRONMENT_AXES),
+            "environment_verified": bool(comparison["verified"]),
+            "live_environment": {"git_sha": environment.get("git_sha"),
+                                 "git_status_dirty": environment.get("git_status_dirty"),
+                                 "hostname": environment.get("hostname"),
+                                 "cuda_visible_devices":
+                                     environment.get("cuda_visible_devices"),
+                                 "gpus": environment.get("gpus")},
             "cuda_visible_devices": record.get("cuda_visible_devices"),
             "recorded_utc": record.get("recorded_utc"),
+            "capture_failure_note": CAPTURE_FAILURE_NOTE,
             "dirty_semantics_note": DIRTY_SEMANTICS_NOTE,
             "note": LAUNCH_RECORD_NOTE}
 
@@ -1781,12 +1975,22 @@ def probe_canonical_status(gate):
     # r9t blockers 4 and 5: provenance and §2 reconciliation are admission
     # criteria, not decorations, so their absence is named here rather than
     # discovered by a reviewer reading the bundle
-    if not gate.get("launch_record"):
+    launch = gate.get("launch_record")
+    if not launch:
         reasons.append({"gate": "launch_record",
                         "why": "no launch record was supplied, so the exact command, the source "
                                "commit, the host and the physical GPU that produced this control "
                                "are unrecorded",
                         "note": LAUNCH_RECORD_NOTE})
+    elif not launch.get("environment_verified"):
+        passed = launch.get("environment_axes_passed")
+        reasons.append({"gate": "launch_record_environment",
+                        "why": "the launch record was not verified against the executing "
+                               f"environment on every axis ({passed} of "
+                               f"{launch.get('environment_axes_expected', len(ENVIRONMENT_AXES))}"
+                               " passed); a record that was not fully compared identifies "
+                               "nothing",
+                        "note": CAPTURE_FAILURE_NOTE})
     if not gate.get("retrieval_handoff"):
         reasons.append({"gate": "retrieval_handoff",
                         "why": "the sparse-bank retrieval control's handoff was not supplied, so "
