@@ -14,6 +14,7 @@ run directory.
 import importlib.util
 import json
 import os
+import re
 
 import numpy as np
 import pytest
@@ -1935,3 +1936,232 @@ def test_the_snapshot_note_says_why_self_digests_are_not_enough():
     assert "recomputes both" in note
     assert "discards them therefore proves nothing" in note
     assert "every later read is held to it" in note
+
+
+# --------------------------------------------------------------------------- #
+# r9p: the tie's yardstick is the changed-batching envelope, not the fixed one
+# --------------------------------------------------------------------------- #
+#: The REAL field failure, from the merged P1 run: MeetingRoom_idx_20 S001_R001
+#: (query 1389), headline candidate 57 at prediction_row 41. The row is stamped
+#: batch_rows=256 / source_chunk=16; the tie regenerates that one candidate at 8
+#: generated rows with the source branch at chunk 1, and measured 2.93e-3 against
+#: the old 1.24e-3 tolerance while the byte pin and decode-equality both passed.
+FIELD_FAILURE_STORED = (0.74609, 0.72266, 0.73242, 0.66602, 0.7334, 0.73682, 0.71436, 0.74268)
+FIELD_FAILURE_DELTA = 0.00293
+
+
+def test_the_real_field_failure_passes_under_the_recalibrated_tolerance():
+    stored = np.asarray(FIELD_FAILURE_STORED, dtype=np.float16)
+    tolerance = op.observation_continuity_tolerance(stored)
+    assert FIELD_FAILURE_DELTA <= tolerance, (FIELD_FAILURE_DELTA, tolerance)
+    # ... and it genuinely would have been refused before, which is the bug
+    old = float(me.SCORE_TOLERANCE) + mr.float16_half_ulp(stored)
+    assert FIELD_FAILURE_DELTA > old
+    assert old == pytest.approx(0.00124, abs=1e-5)          # the reported figure
+    assert tolerance == pytest.approx(0.00414, abs=1e-5)
+    # honest about the margin: the field delta sits at 71% of the new bound, so
+    # the recalibration is not generous -- it is the engine's own envelope, and a
+    # noticeably larger delta would still refuse
+    assert FIELD_FAILURE_DELTA / tolerance == pytest.approx(0.707, abs=0.01)
+
+
+def test_the_tie_tolerance_is_cross_pinned_to_the_engines_measurement():
+    """The literal here must stay the number the engine documents."""
+    assert op.CHANGED_BATCHING_TIE_TOLERANCE == op.ENGINE_CHANGED_BATCHING_DRIFT == 3.9e-3
+    # the engine states it in prose, so the pin is on that text
+    assert "3.9e-3" in me.BATCHING_CAVEAT
+    assert "changed batch shape perturbs an output" in me.BATCHING_CAVEAT
+    # and it is deliberately NOT the fixed-batching aggregate bound
+    assert op.CHANGED_BATCHING_TIE_TOLERANCE > me.SCORE_TOLERANCE
+    assert "SCORE_TOLERANCE" in op.TIE_TOLERANCE_NOTE
+    assert "PER-SAMPLE" in op.TIE_TOLERANCE_NOTE
+
+
+def test_the_tolerance_is_the_engine_bound_plus_the_sidecar_half_ulp():
+    for values in ((0.74609,) * 8, (-0.5,) * 8, (0.001,) * 8):
+        stored = np.asarray(values, dtype=np.float16)
+        assert op.observation_continuity_tolerance(stored) == pytest.approx(
+            op.CHANGED_BATCHING_TIE_TOLERANCE + mr.float16_half_ulp(stored))
+
+
+def test_a_substituted_observation_still_refuses_by_a_wide_margin(tmp_path):
+    """Detection power survives the recalibration.
+
+    The substitution is a RAMP rather than the fixture's other receiver: the
+    fixture's four observations are constant-valued waveforms differing only in
+    amplitude, and the synthetic embedder L2-normalizes, so a different
+    receiver's RIR embeds IDENTICALLY here and no gate of any tolerance could
+    see it. Asserted below rather than assumed, so the day the fixture grows a
+    shaped waveform this test starts using it.
+    """
+    fixture = _probe_fixture(tmp_path)
+    items = [(obs, md) for obs, md in fixture["items"]]
+    obs, md = items[0]
+    donor = next(other for other, meta in items if meta["relpath"] != md["relpath"])
+    assert not torch.equal(donor.reshape(-1), obs.reshape(-1))
+    assert torch.allclose(fixture["engine"]._embed(donor), fixture["engine"]._embed(obs)), (
+        "fixture assumption: constant observations are invisible to this embedder")
+
+    ramp = torch.arange(obs.shape[-1], dtype=obs.dtype).reshape(1, 1, -1) * 0.05
+    substituted = obs + ramp
+    assert not torch.allclose(fixture["engine"]._embed(substituted),
+                              fixture["engine"]._embed(obs)), "the substitution must be visible"
+    items[0] = (substituted, md)
+
+    with pytest.raises(ValueError,
+                       match="not the observation those rows were scored against") as raised:
+        op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
+                     fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
+
+    message = str(raised.value)
+    delta = float(re.search(r"max \|delta\| ([0-9.eE+-]+)", message).group(1))
+    tolerance = float(re.search(r"tolerance of ([0-9.eE+-]+)", message).group(1))
+    assert tolerance == pytest.approx(op.CHANGED_BATCHING_TIE_TOLERANCE, abs=5e-4)
+    # WIDE: the substitution has to be an order above the widened bound, not a
+    # near miss, or the recalibration would have bought the refusal's silence.
+    # Measured on this fixture: delta 0.0478 against tolerance 0.00414 (11.5x),
+    # and 16x the real field tie of 2.93e-3. On the real run the separation is
+    # wider still -- query 1389's cosines span -0.2937..0.7461, i.e. 25-250x the
+    # tie -- but the synthetic embedder's weaker contrast is the floor asserted.
+    assert delta > 10 * tolerance, (delta, tolerance)
+    assert delta > 10 * FIELD_FAILURE_DELTA, (delta, FIELD_FAILURE_DELTA)
+
+
+def test_the_honest_tie_and_the_substituted_tie_are_orders_apart(tmp_path):
+    """The separation the recalibration relies on, measured on one fixture."""
+    fixture = _probe_fixture(tmp_path)
+    honest = _run(fixture)[0]["observation_continuity"]
+    assert honest["within_tolerance"] is True and honest["refused"] is False
+
+    items = [(obs, md) for obs, md in fixture["items"]]
+    obs, md = items[0]
+    ramp = torch.arange(obs.shape[-1], dtype=obs.dtype).reshape(1, 1, -1) * 0.05
+    items[0] = (obs + ramp, md)
+    with pytest.raises(ValueError) as raised:
+        op.run_probe(fixture["engine"], items, fixture["records"], fixture["plan"],
+                     fixture["run_dir"], fixture["out_dir"],
+                     metadata_root=fixture["metadata_root"],
+                     binding_sha256=fixture["binding_sha256"], tau=fx.FIXTURE_TAU,
+                     num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
+    cheating = float(re.search(r"max \|delta\| ([0-9.eE+-]+)", str(raised.value)).group(1))
+    # measured: honest 2.14e-4, substituted 0.0478 -- 223x apart, and the widened
+    # tolerance sits between them with an order of headroom on either side
+    assert cheating > 100 * honest["max_abs_delta"]
+    assert cheating > 10 * honest["tolerance"]
+    assert honest["max_abs_delta"] < honest["tolerance"] < cheating
+    # the published span is the readers' version of this same comparison
+    assert honest["query_cosine_span"] > 0.0
+    assert honest["separation_vs_span"] > 1.0
+
+
+def test_every_artifact_publishes_the_measured_tie_delta(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate={"single_shard": False,
+              "metadata_bank_expected": fixture["metadata_bank_sha256"],
+              "observation_bank_expected": fixture["observation_bank_sha256"],
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
+
+    payload = json.load(open(published["json"]))
+    assert payload["tie_tolerance_note"] == op.TIE_TOLERANCE_NOTE
+    for record in payload["records"]:
+        tie = record["observation_continuity"]
+        for field in ("max_abs_delta", "tolerance", "headroom", "within_tolerance",
+                      "refused", "query_cosine_span", "separation_vs_span",
+                      "changed_batching_component"):
+            assert field in tie, field
+        assert tie["within_tolerance"] is True and tie["refused"] is False
+        assert tie["changed_batching_component"] == op.CHANGED_BATCHING_TIE_TOLERANCE
+
+    markdown = open(published["markdown"]).read()
+    assert "Observation-continuity tie — measured delta vs tolerance" in markdown
+    assert "query cosine span" in markdown
+    for record in payload["records"]:
+        assert mr.format_number(record["observation_continuity"]["max_abs_delta"], 6) in markdown
+
+    for record in payload["records"]:
+        with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert float(data["tie_max_abs_delta"]) == pytest.approx(
+                record["observation_continuity"]["max_abs_delta"])
+            assert float(data["tie_tolerance"]) == pytest.approx(
+                record["observation_continuity"]["tolerance"])
+            assert bool(data["tie_within_tolerance"]) is True
+            assert bool(data["tie_refused"]) is False
+            assert str(data["tie_tolerance_note"]) == op.TIE_TOLERANCE_NOTE
+
+
+def test_the_tie_calls_the_source_branch_on_a_single_position(tmp_path):
+    """The diagnosis behind the recalibration, pinned rather than asserted in prose.
+
+    The run's source branch is called on the receiver's whole candidate union in
+    chunks (``source_chunk`` positions per forward); the tie calls it on ONE
+    position, so the two are a batch-1-versus-many pair no matter what chunk is
+    passed. That is the difference the widened tolerance pays for.
+    """
+    fixture = _probe_fixture(tmp_path)
+    real = me.source_conditioning
+    shapes = []
+
+    def _spy(conditioner, md, positions_cam, device, **kwargs):
+        shapes.append((np.asarray(positions_cam).shape, kwargs.get("chunk")))
+        return real(conditioner, md, positions_cam, device, **kwargs)
+
+    me.source_conditioning = _spy
+    try:
+        _run(fixture)
+    finally:
+        me.source_conditioning = real
+
+    assert shapes, "the tie never reached the source branch"
+    assert all(shape[0] == 1 for shape, _chunk in shapes), shapes
+    # ... while the rows being checked were produced in wider batches, which is
+    # the whole asymmetry (the real run: source_chunk 16, batch_rows 256)
+    row = op.load_grid_row(fixture["run_dir"],
+                           next(q for q in me.load_room_plan(
+                               fixture["plan"], fixture["records"][0]["room_id"]).queries
+                               if q.query_id == fixture["records"][0]["query_id"]),
+                           binding_sha256=fixture["binding_sha256"])
+    # the fixture is small (batch_rows == num_samples, so one candidate per
+    # forward), but its source chunk is already wider than the tie's single call
+    assert int(row["batching"]["source_chunk"]) > 1
+    assert int(row["batching"]["source_chunk"]) > max(
+        shape[0] for shape, _chunk in shapes)
+
+
+def test_the_tie_table_is_a_well_formed_markdown_table(tmp_path):
+    """A raw ``|`` in a header (e.g. "max |delta|") silently splits the cell."""
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        gate={"single_shard": False,
+              "metadata_bank_expected": fixture["metadata_bank_sha256"],
+              "observation_bank_expected": fixture["observation_bank_sha256"],
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
+    markdown = open(published["markdown"]).read().split("\n")
+    start = markdown.index("## Observation-continuity tie — measured delta vs tolerance")
+    table = [line for line in markdown[start:start + 6 + len(records)]
+             if line.startswith("|")]
+    assert len(table) == 2 + len(records)                 # header, rule, one per query
+    widths = {line.count("|") for line in table}
+    assert len(widths) == 1, table
+    assert widths == {9}                                  # 8 columns
+
+
+def test_the_run_summary_reports_the_spread_not_just_a_flag(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    summary = records[0]["observation_continuity_summary"]
+    assert summary["ok"] is True
+    assert summary["checked"] == len(records)
+    assert summary["min_headroom"] > 0.0
+    assert summary["changed_batching_component"] == op.CHANGED_BATCHING_TIE_TOLERANCE
+    assert sorted(summary["per_query_delta"]) == sorted(r["query_id"] for r in records)
+    assert summary["min_separation_vs_span"] > 0.0
