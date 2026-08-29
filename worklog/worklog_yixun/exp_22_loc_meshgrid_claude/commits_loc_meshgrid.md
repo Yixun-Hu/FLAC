@@ -323,3 +323,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `a94346d` `dd715f0` exp_22 r9m: rows/sidecars/probe-truth/observation all parsed from verified buffers (read-once everywhere); frozen digests re-verified unchanged
 - `4315a91` `2d1034c` exp_22 r9m2: byte-level artifact snapshot; census keeps what it verified, walk held to it
 - `ec5d771` `33dae58` exp_22 r9p: tie recalibrated to engine changed-batching envelope (4.14e-3), per-query deltas published; diagnosis row-verified
+- `743a623` `0d06fc0` `85fa2b7` exp_22 r9r: empirical drift measurement (matched batching BIT-EXACT; changed-batching 3.63e-3 vs substitution min 6.67e-3 = 1.3x -> NO bound derived); gate honestly reports TIE_BOUND_NOT_ESTABLISHED
