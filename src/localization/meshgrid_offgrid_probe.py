@@ -123,15 +123,15 @@ OBSERVATION_BINDING_NOTE = (
     "observation -- the D1 record pins the eight CONTEXT RIRs (verified per query by the "
     "engine's verify_context_record) and the row pins its own claims and its similarity "
     "sidecar, but the observation is in none of them (Codex r9i review, item 2) -- so the live "
-    "observation is tied to the frozen rows FUNCTIONALLY: one candidate of the query is "
-    "regenerated from the same keyed noise and the same conditioning, and its cosine against the "
-    "LIVE observation must reproduce the similarity the row already published. The admissible "
-    "difference is NOT the engine's SCORE_TOLERANCE -- that is an AGGREGATE bound, and this "
-    "is a per-sample comparison at a different batch shape -- and as of r9r it is not "
-    "established at all: the honest drift was MEASURED at up to 3.63e-3 and the closest "
-    "measured substitution at 6.67e-3, too close together to place a bound between them, so "
-    "the tie runs with a PROVISIONAL tolerance and the control is stamped non-canonical "
-    "(TIE_BOUND_NOT_ESTABLISHED). Because "
+    "observation is tied to the frozen rows FUNCTIONALLY: the query's candidates are regenerated "
+    "from the same keyed noise and the same conditioning, and their cosines against the LIVE "
+    "observation must reproduce the similarities the row already published. As of r9s the "
+    "replay runs at the row's OWN stamped batching over the whole query, where the computation "
+    "is bit-exact (r9r measured 11,577 candidates with zero exceptions), so the admissible "
+    "difference is the float16 sidecar's own half-ulp and nothing else, and the float32 "
+    "aggregate must match the row's published score at exactly 0. It is NOT the engine's "
+    "SCORE_TOLERANCE, which is an aggregate bound for a CHANGED-batching replay "
+    "(MATCHED_BATCHING_TIE). Because "
     "s[x, k] = cos(E(h_obs), E(h_hat[x, k])), a substituted observation moves that number "
     "directly. Together: the pin says these are the registered bytes, the tie says the tensor "
     "those bytes decoded to is the one the frozen rows were scored against -- a byte-identical "
@@ -585,51 +585,86 @@ R9R_MEASUREMENT = {
     "candidate_bound_at_safety_1_5": 5.3e-3,
     "separation_of_candidate_bound": 1.3,
     "min_separation_required": 5.0,
-    "bound_established": False,
+    # r9r's verdict on the CHANGED-batching bound: it could not be established,
+    # which is what sent the gate to matched batching (r9s, RULING 3)
+    "changed_batching_bound_established": False,
+    # ... and the gate that WAS adoptable, on the same measurement
+    "matched_batching_separation": 27.3,
 }
 
-#: WHY THIS ROUND DERIVES NO BOUND -- the r9r verdict, in one place.
+#: THE GATE (r9s, Planner RULING 3). Adopted on the r9r measurement's evidence.
 #:
-#: The batching diagnosis is now CONFIRMED end to end and in cosine units, which
-#: r9p's conditioner-token number never was. Replaying whole queries at the run's
-#: own batching (``batch_rows=256``, ``source_chunk=16``, through
-#: ``ReceiverCache`` and the engine's own ``_score_one_query``) reproduces the
-#: frozen sidecar BIT-EXACTLY -- rounding the replay back to float16 returns the
-#: stored array element for element across 11,577 candidates, and the float32
-#: aggregate matches the row's published score to exactly 0.0. The tie's
-#: single-position path, on the same queries, moves per-sample cosines by up to
-#: 3.63e-3 and aggregates by up to 1.16e-3, past ``SCORE_TOLERANCE`` on 4 of 256
-#: measurements. The GPU is NOT a factor: the two devices returned identical
-#: numbers to every digit, so the drift is batch shape and nothing else.
+#: The tie no longer regenerates one candidate at a batch shape the run never
+#: used. It replays the WHOLE QUERY at the row's own stamped batching --
+#: ``ReceiverCache`` over the receiver's candidate union at the row's
+#: ``source_chunk``, then the query's candidates through the engine's own
+#: ``_score_one_query`` at the row's ``batch_rows`` -- and requires the result to
+#: reproduce the frozen artifacts exactly, on two counts that are asserted
+#: separately because they fail differently:
 #:
-#: But the bound cannot be derived, because the two distributions do not
-#: separate. A substituted observation -- measured, not assumed -- moves the tie
-#: by as little as 6.67e-3 (Office_idx_11, two receivers of the SAME room). A
-#: bound at the measured honest maximum times even a 1.5x safety factor is
-#: 5.3e-3, which is 1.3x below the worst adversary. A gate with 30% headroom
-#: against the closest substitution is not a canonical gate, so r9r STOPS here
-#: rather than picking a number, and this control cannot be canonical while the
-#: bound is unestablished.
+#: * every per-sample cosine, against the float16 sidecar, within the sidecar's
+#:   OWN half-ulp and nothing more. There is no drift term: at matched batching
+#:   there is no drift to allow;
+#: * the float32 log-mean-exp aggregate, against the row's published
+#:   ``scores_hex``, at exactly 0.0. That comparison carries no quantization at
+#:   all, so "exactly" is a statement the arithmetic can actually make.
 #:
-#: What the measurement DOES show is the way out, and it is not a tolerance: at
-#: MATCHED batching the tie is bit-exact, so its admissible difference is the
-#: sidecar's own half-ulp (2.44e-4) and the separation against the same 6.67e-3
-#: adversary is 27x. Whether the tie moves to a matched-batching regeneration is
-#: an architecture decision, and it is Yixun's, not this module's.
-TIE_BOUND_NOT_ESTABLISHED = (
-    "NO ADMISSIBLE BOUND (r9r, 2026-08-29). The tie's honest drift was MEASURED on the merged P1 "
-    "run rather than derived: 256 measurements across all 16 rooms give a maximum per-sample "
-    "|delta| of 3.63e-3 (excess over the sidecar's float16 half-ulp 3.51e-3) and a maximum "
-    "aggregate shift of 1.16e-3, above the engine's SCORE_TOLERANCE on 4 of 256. The SAME "
-    "queries replayed at the run's own batching are bit-exact -- float16 round-trip identical "
-    "over 11,577 candidates, aggregate delta exactly 0.0 -- so the drift is batch shape, and the "
-    "two GPUs agreed to every digit, so it is not the device. The substituted-observation "
-    "movement was also measured, over 8,064 ordered cross pairs: minimum 6.67e-3, median 0.570. "
-    "A bound at the honest maximum x 1.5 is 5.3e-3, only 1.3x below that minimum, so no bound is "
-    "adopted and this control is NOT canonical while that stands. r9p's superseded reasoning -- "
-    "a sqrt(K) step that assumed independent errors the measurement shows are sign-coherent, and "
-    "a 3.9e-3 conditioner-token magnitude that was never in cosine units -- is retired (Codex "
-    "r9q). Full distributions: outputs_loc/exp22/r9r_drift_measurement/merged/")
+#: The evidence is r9r's, measured on this very run and published under
+#: ``outputs_loc/exp22/r9r_drift_measurement/`` (mirrored into the experiment
+#: folder). Replaying 16 whole queries at matched batching -- 11,577 candidates,
+#: 92,616 generated waveforms, on both devices -- came back BIT-EXACT: the
+#: float16 round-trip returned the stored sidecar element for element and the
+#: float32 aggregate matched to exactly 0.0, with zero exceptions. The same
+#: queries through the old single-candidate path moved per-sample cosines by up
+#: to 3.63e-3 and aggregates by up to 1.16e-3 (past ``SCORE_TOLERANCE`` on 4 of
+#: 256), which is why that path is now a diagnostic and not the gate.
+#:
+#: DETECTION POWER, measured rather than argued: over 8,064 ordered
+#: substituted-observation pairs the closest adversary moves the tie by 6.67e-3
+#: -- two receivers of one room (Office_idx_11). Against a half-ulp tolerance of
+#: 2.44e-4 that is a **27x separation**, where the old changed-batching bound
+#: could only have managed 1.3x. That ratio is what made this gate adoptable and
+#: the other one not.
+#:
+#: COST: the replay generates every candidate of each probe query, ~10 minutes
+#: for the sixteen (the run's own throughput; Cafe's 5,295 candidates dominate).
+#: It is stamped into the report so nobody has to rediscover it.
+MATCHED_BATCHING_TIE = (
+    "MATCHED-BATCHING TIE (r9s, Planner RULING 3). The live observation is tied to the frozen "
+    "rows by replaying the WHOLE query at the row's own stamped batching -- the receiver's "
+    "candidate union through the source branch at the row's source_chunk, then the query's "
+    "candidates through the engine's own _score_one_query at the row's batch_rows -- and "
+    "requiring the replay to reproduce the published artifacts exactly: every per-sample cosine "
+    "within the float16 sidecar's own half-ulp (no drift term, because at matched batching there "
+    "is no drift), and the float32 log-mean-exp aggregate equal to the row's scores_hex at "
+    "exactly 0.0. Evidence: the r9r measurement replayed 16 whole queries this way on both "
+    "devices -- 11,577 candidates, 92,616 waveforms -- and was bit-exact on every one, while the "
+    "superseded single-candidate path at a batch shape the run never used moved cosines by up to "
+    "3.63e-3 and aggregates past SCORE_TOLERANCE on 4 of 256 measurements. Detection power is "
+    "measured, not asserted: the closest of 8,064 ordered substituted-observation pairs moves "
+    "the tie by 6.67e-3, which is 27x this tolerance. Distributions: "
+    "outputs_loc/exp22/r9r_drift_measurement/merged/ (mirrored to "
+    "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/r9r_drift_measurement/)")
+
+#: what the gate costs, stamped so the operator is not surprised by it.
+MATCHED_BATCHING_TIE_COST_NOTE = (
+    "COST OF THE TIE: the matched-batching replay generates every candidate of each probe query "
+    "at the row's own batch_rows, so it is not free -- about 10 minutes for the sixteen registered "
+    "probe queries at the P1 run's own throughput, dominated by Cafe_idx_1's 5,295 candidates and "
+    "Auditorium_idx_1's 3,722. That is the price of a gate whose expectation is bit-exactness "
+    "rather than a tolerance; the superseded single-candidate check cost 8 generations per query "
+    "and bought a bound that could not be established (r9r)")
+
+#: the old path, kept because it is nearly free and now well characterized.
+CHANGED_BATCHING_DIAGNOSTIC_NOTE = (
+    "NON-GATING DIAGNOSTIC. The single-candidate regeneration at a CHANGED batch shape (one "
+    "source position, num_samples generated rows) is still run and still published, because it "
+    "costs 8 generations and its distribution is now characterized: over r9r's 256 measurements "
+    "across all 16 rooms it ran to a median 5.13e-4, q99 2.93e-3 and max 3.63e-3 per-sample "
+    "|delta|, with aggregate shifts up to 1.16e-3. It decides NOTHING -- a value inside that "
+    "reference distribution is expected, and a value outside it is a signal to investigate the "
+    "backbone's batch behaviour, not a reason to refuse an observation. The gate is the "
+    "matched-batching replay above")
 
 #: what the query's own cosine span is, and what it is NOT.
 DYNAMIC_RANGE_NOTE = (
@@ -641,30 +676,18 @@ DYNAMIC_RANGE_NOTE = (
     "the smallest movement over the r9r measurement's 8,064 ordered substituted-observation "
     "pairs -- and it is carried beside these two so the difference cannot be misread again")
 
-#: The value the tie still compares against while no bound is established.
-#:
-#: PROVISIONAL AND NOT ADMISSIBLE. It is r9p's number, kept only so the control
-#: still runs and still reports its measured deltas; see
-#: :data:`TIE_BOUND_NOT_ESTABLISHED` for why no measured bound replaces it and
-#: :data:`R9R_MEASUREMENT` for the distributions. Every artifact this module
-#: writes is stamped non-canonical on that basis, so nothing can quote a result
-#: that passed an unestablished gate.
-CHANGED_BATCHING_TIE_TOLERANCE = 3.9e-3
-
-TIE_TOLERANCE_NOTE = TIE_BOUND_NOT_ESTABLISHED
+TIE_TOLERANCE_NOTE = MATCHED_BATCHING_TIE
 
 
 def observation_continuity_tolerance(stored):
-    """The difference the tie currently admits -- PROVISIONAL, not established.
+    """The ONLY admissible difference: the float16 sidecar's own half-ulp.
 
-    ``CHANGED_BATCHING_TIE_TOLERANCE`` plus the half-ulp the float16 sidecar
-    itself introduces. The half-ulp term is correct and stays; the first term is
-    r9p's number, which the r9r measurement did not confirm and could not
-    replace -- see :data:`TIE_BOUND_NOT_ESTABLISHED`. Every artifact that reads
-    this is stamped non-canonical on that basis.
+    No drift term. The replay runs at the row's own batching, where the r9r
+    measurement found the computation bit-exact over 11,577 candidates, so the
+    only thing left between the replay and the stored array is the rounding the
+    sidecar applied when it was written. See :data:`MATCHED_BATCHING_TIE`.
     """
-    return float(CHANGED_BATCHING_TIE_TOLERANCE) + mr.float16_half_ulp(
-        np.asarray(stored, dtype=np.float16))
+    return float(mr.float16_half_ulp(np.asarray(stored, dtype=np.float16)))
 
 
 def tie_candidate_row(row, aggregator=mr.HEADLINE_AGGREGATOR):
@@ -713,50 +736,139 @@ def regenerate_tie_embeddings(engine, query, md, context, candidate_row, candida
     return torch.as_tensor(engine.embedder(wavs)).float().reshape(1, num_samples, -1).cpu()
 
 
-def assert_observation_continuity(engine, query, md, context, row, sims, obs_embedding, *,
-                                  seed=me.SEED, num_samples=me.NUM_SAMPLES,
-                                  noise_policy=me.NOISE_KEY_POLICY, source_chunk=1,
-                                  aggregator=mr.HEADLINE_AGGREGATOR):
-    """The live observation IS the one the frozen rows were scored against.
+def row_batching(row):
+    """The batch shapes THIS row was produced at -- fail-closed, never defaulted.
 
-    One of the query's own candidates -- the row's headline prediction, so the
-    check lands exactly where the result does -- is regenerated from the same
-    keyed noise and the same conditioning, and its cosine against the LIVE
-    observation must reproduce the similarity the row already published. See
-    :data:`OBSERVATION_BINDING_NOTE` for why this is the binding rather than a
-    digest, and for what it does and does not pin.
+    The tie's whole premise is that it runs at the row's own batching, so a row
+    that does not say what that was cannot be tied to. Guessing the registered
+    defaults would silently reintroduce exactly the changed-batching comparison
+    r9r retired.
+    """
+    batching = row.get("batching") or {}
+    missing = [key for key in ("batch_rows", "source_chunk") if batching.get(key) is None]
+    if missing:
+        raise ValueError(
+            f"the row for {row.get('query_id')!r} does not record {missing}; the matched-batching "
+            f"tie replays the query at the shapes the row was PRODUCED at, and a row that does "
+            f"not state them cannot be replayed at them. {MATCHED_BATCHING_TIE}")
+    return int(batching["batch_rows"]), int(batching["source_chunk"])
+
+
+def changed_batching_diagnostic(engine, query, md, context, row, sims, obs_embedding,
+                                candidate_row, candidate_index, *, seed=me.SEED,
+                                num_samples=me.NUM_SAMPLES, noise_policy=me.NOISE_KEY_POLICY,
+                                source_chunk=1):
+    """The retired gate, kept as a NON-GATING published diagnostic.
+
+    Eight generations at a batch shape the run never used. It decides nothing --
+    see :data:`CHANGED_BATCHING_DIAGNOSTIC_NOTE` -- but it is nearly free and
+    r9r characterized its distribution over 256 measurements, so publishing it
+    beside that reference is worth more than dropping it.
     """
     from src.localization.scoring import cosine_sims
 
-    candidate_row, candidate_index, largest = tie_candidate_row(row, aggregator=aggregator)
     num_samples = int(num_samples)
-
     stored = np.asarray(sims, dtype=np.float16)[candidate_row, :num_samples]
     embeddings = regenerate_tie_embeddings(engine, query, md, context, candidate_row,
                                            candidate_index, seed=seed, num_samples=num_samples,
                                            noise_policy=noise_policy, source_chunk=source_chunk)
     rederived = cosine_sims(torch.as_tensor(obs_embedding).float().reshape(-1),
                             embeddings)[0].double().numpy()
-
     delta = float(np.abs(rederived - stored.astype(np.float64)).max())
-    tolerance = observation_continuity_tolerance(stored)
+    reference = {"n_measurements": int(R9R_MEASUREMENT["n_tie_measurements"]),
+                 "median": float(R9R_MEASUREMENT["tie_median_abs_delta"]),
+                 "q99": float(R9R_MEASUREMENT["tie_q99_abs_delta"]),
+                 "max": float(R9R_MEASUREMENT["tie_max_abs_delta"]),
+                 "artifact": str(R9R_MEASUREMENT["artifact"])}
+    return {"gating": False,
+            "max_abs_delta": delta,
+            "inside_reference_distribution": bool(delta <= reference["max"]),
+            "reference_distribution": reference,
+            "candidate_row": int(candidate_row), "candidate_index": int(candidate_index),
+            "num_samples": num_samples,
+            "stored": [float(v) for v in stored],
+            "rederived": [float(v) for v in rederived],
+            "note": CHANGED_BATCHING_DIAGNOSTIC_NOTE}
+
+
+def assert_observation_continuity(engine, query, md, context, row, sims, obs_embedding, *,
+                                  receiver_id, union, positions_cam,
+                                  seed=me.SEED, num_samples=me.NUM_SAMPLES,
+                                  noise_policy=me.NOISE_KEY_POLICY, source_chunk=1,
+                                  tau=me.TAU, aggregator=mr.HEADLINE_AGGREGATOR,
+                                  diagnostic=True):
+    """The live observation IS the one the frozen rows were scored against.
+
+    The WHOLE query is replayed at the row's own stamped batching, through the
+    engine's own production functions, and must reproduce the frozen artifacts
+    exactly: every per-sample cosine inside the float16 sidecar's own half-ulp,
+    and the float32 aggregate equal to the row's published score at 0.0. See
+    :data:`MATCHED_BATCHING_TIE` for the evidence this expectation rests on,
+    :data:`OBSERVATION_BINDING_NOTE` for why the observation is bound this way
+    at all, and :data:`MATCHED_BATCHING_TIE_COST_NOTE` for what it costs.
+
+    ``source_chunk`` here is the DIAGNOSTIC's chunk, not the gate's: the gate
+    takes both batch shapes from the row.
+    """
+    # imported inside the call because the measurement module imports this one
+    # at module level; the replay machinery lives there, is TDD-covered there,
+    # and is not copied here -- a second implementation of "the production
+    # path" would stop being the production path (r9r)
+    from src.localization import meshgrid_drift_measurement as dm
+
+    candidate_row, candidate_index, largest = tie_candidate_row(row, aggregator=aggregator)
+    num_samples = int(num_samples)
+    batch_rows, row_source_chunk = row_batching(row)
+
+    summary, per_candidate, _deltas = dm.measure_matched_query(
+        engine, query, md, context, receiver_id, union, positions_cam, row, sims, obs_embedding,
+        seed=seed, num_samples=num_samples, noise_policy=noise_policy, batch_rows=batch_rows,
+        source_chunk=row_source_chunk, tau=tau, candidate_rows=(candidate_row,))
+
+    stored = np.asarray(sims, dtype=np.float16)[candidate_row, :num_samples]
+    headline = per_candidate[0]
+    delta = float(summary["max_abs_delta"])
+    # the delta is over the WHOLE replayed array, so the bound is the half-ulp
+    # over the whole sidecar -- taken from the public helper rather than the
+    # replay's own copy, so there is one definition of the tolerance
+    tolerance = observation_continuity_tolerance(sims)
+    if tolerance != float(summary["sidecar_half_ulp"]):
+        raise ValueError(f"{query.query_id}: the tie's tolerance ({tolerance!r}) and the replay's "
+                         f"sidecar half-ulp ({summary['sidecar_half_ulp']!r}) disagree; they are "
+                         "the same quantity and a divergence means one of them is not this "
+                         "query's sidecar")
+    aggregate_delta = float(summary["aggregate"]["max_abs_delta"])
+    # the two criteria fail differently, so they are decided separately: the
+    # per-sample one can only ever see float16 rounding, while the aggregate
+    # comparison is float32 against float32 and has no rounding to hide in
+    within = bool(delta <= tolerance)
+    exact = bool(aggregate_delta == 0.0)
+
     # the query's own cosine span is DYNAMIC RANGE, not detection evidence: it
     # says how far this query's cosines spread, which is not how far a
     # substituted observation moves them. r9p divided one by the other and
     # called the ratio "separation" (Codex r9q, item 3). It is still published,
     # because a reader wants the scale, but it is labelled for what it is and
-    # the real detection margin now comes from the r9r measurement
+    # the real detection margin comes from the r9r measurement
     whole = np.asarray(sims, dtype=np.float64)
     span = float(whole.max() - whole.min())
-    verdict = {"ok": bool(delta <= tolerance),
-               "within_tolerance": bool(delta <= tolerance),
-               "refused": bool(delta > tolerance),
+    verdict = {"ok": bool(within and exact),
+               "within_tolerance": within,
+               "aggregate_exact": exact,
+               "refused": bool(not (within and exact)),
+               "gate": "matched_batching_replay",
                "max_abs_delta": delta,
-               "tolerance": float(tolerance),
+               "tolerance": tolerance,
                "headroom": float(tolerance - delta),
-               "changed_batching_component": float(CHANGED_BATCHING_TIE_TOLERANCE),
-               "float16_half_ulp_component": float(tolerance
-                                                   - CHANGED_BATCHING_TIE_TOLERANCE),
+               "aggregate_max_abs_delta": aggregate_delta,
+               "float16_bit_exact": bool(summary["float16_bit_exact"]),
+               "n_float16_mismatch": int(summary["n_float16_mismatch"]),
+               "n_candidates_replayed": int(summary["n_candidates"]),
+               "n_union": int(summary["n_union"]),
+               "batch_rows": batch_rows, "source_chunk": row_source_chunk,
+               "per_sample_quantiles": dict(summary["quantiles"]),
+               "n_above_half_ulp": int(summary["n_above_half_ulp"]),
+               "aggregate_quantiles": dict(summary["aggregate"]["quantiles"]),
                "query_cosine_span": span,
                "query_cosine_span_over_delta": (float(span / delta) if delta > 0
                                                 else float("inf")),
@@ -764,24 +876,33 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
                "measured_substitution_min": float(R9R_MEASUREMENT["substitution_min"]),
                "measured_separation": (float(R9R_MEASUREMENT["substitution_min"] / tolerance)
                                        if tolerance > 0 else float("inf")),
-               "bound_established": bool(R9R_MEASUREMENT["bound_established"]),
                "k": int(largest),
                "candidate_index": candidate_index, "candidate_row": candidate_row,
                "num_samples": num_samples,
                "stored": [float(v) for v in stored],
-               "rederived": [float(v) for v in rederived],
+               "rederived": list(headline["rederived"]),
+               "cost_note": MATCHED_BATCHING_TIE_COST_NOTE,
                "tolerance_note": TIE_TOLERANCE_NOTE,
                "note": OBSERVATION_BINDING_NOTE}
+    if diagnostic:
+        verdict["changed_batching_diagnostic"] = changed_batching_diagnostic(
+            engine, query, md, context, row, sims, obs_embedding, candidate_row, candidate_index,
+            seed=seed, num_samples=num_samples, noise_policy=noise_policy,
+            source_chunk=source_chunk)
     if not verdict["ok"]:
+        failed = ("its per-sample cosines" if not within else
+                  "its float32 aggregate score")
         raise ValueError(
-            f"{query.query_id}: the observation this control loaded does not reproduce the "
-            f"similarities the frozen row published for candidate {candidate_index} -- max "
-            f"|delta| {delta:.3g} against a PROVISIONAL tolerance of {tolerance:.3g}. For scale, "
-            f"the r9r measurement puts honest single-position regeneration at up to "
-            f"{R9R_MEASUREMENT['tie_max_abs_delta']:.3g} and the closest measured substituted "
-            f"observation at {R9R_MEASUREMENT['substitution_min']:.3g} (8,064 ordered pairs). "
-            "s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here is not the "
-            f"observation those rows were scored against. {OBSERVATION_BINDING_NOTE}")
+            f"{query.query_id}: replayed at the row's OWN batching (batch_rows={batch_rows}, "
+            f"source_chunk={row_source_chunk}) over all {summary['n_candidates']} candidates, "
+            f"this observation does not reproduce what the frozen row published -- {failed} "
+            f"differ: max per-sample |delta| {delta:.3g} against the sidecar's half-ulp "
+            f"{tolerance:.3g}, max aggregate |delta| {aggregate_delta:.3g} against an exact 0. "
+            f"At matched batching the computation is bit-exact (r9r: 11,577 candidates, zero "
+            f"exceptions), so this is not numerical noise. The closest measured substituted "
+            f"observation moves the tie by {R9R_MEASUREMENT['substitution_min']:.3g}, 27x this "
+            f"tolerance. s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here "
+            f"is not the observation those rows were scored against. {OBSERVATION_BINDING_NOTE}")
     return verdict
 
 
@@ -951,7 +1072,12 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                      float(R9R_MEASUREMENT["substitution_min"])),
                  tie_measured_separation=np.array(float((continuity or {}).get(
                      "measured_separation", float("nan")))),
-                 tie_bound_established=np.array(bool(R9R_MEASUREMENT["bound_established"])),
+                 tie_gate=np.array("matched_batching_replay"),
+                 tie_aggregate_max_abs_delta=np.array(float((continuity or {}).get(
+                     "aggregate_max_abs_delta", float("nan")))),
+                 tie_float16_bit_exact=np.array(bool((continuity or {}).get("float16_bit_exact",
+                                                                            False))),
+                 tie_cost_note=np.array(MATCHED_BATCHING_TIE_COST_NOTE),
                  tie_tolerance_note=np.array(TIE_TOLERANCE_NOTE),
                  waveform_note=np.array(WAVEFORM_NOTE))
     os.replace(tmp, path)
@@ -1126,7 +1252,6 @@ PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batch
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
                            "observation_continuity", "observation_bank",
                            "observation_bank_sha256", "observation_bank_expected",
-                           "tie_bound_established",
                            "non_canonical", "non_canonical_declared")
 
 
@@ -1193,15 +1318,6 @@ def probe_canonical_status(gate):
     # provisional number the measurement declined to confirm. A control whose
     # gate has no established bound may not be quoted as the registered result,
     # so the status says so rather than leaving the reader to know it
-    if not gate.get("tie_bound_established", R9R_MEASUREMENT["bound_established"]):
-        reasons.append({"gate": "observation_continuity_bound",
-                        "why": "the tie's tolerance is provisional: the r9r measurement puts "
-                               "honest drift at up to "
-                               f"{R9R_MEASUREMENT['tie_max_abs_delta']:.3g} and the closest "
-                               f"measured substitution at "
-                               f"{R9R_MEASUREMENT['substitution_min']:.3g}, which do not "
-                               "separate widely enough to place a bound between them",
-                        "note": TIE_BOUND_NOT_ESTABLISHED})
     # The operator's own declaration. r9d propagated it and r9g put it in the
     # publication slice, but nothing READ it, so a valid pin plus --non-canonical
     # produced canonical JSON/Markdown beside non-canonical NPZs (Codex r9i
@@ -1264,6 +1380,15 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         "latency_scope_note": mr.LATENCY_SCOPE_NOTE,
         "truth_binding_note": mr.TRUTH_BINDING_NOTE,
         "tie_tolerance_note": TIE_TOLERANCE_NOTE,
+        # r9s: the gate's price and the retired check's new status, stamped at
+        # the top of the report so neither has to be rediscovered from a record
+        "tie_cost_note": MATCHED_BATCHING_TIE_COST_NOTE,
+        "changed_batching_diagnostic_note": CHANGED_BATCHING_DIAGNOSTIC_NOTE,
+        "tie_evidence": {key: R9R_MEASUREMENT[key] for key in
+                         ("artifact", "matched_float16_bit_exact",
+                          "matched_max_abs_aggregate_delta", "n_matched_replay_candidates",
+                          "substitution_min", "n_substitution_pairs",
+                          "matched_batching_separation")},
         "controls_elsewhere": mr.CONTROLS_ELSEWHERE,
         "protocol": {"tau": float(tau), "k_prefixes": [int(k) for k in prefixes],
                      "noise_policy": me.REGISTERED_NOISE_POLICY,
@@ -1471,33 +1596,43 @@ def render_markdown(report):
             f"{mr.format_number(record['calibration']['real_summary']['mean'], 4)} | "
             f"{mr.format_number(record['calibration']['generated_summary']['mean'], 4)} |")
     lines.append("")
-    lines.append("## Observation-continuity tie — measured delta vs PROVISIONAL tolerance")
+    lines.append("## Observation-continuity tie — matched-batching replay")
     lines.append("")
     lines.append(f"> {report.get('tie_tolerance_note') or TIE_TOLERANCE_NOTE}")
+    lines.append("")
+    lines.append(f"> _Cost:_ {MATCHED_BATCHING_TIE_COST_NOTE}")
     lines.append("")
     lines.append(f"> _Dynamic range, not detection:_ {DYNAMIC_RANGE_NOTE}")
     lines.append("")
     # "max abs delta" rather than "max |delta|": raw pipes would split the cell
-    lines.append("| room | query | max abs delta | tolerance (provisional) | headroom | within | "
+    lines.append("| room | query | candidates replayed | batching | max abs delta | "
+                 "tolerance (half-ulp) | headroom | aggregate abs delta | bit-exact | "
                  "dyn. range: query cosine span | dyn. range: span / delta | "
-                 "measured substitution min | measured separation |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|")
+                 "measured substitution min | measured separation | diagnostic (non-gating) |")
+    lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for record in report["records"]:
         tie = record.get("observation_continuity")
         if not tie:
             lines.append(f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
-                         "not checked | — | — | — | — | — | — | — |")
+                         + " — |" * 12)
             continue
+        diagnostic = tie.get("changed_batching_diagnostic") or {}
         lines.append(
             f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
+            f"{mr.format_number(tie['n_candidates_replayed'])} | "
+            f"{tie['batch_rows']}/{tie['source_chunk']} | "
             f"{mr.format_number(tie['max_abs_delta'], 6)} | "
             f"{mr.format_number(tie['tolerance'], 6)} | "
             f"{mr.format_number(tie['headroom'], 6)} | "
-            f"{mr.format_number(tie['within_tolerance'])} | "
+            f"{mr.format_number(tie['aggregate_max_abs_delta'], 8)} | "
+            f"{mr.format_number(tie['float16_bit_exact'])} | "
             f"{mr.format_number(tie['query_cosine_span'], 4)} | "
             f"{mr.format_number(tie['query_cosine_span_over_delta'], 1)}x | "
             f"{mr.format_number(tie['measured_substitution_min'], 6)} | "
-            f"{mr.format_number(tie['measured_separation'], 2)}x |")
+            f"{mr.format_number(tie['measured_separation'], 2)}x | "
+            f"{mr.format_number(diagnostic.get('max_abs_delta'), 6)} |")
+    lines.append("")
+    lines.append(f"> _Non-gating diagnostic:_ {CHANGED_BATCHING_DIAGNOSTIC_NOTE}")
     lines.append("")
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
@@ -1571,12 +1706,24 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
     # are then looked up by identity. That reads every room manifest a second
     # time (~330 MB in production) rather than re-implementing the selection rule
     # here, where a second copy could drift from the registered one.
-    query_plans = {}
+    query_plans, query_groups = {}, {}
     for room_id in sorted(plan.rooms):
         room_plan = me.load_room_plan(plan, room_id)
         query_id = probes[room_id]
         query_plans[query_id] = next(query for query in room_plan.queries
                                      if query.query_id == query_id)
+        # r9s: the matched-batching tie replays the query through the receiver's
+        # candidate union, exactly as the scored pass did, so the union and its
+        # camera-frame positions are gathered here -- while the room manifest is
+        # already open -- rather than re-read per query
+        group = next(candidate for candidate in me.receiver_groups(room_plan)
+                     if any(entry.query_id == query_id for entry in candidate.queries))
+        base = np.asarray(room_plan.base, dtype=np.float64)
+        query_groups[query_id] = {
+            "receiver_id": str(group.receiver_id),
+            "union": [int(index) for index in group.union],
+            "positions_cam": (base[np.asarray(group.union, dtype=np.int64)]
+                              - np.asarray(group.receiver_xyz, dtype=np.float64))}
 
     status_label = (CANONICAL_STATUS_UNKNOWN if non_canonical is None else
                     (CANONICAL_STATUS_NON_CANONICAL if non_canonical
@@ -1664,10 +1811,13 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         # is the one the row verification already parsed -- no reopen.
         continuity = None
         if verify_observation:
+            group = query_groups[record["query_id"]]
             continuity = assert_observation_continuity(
                 engine, query, md, query_context, row, row["_sims"], obs_embedding,
+                receiver_id=group["receiver_id"], union=group["union"],
+                positions_cam=group["positions_cam"],
                 seed=seed, num_samples=num_samples, noise_policy=noise_policy,
-                source_chunk=source_chunk)
+                source_chunk=source_chunk, tau=tau)
 
         waveforms = generate_at_truth(engine, md, query.receiver_xyz, truth,
                                       query_id=query.query_id, seed=seed,
@@ -1726,8 +1876,18 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "min_headroom": (min(t - d for d, t in zip(deltas, tolerances))
                                                if deltas else 0.0),
                               "tolerance": (max(tolerances) if tolerances else 0.0),
-                              "changed_batching_component":
-                                  float(CHANGED_BATCHING_TIE_TOLERANCE),
+                              "gate": "matched_batching_replay",
+                              "aggregate_max_abs_delta":
+                                  (max(record["observation_continuity"]
+                                       ["aggregate_max_abs_delta"] for record in out)
+                                   if out else 0.0),
+                              "all_float16_bit_exact":
+                                  all(record["observation_continuity"]["float16_bit_exact"]
+                                      for record in out),
+                              "n_candidates_replayed":
+                                  sum(record["observation_continuity"]["n_candidates_replayed"]
+                                      for record in out),
+                              "cost_note": MATCHED_BATCHING_TIE_COST_NOTE,
                               # dynamic range, named as such (Codex r9q item 3)
                               "min_query_cosine_span_over_delta": (min(spans) if spans
                                                                    else float("inf")),
@@ -1738,8 +1898,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "measured_separation":
                                   (float(R9R_MEASUREMENT["substitution_min"] / max(tolerances))
                                    if tolerances else float("inf")),
-                              "bound_established":
-                                  bool(R9R_MEASUREMENT["bound_established"]),
+                              "changed_batching_diagnostic_note":
+                                  CHANGED_BATCHING_DIAGNOSTIC_NOTE,
                               "per_query_delta": {record["query_id"]:
                                                   record["observation_continuity"][
                                                       "max_abs_delta"] for record in out},
@@ -1969,9 +2129,6 @@ def gate_run(args, model_config, agree_path, totals=None,
     gate["observation_bank_sha256"] = observations["observation_bank_sha256"]
     gate["observation_bank_expected"] = args.expect_observation_bank_sha256
 
-    # r9r: the standing verdict on the tie's bound, stamped by the gate rather
-    # than read from a flag, so no invocation can assert an established bound
-    gate["tie_bound_established"] = bool(R9R_MEASUREMENT["bound_established"])
     gate["non_canonical_declared"] = bool(args.non_canonical)
     gate["non_canonical"] = bool(args.non_canonical
                                  or not gate["metadata_bank"]["pinned"]
@@ -2007,6 +2164,9 @@ def main(argv=None):
         return 0
     print(f"{CONTROL_LABEL}\n")
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
+    # r9s: the tie now replays whole queries, so the operator is told the price
+    # before the wait rather than after it
+    print(f"\nTIE: {MATCHED_BATCHING_TIE_COST_NOTE}\n")
     if args.single_shard:
         print(f"\n{mr.SINGLE_SHARD_NOTE}\n")
 

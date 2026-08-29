@@ -836,12 +836,8 @@ def test_the_probe_canonical_status_names_each_relaxation(tmp_path):
         totals=fixture["totals"])
     gate["metadata_bank_expected"] = fixture["metadata_bank_sha256"]
     gate["observation_bank_expected"] = fixture["observation_bank_sha256"]
-    # r9r: an unestablished tie bound is itself a relaxation, so a gate that is
-    # silent about it is NOT canonical -- asserted before it is settled below
-    assert op.probe_canonical_status(gate)["canonical"] is False
-    assert [reason["gate"] for reason in op.probe_canonical_status(gate)["reasons"]] == \
-        ["observation_continuity_bound"]
-    gate["tie_bound_established"] = True
+    # r9s: the gate is back to fail-closed canonicality -- everything passed,
+    # so the status is canonical, with no standing "unestablished bound" reason
     assert op.probe_canonical_status(gate)["canonical"] is True
 
     gate["metadata_bank_expected"] = None
@@ -944,7 +940,7 @@ def test_the_off_grid_markdown_renders_the_latency_scope_and_controls(tmp_path):
         gate={"single_shard": False, "metadata_bank_expected": "a" * 64,
               "observation_bank_expected": "b" * 64,
               "registered_protocol": {"is_registered": True, "deviations": {}},
-              "tie_bound_established": True})
+  })
     markdown = open(published["markdown"]).read()
     assert mr.LATENCY_SCOPE_NOTE in markdown
     assert "§2 controls that are NOT in this report" in markdown
@@ -962,7 +958,7 @@ def test_a_non_canonical_control_says_so_in_its_markdown(tmp_path):
         gate={"single_shard": True, "metadata_bank_expected": None,
               "observation_bank_expected": None,
               "registered_protocol": {"is_registered": True, "deviations": {}},
-              "tie_bound_established": True})
+  })
     payload = json.load(open(published["json"]))
     assert payload["canonical_status"]["canonical"] is False
     markdown = open(published["markdown"]).read()
@@ -1112,11 +1108,9 @@ def test_the_publication_gate_carries_every_verdict_the_status_reads(tmp_path):
                  "metadata_bank": {"pinned": True},
                  "observation_bank_expected": fixture["observation_bank_sha256"],
                  "observation_bank_sha256": fixture["observation_bank_sha256"],
-                 "observation_bank": {"pinned": True}, "non_canonical": False,
-                 "tie_bound_established": True})
+                 "observation_bank": {"pinned": True}, "non_canonical": False})
     sliced = op.publication_gate(gate)
-    for field in ("single_shard", "registered_protocol", "metadata_bank_expected",
-                  "tie_bound_established"):
+    for field in ("single_shard", "registered_protocol", "metadata_bank_expected"):
         assert field in sliced, f"{field} is read by probe_canonical_status"
     assert op.probe_canonical_status(sliced) == op.probe_canonical_status(gate)
     assert op.probe_canonical_status(sliced)["canonical"] is True
@@ -1127,8 +1121,7 @@ def test_json_markdown_and_npz_agree_that_a_run_is_canonical(tmp_path):
     records = _run(fixture, non_canonical=False)
     gate = {"single_shard": False, "metadata_bank_expected": fixture["metadata_bank_sha256"],
             "observation_bank_expected": fixture["observation_bank_sha256"],
-            "registered_protocol": {"is_registered": True, "deviations": {}},
-            "tie_bound_established": True}
+            "registered_protocol": {"is_registered": True, "deviations": {}}}
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
@@ -1148,8 +1141,7 @@ def test_json_markdown_and_npz_agree_that_a_run_is_not_canonical(tmp_path):
     records = _run(fixture, non_canonical=True)
     gate = {"single_shard": False, "metadata_bank_expected": None,
             "observation_bank_expected": None,
-            "registered_protocol": {"is_registered": True, "deviations": {}},
-            "tie_bound_established": True}
+            "registered_protocol": {"is_registered": True, "deviations": {}}}
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
@@ -1227,9 +1219,31 @@ def test_the_observation_is_tied_to_the_frozen_rows_it_is_ranked_against(tmp_pat
     for record in records:
         verdict = record["observation_continuity"]
         assert verdict["ok"] is True
+        assert verdict["gate"] == "matched_batching_replay"
         assert verdict["max_abs_delta"] <= verdict["tolerance"]
-        # the tolerance is built from REGISTERED constants, not chosen here
-        assert verdict["tolerance"] > me.SCORE_TOLERANCE
+        # r9s: the tolerance is the sidecar's own half-ulp and NOTHING else --
+        # tighter than the engine's aggregate bound by an order of magnitude,
+        # which a changed-batching replay could never have afforded
+        # the bound is the half-ulp over the WHOLE sidecar, because the delta is
+        # over the whole replayed array -- one definition, from the helper,
+        # checked against the sidecar this query actually published
+        query = next(entry for entry in me.load_room_plan(
+            fixture["plan"], record["room_id"]).queries
+            if entry.query_id == record["query_id"])
+        published_row = op.load_grid_row(fixture["run_dir"], query,
+                                         binding_sha256=fixture["binding_sha256"])
+        assert verdict["tolerance"] == op.observation_continuity_tolerance(
+            published_row["_sims"])
+        assert verdict["tolerance"] >= mr.float16_half_ulp(
+            np.asarray(verdict["stored"], dtype=np.float16))
+        assert verdict["tolerance"] < me.SCORE_TOLERANCE
+        # ... and the float32 aggregate is required to be EXACT, separately
+        assert verdict["aggregate_exact"] is True
+        assert verdict["aggregate_max_abs_delta"] == 0.0
+        assert verdict["float16_bit_exact"] is True and verdict["n_float16_mismatch"] == 0
+        # the whole query was replayed, not one candidate
+        assert verdict["n_candidates_replayed"] == record["n_candidates"]
+        assert verdict["n_union"] >= verdict["n_candidates_replayed"]
         # the check lands on the row's HEADLINE prediction, where the result is
         assert verdict["candidate_index"] == record["rank_lme"][
             str(max(fx.FIXTURE_PREFIXES))]["grid_prediction_index"]
@@ -1332,7 +1346,7 @@ def test_the_status_can_never_be_more_canonical_than_the_gate(tmp_path):
     """Fail-closed: an unenumerated reason is still a reason."""
     status = op.probe_canonical_status(
         {"metadata_bank_expected": "a" * 64, "observation_bank_expected": "b" * 64,
-         "single_shard": False, "tie_bound_established": True,
+         "single_shard": False,
          "registered_protocol": {"is_registered": True, "deviations": {}},
          "non_canonical": True})
     assert status["canonical"] is False
@@ -1560,15 +1574,8 @@ def test_the_gate_computes_and_pins_the_observation_bank(tmp_path, monkeypatch):
     assert sorted(gate["observation_bank"]["queries"]) == \
         sorted(me.registered_probe_queries(fixture["plan"]).values())
     assert gate["non_canonical"] is False
-    # r9r: the REAL gate stamps the standing verdict, and it is currently False,
-    # so a run through the real gate cannot come out canonical while the tie's
-    # bound is unestablished. No flag reaches this field
-    assert gate["tie_bound_established"] is op.R9R_MEASUREMENT["bound_established"] is False
-    status = op.probe_canonical_status(op.publication_gate(gate))
-    assert status["canonical"] is False
-    assert [reason["gate"] for reason in status["reasons"]] == ["observation_continuity_bound"]
-    assert op.probe_canonical_status(
-        dict(op.publication_gate(gate), tie_bound_established=True))["canonical"] is True
+    # r9s: with the matched-batching gate adopted the real gate is canonical again
+    assert op.probe_canonical_status(op.publication_gate(gate))["canonical"] is True
 
 
 def test_an_unpinned_observation_bank_makes_the_control_non_canonical(tmp_path, monkeypatch):
@@ -1959,13 +1966,12 @@ def test_the_snapshot_note_says_why_self_digests_are_not_enough():
 
 
 # --------------------------------------------------------------------------- #
-# r9r: the bound is MEASURED, and the measurement declined to establish one
+# r9s: the gate is a MATCHED-BATCHING replay, on r9r's evidence (RULING 3)
 # --------------------------------------------------------------------------- #
-#: The REAL field cases, from the merged P1 run and now from the r9r
-#: measurement: MeetingRoom_idx_20 (query 1389) headline candidate 57 at
-#: prediction_row 41 measured 2.93e-3 on both devices while the byte pin and
-#: decode-equality both passed. Kept as a literal so the arithmetic below is
-#: exercised on a real slice rather than a synthetic one.
+#: A real slice from the merged P1 run -- MeetingRoom_idx_20 (query 1389),
+#: headline candidate 57 -- kept so the arithmetic below runs on real stored
+#: values. Under the RETIRED changed-batching check this slice measured 2.93e-3;
+#: at matched batching the same query is bit-exact (r9r).
 FIELD_FAILURE_STORED = (0.74609, 0.72266, 0.73242, 0.66602, 0.7334, 0.73682, 0.71436, 0.74268)
 FIELD_FAILURE_DELTA = 0.00293
 
@@ -1975,46 +1981,90 @@ FIELD_FAILURE_DELTA = 0.00293
 R9R_ARTIFACT = "outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json"
 
 
-def test_the_r9p_derivation_is_retired_from_the_module():
-    """No sqrt(K) story, no conditioner-token constant, no 'separation' ratio."""
+def test_the_retired_bounds_are_gone_from_the_module():
+    """No r9p derivation, and no r9r 'no bound established' state either."""
     source = open(op.__file__).read()
     assert "ENGINE_CHANGED_BATCHING_DRIFT" not in source
-    assert "sqrt(8)" not in source and "sqrt(K) the" not in source
-    # the field name that carried the dynamic-range ratio as if it were evidence
+    assert "CHANGED_BATCHING_TIE_TOLERANCE" not in source
+    assert "TIE_BOUND_NOT_ESTABLISHED" not in source
     assert '"separation_vs_span"' not in source
-    assert "TIE_BOUND_NOT_ESTABLISHED" in source
+    assert "sqrt(8)" not in source
+    assert "MATCHED_BATCHING_TIE" in source
 
 
-def test_the_tie_bound_is_NOT_established():
-    """The r9r verdict, pinned: the two measured distributions do not separate."""
-    measurement = op.R9R_MEASUREMENT
-    assert measurement["bound_established"] is False
-    honest = measurement["tie_excess_over_half_ulp_max"]
-    candidate = measurement["candidate_bound_at_safety_1_5"]
-    substitution = measurement["substitution_min"]
-    assert candidate >= honest * 1.5                      # the bound that WOULD be picked
-    assert substitution / candidate < measurement["min_separation_required"]
-    assert substitution / candidate == pytest.approx(1.3, abs=0.1)
-    for phrase in ("NO ADMISSIBLE BOUND", "sign-coherent", "bit-exact", "8,064"):
-        assert phrase in op.TIE_BOUND_NOT_ESTABLISHED, phrase
+def test_the_gate_is_named_and_carries_its_evidence():
+    for phrase in ("MATCHED-BATCHING TIE", "r9s", "11,577 candidates", "6.67e-3", "27x",
+                   "outputs_loc/exp22/r9r_drift_measurement"):
+        assert phrase in op.MATCHED_BATCHING_TIE, phrase
+    # the cost is disclosed rather than discovered
+    for phrase in ("about 10 minutes", "sixteen registered", "5,295"):
+        assert phrase in op.MATCHED_BATCHING_TIE_COST_NOTE, phrase
+    assert op.TIE_TOLERANCE_NOTE == op.MATCHED_BATCHING_TIE
+
+
+def test_the_cost_is_announced_before_the_run_not_after(tmp_path, capsys, monkeypatch):
+    """A ten-minute gate that surprises the operator is a bad gate."""
+    from src.localization import agree_embed
+
+    def _gate(*_args, **_kwargs):
+        raise ValueError("stop after the banner")
+
+    monkeypatch.setattr(op, "gate_run", _gate)
+    monkeypatch.setattr(agree_embed, "load_agree_audio",
+                        lambda *a, **k: pytest.fail("reached the scorer"))
+    fixture = _probe_fixture(tmp_path)
+    with pytest.raises(ValueError, match="stop after the banner"):
+        op.main(["--ckpt-path", fixture["context_manifest"],
+                 "--run-dir", fixture["run_dir"], "--out-dir", fixture["out_dir"],
+                 "--agree-ckpt", fixture["context_manifest"],
+                 "--audit-report", fixture["audit_report"],
+                 "--context-manifest", fixture["context_manifest"],
+                 "--model-config", fixture["context_manifest"],
+                 "--dataset-config", fixture["context_manifest"],
+                 "--metadata-root", fixture["metadata_root"],
+                 "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+                 "--expect-observation-bank-sha256", fixture["observation_bank_sha256"]])
+    printed = capsys.readouterr().out
+    assert "about 10 minutes" in printed
+    assert "COST OF THE TIE" in printed
+
+
+def test_the_tolerance_is_the_sidecar_half_ulp_and_nothing_else():
+    """No drift term: at matched batching there is no drift to allow."""
+    for stored in ([0.5] * 8, [-0.5] * 8, [0.0] * 8, [0.9995] * 8, FIELD_FAILURE_STORED):
+        stored = np.asarray(stored, dtype=np.float16)
+        assert op.observation_continuity_tolerance(stored) == pytest.approx(
+            mr.float16_half_ulp(stored))
+    # the retired bound admitted 2.93e-3 on this slice; this one does not
+    stored = np.asarray(FIELD_FAILURE_STORED, dtype=np.float16)
+    assert FIELD_FAILURE_DELTA > op.observation_continuity_tolerance(stored)
+
+
+def test_the_separation_the_gate_rests_on_is_the_measured_one():
+    """27x, from the r9r artifact -- not a span ratio, not an assumption."""
+    stored = np.asarray(FIELD_FAILURE_STORED, dtype=np.float16)
+    tolerance = op.observation_continuity_tolerance(stored)
+    separation = op.R9R_MEASUREMENT["substitution_min"] / tolerance
+    assert separation == pytest.approx(op.R9R_MEASUREMENT["matched_batching_separation"], abs=1.0)
+    assert separation > 20
+    # ... where the retired changed-batching bound could only manage 1.3x
+    assert op.R9R_MEASUREMENT["separation_of_candidate_bound"] < 2
+    assert op.R9R_MEASUREMENT["changed_batching_bound_established"] is False
 
 
 def test_the_matched_batching_replay_is_what_the_measurement_actually_showed():
-    """Batch shape is the cause, in cosine units, end to end."""
+    """The evidence the gate's expectation rests on."""
     measurement = op.R9R_MEASUREMENT
     assert measurement["matched_float16_bit_exact"] is True
     assert measurement["matched_max_abs_aggregate_delta"] == 0.0
-    # the matched path's only residue is the sidecar's own rounding ...
     assert measurement["matched_max_abs_delta"] == pytest.approx(2.44e-4, abs=1e-6)
-    # ... which is an order below what the tie's single-position path costs
     assert measurement["tie_max_abs_delta"] > 10 * measurement["matched_max_abs_delta"]
-    # and the tie's aggregate passes SCORE_TOLERANCE, which the matched one never does
     assert measurement["tie_max_abs_aggregate_delta"] > me.SCORE_TOLERANCE
     assert measurement["n_tie_aggregate_above_score_tolerance"] == 4
 
 
 def test_the_measured_constants_match_the_published_artifact():
-    """The join to measurement 2's artifact, when this checkout has it."""
+    """The artifact join: the pinned numbers are the published ones."""
     if not os.path.isfile(R9R_ARTIFACT):
         pytest.skip(f"{R9R_ARTIFACT} is not in this checkout")
     published = json.load(open(R9R_ARTIFACT))
@@ -2022,64 +2072,112 @@ def test_the_measured_constants_match_the_published_artifact():
     assert published["substitution"]["overall"]["min"] == pytest.approx(
         measurement["substitution_min"], rel=1e-9)
     assert published["substitution"]["n_pairs"] == measurement["n_substitution_pairs"]
-    assert published["bound"]["ok"] is measurement["bound_established"] is False
-    assert published["bound"]["value"] == pytest.approx(
-        measurement["candidate_bound_at_safety_1_5"], rel=1e-9)
+    assert published["bound"]["ok"] is measurement["changed_batching_bound_established"] is False
     tie = [pair for pair in published["pairs"] if pair["path"] == "tie"]
     assert len(tie) == measurement["n_tie_measurements"]
     assert max(pair["max_abs_delta"] for pair in tie) == pytest.approx(
         measurement["tie_max_abs_delta"], rel=1e-9)
+    # the gate's own expectation, in the artifact that established it
     matched = [pair for pair in published["pairs"] if pair["path"] == "matched"]
     assert max(pair["abs_aggregate_delta"] for pair in matched) == 0.0
+    for query in published["queries"]:
+        if query.get("matched"):
+            assert query["matched"]["float16_bit_exact"] is True
+            assert query["matched"]["aggregate"]["n_above_score_tolerance"] == 0
 
 
-def test_the_provisional_tolerance_still_admits_the_real_field_delta():
-    """It runs -- but nothing may be quoted from a run that passed it."""
-    stored = np.asarray(FIELD_FAILURE_STORED, dtype=np.float16)
-    tolerance = op.observation_continuity_tolerance(stored)
-    assert FIELD_FAILURE_DELTA <= tolerance
-    assert tolerance == pytest.approx(op.CHANGED_BATCHING_TIE_TOLERANCE
-                                      + mr.float16_half_ulp(stored))
-    # ... and the whole measured honest distribution fits under it too, which is
-    # necessary but nowhere near sufficient: see the separation test above
-    assert op.R9R_MEASUREMENT["tie_max_abs_delta"] <= tolerance
-
-
-def test_the_tolerance_is_the_provisional_bound_plus_the_sidecar_half_ulp():
-    for stored in ([0.5] * 8, [-0.5] * 8, [0.0] * 8, [0.9995] * 8):
-        stored = np.asarray(stored, dtype=np.float16)
-        assert op.observation_continuity_tolerance(stored) == pytest.approx(
-            op.CHANGED_BATCHING_TIE_TOLERANCE + mr.float16_half_ulp(stored))
-
-
-def test_an_unestablished_bound_makes_the_control_non_canonical(tmp_path):
-    """The gate became honest: passing a provisional tolerance is not canonical."""
+def test_the_tie_replays_at_the_ROWS_stamped_batching(tmp_path):
+    """Not the CLI's batching, not the registered default: the row's own."""
     fixture = _probe_fixture(tmp_path)
-    records = _run(fixture, non_canonical=False)
-    gate = {"single_shard": False, "metadata_bank_expected": fixture["metadata_bank_sha256"],
-            "observation_bank_expected": fixture["observation_bank_sha256"],
-            "registered_protocol": {"is_registered": True, "deviations": {}},
-            "tie_bound_established": op.R9R_MEASUREMENT["bound_established"]}
-    published = op.write_probe_report(
-        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
-        provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
-        gate=op.publication_gate(gate))
-    status = json.load(open(published["json"]))["canonical_status"]
-    assert status["canonical"] is False
-    reason = next(r for r in status["reasons"] if r["gate"] == "observation_continuity_bound")
-    assert "do not separate" in reason["why"] or "separate widely enough" in reason["why"]
-    assert reason["note"] == op.TIE_BOUND_NOT_ESTABLISHED
+    calls = []
+    real = me._score_one_query
+
+    def _spy(*args, **kwargs):
+        calls.append(kwargs.get("batch_rows"))
+        return real(*args, **kwargs)
+
+    me._score_one_query = _spy
+    try:
+        records = _run(fixture)
+    finally:
+        me._score_one_query = real
+    assert calls, "the gate never reached the production scorer"
+    assert set(calls) == {fx.FIXTURE_ADVISORY["batch_rows"]}
+    for record in records:
+        verdict = record["observation_continuity"]
+        assert verdict["batch_rows"] == fx.FIXTURE_ADVISORY["batch_rows"]
+        assert verdict["source_chunk"] == fx.FIXTURE_ADVISORY["source_chunk"]
 
 
-def test_a_substituted_observation_is_still_refused(tmp_path):
-    """Detection, on the fixture: a visible substitution refuses.
+def test_the_source_branch_sees_the_whole_union_not_one_position(tmp_path):
+    """The batch shape that made the retired check drift is put back."""
+    fixture = _probe_fixture(tmp_path)
+    shapes = []
+    real = me.source_conditioning
 
-    The MARGIN is not claimed from this fixture -- its four observations are
-    constant-valued and the synthetic embedder L2-normalizes, so a different
-    receiver's RIR embeds identically here and no gate could see it (asserted
-    below). The real margin comes from the r9r measurement's 8,064 ordered
-    substituted-observation pairs, joined in
-    ``test_the_measured_constants_match_the_published_artifact``.
+    def _spy(conditioner, md, positions_cam, device, **kwargs):
+        shapes.append((np.asarray(positions_cam).shape[0], kwargs.get("chunk")))
+        return real(conditioner, md, positions_cam, device, **kwargs)
+
+    me.source_conditioning = _spy
+    try:
+        records = _run(fixture)
+    finally:
+        me.source_conditioning = real
+    gate_calls = [entry for entry in shapes if entry[0] > 1]
+    assert gate_calls, "the gate never replayed a whole union"
+    for _size, chunk in gate_calls:
+        assert chunk == fx.FIXTURE_ADVISORY["source_chunk"]
+    for record in records:
+        assert record["observation_continuity"]["n_union"] >= record["n_candidates"]
+    # the single-position calls that remain are the NON-GATING diagnostic's
+    assert any(entry[0] == 1 for entry in shapes)
+
+
+def test_a_row_without_a_batching_stamp_cannot_be_tied(tmp_path):
+    """Guessing the defaults would silently restore the retired comparison."""
+    fixture = _probe_fixture(tmp_path)
+    query = next(q for q in me.load_room_plan(
+        fixture["plan"], fixture["records"][0]["room_id"]).queries
+        if q.query_id == fixture["records"][0]["query_id"])
+    row = op.load_grid_row(fixture["run_dir"], query,
+                           binding_sha256=fixture["binding_sha256"])
+    assert op.row_batching(row) == (fx.FIXTURE_ADVISORY["batch_rows"],
+                                    fx.FIXTURE_ADVISORY["source_chunk"])
+    for broken in ({}, {"batch_rows": 8}, {"source_chunk": 2}):
+        with pytest.raises(ValueError, match="cannot be replayed at them"):
+            op.row_batching(dict(row, batching=broken))
+
+
+def test_an_aggregate_that_is_merely_close_is_still_refused(tmp_path):
+    """The float32 comparison has no rounding to hide in, so 'exact' means 0."""
+    fixture = _probe_fixture(tmp_path)
+    import src.localization.meshgrid_drift_measurement as dm
+
+    real = dm.measure_matched_query
+
+    def _nudged(*args, **kwargs):
+        summary, per_candidate, deltas = real(*args, **kwargs)
+        # inside the sidecar's half-ulp, so the per-sample criterion still
+        # passes -- only the aggregate one can catch this
+        summary["aggregate"]["max_abs_delta"] = 1e-7
+        return summary, per_candidate, deltas
+
+    dm.measure_matched_query = _nudged
+    try:
+        with pytest.raises(ValueError, match="float32 aggregate score"):
+            _run(fixture)
+    finally:
+        dm.measure_matched_query = real
+
+
+def test_a_substituted_observation_is_still_refused_by_the_new_gate(tmp_path):
+    """Detection, on the fixture; the MARGIN comes from the r9r artifact.
+
+    The fixture's four observations are constant-valued and the synthetic
+    embedder L2-normalizes, so a different receiver's RIR embeds identically
+    there and no gate could see it (asserted). The real margin is the measured
+    6.67e-3 against a 2.44e-4 tolerance, joined above.
     """
     fixture = _probe_fixture(tmp_path)
     items = [(obs, md) for obs, md in fixture["items"]]
@@ -2104,12 +2202,48 @@ def test_a_substituted_observation_is_still_refused(tmp_path):
                      num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
 
     message = str(raised.value)
-    delta = float(re.search(r"max \|delta\| ([0-9.eE+-]+)", message).group(1))
-    assert delta > op.CHANGED_BATCHING_TIE_TOLERANCE
-    # the refusal quotes the MEASURED scale rather than the fixture's own span
+    delta = float(re.search(r"max per-sample \|delta\| ([0-9.eE+-]+)", message).group(1))
+    assert delta > 100 * op.observation_continuity_tolerance(
+        np.asarray([0.5] * 8, dtype=np.float16))
+    # the refusal cites the measured adversary and the batching it replayed at
     assert f"{op.R9R_MEASUREMENT['substitution_min']:.3g}" in message
-    assert f"{op.R9R_MEASUREMENT['tie_max_abs_delta']:.3g}" in message
-    assert "PROVISIONAL" in message
+    assert f"batch_rows={fx.FIXTURE_ADVISORY['batch_rows']}" in message
+    assert "bit-exact" in message
+
+
+def test_the_changed_batching_check_survives_as_a_labelled_diagnostic(tmp_path):
+    """Nearly free, well characterized, and deciding nothing."""
+    fixture = _probe_fixture(tmp_path)
+    for record in _run(fixture):
+        diagnostic = record["observation_continuity"]["changed_batching_diagnostic"]
+        assert diagnostic["gating"] is False
+        assert "NON-GATING DIAGNOSTIC" in diagnostic["note"]
+        assert diagnostic["max_abs_delta"] >= 0.0
+        reference = diagnostic["reference_distribution"]
+        assert reference["n_measurements"] == op.R9R_MEASUREMENT["n_tie_measurements"]
+        assert reference["max"] == op.R9R_MEASUREMENT["tie_max_abs_delta"]
+        assert reference["median"] == op.R9R_MEASUREMENT["tie_median_abs_delta"]
+        assert reference["artifact"] == op.R9R_MEASUREMENT["artifact"]
+        assert len(diagnostic["rederived"]) == fx.FIXTURE_SAMPLES
+
+
+def test_the_diagnostic_cannot_refuse_a_run(tmp_path):
+    """Whatever it reads, only the matched replay decides."""
+    fixture = _probe_fixture(tmp_path)
+    real = op.regenerate_tie_embeddings
+
+    def _wrong(*args, **kwargs):
+        return real(*args, **kwargs) * 0.0 + 0.5      # nonsense, far outside anything
+
+    op.regenerate_tie_embeddings = _wrong
+    try:
+        records = _run(fixture)
+    finally:
+        op.regenerate_tie_embeddings = real
+    for record in records:
+        verdict = record["observation_continuity"]
+        assert verdict["ok"] is True                  # the GATE is unaffected
+        assert verdict["changed_batching_diagnostic"]["gating"] is False
 
 
 def test_the_verdict_labels_dynamic_range_as_dynamic_range(tmp_path):
@@ -2120,15 +2254,14 @@ def test_the_verdict_labels_dynamic_range_as_dynamic_range(tmp_path):
     assert "DYNAMIC RANGE, not detection" in tie["dynamic_range_note"]
     assert "separation_vs_span" in tie["dynamic_range_note"]        # names what it retires
     assert "separation_vs_span" not in tie
-    # the real margin travels beside it, and says the bound is unsettled
     assert tie["measured_substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
     assert tie["measured_separation"] == pytest.approx(
         op.R9R_MEASUREMENT["substitution_min"] / tie["tolerance"])
-    assert tie["bound_established"] is False
+    assert tie["measured_separation"] > 20
 
 
-def test_every_artifact_publishes_the_measured_tie_delta(tmp_path):
-    """JSON, markdown and NPZ all carry the delta, the bound and the margin."""
+def test_every_artifact_publishes_the_gate_and_its_margin(tmp_path):
+    """JSON, markdown and NPZ all carry the delta, the exactness and the margin."""
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture)
     published = op.write_probe_report(
@@ -2137,70 +2270,48 @@ def test_every_artifact_publishes_the_measured_tie_delta(tmp_path):
         gate={"single_shard": False,
               "metadata_bank_expected": fixture["metadata_bank_sha256"],
               "observation_bank_expected": fixture["observation_bank_sha256"],
-              "registered_protocol": {"is_registered": True, "deviations": {}},
-              "tie_bound_established": True})
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
     payload = json.load(open(published["json"]))
-    assert payload["tie_tolerance_note"] == op.TIE_BOUND_NOT_ESTABLISHED
+    assert payload["tie_tolerance_note"] == op.MATCHED_BATCHING_TIE
+    assert payload["tie_cost_note"] == op.MATCHED_BATCHING_TIE_COST_NOTE
+    assert payload["changed_batching_diagnostic_note"] == op.CHANGED_BATCHING_DIAGNOSTIC_NOTE
+    # the report carries the evidence the gate rests on, not just its verdict
+    evidence = payload["tie_evidence"]
+    assert evidence["matched_float16_bit_exact"] is True
+    assert evidence["matched_max_abs_aggregate_delta"] == 0.0
+    assert evidence["n_matched_replay_candidates"] == 11577
+    assert evidence["substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
+    assert evidence["artifact"].startswith("outputs_loc/exp22/r9r_drift_measurement")
     for record in payload["records"]:
         tie = record["observation_continuity"]
         for field in ("max_abs_delta", "tolerance", "headroom", "within_tolerance", "refused",
+                      "aggregate_exact", "aggregate_max_abs_delta", "float16_bit_exact",
+                      "n_candidates_replayed", "batch_rows", "source_chunk",
                       "query_cosine_span", "query_cosine_span_over_delta",
-                      "measured_substitution_min", "measured_separation", "bound_established"):
+                      "measured_substitution_min", "measured_separation",
+                      "changed_batching_diagnostic", "cost_note"):
             assert field in tie, field
     markdown = open(published["markdown"]).read()
     assert "Observation-continuity tie" in markdown
     assert "dyn. range" in markdown and "measured substitution min" in markdown
+    assert "aggregate" in markdown and "about 10 minutes" in markdown
     for record in payload["records"]:
         assert mr.format_number(record["observation_continuity"]["max_abs_delta"], 6) in markdown
         with np.load(os.path.join(fixture["out_dir"], record["waveform_path"])) as data:
+            assert str(data["tie_gate"]) == "matched_batching_replay"
             assert float(data["tie_max_abs_delta"]) == pytest.approx(
                 record["observation_continuity"]["max_abs_delta"])
             assert float(data["tie_tolerance"]) == pytest.approx(
                 record["observation_continuity"]["tolerance"])
-            # r9r residue: the NPZ used to omit headroom and the margin
             assert float(data["tie_headroom"]) == pytest.approx(
                 record["observation_continuity"]["headroom"])
+            assert float(data["tie_aggregate_max_abs_delta"]) == 0.0
+            assert bool(data["tie_float16_bit_exact"]) is True
             assert float(data["tie_measured_substitution_min"]) == pytest.approx(
                 op.R9R_MEASUREMENT["substitution_min"])
-            assert float(data["tie_measured_separation"]) == pytest.approx(
-                record["observation_continuity"]["measured_separation"])
-            assert bool(data["tie_bound_established"]) is False
+            assert float(data["tie_measured_separation"]) > 20
             assert "DYNAMIC RANGE" in str(data["tie_dynamic_range_note"])
-
-
-def test_the_tie_calls_the_source_branch_on_a_single_position(tmp_path):
-    """The diagnosis behind the whole round, pinned rather than asserted in prose.
-
-    The run's source branch is called on the receiver's whole candidate union in
-    chunks (``source_chunk`` positions per forward); the tie calls it on ONE
-    position, so the two are a batch-1-versus-many pair no matter what chunk is
-    passed. The r9r measurement then shows that difference is worth up to
-    3.63e-3 in cosine units while a matched replay is bit-exact.
-    """
-    fixture = _probe_fixture(tmp_path)
-    real = me.source_conditioning
-    shapes = []
-
-    def _spy(conditioner, md, positions_cam, device, **kwargs):
-        shapes.append((np.asarray(positions_cam).shape, kwargs.get("chunk")))
-        return real(conditioner, md, positions_cam, device, **kwargs)
-
-    me.source_conditioning = _spy
-    try:
-        _run(fixture)
-    finally:
-        me.source_conditioning = real
-
-    assert shapes, "the tie never reached the source branch"
-    assert all(shape[0] == 1 for shape, _chunk in shapes), shapes
-    row = op.load_grid_row(fixture["run_dir"],
-                           next(q for q in me.load_room_plan(
-                               fixture["plan"], fixture["records"][0]["room_id"]).queries
-                               if q.query_id == fixture["records"][0]["query_id"]),
-                           binding_sha256=fixture["binding_sha256"])
-    assert int(row["batching"]["source_chunk"]) > 1
-    assert int(row["batching"]["source_chunk"]) > max(
-        shape[0] for shape, _chunk in shapes)
+            assert "about 10 minutes" in str(data["tie_cost_note"])
 
 
 def test_the_tie_table_is_a_well_formed_markdown_table(tmp_path):
@@ -2213,29 +2324,31 @@ def test_the_tie_table_is_a_well_formed_markdown_table(tmp_path):
         gate={"single_shard": False,
               "metadata_bank_expected": fixture["metadata_bank_sha256"],
               "observation_bank_expected": fixture["observation_bank_sha256"],
-              "registered_protocol": {"is_registered": True, "deviations": {}},
-              "tie_bound_established": True})
+              "registered_protocol": {"is_registered": True, "deviations": {}}})
     markdown = open(published["markdown"]).read().split("\n")
     start = next(i for i, line in enumerate(markdown)
                  if line.startswith("## Observation-continuity tie"))
-    table = [line for line in markdown[start:start + 8 + len(records)]
+    table = [line for line in markdown[start:start + 10 + len(records)]
              if line.startswith("|")]
     assert len(table) == 2 + len(records)                 # header, rule, one per query
     widths = {line.count("|") for line in table}
     assert len(widths) == 1, table
 
 
-def test_the_run_summary_reports_the_spread_not_just_a_flag(tmp_path):
+def test_the_run_summary_reports_the_gate_not_just_a_flag(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture)
     summary = records[0]["observation_continuity_summary"]
     assert summary["ok"] is True
+    assert summary["gate"] == "matched_batching_replay"
     assert summary["checked"] == len(records)
-    assert summary["min_headroom"] > 0.0
-    assert summary["changed_batching_component"] == op.CHANGED_BATCHING_TIE_TOLERANCE
+    assert summary["min_headroom"] >= 0.0
+    assert summary["aggregate_max_abs_delta"] == 0.0
+    assert summary["all_float16_bit_exact"] is True
+    assert summary["n_candidates_replayed"] == sum(r["n_candidates"] for r in records)
     assert sorted(summary["per_query_delta"]) == sorted(r["query_id"] for r in records)
-    # dynamic range, named as such, and the measured margin beside it
     assert summary["min_query_cosine_span_over_delta"] > 0.0
     assert "min_separation_vs_span" not in summary
     assert summary["measured_substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
-    assert summary["bound_established"] is False
+    assert "about 10 minutes" in summary["cost_note"]
+    assert "NON-GATING" in summary["changed_batching_diagnostic_note"]
