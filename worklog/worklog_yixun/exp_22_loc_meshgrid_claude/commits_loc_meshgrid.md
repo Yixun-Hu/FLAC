@@ -322,3 +322,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `926093a` exp_22 r9j2: observation PINNED by pre-registered digest (print/expect-observation-bank-sha256)
 - `a94346d` `dd715f0` exp_22 r9m: rows/sidecars/probe-truth/observation all parsed from verified buffers (read-once everywhere); frozen digests re-verified unchanged
 - `4315a91` `2d1034c` exp_22 r9m2: byte-level artifact snapshot; census keeps what it verified, walk held to it
+- `ec5d771` `33dae58` exp_22 r9p: tie recalibrated to engine changed-batching envelope (4.14e-3), per-query deltas published; diagnosis row-verified
