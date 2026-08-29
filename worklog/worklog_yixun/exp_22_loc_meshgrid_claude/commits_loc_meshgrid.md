@@ -328,3 +328,4 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `c45fe8f` `d25d247` `f692767` exp_22 r9u: matched-path substitution (min 0.0208, 85,376 pairs, 85.4x separation -> ADMISSIBLE); elementwise+round-trip gating; fail-closed presence; --launch-record/--retrieval-handoff admission criteria
 - `83fd2c9` exp_22 r9w: matched-path-only evidence block; launch-record tracked-dirty semantics + environment comparison
 - `084244b` exp_22 r9y: fail-closed environment capture; CUDA_VISIBLE_DEVICES-aware UUID resolution; persisted 4-axis comparison
+- `4fc81b4` exp_22 r9z2: emission fails closed; record designates its execution card (equality, not membership)
