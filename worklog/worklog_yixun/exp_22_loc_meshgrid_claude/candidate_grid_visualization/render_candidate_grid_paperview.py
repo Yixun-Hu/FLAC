@@ -5,6 +5,7 @@ to render_pipeline_panel.py). Points are the FROZEN registered z-band bank
 Occlusion-aware: candidates behind mesh geometry are drawn faint."""
 import open3d as o3d, numpy as np, json, matplotlib
 matplotlib.use('Agg'); import matplotlib.pyplot as plt
+plt.rcParams['font.family']='serif'; plt.rcParams['font.serif']=['P052','Palatino','TeX Gyre Pagella','DejaVu Serif']
 from matplotlib.lines import Line2D
 
 # --- room render (verbatim camera/shading from render_pipeline_panel.py) ---
