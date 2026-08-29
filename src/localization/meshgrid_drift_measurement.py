@@ -844,6 +844,15 @@ def parse_args(argv=None):
     parser.add_argument("--matched-per-room", type=int, default=1)
     parser.add_argument("--selection-seed", type=int, default=DRIFT_SELECTION_SEED)
     parser.add_argument("--safety-factor", type=float, default=SAFETY_FACTOR)
+    parser.add_argument("--matched-substitution", action="store_true",
+                        help="r9u item A: replay each registered probe query ONCE at its own "
+                             "stamped batching, cache the generated embeddings, and measure the "
+                             "substituted-observation margin on THAT path -- the one the gate "
+                             "runs on. Writes its own artifact beside the r9r measurement and "
+                             "labels the r9r one as the retired path's")
+    parser.add_argument("--supersedes", default=None,
+                        help="the r9r measurement JSON whose substitution distribution this run "
+                             "retires; labelled in place, never rewritten")
     parser.add_argument("--dump-cases-sha256", default=None, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
@@ -886,6 +895,50 @@ def _run_merge(args):
     print(f"merged measurement -> {published['json']}")
     if not bound["ok"]:
         print("\nNO BOUND DERIVED: " + bound["why"])
+    return 0
+
+
+def _run_matched_substitution(args, engine, stream, manifest, plan, binding, gate, agree):
+    """r9u item A -- the margin, measured where the gate lives."""
+    def _announce(query):
+        print(f"  {query['room_id']} q{query['position']:05d}: {query['n_candidates']} "
+              f"candidates at {query['batch_rows']}/{query['source_chunk']}, honest max "
+              f"|delta| {query['honest_max_abs_delta']:.3g} (cell tolerance <= "
+              f"{query['cell_tolerance_max']:.3g}, {query['n_cells_over_own_tolerance']} over), "
+              f"aggregate {query['honest_aggregate_max_abs_delta']:.3g}, "
+              f"{query['seconds']:.1f}s", flush=True)
+
+    measured = run_matched_substitution(
+        engine, stream, manifest["records"], plan, args.run_dir, device=args.device,
+        binding_sha256=gate["binding_sha256"], binding=gate["published"], seed=args.seed,
+        num_samples=args.num_samples, noise_policy=args.noise_policy, tau=args.tau,
+        on_query=_announce)
+    deltas = matched_substitution_deltas(measured["entries"])
+    substitution = summarize_matched_substitution(deltas)
+    substitution["pairs"] = deltas
+    tolerance_max = max(query["cell_tolerance_max"] for query in measured["queries"])
+    verdict = derive_matched_gate(substitution, tolerance_max)
+    report = build_matched_report(
+        measured, device=args.device, run_dir=args.run_dir,
+        provenance={"audit_report": str(args.audit_report),
+                    "audit_report_sha256": plan.report_sha256,
+                    "context_manifest": str(args.context_manifest),
+                    "ckpt_path": str(args.ckpt_path), "ckpt_sha256": binding["ckpt_sha256"],
+                    "agree_ckpt_sha256": agree.ckpt_sha256,
+                    "binding_sha256": gate["binding_sha256"]},
+        protocol={"seed": int(args.seed), "tau": float(args.tau),
+                  "num_samples": int(args.num_samples),
+                  "noise_policy": str(args.noise_policy)},
+        substitution=substitution, gate=verdict, supersedes=args.supersedes)
+    published = write_matched_report(args.out_dir, report)
+    if args.supersedes:
+        label = write_retired_path_label(os.path.dirname(str(args.supersedes)) or ".",
+                                         [str(args.supersedes)], published["json"])
+        print(f"retired-path label -> {label}")
+    print(render_matched_markdown(report))
+    print(f"matched-path measurement -> {published['json']}")
+    if not verdict["ok"]:
+        print("\nGATE NOT SUPPORTED: " + verdict["why"])
     return 0
 
 
@@ -940,6 +993,10 @@ def main(argv=None):
               + (f" matched max |delta| {matched['max_abs_delta']:.3g} over "
                  f"{matched['n_candidates']} candidates" if matched else ""), flush=True)
 
+    if args.matched_substitution:
+        return _run_matched_substitution(args, engine, iter_stream_items(loader), manifest,
+                                         plan, binding, gate, agree)
+
     measured = run_measurement(
         engine, iter_stream_items(loader), manifest["records"], plan, args.run_dir,
         device=args.device, shard_by_room=shard_by_room, shard_devices=shard_devices,
@@ -973,6 +1030,406 @@ def main(argv=None):
     print(render_markdown(report))
     print(f"measurement -> {published['json']}")
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# r9u item A: the substitution margin, measured on the MATCHED path
+# --------------------------------------------------------------------------- #
+MATCHED_SUBSTITUTION_NOTE = (
+    "MATCHED-PATH DETECTION MARGIN (r9u, Codex r9t blocker 1). r9r measured substituted-"
+    "observation movement against generations from the RETIRED single-candidate, changed-"
+    "batching path, and r9s then quoted that margin for the matched-batching gate. Agreement "
+    "between two paths on the RIGHT observation does not bound how far the WRONG one moves a "
+    "cosine, so the number had to be measured where the gate actually lives. Here it is: each "
+    "registered probe query is replayed ONCE at the row's own batching -- the gate's own replay "
+    "-- its generated embeddings E(h_hat) are cached, and every other probe query's observation "
+    "is scored against them. No regeneration: once E(h_hat) is held, a substitution is a dot "
+    "product. Reported against the frozen sidecar (max |cos(E(obs_wrong), E(h_hat)) - stored|, "
+    "which is literally what the gate computes) and against the right observation's own cosines "
+    "(max |cos(E(obs_wrong), E(h_hat)) - cos(E(obs_right), E(h_hat))|, the movement itself)")
+
+MATCHED_SUBSTITUTION_JSON = "matched_substitution_measurement.json"
+MATCHED_SUBSTITUTION_MARKDOWN = "matched_substitution_measurement.md"
+RETIRED_PATH_LABEL = "retired_path_label.json"
+
+#: the separation the matched gate must clear before it may be quoted.
+MIN_MATCHED_SEPARATION = 5.0
+
+
+class _EmbeddingRecorder:
+    """Captures the generated embeddings the production scorer computes inside.
+
+    ``_score_one_query`` embeds each chunk and keeps only the cosines, and it is
+    live-run engine code that this round may not touch. Wrapping the engine's
+    ``embedder`` seam -- the dataclass is copied, never mutated -- captures
+    exactly the embeddings the gate's own replay produced, in the order the sims
+    rows were built, without a second generation pass.
+    """
+
+    def __init__(self, embedder):
+        self._embedder = embedder
+        self.chunks = []
+
+    def __call__(self, wavs):
+        out = self._embedder(wavs)
+        self.chunks.append(torch.as_tensor(out).detach().float().cpu())
+        return out
+
+    def stack(self, n_candidates, num_samples):
+        if not self.chunks:
+            raise ValueError("the replay embedded nothing; there is no E(h_hat) to cache")
+        flat = torch.cat(self.chunks, dim=0)
+        expected = int(n_candidates) * int(num_samples)
+        if int(flat.shape[0]) != expected:
+            raise ValueError(f"the replay embedded {int(flat.shape[0])} waveforms for "
+                             f"{n_candidates} candidates x {num_samples} samples; the cached "
+                             "embeddings would not line up with the sidecar rows")
+        return flat.reshape(int(n_candidates), int(num_samples), -1)
+
+
+def measure_matched_query_with_embeddings(engine, *args, **kwargs):
+    """:func:`measure_matched_query`, plus the ``[M, K, D]`` it generated.
+
+    The cache is verified against the replay it came from before it is returned:
+    scoring the cached embeddings with the SAME observation must reproduce the
+    replay's own deltas. A cache that did not line up with the sidecar rows --
+    wrong order, a dropped chunk, a stray embed call -- would silently move every
+    substitution number, so it is checked rather than assumed.
+    """
+    import copy
+
+    obs_embedding = args[8] if len(args) > 8 else kwargs["obs_embedding"]
+    sims = args[7] if len(args) > 7 else kwargs["sims"]
+    recorder = _EmbeddingRecorder(engine.embedder)
+    # a SHALLOW COPY, not dataclasses.replace: replace re-runs __init__, which a
+    # test double that builds its own stack does not accept. The copy shares the
+    # conditioner, sampler and decoder -- only the embedder seam is wrapped, and
+    # the caller's engine is never mutated
+    recording = copy.copy(engine)
+    recording.embedder = recorder
+    summary, per_candidate, deltas = measure_matched_query(recording, *args, **kwargs)
+    embeddings = recorder.stack(summary["n_candidates"],
+                                int(kwargs.get("num_samples", me.NUM_SAMPLES)))
+    recomputed = np.abs((torch.as_tensor(embeddings).float()
+                         @ torch.as_tensor(obs_embedding).float().reshape(-1)).double().numpy()
+                        - np.asarray(sims, dtype=np.float16).astype(np.float64))
+    drift = float(np.abs(recomputed - np.asarray(deltas, dtype=np.float64)).max())
+    if not drift <= 1e-6:
+        raise ValueError(f"the cached embeddings do not reproduce the replay they came from "
+                         f"(max |delta - delta| = {drift:g}); the substitution matrix would be "
+                         "measured against generations that are not the gate's")
+    return summary, per_candidate, deltas, embeddings
+
+
+def matched_substitution_deltas(entries):
+    """Every ordered cross pair, on the matched path -- see the note above.
+
+    ``entries`` are ``{query_id, room_id, obs_embedding [D], embeddings [M, K, D],
+    stored [M, K] (float16), cell_tolerance [M, K]}``.
+    """
+    ids = [str(entry["query_id"]) for entry in entries]
+    if len(set(ids)) != len(ids):
+        raise ValueError("the substitution matrix needs one entry per query; ids repeat")
+    out = []
+    for i, entry in enumerate(entries):
+        flat = torch.as_tensor(entry["embeddings"]).float()
+        flat = flat.reshape(-1, flat.shape[-1])
+        stored = np.asarray(entry["stored"], dtype=np.float16).astype(np.float64).reshape(-1)
+        tolerance = np.asarray(entry["cell_tolerance"], dtype=np.float64).reshape(-1)
+        # the DONOR BANK. Defaults to the other measured queries, but a caller
+        # that walked the whole stream supplies every query's observation --
+        # which is the only way the nearest adversary (another RECEIVER of the
+        # SAME room) is representable at all, since the gate's own query set is
+        # one query per room and can only ever substitute across rooms
+        donors = entry.get("donors")
+        if donors is None:
+            donors = [{"query_id": ids[j], "room_id": entries[j].get("room_id"),
+                       "receiver_id": entries[j].get("receiver_id"),
+                       "obs_embedding": entries[j]["obs_embedding"]}
+                      for j in range(len(entries)) if j != i]
+        right = (flat @ torch.as_tensor(entry["obs_embedding"]).float().reshape(-1)) \
+            .double().numpy()
+        for donor in donors:
+            if str(donor["query_id"]) == ids[i]:
+                continue
+            cosines = (flat @ torch.as_tensor(donor["obs_embedding"]).float().reshape(-1)) \
+                .double().numpy()
+            against_stored = np.abs(cosines - stored)
+            same_room = bool(entry.get("room_id") == donor.get("room_id"))
+            out.append({
+                "query_id": ids[i], "observation_query_id": str(donor["query_id"]),
+                "same_room": same_room,
+                "same_receiver": bool(same_room
+                                      and entry.get("receiver_id") is not None
+                                      and entry.get("receiver_id") == donor.get("receiver_id")),
+                # what the GATE computes when handed the wrong observation
+                "max_abs_delta": float(against_stored.max()),
+                # the movement itself, free of the sidecar's quantization
+                "max_abs_movement": float(np.abs(cosines - right).max()),
+                # and whether the ELEMENTWISE gate would see it
+                "n_cells_over_tolerance": int((against_stored > tolerance).sum()),
+                "n_cells": int(against_stored.size)})
+    return out
+
+
+def derive_matched_gate(substitution, tolerance_max,
+                        min_separation=MIN_MATCHED_SEPARATION):
+    """Does the matched gate's tolerance separate from the matched adversary?
+
+    The tolerance is not chosen here -- it is the float16 sidecar's own cell
+    half-ulp, and the most permissive cell in the measurement is the one the
+    separation is taken against. The only question this answers is whether that
+    fixed tolerance clears the measured worst case by the required factor.
+    """
+    minimum = float((substitution.get("overall") or {}).get("min", 0.0))
+    tolerance_max = float(tolerance_max)
+    separation = (minimum / tolerance_max) if tolerance_max > 0 else float("inf")
+    every_pair_caught = bool(substitution.get("n_pairs")
+                             and substitution.get("n_pairs_undetected") == 0)
+    ok = bool(minimum > 0.0 and separation >= float(min_separation) and every_pair_caught)
+    return {"ok": ok,
+            "tolerance_max": tolerance_max,
+            "matched_substitution_min": minimum,
+            "separation_ratio": float(separation),
+            "min_separation_required": float(min_separation),
+            "every_pair_detected_elementwise": every_pair_caught,
+            "note": MATCHED_SUBSTITUTION_NOTE,
+            "why": ("the matched gate's half-ulp tolerance clears the measured matched-path "
+                    "adversary by the required factor" if ok else
+                    "the matched-path substitution movement does not separate from the gate's "
+                    "tolerance by the required factor; the margin may not be quoted (r9u: STOP "
+                    "and report)")}
+
+
+def summarize_matched_substitution(deltas):
+    summary = summarize_substitution(deltas)
+    summary["note"] = MATCHED_SUBSTITUTION_NOTE
+    summary["movement"] = summarize([entry["max_abs_movement"] for entry in deltas])
+    summary["n_pairs_undetected"] = int(sum(1 for entry in deltas
+                                            if not entry["n_cells_over_tolerance"]))
+    summary["same_receiver"] = summarize([entry["max_abs_delta"] for entry in deltas
+                                          if entry.get("same_receiver")])
+    summary["n_cells_over_tolerance"] = {
+        "min": int(min((entry["n_cells_over_tolerance"] for entry in deltas), default=0)),
+        "median": float(np.median([entry["n_cells_over_tolerance"] for entry in deltas]))
+        if deltas else 0.0}
+    return summary
+
+
+def cell_half_ulp(sims):
+    """The float16 half-ulp of EVERY cell, not one maximum over the array.
+
+    Mirrors ``meshgrid_report.float16_half_ulp`` elementwise -- both neighbours,
+    so a negative binade boundary is not halved -- and a test pins the scalar
+    helper to this array's maximum so the two cannot drift apart.
+    """
+    array = np.asarray(sims, dtype=np.float16)
+    if array.size == 0:
+        raise ValueError("a quantization bound needs at least one sample")
+    up = np.abs(np.nextafter(array, np.float16(np.inf)).astype(np.float64)
+                - array.astype(np.float64))
+    down = np.abs(array.astype(np.float64)
+                  - np.nextafter(array, np.float16(-np.inf)).astype(np.float64))
+    return 0.5 * np.maximum(up, down)
+
+
+def run_matched_substitution(engine, stream, records, plan, run_dir, *, device,
+                             binding_sha256=None, binding=None, seed=me.SEED,
+                             num_samples=me.NUM_SAMPLES, noise_policy=me.NOISE_KEY_POLICY,
+                             tau=me.TAU, on_query=None):
+    """One matched replay per REGISTERED PROBE QUERY, then the cross matrix.
+
+    The sixteen queries are the gate's own cases, so the margin is measured
+    exactly where it is claimed. Each replay runs at that row's OWN stamped
+    batching, so no measurement here depends on a batch shape the run never used.
+    """
+    from src.localization.candidates import parse_ir_filename
+
+    selected = attach_receiver_groups(plan, select_queries(plan, per_room=1))
+    wanted = {entry["query_id"]: entry for entry in selected}
+    by_position = {int(record["position"]): record for record in records}
+    entries, query_records, donors = [], [], []
+    for position, (obs_wav, raw_md) in enumerate(stream):
+        record = by_position.get(position)
+        if record is None:
+            continue
+        # EVERY in-scope query's observation joins the donor bank, not just the
+        # sixteen: the gate's own query set is one per room, so without this the
+        # nearest adversary -- another receiver of the SAME room -- could not
+        # appear in the measurement at all. Embedding one observation is one
+        # AGREE forward; the whole bank costs a fraction of a single replay
+        if obs_wav is not None:
+            relpath = str(record.get("relpath") or raw_md.get("relpath"))
+            donors.append({
+                "query_id": str(record["query_id"]), "position": position,
+                "room_id": me.room_of_relpath(relpath),
+                "receiver_id": int(parse_ir_filename(relpath)[1]),
+                "obs_embedding": torch.as_tensor(
+                    engine.embedder(torch.as_tensor(obs_wav).to(engine.device)))[0]
+                .float().cpu().numpy()})
+        if record["query_id"] not in wanted:
+            continue
+        entry = wanted[record["query_id"]]
+        md = me.GuardedMetadata(raw_md)
+        me.verify_context_record(md, record, position)
+        if obs_wav is None:
+            raise ValueError(f"stream position {position}: the loader returned no observation")
+        query = entry["query"]
+        row = op.load_grid_row(run_dir, query, binding_sha256=binding_sha256, binding=binding)
+        sims = row["_sims"]
+        batching = row.get("batching") or {}
+        batch_rows = int(batching["batch_rows"])
+        source_chunk = int(batching["source_chunk"])
+
+        obs_embedding = torch.as_tensor(donors[-1]["obs_embedding"]).float()
+        context = me.context_conditioning(engine.conditioner, md, engine.device)
+        started = time.perf_counter()
+        summary, _per_candidate, _deltas, embeddings = measure_matched_query_with_embeddings(
+            engine, query, md, context, entry["receiver_id"], entry["union"],
+            entry["positions_cam"], row, sims, obs_embedding, seed=seed,
+            num_samples=int(num_samples), noise_policy=noise_policy, batch_rows=batch_rows,
+            source_chunk=source_chunk, tau=tau, candidate_rows=())
+        tolerance = cell_half_ulp(sims)
+        entries.append({"query_id": entry["query_id"], "room_id": entry["room_id"],
+                        "receiver_id": donors[-1]["receiver_id"],
+                        "obs_embedding": obs_embedding.numpy(),
+                        "embeddings": embeddings.numpy(),
+                        "stored": np.asarray(sims, dtype=np.float16),
+                        "cell_tolerance": tolerance})
+        query_records.append({
+            "room_id": entry["room_id"], "query_id": entry["query_id"], "position": position,
+            "device": str(device), "receiver_id": entry["receiver_id"],
+            "n_candidates": int(summary["n_candidates"]), "n_union": int(summary["n_union"]),
+            "batch_rows": batch_rows, "source_chunk": source_chunk,
+            "honest_max_abs_delta": float(summary["max_abs_delta"]),
+            "honest_aggregate_max_abs_delta": float(summary["aggregate"]["max_abs_delta"]),
+            "float16_bit_exact": bool(summary["float16_bit_exact"]),
+            "n_float16_mismatch": int(summary["n_float16_mismatch"]),
+            "cell_tolerance_max": float(tolerance.max()),
+            "cell_tolerance_min": float(tolerance.min()),
+            "n_cells_over_own_tolerance": int((np.abs(_deltas) > tolerance).sum()),
+            "seconds": float(time.perf_counter() - started)})
+        if on_query is not None:
+            on_query(query_records[-1])
+
+    missing = sorted(set(wanted) - {record["query_id"] for record in query_records})
+    if missing:
+        raise ValueError(f"{len(missing)} probe queries never appeared in the stream "
+                         f"(first {missing[:3]}); the margin would be measured on a subset")
+    # every entry sees the whole bank; its own observation is skipped by id
+    for entry in entries:
+        entry["donors"] = donors
+    return {"entries": entries, "queries": query_records, "n_donors": len(donors)}
+
+
+def build_matched_report(measured, *, device, run_dir, provenance, protocol, substitution,
+                         gate, supersedes=None):
+    return {"experiment": "exp_22 r9u matched-path substitution measurement",
+            "path": "matched_batching_whole_query_replay",
+            "created_utc": utc_now(), "device": str(device), "run_dir": str(run_dir),
+            "note": MATCHED_SUBSTITUTION_NOTE,
+            "supersedes": supersedes,
+            "protocol": dict(protocol), "provenance": dict(provenance),
+            "n_queries": len(measured["queries"]),
+            "n_donor_observations": int(measured.get("n_donors") or 0),
+            "queries": measured["queries"],
+            "substitution": substitution,
+            "gate": gate}
+
+
+def render_matched_markdown(report):
+    substitution = report["substitution"]
+    gate = report["gate"]
+    lines = [f"# {report['experiment']}", "",
+             f"- created: `{report['created_utc']}`",
+             f"- run: `{report['run_dir']}`, device `{report['device']}`",
+             f"- path: **{report['path']}** (supersedes `{report.get('supersedes')}` for the "
+             "detection margin)",
+             f"- donor observations: **{report.get('n_donor_observations')}** (every in-scope "
+             "query, so a same-room, same-receiver substitution is representable)", "",
+             f"> {report['note']}", "",
+             "## Honest replay, per probe query", "",
+             "| room | query | candidates | batching | max abs delta | cell tolerance (max) | "
+             "cells over own tolerance | aggregate abs delta | bit-exact | seconds |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for query in report["queries"]:
+        lines.append(
+            f"| {query['room_id']} | `{str(query['query_id']).split('|')[0]}` | "
+            f"{mr.format_number(query['n_candidates'])} | "
+            f"{query['batch_rows']}/{query['source_chunk']} | "
+            f"{mr.format_number(query['honest_max_abs_delta'], 8)} | "
+            f"{mr.format_number(query['cell_tolerance_max'], 8)} | "
+            f"{query['n_cells_over_own_tolerance']} | "
+            f"{mr.format_number(query['honest_aggregate_max_abs_delta'], 8)} | "
+            f"{mr.format_number(query['float16_bit_exact'])} | "
+            f"{mr.format_number(query['seconds'], 1)} |")
+    overall = substitution["overall"]
+    movement = substitution["movement"]
+    lines += ["", "## Substituted observations, on the same replay", "",
+              f"- ordered cross pairs: **{substitution['n_pairs']}**",
+              f"- vs the frozen sidecar (the gate's own arithmetic): min "
+              f"**{mr.format_number(overall.get('min'), 6)}**, median "
+              f"{mr.format_number(overall.get('median'), 6)}, max "
+              f"{mr.format_number(overall.get('max'), 6)}",
+              f"- movement itself: min {mr.format_number(movement.get('min'), 6)}, median "
+              f"{mr.format_number(movement.get('median'), 6)}",
+              f"- same-room pairs: n={substitution['same_room'].get('n', 0)}, min "
+              f"{mr.format_number(substitution['same_room'].get('min'), 6)}",
+              f"- SAME-RECEIVER pairs (the nearest adversary): "
+              f"n={substitution['same_receiver'].get('n', 0)}, min "
+              f"{mr.format_number(substitution['same_receiver'].get('min'), 6)}",
+              f"- cross-room pairs: n={substitution['cross_room'].get('n', 0)}, min "
+              f"{mr.format_number(substitution['cross_room'].get('min'), 6)}",
+              f"- pairs the ELEMENTWISE gate would not have caught: "
+              f"**{substitution['n_pairs_undetected']}**", "",
+              "## The gate", "",
+              f"- tolerance (most permissive cell): "
+              f"**{mr.format_number(gate['tolerance_max'], 8)}**",
+              f"- matched-path substitution minimum: "
+              f"**{mr.format_number(gate['matched_substitution_min'], 6)}**",
+              f"- separation: **{mr.format_number(gate['separation_ratio'], 1)}x** (required >= "
+              f"{mr.format_number(gate['min_separation_required'], 1)}x)",
+              f"- every pair detected elementwise: "
+              f"{mr.format_number(gate['every_pair_detected_elementwise'])}",
+              f"- admissible: **{'YES' if gate['ok'] else 'NO'}** -- {gate['why']}", ""]
+    return "\n".join(lines) + "\n"
+
+
+def write_matched_report(out_dir, report):
+    os.makedirs(str(out_dir), exist_ok=True)
+    json_path = os.path.join(str(out_dir), MATCHED_SUBSTITUTION_JSON)
+    markdown_path = os.path.join(str(out_dir), MATCHED_SUBSTITUTION_MARKDOWN)
+    me.write_json(json_path, mr.jsonable(report))
+    with open(markdown_path, "w") as handle:
+        handle.write(render_matched_markdown(report))
+    return {"json": json_path, "markdown": markdown_path}
+
+
+def write_retired_path_label(out_dir, superseded, superseded_by):
+    """Label the r9r artifact as the RETIRED path's, without editing it.
+
+    The old measurement is evidence and stays byte-identical; what changes is
+    that its substitution distribution no longer describes the adopted gate.
+    Saying so in a file beside it is honest; rewriting a published artifact
+    after the fact is not.
+    """
+    payload = {
+        "labelled_utc": utc_now(),
+        "artifact": [str(path) for path in superseded],
+        "path": "retired_changed_batching_single_candidate",
+        "superseded_by": str(superseded_by),
+        "what_still_stands": "the changed-batching drift distribution, the matched-batching "
+                             "bit-exactness control, the GPU axis and the deterministic sample. "
+                             "These are measurements of the retired path and of the replay, and "
+                             "they are unaffected",
+        "what_does_not": "its substitution distribution described generations from the RETIRED "
+                         "single-candidate changed-batching path, so it never bounded the "
+                         "matched gate's detection margin (Codex r9t blocker 1). The matched-path "
+                         "margin is measured in the superseding artifact",
+    }
+    path = os.path.join(str(out_dir), RETIRED_PATH_LABEL)
+    me.write_json(path, payload)
+    return path
 
 
 if __name__ == "__main__":

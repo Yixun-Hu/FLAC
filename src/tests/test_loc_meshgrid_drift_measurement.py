@@ -18,6 +18,7 @@ import torch
 from src.localization import meshgrid_drift_measurement as dm
 from src.localization import meshgrid_engine as me
 from src.localization import meshgrid_offgrid_probe as op
+from src.localization import meshgrid_report as mr
 
 _spec = importlib.util.spec_from_file_location(
     "loc_meshgrid_report_fixtures",
@@ -524,3 +525,240 @@ def test_the_cli_refuses_to_write_into_the_measured_run(tmp_path):
 def test_merge_mode_needs_no_run_or_checkpoint(tmp_path):
     args = dm.parse_args(["--merge", "one.json", "--out-dir", str(tmp_path)])
     assert dm.validate_args(args) is True
+
+
+# --------------------------------------------------------------------------- #
+# r9u item A: the margin, measured on the path the gate actually runs
+# --------------------------------------------------------------------------- #
+def test_the_note_says_why_the_old_margin_did_not_transfer():
+    for phrase in ("RETIRED single-candidate", "does not bound", "dot product",
+                   "blocker 1"):
+        assert phrase in dm.MATCHED_SUBSTITUTION_NOTE, phrase
+
+
+def test_cell_half_ulp_is_elementwise_and_pins_the_scalar_helper():
+    """One bound per cell -- the scalar helper is its maximum, nothing else."""
+    for values in ([0.5, 0.25, 0.0, -0.5], [0.9995] * 4, [-0.5, 0.5]):
+        stored = np.asarray(values, dtype=np.float16)
+        cells = dm.cell_half_ulp(stored)
+        assert cells.shape == stored.shape
+        # the scalar helper is exactly this array's maximum -- the cross-pin
+        assert float(cells.max()) == pytest.approx(mr.float16_half_ulp(stored))
+        assert float(cells.min()) > 0.0
+    # a small-magnitude cell gets a FAR tighter bound than the array's maximum,
+    # which is the whole point of gating elementwise: r9s let the 0.0 cell hide
+    # under the 0.5 cell's tolerance
+    mixed = dm.cell_half_ulp(np.asarray([0.5, 0.25, 0.0, -0.5], dtype=np.float16))
+    assert mixed[2] < mixed[0] / 1000
+    assert mixed[1] == pytest.approx(mixed[0] / 2)
+    # both neighbours, so a negative binade boundary is not halved
+    assert mixed[3] == pytest.approx(mixed[0])
+    assert dm.cell_half_ulp(np.asarray([-0.5], dtype=np.float16))[0] == pytest.approx(
+        dm.cell_half_ulp(np.asarray([0.5], dtype=np.float16))[0])
+    with pytest.raises(ValueError, match="at least one sample"):
+        dm.cell_half_ulp(np.zeros(0, dtype=np.float16))
+
+
+def _matched_entries(fixture):
+    """One matched replay per probe query, with its embeddings cached."""
+    selected = dm.attach_receiver_groups(fixture["plan"], dm.select_queries(fixture["plan"],
+                                                                           per_room=1))
+    by_id = {entry["query_id"]: entry for entry in selected}
+    records = {record["query_id"]: record for record in fixture["records"]}
+    out = []
+    for obs, md in fixture["items"]:
+        query_id = f"{md['idx']}|{md['relpath']}"
+        if query_id not in by_id:
+            continue
+        entry = by_id[query_id]
+        guarded = me.GuardedMetadata(md)
+        me.verify_context_record(guarded, records[query_id], int(md["idx"]))
+        row = op.load_grid_row(fixture["run_dir"], entry["query"],
+                               binding_sha256=fixture["binding_sha256"])
+        obs_embedding = torch.as_tensor(
+            fixture["engine"].embedder(torch.as_tensor(obs)))[0].float()
+        context = me.context_conditioning(fixture["engine"].conditioner, guarded, "cpu")
+        summary, _pc, deltas, embeddings = dm.measure_matched_query_with_embeddings(
+            fixture["engine"], entry["query"], guarded, context, entry["receiver_id"],
+            entry["union"], entry["positions_cam"], row, row["_sims"], obs_embedding,
+            num_samples=fx.FIXTURE_SAMPLES, batch_rows=8, source_chunk=2, tau=fx.FIXTURE_TAU,
+            candidate_rows=())
+        out.append({"query_id": query_id, "room_id": entry["room_id"],
+                    "obs_embedding": obs_embedding.numpy(),
+                    "embeddings": embeddings.numpy(),
+                    "stored": np.asarray(row["_sims"], dtype=np.float16),
+                    "cell_tolerance": dm.cell_half_ulp(row["_sims"]),
+                    "summary": summary, "deltas": deltas})
+    return out
+
+
+def test_the_cached_embeddings_are_the_replays_own(tmp_path):
+    """The cache lines up with the sidecar rows, or nothing else means anything."""
+    fixture = _fixture(tmp_path)
+    for entry in _matched_entries(fixture):
+        stored = entry["stored"].astype(np.float64)
+        recomputed = np.abs(
+            (torch.as_tensor(entry["embeddings"]).float()
+             @ torch.as_tensor(entry["obs_embedding"]).float().reshape(-1)).double().numpy()
+            - stored)
+        assert recomputed.shape == stored.shape
+        assert np.abs(recomputed - entry["deltas"]).max() <= 1e-6
+
+
+def test_a_cache_that_does_not_line_up_is_refused(tmp_path):
+    """A stray embed call would shift every row; it must not pass silently."""
+    fixture = _fixture(tmp_path)
+    selected = dm.attach_receiver_groups(fixture["plan"], dm.select_queries(fixture["plan"],
+                                                                           per_room=1))
+    entry = selected[0]
+    record = next(r for r in fixture["records"] if r["query_id"] == entry["query_id"])
+    obs, md = next((obs, md) for obs, md in fixture["items"]
+                   if f"{md['idx']}|{md['relpath']}" == entry["query_id"])
+    guarded = me.GuardedMetadata(md)
+    me.verify_context_record(guarded, record, int(md["idx"]))
+    row = op.load_grid_row(fixture["run_dir"], entry["query"],
+                           binding_sha256=fixture["binding_sha256"])
+    obs_embedding = torch.as_tensor(
+        fixture["engine"].embedder(torch.as_tensor(obs)))[0].float()
+    context = me.context_conditioning(fixture["engine"].conditioner, guarded, "cpu")
+
+    real = dm.measure_matched_query
+
+    def _with_a_stray_embed(engine, *args, **kwargs):
+        engine.embedder(torch.zeros(1, 1, 16))         # one extra call, wrong shape count
+        return real(engine, *args, **kwargs)
+
+    dm.measure_matched_query = _with_a_stray_embed
+    try:
+        with pytest.raises(ValueError, match="would not line up with the sidecar rows"):
+            dm.measure_matched_query_with_embeddings(
+                fixture["engine"], entry["query"], guarded, context, entry["receiver_id"],
+                entry["union"], entry["positions_cam"], row, row["_sims"], obs_embedding,
+                num_samples=fx.FIXTURE_SAMPLES, batch_rows=8, source_chunk=2,
+                tau=fx.FIXTURE_TAU, candidate_rows=())
+    finally:
+        dm.measure_matched_query = real
+
+
+def test_the_matched_substitution_matrix_is_the_gates_own_arithmetic(tmp_path):
+    fixture = _fixture(tmp_path)
+    entries = _matched_entries(fixture)
+    deltas = dm.matched_substitution_deltas(entries)
+    assert len(deltas) == len(entries) * (len(entries) - 1)
+    assert not any(entry["query_id"] == entry["observation_query_id"] for entry in deltas)
+    lookup = {(entry["query_id"], entry["observation_query_id"]): entry for entry in deltas}
+    victim, donor = entries[0], entries[1]
+    flat = torch.as_tensor(victim["embeddings"]).float()
+    cosines = (flat @ torch.as_tensor(donor["obs_embedding"]).float().reshape(-1)).double()
+    expected = float(np.abs(cosines.numpy()
+                            - victim["stored"].astype(np.float64)).max())
+    entry = lookup[(victim["query_id"], donor["query_id"])]
+    assert entry["max_abs_delta"] == pytest.approx(expected)
+    # ... and the movement, which carries no sidecar quantization at all
+    right = (flat @ torch.as_tensor(victim["obs_embedding"]).float().reshape(-1)).double()
+    assert entry["max_abs_movement"] == pytest.approx(
+        float(np.abs(cosines.numpy() - right.numpy()).max()))
+    assert entry["n_cells"] == victim["stored"].size
+
+
+def test_the_matrix_refuses_repeated_query_ids(tmp_path):
+    fixture = _fixture(tmp_path)
+    entries = _matched_entries(fixture)
+    with pytest.raises(ValueError, match="ids repeat"):
+        dm.matched_substitution_deltas([entries[0], dict(entries[0])])
+
+
+def test_the_matched_gate_refuses_a_margin_it_cannot_clear():
+    """Item A's stop condition, and the elementwise detection requirement."""
+    wide = {"n_pairs": 240, "n_pairs_undetected": 0, "overall": {"min": 5e-3}}
+    assert dm.derive_matched_gate(wide, 2.44e-4)["ok"] is True
+    assert dm.derive_matched_gate(wide, 2.44e-4)["separation_ratio"] > 20
+    narrow = dm.derive_matched_gate({"n_pairs": 240, "n_pairs_undetected": 0,
+                                     "overall": {"min": 5e-4}}, 2.44e-4)
+    assert narrow["ok"] is False and "STOP and report" in narrow["why"]
+    # a pair no elementwise cell would have caught refuses whatever the ratio
+    blind = dm.derive_matched_gate({"n_pairs": 240, "n_pairs_undetected": 1,
+                                    "overall": {"min": 5e-3}}, 2.44e-4)
+    assert blind["ok"] is False
+    assert dm.derive_matched_gate({"n_pairs": 0, "n_pairs_undetected": 0,
+                                   "overall": {"min": 0.0}}, 2.44e-4)["ok"] is False
+
+
+def test_the_matched_measurement_runs_end_to_end(tmp_path):
+    fixture = _fixture(tmp_path)
+    measured = dm.run_matched_substitution(
+        fixture["engine"], list(fixture["items"]), fixture["records"], fixture["plan"],
+        fixture["run_dir"], device="cpu", binding_sha256=fixture["binding_sha256"],
+        binding=fixture["binding"], num_samples=fx.FIXTURE_SAMPLES, tau=fx.FIXTURE_TAU)
+    probes = me.registered_probe_queries(fixture["plan"])
+    assert {query["query_id"] for query in measured["queries"]} == set(probes.values())
+    for query in measured["queries"]:
+        # every replay is at the ROW's batching and bit-exact on this fixture
+        assert query["batch_rows"] == fx.FIXTURE_ADVISORY["batch_rows"]
+        assert query["source_chunk"] == fx.FIXTURE_ADVISORY["source_chunk"]
+        assert query["float16_bit_exact"] is True
+        assert query["n_cells_over_own_tolerance"] == 0
+        assert query["honest_aggregate_max_abs_delta"] == 0.0
+
+    deltas = dm.matched_substitution_deltas(measured["entries"])
+    substitution = dm.summarize_matched_substitution(deltas)
+    assert substitution["n_pairs"] == len(deltas)
+    assert substitution["overall"]["min"] >= 0.0
+    tolerance = max(query["cell_tolerance_max"] for query in measured["queries"])
+    gate = dm.derive_matched_gate(substitution, tolerance)
+    report = dm.build_matched_report(measured, device="cpu", run_dir=fixture["run_dir"],
+                                     provenance={}, protocol={"seed": me.SEED},
+                                     substitution=dict(substitution, pairs=deltas), gate=gate,
+                                     supersedes="old.json")
+    published = dm.write_matched_report(str(tmp_path / "matched"), report)
+    saved = json.load(open(published["json"]))
+    assert saved["path"] == "matched_batching_whole_query_replay"
+    assert saved["supersedes"] == "old.json"
+    markdown = open(published["markdown"]).read()
+    for phrase in ("## Honest replay, per probe query", "## Substituted observations",
+                   "## The gate", "cells over own tolerance"):
+        assert phrase in markdown, phrase
+
+
+def test_the_donor_bank_is_every_query_not_just_the_probe_set(tmp_path):
+    """Without it a same-room substitution is unrepresentable (one probe/room)."""
+    fixture = _fixture(tmp_path)
+    measured = dm.run_matched_substitution(
+        fixture["engine"], list(fixture["items"]), fixture["records"], fixture["plan"],
+        fixture["run_dir"], device="cpu", binding_sha256=fixture["binding_sha256"],
+        binding=fixture["binding"], num_samples=fx.FIXTURE_SAMPLES, tau=fx.FIXTURE_TAU)
+    assert measured["n_donors"] == len(fixture["items"])
+    assert measured["n_donors"] > len(measured["queries"])
+    deltas = dm.matched_substitution_deltas(measured["entries"])
+    # every probe query against every OTHER query, its own excluded by id
+    assert len(deltas) == len(measured["queries"]) * (measured["n_donors"] - 1)
+    assert not any(entry["query_id"] == entry["observation_query_id"] for entry in deltas)
+    # the same-room donors the probe set alone could never supply
+    same_room = [entry for entry in deltas if entry["same_room"]]
+    assert same_room, "no same-room donor reached the matrix"
+    assert any(entry["same_receiver"] for entry in deltas)
+    summary = dm.summarize_matched_substitution(deltas)
+    assert summary["same_receiver"]["n"] >= 1
+    assert summary["same_room"]["n"] >= summary["same_receiver"]["n"]
+
+
+def test_a_probe_query_missing_from_the_stream_is_refused(tmp_path):
+    fixture = _fixture(tmp_path)
+    with pytest.raises(ValueError, match="never appeared in the stream"):
+        dm.run_matched_substitution(
+            fixture["engine"], list(fixture["items"])[:1], fixture["records"], fixture["plan"],
+            fixture["run_dir"], device="cpu", binding_sha256=fixture["binding_sha256"],
+            binding=fixture["binding"], num_samples=fx.FIXTURE_SAMPLES, tau=fx.FIXTURE_TAU)
+
+
+def test_the_retired_label_does_not_rewrite_the_artifact_it_labels(tmp_path):
+    original = str(tmp_path / "drift_measurement.json")
+    me.write_json(original, {"experiment": "r9r", "substitution": {"overall": {"min": 1.0}}})
+    before = me.file_sha256(original)
+    path = dm.write_retired_path_label(str(tmp_path), [original], "matched.json")
+    assert me.file_sha256(original) == before          # byte-identical, still evidence
+    payload = json.load(open(path))
+    assert payload["path"] == "retired_changed_batching_single_candidate"
+    assert payload["superseded_by"] == "matched.json"
+    assert "never bounded the matched gate" in payload["what_does_not"]
+    assert "bit-exactness control" in payload["what_still_stands"]
