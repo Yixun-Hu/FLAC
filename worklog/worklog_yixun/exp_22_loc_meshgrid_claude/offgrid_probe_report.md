@@ -1,6 +1,6 @@
 # exp_22 R1 — off-grid truth probe + real-vs-generated AGREE calibration
 
-Generated 2026-08-29T03:16:03+00:00.
+Generated 2026-08-29T05:10:01+00:00.
 
 > **OFF-GRID TRUTH CONTROL -- this probe generates at the CONTINUOUS ground-truth source position x*_s and therefore READS THE HELD-OUT TARGET, by design and by registration (inherited plan §2). Its generation is NEVER inserted into any candidate set, never competes in any argmax, never becomes a prediction and never enters any published localization metric; it exists only to report how the truth position would have SCORED against the grid the engine actually searched**
 
@@ -53,28 +53,34 @@ Mean gap (real − generated): 0.1133
 | Restaurants/Restaurants_idx_22 | `6063` | 0.000 | 168 | -0.34739 | 0.3541 | 0.2407 |
 | Restaurants/Restaurants_idx_24 | `6304` | 0.071 | 261 | -0.59743 | 0.4546 | -0.0840 |
 
-## Observation-continuity tie — measured delta vs tolerance
+## Observation-continuity tie — matched-batching replay
 
-> the tie regenerates ONE candidate alone, so its batch shapes are not the ones the frozen rows were produced at (batch_rows=256, i.e. 32 candidates x 8 draws per forward, with the source branch chunked at 16 positions -- against 8 generated rows and a single-position source call here), and it compares PER-SAMPLE cosines rather than the aggregate score. meshgrid_engine's SCORE_TOLERANCE is the registered bound on the AGGREGATE between two passes at different batching, so it is the wrong yardstick twice over -- it does not carry the sqrt(K) the aggregate gets for free, and it is not what the engine measured for a changed batch shape. The bound used here is the engine's own measured changed-batching magnitude (3.9e-3, BATCHING_CAVEAT) plus the sidecar's float16 half-ulp. A substituted observation moves these cosines by O(0.1-1), 25x to 250x that, so the gate still bites; the measured delta is published per query so the separation can be read rather than trusted
+> MATCHED-BATCHING TIE (r9s, Planner RULING 3). The live observation is tied to the frozen rows by replaying the WHOLE query at the row's own stamped batching -- the receiver's candidate union through the source branch at the row's source_chunk, then the query's candidates through the engine's own _score_one_query at the row's batch_rows -- and requiring the replay to reproduce the published artifacts exactly: every per-sample cosine within the float16 sidecar's own half-ulp (no drift term, because at matched batching there is no drift), and the float32 log-mean-exp aggregate equal to the row's scores_hex at exactly 0.0. Evidence: the r9r measurement replayed 16 whole queries this way on both devices -- 11,577 candidates, 92,616 waveforms -- and was bit-exact on every one, while the superseded single-candidate path at a batch shape the run never used moved cosines by up to 3.63e-3 and aggregates past SCORE_TOLERANCE on 4 of 256 measurements. Detection power is measured, not asserted: the closest of 8,064 ordered substituted-observation pairs moves the tie by 6.67e-3, which is 27x this tolerance. Distributions: outputs_loc/exp22/r9r_drift_measurement/merged/ (mirrored to worklog/worklog_yixun/exp_22_loc_meshgrid_claude/r9r_drift_measurement/)
 
-| room | query | max abs delta | tolerance | headroom | within | query cosine span | separation |
-|---|---|---|---|---|---|---|---|
-| Cafe/Cafe_idx_1 | `788` | 0.000558 | 0.004144 | 0.003586 | yes | 0.6636 | 1188.1x |
-| MeetingRoom/MeetingRoom_idx_32 | `1139` | 0.000785 | 0.004022 | 0.003237 | yes | 0.7107 | 905.0x |
-| MeetingRoom/MeetingRoom_idx_20 | `1389` | 0.002930 | 0.004144 | 0.001214 | yes | 1.0398 | 354.9x |
-| Office/Office_idx_10 | `1639` | 0.000318 | 0.004144 | 0.003826 | yes | 0.8008 | 2516.4x |
-| Office/Office_idx_11 | `1889` | 0.000560 | 0.004144 | 0.003584 | yes | 0.9519 | 1698.8x |
-| Bedrooms/Bedrooms_idx_18 | `2139` | 0.003630 | 0.004022 | 0.000392 | yes | 0.6729 | 185.4x |
-| Bedrooms/Bedrooms_idx_33 | `2389` | 0.000555 | 0.004144 | 0.003589 | yes | 0.5567 | 1003.5x |
-| Auditorium/Auditorium_idx_1 | `4281` | 0.000700 | 0.004144 | 0.003444 | yes | 0.7745 | 1106.2x |
-| Bathrooms/Bathrooms_idx_14 | `4639` | 0.000724 | 0.004022 | 0.003298 | yes | 0.4510 | 622.7x |
-| Bathrooms/Bathrooms_idx_18 | `4889` | 0.000776 | 0.004022 | 0.003246 | yes | 0.7227 | 931.7x |
-| Apartments/Apartments_idx_50 | `5139` | 0.000639 | 0.004144 | 0.003505 | yes | 1.1355 | 1776.8x |
-| Apartments/Apartments_idx_42 | `5389` | 0.000641 | 0.004022 | 0.003381 | yes | 0.7622 | 1188.7x |
-| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 | `5615` | 0.000461 | 0.004144 | 0.003683 | yes | 0.9810 | 2125.8x |
-| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 | `5864` | 0.000785 | 0.004144 | 0.003359 | yes | 1.0732 | 1367.1x |
-| Restaurants/Restaurants_idx_22 | `6063` | 0.002748 | 0.004144 | 0.001396 | yes | 0.8772 | 319.2x |
-| Restaurants/Restaurants_idx_24 | `6304` | 0.000618 | 0.004144 | 0.003526 | yes | 0.6408 | 1036.6x |
+> _Cost:_ COST OF THE TIE: the matched-batching replay generates every candidate of each probe query at the row's own batch_rows, so it is not free -- about 10 minutes for the sixteen registered probe queries at the P1 run's own throughput, dominated by Cafe_idx_1's 5,295 candidates and Auditorium_idx_1's 3,722. That is the price of a gate whose expectation is bit-exactness rather than a tolerance; the superseded single-candidate check cost 8 generations per query and bought a bound that could not be established (r9r)
+
+> _Dynamic range, not detection:_ query_cosine_span is the spread of THIS query's own stored cosines and query_cosine_span_over_delta divides it by the measured drift. Both are DYNAMIC RANGE, not detection evidence: they say nothing about how far a substituted observation moves this number. r9p published the ratio as 'separation_vs_span' and read it as substitution evidence, which Codex r9q rejected (item 3). The measured detection margin is measured_substitution_min -- the smallest movement over the r9r measurement's 8,064 ordered substituted-observation pairs -- and it is carried beside these two so the difference cannot be misread again
+
+| room | query | candidates replayed | batching | max abs delta | tolerance (half-ulp) | headroom | aggregate abs delta | bit-exact | dyn. range: query cosine span | dyn. range: span / delta | measured substitution min | measured separation | diagnostic (non-gating) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Cafe/Cafe_idx_1 | `788` | 5,295 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 0.6636 | 2720.0x | 0.006669 | 27.32x | 0.000558 |
+| MeetingRoom/MeetingRoom_idx_32 | `1139` | 107 | 256/16 | 0.000120 | 0.000122 | 0.000003 | 0.00000000 | yes | 0.7107 | 5945.4x | 0.006669 | 54.63x | 0.000785 |
+| MeetingRoom/MeetingRoom_idx_20 | `1389` | 231 | 256/16 | 0.000238 | 0.000244 | 0.000006 | 0.00000000 | yes | 1.0398 | 4362.3x | 0.006669 | 27.32x | 0.002930 |
+| Office/Office_idx_10 | `1639` | 255 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 0.8008 | 3280.8x | 0.006669 | 27.32x | 0.000318 |
+| Office/Office_idx_11 | `1889` | 404 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 0.9519 | 3900.9x | 0.006669 | 27.32x | 0.000560 |
+| Bedrooms/Bedrooms_idx_18 | `2139` | 56 | 256/16 | 0.000122 | 0.000122 | 0.000000 | 0.00000000 | yes | 0.6729 | 5525.5x | 0.006669 | 54.63x | 0.003630 |
+| Bedrooms/Bedrooms_idx_33 | `2389` | 58 | 256/16 | 0.000216 | 0.000244 | 0.000028 | 0.00000000 | yes | 0.5567 | 2578.5x | 0.006669 | 27.32x | 0.000555 |
+| Auditorium/Auditorium_idx_1 | `4281` | 3,722 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 0.7745 | 3172.2x | 0.006669 | 27.32x | 0.000700 |
+| Bathrooms/Bathrooms_idx_14 | `4639` | 26 | 256/16 | 0.000103 | 0.000122 | 0.000019 | 0.00000000 | yes | 0.4510 | 4371.7x | 0.006669 | 54.63x | 0.000724 |
+| Bathrooms/Bathrooms_idx_18 | `4889` | 54 | 256/16 | 0.000122 | 0.000122 | 0.000000 | 0.00000000 | yes | 0.7227 | 5927.2x | 0.006669 | 54.63x | 0.000776 |
+| Apartments/Apartments_idx_50 | `5139` | 220 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 1.1355 | 4660.1x | 0.006669 | 27.32x | 0.000639 |
+| Apartments/Apartments_idx_42 | `5389` | 176 | 256/16 | 0.000178 | 0.000244 | 0.000066 | 0.00000000 | yes | 0.7622 | 4285.4x | 0.006669 | 27.32x | 0.000641 |
+| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30 | `5615` | 280 | 256/16 | 0.000244 | 0.000244 | 0.000000 | 0.00000000 | yes | 0.9810 | 4019.0x | 0.006669 | 27.32x | 0.000461 |
+| LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25 | `5864` | 140 | 256/16 | 0.000219 | 0.000244 | 0.000026 | 0.00000000 | yes | 1.0732 | 4910.3x | 0.006669 | 27.32x | 0.000785 |
+| Restaurants/Restaurants_idx_22 | `6063` | 292 | 256/16 | 0.000236 | 0.000244 | 0.000008 | 0.00000000 | yes | 0.8772 | 3718.3x | 0.006669 | 27.32x | 0.002748 |
+| Restaurants/Restaurants_idx_24 | `6304` | 261 | 256/16 | 0.000242 | 0.000244 | 0.000002 | 0.00000000 | yes | 0.6408 | 2644.8x | 0.006669 | 27.32x | 0.000618 |
+
+> _Non-gating diagnostic:_ NON-GATING DIAGNOSTIC. The single-candidate regeneration at a CHANGED batch shape (one source position, num_samples generated rows) is still run and still published, because it costs 8 generations and its distribution is now characterized: over r9r's 256 measurements across all 16 rooms it ran to a median 5.13e-4, q99 2.93e-3 and max 3.63e-3 per-sample |delta|, with aggregate shifts up to 1.16e-3. It decides NOTHING -- a value inside that reference distribution is expected, and a value outside it is a signal to investigate the backbone's batch behaviour, not a reason to refuse an observation. The gate is the matched-batching replay above
 
 ## §2 controls that are NOT in this report
 

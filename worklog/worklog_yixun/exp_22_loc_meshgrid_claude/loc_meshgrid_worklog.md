@@ -158,3 +158,6 @@ Measurement (both GPUs, 256 tie measurements + 16 whole-query matched replays = 
 
 ## r9s delivered; probe v3 launched (2026-08-29 ~01:05 EDT)
 Matched-batching tie implemented (`c1b4f18`, revert = whole rollback): whole-query replay through the engine's own path at the row's stamped batching; per-sample half-ulp + float32 aggregate EXACT-0.0 criteria; fail-closed on unstamped rows; changed-batching check kept as a labeled non-gating diagnostic with r9r's reference distribution; cost (~10 min/16 queries) announced at startup. Suite **3,471 / 11 / 0**. Frozen digests unchanged (ee2ba80a reproduced). **Disclosed risk (on record): the exact-aggregate criterion is architecture-bound — this control replayed on a different GPU arch against these rows would fail-closed refuse; a hardware decision is needed before any cross-arch rerun.** Probe v3 running; consolidated Codex bundle review (r9r+r9s+v3 artifacts) follows.
+
+## Probe v3 CANONICAL (2026-08-29 ~01:20 EDT) — full §2 control set canonical
+Matched-batching tie passed (bit-exact whole-query replay, all 16 rows; canonical=true, no reasons). Ranks/calibration numbers identical to v2 (same frozen rows; the tie is a gate, not a metric). v3 artifacts replace v2 beside this worklog; NAS dumps refreshed. Consolidated Codex bundle review launched (r9r measurement + r9s gate + v3 artifacts).
