@@ -76,6 +76,33 @@ def _probe_fixture(tmp_path):
     return fixture
 
 
+#: r9u made launch provenance and the §2 handoff admission criteria, so a gate
+#: that means "everything passed" has to carry them. These are the shapes the
+#: real reads return, not the reads themselves -- those have their own tests.
+_FIXTURE_LAUNCH = {"path": "launch.json", "sha256": "c" * 64, "git_sha": "a" * 40,
+                   "hostname": "fixture", "gpus": [{"index": 0, "uuid": "GPU-fixture"}]}
+_FIXTURE_HANDOFF = {"path": "handoff.json", "sha256": "d" * 64,
+                    "control_key": "agree_oracle_retrieval_over_the_metadata_bank",
+                    "status": "run (canonical)", "canonical": True, "headline": {}}
+
+
+def _complete_continuity(records):
+    """The COMPLETE tie record a canonical control now has to carry (r9u B3)."""
+    return records[0]["observation_continuity_summary"]
+
+
+def _canonical_gate(fixture, records=None, **extra):
+    gate = {"single_shard": False,
+            "metadata_bank_expected": fixture["metadata_bank_sha256"],
+            "observation_bank_expected": fixture["observation_bank_sha256"],
+            "registered_protocol": {"is_registered": True, "deviations": {}},
+            "launch_record": _FIXTURE_LAUNCH, "retrieval_handoff": _FIXTURE_HANDOFF,
+            "observation_continuity": (_complete_continuity(records) if records else
+                                       {"ok": True, "checked": 1, "n_expected": 1,
+                                        "per_query_delta": {"q": 0.0}})}
+    gate.update(extra)
+    return gate
+
 FIXTURE_SAMPLE_RATE = 22050
 
 
@@ -619,7 +646,10 @@ def test_the_binding_gate_runs_before_anything_reaches_a_device(tmp_path, monkey
                  "--dataset-root", fixture["dataset_root"],
                  "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
                  "--expect-observation-bank-sha256",
-                 fixture["observation_bank_sha256"]])
+                 fixture["observation_bank_sha256"],
+                 # r9u: a canonical run needs both provenance surfaces; this test
+                 # is about ordering, so it declares itself a diagnostic
+                 "--non-canonical"])
     assert order == ["gate"]
 
 
@@ -713,7 +743,11 @@ def test_the_probe_report_carries_the_run_gate_and_every_disclosure(tmp_path):
     payload = json.load(open(published["json"]))
     assert payload["latency_scope_note"] == mr.LATENCY_SCOPE_NOTE
     assert payload["truth_binding_note"] == mr.TRUTH_BINDING_NOTE
-    assert payload["controls_elsewhere"] == mr.CONTROLS_ELSEWHERE
+    # r9u: the retrieval entry is reconciled, so the report's copy is the
+    # reconciled one -- with no handoff supplied it says so rather than
+    # repeating a stale "run pending"
+    assert payload["controls_elsewhere"] == op.reconcile_controls_elsewhere(None)
+    assert "run pending" not in json.dumps(payload["controls_elsewhere"])
     assert payload["run_gate"]["census"]["n_queries"] == fixture["totals"]["queries"]
     assert payload["single_shard"] is False
     markdown = open(published["markdown"]).read()
@@ -817,9 +851,15 @@ def test_a_canonical_control_requires_the_pre_registered_bank_digest():
     with pytest.raises(SystemExit, match="requires the PRE-REGISTERED"):
         op.validate_args(op.parse_args(base))
     assert op.validate_args(op.parse_args(base + ["--non-canonical"])) is True
+    # r9u added two more canonical requirements, so the pins alone no longer pass
+    with pytest.raises(SystemExit, match="requires --launch-record"):
+        op.validate_args(op.parse_args(
+            base + ["--expect-metadata-bank-sha256", "a" * 64,
+                    "--expect-observation-bank-sha256", "b" * 64]))
     assert op.validate_args(op.parse_args(
         base + ["--expect-metadata-bank-sha256", "a" * 64,
-                "--expect-observation-bank-sha256", "b" * 64])) is True
+                "--expect-observation-bank-sha256", "b" * 64,
+                "--launch-record", "l.json", "--retrieval-handoff", "h.json"])) is True
 
 
 def test_the_probe_digest_mode_needs_nothing_but_the_tree():
@@ -836,6 +876,10 @@ def test_the_probe_canonical_status_names_each_relaxation(tmp_path):
         totals=fixture["totals"])
     gate["metadata_bank_expected"] = fixture["metadata_bank_sha256"]
     gate["observation_bank_expected"] = fixture["observation_bank_sha256"]
+    gate["launch_record"] = _FIXTURE_LAUNCH
+    gate["retrieval_handoff"] = _FIXTURE_HANDOFF
+    gate["observation_continuity"] = {"ok": True, "checked": 1, "n_expected": 1,
+                                      "per_query_delta": {"q": 0.0}}
     # r9s: the gate is back to fail-closed canonicality -- everything passed,
     # so the status is canonical, with no standing "unestablished bound" reason
     assert op.probe_canonical_status(gate)["canonical"] is True
@@ -937,10 +981,8 @@ def test_the_off_grid_markdown_renders_the_latency_scope_and_controls(tmp_path):
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
-        gate={"single_shard": False, "metadata_bank_expected": "a" * 64,
-              "observation_bank_expected": "b" * 64,
-              "registered_protocol": {"is_registered": True, "deviations": {}},
-  })
+        gate=_canonical_gate(fixture, records, metadata_bank_expected="a" * 64,
+                             observation_bank_expected="b" * 64))
     markdown = open(published["markdown"]).read()
     assert mr.LATENCY_SCOPE_NOTE in markdown
     assert "§2 controls that are NOT in this report" in markdown
@@ -1103,12 +1145,17 @@ def test_the_publication_gate_carries_every_verdict_the_status_reads(tmp_path):
         fixture["run_dir"], _published_binding(fixture["run_dir"]),
         fixture["binding_sha256"], fixture["plan"], *_census_args(fixture),
         totals=fixture["totals"])
-    gate.update({"metadata_bank_expected": fixture["metadata_bank_sha256"],
+    gate.update({"launch_record": _FIXTURE_LAUNCH, "retrieval_handoff": _FIXTURE_HANDOFF,
+                 "observation_continuity": {"ok": True, "checked": 1, "n_expected": 1,
+                                            "per_query_delta": {"q": 0.0}},
+                 "metadata_bank_expected": fixture["metadata_bank_sha256"],
                  "metadata_bank_sha256": fixture["metadata_bank_sha256"],
                  "metadata_bank": {"pinned": True},
                  "observation_bank_expected": fixture["observation_bank_sha256"],
                  "observation_bank_sha256": fixture["observation_bank_sha256"],
-                 "observation_bank": {"pinned": True}, "non_canonical": False})
+                 "observation_bank": {"pinned": True}, "non_canonical": False,
+                 "launch_record": _FIXTURE_LAUNCH,
+                 "retrieval_handoff": _FIXTURE_HANDOFF})
     sliced = op.publication_gate(gate)
     for field in ("single_shard", "registered_protocol", "metadata_bank_expected"):
         assert field in sliced, f"{field} is read by probe_canonical_status"
@@ -1119,9 +1166,7 @@ def test_the_publication_gate_carries_every_verdict_the_status_reads(tmp_path):
 def test_json_markdown_and_npz_agree_that_a_run_is_canonical(tmp_path):
     fixture = _probe_fixture(tmp_path)
     records = _run(fixture, non_canonical=False)
-    gate = {"single_shard": False, "metadata_bank_expected": fixture["metadata_bank_sha256"],
-            "observation_bank_expected": fixture["observation_bank_sha256"],
-            "registered_protocol": {"is_registered": True, "deviations": {}}}
+    gate = _canonical_gate(fixture, records)
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
@@ -1141,7 +1186,8 @@ def test_json_markdown_and_npz_agree_that_a_run_is_not_canonical(tmp_path):
     records = _run(fixture, non_canonical=True)
     gate = {"single_shard": False, "metadata_bank_expected": None,
             "observation_bank_expected": None,
-            "registered_protocol": {"is_registered": True, "deviations": {}}}
+            "registered_protocol": {"is_registered": True, "deviations": {}},
+            "launch_record": _FIXTURE_LAUNCH, "retrieval_handoff": _FIXTURE_HANDOFF}
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
@@ -1348,6 +1394,9 @@ def test_the_status_can_never_be_more_canonical_than_the_gate(tmp_path):
         {"metadata_bank_expected": "a" * 64, "observation_bank_expected": "b" * 64,
          "single_shard": False,
          "registered_protocol": {"is_registered": True, "deviations": {}},
+         "launch_record": _FIXTURE_LAUNCH, "retrieval_handoff": _FIXTURE_HANDOFF,
+         "observation_continuity": {"ok": True, "checked": 1, "n_expected": 1,
+                                    "per_query_delta": {"q": 0.0}},
          "non_canonical": True})
     assert status["canonical"] is False
     assert [reason["gate"] for reason in status["reasons"]] == ["non_canonical_flag"]
@@ -1539,7 +1588,8 @@ def test_a_canonical_probe_requires_the_pre_registered_observation_pin():
         op.validate_args(op.parse_args(base))
     assert op.validate_args(op.parse_args(base + ["--non-canonical"])) is True
     assert op.validate_args(op.parse_args(
-        base + ["--expect-observation-bank-sha256", "b" * 64])) is True
+        base + ["--expect-observation-bank-sha256", "b" * 64,
+                "--launch-record", "l.json", "--retrieval-handoff", "h.json"])) is True
     # the two pre-registration modes are run one at a time
     with pytest.raises(SystemExit, match="one at a time"):
         op.validate_args(op.parse_args(["--print-metadata-bank-digest",
@@ -1574,7 +1624,13 @@ def test_the_gate_computes_and_pins_the_observation_bank(tmp_path, monkeypatch):
     assert sorted(gate["observation_bank"]["queries"]) == \
         sorted(me.registered_probe_queries(fixture["plan"]).values())
     assert gate["non_canonical"] is False
-    # r9s: with the matched-batching gate adopted the real gate is canonical again
+    # r9u: gate_run's own ladder is complete, but the run-level surfaces main
+    # supplies -- the tie record and the two provenance reads -- are admission
+    # criteria too, so the gate alone is NOT canonical until they are attached
+    assert op.probe_canonical_status(op.publication_gate(gate))["canonical"] is False
+    gate.update({"launch_record": _FIXTURE_LAUNCH, "retrieval_handoff": _FIXTURE_HANDOFF,
+                 "observation_continuity": {"ok": True, "checked": 1, "n_expected": 1,
+                                            "per_query_delta": {"q": 0.0}}})
     assert op.probe_canonical_status(op.publication_gate(gate))["canonical"] is True
 
 
@@ -2023,7 +2079,8 @@ def test_the_cost_is_announced_before_the_run_not_after(tmp_path, capsys, monkey
                  "--dataset-config", fixture["context_manifest"],
                  "--metadata-root", fixture["metadata_root"],
                  "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
-                 "--expect-observation-bank-sha256", fixture["observation_bank_sha256"]])
+                 "--expect-observation-bank-sha256", fixture["observation_bank_sha256"],
+                 "--non-canonical"])
     printed = capsys.readouterr().out
     assert "about 10 minutes" in printed
     assert "COST OF THE TIE" in printed
@@ -2041,12 +2098,16 @@ def test_the_tolerance_is_the_sidecar_half_ulp_and_nothing_else():
 
 
 def test_the_separation_the_gate_rests_on_is_the_measured_one():
-    """27x, from the r9r artifact -- not a span ratio, not an assumption."""
-    stored = np.asarray(FIELD_FAILURE_STORED, dtype=np.float16)
-    tolerance = op.observation_continuity_tolerance(stored)
-    separation = op.R9R_MEASUREMENT["substitution_min"] / tolerance
-    assert separation == pytest.approx(op.R9R_MEASUREMENT["matched_batching_separation"], abs=1.0)
-    assert separation > 20
+    """r9u: measured on the MATCHED path, against the gate's own tolerance."""
+    measurement = op.R9R_MEASUREMENT
+    separation = (measurement["matched_substitution_min"]
+                  / measurement["matched_batching_tolerance"])
+    assert separation == pytest.approx(measurement["matched_batching_separation"], rel=1e-3)
+    assert separation > 5 and separation > 80
+    # the retired path's number would have given a very different answer, which
+    # is precisely why quoting it for this gate was wrong
+    assert (measurement["substitution_min"]
+            / measurement["matched_batching_tolerance"]) < separation / 3
     # ... where the retired changed-batching bound could only manage 1.3x
     assert op.R9R_MEASUREMENT["separation_of_candidate_bound"] < 2
     assert op.R9R_MEASUREMENT["changed_batching_bound_established"] is False
@@ -2202,11 +2263,11 @@ def test_a_substituted_observation_is_still_refused_by_the_new_gate(tmp_path):
                      num_samples=fx.FIXTURE_SAMPLES, prefixes=fx.FIXTURE_PREFIXES)
 
     message = str(raised.value)
-    delta = float(re.search(r"max per-sample \|delta\| ([0-9.eE+-]+)", message).group(1))
+    delta = float(re.search(r"Worst cell: \|delta\| ([0-9.eE+-]+)", message).group(1))
     assert delta > 100 * op.observation_continuity_tolerance(
         np.asarray([0.5] * 8, dtype=np.float16))
     # the refusal cites the measured adversary and the batching it replayed at
-    assert f"{op.R9R_MEASUREMENT['substitution_min']:.3g}" in message
+    assert f"{op.R9R_MEASUREMENT['matched_substitution_min']:.3g}" in message
     assert f"batch_rows={fx.FIXTURE_ADVISORY['batch_rows']}" in message
     assert "bit-exact" in message
 
@@ -2254,9 +2315,10 @@ def test_the_verdict_labels_dynamic_range_as_dynamic_range(tmp_path):
     assert "DYNAMIC RANGE, not detection" in tie["dynamic_range_note"]
     assert "separation_vs_span" in tie["dynamic_range_note"]        # names what it retires
     assert "separation_vs_span" not in tie
-    assert tie["measured_substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
+    assert tie["measured_substitution_min"] == \
+        op.R9R_MEASUREMENT["matched_substitution_min"]
     assert tie["measured_separation"] == pytest.approx(
-        op.R9R_MEASUREMENT["substitution_min"] / tie["tolerance"])
+        op.R9R_MEASUREMENT["matched_substitution_min"] / tie["tolerance_max"])
     assert tie["measured_separation"] > 20
 
 
@@ -2267,10 +2329,7 @@ def test_every_artifact_publishes_the_gate_and_its_margin(tmp_path):
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
-        gate={"single_shard": False,
-              "metadata_bank_expected": fixture["metadata_bank_sha256"],
-              "observation_bank_expected": fixture["observation_bank_sha256"],
-              "registered_protocol": {"is_registered": True, "deviations": {}}})
+        gate=_canonical_gate(fixture, records))
     payload = json.load(open(published["json"]))
     assert payload["tie_tolerance_note"] == op.MATCHED_BATCHING_TIE
     assert payload["tie_cost_note"] == op.MATCHED_BATCHING_TIE_COST_NOTE
@@ -2308,7 +2367,7 @@ def test_every_artifact_publishes_the_gate_and_its_margin(tmp_path):
             assert float(data["tie_aggregate_max_abs_delta"]) == 0.0
             assert bool(data["tie_float16_bit_exact"]) is True
             assert float(data["tie_measured_substitution_min"]) == pytest.approx(
-                op.R9R_MEASUREMENT["substitution_min"])
+                op.R9R_MEASUREMENT["matched_substitution_min"])
             assert float(data["tie_measured_separation"]) > 20
             assert "DYNAMIC RANGE" in str(data["tie_dynamic_range_note"])
             assert "about 10 minutes" in str(data["tie_cost_note"])
@@ -2321,10 +2380,7 @@ def test_the_tie_table_is_a_well_formed_markdown_table(tmp_path):
     published = op.write_probe_report(
         fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
         provenance={}, tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
-        gate={"single_shard": False,
-              "metadata_bank_expected": fixture["metadata_bank_sha256"],
-              "observation_bank_expected": fixture["observation_bank_sha256"],
-              "registered_protocol": {"is_registered": True, "deviations": {}}})
+        gate=_canonical_gate(fixture, records))
     markdown = open(published["markdown"]).read().split("\n")
     start = next(i for i, line in enumerate(markdown)
                  if line.startswith("## Observation-continuity tie"))
@@ -2349,6 +2405,317 @@ def test_the_run_summary_reports_the_gate_not_just_a_flag(tmp_path):
     assert sorted(summary["per_query_delta"]) == sorted(r["query_id"] for r in records)
     assert summary["min_query_cosine_span_over_delta"] > 0.0
     assert "min_separation_vs_span" not in summary
-    assert summary["measured_substitution_min"] == op.R9R_MEASUREMENT["substitution_min"]
+    assert summary["measured_substitution_min"] == \
+        op.R9R_MEASUREMENT["matched_substitution_min"]
     assert "about 10 minutes" in summary["cost_note"]
     assert "NON-GATING" in summary["changed_batching_diagnostic_note"]
+
+
+# --------------------------------------------------------------------------- #
+# r9u: the five things Codex r9t refused to admit (blockers 1, 2, 3, 5)
+# --------------------------------------------------------------------------- #
+def test_the_margin_now_comes_from_the_matched_path(tmp_path):
+    """Blocker 1: r9s quoted a margin measured on the RETIRED path."""
+    measurement = op.R9R_MEASUREMENT
+    assert measurement["matched_substitution_min"] > 0.0
+    assert measurement["n_matched_substitution_pairs"] == 85376
+    assert measurement["n_matched_donor_observations"] == 5337
+    # the retired path's number is kept, but it is not what the gate quotes
+    assert measurement["substitution_min"] != measurement["matched_substitution_min"]
+    # the gate's own note quotes the matched numbers and names what it retires
+    for phrase in ("85,376", "0.020848", "85.4x", "RETIRED", "same-receiver"):
+        assert phrase in op.MATCHED_BATCHING_TIE, phrase
+    fixture = _probe_fixture(tmp_path)
+    tie = _run(fixture)[0]["observation_continuity"]
+    assert tie["measured_substitution_min"] == measurement["matched_substitution_min"]
+    assert tie["measured_separation"] == pytest.approx(
+        measurement["matched_substitution_min"] / tie["tolerance_max"])
+
+
+def test_the_matched_margin_matches_its_own_artifact():
+    """The artifact join, on the measurement the gate's number comes from."""
+    path = next((candidate for candidate in
+                 (op.R9R_MEASUREMENT["matched_artifact"],
+                  op.R9R_MEASUREMENT["matched_artifact_mirror"])
+                 if os.path.isfile(candidate)), None)
+    if path is None:
+        pytest.skip("neither the matched-path artifact nor its tracked mirror is present")
+    published = json.load(open(path))
+    assert published["path"] == "matched_batching_whole_query_replay"
+    assert published["substitution"]["overall"]["min"] == pytest.approx(
+        op.R9R_MEASUREMENT["matched_substitution_min"], rel=1e-7)
+    assert published["substitution"]["same_receiver"]["min"] == pytest.approx(
+        op.R9R_MEASUREMENT["matched_substitution_same_receiver_min"], rel=1e-7)
+    assert published["n_donor_observations"] == \
+        op.R9R_MEASUREMENT["n_matched_donor_observations"]
+    assert published["substitution"]["n_pairs"] == \
+        op.R9R_MEASUREMENT["n_matched_substitution_pairs"]
+    assert published["substitution"]["n_pairs_undetected"] == 0
+    assert published["gate"]["ok"] is True
+    assert published["gate"]["separation_ratio"] == pytest.approx(
+        op.R9R_MEASUREMENT["matched_batching_separation"], rel=1e-6)
+    # every replay in it was bit-exact, which is the gate's own expectation
+    for query in published["queries"]:
+        assert query["float16_bit_exact"] is True
+        assert query["honest_aggregate_max_abs_delta"] == 0.0
+        assert query["n_cells_over_own_tolerance"] == 0
+
+
+def test_each_cosine_is_held_to_its_OWN_cells_bound(tmp_path):
+    """Blocker 2: r9s let a low-magnitude cell hide under the array's maximum."""
+    fixture = _probe_fixture(tmp_path)
+    for record in _run(fixture):
+        verdict = record["observation_continuity"]
+        assert verdict["per_element_gate"] is True
+        assert verdict["n_violations"] == 0
+        assert verdict["n_elements"] == record["n_candidates"] * fx.FIXTURE_SAMPLES
+        # the bound quoted beside the worst delta is THAT cell's, and the array
+        # spans a range of bounds -- which is why a scalar was wrong
+        assert verdict["tolerance_min"] <= verdict["tolerance"] <= verdict["tolerance_max"]
+        assert verdict["worst_element"]["delta"] == verdict["max_abs_delta"]
+        assert verdict["worst_element"]["tolerance"] == verdict["tolerance"]
+        assert 0 <= verdict["worst_element"]["candidate_row"] < record["n_candidates"]
+
+
+def test_a_single_cell_over_its_own_bound_refuses(tmp_path):
+    """The exact hole blocker 2 named: small cell, large array-wide tolerance."""
+    fixture = _probe_fixture(tmp_path)
+    import src.localization.meshgrid_drift_measurement as dm
+
+    real = dm.measure_matched_query
+
+    def _one_bad_cell(*args, **kwargs):
+        summary, per_candidate, deltas = real(*args, **kwargs)
+        sims = args[8] if len(args) > 8 else kwargs["sims"]
+        cells = dm.cell_half_ulp(sims)
+        # a delta that is over the SMALLEST cell's bound but far under the
+        # largest -- r9s would have passed this
+        target = np.unravel_index(int(np.argmin(cells)), cells.shape)
+        assert cells[target] < cells.max(), "the fixture needs a range of cell bounds"
+        deltas = np.array(deltas)
+        deltas[target] = float(cells[target]) * 1.5
+        assert deltas[target] < cells.max(), "the injected delta must be invisible to a scalar"
+        summary["max_abs_delta"] = float(np.abs(deltas).max())
+        return summary, per_candidate, deltas
+
+    dm.measure_matched_query = _one_bad_cell
+    try:
+        with pytest.raises(ValueError, match="outside their OWN cell"):
+            _run(fixture)
+    finally:
+        dm.measure_matched_query = real
+
+
+def test_a_float16_round_trip_mismatch_now_refuses(tmp_path):
+    """Blocker 2: r9s recorded mismatches and admitted the run anyway."""
+    fixture = _probe_fixture(tmp_path)
+    import src.localization.meshgrid_drift_measurement as dm
+
+    real = dm.measure_matched_query
+
+    def _mismatched(*args, **kwargs):
+        summary, per_candidate, deltas = real(*args, **kwargs)
+        summary["n_float16_mismatch"] = 3
+        summary["float16_bit_exact"] = False
+        return summary, per_candidate, deltas
+
+    dm.measure_matched_query = _mismatched
+    try:
+        with pytest.raises(ValueError, match="no longer round to the float16 cell"):
+            _run(fixture)
+    finally:
+        dm.measure_matched_query = real
+
+
+def test_an_absent_continuity_record_cannot_canonicalize():
+    """Blocker 3: the fail-open hole, and the test that used to pin it open."""
+    base = {"single_shard": False, "metadata_bank_expected": "a" * 64,
+            "observation_bank_expected": "b" * 64,
+            "registered_protocol": {"is_registered": True, "deviations": {}},
+            "launch_record": {"sha256": "c" * 64}, "retrieval_handoff": {"sha256": "d" * 64}}
+    for missing in ({}, {"observation_continuity": None}, {"observation_continuity": {}}):
+        status = op.probe_canonical_status(dict(base, **missing))
+        assert status["canonical"] is False
+        assert "observation_continuity" in [reason["gate"] for reason in status["reasons"]]
+    # a PARTIAL record is refused too: sixteen queries, four ties
+    partial = op.probe_canonical_status(dict(base, observation_continuity={
+        "ok": True, "checked": 4, "n_expected": 16,
+        "per_query_delta": {str(i): 0.0 for i in range(4)}}))
+    assert partial["canonical"] is False
+    assert "covers 4 of 16" in [reason["why"] for reason in partial["reasons"]][0]
+    # ... and one whose own counts disagree
+    inconsistent = op.probe_canonical_status(dict(base, observation_continuity={
+        "ok": True, "checked": 16, "n_expected": 16,
+        "per_query_delta": {str(i): 0.0 for i in range(15)}}))
+    assert inconsistent["canonical"] is False
+    # a COMPLETE record canonicalizes
+    complete = op.probe_canonical_status(dict(base, observation_continuity={
+        "ok": True, "checked": 16, "n_expected": 16,
+        "per_query_delta": {str(i): 0.0 for i in range(16)}}))
+    assert complete["canonical"] is True
+
+
+def test_the_run_summary_states_what_complete_means(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    summary = records[0]["observation_continuity_summary"]
+    assert summary["n_expected"] == len(records)
+    assert summary["checked"] == summary["n_expected"]
+    assert sorted(summary["queries"]) == sorted(record["query_id"] for record in records)
+    assert op.probe_canonical_status(
+        {"single_shard": False, "metadata_bank_expected": "a" * 64,
+         "observation_bank_expected": "b" * 64,
+         "registered_protocol": {"is_registered": True, "deviations": {}},
+         "launch_record": {"sha256": "c" * 64}, "retrieval_handoff": {"sha256": "d" * 64},
+         "observation_continuity": summary})["canonical"] is True
+
+
+# --------------------------------------------------------------------------- #
+# r9u item D: launch provenance and the §2 reconciliation
+# --------------------------------------------------------------------------- #
+def _launch_record(tmp_path, argv, **overrides):
+    record = {"argv": list(argv), "git_sha": "a" * 40, "hostname": "neuronic",
+              "gpus": [{"index": 0, "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e",
+                        "name": "NVIDIA RTX A6000"}],
+              "git_status_dirty": False, "recorded_utc": "2026-08-29T01:00:00+00:00"}
+    record.update(overrides)
+    path = str(tmp_path / "launch.json")
+    me.write_json(path, record)
+    return path, record
+
+
+def test_the_launch_record_is_written_from_the_command_it_describes(tmp_path):
+    argv = ["--run-dir", "x", "--emit-launch-record", str(tmp_path / "l.json"), "--device",
+            "cuda:0"]
+    record = op.write_launch_record(str(tmp_path / "l.json"), argv)
+    # the flag pair is stripped, so the record describes the RUN, not the emit
+    assert record["argv"] == ["--run-dir", "x", "--device", "cuda:0"]
+    assert record["hostname"]
+    assert "recorded_utc" in record and "note" in record
+    assert op.strip_launch_flags(["--launch-record=z", "--a", "b"]) == ["--a", "b"]
+
+
+def test_a_launch_record_for_a_different_command_is_refused(tmp_path):
+    argv = ["--run-dir", "x", "--launch-record", "l.json"]
+    path, _record = _launch_record(tmp_path, ["--run-dir", "OTHER"])
+    with pytest.raises(ValueError, match="written for a different command"):
+        op.read_verified_launch_record(path, argv)
+    # the same command, with the flag pair on either side, verifies
+    path, _record = _launch_record(tmp_path, ["--run-dir", "x"])
+    verified = op.read_verified_launch_record(path, argv)
+    assert verified["sha256"] == me.file_sha256(path)
+    assert verified["git_sha"] == "a" * 40
+
+
+def test_a_launch_record_without_physical_gpu_identity_is_refused(tmp_path):
+    argv = ["--run-dir", "x"]
+    for broken, match in (
+            ({"gpus": []}, "is missing"),
+            ({"gpus": [{"index": 0, "uuid": "0"}]}, "not nvidia-smi UUIDs"),
+            ({"git_sha": "abc"}, "not a full"),
+            ({"hostname": ""}, "is missing")):
+        path, _record = _launch_record(tmp_path, argv, **broken)
+        with pytest.raises(ValueError, match=match):
+            op.read_verified_launch_record(path, argv)
+
+
+def test_a_launch_record_that_does_not_cover_the_device_is_refused(tmp_path):
+    argv = ["--run-dir", "x"]
+    path, _record = _launch_record(tmp_path, argv)
+    assert op.read_verified_launch_record(path, argv, device="cuda:0")["hostname"] == "neuronic"
+    with pytest.raises(ValueError, match="does not cover the card"):
+        op.read_verified_launch_record(path, argv, device="cuda:1")
+
+
+def test_the_retrieval_entry_reports_the_siblings_own_status(tmp_path):
+    """Blocker 5: the bundle said 'run pending' beside a canonical retrieval run."""
+    handoff = {"control_key": "agree_oracle_retrieval_over_the_metadata_bank",
+               "status": "run (canonical)", "canonical": True,
+               "report_json": "retrieval_control_report.json",
+               "report_sha256": "e" * 64,
+               "headline": {"median_e_loc": {"point": 1.943, "ci_lo": 1.177, "ci_hi": 2.920},
+                            "median_e_excess": {"point": 0.313, "ci_lo": 0.156, "ci_hi": 0.521},
+                            "success_raw@1.0": {"point": 0.332, "ci_lo": 0.158, "ci_hi": 0.513}}}
+    path = str(tmp_path / op.RETRIEVAL_HANDOFF_FILENAME)
+    me.write_json(path, handoff)
+    read = op.read_retrieval_handoff(path)
+    assert read["sha256"] == me.file_sha256(path)
+    controls = op.reconcile_controls_elsewhere(read)
+    entry = controls["agree_oracle_retrieval_over_the_metadata_bank"]
+    assert "run pending" not in entry
+    assert "run (canonical)" in entry and "CANONICAL" in entry
+    assert "median_e_loc 1.943 m" in entry and "eeeeeeeeeeee..." in entry
+    assert "never the dense grid" in entry
+    # with no handoff the entry says so instead of asserting a stale status
+    silent = op.reconcile_controls_elsewhere(None)[
+        "agree_oracle_retrieval_over_the_metadata_bank"]
+    assert "STATUS NOT RECONCILED" in silent and "run pending" not in silent
+
+
+def test_a_handoff_for_another_control_is_refused(tmp_path):
+    path = str(tmp_path / "other.json")
+    me.write_json(path, {"control_key": "something_else", "status": "run", "canonical": True})
+    with pytest.raises(ValueError, match="not this .2 control's handoff"):
+        op.reconcile_controls_elsewhere(op.read_retrieval_handoff(path))
+    me.write_json(path, {"status": "run", "canonical": True})
+    with pytest.raises(ValueError, match="does not state 'control_key'"):
+        op.read_retrieval_handoff(path)
+
+
+def test_provenance_absence_blocks_canonical_admission():
+    base = {"single_shard": False, "metadata_bank_expected": "a" * 64,
+            "observation_bank_expected": "b" * 64,
+            "registered_protocol": {"is_registered": True, "deviations": {}},
+            "observation_continuity": {"ok": True, "checked": 16, "n_expected": 16,
+                                       "per_query_delta": {str(i): 0.0 for i in range(16)}}}
+    for missing, gate_name in (("launch_record", "launch_record"),
+                               ("retrieval_handoff", "retrieval_handoff")):
+        gate = dict(base, launch_record={"sha256": "c" * 64},
+                    retrieval_handoff={"sha256": "d" * 64})
+        gate[missing] = None
+        status = op.probe_canonical_status(gate)
+        assert status["canonical"] is False
+        assert gate_name in [reason["gate"] for reason in status["reasons"]]
+
+
+def test_the_cli_requires_both_provenance_surfaces_for_a_canonical_run(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    args = _gate_args(fixture)
+    for flag in ("launch_record", "retrieval_handoff"):
+        setattr(args, flag, "present")
+    setattr(args, "emit_launch_record", None)
+    assert op.validate_args(args) is True
+    for flag, match in (("launch_record", "requires --launch-record"),
+                        ("retrieval_handoff", "requires --retrieval-handoff")):
+        broken = _gate_args(fixture)
+        setattr(broken, "emit_launch_record", None)
+        setattr(broken, "launch_record", "present")
+        setattr(broken, "retrieval_handoff", "present")
+        setattr(broken, flag, None)
+        with pytest.raises(SystemExit, match=match):
+            op.validate_args(broken)
+
+
+def test_the_report_carries_the_provenance_and_the_reconciliation(tmp_path):
+    fixture = _probe_fixture(tmp_path)
+    records = _run(fixture)
+    handoff = {"path": "h.json", "sha256": "e" * 64,
+               "control_key": "agree_oracle_retrieval_over_the_metadata_bank",
+               "status": "run (canonical)", "canonical": True,
+               "report_json": "retrieval_control_report.json", "report_sha256": "f" * 64,
+               "headline": {"median_e_loc": {"point": 1.943, "ci_lo": 1.177, "ci_hi": 2.92}}}
+    published = op.write_probe_report(
+        fixture["out_dir"], records, fixture["binding"], fixture["binding_sha256"],
+        provenance={"launch_record": {"sha256": "c" * 64, "git_sha": "a" * 40,
+                                      "hostname": "neuronic"},
+                    "retrieval_handoff": handoff},
+        tau=fx.FIXTURE_TAU, prefixes=fx.FIXTURE_PREFIXES,
+        controls_elsewhere=op.reconcile_controls_elsewhere(handoff))
+    payload = json.load(open(published["json"]))
+    assert payload["provenance"]["launch_record"]["git_sha"] == "a" * 40
+    assert payload["provenance"]["retrieval_handoff"]["sha256"] == "e" * 64
+    assert payload["launch_record_note"] == op.LAUNCH_RECORD_NOTE
+    assert payload["retrieval_reconciliation_note"] == op.RETRIEVAL_RECONCILIATION_NOTE
+    entry = payload["controls_elsewhere"]["agree_oracle_retrieval_over_the_metadata_bank"]
+    assert "run pending" not in entry and "run (canonical)" in entry
+    assert "run pending" not in open(published["markdown"]).read()

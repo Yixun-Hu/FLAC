@@ -137,6 +137,216 @@ OBSERVATION_BINDING_NOTE = (
     "those bytes decoded to is the one the frozen rows were scored against -- a byte-identical "
     "file loaded through a changed crop or sample rate passes the pin and fails the tie")
 
+#: the §2 sibling this report must not contradict (Codex r9t blocker 5).
+RETRIEVAL_HANDOFF_FILENAME = "retrieval_control_handoff.json"
+
+RETRIEVAL_RECONCILIATION_NOTE = (
+    "§2 COMPLETENESS. The sparse-bank AGREE retrieval control is a different tool with its own "
+    "run, so this report cannot know its status by inspection -- and r9s shipped a bundle whose "
+    "off-grid report still asserted a stale pending status while the retrieval report declared a "
+    "canonical "
+    "run (Codex r9t blocker 5). A canonical off-grid control therefore requires that control's "
+    "own retrieval_control_handoff.json, reads its status, canonicality and headline out of it, "
+    "and records the handoff's digest, so the two halves of the bundle cannot disagree about "
+    "whether §2 is complete")
+
+#: the launch provenance the SOP requires to exist AT LAUNCH, not afterwards.
+LAUNCH_RECORD_FIELDS = ("argv", "git_sha", "hostname", "gpus")
+
+LAUNCH_RECORD_NOTE = (
+    "LAUNCH PROVENANCE (experiment_SOP.md:37, Codex r9t blocker 4). Logical CUDA indices and "
+    "input digests do not say which machine, which commit or which physical card produced a "
+    "result. A canonical run requires a launch record written BEFORE it starts -- exact argv, "
+    "the repository's git SHA, the hostname and the nvidia-smi UUID of every visible GPU -- and "
+    "its sha256 is hashed into this report's provenance. Produce it with the very command you "
+    "are about to run: replace --launch-record PATH with --emit-launch-record PATH, which writes "
+    "the record and exits, then run the same command with --launch-record PATH. The recorded "
+    "argv is compared against the run's own argv, so a record written for a different command "
+    "refuses rather than vouching for this one")
+
+
+def build_launch_record(argv, *, emit_flag="--emit-launch-record",
+                        record_flag="--launch-record"):
+    """Everything SOP:37 wants, gathered from the machine that is about to run.
+
+    ``argv`` is stored with the emit/record flag pair stripped, so the record
+    written by ``--emit-launch-record PATH`` describes exactly the run that
+    ``--launch-record PATH`` then performs.
+    """
+    import platform
+    import subprocess
+
+    def _capture(command):
+        try:
+            done = subprocess.run(command, capture_output=True, text=True, timeout=60,
+                                  check=False)
+        except (OSError, subprocess.SubprocessError):            # noqa: BLE001 -- recorded
+            return None
+        return done.stdout.strip() if done.returncode == 0 else None
+
+    gpus = []
+    listed = _capture(["nvidia-smi", "--query-gpu=index,uuid,name", "--format=csv,noheader"])
+    for line in (listed or "").splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) >= 2 and parts[0].isdigit():
+            gpus.append({"index": int(parts[0]), "uuid": parts[1],
+                         "name": parts[2] if len(parts) > 2 else None})
+    return {"argv": strip_launch_flags(argv, flags=(emit_flag, record_flag)),
+            "git_sha": _capture(["git", "rev-parse", "HEAD"]),
+            "git_status_dirty": bool(_capture(["git", "status", "--porcelain"])),
+            "hostname": platform.node(),
+            "gpus": gpus,
+            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+            "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "note": LAUNCH_RECORD_NOTE}
+
+
+def strip_launch_flags(argv, flags=("--emit-launch-record", "--launch-record")):
+    """``argv`` without the launch-record flag and its value."""
+    out, skip = [], False
+    for token in [str(item) for item in (argv or [])]:
+        if skip:
+            skip = False
+            continue
+        if token in flags:
+            skip = True
+            continue
+        if any(token.startswith(f"{flag}=") for flag in flags):
+            continue
+        out.append(token)
+    return out
+
+
+def write_launch_record(path, argv):
+    record = build_launch_record(argv)
+    me.write_json(str(path), record)
+    return record
+
+
+def read_verified_launch_record(path, argv, device=None):
+    """ONE read: hash the bytes, parse the same buffer, then hold it to the run.
+
+    A record that names a different command, a different machine's GPUs or no
+    GPU at all is refused rather than recorded: the point of the field is that
+    it identifies the physical run, so an unusable value is worse than none.
+    """
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as error:            # noqa: BLE001 -- a refusal
+        raise ValueError(f"the launch record at {path!r} is not readable JSON: {error}. "
+                         f"{LAUNCH_RECORD_NOTE}") from error
+    missing = [field for field in LAUNCH_RECORD_FIELDS if not record.get(field)]
+    if missing:
+        raise ValueError(f"the launch record at {path!r} is missing {missing}; SOP:37 wants the "
+                         f"exact command, the source SHA, the host and the physical GPU "
+                         f"identity. {LAUNCH_RECORD_NOTE}")
+    if len(str(record["git_sha"])) != 40:
+        raise ValueError(f"the launch record's git_sha {record['git_sha']!r} is not a full "
+                         f"40-character commit id; a short or absent SHA does not identify the "
+                         f"code that ran. {LAUNCH_RECORD_NOTE}")
+    recorded = [str(token) for token in record["argv"]]
+    running = strip_launch_flags(argv)
+    if recorded != running:
+        raise ValueError(
+            f"the launch record at {path!r} was written for a different command: it records "
+            f"{recorded[:6]}... and this run is {running[:6]}.... A record that does not describe "
+            f"this invocation vouches for nothing. {LAUNCH_RECORD_NOTE}")
+    uuids = [str(gpu.get("uuid") or "") for gpu in record["gpus"]]
+    if not all(uuid.startswith("GPU-") for uuid in uuids):
+        raise ValueError(f"the launch record's GPU entries {uuids[:3]} are not nvidia-smi UUIDs; "
+                         f"a logical index does not identify a physical card. {LAUNCH_RECORD_NOTE}")
+    if device is not None and str(device).startswith("cuda"):
+        wanted = int(str(device).split(":")[-1]) if ":" in str(device) else 0
+        if wanted not in {int(gpu.get("index", -1)) for gpu in record["gpus"]}:
+            raise ValueError(
+                f"this run is on {device!r} but the launch record lists GPU indices "
+                f"{sorted(int(gpu.get('index', -1)) for gpu in record['gpus'])}; the record does "
+                f"not cover the card the run used. {LAUNCH_RECORD_NOTE}")
+    return {"path": str(path), "sha256": digest, "n_bytes": len(raw),
+            "argv": recorded, "git_sha": str(record["git_sha"]),
+            "git_status_dirty": bool(record.get("git_status_dirty")),
+            "hostname": str(record["hostname"]),
+            "gpus": record["gpus"],
+            "cuda_visible_devices": record.get("cuda_visible_devices"),
+            "recorded_utc": record.get("recorded_utc"),
+            "note": LAUNCH_RECORD_NOTE}
+
+
+def read_retrieval_handoff(path):
+    """The sibling control's own handoff -- one read, hashed and parsed together."""
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as error:            # noqa: BLE001 -- a refusal
+        raise ValueError(f"the retrieval handoff at {path!r} is not readable JSON: {error}. "
+                         f"{RETRIEVAL_RECONCILIATION_NOTE}") from error
+    for field in ("control_key", "status", "canonical"):
+        if payload.get(field) is None:
+            raise ValueError(f"the retrieval handoff at {path!r} does not state {field!r}; this "
+                             f"report cannot reconcile §2 completeness against it. "
+                             f"{RETRIEVAL_RECONCILIATION_NOTE}")
+    return {"path": str(path), "sha256": digest,
+            "control_key": str(payload["control_key"]),
+            "status": str(payload["status"]),
+            "canonical": bool(payload["canonical"]),
+            "headline": payload.get("headline") or {},
+            "report_json": payload.get("report_json"),
+            "report_sha256": payload.get("report_sha256"),
+            "created_utc": payload.get("created_utc"),
+            "note": RETRIEVAL_RECONCILIATION_NOTE}
+
+
+def _headline_phrase(headline, key, digits=3, unit=""):
+    entry = (headline or {}).get(key) or {}
+    if entry.get("point") is None:
+        return None
+    return (f"{key} {float(entry['point']):.{digits}f}{unit} "
+            f"[{float(entry.get('ci_lo', float('nan'))):.{digits}f}, "
+            f"{float(entry.get('ci_hi', float('nan'))):.{digits}f}]")
+
+
+def reconcile_controls_elsewhere(handoff=None, base=None):
+    """``CONTROLS_ELSEWHERE`` with the retrieval entry told the truth.
+
+    With a handoff the entry names that control's status, canonicality, headline
+    and report digest; without one it says plainly that this report was not given
+    the sibling's status, instead of asserting a stale "run pending" (Codex r9t
+    blocker 5).
+    """
+    controls = dict(base if base is not None else mr.CONTROLS_ELSEWHERE)
+    key = "agree_oracle_retrieval_over_the_metadata_bank"
+    original = controls.get(key, "")
+    prefix = original.split(" -- ", 1)[0] if " -- " in original else key
+    if handoff is None:
+        controls[key] = (f"{prefix} -- STATUS NOT RECONCILED: this run was given no "
+                         f"{RETRIEVAL_HANDOFF_FILENAME}, so it does not state whether §2's "
+                         f"retrieval control has run. {RETRIEVAL_RECONCILIATION_NOTE}")
+        return controls
+    if str(handoff.get("control_key")) != key:
+        raise ValueError(f"the handoff describes {handoff.get('control_key')!r}, not {key!r}; "
+                         f"it is not this §2 control's handoff. "
+                         f"{RETRIEVAL_RECONCILIATION_NOTE}")
+    phrases = [phrase for phrase in
+               (_headline_phrase(handoff["headline"], "median_e_loc", unit=" m"),
+                _headline_phrase(handoff["headline"], "median_e_excess", unit=" m"),
+                _headline_phrase(handoff["headline"], "success_raw@1.0"))
+               if phrase]
+    controls[key] = (
+        f"{prefix} -- {handoff['status']}"
+        f"{' (CANONICAL)' if handoff['canonical'] else ' (NOT canonical)'}"
+        f", reported in {handoff.get('report_json')} "
+        f"[{str(handoff.get('report_sha256'))[:12]}...]"
+        + (f": {'; '.join(phrases)}" if phrases else "")
+        + ". Its candidate set is the sparse metadata bank, never the dense grid, so its oracle "
+          "floor is its own and its numbers are never comparable to this report's")
+    return controls
+
+
 #: how the observation bank is pre-registered, stated the way the metadata bank's is.
 OBSERVATION_BANK_PREREGISTRATION_NOTE = (
     "compute the digest with `python -m src.localization.meshgrid_offgrid_probe "
@@ -577,10 +787,34 @@ R9R_MEASUREMENT = {
     "matched_max_abs_delta": 2.440810203552246e-4,
     "matched_max_abs_aggregate_delta": 0.0,
     "matched_float16_bit_exact": True,
-    # (3) what a substituted observation actually moves
+    # (3) what a substituted observation moves on the RETIRED path. Kept as the
+    # diagnostic's own reference; it is NOT the matched gate's margin, which is
+    # what r9s wrongly quoted from it (Codex r9t blocker 1)
     "substitution_min": 6.668746471405029e-3,
     "substitution_median": 0.569884,
     "substitution_max": 1.409295,
+    # (3b) r9u: the margin MEASURED ON THE GATE'S OWN PATH. Each of the sixteen
+    # registered probe queries replayed once at its row's stamped batching, its
+    # generated embeddings cached, and every other in-scope query's observation
+    # scored against them -- 85,376 ordered pairs, including 5,321 same-room and
+    # 143 same-receiver ones, which the sixteen-query set alone could not supply.
+    # Artifact: matched_substitution_measurement.json; log
+    # loc_meshgrid_2026-08-29_01:51:30_r9u_matched_substitution.log
+    "matched_artifact": "outputs_loc/exp22/r9r_drift_measurement/matched_substitution/"
+                        "matched_substitution_measurement.json",
+    # the tracked mirror, so the join below survives a fresh checkout. Same
+    # distributions; only the 85,376 raw pair records are left in outputs_loc
+    "matched_artifact_mirror": "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/"
+                               "r9r_drift_measurement/matched_substitution_measurement.json",
+    "n_matched_substitution_pairs": 85376,
+    "n_matched_donor_observations": 5337,
+    "matched_substitution_min": 2.0847943e-2,
+    "matched_substitution_median": 0.630453,
+    "matched_substitution_max": 1.465234,
+    "matched_substitution_same_room_min": 2.0847943e-2,
+    "matched_substitution_same_receiver_min": 0.181648567,
+    "n_matched_substitution_undetected": 0,
+    "matched_replay_wall_seconds": 663,
     # (4) and therefore
     "candidate_bound_at_safety_1_5": 5.3e-3,
     "separation_of_candidate_bound": 1.3,
@@ -588,8 +822,10 @@ R9R_MEASUREMENT = {
     # r9r's verdict on the CHANGED-batching bound: it could not be established,
     # which is what sent the gate to matched batching (r9s, RULING 3)
     "changed_batching_bound_established": False,
-    # ... and the gate that WAS adoptable, on the same measurement
-    "matched_batching_separation": 27.3,
+    # ... and the gate that IS adoptable, measured on its own path in r9u:
+    # 0.020848 / 2.44140625e-4
+    "matched_batching_separation": 85.393173,
+    "matched_batching_tolerance": 2.44140625e-4,
 }
 
 #: THE GATE (r9s, Planner RULING 3). Adopted on the r9r measurement's evidence.
@@ -619,13 +855,20 @@ R9R_MEASUREMENT = {
 #: to 3.63e-3 and aggregates by up to 1.16e-3 (past ``SCORE_TOLERANCE`` on 4 of
 #: 256), which is why that path is now a diagnostic and not the gate.
 #:
-#: DETECTION POWER, measured rather than argued: over 8,064 ordered
-#: substituted-observation pairs the closest adversary moves the tie by 6.67e-3
-#: -- two receivers of one room (Office_idx_11). Against a half-ulp tolerance of
-#: 2.44e-4 that is a **27x separation**, where the old changed-batching bound
-#: could only have managed 1.3x. That ratio is what made this gate adoptable and
-#: the other one not.
-#:
+#: DETECTION POWER, measured ON THIS PATH (r9u, Codex r9t blocker 1). r9s quoted
+#: a margin that r9r had measured against generations from the RETIRED
+#: single-candidate path; agreement between two paths on the RIGHT observation
+#: bounds nothing about the WRONG one, so the number was re-measured where the
+#: gate lives. Each of the sixteen probe queries was replayed once at its row's
+#: own batching, its generated embeddings cached, and every other in-scope
+#: query's observation scored against them: 85,376 ordered pairs against 5,337
+#: donor observations -- including 5,321 same-room and 143 SAME-RECEIVER ones,
+#: which the sixteen-query set alone could never have supplied. The closest
+#: adversary moves the gate's comparison by 0.020848 (same room; the closest
+#: same-receiver one by 0.1816), against a most-permissive cell tolerance of
+#: 2.44e-4: a **85.4x separation**, and every one of the 85,376 pairs is caught
+#: ELEMENTWISE, the sparsest by 206 cells. The retired path's 6.67e-3 is kept
+#: only as that diagnostic's own reference.
 #: COST: the replay generates every candidate of each probe query, ~10 minutes
 #: for the sixteen (the run's own throughput; Cafe's 5,295 candidates dominate).
 #: It is stamped into the report so nobody has to rediscover it.
@@ -641,9 +884,14 @@ MATCHED_BATCHING_TIE = (
     "devices -- 11,577 candidates, 92,616 waveforms -- and was bit-exact on every one, while the "
     "superseded single-candidate path at a batch shape the run never used moved cosines by up to "
     "3.63e-3 and aggregates past SCORE_TOLERANCE on 4 of 256 measurements. Detection power is "
-    "measured, not asserted: the closest of 8,064 ordered substituted-observation pairs moves "
-    "the tie by 6.67e-3, which is 27x this tolerance. Distributions: "
-    "outputs_loc/exp22/r9r_drift_measurement/merged/ (mirrored to "
+    "measured ON THIS PATH (r9u): the sixteen replays' generated embeddings were cached and "
+    "scored against every other in-scope query's observation -- 85,376 ordered pairs over 5,337 "
+    "donors, 5,321 of them same-room and 143 same-receiver -- and the closest adversary moves "
+    "the gate's comparison by 0.020848 against a 2.44e-4 tolerance, a 85.4x separation with "
+    "every pair caught elementwise. r9s quoted 6.67e-3/27x from the RETIRED path's generations, "
+    "which bounded nothing about this gate (Codex r9t blocker 1). Distributions: "
+    "outputs_loc/exp22/r9r_drift_measurement/matched_substitution/ and the retired path's under "
+    "../merged/ (mirrored to "
     "worklog/worklog_yixun/exp_22_loc_meshgrid_claude/r9r_drift_measurement/)")
 
 #: what the gate costs, stamped so the operator is not surprised by it.
@@ -820,28 +1068,45 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
     num_samples = int(num_samples)
     batch_rows, row_source_chunk = row_batching(row)
 
-    summary, per_candidate, _deltas = dm.measure_matched_query(
+    summary, per_candidate, deltas = dm.measure_matched_query(
         engine, query, md, context, receiver_id, union, positions_cam, row, sims, obs_embedding,
         seed=seed, num_samples=num_samples, noise_policy=noise_policy, batch_rows=batch_rows,
         source_chunk=row_source_chunk, tau=tau, candidate_rows=(candidate_row,))
 
     stored = np.asarray(sims, dtype=np.float16)[candidate_row, :num_samples]
     headline = per_candidate[0]
-    delta = float(summary["max_abs_delta"])
-    # the delta is over the WHOLE replayed array, so the bound is the half-ulp
-    # over the whole sidecar -- taken from the public helper rather than the
-    # replay's own copy, so there is one definition of the tolerance
-    tolerance = observation_continuity_tolerance(sims)
-    if tolerance != float(summary["sidecar_half_ulp"]):
-        raise ValueError(f"{query.query_id}: the tie's tolerance ({tolerance!r}) and the replay's "
-                         f"sidecar half-ulp ({summary['sidecar_half_ulp']!r}) disagree; they are "
-                         "the same quantity and a divergence means one of them is not this "
-                         "query's sidecar")
+    deltas = np.asarray(deltas, dtype=np.float64)
+    # PER ELEMENT (Codex r9t blocker 2). r9s compared the query-wide maximum
+    # delta against a query-wide maximum half-ulp, so a low-magnitude cell --
+    # whose own float16 gap can be a thousand times smaller -- could cross its
+    # cell and still pass under some other cell's larger bound. Every cosine is
+    # now held to the gap of the cell it is compared against.
+    cell_tolerance = dm.cell_half_ulp(sims)
+    if cell_tolerance.shape != deltas.shape:
+        raise ValueError(f"{query.query_id}: the replay is {deltas.shape} and the sidecar's "
+                         f"per-cell bounds are {cell_tolerance.shape}; they are not the same "
+                         "array and the gate would compare the wrong cells")
+    violations = deltas > cell_tolerance
+    n_violations = int(violations.sum())
+    delta = float(deltas.max())
+    worst = np.unravel_index(int(np.argmax(deltas)), deltas.shape)
+    # the bound reported beside the worst delta is that CELL's bound, not the
+    # array's maximum, so "max_abs_delta <= tolerance" reads about one cell
+    tolerance = float(cell_tolerance[worst])
+    headroom = float((cell_tolerance - deltas).min())
+    if float(cell_tolerance.max()) != float(summary["sidecar_half_ulp"]):
+        raise ValueError(f"{query.query_id}: the tie's per-cell bounds top out at "
+                         f"{float(cell_tolerance.max())!r} but the replay's sidecar half-ulp is "
+                         f"{summary['sidecar_half_ulp']!r}; they are the same quantity and a "
+                         "divergence means one of them is not this query's sidecar")
     aggregate_delta = float(summary["aggregate"]["max_abs_delta"])
-    # the two criteria fail differently, so they are decided separately: the
-    # per-sample one can only ever see float16 rounding, while the aggregate
-    # comparison is float32 against float32 and has no rounding to hide in
-    within = bool(delta <= tolerance)
+    # three criteria, decided separately because they fail differently: the
+    # per-cell one sees float16 rounding, the float16 round-trip sees a value
+    # that no longer rounds to the stored cell at all -- which r9s recorded but
+    # did not gate on (blocker 2) -- and the aggregate comparison is float32
+    # against float32, with no rounding to hide in
+    within = bool(n_violations == 0)
+    bit_exact = bool(int(summary["n_float16_mismatch"]) == 0)
     exact = bool(aggregate_delta == 0.0)
 
     # the query's own cosine span is DYNAMIC RANGE, not detection evidence: it
@@ -852,14 +1117,23 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
     # the real detection margin comes from the r9r measurement
     whole = np.asarray(sims, dtype=np.float64)
     span = float(whole.max() - whole.min())
-    verdict = {"ok": bool(within and exact),
+    verdict = {"ok": bool(within and bit_exact and exact),
                "within_tolerance": within,
+               "float16_round_trip_exact": bit_exact,
                "aggregate_exact": exact,
-               "refused": bool(not (within and exact)),
+               "refused": bool(not (within and bit_exact and exact)),
                "gate": "matched_batching_replay",
+               "per_element_gate": True,
                "max_abs_delta": delta,
                "tolerance": tolerance,
-               "headroom": float(tolerance - delta),
+               "tolerance_max": float(cell_tolerance.max()),
+               "tolerance_min": float(cell_tolerance.min()),
+               "headroom": headroom,
+               "n_elements": int(deltas.size),
+               "n_violations": n_violations,
+               "worst_element": {"candidate_row": int(worst[0]), "sample": int(worst[1]),
+                                 "delta": delta, "tolerance": tolerance,
+                                 "stored": float(np.asarray(sims, dtype=np.float16)[worst])},
                "aggregate_max_abs_delta": aggregate_delta,
                "float16_bit_exact": bool(summary["float16_bit_exact"]),
                "n_float16_mismatch": int(summary["n_float16_mismatch"]),
@@ -873,9 +1147,11 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
                "query_cosine_span_over_delta": (float(span / delta) if delta > 0
                                                 else float("inf")),
                "dynamic_range_note": DYNAMIC_RANGE_NOTE,
-               "measured_substitution_min": float(R9R_MEASUREMENT["substitution_min"]),
-               "measured_separation": (float(R9R_MEASUREMENT["substitution_min"] / tolerance)
-                                       if tolerance > 0 else float("inf")),
+               "measured_substitution_min": float(R9R_MEASUREMENT["matched_substitution_min"]),
+               "measured_separation": (
+                   float(R9R_MEASUREMENT["matched_substitution_min"]
+                         / float(cell_tolerance.max())) if cell_tolerance.max() > 0
+                   else float("inf")),
                "k": int(largest),
                "candidate_index": candidate_index, "candidate_row": candidate_row,
                "num_samples": num_samples,
@@ -890,18 +1166,25 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
             seed=seed, num_samples=num_samples, noise_policy=noise_policy,
             source_chunk=source_chunk)
     if not verdict["ok"]:
-        failed = ("its per-sample cosines" if not within else
-                  "its float32 aggregate score")
+        failed = ", ".join(
+            reason for reason, broken in (
+                (f"{n_violations} of {deltas.size} cosines are outside their OWN cell's float16 "
+                 "half-ulp", not within),
+                (f"{summary['n_float16_mismatch']} cosines no longer round to the float16 cell "
+                 "the sidecar stores", not bit_exact),
+                ("the float32 aggregate score differs from the row's published value",
+                 not exact)) if broken)
         raise ValueError(
             f"{query.query_id}: replayed at the row's OWN batching (batch_rows={batch_rows}, "
             f"source_chunk={row_source_chunk}) over all {summary['n_candidates']} candidates, "
-            f"this observation does not reproduce what the frozen row published -- {failed} "
-            f"differ: max per-sample |delta| {delta:.3g} against the sidecar's half-ulp "
-            f"{tolerance:.3g}, max aggregate |delta| {aggregate_delta:.3g} against an exact 0. "
-            f"At matched batching the computation is bit-exact (r9r: 11,577 candidates, zero "
-            f"exceptions), so this is not numerical noise. The closest measured substituted "
-            f"observation moves the tie by {R9R_MEASUREMENT['substitution_min']:.3g}, 27x this "
-            f"tolerance. s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here "
+            f"this observation does not reproduce what the frozen row published -- {failed}. "
+            f"Worst cell: |delta| {delta:.3g} against its own bound {tolerance:.3g} (row "
+            f"{int(worst[0])}, sample {int(worst[1])}); max aggregate |delta| "
+            f"{aggregate_delta:.3g} against an exact 0. At matched batching the computation is "
+            f"bit-exact (r9r: 11,577 candidates, zero exceptions), so this is not numerical "
+            f"noise. The closest measured substituted observation moves the tie by "
+            f"{R9R_MEASUREMENT['matched_substitution_min']:.3g} on this same path. "
+            f"s[x, k] = cos(E(h_obs), E(h_hat)), so the observation being scored here "
             f"is not the observation those rows were scored against. {OBSERVATION_BINDING_NOTE}")
     return verdict
 
@@ -1069,7 +1352,7 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  tie_dynamic_range_note=np.array(DYNAMIC_RANGE_NOTE),
                  # the MEASURED detection margin and where the bound stands
                  tie_measured_substitution_min=np.array(
-                     float(R9R_MEASUREMENT["substitution_min"])),
+                     float(R9R_MEASUREMENT["matched_substitution_min"])),
                  tie_measured_separation=np.array(float((continuity or {}).get(
                      "measured_separation", float("nan")))),
                  tie_gate=np.array("matched_batching_replay"),
@@ -1252,6 +1535,7 @@ PUBLICATION_GATE_FIELDS = ("census", "identity_join", "merge", "derived", "batch
                            "metadata_bank", "metadata_bank_sha256", "metadata_bank_expected",
                            "observation_continuity", "observation_bank",
                            "observation_bank_sha256", "observation_bank_expected",
+                           "launch_record", "retrieval_handoff",
                            "non_canonical", "non_canonical_declared")
 
 
@@ -1309,11 +1593,39 @@ def probe_canonical_status(gate):
         reasons.append({"gate": "observation_bank",
                         "why": "no pre-registered observed-RIR bank digest was supplied",
                         "note": OBSERVATION_BANK_PREREGISTRATION_NOTE})
-    if gate.get("observation_continuity") and not gate["observation_continuity"].get("ok", True):
+    # FAIL-CLOSED PRESENCE (Codex r9t blocker 3). r9s refused only when the
+    # record was present AND said ok is False, so an absent, empty or partial
+    # continuity result canonicalized -- the one shape a broken run is most
+    # likely to produce. A canonical control now requires a COMPLETE record: one
+    # tie verdict per probe query, all of them ok.
+    continuity = gate.get("observation_continuity")
+    if not isinstance(continuity, dict) or not continuity:
         reasons.append({"gate": "observation_continuity",
-                        "why": gate["observation_continuity"].get(
+                        "why": "no observation-continuity record was published, so nothing ties "
+                               "the loaded observation to the frozen rows this control ranks "
+                               "against",
+                        "note": OBSERVATION_BINDING_NOTE})
+    elif not continuity.get("ok", False):
+        reasons.append({"gate": "observation_continuity",
+                        "why": continuity.get(
                             "why", "the live observation could not be tied to the frozen rows"),
                         "note": OBSERVATION_BINDING_NOTE})
+    else:
+        checked = int(continuity.get("checked") or 0)
+        expected = int(continuity.get("n_expected") or 0)
+        if not expected or checked != expected:
+            reasons.append({"gate": "observation_continuity",
+                            "why": f"the continuity record covers {checked} of "
+                                   f"{expected or 'an unstated number of'} probe queries; a "
+                                   "partial tie leaves the uncovered queries' observations "
+                                   "unbound",
+                            "note": OBSERVATION_BINDING_NOTE})
+        elif len(continuity.get("per_query_delta") or {}) != expected:
+            reasons.append({"gate": "observation_continuity",
+                            "why": f"the continuity record claims {expected} queries but "
+                                   f"publishes {len(continuity.get('per_query_delta') or {})} "
+                                   "per-query deltas; the record is not self-consistent",
+                            "note": OBSERVATION_BINDING_NOTE})
     # r9r: the tie PASSING is not enough while what it passes against is a
     # provisional number the measurement declined to confirm. A control whose
     # gate has no established bound may not be quoted as the registered result,
@@ -1322,6 +1634,21 @@ def probe_canonical_status(gate):
     # publication slice, but nothing READ it, so a valid pin plus --non-canonical
     # produced canonical JSON/Markdown beside non-canonical NPZs (Codex r9i
     # review, item 4). Read explicitly, and then joined fail-closed below.
+    # r9t blockers 4 and 5: provenance and §2 reconciliation are admission
+    # criteria, not decorations, so their absence is named here rather than
+    # discovered by a reviewer reading the bundle
+    if not gate.get("launch_record"):
+        reasons.append({"gate": "launch_record",
+                        "why": "no launch record was supplied, so the exact command, the source "
+                               "commit, the host and the physical GPU that produced this control "
+                               "are unrecorded",
+                        "note": LAUNCH_RECORD_NOTE})
+    if not gate.get("retrieval_handoff"):
+        reasons.append({"gate": "retrieval_handoff",
+                        "why": "the sparse-bank retrieval control's handoff was not supplied, so "
+                               "this report cannot state whether §2 is complete without risking "
+                               "contradicting it",
+                        "note": RETRIEVAL_RECONCILIATION_NOTE})
     if gate.get("non_canonical_declared"):
         reasons.append({"gate": "declared_non_canonical",
                         "why": "the operator ran this control with --non-canonical",
@@ -1339,7 +1666,8 @@ def probe_canonical_status(gate):
 
 
 def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
-                       tau=me.TAU, prefixes=me.K_PREFIXES, gate=None):
+                       tau=me.TAU, prefixes=me.K_PREFIXES, gate=None,
+                       controls_elsewhere=None):
     """Publish the probe's JSON + markdown, both stamped with every caveat.
 
     The order is the contract (Codex r9c review, M9): the summary is computed,
@@ -1389,7 +1717,12 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
                           "matched_max_abs_aggregate_delta", "n_matched_replay_candidates",
                           "substitution_min", "n_substitution_pairs",
                           "matched_batching_separation")},
-        "controls_elsewhere": mr.CONTROLS_ELSEWHERE,
+        # reconciled against the sibling control's own handoff when one was
+        # supplied, so the bundle cannot contradict itself about §2 (r9t B5)
+        "controls_elsewhere": (reconcile_controls_elsewhere(None)
+                               if controls_elsewhere is None else dict(controls_elsewhere)),
+        "retrieval_reconciliation_note": RETRIEVAL_RECONCILIATION_NOTE,
+        "launch_record_note": LAUNCH_RECORD_NOTE,
         "protocol": {"tau": float(tau), "k_prefixes": [int(k) for k in prefixes],
                      "noise_policy": me.REGISTERED_NOISE_POLICY,
                      "noise_note": "the truth generation is keyed by the query, not by a "
@@ -1872,6 +2205,9 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         spans = [record["observation_continuity"]["query_cosine_span_over_delta"]
                  for record in out]
         continuity_summary = {"ok": True, "checked": len(out),
+                              # what "complete" means, so the status can check it
+                              "n_expected": len(out),
+                              "queries": [record["query_id"] for record in out],
                               "max_abs_delta": (max(deltas) if deltas else 0.0),
                               "min_headroom": (min(t - d for d, t in zip(deltas, tolerances))
                                                if deltas else 0.0),
@@ -1894,10 +2230,10 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "dynamic_range_note": DYNAMIC_RANGE_NOTE,
                               # the MEASURED margin, and the standing verdict
                               "measured_substitution_min":
-                                  float(R9R_MEASUREMENT["substitution_min"]),
+                                  float(R9R_MEASUREMENT["matched_substitution_min"]),
                               "measured_separation":
-                                  (float(R9R_MEASUREMENT["substitution_min"] / max(tolerances))
-                                   if tolerances else float("inf")),
+                                  (float(R9R_MEASUREMENT["matched_substitution_min"]
+                                         / max(tolerances)) if tolerances else float("inf")),
                               "changed_batching_diagnostic_note":
                                   CHANGED_BATCHING_DIAGNOSTIC_NOTE,
                               "per_query_delta": {record["query_id"]:
@@ -1906,7 +2242,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
                               "tolerance_note": TIE_TOLERANCE_NOTE,
                               "note": OBSERVATION_BINDING_NOTE}
     else:
-        continuity_summary = {"ok": False, "checked": 0,
+        continuity_summary = {"ok": False, "checked": 0, "n_expected": len(out),
+                              "queries": [],
                               "why": "the observation-continuity check was disabled, so nothing "
                                      "ties the loaded observation to the frozen rows",
                               "note": OBSERVATION_BINDING_NOTE}
@@ -2001,6 +2338,20 @@ def parse_args(argv=None):
                              "--context-manifest and --dataset-root, print the per-query digests "
                              "and the combined value, and exit. Needs no run directory, no "
                              "checkpoint and no GPU")
+    parser.add_argument("--launch-record", default=None,
+                        help="PATH to the launch record this run is described by -- argv, git "
+                             "SHA, hostname and nvidia-smi GPU UUIDs, written BEFORE the run. "
+                             "Required for a canonical control (experiment_SOP.md:37); its "
+                             "sha256 is hashed into the report's provenance")
+    parser.add_argument("--emit-launch-record", default=None,
+                        help="PROVENANCE MODE: write the launch record for THIS command to PATH "
+                             "and exit. Run the identical command again with --launch-record "
+                             "PATH to perform the run the record describes")
+    parser.add_argument("--retrieval-handoff", default=None,
+                        help=f"PATH to the sparse-bank retrieval control's "
+                             f"{RETRIEVAL_HANDOFF_FILENAME}. Required for a canonical control: "
+                             "this report states §2 completeness and may not contradict the "
+                             "sibling control about it")
     # the probe registers no dump case list: announcement 08 names its sixteen
     # queries directly. Present so build_run_binding can be reused unchanged.
     parser.add_argument("--dump-cases-sha256", default=None, help=argparse.SUPPRESS)
@@ -2019,6 +2370,8 @@ def validate_args(args):
                 "unambiguous")
     if args.print_metadata_bank_digest or args.print_observation_digest:
         return True
+    if args.emit_launch_record:
+        return True
     for name in ("ckpt_path", "run_dir", "out_dir"):
         if not getattr(args, name):
             _refuse(f"--{name.replace('_', '-')} is required to run the control")
@@ -2030,6 +2383,14 @@ def validate_args(args):
         _refuse("a canonical off-grid control requires the PRE-REGISTERED observed-RIR bank "
                 f"digest. {OBSERVATION_BANK_PREREGISTRATION_NOTE}. Pass --non-canonical to run "
                 "a diagnostic instead")
+    if not args.launch_record and not args.non_canonical:
+        _refuse(f"a canonical off-grid control requires --launch-record. {LAUNCH_RECORD_NOTE}. "
+                "Pass --non-canonical to run a diagnostic instead")
+    if not args.retrieval_handoff and not args.non_canonical:
+        _refuse(f"a canonical off-grid control requires --retrieval-handoff, the sparse-bank "
+                f"control's {RETRIEVAL_HANDOFF_FILENAME}. "
+                f"{RETRIEVAL_RECONCILIATION_NOTE}. Pass --non-canonical to run a diagnostic "
+                "instead")
     if args.noise_policy != me.REGISTERED_NOISE_POLICY:
         _refuse(f"--noise-policy {args.noise_policy!r} cannot key an off-grid draw; "
                 f"{me.REGISTERED_NOISE_POLICY!r} is the registered policy and the only one "
@@ -2140,8 +2501,20 @@ def gate_run(args, model_config, agree_path, totals=None,
 
 
 def main(argv=None):
+    import sys
+
+    argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
     validate_args(args)
+    if args.emit_launch_record:
+        # PROVENANCE MODE: no gates, no checkpoint, no GPU work -- it exists so
+        # the record can be written from the very command about to be run
+        record = write_launch_record(args.emit_launch_record, argv)
+        print(json.dumps(mr.jsonable(record), indent=2, sort_keys=True))
+        print(f"\nlaunch record -> {args.emit_launch_record}")
+        print(f"\nnow run the identical command with --launch-record "
+              f"{args.emit_launch_record}")
+        return 0
     if args.print_metadata_bank_digest:
         verdict = mr.compute_metadata_bank_digest(args.context_manifest, args.metadata_root)
         print(json.dumps(mr.jsonable(verdict), indent=2, sort_keys=True))
@@ -2162,8 +2535,24 @@ def main(argv=None):
         print(f"\nobservation_bank_sha256 = {verdict['observation_bank_sha256']}")
         print(f"\n{OBSERVATION_BANK_PREREGISTRATION_NOTE}")
         return 0
+    # the provenance surfaces, read (and refused) before any device work
+    launch = (read_verified_launch_record(args.launch_record, argv, device=args.device)
+              if args.launch_record else None)
+    handoff = (read_retrieval_handoff(args.retrieval_handoff)
+               if args.retrieval_handoff else None)
+
     print(f"{CONTROL_LABEL}\n")
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
+    if launch:
+        print(f"launch record {launch['sha256'][:12]}... git {launch['git_sha'][:12]}"
+              f"{' (DIRTY TREE)' if launch['git_status_dirty'] else ''} on "
+              f"{launch['hostname']}, GPUs "
+              + ", ".join(f"{gpu['index']}:{str(gpu['uuid'])[:16]}..."
+                          for gpu in launch["gpus"]))
+    if handoff:
+        print(f"§2 retrieval control: {handoff['status']} "
+              f"({'canonical' if handoff['canonical'] else 'not canonical'}), handoff "
+              f"{handoff['sha256'][:12]}...")
     # r9s: the tie now replays whole queries, so the operator is told the price
     # before the wait rather than after it
     print(f"\nTIE: {MATCHED_BATCHING_TIE_COST_NOTE}\n")
@@ -2181,6 +2570,11 @@ def main(argv=None):
 
     # EVERY gate first, on CPU. Nothing below this line may run if one refuses.
     plan, manifest, binding, gate, ckpt = gate_run(args, model_config, agree_path)
+    # the provenance surfaces are admission criteria, so they join the gate the
+    # status reads rather than sitting only in the provenance block
+    gate["launch_record"] = launch
+    gate["retrieval_handoff"] = handoff
+    gate["non_canonical"] = bool(gate.get("non_canonical") or not launch or not handoff)
     records = manifest["records"]
     print(f"binding gate passed against {args.run_dir}: {gate['binding_sha256'][:12]}... "
           f"({len(gate['fields_checked'])} fields); run census "
@@ -2231,10 +2625,13 @@ def main(argv=None):
                                                "context_manifest": str(args.context_manifest),
                                                "agree_ckpt": agree_path,
                                                "agree_ckpt_sha256": agree.ckpt_sha256,
-                                               "device": str(args.device)},
+                                               "device": str(args.device),
+                                               "launch_record": launch,
+                                               "retrieval_handoff": handoff},
                                    tau=args.tau,
                                    prefixes=tuple(int(k) for k in args.k_prefixes),
-                                   gate=publication_gate(gate))
+                                   gate=publication_gate(gate),
+                                   controls_elsewhere=reconcile_controls_elsewhere(handoff))
     status = json.load(open(published["json"]))["canonical_status"]
     print(f"\n{len(probe_records)} probe queries -> {published['json']}")
     print(f"  markdown -> {published['markdown']}")
