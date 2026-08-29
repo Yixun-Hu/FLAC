@@ -539,15 +539,73 @@ def observation_digests(obs_wav, source_path=None, source_sha256=None):
     return out
 
 
+#: The engine's own measured changed-batching magnitude, mirrored rather than
+#: imported because the engine states it in prose (``BATCHING_CAVEAT``,
+#: meshgrid_engine.py:921 -- "measured: max |diff| 3.9e-3 between the batch-1
+#: context call and an 8-candidate call"). A test cross-pins this literal to that
+#: text so the two cannot drift apart.
+ENGINE_CHANGED_BATCHING_DRIFT = 3.9e-3
+
+#: The tie's admissible difference, and why it is NOT ``SCORE_TOLERANCE``.
+#:
+#: ``meshgrid_engine.SCORE_TOLERANCE`` (1e-3) is the registered bound on
+#: ``|S_a - S_b|`` -- the AGGREGATE log-mean-exp score -- between two passes of
+#: the same protocol. The tie compares something else twice over:
+#:
+#: * it compares PER-SAMPLE cosines ``s[x, k]``, not the aggregate. The aggregate
+#:   averages K = 8 of them, which suppresses independent noise by about
+#:   ``sqrt(8) = 2.83``, so an aggregate bound of 1e-3 corresponds to roughly
+#:   2.8e-3 per sample. The field failure measured 2.93e-3.
+#: * it regenerates ONE candidate alone, so its batch shapes are not the run's.
+#:   The frozen rows were produced at ``batch_rows=256`` -- 32 candidates x 8
+#:   draws through the DiT per forward -- with the source branch chunked at
+#:   ``source_chunk=16``, i.e. batch-16 ViT forwards; the tie generates 8 rows and
+#:   calls the source branch on its single position, i.e. batch 1 whatever chunk
+#:   is passed (``source_conditioning`` chunks the position list). That is exactly
+#:   the batch-1-versus-many comparison the engine measured: its real-stack
+#:   cache-parity run records conditioner outputs moving by up to 3.90625e-3
+#:   between a batch-1 call and an 8-candidate call, with ``source_vit`` -- one of
+#:   the branches re-run here -- at 1.953e-3.
+#:
+#: So the fixed-batching aggregate bound was the wrong yardstick for a
+#: differently-batched per-sample regeneration, and it refused honest
+#: regeneration noise on the real merged run (MeetingRoom_idx_20 S001_R001,
+#: candidate 57: 2.93e-3 against a 1.24e-3 tolerance) while the byte pin and the
+#: decode-equality check both passed.
+#:
+#: Detection power survives with orders of magnitude to spare. The tie exists to
+#: catch a DIFFERENT observation, and ``s[x, k] = cos(E(h_obs), E(h_hat))`` moves
+#: by O(0.1-1) when the observation changes -- that same query's own cosines span
+#: -0.294 to 0.746 -- which is 25x to 250x this tolerance. The measured delta is
+#: now published per query beside the tolerance, so the actual separation is on
+#: the record rather than asserted.
+CHANGED_BATCHING_TIE_TOLERANCE = ENGINE_CHANGED_BATCHING_DRIFT
+
+TIE_TOLERANCE_NOTE = (
+    "the tie regenerates ONE candidate alone, so its batch shapes are not the ones the frozen "
+    "rows were produced at (batch_rows=256, i.e. 32 candidates x 8 draws per forward, with the "
+    "source branch chunked at 16 positions -- against 8 generated rows and a single-position "
+    "source call here), and it compares PER-SAMPLE cosines rather than the aggregate score. "
+    "meshgrid_engine's "
+    "SCORE_TOLERANCE is the registered bound on the AGGREGATE between two passes at different "
+    "batching, so it is the wrong yardstick twice over -- it does not carry the sqrt(K) the "
+    "aggregate gets for free, and it is not what the engine measured for a changed batch shape. "
+    "The bound used here is the engine's own measured changed-batching magnitude (3.9e-3, "
+    "BATCHING_CAVEAT) plus the sidecar's float16 half-ulp. A substituted observation moves these "
+    "cosines by O(0.1-1), 25x to 250x that, so the gate still bites; the measured delta is "
+    "published per query so the separation can be read rather than trusted")
+
+
 def observation_continuity_tolerance(stored):
     """The only admissible difference between the two derivations of one cosine.
 
-    The engine's registered bound on two passes of the same protocol that differ
-    only in batching, plus the half-ulp the float16 sidecar itself introduces.
-    Both are registered constants, not numbers chosen here.
+    The engine's measured changed-batching magnitude plus the half-ulp the
+    float16 sidecar itself introduces. Both are registered numbers -- see
+    :data:`CHANGED_BATCHING_TIE_TOLERANCE` for why the fixed-batching aggregate
+    bound is not the right one here.
     """
-    return float(me.SCORE_TOLERANCE) + mr.float16_half_ulp(np.asarray(stored,
-                                                                      dtype=np.float16))
+    return float(CHANGED_BATCHING_TIE_TOLERANCE) + mr.float16_half_ulp(
+        np.asarray(stored, dtype=np.float16))
 
 
 def assert_observation_continuity(engine, query, md, context, row, sims, obs_embedding, *,
@@ -590,19 +648,37 @@ def assert_observation_continuity(engine, query, md, context, row, sims, obs_emb
 
     delta = float(np.abs(rederived - stored.astype(np.float64)).max())
     tolerance = observation_continuity_tolerance(stored)
-    verdict = {"ok": bool(delta <= tolerance), "max_abs_delta": delta,
-               "tolerance": float(tolerance), "k": int(largest),
+    # the query's own cosine span is the scale a SUBSTITUTED observation moves
+    # on, so publishing it beside the delta lets a reader see the separation
+    # rather than take it on faith (Codex r9p)
+    whole = np.asarray(sims, dtype=np.float64)
+    span = float(whole.max() - whole.min())
+    verdict = {"ok": bool(delta <= tolerance),
+               "within_tolerance": bool(delta <= tolerance),
+               "refused": bool(delta > tolerance),
+               "max_abs_delta": delta,
+               "tolerance": float(tolerance),
+               "headroom": float(tolerance - delta),
+               "changed_batching_component": float(CHANGED_BATCHING_TIE_TOLERANCE),
+               "float16_half_ulp_component": float(tolerance
+                                                   - CHANGED_BATCHING_TIE_TOLERANCE),
+               "query_cosine_span": span,
+               "separation_vs_span": (float(span / delta) if delta > 0 else float("inf")),
+               "k": int(largest),
                "candidate_index": candidate_index, "candidate_row": candidate_row,
                "num_samples": num_samples,
                "stored": [float(v) for v in stored],
                "rederived": [float(v) for v in rederived],
+               "tolerance_note": TIE_TOLERANCE_NOTE,
                "note": OBSERVATION_BINDING_NOTE}
     if not verdict["ok"]:
         raise ValueError(
             f"{query.query_id}: the observation this control loaded does not reproduce the "
             f"similarities the frozen row published for candidate {candidate_index} -- max "
-            f"|delta| {delta:.3g} against a tolerance of {tolerance:.3g} (the engine's "
-            f"SCORE_TOLERANCE plus the sidecar's float16 half-ulp). s[x, k] = cos(E(h_obs), "
+            f"|delta| {delta:.3g} against a tolerance of {tolerance:.3g} (the engine's measured "
+            f"changed-batching magnitude plus the sidecar's float16 half-ulp; this query's own "
+            f"cosines span {span:.3g}, so a substituted observation would move them by far more "
+            f"than this). s[x, k] = cos(E(h_obs), "
             "E(h_hat)), so the observation being scored here is not the observation those rows "
             f"were scored against. {OBSERVATION_BINDING_NOTE}")
     return verdict
@@ -708,7 +784,8 @@ CANONICAL_STATUS_NON_CANONICAL = (
 
 
 def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, context_audio,
-                          truth_xyz, receiver_xyz, query_id=None, status_label=None):
+                          truth_xyz, receiver_xyz, query_id=None, status_label=None,
+                          continuity=None):
     """One probe query's dump, STAGED with its digest and its own labels.
 
     Staged, not published: a dump finalized the moment its query finished would
@@ -751,6 +828,18 @@ def write_probe_waveforms(out_dir, room_id, position, waveforms, observation, co
                  controls_elsewhere=np.array(json.dumps(mr.CONTROLS_ELSEWHERE,
                                                         sort_keys=True)),
                  sensitivity_status=np.array(str(status_label or CANONICAL_STATUS_UNKNOWN)),
+                 # the tie's measured numbers, so a dump read on its own carries
+                 # the gate's verdict AND its separation (Codex r9p)
+                 tie_max_abs_delta=np.array(float((continuity or {}).get("max_abs_delta",
+                                                                         float("nan")))),
+                 tie_tolerance=np.array(float((continuity or {}).get("tolerance",
+                                                                     float("nan")))),
+                 tie_within_tolerance=np.array(bool((continuity or {}).get("within_tolerance",
+                                                                           False))),
+                 tie_refused=np.array(bool((continuity or {}).get("refused", False))),
+                 tie_query_cosine_span=np.array(float((continuity or {}).get(
+                     "query_cosine_span", float("nan")))),
+                 tie_tolerance_note=np.array(TIE_TOLERANCE_NOTE),
                  waveform_note=np.array(WAVEFORM_NOTE))
     os.replace(tmp, path)
     return {"waveform_path": os.path.join(WAVEFORM_DIRNAME, name),
@@ -1047,6 +1136,7 @@ def write_probe_report(out_dir, records, binding, binding_sha256, provenance,
         # off-grid output read on its own cannot lose them (r9 finding 10)
         "latency_scope_note": mr.LATENCY_SCOPE_NOTE,
         "truth_binding_note": mr.TRUTH_BINDING_NOTE,
+        "tie_tolerance_note": TIE_TOLERANCE_NOTE,
         "controls_elsewhere": mr.CONTROLS_ELSEWHERE,
         "protocol": {"tau": float(tau), "k_prefixes": [int(k) for k in prefixes],
                      "noise_policy": me.REGISTERED_NOISE_POLICY,
@@ -1254,6 +1344,29 @@ def render_markdown(report):
             f"{mr.format_number(record['calibration']['real_summary']['mean'], 4)} | "
             f"{mr.format_number(record['calibration']['generated_summary']['mean'], 4)} |")
     lines.append("")
+    lines.append("## Observation-continuity tie — measured delta vs tolerance")
+    lines.append("")
+    lines.append(f"> {report.get('tie_tolerance_note') or TIE_TOLERANCE_NOTE}")
+    lines.append("")
+    # "max abs delta" rather than "max |delta|": raw pipes would split the cell
+    lines.append("| room | query | max abs delta | tolerance | headroom | within | "
+                 "query cosine span | separation |")
+    lines.append("|---|---|---|---|---|---|---|---|")
+    for record in report["records"]:
+        tie = record.get("observation_continuity")
+        if not tie:
+            lines.append(f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
+                         "not checked | — | — | — | — | — |")
+            continue
+        lines.append(
+            f"| {record['room_id']} | `{record['query_id'].split('|')[0]}` | "
+            f"{mr.format_number(tie['max_abs_delta'], 6)} | "
+            f"{mr.format_number(tie['tolerance'], 6)} | "
+            f"{mr.format_number(tie['headroom'], 6)} | "
+            f"{mr.format_number(tie['within_tolerance'])} | "
+            f"{mr.format_number(tie['query_cosine_span'], 4)} | "
+            f"{mr.format_number(tie['separation_vs_span'], 1)}x |")
+    lines.append("")
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
     for name, where in sorted(report["controls_elsewhere"].items()):
@@ -1435,7 +1548,8 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         dump = write_probe_waveforms(out_dir, query.room_id, query.position, waveforms,
                                      observation, md["context_audio"], truth,
                                      query.receiver_xyz,
-                                     query_id=query.query_id, status_label=status_label)
+                                     query_id=query.query_id, status_label=status_label,
+                                     continuity=continuity)
 
         record_out = {
             "control_label": CONTROL_LABEL,
@@ -1472,8 +1586,21 @@ def run_probe(engine, stream, records, plan, run_dir, out_dir, *, metadata_root,
         record["observation_source_pinned"] = bool(observation_bank)
     if verify_observation:
         deltas = [record["observation_continuity"]["max_abs_delta"] for record in out]
+        tolerances = [record["observation_continuity"]["tolerance"] for record in out]
+        separations = [record["observation_continuity"]["separation_vs_span"] for record in out]
         continuity_summary = {"ok": True, "checked": len(out),
                               "max_abs_delta": (max(deltas) if deltas else 0.0),
+                              "min_headroom": (min(t - d for d, t in zip(deltas, tolerances))
+                                               if deltas else 0.0),
+                              "tolerance": (max(tolerances) if tolerances else 0.0),
+                              "changed_batching_component":
+                                  float(CHANGED_BATCHING_TIE_TOLERANCE),
+                              "min_separation_vs_span": (min(separations) if separations
+                                                         else float("inf")),
+                              "per_query_delta": {record["query_id"]:
+                                                  record["observation_continuity"][
+                                                      "max_abs_delta"] for record in out},
+                              "tolerance_note": TIE_TOLERANCE_NOTE,
                               "note": OBSERVATION_BINDING_NOTE}
     else:
         continuity_summary = {"ok": False, "checked": 0,
