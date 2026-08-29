@@ -3191,13 +3191,24 @@ def test_emission_refuses_when_a_capture_failed(tmp_path):
                                runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
 
 
-def test_emission_refuses_an_EMPTY_captured_fact_through_write(tmp_path):
+def test_emission_refuses_an_EMPTY_captured_fact_through_write(tmp_path, monkeypatch):
     """r9z3 shred 1: an empty string is as unusable as a missing one.
 
-    Exercised through ``write_launch_record`` itself, because that is the entry
-    point the operator uses and the one that must leave nothing behind.
+    EVERY case goes through ``write_launch_record`` with a real target path
+    (Codex r9z5): that is the entry point the operator uses, and the property
+    that matters is not only that it raises but that it leaves nothing behind.
+    r9z4 routed three of the four through ``build_launch_record``, which never
+    touches the filesystem -- so their "the file is absent" assertions could not
+    have failed, and the one claim being made was the one not being tested.
+
+    ``build_launch_record`` reads the environment itself when none is passed, so
+    the broken environment is injected at that seam; the runtime seam is healthy
+    throughout, to keep each refusal attributable to the emptiness under test.
     """
+    import src.localization.meshgrid_offgrid_probe as module
+
     path = str(tmp_path / "launch.json")
+    healthy = _runtime(_FIXTURE_GPUS[0]["uuid"], 0)
     for broken, match in (
             ({"git_sha": "", "git_sha_capture": _ok("")},
              "the source commit came back as an empty string"),
@@ -3205,26 +3216,27 @@ def test_emission_refuses_an_EMPTY_captured_fact_through_write(tmp_path):
              "the source commit came back as an empty string"),
             ({"hostname": "", "hostname_capture": _ok("")},
              "the hostname came back as an empty string"),
+            ({"hostname": "   ", "hostname_capture": _ok("   ")},
+             "the hostname came back as an empty string"),
             ({"gpus": [], "gpu_capture": _ok("")},
              "the GPU enumeration came back as an empty list")):
+        monkeypatch.setattr(module, "current_environment",
+                            lambda broken=broken: _environment(**broken))
         with pytest.raises(ValueError, match=match):
-            op.build_launch_record(["--run-dir", "x"], device="cuda:0",
-                                   environment=_environment(**broken),
-                                   runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
-        assert not os.path.exists(path), "a refused emission must leave no record"
-
-    # ... and the same through write_launch_record, with nothing written
-    import src.localization.meshgrid_offgrid_probe as module
-
-    real = module.current_environment
-    module.current_environment = lambda: _environment(hostname="", hostname_capture=_ok(""))
-    try:
-        with pytest.raises(ValueError, match="the hostname came back as an empty string"):
             op.write_launch_record(path, ["--run-dir", "x"], device="cuda:0",
-                                   runtime=_runtime(_FIXTURE_GPUS[0]["uuid"], 0))
-    finally:
-        module.current_environment = real
-    assert not os.path.exists(path)
+                                   runtime=healthy)
+        assert not os.path.exists(path), f"a refused emission wrote a record: {match}"
+
+    # NON-VACUOUS: the same path, the same call, a healthy environment -- the
+    # file appears. Without this the assertions above would hold for a path
+    # nothing could ever have written to
+    monkeypatch.setattr(module, "current_environment", _environment)
+    record = op.write_launch_record(path, ["--run-dir", "x"], device="cuda:0",
+                                    runtime=healthy)
+    assert os.path.exists(path)
+    assert json.load(open(path)) == record
+    assert record["git_sha"] == "a" * 40 and record["hostname"] == "neuronic"
+    assert record["execution_gpu_uuid"] == _FIXTURE_GPUS[0]["uuid"]
 
 
 def test_emission_refuses_a_device_the_runtime_cannot_answer_for(tmp_path):
