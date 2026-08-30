@@ -46,6 +46,12 @@ def main() -> None:
         nargs="+",
         help="Only run records from these exact room names.",
     )
+    parser.add_argument(
+        "--query-indices",
+        nargs="+",
+        type=int,
+        help="Only run these exact query indices from the selection.",
+    )
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--solver-threads", type=int, default=12)
     parser.add_argument(
@@ -82,6 +88,20 @@ def main() -> None:
             )
         records = [
             record for record in all_records if str(record["room"]) in requested_rooms
+        ]
+    if args.query_indices:
+        requested_indices = set(args.query_indices)
+        if len(requested_indices) != len(args.query_indices):
+            raise ValueError("query-indices contains duplicates")
+        available_indices = {int(record["index"]) for record in records}
+        missing_indices = requested_indices - available_indices
+        if missing_indices:
+            raise ValueError(
+                "selection filter does not contain requested query indices: "
+                + ", ".join(map(str, sorted(missing_indices)))
+            )
+        records = [
+            record for record in records if int(record["index"]) in requested_indices
         ]
     if not records:
         raise ValueError("selection filter produced no queries")
@@ -187,6 +207,7 @@ def main() -> None:
         "method": "fem_sabine_depth_aabb",
         "selection": str(args.selection.resolve()),
         "rooms": sorted({str(record["room"]) for record in records}),
+        "query_indices": indices,
         "workers": args.workers,
         "solver_threads_per_worker": args.solver_threads,
         "cpu_sets": args.cpu_sets,
