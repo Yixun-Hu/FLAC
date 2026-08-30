@@ -1,0 +1,280 @@
+=== exp_11 arm C4L @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON) — 2026-08-30_01-16-26 — host neu301.neuronic.cs.princeton.edu ===
+commit binding OK: 03ab576e23c98201f8731bff8354ab72cb082498
+config for C4L: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json sha256 3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328
+gate OK: C4L carries the uniform C4 orbit, grad-ckpt True, EMA on
+lineage: RESTART (expected_step 85000, max_steps 100000, chunk_end 87500, stops at 87500, ckpt every 2500, time pin PINNED_TIME_LIMIT_CHUNK_C4L=03:00:00)
+--- train.py argv ---
+--model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 87500 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config '' --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp11_C4L --experiment-name exp11_C4L --save-dir outputs_FLAC/exp11_C4L --ckpt-path outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=18-step=85000.ckpt
+--- argv parity vs exp_07 B-F ---
+  allowed  --batch-size: exp_07 '32' -> exp_11 '8'
+  allowed  --ckpt-path: 'outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=18-step=85000.ckpt' (RESTART only)
+  allowed  --experiment-name: exp_07 'exp07_BF' -> exp_11 'exp11_C4L'
+  allowed  --max-steps: exp_07 '67500' -> exp_11 '87500'
+  allowed  --model-config: exp_07 'worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json' -> exp_11 '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C4L.json'
+  allowed  --name: exp_07 'FLAC_exp07_BF' -> exp_11 'FLAC_exp11_C4L'
+  allowed  --num-gpus: exp_07 '2' -> exp_11 '8'
+  allowed  --save-dir: exp_07 'outputs_FLAC/exp07_BF' -> exp_11 'outputs_FLAC/exp11_C4L'
+  explicit --gradient-clip-val='0.0' (whitelisted explicit default)
+  explicit --num-nodes='1' (whitelisted explicit default)
+  explicit --precision='bf16-mixed' (whitelisted explicit default)
+  explicit --val-dataset-config='' (whitelisted explicit default)
+  explicit --val-every='-1' (whitelisted explicit default)
+ARGV PARITY OK (RESTART): only whitelisted differences and additions
+allocation matches the pins: 64 cpus, 110592 MB, 3:00:00 (PINNED_TIME_LIMIT_CHUNK_C4L)
+GPU: NVIDIA L40 GPU-b3a5b212-f849-2a38-8e01-528ea994c660
+GPU: NVIDIA L40 GPU-5111d0ff-0f03-1184-a759-adcb1b6c0ddb
+GPU: NVIDIA L40 GPU-6f694719-cc35-1c56-f6cf-abba230abca8
+GPU: NVIDIA L40 GPU-21e2c0a9-ca1c-4ce9-6e15-18c072c4b993
+GPU: NVIDIA L40 GPU-e2dc5004-238f-bd73-b324-755b90388737
+GPU: NVIDIA L40 GPU-af575933-00e8-647c-8569-2c1c0b5e318c
+GPU: NVIDIA L40 GPU-e42dba17-abcb-2a76-2009-b42c42153ba9
+GPU: NVIDIA L40 GPU-0f597a72-5ca5-1f55-4cfd-6b58bf3fdb7d
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+runtime gate OK: pl 2.1.0, torch 2.7.0+cu126, cuda 12.6
+VAE pin OK: 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+--- co-tenancy disclosure at launch ---
+lock acquired: outputs_FLAC/exp11_C4L.lock (flock on fd 9, released on exit)
+restart lineage OK: outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=18-step=85000.ckpt
+  global_step=85000 epoch=18 cond_method='fa_invariant' angles=[0.0, 90.0, 180.0, 270.0]
+  optimizer_state=FULL (449 entries) lr=4.800153607373194e-05 sched_last_epoch=85000 ema_entries=212
+chain lineage OK: C4L 85000 -> 87500 resumes the tip of the recorded chunk chain, under the audited launch job 3648694 (launch commit 2b78f995a6d3, running commit 03ab576e23c9)
+  bound to the audited launch manifest: outputs_FLAC/exp11_C4L/launch_manifest.txt
+  chunk leg: stops at 87500 of the 100000 budget
+CKPT_SHA256 9ce3b95dc28f6801d6c0f4adbecdc3cb3c040e10f25d970103f459486cea52e0
+wandb: [wandb.Api()] Loaded credentials for https://api.wandb.ai from /u/yh4742/.netrc.
+wandb identity OK: entity yh4742-princeton-university (exported), mode online
+wandb: new RESTART run id exp11-C4L-r85000-1788067002597130809-33f935c9 (continues exp11-C4L-1786063010468957329-bc46fb0a; not resumed — a resumed run refuses the changed max_steps/ckpt_path config)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /n/fs/gatrdp/hf_cache/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building C4L (fa_invariant C4) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+C4L: wiring OK — fa_invariant C4 orbit, EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0), AdamW(initial_lr 5e-5, step-0 5.000e-07) + InverseLR@step
+init identity: C4L IS the reference arm; state_dict sha256 44a2f6aadd7d2180… under seed 42
+
+ALL ASSERTS PASSED — C4L is launch-ready.
+manifest: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-30_01-16-26_C4L_8x8_jid3772907_manifest.txt (copied to outputs_FLAC/exp11_C4L)
+=== launching C4L 8x8: torchrun --standalone --nproc_per_node=8 train.py (RESTART) ===
+W0830 01:16:58.893000 50434 site-packages/torch/distributed/run.py:766] 
+W0830 01:16:58.893000 50434 site-packages/torch/distributed/run.py:766] *****************************************
+W0830 01:16:58.893000 50434 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0830 01:16:58.893000 50434 site-packages/torch/distributed/run.py:766] *****************************************
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+[rank: 3] Seed set to 42
+[rank: 5] Seed set to 42
+[rank: 0] Seed set to 42
+[rank: 7] Seed set to 42
+Using Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add Noise
+Using Augmentations: Random Time Shift, Add Noise
+Using Augmentations: Random Time Shift, Add Noise
+
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...Running json scandir...
+
+Running json scandir...
+Running json scandir...
+Running json scandir...
+[rank: 2] Seed set to 42
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+[rank: 4] Seed set to 42
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+[rank: 6] Seed set to 42
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfoldersFound 291210 files in 243 subfolders
+
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 2] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 2, MEMBER: 3/8
+[rank: 7] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 7, MEMBER: 8/8
+[rank: 3] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 3, MEMBER: 4/8
+[rank: 4] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 4, MEMBER: 5/8
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/8
+[rank: 5] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 5, MEMBER: 6/8
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /u/yh4742/.netrc.
+[rank: 6] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 6, MEMBER: 7/8
+wandb: Currently logged in as: yh4742 (yh4742-princeton-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in wandb/run-20260830_011709-exp11-C4L-r85000-1788067002597130809-33f935c9
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp11_C4L
+wandb: ⭐️ View project at https://wandb.ai/yh4742-princeton-university/FLAC_exp11_C4L
+wandb: 🚀 View run at https://wandb.ai/yh4742-princeton-university/FLAC_exp11_C4L/runs/exp11-C4L-r85000-1788067002597130809-33f935c9
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/8
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 8 processes
+----------------------------------------------------------------------------------------------------
+
+[rank7]:[E830 01:33:10.098137137 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 7] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank7]:[E830 01:33:10.098940555 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 7] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank2]:[E830 01:33:10.204642428 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank2]:[E830 01:33:10.204820298 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank1]:[E830 01:33:10.222076656 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank1]:[E830 01:33:10.222592149 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank3]:[E830 01:33:10.304080057 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank3]:[E830 01:33:10.304572362 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank4]:[E830 01:33:10.472537466 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 4] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank4]:[E830 01:33:10.472754045 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 4] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank5]:[E830 01:33:10.497403444 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 5] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank5]:[E830 01:33:10.497793880 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 5] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank6]:[E830 01:33:10.621962144 ProcessGroupNCCL.cpp:1743] [PG ID 0 PG GUID 0(default_pg) Rank 6] ProcessGroupNCCL's watchdog got stuck for 480 seconds without making progress in monitoring enqueued collectives. This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, and could be triggered by another thread holding the GIL inside a CUDA api (for example, CudaEventDestroy), or other deadlock-prone behaviors.If you suspect the watchdog is not actually stuck and a longer timeout would help, you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0).If either of aforementioned helps, feel free to file an issue to PyTorch about the short timeout or false positive abort; otherwise, please attempt to debug the hang. 
+[rank6]:[E830 01:33:10.622165447 ProcessGroupNCCL.cpp:1533] [PG ID 0 PG GUID 0(default_pg) Rank 6] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank7]:[F830 01:41:10.101960447 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 7] [PG ID 0 PG GUID 0(default_pg) Rank 7] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank3]:[F830 01:41:10.449915984 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 3] [PG ID 0 PG GUID 0(default_pg) Rank 3] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank1]:[F830 01:41:10.450140482 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 1] [PG ID 0 PG GUID 0(default_pg) Rank 1] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank4]:[F830 01:41:10.475319903 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 4] [PG ID 0 PG GUID 0(default_pg) Rank 4] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank2]:[F830 01:41:10.517920580 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 2] [PG ID 0 PG GUID 0(default_pg) Rank 2] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank5]:[F830 01:41:10.518408431 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 5] [PG ID 0 PG GUID 0(default_pg) Rank 5] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+[rank6]:[F830 01:41:10.624425171 ProcessGroupNCCL.cpp:1554] [PG ID 0 PG GUID 0(default_pg) Rank 6] [PG ID 0 PG GUID 0(default_pg) Rank 6] Terminating the process after attempting to dump debug info, due to ProcessGroupNCCL watchdog hang.
+W0830 01:41:20.723000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50504 closing signal SIGTERM
+W0830 01:41:20.726000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50505 closing signal SIGTERM
+W0830 01:41:20.727000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50506 closing signal SIGTERM
+W0830 01:41:20.741000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50507 closing signal SIGTERM
+W0830 01:41:20.743000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50508 closing signal SIGTERM
+W0830 01:41:20.748000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50509 closing signal SIGTERM
+W0830 01:41:20.749000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 50510 closing signal SIGTERM
+E0830 01:41:21.569000 50434 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: -6) local_rank: 7 (pid: 50511) of binary: /n/fs/gatrdp/envs/flac/bin/python3.10
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/bin/torchrun", line 6, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+======================================================
+train.py FAILED
+------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-30_01:41:20
+  host      : neu301.neuronic.cs.princeton.edu
+  rank      : 7 (local_rank: 7)
+  exitcode  : -6 (pid: 50511)
+  error_file: <N/A>
+  traceback : Signal 6 (SIGABRT) received by PID 50511
+======================================================
+wandb run identity OK: id exp11-C4L-r85000-1788067002597130809-33f935c9 at /n/fs/gatrdp/codespace/FLAC/wandb/run-20260830_011709-exp11-C4L-r85000-1788067002597130809-33f935c9 (entity yh4742-princeton-university, project FLAC_exp11_C4L, name exp11_C4L)
+world size OK: 8 processes registered
+RUNTIME: torchrun exited 1 (no OOM signature)
+preflight transcript duplicated from /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-C4L-train_3772907.out
+endpoint attestation: this leg's SETTLED class is 1, not the success class — attesting <none>
+=== exp_11 C4L 8x8 finished at 2026-08-30 01:41:22 ===
+torchrun rc=1 tee rc=0 wandb_identity_rc=0 classified rc=1
+world size OK: 8 processes registered
+RUNTIME: torchrun exited 1 (no OOM signature)
+last checkpoint: outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=18-step=85000.ckpt
+endpoint attestation: appended BELOW this record, once the exit class is settled (round-5 r2 blocking 2)
+restart: fa_orbit_submit.sh C4L --resume outputs_FLAC/exp11_C4L/FLAC_exp11_C4L/exp11_C4L/checkpoints/epoch=18-step=85000.ckpt --expected-step <step>
+next chunk: record this leg (fa_orbit_record_restart.py C4L /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-30_01-16-26_C4L_8x8_jid3772907_manifest.txt), then fa_orbit_submit.sh C4L --resume <ckpt at 87500> --expected-step 87500 --chunk-end <87500+2500>

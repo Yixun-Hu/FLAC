@@ -60,6 +60,19 @@ case "$EXPECTED_STEP" in ''|*[!0-9]*) echo "--expected-step must be a non-negati
 # A chunk is meaningful only for a leg that resumes: it narrows where THIS job
 # stops, never what the campaign may reach (the budget pin stays 100000). It must
 # land on a saved checkpoint, or the next chunk has nothing to resume from.
+# --- node exclusion (round 6, 2026-08-30) -------------------------------------
+# Chunked legs re-roll the node lottery ~24x per arm, and the ECC-flaky nodes
+# (CLAUDE.md, Aug 2026) burned 4 legs in 3 days: two on neu306, two on neu301
+# (NCCL watchdog hang), freezing every remaining arm. The sick list is the
+# DEFAULT; EXCLUDE= overrides it (empty EXCLUDE="" disables exclusion, e.g. if
+# the pool shrinks). Same nodelist shape check as the screen submitter.
+EXCLUDE="${EXCLUDE-neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332}"
+if [ -n "$EXCLUDE" ]; then
+  case "$EXCLUDE" in
+    *[!a-z0-9,]*) echo "EXCLUDE='${EXCLUDE}' is not a comma-separated node list - abort"; exit 2 ;;
+  esac
+fi
+
 CHUNK_BUDGET="$(awk -F= '/^PINNED_MAXSTEPS=/{split($2,a," "); print a[1]; exit}' "$SBATCH_FILE")"
 case "$CHUNK_BUDGET" in ''|*[!0-9]*) echo "could not read PINNED_MAXSTEPS from ${SBATCH_FILE} - abort"; exit 3;; esac
 if [ -n "$CHUNK_END" ]; then
@@ -181,6 +194,7 @@ ARGS=(
   --time="$TIME_LIMIT"
   --export="ALL,ARM=${ARM},EXPECT_SHA=${SHA},OUTPUT_ROOT=outputs_FLAC"
 )
+[ -n "$EXCLUDE" ] && ARGS+=(--exclude="$EXCLUDE")
 [ "$SMOKE" = "1" ] && ARGS[5]="${ARGS[5]},SMOKE=1,SMOKE_RUNG=${SMOKE_RUNG},SMOKE_MIN_FREE_MB=${SMOKE_MIN_FREE_MB},SMOKE_MAXSTEPS=${SMOKE_MAXSTEPS:-30},SMOKE_TIME=${TIME_LIMIT}"
 [ -n "$RESUME_CKPT" ] && ARGS[5]="${ARGS[5]},RESUME_CKPT=${RESUME_CKPT},EXPECTED_STEP=${EXPECTED_STEP}"
 [ -n "$CHUNK_END" ] && ARGS[5]="${ARGS[5]},CHUNK_END=${CHUNK_END}"
@@ -211,6 +225,7 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")" || exit 3
   echo "pins rung=${RUNG} maxsteps=$(pin PINNED_MAXSTEPS) ckpt_every=$(pin PINNED_CHECKPOINT_EVERY) min_free_mb=$(pin PINNED_MIN_FREE_MB) p0_manifest_sha256=$(pin PINNED_P0_MANIFEST_SHA256)"
   echo "resume ${RESUME_CKPT:-<none>} expected_step ${EXPECTED_STEP}"
   echo "chunk_end ${CHUNK_END:-<none>}"
+  echo "exclude ${EXCLUDE:-<none>}"
   echo "sbatch sbatch ${ARGS[*]}"
 } >> "$TMP" || { echo "intent manifest write failed - abort"; exit 3; }
 mv -n "$TMP" "$MANIFEST" || { echo "intent manifest publication failed - abort"; exit 2; }

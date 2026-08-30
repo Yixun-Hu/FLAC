@@ -984,6 +984,24 @@ else
   echo "FAIL  no post-run wandb identity verification"; FAIL=$((FAIL+1))
 fi
 
+echo "--- M. round 6: sick-node exclusion in the training submitter ---"
+# 4 chunk legs burned on neu301/neu306 (ECC list) in 3 days; the training
+# submitter now defaults --exclude to the sick list. DRYRUN prints the line.
+expect_cmd "submitter defaults --exclude to the sick list" 0 "--exclude=neu301,neu303,neu305,neu306,neu317,neu319,neu322,neu332" -- \
+  env DRYRUN=1 bash "$SUBMITTER" C8 --resume x.ckpt --expected-step 40000 --chunk-end 42500
+expect_cmd "EXCLUDE override replaces the default" 0 "--exclude=neu399" -- \
+  env DRYRUN=1 EXCLUDE=neu399 bash "$SUBMITTER" C8 --resume x.ckpt --expected-step 40000 --chunk-end 42500
+# Review fix: rc and the DRYRUN sbatch line are REQUIRED, or a dirty-tree
+# refusal (rc=2, nothing printed) would false-PASS the absence check.
+out="$(env DRYRUN=1 EXCLUDE= bash "$SUBMITTER" C8 --resume x.ckpt --expected-step 40000 --chunk-end 42500 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "DRYRUN sbatch" && ! echo "$out" | grep -q -- "--exclude"; then
+  echo "PASS  EXCLUDE=\"\" disables exclusion"; PASS=$((PASS+1))
+else
+  echo "FAIL  EXCLUDE=\"\" should disable exclusion (rc=${rc})"; FAIL=$((FAIL+1))
+fi
+expect_cmd "submitter rejects an unsafe EXCLUDE" 2 "not a comma-separated node list" -- \
+  env DRYRUN=1 "EXCLUDE=neu301;rm -rf x" bash "$SUBMITTER" C8 --resume x.ckpt --expected-step 40000 --chunk-end 42500
+
 echo
 echo "=== guard tests: ${PASS} passed, ${FAIL} failed ==="
 [ "$FAIL" -eq 0 ] || exit 1

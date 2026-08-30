@@ -1,0 +1,478 @@
+=== exp_11 arm C8 @ rung 8x8 (MB 8 x 8 GPU, grad-ckpt ON) — 2026-08-27_08-51-27 — host neu306.neuronic.cs.princeton.edu ===
+commit binding OK: 03ab576e23c98201f8731bff8354ab72cb082498
+config for C8: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C8.json sha256 af4c2f21c2d03bc51448a3c161878443a8e9afd1314695530baf4032e808b3f1
+gate OK: C8 carries the uniform C8 orbit, grad-ckpt True, EMA on
+lineage: RESTART (expected_step 85000, max_steps 100000, chunk_end 87500, stops at 87500, ckpt every 2500, time pin PINNED_TIME_LIMIT_CHUNK_C8=04:00:00)
+--- train.py argv ---
+--model-config /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C8.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 87500 --batch-size 8 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 8 --num-nodes 1 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --precision bf16-mixed --val-every -1 --val-dataset-config '' --gradient-clip-val 0.0 --logger wandb --checkpoint-every 2500 --name FLAC_exp11_C8 --experiment-name exp11_C8 --save-dir outputs_FLAC/exp11_C8 --ckpt-path outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt
+--- argv parity vs exp_07 B-F ---
+  allowed  --batch-size: exp_07 '32' -> exp_11 '8'
+  allowed  --ckpt-path: 'outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt' (RESTART only)
+  allowed  --experiment-name: exp_07 'exp07_BF' -> exp_11 'exp11_C8'
+  allowed  --max-steps: exp_07 '67500' -> exp_11 '87500'
+  allowed  --model-config: exp_07 'worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json' -> exp_11 '/n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/FLAC_AR_BF_C8.json'
+  allowed  --name: exp_07 'FLAC_exp07_BF' -> exp_11 'FLAC_exp11_C8'
+  allowed  --num-gpus: exp_07 '2' -> exp_11 '8'
+  allowed  --save-dir: exp_07 'outputs_FLAC/exp07_BF' -> exp_11 'outputs_FLAC/exp11_C8'
+  explicit --gradient-clip-val='0.0' (whitelisted explicit default)
+  explicit --num-nodes='1' (whitelisted explicit default)
+  explicit --precision='bf16-mixed' (whitelisted explicit default)
+  explicit --val-dataset-config='' (whitelisted explicit default)
+  explicit --val-every='-1' (whitelisted explicit default)
+ARGV PARITY OK (RESTART): only whitelisted differences and additions
+allocation matches the pins: 64 cpus, 110592 MB, 4:00:00 (PINNED_TIME_LIMIT_CHUNK_C8)
+GPU: NVIDIA L40 GPU-ed5696a7-b197-8f35-69d7-9e9cf5cb09b0
+GPU: NVIDIA L40 GPU-7a15bb41-2318-a543-0edb-154dabcdcf4f
+GPU: NVIDIA L40 GPU-58739ead-0fe3-ca8f-439c-187a73c285ac
+GPU: NVIDIA L40 GPU-bbf07f44-de60-05d4-e417-0cd8328d9e96
+GPU: NVIDIA L40 GPU-fe4fcb34-e88f-a66a-fc24-6f6b956c3aa7
+GPU: NVIDIA L40 GPU-78781741-d66f-21e9-786f-a5a194c8e205
+GPU: NVIDIA L40 GPU-86739e71-208b-ccb1-ce7d-de0af0a6c468
+GPU: NVIDIA L40 GPU-9da479ba-c84e-5e19-b8a5-191afa88f5eb
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+runtime gate OK: pl 2.1.0, torch 2.7.0+cu126, cuda 12.6
+VAE pin OK: 8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9
+--- co-tenancy disclosure at launch ---
+lock acquired: outputs_FLAC/exp11_C8.lock (flock on fd 9, released on exit)
+restart lineage OK: outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt
+  global_step=85000 epoch=18 cond_method='fa_invariant' angles=[0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]
+  optimizer_state=FULL (449 entries) lr=4.800153607373194e-05 sched_last_epoch=85000 ema_entries=212
+chain lineage OK: C8 85000 -> 87500 resumes the tip of the recorded chunk chain, under the audited launch job 3648695 (launch commit 2b78f995a6d3, running commit 03ab576e23c9)
+  bound to the audited launch manifest: outputs_FLAC/exp11_C8/launch_manifest.txt
+  chunk leg: stops at 87500 of the 100000 budget
+CKPT_SHA256 87bcec90c493531cf65cb92017b0c910477e7d5d1f53aa06053c62a8f1e5f1b0
+wandb: [wandb.Api()] Loaded credentials for https://api.wandb.ai from /u/yh4742/.netrc.
+wandb identity OK: entity yh4742-princeton-university (exported), mode online
+wandb: new RESTART run id exp11-C8-r85000-1787836341088221941-c070665c (continues exp11-C8-1786064131292302937-6d92e299; not resumed — a resumed run refuses the changed max_steps/ckpt_path config)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+ViT pin OK: cache /n/fs/gatrdp/hf_cache/hub, single snapshot 114c13799502…, sha256 4610ad75edef… (launch with HF_HUB_OFFLINE=1)
+building C8 (fa_invariant C8) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+C8: wiring OK — fa_invariant C8 orbit, EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0), AdamW(initial_lr 5e-5, step-0 5.000e-07) + InverseLR@step
+building the C4L reference for init-identity ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+C4L: wiring OK — fa_invariant C4 orbit, EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0), AdamW(initial_lr 5e-5, step-0 5.000e-07) + InverseLR@step
+architecture: identical param names (753 tensors) and count (64.50M) in C8 and C4L
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — C8 is init-identical to C4L and differs only in the averaging orbit.
+manifest: /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-27_08-51-27_C8_8x8_jid3759511_manifest.txt (copied to outputs_FLAC/exp11_C8)
+=== launching C8 8x8: torchrun --standalone --nproc_per_node=8 train.py (RESTART) ===
+W0827 09:17:43.514000 391981 site-packages/torch/distributed/run.py:766] 
+W0827 09:17:43.514000 391981 site-packages/torch/distributed/run.py:766] *****************************************
+W0827 09:17:43.514000 391981 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0827 09:17:43.514000 391981 site-packages/torch/distributed/run.py:766] *****************************************
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 3] Seed set to 42
+[rank: 5] Seed set to 42
+[rank: 4] Seed set to 42
+[rank: 1] Seed set to 42
+[rank: 0] Seed set to 42
+[rank: 6] Seed set to 42
+[rank: 7] Seed set to 42
+[rank: 2] Seed set to 42
+Using Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add NoiseUsing Augmentations: Random Time Shift, Add Noise
+
+
+
+
+
+Running json scandir...Running json scandir...Running json scandir...Running json scandir...Running json scandir...
+
+
+
+Running json scandir...
+
+Using Augmentations: Random Time Shift, Add Noise
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Running json scandir...
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+Found 291210 files in 243 subfolders
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+21.60M/21.60M parameters are trainable
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+21.60M/21.60M parameters are trainable
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /u/yh4742/.netrc.
+[rank: 3] Seed set to 42
+[rank: 4] Seed set to 42
+[rank: 5] Seed set to 42
+[rank: 1] Seed set to 42
+[rank: 6] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 5, MEMBER: 6/8
+Initializing distributed: GLOBAL_RANK: 3, MEMBER: 4/8
+Initializing distributed: GLOBAL_RANK: 4, MEMBER: 5/8
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/8
+Initializing distributed: GLOBAL_RANK: 6, MEMBER: 7/8
+[rank: 2] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 2, MEMBER: 3/8
+[rank: 7] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 7, MEMBER: 8/8
+wandb: Currently logged in as: yh4742 (yh4742-princeton-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in wandb/run-20260827_091804-exp11-C8-r85000-1787836341088221941-c070665c
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp11_C8
+wandb: ⭐️ View project at https://wandb.ai/yh4742-princeton-university/FLAC_exp11_C8
+wandb: 🚀 View run at https://wandb.ai/yh4742-princeton-university/FLAC_exp11_C8/runs/exp11-C8-r85000-1787836341088221941-c070665c
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/8
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 8 processes
+----------------------------------------------------------------------------------------------------
+
+/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints exists and is not empty.
+Restoring states from the checkpoint path at outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 2 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 7 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 6 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 3 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 5 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 4 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1,2,3,4,5,6,7]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Restored all states from the checkpoint at outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 18:   0%|          | 0/4550 [00:00<?, ?it/s]/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py:154: You're resuming from a checkpoint that ended before the epoch ended. This can cause unreliable results if further training is done. Consider using an end-of-epoch checkpoint
+RuntimeError: CUDA error: operation not supported on global/shared address space
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank5]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank5]:     return function(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank5]:     self._run(model, ckpt_path=ckpt_path)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank5]:     results = self._run_stage()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank5]:     self.fit_loop.run()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank5]:     self.advance()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank5]:     self.epoch_loop.run(self._data_fetcher)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank5]:     self.advance(data_fetcher)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 240, in advance
+[rank5]:     batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 187, in run
+[rank5]:     self._optimizer_step(batch_idx, closure)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 265, in _optimizer_step
+[rank5]:     call._call_lightning_module_hook(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 157, in _call_lightning_module_hook
+[rank5]:     output = fn(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/module.py", line 1282, in optimizer_step
+[rank5]:     optimizer.step(closure=optimizer_closure)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/core/optimizer.py", line 151, in step
+[rank5]:     step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 263, in optimizer_step
+[rank5]:     optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 230, in optimizer_step
+[rank5]:     return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/amp.py", line 74, in optimizer_step
+[rank5]:     return super().optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 117, in optimizer_step
+[rank5]:     return optimizer.step(closure=closure, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/lr_scheduler.py", line 124, in wrapper
+[rank5]:     return func.__get__(opt, opt.__class__)(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 485, in wrapper
+[rank5]:     out = func(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/optimizer.py", line 79, in _use_grad
+[rank5]:     ret = func(self, *args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/optim/adam.py", line 225, in step
+[rank5]:     loss = closure()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/plugins/precision/precision_plugin.py", line 104, in _wrap_closure
+[rank5]:     closure_result = closure()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 140, in __call__
+[rank5]:     self._result = self.closure(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+[rank5]:     return func(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 126, in closure
+[rank5]:     step_output = self._step_fn()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/optimization/automatic.py", line 315, in _training_step
+[rank5]:     training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 309, in _call_strategy_hook
+[rank5]:     output = fn(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 381, in training_step
+[rank5]:     return self._forward_redirection(self.model, self.lightning_module, "training_step", *args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 628, in __call__
+[rank5]:     wrapper_output = wrapper_module(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1637, in forward
+[rank5]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1464, in _run_ddp_forward
+[rank5]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 621, in wrapped_forward
+[rank5]:     out = method(*_args, **_kwargs)
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 609, in training_step
+[rank5]:     conditioning = self._compute_conditioning(metadata)
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/training/diffusion.py", line 534, in _compute_conditioning
+[rank5]:     return invariant_conditioning(
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/data/yaw_rotation.py", line 477, in invariant_conditioning
+[rank5]:     base = conditioner(md_inv, device)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 414, in forward
+[rank5]:     output[key] = conditioner(conditioner_inputs, device=device)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 286, in forward
+[rank5]:     outputs = self.vit(c)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/utils/generic.py", line 1064, in wrapper
+[rank5]:     outputs = func(self, *args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 523, in forward
+[rank5]:     hidden_states = layer_module(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/modeling_layers.py", line 94, in __call__
+[rank5]:     return super().__call__(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/src/models/conditioners.py", line 192, in ckpt_forward
+[rank5]:     return torch.utils.checkpoint.checkpoint(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/_compile.py", line 51, in inner
+[rank5]:     return disable_fn(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/_dynamo/eval_frame.py", line 838, in _fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/utils/checkpoint.py", line 495, in checkpoint
+[rank5]:     ret = function(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 420, in forward
+[rank5]:     hidden_states, _ = self.attention(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 296, in forward
+[rank5]:     query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 244, in apply_rotary_pos_emb
+[rank5]:     q_patches = (q_patches * cos) + (rotate_half(q_patches) * sin)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/transformers/models/dinov3_vit/modeling_dinov3_vit.py", line 187, in rotate_half
+[rank5]:     return torch.cat((-x2, x1), dim=-1)
+[rank5]: RuntimeError: CUDA error: operation not supported on global/shared address space
+[rank5]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank5]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank5]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+
+[rank5]: During handling of the above exception, another exception occurred:
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/train.py", line 233, in <module>
+[rank5]:     main()
+[rank5]:   File "/n/fs/gatrdp/codespace/FLAC/train.py", line 230, in main
+[rank5]:     trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank5]:     call._call_and_handle_interrupt(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 68, in _call_and_handle_interrupt
+[rank5]:     trainer._teardown()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1013, in _teardown
+[rank5]:     self.strategy.teardown()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/ddp.py", line 404, in teardown
+[rank5]:     super().teardown()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/parallel.py", line 127, in teardown
+[rank5]:     super().teardown()
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/strategy.py", line 524, in teardown
+[rank5]:     _optimizers_to_device(self.optimizers, torch.device("cpu"))
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/utilities/optimizer.py", line 28, in _optimizers_to_device
+[rank5]:     _optimizer_to_device(opt, device)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/utilities/optimizer.py", line 34, in _optimizer_to_device
+[rank5]:     optimizer.state[p] = apply_to_collection(v, Tensor, move_data_to_device, device, allow_frozen=True)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_utilities/core/apply_func.py", line 58, in apply_to_collection
+[rank5]:     return _apply_to_collection_slow(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_utilities/core/apply_func.py", line 154, in _apply_to_collection_slow
+[rank5]:     v = _apply_to_collection_slow(
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_utilities/core/apply_func.py", line 102, in _apply_to_collection_slow
+[rank5]:     return function(data, *args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/utilities/apply_func.py", line 102, in move_data_to_device
+[rank5]:     return apply_to_collection(batch, dtype=_TransferableDataType, function=batch_to)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_utilities/core/apply_func.py", line 70, in apply_to_collection
+[rank5]:     return function(data, *args, **kwargs)
+[rank5]:   File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/lightning_fabric/utilities/apply_func.py", line 96, in batch_to
+[rank5]:     data_output = data.to(device, **kwargs)
+[rank5]: RuntimeError: CUDA error: operation not supported on global/shared address space
+[rank5]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank5]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank5]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0827 09:20:18.189000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392051 closing signal SIGTERM
+W0827 09:20:18.191000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392052 closing signal SIGTERM
+W0827 09:20:18.193000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392053 closing signal SIGTERM
+W0827 09:20:18.205000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392054 closing signal SIGTERM
+W0827 09:20:18.206000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392055 closing signal SIGTERM
+W0827 09:20:18.208000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392057 closing signal SIGTERM
+W0827 09:20:18.209000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 392058 closing signal SIGTERM
+W0827 09:20:48.219000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392051 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:48.497000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392052 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:48.765000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392053 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:49.045000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392054 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:49.323000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392055 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:49.601000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392057 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+W0827 09:20:49.863000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:919] Unable to shutdown process 392058 via Signals.SIGTERM, forcefully exiting via Signals.SIGKILL
+E0827 09:20:50.234000 391981 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 5 (pid: 392056) of binary: /n/fs/gatrdp/envs/flac/bin/python3.10
+Traceback (most recent call last):
+  File "/n/fs/gatrdp/envs/flac/bin/torchrun", line 6, in <module>
+    sys.exit(main())
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/n/fs/gatrdp/envs/flac/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-08-27_09:20:18
+  host      : neu306.neuronic.cs.princeton.edu
+  rank      : 5 (local_rank: 5)
+  exitcode  : 1 (pid: 392056)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+wandb run identity OK: id exp11-C8-r85000-1787836341088221941-c070665c at /n/fs/gatrdp/codespace/FLAC/wandb/run-20260827_091804-exp11-C8-r85000-1787836341088221941-c070665c (entity yh4742-princeton-university, project FLAC_exp11_C8, name exp11_C8)
+world size OK: 8 processes registered
+RUNTIME: torchrun exited 1 (no OOM signature)
+preflight transcript duplicated from /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-C8-train_3759511.out
+endpoint attestation: this leg's SETTLED class is 1, not the success class — attesting <none>
+=== exp_11 C8 8x8 finished at 2026-08-27 09:20:52 ===
+torchrun rc=1 tee rc=0 wandb_identity_rc=0 classified rc=1
+world size OK: 8 processes registered
+RUNTIME: torchrun exited 1 (no OOM signature)
+last checkpoint: outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt
+endpoint attestation: appended BELOW this record, once the exit class is settled (round-5 r2 blocking 2)
+restart: fa_orbit_submit.sh C8 --resume outputs_FLAC/exp11_C8/FLAC_exp11_C8/exp11_C8/checkpoints/epoch=18-step=85000.ckpt --expected-step <step>
+next chunk: record this leg (fa_orbit_record_restart.py C8 /n/fs/gatrdp/codespace/FLAC/worklog/worklog_yixun/exp_11_fa_orbit_claude/fa_orbit_2026-08-27_08-51-27_C8_8x8_jid3759511_manifest.txt), then fa_orbit_submit.sh C8 --resume <ckpt at 87500> --expected-step 87500 --chunk-end <87500+2500>
