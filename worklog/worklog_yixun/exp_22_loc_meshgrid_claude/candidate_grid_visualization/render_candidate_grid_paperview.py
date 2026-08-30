@@ -90,7 +90,22 @@ for i in order:
 
 handles = [Line2D([],[], marker='s', ls='', mfc='#d9dce1', mec='none', ms=13, label='Room mesh')]
 handles += [Line2D([],[], marker='o', ls='', mfc=blues[i], mec='none', ms=9, label=f"Candidate grid, z={z:.1f} m") for i, z in enumerate(zlevels)]
-fig.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.995, 0.97), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
-out = 'worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/candidate_grid_case_cafe_idx_1_q0.png'
-fig.savefig(out, dpi=200, facecolor='white'); plt.close(fig)
+leg1 = fig.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.995, 0.97), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
+out='worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/candidate_grid_case_cafe_idx_1_q0.png'
+fig.savefig(out, dpi=200, facecolor='white')
+# --- marked variant: same figure + receiver/context/GT/nearest icons and legend ---
+leg1.remove()
+for P, kw in [(ctx, dict(marker='D', s=150, c='#e0402a', edgecolors='white', linewidths=1.2, zorder=6)),
+              (receiver[None], dict(marker='^', s=260, c='#1a2433', edgecolors='white', linewidths=1.4, zorder=7)),
+              (gt[None], dict(marker='*', s=560, c='#f5a300', edgecolors='#7a5200', linewidths=1.2, zorder=8)),
+              (near[None], dict(marker='P', s=260, c='#18a05c', edgecolors='white', linewidths=1.2, zorder=7))]:
+    x, y, _ = project(np.atleast_2d(P)); ax.scatter(x, y, **kw)
+handles2 = handles + [
+    Line2D([],[], marker='^', ls='', mfc='#1a2433', mec='white', ms=13, label='Receiver'),
+    Line2D([],[], marker='D', ls='', mfc='#e0402a', mec='white', ms=10, label='Context sources (8)'),
+    Line2D([],[], marker='*', ls='', mfc='#f5a300', mec='#7a5200', ms=17, label='Target source (ground truth)'),
+    Line2D([],[], marker='P', ls='', mfc='#18a05c', mec='white', ms=12, label='Nearest grid point')]
+fig.legend(handles=handles2, loc='upper right', bbox_to_anchor=(0.995, 0.97), fontsize=12.5, frameon=True, framealpha=0.95, edgecolor='#c8ccd2')
+out2='worklog/worklog_yixun/exp_22_loc_meshgrid_claude/candidate_grid_visualization/candidate_grid_case_cafe_idx_1_q0_markers.png'
+fig.savefig(out2, dpi=200, facecolor='white'); plt.close(fig)
 print(f'wrote {out}: {len(pts)} candidates at z levels {zlevels}, oracle {oracle:.3f} m')

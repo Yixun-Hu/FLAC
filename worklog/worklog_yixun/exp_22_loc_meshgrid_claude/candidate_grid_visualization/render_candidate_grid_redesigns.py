@@ -120,9 +120,7 @@ handles = [Line2D([],[],marker='o',ls='',mfc=BLUE,mec='none',ms=7,alpha=0.7,labe
            Line2D([],[],marker='*',ls='',mfc=ORANGE,mec='#7a5200',ms=15,label='Target source, ground truth (XY projection)'),
            Line2D([],[],marker='P',ls='',mfc=GREEN,mec='white',ms=11,label='Nearest grid point')]
 fig.legend(handles=handles, loc='lower center', ncol=3, fontsize=11.5, frameon=False, bbox_to_anchor=(0.44, -0.005))
-fig.suptitle('Candidate grid by height layer — Cafe/Cafe_idx_1, query 0 (registered z-band bank, 5,295 candidates)', fontsize=15.5, y=0.985)
-fig.text(0.985, 0.012, GT_NOTE, ha='right', fontsize=10, color='#8a919b')
-fig.subplots_adjust(left=0.015, right=0.845, top=0.93, bottom=0.075, wspace=0.04, hspace=0.10)
+fig.subplots_adjust(left=0.015, right=0.845, top=0.975, bottom=0.075, wspace=0.04, hspace=0.10)
 fig.savefig(OUT+'candidate_grid_v1_layer_slices.png', facecolor='white'); plt.close(fig)
 print('v1 written:', {z: len(layer[z]) for z in zlevels})
 
