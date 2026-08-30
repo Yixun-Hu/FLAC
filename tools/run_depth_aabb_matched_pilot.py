@@ -100,9 +100,8 @@ def main() -> None:
                 "selection filter does not contain requested query indices: "
                 + ", ".join(map(str, sorted(missing_indices)))
             )
-        records = [
-            record for record in records if int(record["index"]) in requested_indices
-        ]
+        records_by_index = {int(record["index"]): record for record in records}
+        records = [records_by_index[index] for index in args.query_indices]
     if not records:
         raise ValueError("selection filter produced no queries")
     indices = [int(record["index"]) for record in records]
