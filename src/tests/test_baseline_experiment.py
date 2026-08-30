@@ -10,6 +10,7 @@ from src.baselines.fem_pipeline import save_tetrahedral_mesh_npz
 from src.baselines.fem_solver import TetrahedralMesh
 from src.localization.baseline_experiment import (
     build_baseline_query_result,
+    filter_execution_rooms,
     load_few_shot_waveform_checkpoint,
     load_room_tetrahedral_mesh,
     execute_baseline_query,
@@ -137,6 +138,23 @@ def test_baseline_query_result_reports_k1_k8_and_stable_candidate_tie_break():
     assert result["metrics"]["8"]["prediction_index"] == 0
     assert result["metrics"]["1"]["localization_error_m"] == 0.0
     assert result["diagnostics"]["fem"]["valid"] is True
+
+
+def test_execution_room_filter_preserves_order_and_rejects_unknown_rooms():
+    joined = [
+        ({"index": 1, "room": "Room_A"}, {"query": 1}, {"geometry": 1}),
+        ({"index": 2, "room": "Room_B"}, {"query": 2}, {"geometry": 2}),
+        ({"index": 3, "room": "Room_A"}, {"query": 3}, {"geometry": 3}),
+    ]
+
+    scheduled = filter_execution_rooms(joined, ("Room_B",))
+
+    assert [item[0]["index"] for item in scheduled] == [1, 3]
+    assert filter_execution_rooms(joined) == joined
+    with pytest.raises(ValueError, match="unknown pilot rooms"):
+        filter_execution_rooms(joined, ("Room_C",))
+    with pytest.raises(ValueError, match="excludes every"):
+        filter_execution_rooms(joined, ("Room_A", "Room_B"))
 
 
 def test_fem_query_selects_with_room_helps_without_loading_agree(monkeypatch):

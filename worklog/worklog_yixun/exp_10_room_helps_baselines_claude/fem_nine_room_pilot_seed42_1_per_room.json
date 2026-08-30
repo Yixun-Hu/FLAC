@@ -1,0 +1,107 @@
+{
+  "candidate_query_pairs": 1304,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "geometry_audit_sha256": "ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a",
+  "geometry_branch": "z_band",
+  "query_count": 9,
+  "records": [
+    {
+      "candidate_count": 27,
+      "candidate_indices_sha256": "4f212dcbf53bea4e604969f50c2bc8f3f6330e9d383375a46b0a4563efd86bf1",
+      "index": 4467,
+      "oracle_m": 0.24999999999999992,
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+      "receiver_id": "R017",
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 56,
+      "candidate_indices_sha256": "b5ce3fce0eb6cc0b19a4854eecc4a36714ab7102c03c8fd76778e8386b07fae8",
+      "index": 4728,
+      "oracle_m": 0.3674234614174767,
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+      "receiver_id": "R023",
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "3d20ecea8c89e3e12042b30773d8f10615e25e1ba6158058d906b5ec3e34222b",
+      "index": 2188,
+      "oracle_m": 0.22847319317591716,
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S002_R015_hybrid_IR.wav",
+      "receiver_id": "R015",
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "982749d15d817432b59e7b8d6257e67caf9175eb370de84ee15c4ac25b5274ea",
+      "index": 1937,
+      "oracle_m": 0.22715633383201075,
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+      "receiver_id": "R014",
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "8ab0d7e6e8acd01ca23c44c255fa08d3ba08cb4cf283f13223ae24631284232a",
+      "index": 5685,
+      "oracle_m": 0.19999999999999996,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+      "receiver_id": "R014",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "47c7ecb49e91f997818f055dfefa34a4d80f8f2faba029c4f5048852ffc4ffff",
+      "index": 4945,
+      "oracle_m": 0.0,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S008_R007_hybrid_IR.wav",
+      "receiver_id": "R007",
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "140ada034cda4ada2e3a05a9434c797e7fc53951c1cf1dec09d3bf4801b3aff5",
+      "index": 5194,
+      "oracle_m": 0.0,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "receiver_id": "R006",
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 293,
+      "candidate_indices_sha256": "d07246493b703bcb88cd001731e769a6e9c95051a0d67b9f8cc3e3cad2fb5ae2",
+      "index": 5923,
+      "oracle_m": 0.0,
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S001_R004_hybrid_IR.wav",
+      "receiver_id": "R004",
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 279,
+      "candidate_indices_sha256": "2dc827c5479256e75d786264d89aeefcbc6f4b5df1dad30d4c179abc2cae5310",
+      "index": 5494,
+      "oracle_m": 0.3354101966249685,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R011_hybrid_IR.wav",
+      "receiver_id": "R011",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    }
+  ],
+  "room_count": 9,
+  "schema_version": 1,
+  "selection": {
+    "method": "first_frozen_seed42_record_per_available_fem_room",
+    "room_order": "ascending_tetrahedron_count_then_room",
+    "source_pilot_sha256": "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2"
+  },
+  "sha256": "f3afb519b8be17055da63108c1379ee656e50f483249c9a3cb904f6f2b56f18c"
+}

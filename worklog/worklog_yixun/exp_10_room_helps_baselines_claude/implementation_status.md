@@ -1,5 +1,14 @@
 # exp_10 implementation status
 
+## Matched-baseline decision
+
+The fair main-table FEM method is now **FEM-Sabine (Depth-AABB)**, using only
+the fixed receiver depth panorama. The original `fem_sabine` implementation in
+this experiment uses the official-room-derived tetrahedral mesh and is therefore
+an oracle/ablation, not the matched-input row. Exact paired manifests and K-axis
+reporting rules are frozen in
+`../exp_14_depth_aabb_matched_protocol/README.md`.
+
 ## Implemented
 
 ### Shared protocol

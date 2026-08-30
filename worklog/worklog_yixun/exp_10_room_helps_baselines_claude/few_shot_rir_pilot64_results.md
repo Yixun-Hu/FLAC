@@ -1,5 +1,8 @@
 # Few-ShotRIR-Waveform AR localization pilot
 
+> Historical batch-1 result. The aligned two-batch, 128-query result is in
+> `few_shot_rir_128_results/summary.md`.
+
 ## Scope and identity
 
 - Frozen seed-42 pilot: 64 queries, four queries per room, 16 rooms, 46,301 query-candidate pairs.

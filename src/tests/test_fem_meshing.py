@@ -4,7 +4,12 @@ import json
 import numpy as np
 import pytest
 
-from generate_fem_meshes import atomic_json, load_hashed_json, room_artifacts_are_valid
+from generate_fem_meshes import (
+    SURFACE_GEOMETRY_TOLERANCE_M,
+    atomic_json,
+    load_hashed_json,
+    room_artifacts_are_valid,
+)
 
 from src.baselines.fem_meshing import (
     FTETWILD_COMMIT,
@@ -160,6 +165,22 @@ def test_ftetwild_command_pins_repair_and_resolution_contract(tmp_path):
     assert command[command.index("--max-threads") + 1] == "16"
 
 
+def test_ftetwild_command_can_preserve_open_boundary_geometry(tmp_path):
+    command = build_ftetwild_command(
+        tmp_path / "FloatTetwild_bin",
+        tmp_path / "room.obj",
+        tmp_path / "room.msh",
+        ideal_edge_m=0.10,
+        maximum_threads=8,
+        smooth_open_boundary=False,
+        log_path=tmp_path / "room.log",
+    )
+
+    assert "--smooth-open-boundary" not in command
+    assert "--manifold-surface" in command
+    assert "--use-floodfill" in command
+
+
 def test_production_mesh_audit_enforces_true_maximum_edge():
     nodes = np.array(
         [[0, 0, 0], [0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]], dtype=float
@@ -282,6 +303,26 @@ def test_surface_vertex_snap_preserves_splits_and_enforces_output_tolerance():
     assert np.array_equal(snapped, reference[[0, 1, 2, 0]])
     with pytest.raises(ValueError, match="tolerance"):
         snap_surface_vertices_to_reference(reference, surface, tolerance_m=1e-7)
+
+
+def test_production_surface_snap_gate_covers_ascii_drift_not_geometry_motion():
+    assert SURFACE_GEOMETRY_TOLERANCE_M == pytest.approx(1e-4)
+    reference = np.array([[0.0, 0.0, 0.0]])
+
+    snapped, maximum = snap_surface_vertices_to_reference(
+        reference,
+        np.array([[6.9e-5, 0.0, 0.0]]),
+        tolerance_m=SURFACE_GEOMETRY_TOLERANCE_M,
+    )
+
+    assert maximum == pytest.approx(6.9e-5)
+    assert np.array_equal(snapped, reference)
+    with pytest.raises(ValueError, match="tolerance"):
+        snap_surface_vertices_to_reference(
+            reference,
+            np.array([[1e-3, 0.0, 0.0]]),
+            tolerance_m=SURFACE_GEOMETRY_TOLERANCE_M,
+        )
 
 
 def test_extract_boundary_triangles_removes_shared_face_and_orients_outward():

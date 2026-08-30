@@ -52,6 +52,15 @@ def main() -> None:
     )
     parser.add_argument("--fem-solver-threads", type=int, default=1)
     parser.add_argument("--mkl-runtime", type=Path)
+    parser.add_argument(
+        "--skip-rooms",
+        nargs="*",
+        default=(),
+        help=(
+            "execution-only room filter; the full pilot identity is retained so "
+            "the skipped rooms can be resumed later in the same output directory"
+        ),
+    )
     args = parser.parse_args()
 
     if args.mkl_runtime is not None:
@@ -85,6 +94,7 @@ def main() -> None:
         fem_solver_backend=args.fem_solver_backend,
         fem_superlu_ordering=args.fem_superlu_ordering,
         fem_solver_threads=args.fem_solver_threads,
+        skip_rooms=tuple(args.skip_rooms),
     )
     print(json.dumps(result, indent=2))
 

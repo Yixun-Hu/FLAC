@@ -1,0 +1,62 @@
+{
+  "fem_agree_by_k": {
+    "1": {
+      "mean_localization_error_m": 1.2882440078662927,
+      "median_localization_error_m": 0.7905694150420949,
+      "oracle_normalized_success_0_5m": 0.4639175257731959,
+      "query_count": 97,
+      "room_count": 14,
+      "room_macro_mean_localization_error_m": 1.256187525122003,
+      "room_macro_oracle_normalized_success_0_5m": 0.4378401360544218,
+      "room_macro_success_0_5m": 0.28690476190476183,
+      "room_macro_success_1_0m": 0.5951530612244899,
+      "success_0_5m": 0.29896907216494845,
+      "success_1_0m": 0.5670103092783505
+    },
+    "4": {
+      "mean_localization_error_m": 1.368700419737816,
+      "median_localization_error_m": 0.9615612304996484,
+      "oracle_normalized_success_0_5m": 0.422680412371134,
+      "query_count": 97,
+      "room_count": 14,
+      "room_macro_mean_localization_error_m": 1.3404933786634168,
+      "room_macro_oracle_normalized_success_0_5m": 0.39379251700680273,
+      "room_macro_success_0_5m": 0.2517857142857143,
+      "room_macro_success_1_0m": 0.5551870748299319,
+      "success_0_5m": 0.26804123711340205,
+      "success_1_0m": 0.5257731958762887
+    },
+    "8": {
+      "mean_localization_error_m": 1.294198565056452,
+      "median_localization_error_m": 0.788986691902975,
+      "oracle_normalized_success_0_5m": 0.4742268041237113,
+      "query_count": 97,
+      "room_count": 14,
+      "room_macro_mean_localization_error_m": 1.2691215946155165,
+      "room_macro_oracle_normalized_success_0_5m": 0.4491496598639456,
+      "room_macro_success_0_5m": 0.2982142857142857,
+      "room_macro_success_1_0m": 0.5962585034013606,
+      "success_0_5m": 0.30927835051546393,
+      "success_1_0m": 0.5670103092783505
+    }
+  },
+  "fem_omp_reference": {
+    "mean_localization_error_m": 1.1845032025420559,
+    "median_localization_error_m": 0.7176350047203662,
+    "oracle_normalized_success_0_5m": 0.4639175257731959,
+    "query_count": 97,
+    "room_count": 14,
+    "room_macro_mean_localization_error_m": 1.2630050305674299,
+    "room_macro_oracle_normalized_success_0_5m": 0.42593537414965993,
+    "room_macro_success_0_5m": 0.30688775510204075,
+    "room_macro_success_1_0m": 0.5637755102040817,
+    "success_0_5m": 0.32989690721649484,
+    "success_1_0m": 0.5979381443298969
+  },
+  "method": "fem_sabine_depth_aabb_agree",
+  "query_count": 97,
+  "room_count": 14,
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "f792bba72bf5478563b849fd6d3b1d553c573a12bd7dd4cd76a2796c90d5307c"
+}

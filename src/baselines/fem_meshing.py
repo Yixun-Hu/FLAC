@@ -314,6 +314,7 @@ def build_ftetwild_command(
     *,
     ideal_edge_m: float = FTETWILD_IDEAL_EDGE_M,
     maximum_threads: int = FTETWILD_MAXIMUM_THREADS,
+    smooth_open_boundary: bool = True,
     log_path: Path | str,
 ) -> list[str]:
     """Build the pinned triangle-soup repair and tetrahedralization command."""
@@ -325,7 +326,7 @@ def build_ftetwild_command(
         raise ValueError("maximum_threads must be an integer")
     if maximum_threads <= 0:
         raise ValueError("maximum_threads must be positive")
-    return [
+    command = [
         str(Path(binary_path)),
         "-i",
         str(Path(source_mesh_path)),
@@ -336,7 +337,6 @@ def build_ftetwild_command(
         "--correct-surface-orientation",
         "--use-floodfill",
         "--manifold-surface",
-        "--smooth-open-boundary",
         "--no-binary",
         "--no-color",
         "--max-threads",
@@ -347,6 +347,9 @@ def build_ftetwild_command(
         "6",
         "--is-quiet",
     ]
+    if smooth_open_boundary:
+        command.insert(command.index("--no-binary"), "--smooth-open-boundary")
+    return command
 
 
 def production_mesh_audit(

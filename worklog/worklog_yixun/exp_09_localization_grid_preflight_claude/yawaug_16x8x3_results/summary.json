@@ -1,0 +1,48 @@
+{
+  "batch_run_sha256": [
+    "5ab30cb35c24221eee14a73232305856d8e5c0d22b858beff7120b830fc4bbf7",
+    "6f515056d3ce11307804e316071c95f0d0280e686b6e431c11d46c7268d05c17"
+  ],
+  "candidate_query_pairs": 92608,
+  "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/YAWAUG_AR_40k_epoch8-step40000.ckpt",
+  "conditioning_method": "vanilla",
+  "metrics": {
+    "1": {
+      "localization_error_m": 1.744434686378021,
+      "resolution_aware_sr_0_5m": 0.328125,
+      "sr_0_5m": 0.1640625,
+      "sr_1_0m": 0.53125
+    },
+    "4": {
+      "localization_error_m": 1.769289421647159,
+      "resolution_aware_sr_0_5m": 0.3125,
+      "sr_0_5m": 0.1640625,
+      "sr_1_0m": 0.4921875
+    },
+    "8": {
+      "localization_error_m": 1.8032358740785663,
+      "resolution_aware_sr_0_5m": 0.328125,
+      "sr_0_5m": 0.1640625,
+      "sr_1_0m": 0.5234375
+    }
+  },
+  "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json",
+  "peak_memory_bytes": 7185781248,
+  "queries_per_room": 8,
+  "query_count": 128,
+  "random_candidate_baseline": {
+    "localization_error_m": 3.020251170422648,
+    "resolution_aware_sr_0_5m": 0.1171875,
+    "sr_0_5m": 0.046875,
+    "sr_1_0m": 0.1953125
+  },
+  "readout_count": 384,
+  "room_count": 16,
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "summed_query_seconds": 7356.19655020372,
+  "tau": 0.1
+}

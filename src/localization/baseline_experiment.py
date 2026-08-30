@@ -54,6 +54,32 @@ BASELINE_QUERY_SCHEMA_VERSION = 2
 TETRA_MESH_MANIFEST_SCHEMA_VERSION = 1
 
 
+def filter_execution_rooms(
+    joined: list[tuple[dict, dict, dict]],
+    skip_rooms: tuple[str, ...] = (),
+) -> list[tuple[dict, dict, dict]]:
+    """Apply a resume-safe execution-only room filter.
+
+    The full pilot remains in the run identity.  This filter only controls which
+    query artifacts are produced by the current invocation, so a later launch
+    can resume the same output directory with a different execution subset.
+    """
+
+    skipped = {str(room) for room in skip_rooms}
+    if not skipped:
+        return list(joined)
+    available = {str(selected["room"]) for selected, _record, _geometry in joined}
+    unknown = skipped - available
+    if unknown:
+        raise ValueError(f"skip_rooms contains unknown pilot rooms: {sorted(unknown)}")
+    scheduled = [
+        item for item in joined if str(item[0]["room"]) not in skipped
+    ]
+    if not scheduled:
+        raise ValueError("skip_rooms excludes every pilot query")
+    return scheduled
+
+
 def load_few_shot_waveform_checkpoint(
     model_config_path: Path | str,
     checkpoint_path: Path | str,
@@ -389,6 +415,7 @@ def run_baseline_localization(
     fem_solver_backend: str = "auto",
     fem_superlu_ordering: str = "MMD_AT_PLUS_A",
     fem_solver_threads: int = 1,
+    skip_rooms: tuple[str, ...] = (),
 ) -> dict:
     """Run a resume-safe paired K=1/8 baseline on frozen exp_09 identities."""
 
@@ -404,6 +431,7 @@ def run_baseline_localization(
         if query_limit <= 0 or query_limit > len(joined):
             raise ValueError("query_limit is outside the pilot range")
         joined = joined[:query_limit]
+    scheduled = filter_execution_rooms(joined, skip_rooms)
 
     predictor = None
     tetra_manifest = None
@@ -479,7 +507,7 @@ def run_baseline_localization(
         else None
     )
     completed = 0
-    for ordinal, (selected, record, _geometry) in enumerate(joined, start=1):
+    for ordinal, (selected, record, _geometry) in enumerate(scheduled, start=1):
         previous = _completed_baseline_query(
             output_dir,
             query_index=int(selected["index"]),
@@ -489,7 +517,10 @@ def run_baseline_localization(
         )
         if previous is not None:
             completed += 1
-            print(f"[{ordinal}/{len(joined)}] resume {selected['query_id']}", flush=True)
+            print(
+                f"[{ordinal}/{len(scheduled)}] resume {selected['query_id']}",
+                flush=True,
+            )
             continue
         room = selected["room"]
         if room not in room_bases:
@@ -529,7 +560,7 @@ def run_baseline_localization(
         )
         completed += 1
         print(
-            f"[{ordinal}/{len(joined)}] complete {selected['query_id']} "
+            f"[{ordinal}/{len(scheduled)}] complete {selected['query_id']} "
             f"candidates={len(candidates)} seconds={result['elapsed_seconds']:.1f}",
             flush=True,
         )
@@ -540,5 +571,8 @@ def run_baseline_localization(
         "method": method,
         "completed_queries": completed,
         "requested_queries": len(joined),
+        "scheduled_queries": len(scheduled),
+        "skipped_queries": len(joined) - len(scheduled),
+        "skip_rooms": sorted({str(room) for room in skip_rooms}),
         "output_dir": str(output_dir),
     }

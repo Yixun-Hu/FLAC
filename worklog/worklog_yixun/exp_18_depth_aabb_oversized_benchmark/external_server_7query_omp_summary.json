@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "record_type": "external_server_supplemental_slice",
+  "archived_on": "2026-08-30",
+  "source": "user_provided_external_server_report",
+  "verification_status": "passed_user_confirmed",
+  "verification_confirmed_on": "2026-08-30",
+  "accepted_for_fem_omp_112_aggregation": true,
+  "scope": {
+    "description": "Auditorium/Cafe strict-coverage matched subset",
+    "query_count": 7,
+    "query_indices": [715, 30, 42, 535, 917, 3800, 3841],
+    "rooms": {
+      "Cafe_idx_1": [715, 30, 42, 535, 917],
+      "Auditorium_idx_1": [3800, 3841]
+    },
+    "flac_k_gen": 8,
+    "fem_k_ctx": 8,
+    "fem_frequency_bin_count": 102,
+    "fem_frequency_range_hz": [80, 300],
+    "quantile_method": "numpy_default_linear"
+  },
+  "method_identity": {
+    "display_name": "FEM-Sabine + Room-Helps OMP (Depth-AABB)",
+    "method_id": "fem_sabine_depth_aabb",
+    "selector": "deterministic_room_helps_one_support_omp",
+    "is_fem_agree": false,
+    "agree_scoring_status": "not_run"
+  },
+  "localization_error_distribution_m": {
+    "vanilla_flac_kgen8": {
+      "mean": 6.444,
+      "median": 3.939,
+      "p90": 13.643
+    },
+    "fa_bf_flac_kgen8": {
+      "mean": 6.334,
+      "median": 6.806,
+      "p90": 10.487
+    },
+    "fem_sabine_depth_aabb": {
+      "mean": 3.713,
+      "median": 1.330,
+      "p90": 8.683
+    }
+  },
+  "matched_localization_metrics": {
+    "vanilla_flac_kgen8": {
+      "localization_error_median_m": 3.939,
+      "sr_at_0_5m": 0.0,
+      "sr_at_1_0m": 0.0,
+      "resolution_aware_sr_at_0_5m": 0.0
+    },
+    "fa_bf_flac_kgen8": {
+      "localization_error_median_m": 6.806,
+      "sr_at_0_5m": 0.0,
+      "sr_at_1_0m": 0.0,
+      "resolution_aware_sr_at_0_5m": 0.0
+    },
+    "fem_sabine_depth_aabb": {
+      "localization_error_median_m": 1.330,
+      "sr_at_0_5m": 0.14285714285714285,
+      "sr_at_1_0m": 0.42857142857142855,
+      "resolution_aware_sr_at_0_5m": 0.14285714285714285
+    }
+  },
+  "per_query_localization_error_m": [
+    {
+      "query_index": 715,
+      "room": "Cafe_idx_1",
+      "vanilla_flac_kgen8": 4.804,
+      "fa_bf_flac_kgen8": 4.087,
+      "fem_sabine_depth_aabb": 2.099
+    },
+    {
+      "query_index": 30,
+      "room": "Cafe_idx_1",
+      "vanilla_flac_kgen8": 17.728,
+      "fa_bf_flac_kgen8": 7.446,
+      "fem_sabine_depth_aabb": 0.443
+    },
+    {
+      "query_index": 42,
+      "room": "Cafe_idx_1",
+      "vanilla_flac_kgen8": 2.034,
+      "fa_bf_flac_kgen8": 1.593,
+      "fem_sabine_depth_aabb": 0.829
+    },
+    {
+      "query_index": 535,
+      "room": "Cafe_idx_1",
+      "vanilla_flac_kgen8": 3.322,
+      "fa_bf_flac_kgen8": 3.315,
+      "fem_sabine_depth_aabb": 0.841
+    },
+    {
+      "query_index": 917,
+      "room": "Cafe_idx_1",
+      "vanilla_flac_kgen8": 3.939,
+      "fa_bf_flac_kgen8": 6.806,
+      "fem_sabine_depth_aabb": 1.894
+    },
+    {
+      "query_index": 3800,
+      "room": "Auditorium_idx_1",
+      "vanilla_flac_kgen8": 2.364,
+      "fa_bf_flac_kgen8": 10.258,
+      "fem_sabine_depth_aabb": 1.330
+    },
+    {
+      "query_index": 3841,
+      "room": "Auditorium_idx_1",
+      "vanilla_flac_kgen8": 10.919,
+      "fa_bf_flac_kgen8": 10.831,
+      "fem_sabine_depth_aabb": 18.558
+    }
+  ],
+  "observed_runtime_seconds_per_query": {
+    "comparison_boundary": "not_hardware_normalized",
+    "vanilla_flac_joint_kgen_1_4_8": {
+      "mean": 272.77,
+      "median": 296.81,
+      "p90": 300.12
+    },
+    "fa_bf_flac_joint_kgen_1_4_8": {
+      "mean": 297.53,
+      "median": 323.58,
+      "p90": 327.42
+    },
+    "fem_sabine_depth_aabb_13_physical_cores": {
+      "mean": 2400.38,
+      "median": 1567.69,
+      "p90": 4503.77
+    }
+  },
+  "fem_execution_audit": [
+    {
+      "job_id": "3773389",
+      "queries": [715, 30, 42],
+      "room": "Cafe_idx_1",
+      "elapsed": "01:18:16",
+      "max_rss_gib": 10.8
+    },
+    {
+      "job_id": "3773391",
+      "queries": [535, 917],
+      "room": "Cafe_idx_1",
+      "elapsed": "00:53:25",
+      "max_rss_gib": 10.8
+    },
+    {
+      "job_id": "3773390",
+      "queries": [3800, 3841],
+      "room": "Auditorium_idx_1",
+      "elapsed": "02:31:02",
+      "max_rss_gib": 18.5
+    }
+  ],
+  "numerical_audit": {
+    "all_queries_completed_102_frequencies": true,
+    "maximum_relative_linear_solver_residual_upper_bound": 7e-13,
+    "all_referenced_mesh_and_scores_sha256_matched": true
+  },
+  "known_outlier": {
+    "query_index": 3841,
+    "room": "Auditorium_idx_1",
+    "fem_localization_error_m": 18.558,
+    "note": "Converged solve; review scoring and geometry behavior separately."
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "selection_method": "first record per room in depth_aabb_matched_14room_97.json order",
+  "source_manifest": "../exp_14_depth_aabb_matched_protocol/depth_aabb_matched_14room_97.json",
+  "source_manifest_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "query_count": 14,
+  "records": [
+    {"index": 4945, "room": "Apartments_idx_50", "candidate_count": 220},
+    {"index": 4467, "room": "Bathrooms_idx_14", "candidate_count": 27},
+    {"index": 4728, "room": "Bathrooms_idx_18", "candidate_count": 56},
+    {"index": 1937, "room": "Bedrooms_idx_18", "candidate_count": 57},
+    {"index": 2188, "room": "Bedrooms_idx_33", "candidate_count": 57},
+    {"index": 5685, "room": "LivingRoomsWithHallway_idx_25", "candidate_count": 139},
+    {"index": 5494, "room": "LivingRoomsWithHallway_idx_30", "candidate_count": 279},
+    {"index": 1204, "room": "MeetingRoom_idx_20", "candidate_count": 230},
+    {"index": 978, "room": "MeetingRoom_idx_32", "candidate_count": 105},
+    {"index": 1446, "room": "Office_idx_10", "candidate_count": 254},
+    {"index": 1768, "room": "Office_idx_11", "candidate_count": 404},
+    {"index": 5923, "room": "Restaurants_idx_22", "candidate_count": 293},
+    {"index": 6204, "room": "Restaurants_idx_24", "candidate_count": 261},
+    {"index": 5271, "room": "Apartments_idx_42", "candidate_count": 176}
+  ]
+}

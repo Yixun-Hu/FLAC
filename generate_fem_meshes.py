@@ -52,7 +52,11 @@ DEFAULT_OUTPUT_DIR = (
     REPO_ROOT
     / "worklog/worklog_yixun/exp_10_room_helps_baselines_claude/fem_meshes"
 )
-SURFACE_GEOMETRY_TOLERANCE_M = 1e-5
+# fTetWild writes the volume MSH and manifold surface OBJ independently in
+# decimal text. Allow sub-0.1 mm serialization drift before snapping the
+# template onto the exact tetrahedral boundary; centimeter-scale repair motion
+# remains far outside this gate.
+SURFACE_GEOMETRY_TOLERANCE_M = 1e-4
 MAXIMUM_REMOVED_AIR_VOLUME_FRACTION = 1e-3
 
 
@@ -253,6 +257,7 @@ def generate_room(
     maximum_threads: int,
     minimum_edge_utilization: float = 0.0,
     target_edge_utilization: float = 0.90,
+    smooth_open_boundary: bool = True,
     reuse_current_working_mesh: bool = False,
     current_working_ideal_edge_m: float | None = None,
 ) -> tuple[dict, dict]:
@@ -289,6 +294,7 @@ def generate_room(
             msh_path,
             ideal_edge_m=current_ideal_edge_m,
             maximum_threads=maximum_threads,
+            smooth_open_boundary=smooth_open_boundary,
             log_path=log_dir / f"{room}.attempt_2.ftetwild.log",
         )
         start = time.perf_counter()
@@ -329,6 +335,7 @@ def generate_room(
             msh_path,
             ideal_edge_m=current_ideal_edge_m,
             maximum_threads=maximum_threads,
+            smooth_open_boundary=smooth_open_boundary,
             log_path=ftetwild_log,
         )
         start = time.perf_counter()
@@ -502,6 +509,14 @@ def main() -> None:
         help="optional lower hmax/maximum-edge ratio; zero disables coarsening retries",
     )
     parser.add_argument("--target-edge-utilization", type=float, default=0.90)
+    parser.add_argument(
+        "--no-smooth-open-boundary",
+        action="store_true",
+        help=(
+            "disable fTetWild open-boundary smoothing when it excludes frozen "
+            "source, receiver, or candidate points"
+        ),
+    )
     parser.add_argument("--reuse-current-working-mesh", action="store_true")
     parser.add_argument("--current-working-ideal-edge-m", type=float)
     parser.add_argument(
@@ -653,6 +668,7 @@ def main() -> None:
                 maximum_threads=args.maximum_threads,
                 minimum_edge_utilization=args.minimum_edge_utilization,
                 target_edge_utilization=args.target_edge_utilization,
+                smooth_open_boundary=not args.no_smooth_open_boundary,
                 reuse_current_working_mesh=args.reuse_current_working_mesh,
                 current_working_ideal_edge_m=args.current_working_ideal_edge_m,
             )

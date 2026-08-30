@@ -31,14 +31,32 @@ substituted for an outside candidate.
 ## Paired evaluation scopes
 
 Depth-AABB does not strictly cover every frozen query, so the comparison must
-not silently present it as a complete 128-query method.
+not silently discard those failures or present it as a complete-coverage
+method.
+
+The primary end-to-end comparison therefore retains all `16 x 8 = 128`
+queries. For each query that fails the FEM strict-coverage gate:
+
+- FEM SR@0.5m, SR@1.0m, and resolution-aware SR@0.5m are all zero;
+- FEM localization error is the maximum true-source distance over that
+  query's frozen candidate set;
+- FEM coverage is reported explicitly next to the accuracy metrics.
+
+This finite penalty is query-scale-aware and uses ground truth only to compute
+an evaluation error after inference has failed. It does not expose target
+information to the method. The formal full-scope result is archived in
+`../exp_21_five_method_128_failure_penalized/summary.md`.
+
+The strict paired subsets below remain conditional diagnostics for separating
+localization behavior from coverage behavior; they are not the primary
+end-to-end ranking.
 
 | Scope | Source queries | Strict paired queries | Coverage | Manifest |
 |---|---:|---:|---:|---|
-| Primary: 14 rooms, excluding Auditorium/Cafe | 112 | **97** | 86.6% | `depth_aabb_matched_14room_97.json` |
-| Secondary: all 16 rooms | 128 | **112** | 87.5% | `depth_aabb_matched_16room_112.json` |
+| Conditional: 14 rooms, excluding Auditorium/Cafe | 112 | **97** | 86.6% | `depth_aabb_matched_14room_97.json` |
+| Conditional: all 16 rooms | 128 | **112** | 87.5% | `depth_aabb_matched_16room_112.json` |
 
-For each paired table, metrics for all five methods must be recomputed on the
+For each conditional paired table, metrics for all five methods must be recomputed on the
 exact manifest named above. This preserves complete candidate sets, although
 the conditional scope and its per-room imbalance must be disclosed.
 
@@ -47,9 +65,14 @@ the conditional scope and its per-room imbalance must be disclosed.
 FLAC is reported in three paired slices, `K_gen={1,4,8}`. Depth-AABB FEM is
 deterministic and has `K_ctx=8`; it has no `K_gen` axis. Therefore:
 
-- Primary 14-room scope: 97 unique FEM solves and three FLAC slices of 97
+- The primary comparison uses the registered FLAC `K_gen=1` setting and
+  Few-ShotRIR `K_ctx=8`. In this naming, FA-BF FLAC is OrbitRIR.
+
+- Full 16-room scope: three FLAC slices of 128 queries; FEM has 112 evaluated
+  queries and 16 explicit coverage-failure penalties.
+- Conditional 14-room scope: 97 unique FEM solves and three FLAC slices of 97
   queries (`291` FLAC query-configurations).
-- Secondary 16-room scope: 112 unique FEM solves and three FLAC slices of 112
+- Conditional 16-room scope: 112 unique FEM solves and three FLAC slices of 112
   queries (`336` FLAC query-configurations).
 
 The same FEM result may appear as the reference in each K slice, but it must not

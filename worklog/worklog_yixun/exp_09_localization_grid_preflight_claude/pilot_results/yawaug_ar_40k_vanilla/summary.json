@@ -1,0 +1,51 @@
+{
+  "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/YAWAUG_AR_40k_epoch8-step40000.ckpt",
+  "conditioning_method": "vanilla",
+  "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json",
+  "peak_memory_bytes": 7185682944,
+  "query_count": 64,
+  "random_candidate_baseline": {
+    "mean_localization_error_m": 3.209389316925726,
+    "median_localization_error_m": 2.320484646815075,
+    "success_0_5m": 0.078125,
+    "success_1_0m": 0.1875
+  },
+  "room_count": 16,
+  "run_manifest_sha256": "5ab30cb35c24221eee14a73232305856d8e5c0d22b858beff7120b830fc4bbf7",
+  "score_sample_counts": [
+    1,
+    4,
+    8
+  ],
+  "summed_query_seconds": 3688.8635648875497,
+  "summary": {
+    "1": {
+      "mean_excess_error_m": 1.6016317058374987,
+      "mean_localization_error_m": 1.7926505616003356,
+      "median_localization_error_m": 0.8917154508569975,
+      "oracle_normalized_success_0_5m": 0.34375,
+      "oracle_normalized_success_1_0m": 0.609375,
+      "success_0_5m": 0.21875,
+      "success_1_0m": 0.546875
+    },
+    "4": {
+      "mean_excess_error_m": 1.5628994219716006,
+      "mean_localization_error_m": 1.7539182777344378,
+      "median_localization_error_m": 0.9940150680243733,
+      "oracle_normalized_success_0_5m": 0.3125,
+      "oracle_normalized_success_1_0m": 0.578125,
+      "success_0_5m": 0.203125,
+      "success_1_0m": 0.5
+    },
+    "8": {
+      "mean_excess_error_m": 1.5927244914387066,
+      "mean_localization_error_m": 1.7837433472015438,
+      "median_localization_error_m": 0.8705561733222896,
+      "oracle_normalized_success_0_5m": 0.328125,
+      "oracle_normalized_success_1_0m": 0.609375,
+      "success_0_5m": 0.203125,
+      "success_1_0m": 0.546875
+    }
+  },
+  "tau": 0.1
+}

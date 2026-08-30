@@ -1,0 +1,2704 @@
+{
+  "calibrated_completion_distance_m": 4.067401641299655,
+  "calibration_quantile": 0.995,
+  "dataset_root": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms",
+  "inference_inputs": "one receiver-centered metric depth panorama only",
+  "method": "depth_bounded_radial_completion_train_calibration",
+  "padding_m": 0.05,
+  "receivers_per_room": 1,
+  "required_completion_statistics_m": {
+    "maximum": 16.154859483585305,
+    "median": 0.0,
+    "p95": 1.4615630030236384,
+    "p99": 3.3445995824449555,
+    "p995": 4.067401641299655
+  },
+  "room_count": 243,
+  "rooms": [
+    {
+      "required_completion_max_m": 13.59328930253992,
+      "required_completion_p95_m": 1.2413168897301552,
+      "room": "Cafe_idx_0",
+      "scene": "Cafe",
+      "selected_receiver_ids": [
+        50
+      ],
+      "source_anchor_count": 100,
+      "source_anchor_inside_same_view_aabb_count": 100
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_29",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_28",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_34",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_23",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_26",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_10",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 46,
+      "source_anchor_inside_same_view_aabb_count": 46
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_4",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_5",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_6",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        12
+      ],
+      "source_anchor_count": 16,
+      "source_anchor_inside_same_view_aabb_count": 16
+    },
+    {
+      "required_completion_max_m": 3.232888188454726,
+      "required_completion_p95_m": 2.779001589766402,
+      "room": "MeetingRoom_idx_7",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_22",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_24",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        10
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_15",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 45,
+      "source_anchor_inside_same_view_aabb_count": 45
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_18",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.8191712462776577,
+      "required_completion_p95_m": 0.8190488564335128,
+      "room": "MeetingRoom_idx_8",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_33",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_16",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_27",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_13",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        14
+      ],
+      "source_anchor_count": 14,
+      "source_anchor_inside_same_view_aabb_count": 14
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_30",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_31",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_19",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_0",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_2",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 21,
+      "source_anchor_inside_same_view_aabb_count": 21
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_11",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 45,
+      "source_anchor_inside_same_view_aabb_count": 45
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_9",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        21
+      ],
+      "source_anchor_count": 24,
+      "source_anchor_inside_same_view_aabb_count": 24
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_1",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_12",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        18
+      ],
+      "source_anchor_count": 28,
+      "source_anchor_inside_same_view_aabb_count": 28
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_14",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        10
+      ],
+      "source_anchor_count": 8,
+      "source_anchor_inside_same_view_aabb_count": 8
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_35",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_17",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_3",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 49
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_21",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "MeetingRoom_idx_25",
+      "scene": "MeetingRoom",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_9",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_0",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 4.5738915066311705,
+      "required_completion_p95_m": 3.89244814570301,
+      "room": "Office_idx_3",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 2.9824275573771537,
+      "required_completion_p95_m": 2.9824275573771537,
+      "room": "Office_idx_15",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        43
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 1
+    },
+    {
+      "required_completion_max_m": 2.8763721605062686,
+      "required_completion_p95_m": 1.5820046882784446,
+      "room": "Office_idx_14",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        43
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_13",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 8.51954949588742,
+      "required_completion_p95_m": 7.337469681878902,
+      "room": "Office_idx_6",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 3.4943957359794346,
+      "required_completion_p95_m": 3.3608485752168864,
+      "room": "Office_idx_2",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 39,
+      "source_anchor_inside_same_view_aabb_count": 39
+    },
+    {
+      "required_completion_max_m": 4.299145509539649,
+      "required_completion_p95_m": 4.1752544461162175,
+      "room": "Office_idx_5",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_12",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_4",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 16.154859483585305,
+      "required_completion_p95_m": 10.85652611269166,
+      "room": "Office_idx_7",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 49
+    },
+    {
+      "required_completion_max_m": 1.1303317713421457,
+      "required_completion_p95_m": 0.6216824742381789,
+      "room": "Office_idx_8",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Office_idx_1",
+      "scene": "Office",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_6",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 29,
+      "source_anchor_inside_same_view_aabb_count": 29
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_23",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_9",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 35,
+      "source_anchor_inside_same_view_aabb_count": 35
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_29",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_25",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_12",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        20
+      ],
+      "source_anchor_count": 30,
+      "source_anchor_inside_same_view_aabb_count": 30
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_31",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        13
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_30",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_3",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 18,
+      "source_anchor_inside_same_view_aabb_count": 18
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_1",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        17
+      ],
+      "source_anchor_count": 27,
+      "source_anchor_inside_same_view_aabb_count": 27
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_27",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_14",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_20",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_2",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        12
+      ],
+      "source_anchor_count": 33,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_13",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        14
+      ],
+      "source_anchor_count": 18,
+      "source_anchor_inside_same_view_aabb_count": 18
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_28",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_10",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 26,
+      "source_anchor_inside_same_view_aabb_count": 26
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_8",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        14
+      ],
+      "source_anchor_count": 31,
+      "source_anchor_inside_same_view_aabb_count": 31
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_21",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_15",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_4",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 27,
+      "source_anchor_inside_same_view_aabb_count": 27
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_0",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        18
+      ],
+      "source_anchor_count": 30,
+      "source_anchor_inside_same_view_aabb_count": 30
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_24",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_5",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 26,
+      "source_anchor_inside_same_view_aabb_count": 26
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_17",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_11",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 33,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_7",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        13
+      ],
+      "source_anchor_count": 39,
+      "source_anchor_inside_same_view_aabb_count": 39
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_19",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_16",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_22",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.9050473089369175,
+      "required_completion_p95_m": 0.4977760199153037,
+      "room": "Bedrooms_idx_26",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bedrooms_idx_32",
+      "scene": "Bedrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "ListeningRoom_idx_0",
+      "scene": "ListeningRoom",
+      "selected_receiver_ids": [
+        37
+      ],
+      "source_anchor_count": 75,
+      "source_anchor_inside_same_view_aabb_count": 75
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "ListeningRoom_idx_1",
+      "scene": "ListeningRoom",
+      "selected_receiver_ids": [
+        37
+      ],
+      "source_anchor_count": 74,
+      "source_anchor_inside_same_view_aabb_count": 74
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "ListeningRoom_idx_3",
+      "scene": "ListeningRoom",
+      "selected_receiver_ids": [
+        43
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 3.403688654665082,
+      "required_completion_p95_m": 0.4654734247679878,
+      "room": "Auditorium_idx_0",
+      "scene": "Auditorium",
+      "selected_receiver_ids": [
+        50
+      ],
+      "source_anchor_count": 99,
+      "source_anchor_inside_same_view_aabb_count": 99
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_19",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_10",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_5",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        10
+      ],
+      "source_anchor_count": 15,
+      "source_anchor_inside_same_view_aabb_count": 15
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_8",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        8
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_13",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_25",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_9",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_4",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 18,
+      "source_anchor_inside_same_view_aabb_count": 18
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_29",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_24",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_0",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        10
+      ],
+      "source_anchor_count": 14,
+      "source_anchor_inside_same_view_aabb_count": 14
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_16",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_21",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_12",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_11",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_3",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        12
+      ],
+      "source_anchor_count": 15,
+      "source_anchor_inside_same_view_aabb_count": 15
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_20",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_26",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_23",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.2475010516903376,
+      "required_completion_p95_m": 0.1856257887677532,
+      "room": "Bathrooms_idx_1",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        6
+      ],
+      "source_anchor_count": 6,
+      "source_anchor_inside_same_view_aabb_count": 6
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_27",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_17",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_2",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_7",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        16
+      ],
+      "source_anchor_count": 14,
+      "source_anchor_inside_same_view_aabb_count": 14
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_28",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Bathrooms_idx_6",
+      "scene": "Bathrooms",
+      "selected_receiver_ids": [
+        10
+      ],
+      "source_anchor_count": 13,
+      "source_anchor_inside_same_view_aabb_count": 13
+    },
+    {
+      "required_completion_max_m": 3.379735828057504,
+      "required_completion_p95_m": 2.023846221856155,
+      "room": "Apartments_idx_0",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 32,
+      "source_anchor_inside_same_view_aabb_count": 32
+    },
+    {
+      "required_completion_max_m": 1.3289597634813097,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_38",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 44
+    },
+    {
+      "required_completion_max_m": 2.3551270533562434,
+      "required_completion_p95_m": 1.3488625456403132,
+      "room": "Apartments_idx_33",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 1.7342101614940932,
+      "required_completion_p95_m": 1.6423735135765845,
+      "room": "Apartments_idx_31",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 1.0050326827151328,
+      "required_completion_p95_m": 0.7787303809907572,
+      "room": "Apartments_idx_19",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 43,
+      "source_anchor_inside_same_view_aabb_count": 32
+    },
+    {
+      "required_completion_max_m": 1.6165264145961569,
+      "required_completion_p95_m": 1.5507672213652015,
+      "room": "Apartments_idx_18",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 42,
+      "source_anchor_inside_same_view_aabb_count": 42
+    },
+    {
+      "required_completion_max_m": 1.3285860629176383,
+      "required_completion_p95_m": 0.7307223346046996,
+      "room": "Apartments_idx_54",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_15",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 38
+    },
+    {
+      "required_completion_max_m": 3.324279265252142,
+      "required_completion_p95_m": 2.941513177099285,
+      "room": "Apartments_idx_28",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 3.904585316860765,
+      "required_completion_p95_m": 2.8248305956965636,
+      "room": "Apartments_idx_39",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 48,
+      "source_anchor_inside_same_view_aabb_count": 48
+    },
+    {
+      "required_completion_max_m": 1.866902824855169,
+      "required_completion_p95_m": 1.4483585954933034,
+      "room": "Apartments_idx_57",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 1.775370068896228,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_11",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        21
+      ],
+      "source_anchor_count": 46,
+      "source_anchor_inside_same_view_aabb_count": 46
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_51",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 8
+    },
+    {
+      "required_completion_max_m": 2.806199253771818,
+      "required_completion_p95_m": 1.547398064855794,
+      "room": "Apartments_idx_23",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 31
+    },
+    {
+      "required_completion_max_m": 0.6825997041051863,
+      "required_completion_p95_m": 0.5802097484894081,
+      "room": "Apartments_idx_43",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 4
+    },
+    {
+      "required_completion_max_m": 1.8553481831228924,
+      "required_completion_p95_m": 0.8681008087785884,
+      "room": "Apartments_idx_29",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 3.1571056923745022,
+      "required_completion_p95_m": 2.6308764413041437,
+      "room": "Apartments_idx_26",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 44,
+      "source_anchor_inside_same_view_aabb_count": 44
+    },
+    {
+      "required_completion_max_m": 2.0642741798007216,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_17",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 38
+    },
+    {
+      "required_completion_max_m": 1.6809106959945512,
+      "required_completion_p95_m": 1.229307728752423,
+      "room": "Apartments_idx_8",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 48,
+      "source_anchor_inside_same_view_aabb_count": 48
+    },
+    {
+      "required_completion_max_m": 2.253177266283899,
+      "required_completion_p95_m": 2.1306827904699026,
+      "room": "Apartments_idx_32",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 42,
+      "source_anchor_inside_same_view_aabb_count": 41
+    },
+    {
+      "required_completion_max_m": 1.5127663268298484,
+      "required_completion_p95_m": 1.451387386998064,
+      "room": "Apartments_idx_55",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_6",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 2.293440015037455,
+      "required_completion_p95_m": 2.057189247125037,
+      "room": "Apartments_idx_4",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        20
+      ],
+      "source_anchor_count": 31,
+      "source_anchor_inside_same_view_aabb_count": 16
+    },
+    {
+      "required_completion_max_m": 4.149723550689365,
+      "required_completion_p95_m": 3.656583221578634,
+      "room": "Apartments_idx_5",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 49
+    },
+    {
+      "required_completion_max_m": 1.854786431583298,
+      "required_completion_p95_m": 1.760144881836618,
+      "room": "Apartments_idx_2",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 21,
+      "source_anchor_inside_same_view_aabb_count": 13
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_44",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 8
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_13",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 35
+    },
+    {
+      "required_completion_max_m": 0.9475407265685984,
+      "required_completion_p95_m": 0.5685244359411588,
+      "room": "Apartments_idx_41",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 1.9644922167167076,
+      "required_completion_p95_m": 1.8406276010108373,
+      "room": "Apartments_idx_37",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 1.0361180481307253,
+      "required_completion_p95_m": 0.5698649264718978,
+      "room": "Apartments_idx_52",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_30",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 4
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_10",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 47,
+      "source_anchor_inside_same_view_aabb_count": 47
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_53",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 2.2025947148592886,
+      "required_completion_p95_m": 2.0867738958189324,
+      "room": "Apartments_idx_47",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 4
+    },
+    {
+      "required_completion_max_m": 0.9724682905814968,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_25",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 2.279088217450687,
+      "required_completion_p95_m": 1.2534985195978754,
+      "room": "Apartments_idx_59",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 2.2871305589764033,
+      "required_completion_p95_m": 2.233793765670234,
+      "room": "Apartments_idx_58",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.9113417617346729,
+      "required_completion_p95_m": 1.39819567835387,
+      "room": "Apartments_idx_24",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 4.503247973863606,
+      "required_completion_p95_m": 3.9641964275351644,
+      "room": "Apartments_idx_36",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_12",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 28
+    },
+    {
+      "required_completion_max_m": 1.6836236787508936,
+      "required_completion_p95_m": 1.2568512896373631,
+      "room": "Apartments_idx_35",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 2.711149249690819,
+      "required_completion_p95_m": 1.8415971437396976,
+      "room": "Apartments_idx_34",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 46,
+      "source_anchor_inside_same_view_aabb_count": 46
+    },
+    {
+      "required_completion_max_m": 3.253254895728976,
+      "required_completion_p95_m": 3.1111063440125237,
+      "room": "Apartments_idx_45",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_1",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 22,
+      "source_anchor_inside_same_view_aabb_count": 2
+    },
+    {
+      "required_completion_max_m": 1.6330047833609282,
+      "required_completion_p95_m": 0.8514715021025777,
+      "room": "Apartments_idx_21",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 49
+    },
+    {
+      "required_completion_max_m": 2.7825100580753848,
+      "required_completion_p95_m": 2.6508218564775508,
+      "room": "Apartments_idx_16",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 42,
+      "source_anchor_inside_same_view_aabb_count": 42
+    },
+    {
+      "required_completion_max_m": 1.4977288650682439,
+      "required_completion_p95_m": 1.3361321945837605,
+      "room": "Apartments_idx_9",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 47,
+      "source_anchor_inside_same_view_aabb_count": 14
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_49",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.1062600335973785,
+      "required_completion_p95_m": 0.1541718093190078,
+      "room": "Apartments_idx_27",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 37
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_40",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 3
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_46",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 1.0930093023174259,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_3",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 42,
+      "source_anchor_inside_same_view_aabb_count": 42
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_56",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Apartments_idx_7",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 33,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 3.825385237875029,
+      "required_completion_p95_m": 3.44654171622291,
+      "room": "Apartments_idx_22",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 45,
+      "source_anchor_inside_same_view_aabb_count": 31
+    },
+    {
+      "required_completion_max_m": 0.9856782461106941,
+      "required_completion_p95_m": 0.5421230353608807,
+      "room": "Apartments_idx_48",
+      "scene": "Apartments",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.145390248665505,
+      "required_completion_p95_m": 0.6299646367660265,
+      "room": "LivingRoomsWithHallway_idx_31",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.850965683696016,
+      "required_completion_p95_m": 1.018031126032807,
+      "room": "LivingRoomsWithHallway_idx_33",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_4",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        23
+      ],
+      "source_anchor_count": 32,
+      "source_anchor_inside_same_view_aabb_count": 32
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_5",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        23
+      ],
+      "source_anchor_count": 33,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 0.7401421783828641,
+      "required_completion_p95_m": 0.4070781981105745,
+      "room": "LivingRoomsWithHallway_idx_27",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_34",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 7
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_20",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 2.615624770072639,
+      "required_completion_p95_m": 2.1105858516643914,
+      "room": "LivingRoomsWithHallway_idx_6",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 37,
+      "source_anchor_inside_same_view_aabb_count": 21
+    },
+    {
+      "required_completion_max_m": 0.688299176251157,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_15",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 47,
+      "source_anchor_inside_same_view_aabb_count": 47
+    },
+    {
+      "required_completion_max_m": 3.1873726394213433,
+      "required_completion_p95_m": 3.1612143127413703,
+      "room": "LivingRoomsWithHallway_idx_16",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 48
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_38",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.8368549736781854,
+      "required_completion_p95_m": 1.7474367831619737,
+      "room": "LivingRoomsWithHallway_idx_36",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 2.3513067904496916,
+      "required_completion_p95_m": 2.252106252225154,
+      "room": "LivingRoomsWithHallway_idx_28",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 8
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_23",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 2.9986158539418764,
+      "required_completion_p95_m": 2.6507664095367773,
+      "room": "LivingRoomsWithHallway_idx_14",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 48,
+      "source_anchor_inside_same_view_aabb_count": 48
+    },
+    {
+      "required_completion_max_m": 3.3259793441770995,
+      "required_completion_p95_m": 2.716436772590718,
+      "room": "LivingRoomsWithHallway_idx_9",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 42
+    },
+    {
+      "required_completion_max_m": 1.3075155698300227,
+      "required_completion_p95_m": 0.7191335634065111,
+      "room": "LivingRoomsWithHallway_idx_35",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_13",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_2",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        20
+      ],
+      "source_anchor_count": 28,
+      "source_anchor_inside_same_view_aabb_count": 28
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_17",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 48,
+      "source_anchor_inside_same_view_aabb_count": 48
+    },
+    {
+      "required_completion_max_m": 0.38834740787230837,
+      "required_completion_p95_m": 0.21359107432976918,
+      "room": "LivingRoomsWithHallway_idx_24",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_7",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 40,
+      "source_anchor_inside_same_view_aabb_count": 40
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_19",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 31,
+      "source_anchor_inside_same_view_aabb_count": 31
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_0",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 28,
+      "source_anchor_inside_same_view_aabb_count": 28
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_11",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 43,
+      "source_anchor_inside_same_view_aabb_count": 43
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_39",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 2.0646721542056152,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_10",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_21",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_3",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 36,
+      "source_anchor_inside_same_view_aabb_count": 36
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_32",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_8",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        20
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 38
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_26",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 8
+    },
+    {
+      "required_completion_max_m": 1.92717260980957,
+      "required_completion_p95_m": 1.0599449353952615,
+      "room": "LivingRoomsWithHallway_idx_37",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 1.841473852212098,
+      "required_completion_p95_m": 1.012810618716652,
+      "room": "LivingRoomsWithHallway_idx_22",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_1",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        18
+      ],
+      "source_anchor_count": 38,
+      "source_anchor_inside_same_view_aabb_count": 38
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_18",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        21
+      ],
+      "source_anchor_count": 33,
+      "source_anchor_inside_same_view_aabb_count": 33
+    },
+    {
+      "required_completion_max_m": 2.9702666906147828,
+      "required_completion_p95_m": 1.8521320392084186,
+      "room": "LivingRoomsWithHallway_idx_12",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 49,
+      "source_anchor_inside_same_view_aabb_count": 29
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "LivingRoomsWithHallway_idx_29",
+      "scene": "LivingRoomsWithHallway",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_13",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_18",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_3",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_0",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_25",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_32",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_36",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_11",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_9",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 1.5145469207077573,
+      "required_completion_p95_m": 0.6935338350305787,
+      "room": "Restaurants_idx_10",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_5",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_39",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_12",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_2",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_17",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_4",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_37",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        9
+      ],
+      "source_anchor_count": 9,
+      "source_anchor_inside_same_view_aabb_count": 9
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_31",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        13
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_20",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_8",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_21",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_23",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_28",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_7",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_33",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_29",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_15",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_26",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_38",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_14",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_6",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_16",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_30",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_27",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_35",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_34",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        11
+      ],
+      "source_anchor_count": 10,
+      "source_anchor_inside_same_view_aabb_count": 10
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_19",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    },
+    {
+      "required_completion_max_m": 0.0,
+      "required_completion_p95_m": 0.0,
+      "room": "Restaurants_idx_1",
+      "scene": "Restaurants",
+      "selected_receiver_ids": [
+        24
+      ],
+      "source_anchor_count": 50,
+      "source_anchor_inside_same_view_aabb_count": 50
+    }
+  ],
+  "runtime_seconds": 41.20705035608262,
+  "schema_version": 1,
+  "selected_depth_sha256_set_sha256": "c064e89f81d1174adaaed67133e478a3b72d6843ca305b5665f60e871c5835dd",
+  "selected_receiver_view_count": 243,
+  "source_anchor_count": 6460,
+  "source_anchor_inside_same_view_aabb_count": 6117,
+  "source_anchor_inside_same_view_aabb_fraction": 0.9469040247678019,
+  "train_anchor_coverage_after_completion_count": 6086,
+  "train_anchor_coverage_after_completion_fraction": 0.9421052631578948,
+  "train_split": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/data/AR/train.json",
+  "train_split_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03",
+  "training_supervision": "source anchors from train rooms; no unseen-eval room mesh, depth, candidates, source anchors, or context anchors"
+}

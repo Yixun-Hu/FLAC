@@ -1,0 +1,4848 @@
+{
+  "fem_coverage": {
+    "coverage_rate": 0.890625,
+    "evaluated_query_count": 57,
+    "failed_query_count": 7,
+    "failure_query_indices": [
+      179,
+      5194,
+      5281,
+      5334,
+      5363,
+      5817,
+      5832
+    ]
+  },
+  "fem_failure_policy": {
+    "conditional_112_result_retained_separately": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/fem_omp_112_merged_summary.json",
+    "ground_truth_usage": "evaluation only; no inference-time information",
+    "localization_error": "maximum true-source distance over the query's frozen candidate set",
+    "success_metrics": "forced to zero"
+  },
+  "fem_failure_rows": [
+    {
+      "candidate_count": 5295,
+      "oracle_error_m": 0.32649655434629027,
+      "penalty_error_m": 23.182031835022574,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "query_index": 179,
+      "room": "Cafe_idx_1"
+    },
+    {
+      "candidate_count": 176,
+      "oracle_error_m": 0.0,
+      "penalty_error_m": 5.172040216394301,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "query_index": 5194,
+      "room": "Apartments_idx_42"
+    },
+    {
+      "candidate_count": 176,
+      "oracle_error_m": 0.0,
+      "penalty_error_m": 3.9370039370059056,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "query_index": 5281,
+      "room": "Apartments_idx_42"
+    },
+    {
+      "candidate_count": 176,
+      "oracle_error_m": 0.0,
+      "penalty_error_m": 3.570714214271425,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "query_index": 5334,
+      "room": "Apartments_idx_42"
+    },
+    {
+      "candidate_count": 176,
+      "oracle_error_m": 0.0,
+      "penalty_error_m": 4.9749371855331,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "query_index": 5363,
+      "room": "Apartments_idx_42"
+    },
+    {
+      "candidate_count": 141,
+      "oracle_error_m": 0.0,
+      "penalty_error_m": 5.385164807134504,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "query_index": 5817,
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    {
+      "candidate_count": 139,
+      "oracle_error_m": 0.19999999999999996,
+      "penalty_error_m": 3.7067505985701277,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "query_index": 5832,
+      "room": "LivingRoomsWithHallway_idx_25"
+    }
+  ],
+  "fem_k_ctx": 8,
+  "few_shot_k_ctx": 8,
+  "flac_k_gen": 1,
+  "metrics": {
+    "fa_bf": {
+      "mean_localization_error_m": 1.8158952473441747,
+      "median_localization_error_m": 0.9279788322613451,
+      "p90_localization_error_m": 4.004236839024507,
+      "query_count": 64,
+      "resolution_aware_success_rate_at_0_5m": 0.40625,
+      "success_rate_at_0_5m": 0.28125,
+      "success_rate_at_1_0m": 0.53125
+    },
+    "fem_omp": {
+      "mean_localization_error_m": 2.4835971967756105,
+      "median_localization_error_m": 1.130462529837427,
+      "p90_localization_error_m": 5.112909307135941,
+      "query_count": 64,
+      "resolution_aware_success_rate_at_0_5m": 0.359375,
+      "success_rate_at_0_5m": 0.28125,
+      "success_rate_at_1_0m": 0.484375
+    },
+    "few_shot": {
+      "mean_localization_error_m": 3.1093646377674133,
+      "median_localization_error_m": 1.5173004626611402,
+      "p90_localization_error_m": 6.366031444692082,
+      "query_count": 64,
+      "resolution_aware_success_rate_at_0_5m": 0.140625,
+      "success_rate_at_0_5m": 0.03125,
+      "success_rate_at_1_0m": 0.25
+    },
+    "vanilla": {
+      "mean_localization_error_m": 1.748325252570214,
+      "median_localization_error_m": 1.0092703816555348,
+      "p90_localization_error_m": 2.9716024577992592,
+      "query_count": 64,
+      "resolution_aware_success_rate_at_0_5m": 0.234375,
+      "success_rate_at_0_5m": 0.15625,
+      "success_rate_at_1_0m": 0.5
+    },
+    "yawaug": {
+      "mean_localization_error_m": 1.7926505616003356,
+      "median_localization_error_m": 0.8917154508569975,
+      "p90_localization_error_m": 3.299636763113532,
+      "query_count": 64,
+      "resolution_aware_success_rate_at_0_5m": 0.34375,
+      "success_rate_at_0_5m": 0.21875,
+      "success_rate_at_1_0m": 0.546875
+    }
+  },
+  "per_query": [
+    {
+      "candidate_count": 5295,
+      "candidate_indices_sha256": "c7c877d2a53cf279b68918bf9b2fcc98b11e7b349f661a364fd709aa39dbb343",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_00179.npz",
+        "candidate_arrays_sha256": "d1757f2eaf3d0076ecaa579d06d0ae1737a4c870bf3a1d106aa2a6b49846f53c",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.861333420766035,
+          "localization_error_m": 2.1878299751123254,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 22.855535280676285,
+          "localization_error_m": 23.182031835022574,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 4.3795208701858375,
+          "localization_error_m": 4.706017424532128,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 3.3309068961907156,
+          "localization_error_m": 3.657403450537006,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 2.5625517318545477,
+          "localization_error_m": 2.889048286200838,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "query_index": 179,
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 5296,
+      "candidate_indices_sha256": "086b6157afff306b32a456ab6312e8b738c4bbd83139ee0b53a0b69a4e6c7f14",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_00335_depth_aabb_result.json",
+        "result_sha256": "5ec456113025cdbb05be209a4c4ad0575997aaa6578c019c784d57b9db1d674c"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 14.94689861503239,
+          "localization_error_m": 15.27339516937868,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 13.527982865682453,
+          "localization_error_m": 13.854479420028744,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 14.31920588698441,
+          "localization_error_m": 14.6457024413307,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 2.5538853647748527,
+          "localization_error_m": 2.880381919121143,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 12.33749175897744,
+          "localization_error_m": 12.663988313323731,
+          "oracle_error_m": 0.32649655434629027,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+      "query_index": 335,
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 5295,
+      "candidate_indices_sha256": "248cf686e71f5ca47d15da862f81cfc1d7af3f6b392b004c8ea63e0e4528cc85",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_00699_depth_aabb_result.json",
+        "result_sha256": "ca0432e457302c959ba38074b451f868548ca898797d47afe421efe5c1638adf"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 3.6176648725680893,
+          "localization_error_m": 3.89443192263005,
+          "oracle_error_m": 0.2767670500619609,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 2.0655821980221067,
+          "localization_error_m": 2.3423492480840675,
+          "oracle_error_m": 0.2767670500619609,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 4.547815833462788,
+          "localization_error_m": 4.824582883524749,
+          "oracle_error_m": 0.2767670500619609,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.6541464797570002,
+          "localization_error_m": 0.9309135298189611,
+          "oracle_error_m": 0.2767670500619609,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.6541464797570002,
+          "localization_error_m": 0.9309135298189611,
+          "oracle_error_m": 0.2767670500619609,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R085_hybrid_IR.wav",
+      "query_index": 699,
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 5296,
+      "candidate_indices_sha256": "bcf112a9c78877e8494725fabdafdf20eb5181f452ae8a1f61e1705661afb0f1",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_00715_depth_aabb_result.json",
+        "result_sha256": "dc56f1087b24d3b6082dcc2ad3fe41e51611ccde0818992a8dc374ea5a00c742"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 3.8106037430029382,
+          "localization_error_m": 4.0873707930649,
+          "oracle_error_m": 0.27676705006196184,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 1.8224232700376721,
+          "localization_error_m": 2.099190320099634,
+          "oracle_error_m": 0.27676705006196184,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 20.662588240872857,
+          "localization_error_m": 20.93935529093482,
+          "oracle_error_m": 0.27676705006196184,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 3.756420275118954,
+          "localization_error_m": 4.033187325180916,
+          "oracle_error_m": 0.27676705006196184,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 3.8106037430029382,
+          "localization_error_m": 4.0873707930649,
+          "oracle_error_m": 0.27676705006196184,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+      "query_index": 715,
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 105,
+      "candidate_indices_sha256": "de50c1ea70ca29bf69f31af503ae5a86a78c74bb02ce36bc41214a6d8f41a0aa",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_00978_depth_aabb_result.json",
+        "result_sha256": "0d0f082cbe7650b4e1fc7b46e1d988e2bd3815eabfb0df535bb2d233aabc68f2"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7918476931471553,
+          "localization_error_m": 1.0526157893552615,
+          "oracle_error_m": 0.26076809620810615,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.41598887641943894,
+          "localization_error_m": 0.6767569726275451,
+          "oracle_error_m": 0.26076809620810615,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 2.7288807125987073,
+          "localization_error_m": 2.9896488088068134,
+          "oracle_error_m": 0.26076809620810615,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.145645783131827,
+          "localization_error_m": 1.406413879339933,
+          "oracle_error_m": 0.26076809620810615,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.7918476931471553,
+          "localization_error_m": 1.0526157893552615,
+          "oracle_error_m": 0.26076809620810615,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R023_hybrid_IR.wav",
+      "query_index": 978,
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 104,
+      "candidate_indices_sha256": "49a9c41ce51ff306965bea9a0823c1eac0d83f941484d9cff9df4743d4d93d6e",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01061_depth_aabb_result.json",
+        "result_sha256": "190eeb59e389e2019df12806f9360bd8784b2b9f72f69e005175170c6ab17ddc"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.43394445902935314,
+          "localization_error_m": 0.7469939758793238,
+          "oracle_error_m": 0.3130495168499707,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3130495168499707,
+          "oracle_error_m": 0.3130495168499707,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.8436699824237295,
+          "localization_error_m": 1.1567194992737002,
+          "oracle_error_m": 0.3130495168499707,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.5689935659980272,
+          "localization_error_m": 0.8820430828479978,
+          "oracle_error_m": 0.3130495168499707,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5689935659980272,
+          "localization_error_m": 0.8820430828479978,
+          "oracle_error_m": 0.3130495168499707,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S002_R018_hybrid_IR.wav",
+      "query_index": 1061,
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 106,
+      "candidate_indices_sha256": "9241c74512c88c0f740e9dfb4d7cc890d8eac7020786b99e4a3c2e3375cd2593",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01088_depth_aabb_result.json",
+        "result_sha256": "b6c704d641e9033bdb83dd064ad52dbc2ba560adfc4bc18cbe38cc1616849a62"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.20613660498904401,
+          "localization_error_m": 0.46690470119715,
+          "oracle_error_m": 0.260768096208106,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 1.2845474055584427,
+          "localization_error_m": 1.5453155017665487,
+          "oracle_error_m": 0.260768096208106,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.3291471519419991,
+          "localization_error_m": 0.5899152481501051,
+          "oracle_error_m": 0.260768096208106,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 2.032264829852922,
+          "localization_error_m": 2.293032926061028,
+          "oracle_error_m": 0.260768096208106,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 2.0733270175351195,
+          "localization_error_m": 2.3340951137432255,
+          "oracle_error_m": 0.260768096208106,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R003_hybrid_IR.wav",
+      "query_index": 1088,
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 105,
+      "candidate_indices_sha256": "f6cd60a37338bbdcdf945e1ede4ea17eb43c509d8821fe16dd0a8775eda43a19",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01157_depth_aabb_result.json",
+        "result_sha256": "298b1b75263e76ae3e4fc02cb494d51e7f5996a768478669415be3bbbf25083d"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.01993620463225959,
+          "localization_error_m": 0.2607680962081057,
+          "oracle_error_m": 0.2408318915758461,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.9202021303201533,
+          "localization_error_m": 1.1610340218959994,
+          "oracle_error_m": 0.2408318915758461,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.4926529412598439,
+          "localization_error_m": 0.73348483283569,
+          "oracle_error_m": 0.2408318915758461,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.32308299561902115,
+          "localization_error_m": 0.5639148871948673,
+          "oracle_error_m": 0.2408318915758461,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.3141455854446183,
+          "localization_error_m": 0.5549774770204644,
+          "oracle_error_m": 0.2408318915758461,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S003_R015_hybrid_IR.wav",
+      "query_index": 1157,
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 230,
+      "candidate_indices_sha256": "d74f18817c4729bae52812c4a53dc1694618dbe75f9fa6ba37f4f8ab88ab4ce8",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01204_depth_aabb_result.json",
+        "result_sha256": "5e899dfb4b9110ce46dcb14a87e437d6c7878d5beb750c9d03266a9a498496a8"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.2091003640653494,
+          "localization_error_m": 0.439317652729776,
+          "oracle_error_m": 0.23021728866442662,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.09071884205319761,
+          "localization_error_m": 0.3209361307176242,
+          "oracle_error_m": 0.23021728866442662,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.47900764039545907,
+          "localization_error_m": 0.7092249290598857,
+          "oracle_error_m": 0.23021728866442662,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.5716555192047517,
+          "localization_error_m": 0.8018728078691783,
+          "oracle_error_m": 0.23021728866442662,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5716555192047517,
+          "localization_error_m": 0.8018728078691783,
+          "oracle_error_m": 0.23021728866442662,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R004_hybrid_IR.wav",
+      "query_index": 1204,
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 230,
+      "candidate_indices_sha256": "0c7244d8e0c159179fc2e714eb693408bb390b2da6ccb3691e62c9787abbda19",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01218_depth_aabb_result.json",
+        "result_sha256": "800816af00c4f40d0c526fdd349aa51bb06c6f3606985980c7b6aef56054307f"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.11401754250991368,
+          "oracle_error_m": 0.11401754250991368,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 3.0233380318552237,
+          "localization_error_m": 3.137355574365137,
+          "oracle_error_m": 0.11401754250991368,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 2.3279079272782206,
+          "localization_error_m": 2.441925469788134,
+          "oracle_error_m": 0.11401754250991368,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.36868319293597307,
+          "localization_error_m": 0.48270073544588676,
+          "oracle_error_m": 0.11401754250991368,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.36868319293597307,
+          "localization_error_m": 0.48270073544588676,
+          "oracle_error_m": 0.11401754250991368,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S006_R016_hybrid_IR.wav",
+      "query_index": 1218,
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 232,
+      "candidate_indices_sha256": "503f5963e73daba584e2c942fcc298809cadd254486fe18bc836984967273ed2",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01287_depth_aabb_result.json",
+        "result_sha256": "e2b68c5bd634fedda70c6e0c367b384083c1285c2d7bffb5f41e032dac2d74cc"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 3.899638580026814,
+          "localization_error_m": 4.051296088907845,
+          "oracle_error_m": 0.1516575088810312,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 4.206438405621082,
+          "localization_error_m": 4.358095914502113,
+          "oracle_error_m": 0.1516575088810312,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.3190566033787239,
+          "localization_error_m": 1.4707141122597551,
+          "oracle_error_m": 0.1516575088810312,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 3.899638580026814,
+          "localization_error_m": 4.051296088907845,
+          "oracle_error_m": 0.1516575088810312,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.25207507588269573,
+          "localization_error_m": 0.4037325847637269,
+          "oracle_error_m": 0.1516575088810312,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S003_R010_hybrid_IR.wav",
+      "query_index": 1287,
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 230,
+      "candidate_indices_sha256": "d523a2c29a2601ac9f53ffb1a2a9f4093ec7a451bd1c878dad13714312cbd315",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01368_depth_aabb_result.json",
+        "result_sha256": "438f765d44080cdfed174232668a83bd08d5a71f1232e32d25989059a439bb28"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.11401754250991362,
+          "oracle_error_m": 0.11401754250991362,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 2.4084812186394355,
+          "localization_error_m": 2.522498761149349,
+          "oracle_error_m": 0.11401754250991362,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.2763061608052533,
+          "localization_error_m": 1.390323703315167,
+          "oracle_error_m": 0.11401754250991362,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.4553772452984313,
+          "localization_error_m": 1.569394787808345,
+          "oracle_error_m": 0.11401754250991362,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.11401754250991362,
+          "oracle_error_m": 0.11401754250991362,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S004_R025_hybrid_IR.wav",
+      "query_index": 1368,
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 254,
+      "candidate_indices_sha256": "d493a43ad158427f31a27a1a023f6171249b260acf0931b735e63e487bff995b",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01446_depth_aabb_result.json",
+        "result_sha256": "46fc647ffd93564df69344bbd5cae41fc364d435a765580c336339a988ab5741"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.8991227213446853,
+          "localization_error_m": 1.1780492349643124,
+          "oracle_error_m": 0.278926513619627,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 2.2326068825350016,
+          "localization_error_m": 2.5115333961546287,
+          "oracle_error_m": 0.278926513619627,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.918299009625541,
+          "localization_error_m": 2.197225523245168,
+          "oracle_error_m": 0.278926513619627,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 2.3052174452185805,
+          "localization_error_m": 2.5841439588382076,
+          "oracle_error_m": 0.278926513619627,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 2.4919578217505816,
+          "localization_error_m": 2.7708843353702086,
+          "oracle_error_m": 0.278926513619627,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S001_R018_hybrid_IR.wav",
+      "query_index": 1446,
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 254,
+      "candidate_indices_sha256": "89de59897c4fdf94cbb1ba10494f962e68ca662995356633ef01ff4fbc24995f",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01500_depth_aabb_result.json",
+        "result_sha256": "8fa7324729b1968c4ff854adfed0238de1ffb4c0048ad7acb4b4750ac65ca989"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.2940382023251354,
+          "localization_error_m": 0.47010637094172597,
+          "oracle_error_m": 0.17606816861659058,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 1.0367797196200181,
+          "localization_error_m": 1.2128478882366087,
+          "oracle_error_m": 0.17606816861659058,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 3.196023170597103,
+          "localization_error_m": 3.3720913392136938,
+          "oracle_error_m": 0.17606816861659058,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.2940382023251354,
+          "localization_error_m": 0.47010637094172597,
+          "oracle_error_m": 0.17606816861659058,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.2940382023251354,
+          "localization_error_m": 0.47010637094172597,
+          "oracle_error_m": 0.17606816861659058,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R012_hybrid_IR.wav",
+      "query_index": 1500,
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 254,
+      "candidate_indices_sha256": "62c29299a81624f10f801bcdb60e986cd67d1f7d26701c8d10c4b2bf646687cd",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01577_depth_aabb_result.json",
+        "result_sha256": "9f409239f60d9d6524252b32dacfd206e13f8654346773926e8bdff4accc0bd8"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7313096247617124,
+          "localization_error_m": 1.076707945545124,
+          "oracle_error_m": 0.34539832078341165,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 2.112100407598763,
+          "localization_error_m": 2.4574987283821748,
+          "oracle_error_m": 0.34539832078341165,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 2.4899676167985443,
+          "localization_error_m": 2.835365937581956,
+          "oracle_error_m": 0.34539832078341165,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.1138137953943572,
+          "localization_error_m": 1.459212116177769,
+          "oracle_error_m": 0.34539832078341165,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.3864504024023068,
+          "localization_error_m": 1.7318487231857185,
+          "oracle_error_m": 0.34539832078341165,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S009_R016_hybrid_IR.wav",
+      "query_index": 1577,
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 254,
+      "candidate_indices_sha256": "f445427571516df39a7b5f09c98fab7b7159f7ea49652e03445c93aa90195e82",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01595_depth_aabb_result.json",
+        "result_sha256": "fb1b4df5c5d5b9de1e7cd85aef9e5cb4fdef002d7250ec2e3194af92a7ffc9cf"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 2.1890783978776525,
+          "localization_error_m": 2.387320673893643,
+          "oracle_error_m": 0.1982422760159904,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.1982422760159904,
+          "oracle_error_m": 0.1982422760159904,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.8549908415795394,
+          "localization_error_m": 1.0532331175955298,
+          "oracle_error_m": 0.1982422760159904,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.4897446907583385,
+          "localization_error_m": 1.6879869667743288,
+          "oracle_error_m": 0.1982422760159904,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.4897446907583385,
+          "localization_error_m": 1.6879869667743288,
+          "oracle_error_m": 0.1982422760159904,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S004_R010_hybrid_IR.wav",
+      "query_index": 1595,
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 404,
+      "candidate_indices_sha256": "c4da35ee86b7c8009f0ec7fd4786614e7e2a623ec570e37497887e52f166e23d",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01768_depth_aabb_result.json",
+        "result_sha256": "5471fea906b16aed416b25c1d85848f834d12a6c77eabfb7c4c80b43edf9ad9c"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7550138642567362,
+          "localization_error_m": 0.9205433178292048,
+          "oracle_error_m": 0.16552945357246862,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.5943389560880462,
+          "localization_error_m": 0.7598684096605148,
+          "oracle_error_m": 0.16552945357246862,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 6.344263169852643,
+          "localization_error_m": 6.509792623425112,
+          "oracle_error_m": 0.16552945357246862,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.16552945357246862,
+          "oracle_error_m": 0.16552945357246862,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.16552945357246862,
+          "oracle_error_m": 0.16552945357246862,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S009_R023_hybrid_IR.wav",
+      "query_index": 1768,
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 404,
+      "candidate_indices_sha256": "41aa833ad12a1eb0eb01c2f4369a1b7a7ab03a6240d0c3fe29f4429e95951dc7",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01870_depth_aabb_result.json",
+        "result_sha256": "2c4f6bbf5b8c909230f0e0e65bdf7b396b660854c390a842fe37f898753703cb"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.215909534277164,
+          "localization_error_m": 1.360477857225173,
+          "oracle_error_m": 0.14456832294800898,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.48065163834561514,
+          "localization_error_m": 0.6252199612936241,
+          "oracle_error_m": 0.14456832294800898,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 7.528820758807196,
+          "localization_error_m": 7.6733890817552055,
+          "oracle_error_m": 0.14456832294800898,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.6501182792196223,
+          "localization_error_m": 1.7946866021676313,
+          "oracle_error_m": 0.14456832294800898,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.215909534277164,
+          "localization_error_m": 1.360477857225173,
+          "oracle_error_m": 0.14456832294800898,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S010_R024_hybrid_IR.wav",
+      "query_index": 1870,
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 402,
+      "candidate_indices_sha256": "441338c5b1ebc04a14226040197fbe92b00803b526ac01717eeec0878cbe9311",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01880_depth_aabb_result.json",
+        "result_sha256": "b9dd63bcb3466c3b2006f18eca0b3ad3a9573ed8b757d2b57bdc6ccaaebf0612"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 5.4044222838244576,
+          "localization_error_m": 5.67755228949941,
+          "oracle_error_m": 0.27313000567495205,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.5108342792258332,
+          "localization_error_m": 0.7839642849007853,
+          "oracle_error_m": 0.27313000567495205,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 3.568041690565662,
+          "localization_error_m": 3.841171696240614,
+          "oracle_error_m": 0.27313000567495205,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.815263305587112,
+          "localization_error_m": 1.088393311262064,
+          "oracle_error_m": 0.27313000567495205,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 5.4044222838244576,
+          "localization_error_m": 5.67755228949941,
+          "oracle_error_m": 0.27313000567495205,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S006_R003_hybrid_IR.wav",
+      "query_index": 1880,
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 404,
+      "candidate_indices_sha256": "74f5438a2a12ed6b0ba901d47767671307f1a60d2479547cb4d0b0c6f97eb6f0",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01896_depth_aabb_result.json",
+        "result_sha256": "541c438ce9771cfc342ad490bf98e000bcae80a9c6de1e54842a563616b033ad"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.077304915127637,
+          "localization_error_m": 1.19306328415554,
+          "oracle_error_m": 0.11575836902790293,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 3.198362932312772,
+          "localization_error_m": 3.3141213013406747,
+          "oracle_error_m": 0.11575836902790293,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.66564557168852,
+          "localization_error_m": 1.7814039407164228,
+          "oracle_error_m": 0.11575836902790293,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.5284435650422417,
+          "localization_error_m": 1.6442019340701446,
+          "oracle_error_m": 0.11575836902790293,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.686363816178317,
+          "localization_error_m": 0.8021221852062199,
+          "oracle_error_m": 0.11575836902790293,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S008_R001_hybrid_IR.wav",
+      "query_index": 1896,
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "982749d15d817432b59e7b8d6257e67caf9175eb370de84ee15c4ac25b5274ea",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01937_depth_aabb_result.json",
+        "result_sha256": "39d32c4f0447fe2ecb6b3073fae199ae7c69ba324ee120ef7443960c9fc3a6b5"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.580061108992412,
+          "localization_error_m": 0.8072174428244228,
+          "oracle_error_m": 0.22715633383201075,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.6956654257727352,
+          "localization_error_m": 0.9228217596047459,
+          "oracle_error_m": 0.22715633383201075,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.3573092340160875,
+          "localization_error_m": 0.5844655678480982,
+          "oracle_error_m": 0.22715633383201075,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.22184255258086247,
+          "localization_error_m": 0.4489988864128732,
+          "oracle_error_m": 0.22715633383201075,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.580061108992412,
+          "localization_error_m": 0.8072174428244228,
+          "oracle_error_m": 0.22715633383201075,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+      "query_index": 1937,
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 58,
+      "candidate_indices_sha256": "f3d8399cc0734abcf6dbfda66c6c3943ffc9f0f6627fbf22082130ac32127752",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_01991_depth_aabb_result.json",
+        "result_sha256": "084e29b20f71332609e4735ee715f5cb6eb395abf6537a78278aab06dc4462cf"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7433519597924444,
+          "localization_error_m": 0.9837682653958709,
+          "oracle_error_m": 0.2404163056034265,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.038510208016200115,
+          "localization_error_m": 0.2789265136196266,
+          "oracle_error_m": 0.2404163056034265,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.887446471927117,
+          "localization_error_m": 2.1278627775305434,
+          "oracle_error_m": 0.2404163056034265,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7433519597924444,
+          "localization_error_m": 0.9837682653958709,
+          "oracle_error_m": 0.2404163056034265,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 1.4938847063319292,
+          "localization_error_m": 1.7343010119353557,
+          "oracle_error_m": 0.2404163056034265,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S001_R016_hybrid_IR.wav",
+      "query_index": 1991,
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 56,
+      "candidate_indices_sha256": "21084c1343b7877798d0970f148106b95c0352ea0c47a41e7412fdf41a88e050",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02128_depth_aabb_result.json",
+        "result_sha256": "7c91a83b4b0da65ca16f4ece677463a74a2142aaae6b27d6a7c01309217aa596"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.09608866579248423,
+          "localization_error_m": 0.30822070014844866,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 2.062730598859501,
+          "localization_error_m": 2.274862633215465,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.519304907560425,
+          "localization_error_m": 0.7314369419163894,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.5784373806861305,
+          "localization_error_m": 0.7905694150420949,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.38368673003468456,
+          "localization_error_m": 0.595818764390649,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R002_hybrid_IR.wav",
+      "query_index": 2128,
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "4bc0b7b5c4bff9145f106c34a1fffd10256b4363e2284117c02640061bb4c4b5",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02134_depth_aabb_result.json",
+        "result_sha256": "bb082a74111385ade66a19ab551ea2b4af6f3eb1516ef9cf0bbbda308d50f47e"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.519304907560425,
+          "localization_error_m": 0.7314369419163894,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.5055029703644018,
+          "localization_error_m": 0.7176350047203662,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.5055029703644018,
+          "localization_error_m": 0.7176350047203662,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.519304907560425,
+          "localization_error_m": 0.7314369419163894,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.2622096146692925,
+          "localization_error_m": 0.47434164902525694,
+          "oracle_error_m": 0.21213203435596442,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R008_hybrid_IR.wav",
+      "query_index": 2134,
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "3d20ecea8c89e3e12042b30773d8f10615e25e1ba6158058d906b5ec3e34222b",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02188_depth_aabb_result.json",
+        "result_sha256": "48161220dfbe07eb4f694014eb179b377eae340a814827a2c93eef3de9c29c6c"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.2855281278274695,
+          "localization_error_m": 1.5140013210033867,
+          "oracle_error_m": 0.22847319317591716,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.13511998607803974,
+          "localization_error_m": 0.3635931792539569,
+          "oracle_error_m": 0.22847319317591716,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.3212540118994729,
+          "localization_error_m": 0.5497272050753901,
+          "oracle_error_m": 0.22847319317591716,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.2855281278274695,
+          "localization_error_m": 1.5140013210033867,
+          "oracle_error_m": 0.22847319317591716,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.42129599661381123,
+          "localization_error_m": 0.6497691897897284,
+          "oracle_error_m": 0.22847319317591716,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S002_R015_hybrid_IR.wav",
+      "query_index": 2188,
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "77405aeec53a3cfcba95574a574b98b0ca51b7a05b9c65ad03846402b1ef8f2e",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02259_depth_aabb_result.json",
+        "result_sha256": "cfabed54707541b179ba74012c9f6b14601bc02ebfbb3b3869603619f8de7428"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.3106054811367899,
+          "localization_error_m": 0.5255473337388366,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.9279492183229122,
+          "localization_error_m": 1.142891070924959,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.7730864870724792,
+          "localization_error_m": 0.9880283396745259,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.2049877231164112,
+          "localization_error_m": 1.419929575718458,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.3106054811367899,
+          "localization_error_m": 0.5255473337388366,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R010_hybrid_IR.wav",
+      "query_index": 2259,
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 56,
+      "candidate_indices_sha256": "c7d4eecb75acaa8071bf6b37a106b1ff85823b08c07cca2b413c62cb4f86563c",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02345_depth_aabb_result.json",
+        "result_sha256": "b777aba0cd2a99cd2187572bd1a56d5abed81fe2260101c936c62a695d77806f"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.1911452340678326,
+          "localization_error_m": 1.4980654191322886,
+          "oracle_error_m": 0.3069201850644561,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3069201850644561,
+          "oracle_error_m": 0.3069201850644561,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.5786304910687623,
+          "localization_error_m": 0.8855506761332184,
+          "oracle_error_m": 0.3069201850644561,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.1911452340678326,
+          "localization_error_m": 1.4980654191322886,
+          "oracle_error_m": 0.3069201850644561,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.1911452340678326,
+          "localization_error_m": 1.4980654191322886,
+          "oracle_error_m": 0.3069201850644561,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S004_R010_hybrid_IR.wav",
+      "query_index": 2345,
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 57,
+      "candidate_indices_sha256": "873912ed05a69dcba6f927e755dc489923ee83228c66d4b58b35feb2a0e309e7",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_02414_depth_aabb_result.json",
+        "result_sha256": "4fe1537aefe860c7811381ba3a87790279369454833f809f1f96c360935fe824"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.34737478417833534,
+          "localization_error_m": 0.562316636780382,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.5951198734410987,
+          "localization_error_m": 0.8100617260431454,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.34737478417833534,
+          "localization_error_m": 0.562316636780382,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.4240212342306005,
+          "localization_error_m": 1.6389630868326472,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.9279492183229122,
+          "localization_error_m": 1.142891070924959,
+          "oracle_error_m": 0.2149418526020467,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R021_hybrid_IR.wav",
+      "query_index": 2414,
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 3723,
+      "candidate_indices_sha256": "286ba84ec07b6c968c2393971b19585519eb5874c19a6f4bb8293c0277b67ee9",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_03550_depth_aabb_result.json",
+        "result_sha256": "5a9f5394156a71ea7589ab4023a3dc0ae2e860f9d18eae3316eeb8a175e4f228"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 10.092512194440065,
+          "localization_error_m": 10.333344086015911,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 8.98239964623128,
+          "localization_error_m": 9.223231537807125,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 11.748663510650221,
+          "localization_error_m": 11.989495402226067,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 10.591896296650793,
+          "localization_error_m": 10.832728188226639,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 7.416060428419257,
+          "localization_error_m": 7.656892319995103,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+      "query_index": 3550,
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 3723,
+      "candidate_indices_sha256": "b079d5d49f5b0e42a7ee9457b9b815bb68700d859a4f1bb0f349ad3b509ae4e2",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_03934_depth_aabb_result.json",
+        "result_sha256": "431d0f2266830900e02bd22f51c798318c059d1bfdcd1be77dc0afcd3e45ab1e"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 12.709380461895428,
+          "localization_error_m": 12.950212353471274,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 12.221029927590662,
+          "localization_error_m": 12.461861819166508,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 11.514507320884167,
+          "localization_error_m": 11.755339212460013,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7877593780740573,
+          "localization_error_m": 1.028591269649903,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 14.027244362776035,
+          "localization_error_m": 14.26807625435188,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R060_hybrid_IR.wav",
+      "query_index": 3934,
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 3722,
+      "candidate_indices_sha256": "c4c817473cb82742e0d42576447344aa6182c0fc56c9847c4424c521345cfe99",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_04137_depth_aabb_result.json",
+        "result_sha256": "e96ba2cd9227e3a027c92635955de17133ed3c9637c74e5cc27e87cd512d413f"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 5.105007612187805,
+          "localization_error_m": 5.345839503763651,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 8.36951072646207,
+          "localization_error_m": 8.610342618037915,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 5.789756802739163,
+          "localization_error_m": 6.030588694315009,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 4.616945377916859,
+          "localization_error_m": 4.857777269492705,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 9.321490002190332,
+          "localization_error_m": 9.562321893766178,
+          "oracle_error_m": 0.2408318915758458,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S004_R010_hybrid_IR.wav",
+      "query_index": 4137,
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 3722,
+      "candidate_indices_sha256": "f6957ab381c31caaa7606878c3ebcce892db7f484b2b175a65710f267608344b",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_oversized",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/query_04206_depth_aabb_result.json",
+        "result_sha256": "a1a3e86a21b509529ea8452f7c95ddd00d0bab578856a1edde260cf05b7186eb"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.8172086834628465,
+          "localization_error_m": 2.130258200312817,
+          "oracle_error_m": 0.31304951684997046,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 3.5738515624161336,
+          "localization_error_m": 3.886901079266104,
+          "oracle_error_m": 0.31304951684997046,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 14.35453378783932,
+          "localization_error_m": 14.667583304689291,
+          "oracle_error_m": 0.31304951684997046,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 19.38233065211351,
+          "localization_error_m": 19.69538016896348,
+          "oracle_error_m": 0.31304951684997046,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 3.124682293515696,
+          "localization_error_m": 3.4377318103656664,
+          "oracle_error_m": 0.31304951684997046,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R049_hybrid_IR.wav",
+      "query_index": 4206,
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 27,
+      "candidate_indices_sha256": "4f212dcbf53bea4e604969f50c2bc8f3f6330e9d383375a46b0a4563efd86bf1",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04467_depth_aabb_result.json",
+        "result_sha256": "1a40d967104189f5becf2c2ccaf2a06511ffd2bef0478d6173eded1cd6e0113b"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.43007352543677235,
+          "localization_error_m": 0.6800735254367722,
+          "oracle_error_m": 0.24999999999999992,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.43007352543677213,
+          "localization_error_m": 0.680073525436772,
+          "oracle_error_m": 0.24999999999999992,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.24999999999999992,
+          "oracle_error_m": 0.24999999999999992,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.43007352543677235,
+          "localization_error_m": 0.6800735254367722,
+          "oracle_error_m": 0.24999999999999992,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.6513878188659975,
+          "localization_error_m": 0.9013878188659974,
+          "oracle_error_m": 0.24999999999999992,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+      "query_index": 4467,
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 27,
+      "candidate_indices_sha256": "efd33a2567672c6770f6c6ea3a4e64ed3ecab1079029a8171a71d192aefcec6c",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04513_depth_aabb_result.json",
+        "result_sha256": "476f09325c01fb1e2bc570454a412b9623521a6bfa336b530fc8ca3a60cb9f5b"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.46032778078668524,
+          "localization_error_m": 0.6103277807866851,
+          "oracle_error_m": 0.1499999999999999,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.1499999999999999,
+          "oracle_error_m": 0.1499999999999999,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.46032778078668524,
+          "localization_error_m": 0.6103277807866851,
+          "oracle_error_m": 0.1499999999999999,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.9780514172678478,
+          "localization_error_m": 1.1280514172678477,
+          "oracle_error_m": 0.1499999999999999,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.46032778078668524,
+          "localization_error_m": 0.6103277807866851,
+          "oracle_error_m": 0.1499999999999999,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R011_hybrid_IR.wav",
+      "query_index": 4513,
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "b1931b458b3760687c982fe7cb30cd93b5249dcff7b2df6b8b75b18dc302f42a",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04617_depth_aabb_result.json",
+        "result_sha256": "07e4e703e082a60beadb94740b0f990a57d5a7d3c569e904205c4bf632b2c62a"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.23259293808872294,
+          "localization_error_m": 0.438748219369606,
+          "oracle_error_m": 0.20615528128088306,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 1.2575728355495617,
+          "localization_error_m": 1.4637281168304448,
+          "oracle_error_m": 0.20615528128088306,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.8390719667374607,
+          "localization_error_m": 1.0452272480183438,
+          "oracle_error_m": 0.20615528128088306,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.23259293808872294,
+          "localization_error_m": 0.438748219369606,
+          "oracle_error_m": 0.20615528128088306,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.23259293808872294,
+          "localization_error_m": 0.438748219369606,
+          "oracle_error_m": 0.20615528128088306,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+      "query_index": 4617,
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 27,
+      "candidate_indices_sha256": "2b920691d69b03e1af7e43d52cd3b179a729fac2d10590745cfdef0d76364b06",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04652_depth_aabb_result.json",
+        "result_sha256": "15e6e7504b87de7cdc097e0a19fe2ad18f7434a10a14128452476a5579d9e99d"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.4472135954999579,
+          "localization_error_m": 0.7826237921249264,
+          "oracle_error_m": 0.33541019662496846,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.12556702623967597,
+          "localization_error_m": 0.46097722286464443,
+          "oracle_error_m": 0.33541019662496846,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.8739284656198141,
+          "localization_error_m": 1.2093386622447826,
+          "oracle_error_m": 0.33541019662496846,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.4472135954999579,
+          "localization_error_m": 0.7826237921249264,
+          "oracle_error_m": 0.33541019662496846,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.4472135954999579,
+          "localization_error_m": 0.7826237921249264,
+          "oracle_error_m": 0.33541019662496846,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+      "query_index": 4652,
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 56,
+      "candidate_indices_sha256": "b5ce3fce0eb6cc0b19a4854eecc4a36714ab7102c03c8fd76778e8386b07fae8",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04728_depth_aabb_result.json",
+        "result_sha256": "d1633897e71abe6e7d1b0bcfeb7807bc3577290e9e984a143482250f094a5fe6"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3674234614174767,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3674234614174767,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3674234614174767,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.1930251920152466,
+          "localization_error_m": 1.5604486534327233,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.1930251920152466,
+          "localization_error_m": 1.5604486534327233,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+      "query_index": 4728,
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 58,
+      "candidate_indices_sha256": "bb0bca48e1b32afc9c19018e22aae0778de2007b8f39ae6172196acb0e24335e",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04781_depth_aabb_result.json",
+        "result_sha256": "52abfa99eebddc7ecb08c47b5b712544db40868d8f3750830507cd06b58fc441"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.4294454111079846,
+          "localization_error_m": 0.7968688725254613,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3674234614174767,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.9112477238369654,
+          "localization_error_m": 1.2786711852544421,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7661549434579866,
+          "localization_error_m": 1.1335784048754634,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.9112477238369654,
+          "localization_error_m": 1.2786711852544421,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R018_hybrid_IR.wav",
+      "query_index": 4781,
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 55,
+      "candidate_indices_sha256": "fc8cac2cc3679ede2dd5f25e3723413aa15ba8d3acf3f14681db52a33e8704d1",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04784_depth_aabb_result.json",
+        "result_sha256": "26df52e19eea1f2e58c4a6854ed9789f9c67135c325d09433cfb5fe082d8ac31"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5818609561002115,
+          "localization_error_m": 0.9354143466934853,
+          "oracle_error_m": 0.3535533905932738,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3535533905932738,
+          "oracle_error_m": 0.3535533905932738,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.5818609561002115,
+          "localization_error_m": 0.9354143466934853,
+          "oracle_error_m": 0.3535533905932738,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.5818609561002115,
+          "localization_error_m": 0.9354143466934853,
+          "oracle_error_m": 0.3535533905932738,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5818609561002115,
+          "localization_error_m": 0.9354143466934853,
+          "oracle_error_m": 0.3535533905932738,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R012_hybrid_IR.wav",
+      "query_index": 4784,
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 51,
+      "candidate_indices_sha256": "864f057fb02ea1b266c87f9322e803a9e1ac9f09dd580e7e07a90b3fb64963b6",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04806_depth_aabb_result.json",
+        "result_sha256": "e4f3eee2907b251f111e1aae23f433d6a323cbe9562b9bb51f94ca452718d093"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.8304913936536171,
+          "localization_error_m": 1.1979148550710939,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.3674234614174767,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.445033434621709,
+          "localization_error_m": 1.8124568960391858,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.8304913936536171,
+          "localization_error_m": 1.1979148550710939,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.8304913936536171,
+          "localization_error_m": 1.1979148550710939,
+          "oracle_error_m": 0.3674234614174767,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S009_R006_hybrid_IR.wav",
+      "query_index": 4806,
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "47c7ecb49e91f997818f055dfefa34a4d80f8f2faba029c4f5048852ffc4ffff",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04945_depth_aabb_result.json",
+        "result_sha256": "b81eddc25bae77d84f64d60756de9b7cf6a39af646fc08b1eceaf1941c35df85"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 0.8660254037844386,
+          "localization_error_m": 0.8660254037844386,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 1.5811388300841898,
+          "localization_error_m": 1.5811388300841898,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.5811388300841898,
+          "localization_error_m": 1.5811388300841898,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S008_R007_hybrid_IR.wav",
+      "query_index": 4945,
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "1a0f2857eee2a07aab9fbb50277880c635dee0a824590e924fdc7e1b945c7fce",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_04971_depth_aabb_result.json",
+        "result_sha256": "f66823c56b3523a8845bade81a18cd626b12d95e51ac5dc138ffeebe7b4eb6a5"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 2.0,
+          "localization_error_m": 2.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R014_hybrid_IR.wav",
+      "query_index": 4971,
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "1d3ed396b590052551fc87865a143054743f8a96677e4963cfcfadf2fc4513b0",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05053_depth_aabb_result.json",
+        "result_sha256": "d423087332d07fe58ba2cb0f1c32abb68bde4df823885c2f48585d4b2deabae8"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 2.0615528128088303,
+          "localization_error_m": 2.0615528128088303,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.224744871391589,
+          "localization_error_m": 1.224744871391589,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R019_hybrid_IR.wav",
+      "query_index": 5053,
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "7b980fa248a88106e17467877e4ef8ff3611b390c827085f4f77d1949dbb20cf",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05094_depth_aabb_result.json",
+        "result_sha256": "dd966a81759835690c0a34bb70120fb48c81f2e963d5efa40d78cf1c7b0cd615"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 2.1213203435596424,
+          "localization_error_m": 2.1213203435596424,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S010_R001_hybrid_IR.wav",
+      "query_index": 5094,
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "140ada034cda4ada2e3a05a9434c797e7fc53951c1cf1dec09d3bf4801b3aff5",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05194.npz",
+        "candidate_arrays_sha256": "c794feaada1a623aa36171a31886bf52afef01ebc8328b37e3945200024d7de3",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 2.1213203435596424,
+          "localization_error_m": 2.1213203435596424,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 5.172040216394301,
+          "localization_error_m": 5.172040216394301,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 3.5355339059327378,
+          "localization_error_m": 3.5355339059327378,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 2.958039891549808,
+          "localization_error_m": 2.958039891549808,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 2.7386127875258306,
+          "localization_error_m": 2.7386127875258306,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "query_index": 5194,
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "9fcca28ea7e628a6ecf60a26a9dfa064d57d36730e878e84c48c963bfb48bcd8",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05281.npz",
+        "candidate_arrays_sha256": "c6294bb4584fbc18b2ba11e7de98c70ec735ffe4a130b34e144b7e2d0ada9b1e",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 3.9370039370059056,
+          "localization_error_m": 3.9370039370059056,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.224744871391589,
+          "localization_error_m": 1.224744871391589,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "query_index": 5281,
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "5425ab1f66b2180b6b68a240108790f34346b0e5d61296e038b42f030c52d0ab",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05334.npz",
+        "candidate_arrays_sha256": "246cef2992954aba08df6219416c8380574ddff63c466f00e87f4954d03308f7",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 3.570714214271425,
+          "localization_error_m": 3.570714214271425,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.5,
+          "localization_error_m": 1.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "query_index": 5334,
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "c5e5e36c391c072d7a7b8a26c443036f691d3d5a311f5c8a5b6ac8ba92fc1c8c",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05363.npz",
+        "candidate_arrays_sha256": "7c4b5da46b6a44790513ee169eff38d9b9a7a840d2b7d73c44c5dbc9fb0dbe17",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 4.9749371855331,
+          "localization_error_m": 4.9749371855331,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 2.179449471770337,
+          "localization_error_m": 2.179449471770337,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.224744871391589,
+          "localization_error_m": 1.224744871391589,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "query_index": 5363,
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 279,
+      "candidate_indices_sha256": "2dc827c5479256e75d786264d89aeefcbc6f4b5df1dad30d4c179abc2cae5310",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05494_depth_aabb_result.json",
+        "result_sha256": "42ce090b260317222c4ae00d5c43f434bcb6a3755014de3162ee619a04345457"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.47853083318001677,
+          "localization_error_m": 0.8139410298049853,
+          "oracle_error_m": 0.3354101966249685,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 3.257986525141221,
+          "localization_error_m": 3.5933967217661897,
+          "oracle_error_m": 0.3354101966249685,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.629914204078386,
+          "localization_error_m": 1.9653244007033546,
+          "oracle_error_m": 0.3354101966249685,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.47853083318001677,
+          "localization_error_m": 0.8139410298049853,
+          "oracle_error_m": 0.3354101966249685,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.47853083318001677,
+          "localization_error_m": 0.8139410298049853,
+          "oracle_error_m": 0.3354101966249685,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R011_hybrid_IR.wav",
+      "query_index": 5494,
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 280,
+      "candidate_indices_sha256": "8eac5e937a42d3d8d3f646925c50cd0c521eb28dc63eef159c804b7a621ebdd9",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05513_depth_aabb_result.json",
+        "result_sha256": "c2a2d5bcef08acc5fbcc70b3f868bf90c79485a1bed89880f31d5a90c52d353d"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.9668883751463817,
+          "localization_error_m": 2.1400934559032696,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.2510589879550408,
+          "localization_error_m": 0.42426406871192857,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 4.636160781807531,
+          "localization_error_m": 4.809365862564419,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.6514160443666444,
+          "localization_error_m": 0.8246211251235321,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 1.9668883751463817,
+          "localization_error_m": 2.1400934559032696,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R023_hybrid_IR.wav",
+      "query_index": 5513,
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 280,
+      "candidate_indices_sha256": "9dac20a2d7de495f4ca7324a04e2482b99250f84a378bbad32e778130797b5f0",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05625_depth_aabb_result.json",
+        "result_sha256": "35c47c008ac2831426d254778d0db1888fa2ee2aa284b93f99811c9928de414f"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.25105898795504067,
+          "localization_error_m": 0.42426406871192845,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.1732050807568878,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 2.7388388749553196,
+          "localization_error_m": 2.9120439557122073,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.8167444129042787,
+          "localization_error_m": 0.9899494936611665,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 1.1609613256557454,
+          "localization_error_m": 1.3341664064126333,
+          "oracle_error_m": 0.1732050807568878,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R002_hybrid_IR.wav",
+      "query_index": 5625,
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 280,
+      "candidate_indices_sha256": "503ca759dc9a2eb52441e8033f00de6c2b22a9fd4cb40fc5bb243df8fb69dea9",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05636_depth_aabb_result.json",
+        "result_sha256": "50d57e5a3901465bfbcc2f75d7f2c8f7081c45c447157f5a18253d37adea5d24"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.37749172176353746,
+          "oracle_error_m": 0.37749172176353746,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 2.3414235031009674,
+          "localization_error_m": 2.7189152248645048,
+          "oracle_error_m": 0.37749172176353746,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.884451224648859,
+          "localization_error_m": 1.2619429464123963,
+          "oracle_error_m": 0.37749172176353746,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.37749172176353746,
+          "oracle_error_m": 0.37749172176353746,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.37749172176353746,
+          "oracle_error_m": 0.37749172176353746,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S008_R004_hybrid_IR.wav",
+      "query_index": 5636,
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "8ab0d7e6e8acd01ca23c44c255fa08d3ba08cb4cf283f13223ae24631284232a",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05685_depth_aabb_result.json",
+        "result_sha256": "1f639809022857e5c3dae643c990f41446537aa54e31fb9ba2b85d0bbac488f1"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.883266665599966,
+          "localization_error_m": 2.083266665599966,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.6602325267042627,
+          "localization_error_m": 0.8602325267042626,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.0206555615733703,
+          "localization_error_m": 1.2206555615733703,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.5681145747868609,
+          "localization_error_m": 0.7681145747868608,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5681145747868609,
+          "localization_error_m": 0.7681145747868608,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+      "query_index": 5685,
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "e57c4a3726179b91ef75d08f93003b0c344cead04d0a671e67ac1be9bea9dd63",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05782_depth_aabb_result.json",
+        "result_sha256": "75adf5da70a0f96a7a68be687f76dac3252f38b90aecb00bdb943a3556b95d21"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 2.598076211353316,
+          "localization_error_m": 2.598076211353316,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.0,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+      "query_index": 5782,
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 141,
+      "candidate_indices_sha256": "cfc595b510eb3ab62a0accc32442b72d422417499ddf5956b01b467beab6a5e6",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05817.npz",
+        "candidate_arrays_sha256": "6e2207356dd17fe52305969907748d636acfc0ce298883f9469537ffaa727c3c",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 5.385164807134504,
+          "localization_error_m": 5.385164807134504,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.5,
+          "localization_error_m": 1.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.7071067811865476,
+          "localization_error_m": 0.7071067811865476,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.5,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "query_index": 5817,
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "62385975eb7b15c1bc93969c7d541f659365a0ded06de74a238e680637455758",
+      "fem_evaluation_status": "strict_coverage_failure_penalized",
+      "fem_source": {
+        "candidate_arrays_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla/queries/query_05832.npz",
+        "candidate_arrays_sha256": "949a8f2612096a83649f71d4cff40120fcb77088812137a914b45f63c793ce24",
+        "kind": "evaluation_penalty",
+        "penalty_rule": "maximum true-source distance over frozen candidates"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.5348469228349535,
+          "localization_error_m": 0.7348469228349535,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 3.506750598570128,
+          "localization_error_m": 3.7067505985701277,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 0.79498743710662,
+          "localization_error_m": 0.99498743710662,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "vanilla": {
+          "excess_error_m": 0.5348469228349535,
+          "localization_error_m": 0.7348469228349535,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5681145747868609,
+          "localization_error_m": 0.7681145747868608,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "query_index": 5832,
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 293,
+      "candidate_indices_sha256": "d07246493b703bcb88cd001731e769a6e9c95051a0d67b9f8cc3e3cad2fb5ae2",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05923_depth_aabb_result.json",
+        "result_sha256": "9e0ff0541ee7fd89a57a87387ee916fa9b49e3e04fa755e606c9c16d42f04ff5"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 1.118033988749895,
+          "localization_error_m": 1.118033988749895,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 1.224744871391589,
+          "localization_error_m": 1.224744871391589,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.5811388300841898,
+          "localization_error_m": 1.5811388300841898,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.224744871391589,
+          "localization_error_m": 1.224744871391589,
+          "oracle_error_m": 0.0,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S001_R004_hybrid_IR.wav",
+      "query_index": 5923,
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 292,
+      "candidate_indices_sha256": "d31f00e26e9bb309ebc2bac4819a8da2ea3fb61b7ca8fe907d25e0e31dd2cc27",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_05934_depth_aabb_result.json",
+        "result_sha256": "ba204bfcdc0447995cf54f1532e5dd9942424934f1df036e0a3e2d6b0f618a5c"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.9575836902790227,
+          "localization_error_m": 1.1575836902790226,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 1.8223748416156684,
+          "localization_error_m": 2.0223748416156684,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 3.9340053217188773,
+          "localization_error_m": 4.1340053217188775,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.7,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.5,
+          "localization_error_m": 0.7,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S009_R017_hybrid_IR.wav",
+      "query_index": 5934,
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 292,
+      "candidate_indices_sha256": "b829a9c298f3357f2f27d16146d57250a615f23443ab212af388394db5a153c8",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06016_depth_aabb_result.json",
+        "result_sha256": "de059a2df0d0fb5bbb8944c6051a0dcd88f678b84319fdab830fe75f75d06722"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.19999999999999996,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 1.3132745950421556,
+          "localization_error_m": 1.5132745950421556,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "few_shot": {
+          "excess_error_m": 5.828266749240614,
+          "localization_error_m": 6.028266749240614,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.19999999999999996,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.19999999999999996,
+          "oracle_error_m": 0.19999999999999996,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R006_hybrid_IR.wav",
+      "query_index": 6016,
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 292,
+      "candidate_indices_sha256": "3a44b51f7121d2d690e6b81aeda8f111617959f09834d985c5aa4ad07cb73cad",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06054_depth_aabb_result.json",
+        "result_sha256": "efd8e215a4b9369d4bc4e822f43480b1fa353575feec94217adf8e0f5e28f4c2"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.2999999999999998,
+          "localization_error_m": 0.3999999999999999,
+          "oracle_error_m": 0.10000000000000009,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.4099019513592784,
+          "localization_error_m": 0.5099019513592785,
+          "oracle_error_m": 0.10000000000000009,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 2.470992026436488,
+          "localization_error_m": 2.570992026436488,
+          "oracle_error_m": 0.10000000000000009,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.2999999999999998,
+          "localization_error_m": 0.3999999999999999,
+          "oracle_error_m": 0.10000000000000009,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.2999999999999998,
+          "localization_error_m": 0.3999999999999999,
+          "oracle_error_m": 0.10000000000000009,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R002_hybrid_IR.wav",
+      "query_index": 6054,
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 261,
+      "candidate_indices_sha256": "e0e371e5ea339858fabffd218a91b281ad26c25c4690dee68de37b56a954d6d8",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06204_depth_aabb_result.json",
+        "result_sha256": "f0c058e6e84df77880b93275dc366c9e6e3a9ef883edbae8f74042875e52f3d3"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 1.135523130062827,
+          "localization_error_m": 1.2062338081814818,
+          "oracle_error_m": 0.07071067811865478,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.3820585787882161,
+          "localization_error_m": 0.45276925690687087,
+          "oracle_error_m": 0.07071067811865478,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.4638902472036257,
+          "localization_error_m": 1.5346009253222805,
+          "oracle_error_m": 0.07071067811865478,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.135523130062827,
+          "localization_error_m": 1.2062338081814818,
+          "oracle_error_m": 0.07071067811865478,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 1.135523130062827,
+          "localization_error_m": 1.2062338081814818,
+          "oracle_error_m": 0.07071067811865478,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R002_hybrid_IR.wav",
+      "query_index": 6204,
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 260,
+      "candidate_indices_sha256": "177ae0648c2dc317bd1891856f6894004657960e941fc96a2fd1527cd03f742c",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06252_depth_aabb_result.json",
+        "result_sha256": "ee5d85b9e5d7a8b4a87c1a8234d4c2a0a7aa729445f3dcdac2d24282eeb0e7ef"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 0.7386100246932775,
+          "localization_error_m": 0.8093207028119322,
+          "oracle_error_m": 0.07071067811865477,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.07071067811865477,
+          "oracle_error_m": 0.07071067811865477,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 4.166623389429006,
+          "localization_error_m": 4.2373340675476605,
+          "oracle_error_m": 0.07071067811865477,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 0.6038262000429474,
+          "localization_error_m": 0.6745368781616021,
+          "oracle_error_m": 0.07071067811865477,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "yawaug": {
+          "excess_error_m": 0.6742725431689123,
+          "localization_error_m": 0.744983221287567,
+          "oracle_error_m": 0.07071067811865477,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+      "query_index": 6252,
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 261,
+      "candidate_indices_sha256": "a7d308f17f53f2c41ee0689ce1a665a6fba9714d98d50f699d4350713fd793a8",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06280_depth_aabb_result.json",
+        "result_sha256": "9cd64d0dcec4b22d11c82158eed95c82ae6dddc53d8ef6805276ae412de58c92"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 2.8549404990527223,
+          "localization_error_m": 2.977414986191881,
+          "oracle_error_m": 0.1224744871391589,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.43877412087693235,
+          "localization_error_m": 0.5612486080160912,
+          "oracle_error_m": 0.1224744871391589,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 1.9183586760566962,
+          "localization_error_m": 2.040833163195855,
+          "oracle_error_m": 0.1224744871391589,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 2.8549404990527223,
+          "localization_error_m": 2.977414986191881,
+          "oracle_error_m": 0.1224744871391589,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 2.8549404990527223,
+          "localization_error_m": 2.977414986191881,
+          "oracle_error_m": 0.1224744871391589,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+      "query_index": 6280,
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 261,
+      "candidate_indices_sha256": "a2d3f332ed68b4cdb1c6fbe7bd487a6f975e3e97d6dc0ee77bb5309f6b461b9d",
+      "fem_evaluation_status": "evaluated",
+      "fem_source": {
+        "kind": "local_primary_97",
+        "result_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results/query_06281_depth_aabb_result.json",
+        "result_sha256": "b478d745a7ef736e3d095cf9b79025c5cb0a439c3fe91fae5a8a0029e537f49c"
+      },
+      "metrics": {
+        "fa_bf": {
+          "excess_error_m": 2.0141115747829907,
+          "localization_error_m": 2.1365860619221495,
+          "oracle_error_m": 0.12247448713915893,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "fem_omp": {
+          "excess_error_m": 0.0,
+          "localization_error_m": 0.12247448713915893,
+          "oracle_error_m": 0.12247448713915893,
+          "oracle_normalized_success_0_5m": 1,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 1,
+          "success_1_0m": 1
+        },
+        "few_shot": {
+          "excess_error_m": 2.1169450805167105,
+          "localization_error_m": 2.2394195676558692,
+          "oracle_error_m": 0.12247448713915893,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "vanilla": {
+          "excess_error_m": 1.9787156518059101,
+          "localization_error_m": 2.101190138945069,
+          "oracle_error_m": 0.12247448713915893,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 0,
+          "success_0_5m": 0,
+          "success_1_0m": 0
+        },
+        "yawaug": {
+          "excess_error_m": 0.5594345977101336,
+          "localization_error_m": 0.6819090848492926,
+          "oracle_error_m": 0.12247448713915893,
+          "oracle_normalized_success_0_5m": 0,
+          "oracle_normalized_success_1_0m": 1,
+          "success_0_5m": 0,
+          "success_1_0m": 1
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S006_R025_hybrid_IR.wav",
+      "query_index": 6281,
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    }
+  ],
+  "per_room": {
+    "Apartments_idx_42": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.0598385830773842,
+        "median_localization_error_m": 0.8090169943749475,
+        "p90_localization_error_m": 1.8203344371167183,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.5
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 4.413673888301183,
+        "median_localization_error_m": 4.455970561269503,
+        "p90_localization_error_m": 5.112909307135941,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "few_shot": {
+        "mean_localization_error_m": 2.109932062273666,
+        "median_localization_error_m": 1.8397247358851685,
+        "p90_localization_error_m": 3.128708575684018,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.3474728860319862,
+        "median_localization_error_m": 0.9659258262890682,
+        "p90_localization_error_m": 2.4380513855023427,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.1409383893655682,
+        "median_localization_error_m": 0.9125703849682212,
+        "p90_localization_error_m": 2.25243914789305,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "Apartments_idx_50": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.1116152783740212,
+        "median_localization_error_m": 0.9125703849682212,
+        "p90_localization_error_m": 1.8203344371167183,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.3689415937954814,
+        "median_localization_error_m": 1.3535533905932737,
+        "p90_localization_error_m": 2.0430869689661812,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.0817095631689544,
+        "median_localization_error_m": 1.118033988749895,
+        "p90_localization_error_m": 1.1927316065990807,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.9256147934109581,
+        "median_localization_error_m": 0.7071067811865476,
+        "p90_localization_error_m": 1.3189292154148973,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.75
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.8515699000051581,
+        "median_localization_error_m": 0.9125703849682212,
+        "p90_localization_error_m": 1.4422073776839013,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "Auditorium_idx_1": {
+      "fa_bf": {
+        "mean_localization_error_m": 7.689913535890913,
+        "median_localization_error_m": 7.839591794889781,
+        "p90_localization_error_m": 12.165151873234665,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 8.545584263569413,
+        "median_localization_error_m": 8.916787077922521,
+        "p90_localization_error_m": 11.490272734758694,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "few_shot": {
+        "mean_localization_error_m": 11.110751653422597,
+        "median_localization_error_m": 11.87241730734304,
+        "p90_localization_error_m": 13.864156933950325,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 9.103619224083182,
+        "median_localization_error_m": 7.845252728859672,
+        "p90_localization_error_m": 17.03658457474243,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "yawaug": {
+        "mean_localization_error_m": 8.731255569619707,
+        "median_localization_error_m": 8.609607106880642,
+        "p90_localization_error_m": 12.85634994617617,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      }
+    },
+    "Bathrooms_idx_14": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.6279433294294974,
+        "median_localization_error_m": 0.6452006531117287,
+        "p90_localization_error_m": 0.7518587121184802,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 1.0,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 0.6886947162829652,
+        "median_localization_error_m": 0.5705253741507083,
+        "p90_localization_error_m": 1.2286317394123432,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "few_shot": {
+        "mean_localization_error_m": 0.7787234227624529,
+        "median_localization_error_m": 0.8277775144025145,
+        "p90_localization_error_m": 1.160105237976851,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.7573742385497881,
+        "median_localization_error_m": 0.7313486587808493,
+        "p90_localization_error_m": 1.0244231297249713,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.75
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.6832719027868037,
+        "median_localization_error_m": 0.6964757864558058,
+        "p90_localization_error_m": 0.8657586108436761,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      }
+    },
+    "Bathrooms_idx_18": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.8244053839268793,
+        "median_localization_error_m": 0.8661416096094734,
+        "p90_localization_error_m": 1.1191647025578113,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.75
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 0.363955943711426,
+        "median_localization_error_m": 0.3674234614174767,
+        "p90_localization_error_m": 0.3674234614174767,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 1.0,
+        "success_rate_at_0_5m": 1.0,
+        "success_rate_at_1_0m": 1.0
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.0984914723511474,
+        "median_localization_error_m": 1.1070427659739637,
+        "p90_localization_error_m": 1.6523211828037627,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.2068390650181915,
+        "median_localization_error_m": 1.1657466299732786,
+        "p90_localization_error_m": 1.4516885139242346,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.243112260112936,
+        "median_localization_error_m": 1.238293020162768,
+        "p90_localization_error_m": 1.475915412979239,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      }
+    },
+    "Bedrooms_idx_18": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.7076608375712828,
+        "median_localization_error_m": 0.7693271923704061,
+        "p90_localization_error_m": 0.9308030186244365,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.048561477790051,
+        "median_localization_error_m": 0.820228382162556,
+        "p90_localization_error_m": 1.8692503711322495,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.75
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.0403500730038493,
+        "median_localization_error_m": 0.7245359733183778,
+        "p90_localization_error_m": 1.7089350268462975,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.75
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.738693377191807,
+        "median_localization_error_m": 0.7610031784792421,
+        "p90_localization_error_m": 0.9258086102897382,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.902919717043921,
+        "median_localization_error_m": 0.7015181036075359,
+        "p90_localization_error_m": 1.456175941202076,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.75
+      }
+    },
+    "Bedrooms_idx_33": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.0249826776637234,
+        "median_localization_error_m": 1.0301910279563353,
+        "p90_localization_error_m": 1.5092205504420573,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 0.6558665403216293,
+        "median_localization_error_m": 0.5868274526485512,
+        "p90_localization_error_m": 1.043042267460415,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "few_shot": {
+        "mean_localization_error_m": 0.7464057144158791,
+        "median_localization_error_m": 0.7239336564568002,
+        "p90_localization_error_m": 0.9572850406121336,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 1.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.517739850671695,
+        "median_localization_error_m": 1.5060333700678377,
+        "p90_localization_error_m": 1.601474557083869,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.9540682533964531,
+        "median_localization_error_m": 0.8963301303573437,
+        "p90_localization_error_m": 1.3915131146700899,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "Cafe_idx_1": {
+      "fa_bf": {
+        "mean_localization_error_m": 6.360756965046489,
+        "median_localization_error_m": 3.9909013578474752,
+        "p90_localization_error_m": 11.917587856484548,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 10.369512705808756,
+        "median_localization_error_m": 8.098414334056406,
+        "p90_localization_error_m": 20.383766110524427,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "few_shot": {
+        "mean_localization_error_m": 11.278914510080599,
+        "median_localization_error_m": 9.735142662427725,
+        "p90_localization_error_m": 19.051259436053584,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 2.8754715561645066,
+        "median_localization_error_m": 3.2688926848290745,
+        "p90_localization_error_m": 3.920452162787743,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "yawaug": {
+        "mean_localization_error_m": 5.142830230602107,
+        "median_localization_error_m": 3.488209539632869,
+        "p90_localization_error_m": 10.091003057246084,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      }
+    },
+    "LivingRoomsWithHallway_idx_25": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.8295283971087298,
+        "median_localization_error_m": 0.6174234614174767,
+        "p90_localization_error_m": 1.6787407427704624,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 2.4880369831022233,
+        "median_localization_error_m": 2.283491562637195,
+        "p90_localization_error_m": 4.881640544565191,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.5784298025083265,
+        "median_localization_error_m": 1.3603277807866851,
+        "p90_localization_error_m": 2.268653347947321,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.5525170697020905,
+        "median_localization_error_m": 0.7209768520107505,
+        "p90_localization_error_m": 0.7581342792012886,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.5090572873934305,
+        "median_localization_error_m": 0.6340572873934305,
+        "p90_localization_error_m": 0.7681145747868608,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 1.0
+      }
+    },
+    "LivingRoomsWithHallway_idx_30": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.9389475690459302,
+        "median_localization_error_m": 0.6191025492584569,
+        "p90_localization_error_m": 1.7422477280737847,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.7274452740248776,
+        "median_localization_error_m": 1.5715896467882167,
+        "p90_localization_error_m": 3.3310522726956844,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.5
+      },
+      "few_shot": {
+        "mean_localization_error_m": 2.7371692913480943,
+        "median_localization_error_m": 2.438684178207781,
+        "p90_localization_error_m": 4.240169290508756,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.7515008425883053,
+        "median_localization_error_m": 0.8192810774642587,
+        "p90_localization_error_m": 0.9403509830998762,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 1.0
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.1664231534711065,
+        "median_localization_error_m": 1.0740537181088092,
+        "p90_localization_error_m": 1.898315341056079,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "MeetingRoom_idx_20": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.1796622066643623,
+        "median_localization_error_m": 0.27666759761984483,
+        "p90_localization_error_m": 2.967702558054425,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.75,
+        "success_rate_at_1_0m": 0.75
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 2.584721595183556,
+        "median_localization_error_m": 2.8299271677572433,
+        "p90_localization_error_m": 3.9918738124610202,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.5030470536057354,
+        "median_localization_error_m": 1.430518907787461,
+        "p90_localization_error_m": 2.1505620625296205,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.7263161050078137,
+        "median_localization_error_m": 1.1856337978387617,
+        "p90_localization_error_m": 3.3067256985779956,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.4505809176471764,
+        "median_localization_error_m": 0.44321666010480687,
+        "p90_localization_error_m": 0.7061211861421909,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.75,
+        "success_rate_at_1_0m": 1.0
+      }
+    },
+    "MeetingRoom_idx_32": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.6318206406599602,
+        "median_localization_error_m": 0.606949338538237,
+        "p90_localization_error_m": 0.9609292453124803,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 0.9240390032850161,
+        "median_localization_error_m": 0.9188954972617722,
+        "p90_localization_error_m": 1.430031057805384,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      },
+      "few_shot": {
+        "mean_localization_error_m": 1.3674420972665773,
+        "median_localization_error_m": 0.9451021660546951,
+        "p90_localization_error_m": 2.4397700159468796,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.2863511938609564,
+        "median_localization_error_m": 1.1442284810939654,
+        "p90_localization_error_m": 2.0270472120446996,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.2059328657417372,
+        "median_localization_error_m": 0.9673294361016296,
+        "p90_localization_error_m": 1.9496513164268365,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "Office_idx_10": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.2780460563362013,
+        "median_localization_error_m": 1.1273785902547182,
+        "p90_localization_error_m": 2.024539242214844,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.5950305721973506,
+        "median_localization_error_m": 1.8351733083093917,
+        "p90_localization_error_m": 2.4953229958228924,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      },
+      "few_shot": {
+        "mean_localization_error_m": 2.3644789794090872,
+        "median_localization_error_m": 2.516295730413562,
+        "p90_localization_error_m": 3.2110737187241725,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.5503623531830077,
+        "median_localization_error_m": 1.5735995414760489,
+        "p90_localization_error_m": 2.315296861219044,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.6652065990679954,
+        "median_localization_error_m": 1.7099178449800236,
+        "p90_localization_error_m": 2.459173651714862,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      }
+    },
+    "Office_idx_11": {
+      "fa_bf": {
+        "mean_localization_error_m": 2.287909187177332,
+        "median_localization_error_m": 1.2767705706903565,
+        "p90_localization_error_m": 4.38242995981714,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.3707934892988998,
+        "median_localization_error_m": 0.7719163472806501,
+        "p90_localization_error_m": 2.5550741964087083,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.75
+      },
+      "few_shot": {
+        "mean_localization_error_m": 4.951439335534339,
+        "median_localization_error_m": 5.175482159832863,
+        "p90_localization_error_m": 7.324310144256177,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.1732028252680773,
+        "median_localization_error_m": 1.3662976226661043,
+        "p90_localization_error_m": 1.7495412017383853,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.25
+      },
+      "yawaug": {
+        "mean_localization_error_m": 2.0014204463758176,
+        "median_localization_error_m": 1.0813000212156965,
+        "p90_localization_error_m": 4.38242995981714,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.25,
+        "success_rate_at_1_0m": 0.5
+      }
+    },
+    "Restaurants_idx_22": {
+      "fa_bf": {
+        "mean_localization_error_m": 0.7189044197572293,
+        "median_localization_error_m": 0.7590169943749474,
+        "p90_localization_error_m": 1.1457187798202844,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.5,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.5
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 1.2908963441917494,
+        "median_localization_error_m": 1.3156542918960252,
+        "p90_localization_error_m": 1.8696447676436145,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.25,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "few_shot": {
+        "mean_localization_error_m": 3.4895022421968926,
+        "median_localization_error_m": 3.3524986740776828,
+        "p90_localization_error_m": 5.459988320984094,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 0.7202847075210473,
+        "median_localization_error_m": 0.5499999999999999,
+        "p90_localization_error_m": 1.316797181058933,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      },
+      "yawaug": {
+        "mean_localization_error_m": 0.6311862178478972,
+        "median_localization_error_m": 0.5499999999999999,
+        "p90_localization_error_m": 1.0673214099741124,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.75,
+        "success_rate_at_0_5m": 0.5,
+        "success_rate_at_1_0m": 0.75
+      }
+    },
+    "Restaurants_idx_24": {
+      "fa_bf": {
+        "mean_localization_error_m": 1.7823888897768612,
+        "median_localization_error_m": 1.6714099350518157,
+        "p90_localization_error_m": 2.725166308910962,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "fem_omp": {
+        "mean_localization_error_m": 0.3018007575451939,
+        "median_localization_error_m": 0.2876218720230149,
+        "p90_localization_error_m": 0.5287048026833251,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 1.0,
+        "success_rate_at_0_5m": 0.75,
+        "success_rate_at_1_0m": 1.0
+      },
+      "few_shot": {
+        "mean_localization_error_m": 2.5130469309304164,
+        "median_localization_error_m": 2.1401263654258624,
+        "p90_localization_error_m": 3.6379597175801237,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.0
+      },
+      "vanilla": {
+        "mean_localization_error_m": 1.7398439528700087,
+        "median_localization_error_m": 1.6537119735632755,
+        "p90_localization_error_m": 2.7145475320178374,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.25
+      },
+      "yawaug": {
+        "mean_localization_error_m": 1.4026352751275555,
+        "median_localization_error_m": 0.9756085147345244,
+        "p90_localization_error_m": 2.4460606327887615,
+        "query_count": 4,
+        "resolution_aware_success_rate_at_0_5m": 0.0,
+        "success_rate_at_0_5m": 0.0,
+        "success_rate_at_1_0m": 0.5
+      }
+    }
+  },
+  "primary_settings": {
+    "fem_omp_k_ctx": 8,
+    "few_shot_rir_k_ctx": 8,
+    "orbitrir_fa_bf_flac_k_gen": 1,
+    "vanilla_flac_k_gen": 1,
+    "yaw_augmented_flac_k_gen": 1
+  },
+  "queries_per_room": 4,
+  "query_count": 64,
+  "query_scope_source": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_results/vanilla",
+  "room_count": 16,
+  "room_macro_metrics": {
+    "fa_bf": {
+      "mean_localization_error_m": 1.8158952473441747,
+      "resolution_aware_success_rate_at_0_5m": 0.40625,
+      "room_count": 16,
+      "success_rate_at_0_5m": 0.28125,
+      "success_rate_at_1_0m": 0.53125
+    },
+    "fem_omp": {
+      "mean_localization_error_m": 2.4835971967756105,
+      "resolution_aware_success_rate_at_0_5m": 0.359375,
+      "room_count": 16,
+      "success_rate_at_0_5m": 0.28125,
+      "success_rate_at_1_0m": 0.484375
+    },
+    "few_shot": {
+      "mean_localization_error_m": 3.1093646377674133,
+      "resolution_aware_success_rate_at_0_5m": 0.140625,
+      "room_count": 16,
+      "success_rate_at_0_5m": 0.03125,
+      "success_rate_at_1_0m": 0.25
+    },
+    "vanilla": {
+      "mean_localization_error_m": 1.748325252570214,
+      "resolution_aware_success_rate_at_0_5m": 0.234375,
+      "room_count": 16,
+      "success_rate_at_0_5m": 0.15625,
+      "success_rate_at_1_0m": 0.5
+    },
+    "yawaug": {
+      "mean_localization_error_m": 1.7926505616003356,
+      "resolution_aware_success_rate_at_0_5m": 0.34375,
+      "room_count": 16,
+      "success_rate_at_0_5m": 0.21875,
+      "success_rate_at_1_0m": 0.546875
+    }
+  },
+  "schema_version": 1,
+  "scope": "16 rooms x 4 frozen queries",
+  "sha256": "64f9730f6f3a2cded3c3ddb0e88f3ba32a3a0d4b4ecc7f2438ce399c9120c5c5"
+}
