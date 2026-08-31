@@ -1,0 +1,30 @@
+[archive exp12A_c3c4_ddp] archiving 27 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12A_c3c4_ddp/ | 2026-08-25T09:16:43-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=0-step=2500.ckpt (89811729cd00d9bfc6cf93bfa12bdfcb33d09965d0fcaae4afc3d177c899c79b) | 2026-08-25T09:16:59-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=10-step=47500.ckpt (cdea42a38034e818b5aefc1674e4a7e5611a4701cfc8d49a6ac7086dc1377482) | 2026-08-25T09:17:15-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=10-step=50000.ckpt (d911243605ec3b5d35f7e7c4130e10c4f4cb47fa4c148f6e069b6215a19410c1) | 2026-08-25T09:17:31-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=11-step=52500.ckpt (c98c3d3359561dff0e6e7d6972618d1b51ec11a626245843dc5800811ad1d231) | 2026-08-25T09:17:47-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=12-step=55000.ckpt (cc684d6e35cc30a80b739537a9b06cbc57c29a69a3d0c04138f9850edd3eee30) | 2026-08-25T09:18:03-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=12-step=57500.ckpt (64eebddb867b6d12e08132559b4611ff1fd8e934cf687abffaedb535b06689a6) | 2026-08-25T09:18:19-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=13-step=60000.ckpt (a7a5ac08d4e5793f0e0153a37d01c48214057f70c72171a17cd33d2ba21d98f6) | 2026-08-25T09:18:35-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=13-step=62500.ckpt (7b0903e687acd6c76269c3d62654d35dd24f9c9089493b38143b269a499ae19d) | 2026-08-25T09:18:51-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=14-step=65000.ckpt (e3308dea2cb2b8d9572605174e81632bec1b174d450e30c0439024ec343b25bf) | 2026-08-25T09:19:07-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=14-step=67500.ckpt (a9a45a1c430c920f96ddfc6b65a04f272929d37845993bdfd77fdfa8bd904016) | 2026-08-25T09:19:23-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=1-step=5000.ckpt (2db9e9f65255a8f3e73652cbe9f61b7deb97e7dc0947c189d5102dcccafe209f) | 2026-08-25T09:19:39-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=1-step=7500.ckpt (43aa18c69c297c5ca57c08215ec8528a32a06925311017ac7f9a213d1cd932b0) | 2026-08-25T09:19:55-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=2-step=10000.ckpt (4c7e9f53999216521062ecc810687420b76beafa9e805fa1f33242c80d5b2f3a) | 2026-08-25T09:20:11-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=2-step=12500.ckpt (19a1c43c2f3300ab70140df768b4088cfaa9fa4aaf4e7a5d59eb2319514d4785) | 2026-08-25T09:20:27-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=3-step=15000.ckpt (1b8766df20e04a90cacd350079580f988bb63decff96b6056ff785ec515e2659) | 2026-08-25T09:20:44-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=3-step=17500.ckpt (2247b77602f3a11b44723a64526fcb022f9d88c5a3d1060799886966c00c6075) | 2026-08-25T09:21:00-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=4-step=20000.ckpt (bc516429a71ca269d547bfe549ae5c88913c5f68f35187ac1a1bba7cdd0c7aaf) | 2026-08-25T09:21:16-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=4-step=22500.ckpt (64b93eb78e17cae20eed8a30bb622a6635b13a0176d79cc218aaef330acdd60a) | 2026-08-25T09:21:32-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=5-step=25000.ckpt (a62760d52bbc00c773b220f91afd9993d07a4c700c5bd25994ab4cf8aa623238) | 2026-08-25T09:21:48-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=6-step=27500.ckpt (d14962fe95b03f3a632a6d9c403bc9c7ba35e289cb199e795dcb97318afb670f) | 2026-08-25T09:22:04-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=6-step=30000.ckpt (233334eff35470415150a9ad487525b219c852e7421b10c1552981b06afd230d) | 2026-08-25T09:22:20-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=7-step=32500.ckpt (4dccd441ffb9eb66fb60c00ad12b8578d347de67fbc3891af4b390942cfab04c) | 2026-08-25T09:22:36-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=7-step=35000.ckpt (94996b8371da5a6c3b0df618da9bbf528f291631868e8c952cfe67183f07ee82) | 2026-08-25T09:22:52-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=8-step=37500.ckpt (20e6f3276f778ed83f706717a7cacd96ab1186db04524cb0a01c039c7e00e72d) | 2026-08-25T09:23:08-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=8-step=40000.ckpt (5f49fc93599ce139cabfeababa7651d749dfe4c4cedd755065da8a9abc37d699) | 2026-08-25T09:23:24-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=9-step=42500.ckpt (a327ba6b47289012915a1c55ea65297ce10ff7c509d2f9176c9774bccada6bf3) | 2026-08-25T09:23:40-04:00
+[archive exp12A_c3c4_ddp] OK  epoch=9-step=45000.ckpt (2c757446cb7baab931df7bb9d47eff7d1bce555df823fc2db2099f04c754aa32) | 2026-08-25T09:23:56-04:00
+[archive exp12A_c3c4_ddp] archive VERIFIED: 27 files, manifest at /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12A_c3c4_ddp/MANIFEST.sha256 | 2026-08-25T09:23:56-04:00
+[archive exp12A_c3c4_ddp] local copies retained (deletion only ever with Yixun's explicit permission) | 2026-08-25T09:23:56-04:00

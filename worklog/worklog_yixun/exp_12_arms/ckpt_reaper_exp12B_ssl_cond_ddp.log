@@ -1,0 +1,7 @@
+[reaper exp12B_ssl_cond_ddp] armed on pid 3224681, keeping newest 2 (+ always step=67500) | 2026-08-20T10:55:48-04:00
+[reaper exp12B_ssl_cond_ddp] reaped epoch=8-step=40000.ckpt  (free now 27 GB) | 2026-08-20T10:55:52-04:00
+[reaper exp12B_ssl_cond_ddp] reaped epoch=8-step=37500.ckpt  (free now 27 GB) | 2026-08-20T10:55:55-04:00
+[reaper exp12B_ssl_cond_ddp] reaped epoch=7-step=35000.ckpt  (free now 28 GB) | 2026-08-20T10:55:58-04:00
+[reaper exp12B_ssl_cond_ddp] reaped epoch=7-step=32500.ckpt  (free now 29 GB) | 2026-08-20T10:56:01-04:00
+[reaper exp12B_ssl_cond_ddp] reaped epoch=6-step=30000.ckpt  (free now 29 GB) | 2026-08-20T10:56:04-04:00
+[reaper exp12B_ssl_cond_ddp] armed on pid 3224681, keeping newest 12 (+ always step=67500) | 2026-08-20T11:07:14-04:00

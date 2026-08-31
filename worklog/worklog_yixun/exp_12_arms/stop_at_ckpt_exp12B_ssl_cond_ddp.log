@@ -1,0 +1,5 @@
+[stop@25000 exp12B_ssl_cond_ddp] vigil start (pid 1903000, target step 25000) | 2026-08-18T14:33:50-04:00
+[stop@25000 exp12B_ssl_cond_ddp] checkpoint complete: outputs_FLAC/exp12B_ssl_cond_ddp/exp12B_ssl_cond_ddp/exp12B_ssl_cond_ddp/checkpoints/epoch=5-step=25000.ckpt (723906161 bytes) | 2026-08-18T15:23:00-04:00
+[stop@25000 exp12B_ssl_cond_ddp] stopped cleanly at step 25000 | 2026-08-18T15:23:10-04:00
+[stop@25000 exp12B_ssl_cond_ddp] leftover processes matching exp12B_ssl_cond_ddp: 3 | 2026-08-18T15:23:10-04:00
+[stop@25000 exp12B_ssl_cond_ddp] gpu: 0, 1919 MiB 1, 1935 MiB  | 2026-08-18T15:23:10-04:00

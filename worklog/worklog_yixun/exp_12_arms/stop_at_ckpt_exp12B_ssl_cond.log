@@ -1,1 +1,10 @@
 [stop@7500 exp12B_ssl_cond] vigil start (pid 3661509, target step 7500) | 2026-08-14T16:09:29-04:00
+[backstop exp12B_ssl_cond] backstop armed (pid 3661509, target 7500) | 2026-08-14T17:18:09-04:00
+[backstop exp12B_ssl_cond] backstop: checkpoint 7500 complete (723906161 bytes); giving the graceful watcher 420 s | 2026-08-14T17:27:20-04:00
+[stop@7500 exp12B_ssl_cond] checkpoint complete: outputs_FLAC/exp12B_ssl_cond/exp12B_ssl_cond/exp12B_ssl_cond/checkpoints/epoch=1-step=7500.ckpt (723906161 bytes) | 2026-08-14T17:27:39-04:00
+[stop@7500 exp12B_ssl_cond] stopped cleanly at step 7500 | 2026-08-14T17:27:49-04:00
+[stop@7500 exp12B_ssl_cond] leftover processes matching exp12B_ssl_cond: 1 | 2026-08-14T17:27:49-04:00
+[stop@7500 exp12B_ssl_cond] gpu: 0, 11 MiB 1, 2343 MiB  | 2026-08-14T17:27:49-04:00
+[backstop exp12B_ssl_cond] backstop: graceful stop already succeeded; no SIGKILL needed | 2026-08-14T17:27:50-04:00
+[backstop exp12B_ssl_cond] leftover exp12B processes: 1 | 2026-08-14T17:27:50-04:00
+[backstop exp12B_ssl_cond] gpu: 0, 11 MiB 1, 2343 MiB  | 2026-08-14T17:27:50-04:00

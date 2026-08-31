@@ -1,0 +1,14 @@
+[archive exp12B_ssl_cond_ddp] archiving 11 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_ssl_cond_ddp/ | 2026-08-21T04:22:41-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=10-step=47500.ckpt (a5f6293cf5d76fc33683935c0aebbee544f8dc761134e29887e466f365a0c823) | 2026-08-21T04:22:57-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=10-step=50000.ckpt (4a5a3df06f6c515fb5d30a8ed9f2237d21d5b9637a199bf99fb863a3a89e6f82) | 2026-08-21T04:23:13-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=11-step=52500.ckpt (9802bd5b000e509933f10e5997637ed232976009222fd7c13f821f6a069d7ea6) | 2026-08-21T04:23:29-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=12-step=55000.ckpt (633fbad0dc0520e10289f9a8404c3029b8f34b8dc62a734588fb9267474341f0) | 2026-08-21T04:23:45-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=12-step=57500.ckpt (417f6bf5a1eb088077aa58919d0aa1ea5c307c3ced3e1f639051fcdff0f56e87) | 2026-08-21T04:24:01-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=13-step=60000.ckpt (9574edb4acc3999f9130b856dc3a703df4bc5749b40eadb08b57da60b7377993) | 2026-08-21T04:24:17-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=13-step=62500.ckpt (037f8ddd70a007ceab6ef063ee55cb1b6e4130ea7d1ae0d83f1a0d0c8df76d63) | 2026-08-21T04:24:32-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=14-step=65000.ckpt (3911db84b0b114fe12b64c0ed00a9f87c166ef390b418dd7fd4f18d22e301733) | 2026-08-21T04:24:48-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=14-step=67500.ckpt (0cb11b2fd4b01493dc4383d89fc7816055eeb582050ec520f60966ed86a00dc1) | 2026-08-21T04:25:04-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=9-step=42500.ckpt (0094ab678086697c751a94b2107fa3126afb33ad0710d5e66fe672075f641dd3) | 2026-08-21T04:25:20-04:00
+[archive exp12B_ssl_cond_ddp] OK  epoch=9-step=45000.ckpt (250634c981bc55536bae871df4b813581c71986a26acab13584fdf3681d1f839) | 2026-08-21T04:25:36-04:00
+[archive exp12B_ssl_cond_ddp] archive VERIFIED: 11 files, manifest at /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_ssl_cond_ddp/MANIFEST.sha256 | 2026-08-21T04:25:36-04:00
+[archive exp12B_ssl_cond_ddp] local copies retained (deletion only ever with Yixun's explicit permission) | 2026-08-21T04:25:36-04:00

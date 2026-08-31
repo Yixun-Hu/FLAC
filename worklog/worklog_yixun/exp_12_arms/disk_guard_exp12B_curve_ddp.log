@@ -1,0 +1,2 @@
+[disk-guard exp12B_curve_ddp] armed on pid 1619936, threshold 20 GB, currently 247 GB free | 2026-08-25T09:23:56-04:00
+[disk-guard exp12B_curve_ddp] run exited on its own; guard standing down (168 GB free) | 2026-08-28T03:04:02-04:00

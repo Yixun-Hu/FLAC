@@ -1,0 +1,9 @@
+[archive exp12A_c3c4] archiving 2 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12A_c3c4/ | 2026-08-20T11:42:17-04:00
+[archive exp12A_c3c4] MISMATCH  epoch=14-step=67500.ckpt local=92f4ad8c3c8f689f075235871f4a16cfc27ddb5f736622508a4b530a699451dc nas= -- NOT verified | 2026-08-20T11:42:22-04:00
+[archive exp12A_c3c4] MISMATCH  epoch=8-step=40000.ckpt local=62d3e1f8ba242abb3e5153f5ea0500b320321f80434b4d320aae0a695a1090ed nas= -- NOT verified | 2026-08-20T11:42:27-04:00
+[archive exp12A_c3c4] ARCHIVE INCOMPLETE -- at least one hash mismatch | 2026-08-20T11:42:27-04:00
+[archive exp12A_c3c4] archiving 2 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12A_c3c4/ | 2026-08-20T11:43:59-04:00
+[archive exp12A_c3c4] OK  epoch=14-step=67500.ckpt (92f4ad8c3c8f689f075235871f4a16cfc27ddb5f736622508a4b530a699451dc) | 2026-08-20T11:44:24-04:00
+[archive exp12A_c3c4] OK  epoch=8-step=40000.ckpt (62d3e1f8ba242abb3e5153f5ea0500b320321f80434b4d320aae0a695a1090ed) | 2026-08-20T11:44:50-04:00
+[archive exp12A_c3c4] archive VERIFIED: 2 files, manifest at /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12A_c3c4/MANIFEST.sha256 | 2026-08-20T11:44:50-04:00
+[archive exp12A_c3c4] local copies retained (deletion only ever with Yixun's explicit permission) | 2026-08-20T11:44:50-04:00

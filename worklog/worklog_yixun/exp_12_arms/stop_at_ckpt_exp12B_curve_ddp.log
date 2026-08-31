@@ -1,0 +1,5 @@
+[stop@40000 exp12B_curve_ddp] vigil start (pid 1619936, target step 40000) | 2026-08-25T10:10:13-04:00
+[stop@40000 exp12B_curve_ddp] checkpoint complete: outputs_FLAC/exp12B_curve_ddp/exp12B_curve_ddp/exp12B_curve_ddp/checkpoints/epoch=8-step=40000.ckpt (723906161 bytes) | 2026-08-28T03:01:51-04:00
+[stop@40000 exp12B_curve_ddp] stopped cleanly at step 40000 | 2026-08-28T03:02:06-04:00
+[stop@40000 exp12B_curve_ddp] leftover processes matching exp12B_curve_ddp: 2 | 2026-08-28T03:02:06-04:00
+[stop@40000 exp12B_curve_ddp] gpu: 0, 15667 MiB 1, 15661 MiB  | 2026-08-28T03:02:06-04:00

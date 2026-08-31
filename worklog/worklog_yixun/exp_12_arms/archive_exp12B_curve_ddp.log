@@ -1,0 +1,19 @@
+[archive exp12B_curve_ddp] archiving 16 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_curve_ddp/ | 2026-08-28T12:24:42-04:00
+[archive exp12B_curve_ddp] OK  epoch=0-step=2500.ckpt (c9b222e039e8f2932d175ac3411941d88ba8bb975f0747a3048d2973dcadfe98) | 2026-08-28T12:24:58-04:00
+[archive exp12B_curve_ddp] OK  epoch=1-step=5000.ckpt (9efcceedbc17feb495a51f4046a72723205066f99aaa733cbf9b21b4689ebb04) | 2026-08-28T12:25:14-04:00
+[archive exp12B_curve_ddp] OK  epoch=1-step=7500.ckpt (ddeb1ce8be31cd08c209f3329c3e13feaff0760d834409faff582fe1b266d33b) | 2026-08-28T12:25:29-04:00
+[archive exp12B_curve_ddp] OK  epoch=2-step=10000.ckpt (e06b744ec304654e52eb5eaacdfe40acde787b5075e52cf3215d26b3b9c09be6) | 2026-08-28T12:25:45-04:00
+[archive exp12B_curve_ddp] OK  epoch=2-step=12500.ckpt (a76e55dc6662d6ffd507d13ee6163d14fd8d84e470410b2a6141cb3dbd3fac12) | 2026-08-28T12:26:01-04:00
+[archive exp12B_curve_ddp] OK  epoch=3-step=15000.ckpt (6c04304c4e6c8766bdf4e84b2664cfd5943be445184a964d6aedc446e1417bd7) | 2026-08-28T12:26:17-04:00
+[archive exp12B_curve_ddp] OK  epoch=3-step=17500.ckpt (704aaf4aa07770a24856e2847d94a42f0d3eaec314cffa0462644c13bb35a5fa) | 2026-08-28T12:26:33-04:00
+[archive exp12B_curve_ddp] OK  epoch=4-step=20000.ckpt (f63298aad7706ae20265aa1bf0b1ea04f7a1f2fd3061ed9888d57ac71b2d03e3) | 2026-08-28T12:26:48-04:00
+[archive exp12B_curve_ddp] OK  epoch=4-step=22500.ckpt (6534c6d2ada7c41241581b9ac9c8bc6013bcb5809a67059c221cf47926380339) | 2026-08-28T12:27:04-04:00
+[archive exp12B_curve_ddp] OK  epoch=5-step=25000.ckpt (02b04a44c2ebb874da90e698a152d4ddbec89f1345f90f9c043adcb197e93516) | 2026-08-28T12:27:20-04:00
+[archive exp12B_curve_ddp] OK  epoch=6-step=27500.ckpt (ece9d225f45652ef83f74f68d0c0237b9f44d3ace7fb99de45e467c784c39d55) | 2026-08-28T12:27:36-04:00
+[archive exp12B_curve_ddp] OK  epoch=6-step=30000.ckpt (6eb649c79692f55ee5dfb0cbd992ffe182012ae4b4bd542b039d7b1c2d8542bc) | 2026-08-28T12:27:51-04:00
+[archive exp12B_curve_ddp] OK  epoch=7-step=32500.ckpt (1c89b676bd92727561d5ea8af3c06be8a383f1b322476733dfb24ee714bd0c38) | 2026-08-28T12:28:07-04:00
+[archive exp12B_curve_ddp] OK  epoch=7-step=35000.ckpt (4830ae147a9570506836077a6b1384f9c3b94e1a516455fa473c65c157a527b5) | 2026-08-28T12:28:23-04:00
+[archive exp12B_curve_ddp] OK  epoch=8-step=37500.ckpt (c44d22563fa29cb7f498e04951495b01290291a38fd0484806014a3efb388793) | 2026-08-28T12:28:39-04:00
+[archive exp12B_curve_ddp] OK  epoch=8-step=40000.ckpt (a98a97d9edfaa1c8c4d7375f377ee2273f72a89e5a36a37ce08f28f40e797d04) | 2026-08-28T12:28:55-04:00
+[archive exp12B_curve_ddp] archive VERIFIED: 16 files, manifest at /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_curve_ddp/MANIFEST.sha256 | 2026-08-28T12:28:55-04:00
+[archive exp12B_curve_ddp] local copies retained (deletion only ever with Yixun's explicit permission) | 2026-08-28T12:28:55-04:00

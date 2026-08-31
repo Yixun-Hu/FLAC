@@ -1,0 +1,5 @@
+[disk-guard exp12B_ssl_cond_ddp] armed on pid 1903000, threshold 20 GB, currently 51 GB free | 2026-08-17T14:49:34-04:00
+[disk-guard exp12B_ssl_cond_ddp] run exited on its own; guard standing down (173 GB free) | 2026-08-18T15:24:36-04:00
+[disk-guard exp12B_ssl_cond_ddp] armed on pid 3224681, threshold 20 GB, currently 38 GB free | 2026-08-19T16:01:21-04:00
+[disk-guard exp12B_ssl_cond_ddp] WARNING: only 34 GB free (threshold 20 GB) -- pruning may be needed soon | 2026-08-19T23:56:22-04:00
+[disk-guard exp12B_ssl_cond_ddp] run exited on its own; guard standing down (450 GB free) | 2026-08-21T03:41:24-04:00

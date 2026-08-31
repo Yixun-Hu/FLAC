@@ -1,0 +1,33 @@
+[archive exp12B_ssl] archiving 14 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_ssl/ | 2026-08-20T11:42:36-04:00
+[archive exp12B_ssl] MISMATCH  backbone_final.pt local=cdfa782d9b51f65463f0656df50a112586063dcfe2ab8bc1f3c9ed5d4518b68c nas= -- NOT verified | 2026-08-20T11:42:37-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step10000.pt local=008c4814e7eeccb6a0d50bfcd4a324f423302e34efddf628d26b3426189cf800 nas= -- NOT verified | 2026-08-20T11:42:38-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step12500.pt local=df026d7e7893643c3478528901f5f2d5bd485f6fcf1d98465e6b52ebd3365833 nas= -- NOT verified | 2026-08-20T11:42:40-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step15000.pt local=22f7156602d8a0369c52ca4a353347d3bd7dbb4ac52d9aee5eec9b6cc050e200 nas= -- NOT verified | 2026-08-20T11:42:41-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step17500.pt local=39889dc76bc1fbeecba8e2624d9c028e253e2145d85f252b6769f1c71dbe7cda nas= -- NOT verified | 2026-08-20T11:42:42-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step20000.pt local=44a97cabc5666b4e4b097dedfd562faeae08b357ff2556ec2c219a50dec50ad6 nas= -- NOT verified | 2026-08-20T11:42:42-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step22500.pt local=9fb31338b97c0555a0df4c25253e3e2af025b999d15422fe381784d90c4a7ce1 nas= -- NOT verified | 2026-08-20T11:42:43-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step25000.pt local=ed8401bd1b5c7e8707b3631a0a14b954a817099977bdd27bb82f052701203fa3 nas= -- NOT verified | 2026-08-20T11:42:45-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step2500.pt local=1e2eb6447eefda920931f9057a0781a04dccc4a209764294f9c9d4f841037206 nas= -- NOT verified | 2026-08-20T11:42:46-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step27500.pt local=30173bee2257a99bfabe61b7c430ceada1112ccfb81f56d26fe60600842492ed nas= -- NOT verified | 2026-08-20T11:42:47-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step30000.pt local=be5d0d7bd503d2a3f84f7523c16821fb3e29c8e8c3b19673ee0f835cf24a905f nas= -- NOT verified | 2026-08-20T11:42:48-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step5000.pt local=37970e2d0592690fed13fc9ebb7f73e58f9f937e23fa915aaa2579a147de6f40 nas= -- NOT verified | 2026-08-20T11:42:49-04:00
+[archive exp12B_ssl] MISMATCH  backbone_step7500.pt local=6a3aefabaca309d009bca06c36d92cd3b1e590a99f54274ba0f245fa5fac70e4 nas= -- NOT verified | 2026-08-20T11:42:49-04:00
+[archive exp12B_ssl] MISMATCH  last.pt local=9870272cb7a0a874b25f0efb732a874e82a0082b7714178fcf3435ca7fd56bfa nas= -- NOT verified | 2026-08-20T11:42:53-04:00
+[archive exp12B_ssl] ARCHIVE INCOMPLETE -- at least one hash mismatch | 2026-08-20T11:42:53-04:00
+[archive exp12B_ssl] archiving 14 files -> /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_ssl/ | 2026-08-20T11:45:41-04:00
+[archive exp12B_ssl] OK  backbone_final.pt (cdfa782d9b51f65463f0656df50a112586063dcfe2ab8bc1f3c9ed5d4518b68c) | 2026-08-20T11:45:46-04:00
+[archive exp12B_ssl] OK  backbone_step10000.pt (008c4814e7eeccb6a0d50bfcd4a324f423302e34efddf628d26b3426189cf800) | 2026-08-20T11:45:48-04:00
+[archive exp12B_ssl] OK  backbone_step12500.pt (df026d7e7893643c3478528901f5f2d5bd485f6fcf1d98465e6b52ebd3365833) | 2026-08-20T11:45:53-04:00
+[archive exp12B_ssl] OK  backbone_step15000.pt (22f7156602d8a0369c52ca4a353347d3bd7dbb4ac52d9aee5eec9b6cc050e200) | 2026-08-20T11:45:57-04:00
+[archive exp12B_ssl] OK  backbone_step17500.pt (39889dc76bc1fbeecba8e2624d9c028e253e2145d85f252b6769f1c71dbe7cda) | 2026-08-20T11:46:00-04:00
+[archive exp12B_ssl] OK  backbone_step20000.pt (44a97cabc5666b4e4b097dedfd562faeae08b357ff2556ec2c219a50dec50ad6) | 2026-08-20T11:46:04-04:00
+[archive exp12B_ssl] OK  backbone_step22500.pt (9fb31338b97c0555a0df4c25253e3e2af025b999d15422fe381784d90c4a7ce1) | 2026-08-20T11:46:08-04:00
+[archive exp12B_ssl] OK  backbone_step25000.pt (ed8401bd1b5c7e8707b3631a0a14b954a817099977bdd27bb82f052701203fa3) | 2026-08-20T11:46:12-04:00
+[archive exp12B_ssl] OK  backbone_step2500.pt (1e2eb6447eefda920931f9057a0781a04dccc4a209764294f9c9d4f841037206) | 2026-08-20T11:46:16-04:00
+[archive exp12B_ssl] OK  backbone_step27500.pt (30173bee2257a99bfabe61b7c430ceada1112ccfb81f56d26fe60600842492ed) | 2026-08-20T11:46:19-04:00
+[archive exp12B_ssl] OK  backbone_step30000.pt (be5d0d7bd503d2a3f84f7523c16821fb3e29c8e8c3b19673ee0f835cf24a905f) | 2026-08-20T11:46:24-04:00
+[archive exp12B_ssl] OK  backbone_step5000.pt (37970e2d0592690fed13fc9ebb7f73e58f9f937e23fa915aaa2579a147de6f40) | 2026-08-20T11:46:27-04:00
+[archive exp12B_ssl] OK  backbone_step7500.pt (6a3aefabaca309d009bca06c36d92cd3b1e590a99f54274ba0f245fa5fac70e4) | 2026-08-20T11:46:31-04:00
+[archive exp12B_ssl] OK  last.pt (9870272cb7a0a874b25f0efb732a874e82a0082b7714178fcf3435ca7fd56bfa) | 2026-08-20T11:46:52-04:00
+[archive exp12B_ssl] archive VERIFIED: 14 files, manifest at /media/diskstation/yixunhu/FLAC/checkpoints/exp12_cyl_dinov3_arms/exp12B_ssl/MANIFEST.sha256 | 2026-08-20T11:46:53-04:00
+[archive exp12B_ssl] local copies retained (deletion only ever with Yixun's explicit permission) | 2026-08-20T11:46:53-04:00

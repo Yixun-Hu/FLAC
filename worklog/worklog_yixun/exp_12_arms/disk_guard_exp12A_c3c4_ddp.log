@@ -1,0 +1,2 @@
+[disk-guard exp12A_c3c4_ddp] armed on pid 19809, threshold 20 GB, currently 450 GB free | 2026-08-21T04:25:36-04:00
+[disk-guard exp12A_c3c4_ddp] run exited on its own; guard standing down (248 GB free) | 2026-08-25T08:10:45-04:00
