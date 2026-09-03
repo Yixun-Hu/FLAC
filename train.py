@@ -60,7 +60,7 @@ def build_checkpoint_callbacks(args, checkpoint_dir, model_config, has_validatio
             save_top_k=-1,
         )
     ]
-    if model_config.get("model_type") == "few_shot_rir_waveform":
+    if model_config.get("model_type") in ("few_shot_rir_waveform", "FewshotRiR"):
         if not has_validation:
             raise ValueError(
                 "Few-ShotRIR training requires a validation dataset for checkpoint selection"

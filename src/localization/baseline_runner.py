@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import torch
 
@@ -64,6 +66,8 @@ def score_few_shot_candidates(
     context_count: int,
     candidate_batch_size: int,
     device: str | torch.device,
+    core_timing: dict[str, float] | None = None,
+    synchronize_timing: bool = False,
 ) -> torch.Tensor:
     """Generate deterministic waveform candidates and rank them with AGREE."""
 
@@ -77,6 +81,9 @@ def score_few_shot_candidates(
     model.eval()
     try:
         for start in range(0, len(candidates), candidate_batch_size):
+            if core_timing is not None and synchronize_timing and torch.device(device).type == "cuda":
+                torch.cuda.synchronize(device)
+            generation_started = time.perf_counter()
             batch = build_few_shot_candidate_batch(
                 metadata,
                 candidates[start : start + candidate_batch_size],
@@ -85,6 +92,14 @@ def score_few_shot_candidates(
             )
             batch = {key: value.to(device) for key, value in batch.items()}
             waveforms = model(**batch).float()
+            if core_timing is not None:
+                if synchronize_timing and torch.device(device).type == "cuda":
+                    torch.cuda.synchronize(device)
+                core_timing["candidate_conditioning_and_generation"] = (
+                    core_timing.get("candidate_conditioning_and_generation", 0.0)
+                    + time.perf_counter()
+                    - generation_started
+                )
             scores.append(
                 prepare_and_score_waveforms(
                     retrieval, waveforms, observation_features

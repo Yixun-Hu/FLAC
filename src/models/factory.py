@@ -16,6 +16,12 @@ def create_model_from_config(model_config):
         config = dict(model_config.get('model', {}))
         config.setdefault('output_samples', int(model_config['sample_size']))
         return FewShotRIRWaveform(**config)
+    elif model_type == 'FewshotRiR':
+        from src.baselines.fewshot_rir import FewshotRiR
+        config = dict(model_config.get('model', {}))
+        config.setdefault('sample_rate', int(model_config['sample_rate']))
+        config.setdefault('sample_size', int(model_config['sample_size']))
+        return FewshotRiR(**config)
     else:
         raise NotImplementedError(f'Unknown model type: {model_type}')
 

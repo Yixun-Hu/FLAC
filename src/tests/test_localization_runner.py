@@ -5,6 +5,7 @@ import pytest
 import torch
 
 from src.localization.runner import (
+    _build_query_result,
     _repeat_branch,
     completed_query_result,
     initialize_run,
@@ -52,6 +53,35 @@ def test_atomic_query_artifact_roundtrip_and_corruption_guard(tmp_path):
             candidate_count=2,
             run_sha256=run["sha256"],
         )
+
+
+def test_single_generation_query_result_has_only_k1_metrics():
+    result = _build_query_result(
+        selected={
+            "index": 7,
+            "query_id": "room/query.wav",
+            "scene": "scene",
+            "room": "room",
+            "receiver_id": "R001",
+            "candidate_indices_sha256": "candidate-hash",
+        },
+        record={
+            "contexts": [f"context-{index}" for index in range(8)],
+            "source_global": [0.0, 0.0, 0.0],
+            "receiver_global": [1.0, 1.0, 1.0],
+        },
+        candidates=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]]),
+        similarities=torch.tensor([[0.9], [0.1]]),
+        run_sha256="run",
+        elapsed_seconds=1.0,
+        peak_memory_bytes=0,
+        tau=0.1,
+        random_seed=42,
+        score_sample_counts=(1,),
+    )
+
+    assert result["score_sample_counts"] == [1]
+    assert list(result["metrics"]) == ["1"]
 
 
 def test_run_manifest_refuses_parameter_drift_and_unowned_output(tmp_path):

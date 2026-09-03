@@ -1,0 +1,21 @@
+{
+    "dataset_type": "fewshot_rir_ar",
+    "dataset": {
+        "path": "AcousticRooms",
+        "query_json_file_path": "data/AR/train.json",
+        "context_json_file_path": "data/AR/all_data.json",
+        "audio_folder": "single_channel_ir_1",
+        "metadata_folder": "metadata",
+        "depth_folder": "depth_map"
+    },
+    "episodes_per_room": 210,
+    "max_context": 8,
+    "max_queries": 60,
+    "depth_size": [128, 256],
+    "depth_max_m": 67.16327,
+    "n_fft": 511,
+    "hop_length": 40,
+    "win_length": 248,
+    "seed": 42,
+    "drop_last": true
+}

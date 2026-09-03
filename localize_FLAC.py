@@ -32,6 +32,10 @@ def main() -> None:
     parser.add_argument("--sample-seed", type=int, default=42)
     parser.add_argument("--tau", type=float, default=0.1)
     parser.add_argument("--query-limit", type=int)
+    parser.add_argument("--score-sample-counts", type=int, nargs="+", default=(1, 4, 8))
+    parser.add_argument("--synchronize-latency", action="store_true")
+    parser.add_argument("--warmup-query-count", type=int, default=0)
+    parser.add_argument("--measure-core-forward", action="store_true")
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -57,6 +61,10 @@ def main() -> None:
         sample_seed=args.sample_seed,
         tau=args.tau,
         query_limit=args.query_limit,
+        score_sample_counts=tuple(args.score_sample_counts),
+        synchronize_timing=args.synchronize_latency,
+        warmup_query_count=args.warmup_query_count,
+        measure_core_forward=args.measure_core_forward,
     )
     print(json.dumps(result, indent=2))
 

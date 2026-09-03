@@ -19,18 +19,25 @@ REPO_ROOT = next(
 )
 
 
-def completed_result(path: Path, query_index: int) -> bool:
+def completed_result(
+    path: Path, query_index: int, latency_protocol: str = "legacy"
+) -> bool:
     if not path.is_file():
         return False
     try:
         payload = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return False
+    protocol_matches = latency_protocol == "legacy" or (
+        payload.get("latency_protocol", {}).get("name") == latency_protocol
+        and "localization_total" in payload.get("latency_seconds", {})
+    )
     return (
         payload.get("method") == "fem_sabine_depth_aabb"
         and int(payload.get("query_index", -1)) == query_index
         and payload.get("coverage_protocol", {}).get("strict_gate_passed") is True
         and "metrics" in payload
+        and protocol_matches
     )
 
 
@@ -64,9 +71,17 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--mkl-runtime", type=Path, required=True)
+    parser.add_argument(
+        "--latency-protocol",
+        choices=("legacy", "kctx8_kgen1"),
+        default="legacy",
+    )
+    parser.add_argument("--warmup-query-count", type=int, default=0)
     args = parser.parse_args()
     if args.workers <= 0 or args.solver_threads <= 0:
         raise ValueError("workers and solver threads must be positive")
+    if args.warmup_query_count < 0:
+        raise ValueError("warmup-query-count must be nonnegative")
     if args.cpu_sets and len(args.cpu_sets) != args.workers:
         raise ValueError("cpu-sets must contain exactly one entry per worker")
     if not args.mkl_runtime.is_file():
@@ -107,6 +122,8 @@ def main() -> None:
     indices = [int(record["index"]) for record in records]
     if len(indices) != len(set(indices)):
         raise ValueError("selection contains duplicate query indices")
+    if args.warmup_query_count > len(indices):
+        raise ValueError("warmup-query-count exceeds the selected query count")
 
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -115,7 +132,9 @@ def main() -> None:
             index
             for index in indices
             if completed_result(
-                output_dir / f"query_{index:05d}_depth_aabb_result.json", index
+                output_dir / f"query_{index:05d}_depth_aabb_result.json",
+                index,
+                args.latency_protocol,
             )
         ]
         print(
@@ -128,6 +147,8 @@ def main() -> None:
                     "pending_indices": [
                         index for index in indices if index not in completed_indices
                     ],
+                    "latency_protocol": args.latency_protocol,
+                    "warmup_query_count": args.warmup_query_count,
                 },
                 indent=2,
                 sort_keys=True,
@@ -144,9 +165,17 @@ def main() -> None:
     for worker_slot in range(args.workers):
         available_slots.put(worker_slot)
 
-    def run_one(query_index: int) -> dict:
-        result_path = output_dir / f"query_{query_index:05d}_depth_aabb_result.json"
-        if completed_result(result_path, query_index):
+    def run_one(
+        query_index: int,
+        *,
+        target_output_dir: Path = output_dir,
+        target_log_dir: Path = log_dir,
+        allow_resume: bool = True,
+    ) -> dict:
+        target_output_dir.mkdir(parents=True, exist_ok=True)
+        target_log_dir.mkdir(parents=True, exist_ok=True)
+        result_path = target_output_dir / f"query_{query_index:05d}_depth_aabb_result.json"
+        if allow_resume and completed_result(result_path, query_index, args.latency_protocol):
             return {"query_index": query_index, "status": "resume", "seconds": 0.0}
         command = [
             sys.executable,
@@ -160,11 +189,13 @@ def main() -> None:
             "--dataset-root",
             str(args.dataset_root.resolve()),
             "--output-dir",
-            str(output_dir),
+            str(target_output_dir),
             "--solver-backend",
             "mkl_pardiso",
             "--solver-threads",
             str(args.solver_threads),
+            "--latency-protocol",
+            args.latency_protocol,
         ]
         worker_slot = available_slots.get()
         try:
@@ -184,13 +215,28 @@ def main() -> None:
             elapsed = time.perf_counter() - started
         finally:
             available_slots.put(worker_slot)
-        (log_dir / f"query_{query_index:05d}.log").write_text(process.stdout)
-        if process.returncode != 0 or not completed_result(result_path, query_index):
+        (target_log_dir / f"query_{query_index:05d}.log").write_text(process.stdout)
+        if process.returncode != 0 or not completed_result(
+            result_path, query_index, args.latency_protocol
+        ):
             raise RuntimeError(
                 f"query {query_index} failed with exit {process.returncode}; "
-                f"see {log_dir / f'query_{query_index:05d}.log'}"
+                f"see {target_log_dir / f'query_{query_index:05d}.log'}"
             )
         return {"query_index": query_index, "status": "completed", "seconds": elapsed}
+
+    warmup_outcomes = []
+    warmup_dir = output_dir / "warmup"
+    warmup_log_dir = warmup_dir / "logs"
+    for query_index in indices[: args.warmup_query_count]:
+        outcome = run_one(
+            query_index,
+            target_output_dir=warmup_dir,
+            target_log_dir=warmup_log_dir,
+            allow_resume=False,
+        )
+        warmup_outcomes.append(outcome)
+        print(json.dumps({**outcome, "phase": "warmup"}, sort_keys=True), flush=True)
 
     started = time.perf_counter()
     outcomes = []
@@ -210,6 +256,9 @@ def main() -> None:
         "workers": args.workers,
         "solver_threads_per_worker": args.solver_threads,
         "cpu_sets": args.cpu_sets,
+        "latency_protocol": args.latency_protocol,
+        "warmup_query_count": args.warmup_query_count,
+        "warmup_outcomes": warmup_outcomes,
         "query_count": len(indices),
         "completed_count": sum(item["status"] == "completed" for item in outcomes),
         "resumed_count": sum(item["status"] == "resume" for item in outcomes),

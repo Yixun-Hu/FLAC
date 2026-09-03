@@ -368,7 +368,17 @@ def reconstruct_room_base_candidates(room_name: str, audit: dict) -> np.ndarray:
 def filter_frozen_query_candidates(record: dict, audit: dict, base: np.ndarray) -> np.ndarray:
     """Apply and verify the frozen query mask to a checked room base grid."""
 
-    contexts = np.asarray(record["context_sources_global"], dtype=np.float64)
+    # A model-specific context protocol may differ from the reference protocol
+    # used to freeze a shared benchmark grid.  Keep the model inputs in
+    # ``context_sources_global`` and make any evaluation-only override explicit
+    # in the manifest instead of silently deriving a different candidate set.
+    contexts = np.asarray(
+        record.get(
+            "candidate_filter_context_sources_global",
+            record["context_sources_global"],
+        ),
+        dtype=np.float64,
+    )
     z_band = (float(contexts[:, 2].min() - 0.5), float(contexts[:, 2].max() + 0.5))
     mask = filter_query_candidates(
         base,
@@ -407,18 +417,18 @@ def reconstruct_query_candidates(record: dict, audit: dict) -> np.ndarray:
 
 
 @torch.inference_mode()
-def generate_and_score_batch(
+def generate_rir_batch(
     module,
-    retrieval: Retrieval,
     source_branch: dict,
     context_branch: dict,
-    observation_features: torch.Tensor,
     seeds: Sequence[int],
     dynamic_branch: dict | None = None,
     *,
     steps: int = 1,
     cfg_scale: float = 1.0,
 ) -> torch.Tensor:
+    """Generate one waveform for each seed without running the retrieval scorer."""
+
     diffusion = module.diffusion
     if diffusion.diffusion_objective != "rectified_flow":
         raise ValueError("exp_09 probe is pinned to the rectified-flow checkpoint")
@@ -449,6 +459,32 @@ def generate_and_score_batch(
         disable_tqdm=True,
     )
     fakes = diffusion.pretransform.decode(fakes).float()
-    fakes = prepare_generated_audio(fakes, sample_size=10240)
+    return prepare_generated_audio(fakes, sample_size=10240)
+
+
+@torch.inference_mode()
+def generate_and_score_batch(
+    module,
+    retrieval: Retrieval,
+    source_branch: dict,
+    context_branch: dict,
+    observation_features: torch.Tensor,
+    seeds: Sequence[int],
+    dynamic_branch: dict | None = None,
+    *,
+    steps: int = 1,
+    cfg_scale: float = 1.0,
+) -> torch.Tensor:
+    """Generate waveforms and rank them with the frozen retrieval encoder."""
+
+    fakes = generate_rir_batch(
+        module,
+        source_branch,
+        context_branch,
+        seeds,
+        dynamic_branch=dynamic_branch,
+        steps=steps,
+        cfg_scale=cfg_scale,
+    )
     generated_features = encode_audio_features(retrieval, fakes)
     return generated_features @ observation_features.T

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and summarize the five localization methods through one audited entrypoint.
+"""Profile five localization methods at K_ctx=8 and one RIR per candidate.
 
 The program deliberately orchestrates the established method implementations instead
 of copying their inference logic.  Every measured repeat uses one frozen selection,
@@ -28,9 +28,9 @@ METHOD_ORDER = (
     "fa_bf_flac",
     "yawaug_flac",
     "few_shot_rir",
-    "fem_agree",
+    "fem_omp",
 )
-STAGE_ORDER = (*METHOD_ORDER[:-1], "fem_forward", "fem_agree")
+STAGE_ORDER = METHOD_ORDER[:-1]
 
 
 @dataclass(frozen=True)
@@ -89,8 +89,8 @@ def load_selection(path: Path) -> dict:
 
 def load_config(path: Path) -> dict:
     config = json.loads(path.read_text())
-    if config.get("schema_version") != 1:
-        raise ValueError("latency benchmark config must use schema_version=1")
+    if config.get("schema_version") != 2:
+        raise ValueError("latency benchmark config must use schema_version=2")
     required = (
         "python",
         "selection",
@@ -99,7 +99,11 @@ def load_config(path: Path) -> dict:
         "dataset_root",
         "output_root",
         "agree_checkpoint",
-        "mkl_runtime",
+        "fem_primary_dir",
+        "fem_oversized_dir",
+        "fem_external_runtime",
+        "fem_fallback_runtime",
+        "selector_latency",
         "methods",
     )
     missing = [key for key in required if key not in config]
@@ -120,7 +124,11 @@ def validate_config(config: dict) -> dict[str, Path]:
         "dataset_root": resolve_path(config["dataset_root"]),
         "output_root": resolve_path(config["output_root"]),
         "agree_checkpoint": resolve_path(config["agree_checkpoint"]),
-        "mkl_runtime": resolve_path(config["mkl_runtime"]),
+        "fem_primary_dir": resolve_path(config["fem_primary_dir"]),
+        "fem_oversized_dir": resolve_path(config["fem_oversized_dir"]),
+        "fem_external_runtime": resolve_path(config["fem_external_runtime"]),
+        "fem_fallback_runtime": resolve_path(config["fem_fallback_runtime"]),
+        "selector_latency": resolve_path(config["selector_latency"]),
     }
     for method, method_config in config["methods"].items():
         for field in ("model_config", "checkpoint"):
@@ -132,6 +140,9 @@ def validate_config(config: dict) -> dict[str, Path]:
         if label == "dataset_root":
             if not path.is_dir():
                 raise FileNotFoundError(f"{label}: {path}")
+        elif label in ("fem_primary_dir", "fem_oversized_dir"):
+            if not path.is_dir():
+                raise FileNotFoundError(f"{label}: {path}")
         elif not path.is_file():
             raise FileNotFoundError(f"{label}: {path}")
     try:
@@ -140,22 +151,6 @@ def validate_config(config: dict) -> dict[str, Path]:
         raise ValueError("output_root must remain inside the localization repository") from error
     load_selection(paths["selection"])
     return paths
-
-
-def make_warmup_selection(source: dict, count: int) -> dict:
-    if not 0 < count <= int(source["query_count"]):
-        raise ValueError("warmup query count must lie inside the frozen selection")
-    payload = {key: value for key, value in source.items() if key != "sha256"}
-    payload["records"] = list(source["records"][:count])
-    payload["query_count"] = count
-    payload["room_count"] = len({record["room"] for record in payload["records"]})
-    payload["candidate_query_pairs"] = sum(
-        int(record["candidate_count"]) for record in payload["records"]
-    )
-    payload["parent_selection_sha256"] = source["sha256"]
-    payload["purpose"] = "latency_warmup_prefix"
-    payload["sha256"] = canonical_sha256(payload)
-    return payload
 
 
 def _common_learned_args(paths: dict[str, Path], selection: Path, output: Path) -> list[str]:
@@ -181,12 +176,12 @@ def build_run_commands(
     *,
     selection: Path,
     output_dir: Path,
+    warmup_query_count: int = 0,
 ) -> list[CommandSpec]:
     python = str(paths["python"])
     device = str(config.get("device", "cuda:0"))
     gpu = str(config.get("cuda_visible_devices", "0"))
     candidate_batch_size = int(config.get("candidate_batch_size", 64))
-    agree_batch_size = int(config.get("agree_candidate_batch_size", 32))
     score_seed = int(config.get("score_seed", 42))
     tau = float(config.get("tau", 0.1))
     gpu_environment = {
@@ -214,6 +209,12 @@ def build_run_commands(
             str(score_seed),
             "--tau",
             str(tau),
+            "--score-sample-counts",
+            "1",
+            "--synchronize-latency",
+            "--warmup-query-count",
+            str(warmup_query_count),
+            "--measure-core-forward",
         )
         commands.append(CommandSpec(method, command, gpu_environment))
 
@@ -234,73 +235,14 @@ def build_run_commands(
         str(candidate_batch_size),
         "--random-seed",
         str(score_seed),
+        "--context-counts",
+        "8",
+        "--synchronize-latency",
+        "--warmup-query-count",
+        str(warmup_query_count),
+        "--measure-core-forward",
     )
     commands.append(CommandSpec("few_shot_rir", few_command, gpu_environment))
-
-    fem_forward = output_dir / "fem_forward"
-    cpu_environment = {
-        "MKL_RT": str(paths["mkl_runtime"]),
-        "MPLCONFIGDIR": str(config.get("mplconfigdir", "/tmp/matplotlib-five-method-latency")),
-    }
-    fem_command = (
-        python,
-        str(REPO_ROOT / "tools" / "run_depth_aabb_matched_pilot.py"),
-        "--selection",
-        str(selection),
-        "--context-manifest",
-        str(paths["context_manifest"]),
-        "--geometry-audit",
-        str(paths["geometry_audit"]),
-        "--dataset-root",
-        str(paths["dataset_root"]),
-        "--output-dir",
-        str(fem_forward),
-        "--workers",
-        str(int(config.get("fem_workers", 1))),
-        "--solver-threads",
-        str(int(config.get("fem_solver_threads", 24))),
-        "--mkl-runtime",
-        str(paths["mkl_runtime"]),
-    )
-    commands.append(CommandSpec("fem_forward", fem_command, cpu_environment))
-
-    fem_agree_command = (
-        python,
-        str(REPO_ROOT / "tools" / "run_depth_aabb_fem_agree.py"),
-        "--stage",
-        "all",
-        "--selection",
-        str(selection),
-        "--context-manifest",
-        str(paths["context_manifest"]),
-        "--geometry-audit",
-        str(paths["geometry_audit"]),
-        "--dataset-root",
-        str(paths["dataset_root"]),
-        "--source-result-dir",
-        str(fem_forward),
-        "--agree-ckpt",
-        str(paths["agree_checkpoint"]),
-        "--output-dir",
-        str(output_dir / "fem_agree"),
-        "--device",
-        device,
-        "--candidate-batch-size",
-        str(agree_batch_size),
-        "--score-seed",
-        str(score_seed),
-        "--tau",
-        str(tau),
-        "--solver-backend",
-        "mkl_pardiso",
-        "--solver-threads",
-        str(int(config.get("fem_solver_threads", 24))),
-        "--mkl-runtime",
-        str(paths["mkl_runtime"]),
-    )
-    commands.append(
-        CommandSpec("fem_agree", fem_agree_command, {**gpu_environment, **cpu_environment})
-    )
     if tuple(spec.name for spec in commands) != STAGE_ORDER:
         raise RuntimeError("internal method ordering changed")
     return commands
@@ -311,7 +253,7 @@ def build_summary_command(
 ) -> CommandSpec:
     command = (
         str(paths["python"]),
-        str(REPO_ROOT / "tools" / "summarize_five_method_latency.py"),
+        str(REPO_ROOT / "tools" / "summarize_core_forward_latency.py"),
         "--selection",
         str(selection),
         "--vanilla-dir",
@@ -322,16 +264,42 @@ def build_summary_command(
         str(output_dir / "yawaug_flac"),
         "--few-shot-dir",
         str(output_dir / "few_shot_rir"),
-        "--fem-omp-dir",
-        str(output_dir / "fem_forward"),
-        "--fem-agree-dir",
-        str(output_dir / "fem_agree" / "results"),
+        "--fem-primary-dir",
+        str(paths["fem_primary_dir"]),
+        "--fem-oversized-dir",
+        str(paths["fem_oversized_dir"]),
+        "--fem-external-runtime",
+        str(paths["fem_external_runtime"]),
+        "--fem-fallback-runtime",
+        str(paths["fem_fallback_runtime"]),
+        "--selector-latency",
+        str(paths["selector_latency"]),
         "--output-json",
         str(output_dir / "summary.json"),
         "--output-md",
         str(output_dir / "summary.md"),
     )
     return CommandSpec("summarize", command, {})
+
+
+def build_aggregate_command(
+    paths: dict[str, Path], *, summaries: list[Path], output_root: Path
+) -> CommandSpec:
+    command = [
+        str(paths["python"]),
+        str(REPO_ROOT / "tools" / "aggregate_kctx8_kgen1_latency.py"),
+    ]
+    for summary in summaries:
+        command.extend(("--summary", str(summary)))
+    command.extend(
+        (
+            "--output-json",
+            str(output_root / "summary_final.json"),
+            "--output-md",
+            str(output_root / "summary_final.md"),
+        )
+    )
+    return CommandSpec("aggregate", tuple(command), {})
 
 
 def ensure_fresh_output(output_dir: Path, *, resume: bool, dry_run: bool) -> None:
@@ -342,6 +310,26 @@ def ensure_fresh_output(output_dir: Path, *, resume: bool, dry_run: bool) -> Non
         raise RuntimeError(
             f"measured output already exists under {output_dir}; use --resume or a new output_root"
         )
+
+
+def completed_run(output_dir: Path, *, expected_queries: int) -> bool:
+    """Return whether a learned-method output already has full query coverage."""
+
+    manifest_path = output_dir / "run_manifest.json"
+    if not manifest_path.is_file():
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    query_indices = manifest.get("identity", {}).get("query_indices", ())
+    if len(query_indices) != expected_queries:
+        return False
+    query_dir = output_dir / "queries"
+    return all(
+        (query_dir / f"query_{int(query_index):05d}.json").is_file()
+        for query_index in query_indices
+    )
 
 
 def execute(spec: CommandSpec, *, output_dir: Path, dry_run: bool) -> dict:
@@ -406,20 +394,6 @@ def main() -> None:
     source_selection = load_selection(paths["selection"])
     output_root = paths["output_root"]
     outcomes = []
-    if args.stage in ("run", "all") and warmup_count:
-        warmup_selection = make_warmup_selection(source_selection, warmup_count)
-        warmup_path = output_root / "warmup_selection.json"
-        if not args.dry_run:
-            atomic_json(warmup_path, warmup_selection)
-        ensure_fresh_output(output_root / "warmup", resume=args.resume, dry_run=args.dry_run)
-        for spec in build_run_commands(
-            config,
-            paths,
-            selection=warmup_path,
-            output_dir=output_root / "warmup",
-        ):
-            outcomes.append(execute(spec, output_dir=output_root / "warmup", dry_run=args.dry_run))
-
     repeat_summaries = []
     for repeat in range(1, repeat_count + 1):
         repeat_dir = output_root / f"repeat_{repeat:03d}"
@@ -430,17 +404,37 @@ def main() -> None:
                 paths,
                 selection=paths["selection"],
                 output_dir=repeat_dir,
+                warmup_query_count=warmup_count,
             ):
+                if args.resume and completed_run(
+                    repeat_dir / spec.name,
+                    expected_queries=int(source_selection["query_count"]),
+                ):
+                    print(f"[{spec.name}] skip completed 128-query run", flush=True)
+                    outcomes.append({"name": spec.name, "status": "skipped_completed"})
+                    continue
                 outcomes.append(execute(spec, output_dir=repeat_dir, dry_run=args.dry_run))
         if args.stage in ("summarize", "all"):
             summary_spec = build_summary_command(
-                paths, selection=paths["selection"], output_dir=repeat_dir
+                paths,
+                selection=paths["selection"],
+                output_dir=repeat_dir,
             )
             outcomes.append(execute(summary_spec, output_dir=repeat_dir, dry_run=args.dry_run))
             repeat_summaries.append(str(repeat_dir / "summary.json"))
 
+    final_summary = None
+    if args.stage in ("summarize", "all"):
+        aggregate_spec = build_aggregate_command(
+            paths,
+            summaries=[Path(path) for path in repeat_summaries],
+            output_root=output_root,
+        )
+        outcomes.append(execute(aggregate_spec, output_dir=output_root, dry_run=args.dry_run))
+        final_summary = str(output_root / "summary_final.json")
+
     manifest_body = {
-        "schema_version": 1,
+        "schema_version": 2,
         "program": str(Path(__file__).resolve()),
         "config": str(config_path),
         "config_sha256": file_sha256(config_path),
@@ -451,10 +445,23 @@ def main() -> None:
         "execution_stage_order": list(STAGE_ORDER),
         "repeat_count": repeat_count,
         "warmup_query_count": warmup_count,
+        "latency_protocol": {
+            "context_count": 8,
+            "generated_rirs_per_candidate": 1,
+            "timing_boundary": (
+                "conditioning and acoustic forward plus AGREE/OMP localization scoring "
+                "and candidate selection"
+            ),
+            "fem_source": (
+                "112 reused observed runtime_seconds.total values plus 16 measured "
+                "strict-failure detection and random-candidate fallback values"
+            ),
+        },
         "stage": args.stage,
         "dry_run": args.dry_run,
         "resume": args.resume,
         "repeat_summaries": repeat_summaries,
+        "final_summary": final_summary,
         "outcomes": outcomes,
     }
     manifest = {**manifest_body, "sha256": canonical_sha256(manifest_body)}

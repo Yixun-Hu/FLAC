@@ -346,6 +346,20 @@ def create_dataloader_from_config(dataset_config, batch_size, sample_size, sampl
 
     assert dataset_type is not None, "Dataset type must be specified in dataset config"
 
+    if dataset_type == "fewshot_rir_ar":
+        from .fewshot_rir import create_fewshot_rir_dataloader_from_config
+
+        if audio_channels != 1:
+            raise ValueError("FewshotRiR AcousticRooms episodes require mono audio")
+        return create_fewshot_rir_dataloader_from_config(
+            dataset_config,
+            batch_size=batch_size,
+            sample_size=sample_size,
+            sample_rate=sample_rate,
+            num_workers=num_workers,
+            shuffle=shuffle,
+        )
+
     if audio_channels == 1:
         force_channels = "mono"
     else:

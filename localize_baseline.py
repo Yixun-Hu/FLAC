@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the material-blind Few-ShotRIR-Waveform or FEM-Sabine baseline."""
+"""Run the material-blind FewshotRiR, legacy waveform, or FEM-Sabine baseline."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--method",
-        choices=("few_shot_rir_waveform", "fem_sabine"),
+        choices=("FewshotRiR", "few_shot_rir_waveform", "fem_sabine"),
         required=True,
     )
     parser.add_argument("--agree-ckpt", type=Path)
@@ -37,6 +37,10 @@ def main() -> None:
     parser.add_argument("--candidate-batch-size", type=int, default=64)
     parser.add_argument("--random-seed", type=int, default=42)
     parser.add_argument("--query-limit", type=int)
+    parser.add_argument("--context-counts", type=int, nargs="+", default=(1, 8))
+    parser.add_argument("--synchronize-latency", action="store_true")
+    parser.add_argument("--warmup-query-count", type=int, default=0)
+    parser.add_argument("--measure-core-forward", action="store_true")
     parser.add_argument("--model-config", type=Path)
     parser.add_argument("--ckpt-path", type=Path)
     parser.add_argument("--tetra-mesh-manifest", type=Path)
@@ -95,6 +99,10 @@ def main() -> None:
         fem_superlu_ordering=args.fem_superlu_ordering,
         fem_solver_threads=args.fem_solver_threads,
         skip_rooms=tuple(args.skip_rooms),
+        context_counts=tuple(args.context_counts),
+        synchronize_timing=args.synchronize_latency,
+        warmup_query_count=args.warmup_query_count,
+        measure_core_forward=args.measure_core_forward,
     )
     print(json.dumps(result, indent=2))
 

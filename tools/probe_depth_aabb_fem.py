@@ -92,6 +92,11 @@ def main() -> None:
     parser.add_argument("--solver-threads", type=int, default=24)
     parser.add_argument("--mkl-runtime", type=Path)
     parser.add_argument("--geometry-only", action="store_true")
+    parser.add_argument(
+        "--latency-protocol",
+        choices=("legacy", "kctx8_kgen1"),
+        default="legacy",
+    )
     args = parser.parse_args()
 
     if args.mkl_runtime is not None:
@@ -105,11 +110,15 @@ def main() -> None:
     record = load_record(args.context_manifest, args.query_index)
     geometry_audit = json.loads(args.geometry_audit.read_text())
     room_base = reconstruct_room_base_candidates(record["room"], geometry_audit)
+    localization_started = time.perf_counter()
+    candidate_started = time.perf_counter()
     candidates = filter_frozen_query_candidates(record, geometry_audit, room_base)
     receiver = np.asarray(record["receiver_global"], dtype=np.float64)
     truth = np.asarray(record["source_global"], dtype=np.float64)
     context_sources = np.asarray(record["context_sources_global"], dtype=np.float64)
+    candidate_seconds = time.perf_counter() - candidate_started
 
+    geometry_started = time.perf_counter()
     receiver_id = int(record["filename"].split("_")[1][1:])
     depth_path = (
         args.dataset_root
@@ -142,10 +151,57 @@ def main() -> None:
         maximum_edge_m=args.maximum_edge_m,
     )
     mesh_seconds = time.perf_counter() - mesh_started
+    geometry_seconds = time.perf_counter() - geometry_started
     mesh_path = output_dir / f"query_{args.query_index:05d}_depth_aabb_mesh.npz"
+    input_seconds = 0.0
+    operator_seconds = 0.0
+    solve_seconds = 0.0
+    omp_seconds = 0.0
+    if not args.geometry_only:
+        input_started = time.perf_counter()
+        observed, metadata = load_frozen_query(record, args.dataset_root)
+        input_seconds = time.perf_counter() - input_started
+        operators_started = time.perf_counter()
+        room_operators = prepare_fem_room_operators(mesh)
+        receiver_load, candidate_interpolation = prepare_fem_query_interpolation(
+            room_operators,
+            receiver,
+            candidates,
+        )
+        operator_seconds = time.perf_counter() - operators_started
+        options = SparseDirectSolverOptions(
+            backend=args.solver_backend,
+            threads=args.solver_threads,
+        )
+        solve_started = time.perf_counter()
+        with SparseDirectSolveSession(options) as session:
+            forward = run_fem_sabine_forward(
+                mesh,
+                receiver_point=receiver,
+                candidate_points=candidates,
+                context_waveforms=metadata["context_audio"][:8],
+                construct_waveforms=False,
+                room_operators=room_operators,
+                receiver_load=receiver_load,
+                candidate_interpolation=candidate_interpolation,
+                solver_options=options,
+                solver_session=session,
+                maximum_allowed_edge_m=args.maximum_edge_m,
+            )
+        solve_seconds = time.perf_counter() - solve_started
+        omp_started = time.perf_counter()
+        scores, recovery = score_fem_room_helps_candidates(
+            forward.response,
+            forward.bin_indices,
+            observed,
+            sample_count=observed.shape[-1],
+        )
+        omp_seconds = time.perf_counter() - omp_started
+    localization_seconds = time.perf_counter() - localization_started
+
+    # Artifact hashing and serialization are deliberately outside the localization timer.
     depth_hash = file_sha256(depth_path)
     save_tetrahedral_mesh_npz(mesh, mesh_path, source_mesh_sha256=depth_hash)
-
     base_payload = {
         "schema_version": 2,
         "method": "fem_sabine_depth_aabb",
@@ -186,6 +242,25 @@ def main() -> None:
         "lattice_audit": lattice_audit,
         "runtime_seconds": {"mesh_construction": mesh_seconds},
     }
+    if args.latency_protocol == "kctx8_kgen1" and not args.geometry_only:
+        base_payload["latency_protocol"] = {
+            "name": "kctx8_kgen1",
+            "context_count": 8,
+            "generated_rirs_per_candidate": 1,
+            "selector": "room_helps_pulse_stacked_omp",
+            "model_and_checkpoint_loading_included": False,
+            "result_serialization_included": False,
+            "room_base_grid_reconstruction_included": False,
+        }
+        base_payload["latency_seconds"] = {
+            "candidate_preparation": candidate_seconds,
+            "depth_aabb_and_mesh": geometry_seconds,
+            "query_input_loading": input_seconds,
+            "operator_construction": operator_seconds,
+            "fullband_solve": solve_seconds,
+            "omp_scoring": omp_seconds,
+            "localization_total": localization_seconds,
+        }
     if args.geometry_only:
         base_payload["sha256"] = canonical_sha256(base_payload)
         geometry_path = output_dir / f"query_{args.query_index:05d}_depth_aabb_geometry.json"
@@ -195,41 +270,6 @@ def main() -> None:
         print(json.dumps(base_payload, indent=2, sort_keys=True))
         return
 
-    observed, metadata = load_frozen_query(record, args.dataset_root)
-    operators_started = time.perf_counter()
-    room_operators = prepare_fem_room_operators(mesh)
-    receiver_load, candidate_interpolation = prepare_fem_query_interpolation(
-        room_operators,
-        receiver,
-        candidates,
-    )
-    operator_seconds = time.perf_counter() - operators_started
-    options = SparseDirectSolverOptions(
-        backend=args.solver_backend,
-        threads=args.solver_threads,
-    )
-    solve_started = time.perf_counter()
-    with SparseDirectSolveSession(options) as session:
-        forward = run_fem_sabine_forward(
-            mesh,
-            receiver_point=receiver,
-            candidate_points=candidates,
-            context_waveforms=metadata["context_audio"][:8],
-            construct_waveforms=False,
-            room_operators=room_operators,
-            receiver_load=receiver_load,
-            candidate_interpolation=candidate_interpolation,
-            solver_options=options,
-            solver_session=session,
-            maximum_allowed_edge_m=args.maximum_edge_m,
-        )
-    solve_seconds = time.perf_counter() - solve_started
-    scores, recovery = score_fem_room_helps_candidates(
-        forward.response,
-        forward.bin_indices,
-        observed,
-        sample_count=observed.shape[-1],
-    )
     prediction_index = stable_argmax(scores)
     metrics = localization_metrics(candidates, truth, prediction_index)
     metrics["prediction_global"] = candidates[prediction_index].tolist()

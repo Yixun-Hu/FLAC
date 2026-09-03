@@ -78,6 +78,9 @@ def create_training_wrapper_from_config(model_config, model):
     elif model_type == 'few_shot_rir_waveform':
         from .few_shot_rir_waveform import FewShotRIRWaveformTrainingWrapper
         return FewShotRIRWaveformTrainingWrapper(model, training_config)
+    elif model_type == 'FewshotRiR':
+        from .fewshot_rir import FewshotRiRTrainingWrapper
+        return FewshotRiRTrainingWrapper(model, training_config)
     
     else:
         raise NotImplementedError(f'Unknown model type: {model_type}')

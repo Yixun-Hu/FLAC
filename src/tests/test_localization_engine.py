@@ -1,5 +1,7 @@
 import torch
+import numpy as np
 
+from src.localization import engine
 from src.data.yaw_rotation import invariant_conditioning
 from src.localization.engine import (
     CONTEXT_CONDITIONING_IDS,
@@ -17,6 +19,44 @@ from src.localization.engine import (
     prepare_generated_audio,
     project_runtime_seconds,
 )
+
+
+def test_frozen_candidate_filter_can_use_explicit_reference_contexts(monkeypatch):
+    base = np.array([[0.0, 0.0, 1.0], [1.0, 0.0, 1.0]])
+    seen = {}
+
+    def fake_filter(points, receiver, contexts, **kwargs):
+        seen["contexts"] = np.asarray(contexts)
+        return np.array([True, False])
+
+    monkeypatch.setattr(engine, "filter_query_candidates", fake_filter)
+    monkeypatch.setattr(engine.hashlib, "sha256", lambda _value: type("H", (), {"hexdigest": lambda self: "frozen"})())
+    record = {
+        "index": 7,
+        "query_id": "query.wav",
+        "receiver_global": [0.0, 0.0, 1.0],
+        "context_sources_global": [[9.0, 9.0, 9.0]],
+        "candidate_filter_context_sources_global": [[2.0, 3.0, 1.0]],
+    }
+    audit = {
+        "receiver_clearance_m": 0.5,
+        "context_clearance_m": 0.25,
+        "epsilon_m": 1e-4,
+        "z_branch": "z_band",
+        "queries": [
+            {
+                "index": 7,
+                "query_id": "query.wav",
+                "z_indices_sha256": "frozen",
+                "chosen_count": 1,
+            }
+        ],
+    }
+
+    candidates = engine.filter_frozen_query_candidates(record, audit, base)
+
+    assert np.array_equal(seen["contexts"], [[2.0, 3.0, 1.0]])
+    assert np.array_equal(candidates, base[:1])
 
 
 class FakeConditioner:

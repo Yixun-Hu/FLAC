@@ -236,3 +236,24 @@ def test_fem_query_selects_with_room_helps_without_loading_agree(monkeypatch):
     assert result["diagnostics"]["1"]["sparse_recovery"]["support"] == [1]
     assert result["diagnostics"]["1"]["selection_rule"] == "room_helps_pulse_stacked_omp"
     assert result["candidate_score_name"] == "room_helps_projection_fraction"
+
+
+def test_baseline_result_supports_isolated_kctx8():
+    result = build_baseline_query_result(
+        query_index=7,
+        query_id="Room/query.wav",
+        scene="scene",
+        room="Room_1",
+        receiver_id="R006",
+        candidates=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        source_global=np.zeros(3),
+        receiver_global=np.ones(3),
+        candidate_scores=torch.tensor([[0.7], [0.6]]),
+        context_counts=(8,),
+        random_seed=42,
+        elapsed_seconds=1.5,
+        diagnostics={"8": {"deterministic_waveform_generation": True}},
+    )
+
+    assert result["context_counts"] == [8]
+    assert list(result["metrics"]) == ["8"]

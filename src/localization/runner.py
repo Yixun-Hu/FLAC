@@ -25,6 +25,7 @@ from src.localization.engine import (
     encode_audio_features,
     filter_frozen_query_candidates,
     generate_and_score_batch,
+    generate_rir_batch,
     load_agree_retrieval,
     load_flac_module,
     load_frozen_query,
@@ -141,6 +142,7 @@ def completed_query_result(
     query_id: str,
     candidate_count: int,
     run_sha256: str,
+    score_sample_counts: tuple[int, ...] = SCORE_SAMPLE_COUNTS,
 ) -> dict | None:
     json_path, npz_path = _query_paths(output_dir, query_index)
     if not json_path.exists():
@@ -161,7 +163,7 @@ def completed_query_result(
         similarities = arrays["similarities"]
         if candidates.shape != (candidate_count, 3):
             raise RuntimeError(f"query {query_index} candidate array shape mismatch")
-        if similarities.shape != (candidate_count, max(SCORE_SAMPLE_COUNTS)):
+        if similarities.shape != (candidate_count, max(score_sample_counts)):
             raise RuntimeError(f"query {query_index} score array shape mismatch")
         if not np.isfinite(candidates).all() or not np.isfinite(similarities).all():
             raise RuntimeError(f"query {query_index} artifact contains non-finite values")
@@ -200,8 +202,9 @@ def _build_query_result(
     peak_memory_bytes: int,
     tau: float,
     random_seed: int,
+    score_sample_counts: tuple[int, ...] = SCORE_SAMPLE_COUNTS,
 ) -> dict:
-    score_vectors = log_mean_exp_scores(similarities, SCORE_SAMPLE_COUNTS, tau=tau)
+    score_vectors = log_mean_exp_scores(similarities, score_sample_counts, tau=tau)
     metrics = {}
     truth = np.asarray(record["source_global"], dtype=np.float64)
     for count, scores in score_vectors.items():
@@ -229,7 +232,7 @@ def _build_query_result(
         "source_global": list(map(float, record["source_global"])),
         "receiver_global": list(map(float, record["receiver_global"])),
         "n_context": len(record["contexts"]),
-        "score_sample_counts": list(SCORE_SAMPLE_COUNTS),
+        "score_sample_counts": list(score_sample_counts),
         "tau": float(tau),
         "metrics": metrics,
         "random_candidate_metrics": random_metrics,
@@ -254,9 +257,15 @@ def execute_query(
     sample_seed: int,
     tau: float,
     run_sha256: str,
+    score_sample_counts: tuple[int, ...] = SCORE_SAMPLE_COUNTS,
+    synchronize_timing: bool = False,
+    measure_core_forward: bool = False,
 ) -> tuple[dict, np.ndarray, np.ndarray]:
     """Run and score all candidates for one frozen target query."""
 
+    device_type = torch.device(device).type
+    if synchronize_timing and device_type == "cuda":
+        torch.cuda.synchronize(device)
     start_time = time.perf_counter()
     observed, metadata = load_frozen_query(record, dataset_root)
     candidates = filter_frozen_query_candidates(record, audit, room_base)
@@ -265,7 +274,12 @@ def execute_query(
     if len(record["contexts"]) != 8:
         raise RuntimeError("formal pilot requires N_ctx=8")
 
-    device_type = torch.device(device).type
+    observed_gpu = observed.unsqueeze(0).to(device=device, dtype=torch.float32)
+    observation_features = encode_audio_features(retrieval, observed_gpu)
+
+    if measure_core_forward and device_type == "cuda":
+        torch.cuda.synchronize(device)
+    context_started = time.perf_counter()
     with torch.amp.autocast(device_type):
         context = _cache_branch(
             module,
@@ -276,13 +290,20 @@ def execute_query(
             device,
             cond_method,
         )
-    observed_gpu = observed.unsqueeze(0).to(device=device, dtype=torch.float32)
-    observation_features = encode_audio_features(retrieval, observed_gpu)
+    if measure_core_forward and device_type == "cuda":
+        torch.cuda.synchronize(device)
+    context_seconds = (
+        time.perf_counter() - context_started if measure_core_forward else 0.0
+    )
 
-    maximum_samples = max(SCORE_SAMPLE_COUNTS)
+    maximum_samples = max(score_sample_counts)
     score_chunks = []
+    candidate_generation_seconds = 0.0
     for batch_start in range(0, len(candidates), candidate_batch_size):
         batch_stop = min(batch_start + candidate_batch_size, len(candidates))
+        if measure_core_forward and device_type == "cuda":
+            torch.cuda.synchronize(device)
+        generation_started = time.perf_counter()
         candidate_items = candidate_metadata(
             metadata,
             candidates[batch_start:batch_stop],
@@ -314,15 +335,29 @@ def execute_query(
             for candidate_index in range(batch_start, batch_stop)
             for sample_index in range(maximum_samples)
         ]
-        scores = generate_and_score_batch(
-            module,
-            retrieval,
-            repeated_source,
-            context,
-            observation_features,
-            seeds,
-            dynamic_branch=repeated_dynamic,
-        )
+        if measure_core_forward:
+            generated = generate_rir_batch(
+                module,
+                repeated_source,
+                context,
+                seeds,
+                dynamic_branch=repeated_dynamic,
+            )
+            if device_type == "cuda":
+                torch.cuda.synchronize(device)
+            candidate_generation_seconds += time.perf_counter() - generation_started
+            generated_features = encode_audio_features(retrieval, generated)
+            scores = generated_features @ observation_features.T
+        else:
+            scores = generate_and_score_batch(
+                module,
+                retrieval,
+                repeated_source,
+                context,
+                observation_features,
+                seeds,
+                dynamic_branch=repeated_dynamic,
+            )
         score_chunks.append(scores.reshape(batch_stop - batch_start, maximum_samples).cpu())
 
     similarities = torch.cat(score_chunks, dim=0).float()
@@ -331,17 +366,37 @@ def execute_query(
     peak_memory = (
         int(torch.cuda.max_memory_allocated(device)) if device_type == "cuda" else 0
     )
+    if synchronize_timing and device_type == "cuda":
+        torch.cuda.synchronize(device)
+    elapsed_seconds = time.perf_counter() - start_time
     result = _build_query_result(
         selected=selected,
         record=record,
         candidates=candidates,
         similarities=similarities,
         run_sha256=run_sha256,
-        elapsed_seconds=time.perf_counter() - start_time,
+        elapsed_seconds=elapsed_seconds,
         peak_memory_bytes=peak_memory,
         tau=tau,
         random_seed=sample_seed,
+        score_sample_counts=score_sample_counts,
     )
+    if measure_core_forward:
+        result["latency_protocol"] = {
+            "name": "fem_core_aligned_kctx8_kgen1",
+            "context_count": 8,
+            "generated_rirs_per_candidate": maximum_samples,
+            "input_loading_included": False,
+            "candidate_filtering_included": False,
+            "candidate_scoring_included": False,
+            "candidate_selection_and_metrics_included": False,
+            "result_serialization_included": False,
+        }
+        result["latency_seconds"] = {
+            "context_conditioning": context_seconds,
+            "candidate_conditioning_and_generation": candidate_generation_seconds,
+            "core_forward_total": context_seconds + candidate_generation_seconds,
+        }
     return result, candidates, similarities.numpy()
 
 
@@ -361,11 +416,26 @@ def run_localization(
     sample_seed: int = 42,
     tau: float = 0.1,
     query_limit: int | None = None,
+    score_sample_counts: tuple[int, ...] = SCORE_SAMPLE_COUNTS,
+    synchronize_timing: bool = False,
+    warmup_query_count: int = 0,
+    measure_core_forward: bool = False,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
     if cond_method not in ("vanilla", "fa_invariant"):
         raise ValueError("unsupported conditioning method")
+    score_sample_counts = tuple(int(count) for count in score_sample_counts)
+    if (
+        not score_sample_counts
+        or score_sample_counts != tuple(sorted(set(score_sample_counts)))
+        or any(count <= 0 for count in score_sample_counts)
+    ):
+        raise ValueError("score_sample_counts must be unique, increasing, and positive")
+    if warmup_query_count < 0:
+        raise ValueError("warmup_query_count must be nonnegative")
+    if measure_core_forward and score_sample_counts != (1,):
+        raise ValueError("core-forward latency requires exactly one RIR per candidate")
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
     if geometry_audit.get("sha256") != canonical_sha256(audit_content):
         raise RuntimeError("geometry audit SHA-256 mismatch")
@@ -390,10 +460,13 @@ def run_localization(
             list(DEFAULT_FRAME_ANGLES) if cond_method == "fa_invariant" else None
         ),
         "n_context": 8,
-        "score_sample_counts": list(SCORE_SAMPLE_COUNTS),
+        "score_sample_counts": list(score_sample_counts),
         "tau": float(tau),
         "sample_seed": int(sample_seed),
         "candidate_batch_size": int(candidate_batch_size),
+        "synchronize_timing": bool(synchronize_timing),
+        "warmup_query_count": int(warmup_query_count),
+        "measure_core_forward": bool(measure_core_forward),
         "sampler": {"type": "rectified_flow_discrete_euler", "steps": 1, "cfg_scale": 1.0},
     }
     run_manifest = initialize_run(output_dir, identity)
@@ -406,6 +479,33 @@ def run_localization(
     retrieval = load_agree_retrieval(agree_checkpoint_path, device)
 
     room_bases: dict[str, np.ndarray] = {}
+    if warmup_query_count > len(joined):
+        raise ValueError("warmup_query_count exceeds the selected query count")
+    for selected, record, _geometry in joined[:warmup_query_count]:
+        room = selected["room"]
+        if room not in room_bases:
+            room_bases[room] = reconstruct_room_base_candidates(room, geometry_audit)
+        execute_query(
+            module=module,
+            retrieval=retrieval,
+            selected=selected,
+            record=record,
+            audit=geometry_audit,
+            room_base=room_bases[room],
+            dataset_root=dataset_root,
+            device=device,
+            cond_method=cond_method,
+            candidate_batch_size=candidate_batch_size,
+            sample_seed=sample_seed,
+            tau=tau,
+            run_sha256=run_sha256,
+            score_sample_counts=score_sample_counts,
+            synchronize_timing=synchronize_timing,
+            measure_core_forward=measure_core_forward,
+        )
+    if warmup_query_count:
+        print(f"completed {warmup_query_count} in-process warm-up queries", flush=True)
+
     completed = 0
     for ordinal, (selected, record, _geometry) in enumerate(joined, start=1):
         previous = completed_query_result(
@@ -414,6 +514,7 @@ def run_localization(
             query_id=selected["query_id"],
             candidate_count=int(selected["candidate_count"]),
             run_sha256=run_sha256,
+            score_sample_counts=score_sample_counts,
         )
         if previous is not None:
             completed += 1
@@ -437,6 +538,9 @@ def run_localization(
             sample_seed=sample_seed,
             tau=tau,
             run_sha256=run_sha256,
+            score_sample_counts=score_sample_counts,
+            synchronize_timing=synchronize_timing,
+            measure_core_forward=measure_core_forward,
         )
         save_query_result(
             output_dir,
