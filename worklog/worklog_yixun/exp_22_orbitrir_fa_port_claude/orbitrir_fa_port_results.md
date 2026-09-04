@@ -22,3 +22,14 @@ Checkpoint: B-F 40k, sha256 `5319feb4…2328`, protocol inherited from the embed
 
 ## Anonymization state
 Tracked paths and contents carry no author information (repo-wide sweep + reviewer sweep). Open items: (i) `download_weights.sh` still names the author's HF repos — awaiting an anonymous weights URL; (ii) **git commit metadata** names both authors — an anonymous share must exclude `.git` (zip / anonymizing mirror) or rewrite history.
+
+## Registered ORBITRIR row — 5-seed matrix (2026-09-04, log `…_5seed_matrix.log`)
+
+**All 10 per-seed cells BIT-IDENTICAL to the source repo's registered per-seed JSONs** (K={8,1} × s{42..46}; every comparison `IDENTICAL`, max|Δ| = 0). Raw JSONs + SHA256SUMS committed in `matrix_metric_jsons/`. Protocol: full unseen split, bf16 conditioning autocast, steps 1, cfg 1.0, EMA, per-scene means, protocol inherited from the checkpoint.
+
+| ORBITRIR @ B-F 40k | K | T60 ↓ | C50 ↓ | EDT ↓ | FD ↓ | R@1 ↑ | R@5 ↑ | R@10 ↑ |
+|---|---|---|---|---|---|---|---|---|
+| fa_invariant (inherited) | 8 | 8.2019 ± 0.0170 | 0.9778 ± 0.0015 | 38.7933 ± 0.0741 | 0.3332 ± 0.0001 | 5.3874 ± 0.0753 | 16.4558 ± 0.0377 | 24.1976 ± 0.1638 |
+| fa_invariant (inherited) | 1 | 9.5428 ± 0.0543 | 1.0559 ± 0.0040 | 41.7538 ± 0.3475 | 0.3287 ± 0.0004 | 5.1665 ± 0.1661 | 16.0707 ± 0.2405 | 23.7210 ± 0.1499 |
+
+Agreement with the registered fork rows: |Δmean| ≤ 0.0005 on every metric (pure rounding of the same underlying values). Note: `model_comparison.md` regeneration is cluster-only; this row lives here and can be lifted into the cluster generator on demand.

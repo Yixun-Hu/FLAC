@@ -248,3 +248,12 @@
 
 ## 2026-09-04T11:19:15-04:00 — final anonymization state: C16 pushed (`bdaa5fc`); .git metadata handled by Yixun's anonymous.4open.science mirror
 - **Result** — `passed`. download_weights.sh now uses an xxx placeholder (+ fill-in comment); repo-wide tracked-content sweep FULLY CLEAN. Yixun mirrors Yixun-Hu/ORBITRIR through anonymous.4open.science, which hides commit authorship/history — the .git-metadata item is resolved on his side; no source-zip needed. Both exp_22 open identity items CLOSED. (Ops note: two git pushes hung past 90-120s this session — network flakiness; both verified and repaired by re-push.)
+
+## 2026-09-04T12:05:15-04:00 — 5-seed acceptance matrix LAUNCHED (Yixun: "run the 5-seed acceptance matrix for a registered ORBITRIR row")
+- **Command / Validation** — 10 cells: K={8,1} × seeds 42–46, two parallel lanes (K=8→GPU0, K=1→GPU1), registered protocol (full unseen split, bf16 cond autocast, steps 1, cfg 1.0, EMA, per-scene means, cond-method inherited), eval-names exp22_matrix_K{K}_s{s}; timestamped log in this folder.
+- **Acceptance criteria (pre-registered)** — all 10 JSONs present; per-seed comparison vs the fork's registered per-seed JSONs (K8 s42→fae_rot0, others→exp10_BF40_*) expected ≈bit-identical (flag if any max|Δ|>0.02); aggregate mean±std must match the registered rows K=8 8.202±0.017 / 0.9778±0.0015 / 38.793±0.074 / R1 5.387±0.075 (R5 16.456, R10 24.198) and K=1 9.543±0.054 / 1.0559±0.0040 / 41.754±0.347 / R1 5.166±0.166. Registration: raw JSONs + aggregate recorded in this folder (model_comparison.md regen is CLUSTER-ONLY per HANDOFF — a cross-repo table row would go through the cluster generator; not touched here).
+- **Result** — `launched` (ETA ≈ 35–40 min).
+
+## 2026-09-04T13:35:30-04:00 — 5-SEED MATRIX COMPLETE — 10/10 per-seed IDENTICAL — row registered
+- **Result** — `passed`. Every cell bit-identical to the fork's registered per-seed JSONs; aggregates match the registered rows to rounding (|Δmean| ≤ 0.0005). Raw JSONs + sha256s committed under matrix_metric_jsons/. Runner exit-code-1 was the trailing `grep -c MISSING` finding zero matches — cosmetic, same class as the earlier rc-pipeline slip; noted.
+- **Next** — none. exp_22 fully closed including the registered row.

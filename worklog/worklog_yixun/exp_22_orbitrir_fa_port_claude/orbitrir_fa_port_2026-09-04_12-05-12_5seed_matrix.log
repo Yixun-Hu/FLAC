@@ -1,0 +1,66 @@
+=== ORBITRIR 5-seed acceptance matrix — HEAD bdaa5fc — 2026-09-04_12-05-12 ===
+protocol: full unseen split (6337/17), bf16 cond autocast, steps 1, cfg 1.0, EMA, per-scene means, cond-method inherited; K=8 lane on GPU0, K=1 lane on GPU1
+[1]-  Done                    run_lane 0 8 acousticroom_unseeneval.json > /tmp/claude-1013/-home-yixunhu-codespace-FLAC/95ed8f1b-67ca-4064-899c-a022d96f2ea6/scratchpad/lane_K8.log 2>&1
+[2]+  Done                    run_lane 1 1 acousticroom_unseeneval_1.json > /tmp/claude-1013/-home-yixunhu-codespace-FLAC/95ed8f1b-67ca-4064-899c-a022d96f2ea6/scratchpad/lane_K1.log 2>&1
+=== lane logs ===
+--- lane K=8 seed 42 (gpu 0) start 12:05:12 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K8_s42_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=8 seed 43 (gpu 0) start 12:20:45 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K8_s43_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=8 seed 44 (gpu 0) start 12:38:21 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K8_s44_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=8 seed 45 (gpu 0) start 12:56:10 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K8_s45_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=8 seed 46 (gpu 0) start 13:14:36 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K8_s46_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=1 seed 42 (gpu 1) start 12:05:12 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K1_s42_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=1 seed 43 (gpu 1) start 12:17:36 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K1_s43_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=1 seed 44 (gpu 1) start 12:32:02 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K1_s44_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=1 seed 45 (gpu 1) start 12:45:24 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K1_s45_fa_invariant_a4.json
+Evaluation complete!
+--- lane K=1 seed 46 (gpu 1) start 12:59:22 ---
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_matrix_K1_s46_fa_invariant_a4.json
+Evaluation complete!
+=== MATRIX VERDICTS ===
+--- K=8 per-seed vs fork registered JSONs ---
+  s42: IDENTICAL
+  s43: IDENTICAL
+  s44: IDENTICAL
+  s45: IDENTICAL
+  s46: IDENTICAL
+--- K=8 aggregate (mean ± std over 5 seeds) vs registered row ---
+  T60                       8.2019 ± 0.0170   registered    8.2020 ± 0.0170   |dmean| 0.0001
+  C50                       0.9778 ± 0.0015   registered    0.9778 ± 0.0015   |dmean| 0.0000
+  EDT                      38.7933 ± 0.0741   registered   38.7930 ± 0.0740   |dmean| 0.0003
+  FD                        0.3332 ± 0.0001   (no registered aggregate)
+  RIR_to_GT_RIR_R@1         5.3874 ± 0.0753   registered    5.3870 ± 0.0750   |dmean| 0.0004
+  RIR_to_GT_RIR_R@5        16.4558 ± 0.0377   registered   16.4560 ± 0.0380   |dmean| 0.0002
+  RIR_to_GT_RIR_R@10       24.1976 ± 0.1638   registered   24.1980 ± 0.1640   |dmean| 0.0004
+--- K=1 per-seed vs fork registered JSONs ---
+  s42: IDENTICAL
+  s43: IDENTICAL
+  s44: IDENTICAL
+  s45: IDENTICAL
+  s46: IDENTICAL
+--- K=1 aggregate (mean ± std over 5 seeds) vs registered row ---
+  T60                       9.5428 ± 0.0543   registered    9.5430 ± 0.0540   |dmean| 0.0002
+  C50                       1.0559 ± 0.0040   registered    1.0559 ± 0.0040   |dmean| 0.0000
+  EDT                      41.7538 ± 0.3475   registered   41.7540 ± 0.3470   |dmean| 0.0002
+  FD                        0.3287 ± 0.0004   (no registered aggregate)
+  RIR_to_GT_RIR_R@1         5.1665 ± 0.1661   registered    5.1660 ± 0.1660   |dmean| 0.0005
+  RIR_to_GT_RIR_R@5        16.0707 ± 0.2405   registered   16.0710 ± 0.2410   |dmean| 0.0003
+  RIR_to_GT_RIR_R@10       23.7210 ± 0.1499   registered   23.7210 ± 0.1500   |dmean| 0.0000
+done
+=== MATRIX COMPLETE ===
