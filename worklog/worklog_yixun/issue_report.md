@@ -78,6 +78,6 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 - **Login-node hygiene (other session's, still open):** the guardtest trio hung at a pre-fix bash process-substitution deadlock (PIDs 265588/265601/265610, Aug 13) will never exit on its own. Ours was fixed with PID-scoped `wait`; theirs is theirs to kill.
 
 ## exp_22 / ORBITRIR — open items (2026-09-04)
-- download_weights.sh still names AmandineBtto HF repos — Yixun to supply an anonymous weights URL.
+- ~~download_weights.sh~~ RESOLVED 2026-09-04: author handle replaced by an xxx placeholder (fill in the anonymous weights account before use).
 - git commit metadata (both author identities) visible in any .git-bearing share — Yixun to choose: zip without .git / anonymizing mirror / history rewrite.
 - Optional: 5-seed acceptance matrix for a registered ORBITRIR row; pin revision in the 4 sibling configs before any variant experiment.
