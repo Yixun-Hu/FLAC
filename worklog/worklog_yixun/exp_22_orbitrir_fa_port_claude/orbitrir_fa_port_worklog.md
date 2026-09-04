@@ -245,3 +245,6 @@
 ## 2026-09-04T10:53:55-04:00 — EXECUTION PHASE COMPLETE — ALL PASS — exp_22 CLOSING
 - **Result** — `passed`. Smoke 3/3 steps (losses 2.36/2.61/2.44); guard refusal correct (no artifact); K=8+K=1 acceptance |Δ|=0.0000 on all 10 pins; rot90 C4-invariance ≤0.0033; off-diagonal override reproduces the historical row exactly with disclosure. Runner cosmetic noted: rc= lines report tail's rc (pipeline); outcomes proven by artifacts + in-log evidence instead. GPUs released.
 - **Next** — results.md + analysis.md written; closure report to Yixun. Open: weights URL, .git metadata decision, optional 5-seed matrix.
+
+## 2026-09-04T11:19:15-04:00 — final anonymization state: C16 pushed (`bdaa5fc`); .git metadata handled by Yixun's anonymous.4open.science mirror
+- **Result** — `passed`. download_weights.sh now uses an xxx placeholder (+ fill-in comment); repo-wide tracked-content sweep FULLY CLEAN. Yixun mirrors Yixun-Hu/ORBITRIR through anonymous.4open.science, which hides commit authorship/history — the .git-metadata item is resolved on his side; no source-zip needed. Both exp_22 open identity items CLOSED. (Ops note: two git pushes hung past 90-120s this session — network flakiness; both verified and repaired by re-push.)

@@ -79,5 +79,5 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 
 ## exp_22 / ORBITRIR — open items (2026-09-04)
 - ~~download_weights.sh~~ RESOLVED 2026-09-04: author handle replaced by an xxx placeholder (fill in the anonymous weights account before use).
-- git commit metadata (both author identities) visible in any .git-bearing share — Yixun to choose: zip without .git / anonymizing mirror / history rewrite.
+- ~~git commit metadata~~ RESOLVED 2026-09-04: Yixun mirrors the repo via anonymous.4open.science (hides authorship/history); no zip needed.
 - Optional: 5-seed acceptance matrix for a registered ORBITRIR row; pin revision in the 4 sibling configs before any variant experiment.
