@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>exp_22 — ORBITRIR frame-averaging port</title>
+<style>body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#1a1a2e}
+h1{border-bottom:3px solid #4a4e8f}h2{color:#4a4e8f}table{border-collapse:collapse;width:100%;margin:1rem 0}
+td,th{border:1px solid #c5c8e0;padding:.4rem .6rem;text-align:right}th{background:#eef0fa}td:first-child,th:first-child{text-align:left}
+.pass{background:#e3f5e6;color:#186429;font-weight:600}.warn{background:#fdf3dc}.mono{font-family:ui-monospace,monospace;font-size:.9em}</style></head><body>
+<h1>exp_22 — ORBITRIR: clean port of the frame-averaged (B-F) method</h1>
+<p><b>Repo</b> <span class="mono">Yixun-Hu/ORBITRIR@1f6e3bf</span> = upstream FLAC + 24 commits · suite <b>243 passed</b> · 4 Codex rounds closed.<br>
+By-line: Fable 5 planned/analyzed · Opus 5 max coded · Codex gpt-5.6-sol xhigh reviewed. Numbers transcribed from <span class="mono">orbitrir_fa_port_results.md</span>.</p>
+<h2>Pinned acceptance vs B-F 40k (sha256 5319feb4…, full unseen split, bf16, s42, protocol inherited)</h2>
+<table><tr><th>Cell</th><th>T60</th><th>C50</th><th>EDT</th><th>FD</th><th>R@1</th><th>Verdict</th></tr>
+<tr><td>K=8 pin</td><td>8.1902</td><td>0.9804</td><td>38.8113</td><td>0.3333</td><td>5.3022</td><td rowspan="2" class="pass">|Δ| = 0.0000<br>10/10 PASS</td></tr>
+<tr><td>K=8 got</td><td>8.1902</td><td>0.9804</td><td>38.8113</td><td>0.3333</td><td>5.3022</td></tr>
+<tr><td>K=1 pin</td><td>9.4859</td><td>1.0547</td><td>41.2371</td><td>0.3284</td><td>5.2391</td><td rowspan="2" class="pass">|Δ| = 0.0000</td></tr>
+<tr><td>K=1 got</td><td>9.4859</td><td>1.0547</td><td>41.2371</td><td>0.3284</td><td>5.2391</td></tr></table>
+<h2>C4 invariance &amp; protocol guard</h2>
+<table><tr><th>Check</th><th>Outcome</th><th>Verdict</th></tr>
+<tr><td>rot-90° K=8 vs rot-0 |Δ|</td><td>T60 .0007 · C50 .0001 · EDT .0033 · FD .0000 · R@1 .0000</td><td class="pass">invariant</td></tr>
+<tr><td>vanilla on FA ckpt (no override)</td><td>refused before model build; no artifact</td><td class="pass">guard fires</td></tr>
+<tr><td>vanilla + override (disclosed)</td><td>10.674 / 2.081 / 80.106 / R@1 0.710 — exact historical off-diagonal row</td><td class="pass">reproduced</td></tr>
+<tr><td>smoke: 3-step DDP+SyncBN train, FA config, grad-ckpt</td><td>max_steps=3 reached; losses 2.36/2.61/2.44</td><td class="pass">trains</td></tr></table>
+<h2>Open items</h2>
+<table><tr><td class="warn">download_weights.sh names the author's HF repos — awaiting anonymous URL</td></tr>
+<tr><td class="warn">git commit metadata names both authors — anonymous share must exclude .git or rewrite history</td></tr></table>
+</body></html>

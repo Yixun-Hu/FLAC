@@ -1,0 +1,116 @@
+=== ORBITRIR execution phase — HEAD 1f6e3bf — 2026-09-04_09-57-42 ===
+
+=== [1/6] SMOKE: 3-step DDP+SyncBN train on the FA config (both GPUs) ===
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory outputs_FLAC/smoke exists and is not empty.
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [00:08<11:11:47,  0.11it/s]Epoch 0:   0%|          | 1/4550 [00:08<11:11:51,  0.11it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [00:15<9:33:12,  0.13it/s, v_num=0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360] Epoch 0:   0%|          | 2/4550 [00:15<9:33:13,  0.13it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:21<8:52:30,  0.14it/s, v_num=0, train/loss=2.610, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.610]Epoch 0:   0%|          | 3/4550 [00:21<8:52:31,  0.14it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]Epoch 0:   0%|          | 3/4550 [00:21<8:52:32,  0.14it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]`Trainer.fit` stopped: `max_steps=3` reached.
+Epoch 0:   0%|          | 3/4550 [00:21<8:52:34,  0.14it/s, v_num=0, train/loss=2.440, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.440]
+[rank0]:[W904 09:58:26.194786850 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank1]:[W904 09:58:26.532057519 TCPStore.cpp:125] [c10d] recvValue failed on SocketImpl(fd=22, addr=[localhost]:34922, remote=[localhost]:49785): failed to recv, got 0 bytes
+Exception raised from recvBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:678 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x70abf87785e8 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8afe (0x70abe17a8afe in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baae40 (0x70abe17aae40 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5bab74a (0x70abe17ab74a in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x2a9 (0x70abe17a51a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x70ab9e7e09a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x70ab8e4ea0e6 in /home/yixunhu/miniconda3/envs/flac/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94a83 (0x70abf9c94a83 in /lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126890 (0x70abf9d26890 in /lib/x86_64-linux-gnu/libc.so.6)
+
+[rank1]:[W904 09:58:26.543220225 ProcessGroupNCCL.cpp:1659] [PG ID 0 PG GUID 0(default_pg) Rank 1] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: failed to recv, got 0 bytes
+SMOKE rc=0
+
+=== [2/6] GUARD NEGATIVE CONTROL: explicit vanilla on the FA checkpoint must be REFUSED ===
+  File "/home/yixunhu/codespace/ORBITRIR/eval_FLAC.py", line 874, in <module>
+    evaluate_model(
+  File "/home/yixunhu/codespace/ORBITRIR/eval_FLAC.py", line 649, in evaluate_model
+    conditioning_override = bool(check_conditioning_protocol(
+  File "/home/yixunhu/codespace/ORBITRIR/eval_FLAC.py", line 439, in check_conditioning_protocol
+    raise ValueError(
+ValueError: Conditioning protocol mismatch: cond_method: evaluating as 'vanilla' but the checkpoint was trained as 'fa_invariant'. trained protocol read from the checkpoint (the model_config embedded in the checkpoint by the training run). Off-diagonal evaluation (an fa_invariant checkpoint under vanilla conditioning, or the reverse) yields plausible-looking metrics that are comparable to nothing. Omit --cond-method / --frame-avg-angles to inherit the trained protocol, or pass --allow-conditioning-override to evaluate off-diagonal on purpose.
+ERROR conda.cli.main_run:execute(127): `conda run python eval_FLAC.py --model-config src/configs/model_configs/FLAC/AR/FLAC_AR_FA.json --dataset-config src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json --ckpt-path outputs_FLAC/bf40_acceptance/epoch=8-step=40000.ckpt --cond-method vanilla --cond-autocast bf16 --steps 1 --cfg-scale 1.0 --seed 42 --eval-name exp22_negcontrol` failed. (See above for error)
+NEGCONTROL rc=0 (nonzero = correctly refused)
+
+=== [3/6] acceptance cell K8 ===
+Test/RIR_to_GT_RIR_R@10 (%) 24.2386
+Test/RIR_to_geom_R@1 (%) 4.1344
+Test/RIR_to_geom_R@5 (%) 14.0761
+Test/RIR_to_geom_R@10 (%) 21.0983
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_accept_K8_s42_fa_invariant_a4.json
+Evaluation complete!
+CELL K8 rc=0
+
+=== [4/6] acceptance cell K1 ===
+Test/RIR_to_GT_RIR_R@10 (%) 23.7494
+Test/RIR_to_geom_R@1 (%) 4.1187
+Test/RIR_to_geom_R@5 (%) 13.65
+Test/RIR_to_geom_R@10 (%) 20.83
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_accept_K1_s42_fa_invariant_a4.json
+Evaluation complete!
+CELL K1 rc=0
+
+=== [5/6] acceptance cell ROT90 ===
+Test/RIR_to_GT_RIR_R@10 (%) 24.2386
+Test/RIR_to_geom_R@1 (%) 3.6295
+Test/RIR_to_geom_R@5 (%) 12.0562
+Test/RIR_to_geom_R@10 (%) 18.3052
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_accept_K8_s42_fa_invariant_a4_rot90.json
+Evaluation complete!
+CELL ROT90 rc=0
+
+=== [6/6] OFF-DIAGONAL (override): vanilla + --allow-conditioning-override ===
+Test/RIR_to_GT_RIR_R@10 (%) 5.1602
+Test/RIR_to_geom_R@1 (%) 0.5839
+Test/RIR_to_geom_R@5 (%) 2.2092
+Test/RIR_to_geom_R@10 (%) 3.6295
+Metrics saved to outputs_FLAC/bf40_acceptance/epoch=8-step=40000_metrics_1_1.0_exp22_offdiag_K8_s42.json
+Evaluation complete!
+OFFDIAG rc=0
+
+=== VERDICTS ===
+K8 [epoch=8-step=40000_metrics_1_1.0_exp22_accept_K8_s42_fa_invariant_a4.json] trained=fa_invariant src=checkpoint override=False
+  T60                    got    8.1902  pin    8.1902  |d| 0.0000  tol 0.005  PASS
+  C50                    got    0.9804  pin    0.9804  |d| 0.0000  tol 0.001  PASS
+  EDT                    got   38.8113  pin   38.8113  |d| 0.0000  tol 0.02   PASS
+  FD                     got    0.3333  pin    0.3333  |d| 0.0000  tol 0.001  PASS
+  RIR_to_GT_RIR_R@1      got    5.3022  pin    5.3022  |d| 0.0000  tol 0.02   PASS
+K1 [epoch=8-step=40000_metrics_1_1.0_exp22_accept_K1_s42_fa_invariant_a4.json] trained=fa_invariant src=checkpoint override=False
+  T60                    got    9.4859  pin    9.4859  |d| 0.0000  tol 0.005  PASS
+  C50                    got    1.0547  pin    1.0547  |d| 0.0000  tol 0.001  PASS
+  EDT                    got   41.2371  pin   41.2371  |d| 0.0000  tol 0.02   PASS
+  FD                     got    0.3284  pin    0.3284  |d| 0.0000  tol 0.001  PASS
+  RIR_to_GT_RIR_R@1      got    5.2391  pin    5.2391  |d| 0.0000  tol 0.02   PASS
+ROT90 [epoch=8-step=40000_metrics_1_1.0_exp22_accept_K8_s42_fa_invariant_a4_rot90.json] C4-invariance deltas vs rot0:
+  T60                    rot90    8.1895  rot0    8.1902  |d| 0.0007
+  C50                    rot90    0.9805  rot0    0.9804  |d| 0.0001
+  EDT                    rot90   38.8146  rot0   38.8113  |d| 0.0033
+  FD                     rot90    0.3333  rot0    0.3333  |d| 0.0000
+  RIR_to_GT_RIR_R@1      rot90    5.3022  rot0    5.3022  |d| 0.0000
+OFFDIAG [epoch=8-step=40000_metrics_1_1.0_exp22_offdiag_K8_s42.json] override=True trained=fa_invariant
+  T60=10.674  C50=2.081  EDT=80.106  RIR_to_GT_RIR_R@1=0.710   (registered 2x2 row ~ 10.65 / 2.08 / 80.9 / 0.7)
+NEGCONTROL JSONs written: none (correct — the guard refused before evaluation)
+
+=== EXECUTION PHASE COMPLETE ===

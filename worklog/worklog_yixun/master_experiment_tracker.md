@@ -36,3 +36,6 @@ Living index — one row per experiment; updated at every session handoff/compac
 - **Status:** registered 40k run TRAINING since 08-22 05:50 EDT (seed 42, BF-parity recipe, no val loader, cap 32 = verified legacy draw-schedule parity); rate gate PASS 13.99 s/step co-tenant; ETA ~Tue 08-25 pm. Then: 34-cell eval (10 BFC 5-seed both-K + 5-angle grid incl. 45° negative control + D6 re-eval of B-F@40k and P1@40k at the current pin). Admission: trained-as binding, ckpt sha, full-split stream proof, six-row cross-arm transaction.
 - **Key commits:** ebb8166..a98543f (19 exp_21 code commits + records); reviews: 2 plan + 4 code rounds + integrative + r5 re-review + pre-launch (all in folder).
 - **Numbering:** exp_20 = the other session's RAF; RAF-as-exp_20 stands, this work renumbered exp_21 (Yixun 08-21 ~23:25).
+
+## exp_22 — ORBITRIR frame-averaging port (2026-08-29 → 2026-09-04) — CLOSED, ALL PASS
+Clean commit-by-commit port of the exp_07 B-F method onto upstream FLAC → github.com:Yixun-Hu/ORBITRIR main@1f6e3bf (24 commits, 4 Codex rounds, 243 tests). Acceptance vs B-F 40k BIT-IDENTICAL (10/10 pins |Δ|=0.0000, K=1+K=8); rot90 C4-invariant ≤0.0033; trained-as guard refuses off-diagonal (override reproduces the historical 2x2 row exactly, disclosed). Anonymous-review packaging done (HAA purged, identity scrubbed). Full record: exp_22_orbitrir_fa_port_claude/.
