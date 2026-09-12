@@ -1,0 +1,6 @@
+launched_at: 2026-09-12T15:51:39-04:00
+run: exp13_cylB
+exp12_sha: 4ec457665e095f3b6af6964312c292a640784ced
+package_sha: 5856aee47d5d47c1367e9ef981fac21cc7cb38e6
+config_sha256: 64aa35b8a315d14004cebfceecb088ac9dba20abf085c755760b64e332cd2609
+pid: 3861098
