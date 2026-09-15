@@ -40,7 +40,7 @@ Living index — one row per experiment; updated at every session handoff/compac
 ## exp_22 — ORBITRIR frame-averaging port (2026-08-29 → 2026-09-04) — CLOSED, ALL PASS
 Clean commit-by-commit port of the exp_07 B-F method onto upstream FLAC → github.com:Yixun-Hu/ORBITRIR main@1f6e3bf (24 commits, 4 Codex rounds, 243 tests). Acceptance vs B-F 40k BIT-IDENTICAL (10/10 pins |Δ|=0.0000, K=1+K=8); rot90 C4-invariant ≤0.0033; trained-as guard refuses off-diagonal (override reproduces the historical 2x2 row exactly, disclosed). Anonymous-review packaging done (HAA purged, identity scrubbed). Full record: exp_22_orbitrir_fa_port_claude/.
 
-## exp_23 — haa_cyl_orientation (CylDINO no-SSL + covariant loudspeaker-facing field on HAA) — RUNNING (launched 2026-09-14 20:29 EDT)
+## exp_23 — haa_cyl_orientation (CylDINO no-SSL + covariant loudspeaker-facing field on HAA) — RESULTS 2026-09-15: PARITY with vanilla (s=27); seed-43 robustness runs queued
 Yixun's /goal: can CylDINO no-SSL (AR-40k → HAA) beat vanilla FLAC on HAA? Diagnosis without
 training: optimisation ruled out (val-loss gap 3 %), AR/HAA panorama-convention mismatch ruled out
 (geometric audit), gap localised to the hallway (CYL T60 8.85 vs P1 3.43; classroom a tie), cause =
@@ -51,3 +51,8 @@ channel") adopted: arm **CYLORI** = CYL + a second XYZ input triple carrying the
 (gauge rotates every triple ⇒ exact yaw equivariance kept; zero-init widened patch conv ⇒ bit-
 identical to CYL at step 0; recipe = exp_19 HAA recipe verbatim). Package 9be5216 · FLAC f5fe317 ·
 records `exp_23_haa_cyl_orientation_claude/` (README, aggregator, chain). Results → `results_cylori.md`.
+**Results (2026-09-15):** CYLORI (s=2.7) beats the field-off control on all 7 metrics at both K but
+stays behind vanilla (K=8 T60 4.84 vs 3.41); CYLORI27 (s=27, 10× effective learning speed of the
+zero-init channels) reaches parity: K=8 T60 3.53 vs 3.41, C50 2.16 vs 2.20 (better), EDT 85.8 vs
+85.0, R@10 31.45 vs 31.69; K=1 C50/R@5/R@10 better; hallway T60 8.85 → 4.02. Records:
+`exp_23_haa_cyl_orientation_claude/results_cylori.md`. One training seed per arm so far.
