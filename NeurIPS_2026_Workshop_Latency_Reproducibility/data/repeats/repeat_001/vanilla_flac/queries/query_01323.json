@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_01323.npz",
+  "arrays_sha256": "773c14c7c78a79301f640dd4e0a55b7a0b7e2dd5004f0c737a6f39c6def4ead7",
+  "candidate_count": 232,
+  "candidate_indices_sha256": "1c2b23e11428b41d54befde60f9361ffaa1669e1925e744f8bd5cf758e57bd0f",
+  "elapsed_seconds": 2.3130265078507364,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.9205308970995247,
+    "context_conditioning": 0.0897912080399692,
+    "core_forward_total": 2.010322105139494
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.5208052674142416,
+      "localization_error_m": 0.6348228099241553,
+      "mean_candidate_score": 0.02785906009376049,
+      "oracle_error_m": 0.11401754250991374,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        3.0,
+        5.0,
+        2.0
+      ],
+      "prediction_index": 198,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.659263551235199
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286188544,
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S009_R014_hybrid_IR.wav",
+  "query_index": 1323,
+  "random_candidate_metrics": {
+    "excess_error_m": 4.145442517169013,
+    "localization_error_m": 4.2594600596789265,
+    "oracle_error_m": 0.11401754250991374,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      0.0,
+      2.5,
+      1.0
+    ],
+    "prediction_index": 6,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.89,
+    0.53,
+    1.5
+  ],
+  "receiver_id": "R014",
+  "room": "MeetingRoom_idx_20",
+  "run_manifest_sha256": "b5b50134d5d727580408d7f4cd7920a066548355691d60b2da3a44e235879f26",
+  "scene": "MeetingRoom",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "d40fea3b50fa721f2142fec9d499ac4a2eaca5fa3eb37777334beac1bb0d01ad",
+  "source_global": [
+    3.39,
+    5.03,
+    1.5
+  ],
+  "tau": 0.1
+}

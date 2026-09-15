@@ -1,0 +1,83 @@
+{
+  "arrays_file": "queries/query_01257.npz",
+  "arrays_sha256": "1a0911687cbc334360194de71e706b844dfab416e4ac23955326a7f7467b88c6",
+  "candidate_count": 230,
+  "candidate_indices_sha256": "b904205aa4e08fdff43c9c3e8b8317ffe12b115359a1fb547394ca5765ebc76d",
+  "candidate_score_name": "agree_cosine",
+  "context_counts": [
+    8
+  ],
+  "diagnostics": {
+    "8": {
+      "deterministic_waveform_generation": true
+    }
+  },
+  "elapsed_seconds": 0.4141476028598845,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 0.18040137109346688,
+    "core_forward_total": 0.18040137109346688
+  },
+  "method": "few_shot_rir_waveform",
+  "metrics": {
+    "8": {
+      "excess_error_m": 1.1013231726059023,
+      "localization_error_m": 1.331540461270329,
+      "mean_candidate_score": 0.21183113753795624,
+      "oracle_error_m": 0.23021728866442662,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        2.5,
+        4.5,
+        1.5
+      ],
+      "prediction_index": 163,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.31507304310798645
+    }
+  },
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R025_hybrid_IR.wav",
+  "query_index": 1257,
+  "random_candidate_metrics": {
+    "excess_error_m": 2.740136225649989,
+    "localization_error_m": 2.9703535143144157,
+    "oracle_error_m": 0.23021728866442662,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      2.0,
+      1.0,
+      2.0
+    ],
+    "prediction_index": 112,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.39,
+    5.53,
+    1.2
+  ],
+  "receiver_id": "R025",
+  "room": "MeetingRoom_idx_20",
+  "run_manifest_sha256": "b6ac84e4326f26050e238dc40a5aa02c94be84fdad8c201fb85886b8e2dfdffd",
+  "scene": "MeetingRoom",
+  "schema_version": 2,
+  "sha256": "827bc013e17c179885f84efa49659cc29a954c509d80538391fe5282914130c2",
+  "source_global": [
+    3.39,
+    3.53,
+    1.3
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "candidate_count": 280,
+  "candidate_indices_sha256": "8eac5e937a42d3d8d3f646925c50cd0c521eb28dc63eef159c804b7a621ebdd9",
+  "context_count": 8,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "fem_audit": {
+    "candidate_count": 280,
+    "diagnostic_waveform_gain": null,
+    "element_count": 415740,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.2085272991530006,
+    "maximum_relative_solver_residual": 1.6083306856227318e-13,
+    "median_relative_solver_residual": 8.643971736001355e-15,
+    "minimum_element_mean_ratio": 0.7557535768613775,
+    "minimum_element_volume_m3": 0.0002908402410938405,
+    "node_count": 74844,
+    "normalized_impedance": 13.123355962876108,
+    "sabine_absorption": 0.26316558222111786,
+    "sabine_raw_absorption": 0.26316558222111786,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "threads": 12,
+      "total_factorization_seconds": 111.10676828934811,
+      "total_residual_and_sampling_seconds": 1.6722064390778542,
+      "total_solve_seconds": 6.556556355440989,
+      "total_symbolic_analysis_seconds": 0.601393035845831,
+      "total_system_construction_seconds": 6.057841379661113
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 157.16183751328742,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.47068027210884356,
+    "t60_valid_contexts": 8,
+    "volume_m3": 120.9139218323543,
+    "waveform_constructed": false
+  },
+  "frequency_band_hz": [
+    80.0,
+    300.0
+  ],
+  "mesh_metadata": {
+    "element_count": 415740,
+    "node_count": 74844,
+    "schema_version": 1,
+    "source_mesh_sha256": "fef61c4dedfae8bad332b6972e6ac61c98bf33d93a324889b47cbb325df837b3"
+  },
+  "method": "fem_sabine_depth_aabb_response_cache",
+  "omp_prediction_index": 118,
+  "omp_relative_residual_norm": 0.615462714120499,
+  "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R023_hybrid_IR.wav",
+  "query_index": 5513,
+  "response_file": "query_05513_response.npz",
+  "response_file_sha256": "b9437afb3f96b1eb561d8c91aacab171927517663278e913b45fb3f6254cdb01",
+  "room": "LivingRoomsWithHallway_idx_30",
+  "runtime_seconds": {
+    "solve": 132.9642270731274,
+    "total": 148.27073098300025
+  },
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "f000136f172376dcd38985569eb7a5b665fb1bc17b18f463813fe9472d042104",
+  "source_fem_result_sha256": "c2a2d5bcef08acc5fbcc70b3f868bf90c79485a1bed89880f31d5a90c52d353d",
+  "source_mesh_sha256": "6126f2a11f0d2c1dc14ca6ce64f6866c53875a6c222db7a6f9aa778182d29b89"
+}

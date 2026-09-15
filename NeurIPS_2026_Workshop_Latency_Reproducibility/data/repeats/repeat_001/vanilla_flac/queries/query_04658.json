@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_04658.npz",
+  "arrays_sha256": "6ac3096b79fbcbb7032ae2a28c671c19936b3e5c85cb6b8b5e4acfd5b57b2676",
+  "candidate_count": 28,
+  "candidate_indices_sha256": "3c29785423c14f0e46b8b94645ff2db566c9546a3025bbaa172fec2ded0793cf",
+  "elapsed_seconds": 0.357194036943838,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 0.22731149708852172,
+    "context_conditioning": 0.0878185851033777,
+    "core_forward_total": 0.3151300821918994
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.3720153254455275,
+      "localization_error_m": 0.5220153254455274,
+      "mean_candidate_score": 0.2713686525821686,
+      "oracle_error_m": 0.1499999999999999,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        2.0,
+        0.0,
+        2.0
+      ],
+      "prediction_index": 11,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.5943215489387512
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 813731328,
+  "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav",
+  "query_index": 4658,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.3720153254455275,
+    "localization_error_m": 0.5220153254455274,
+    "oracle_error_m": 0.1499999999999999,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      2.0,
+      0.0,
+      1.0
+    ],
+    "prediction_index": 9,
+    "success_0_5m": 0,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    2.95,
+    0.42,
+    0.95
+  ],
+  "receiver_id": "R005",
+  "room": "Bathrooms_idx_14",
+  "run_manifest_sha256": "b5b50134d5d727580408d7f4cd7920a066548355691d60b2da3a44e235879f26",
+  "scene": "Bathrooms",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "fe3b444730c7f9049595b8e2fecfa3e22ed7ad717d909a554b956439a087bb88",
+  "source_global": [
+    1.85,
+    0.0,
+    1.5
+  ],
+  "tau": 0.1
+}

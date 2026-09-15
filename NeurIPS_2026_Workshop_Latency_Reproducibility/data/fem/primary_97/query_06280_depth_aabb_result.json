@@ -1,0 +1,161 @@
+{
+  "arrays_file": "query_06280_depth_aabb_scores.npz",
+  "arrays_sha256": "e71546678de1b86b3291300004ff9377e4c260d07c4e1a8bf3559e9352c5583d",
+  "candidate_count": 261,
+  "context_count": 8,
+  "coverage_protocol": {
+    "all_context_sources_required_inside": true,
+    "candidate_set_policy": "frozen and identical; no filtering or score substitution",
+    "receiver_required_inside": true,
+    "required_candidate_coverage_fraction": 1.0,
+    "strict_gate_passed": true,
+    "target_source_required_inside": true
+  },
+  "depth_path": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Restaurants/Restaurants_idx_24/6.npy",
+  "depth_reprojection_audit": {
+    "evaluated_ray_count": 131072,
+    "fraction_aabb_behind_observation": 1.0,
+    "maximum_absolute_error_m": 3.7341499435315155,
+    "median_absolute_error_m": 0.09523011404201753,
+    "median_relative_error": 0.04199530686585603,
+    "p95_absolute_error_m": 0.24661758722180763,
+    "p95_relative_error": 0.12944078582887714
+  },
+  "depth_sha256": "d9c16118091a797b3b877b7d4af99d1e77357aacee12d94e12e11c1dbcdaf04c",
+  "envelope_audit": {
+    "dimensions_m": [
+      4.491448988708138,
+      7.285149249223824,
+      3.691575208837683
+    ],
+    "invalid_depth_count": 0,
+    "lower_receiver_local_m": [
+      -1.7217517292129518,
+      -6.641163109298842,
+      -1.4499736453956418
+    ],
+    "maximum_valid_depth_m": 7.309646314365997,
+    "minimum_valid_depth_m": 0.5763740999999998,
+    "padding_m": 0.05,
+    "upper_receiver_local_m": [
+      2.769697259495186,
+      0.6439861399249823,
+      2.241601563442041
+    ],
+    "valid_depth_count": 131072,
+    "valid_depth_fraction": 1.0,
+    "volume_m3": 120.79157549478346
+  },
+  "fem_audit": {
+    "candidate_count": 261,
+    "diagnostic_waveform_gain": null,
+    "element_count": 431148,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20594729211256427,
+    "maximum_relative_solver_residual": 6.468053887096628e-14,
+    "median_relative_solver_residual": 1.0021262738368977e-14,
+    "minimum_element_mean_ratio": 0.7552554351002418,
+    "minimum_element_volume_m3": 0.00028016267150672667,
+    "node_count": 77376,
+    "normalized_impedance": 25.974931167114125,
+    "sabine_absorption": 0.1427886561883145,
+    "sabine_raw_absorption": 0.1427886561883145,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "maximum_factor_nonzeros": 31262685,
+      "maximum_system_nonzeros": 1115970,
+      "threads": 12,
+      "total_factorization_seconds": 124.8705015880987,
+      "total_residual_and_sampling_seconds": 1.5665075271390378,
+      "total_solve_seconds": 6.547488563228399,
+      "total_symbolic_analysis_seconds": 0.6063862279988825,
+      "total_system_construction_seconds": 5.806368266465142
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 152.39014865521074,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.8937414965986394,
+    "t60_valid_contexts": 8,
+    "volume_m3": 120.79157549478336,
+    "waveform_constructed": false
+  },
+  "interpretation": "depth-panorama-only axis-aligned matched-input FEM baseline; no official unseen-room mesh",
+  "lattice_audit": {
+    "axis_steps_m": [
+      0.1181960260186352,
+      0.119428676216784,
+      0.11908307125282848
+    ],
+    "cell_counts": [
+      38,
+      61,
+      31
+    ],
+    "edge_safety_factor": 0.95,
+    "element_count": 431148,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20594729211256346,
+    "node_count": 77376
+  },
+  "mesh_file": "query_06280_depth_aabb_mesh.npz",
+  "mesh_sha256": "fdaec1aa2687e03af8e181578ac7cbf2031c032849299351db35141946d5fdaf",
+  "method": "fem_sabine_depth_aabb",
+  "metrics": {
+    "excess_error_m": 0.43877412087693235,
+    "localization_error_m": 0.5612486080160912,
+    "mean_candidate_score": 0.043158289045095444,
+    "oracle_error_m": 0.1224744871391589,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      1.0,
+      3.0,
+      1.5
+    ],
+    "prediction_index": 220,
+    "success_0_5m": 0,
+    "success_1_0m": 1,
+    "winning_score": 0.2683551609516144
+  },
+  "point_audit": {
+    "candidate_count": 261,
+    "candidate_inside_count": 261,
+    "context_count": 8,
+    "context_inside_count": 8,
+    "source_inside": true
+  },
+  "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+  "query_index": 6280,
+  "receiver_global": [
+    -0.55,
+    2.95,
+    1.4
+  ],
+  "receiver_id": "R006",
+  "room": "Restaurants_idx_24",
+  "runtime_seconds": {
+    "fullband_solve": 146.3507898868993,
+    "mesh_construction": 4.933683036128059,
+    "operator_construction": 5.729131849948317,
+    "total": 157.01360477297567
+  },
+  "scene": "Restaurants",
+  "schema_version": 2,
+  "sha256": "9cd64d0dcec4b22d11c82158eed95c82ae6dddc53d8ef6805276ae412de58c92",
+  "source_global": [
+    0.45,
+    2.95,
+    1.6
+  ],
+  "sparse_recovery": {
+    "relative_residual_norm": 0.8553623970089366,
+    "support": [
+      220
+    ]
+  }
+}

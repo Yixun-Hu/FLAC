@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05934.npz",
+  "arrays_sha256": "28d2ab2889fe94144f4764b5a9fb47f7182b50bbb2cdd75f4f713880cc492342",
+  "candidate_count": 292,
+  "candidate_indices_sha256": "d31f00e26e9bb309ebc2bac4819a8da2ea3fb61b7ca8fe907d25e0e31dd2cc27",
+  "elapsed_seconds": 2.8557481670286506,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 2.385835000080988,
+    "context_conditioning": 0.09270757995545864,
+    "core_forward_total": 2.4785425800364465
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.5,
+      "localization_error_m": 0.7,
+      "mean_candidate_score": 0.19278818368911743,
+      "oracle_error_m": 0.19999999999999996,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        3.0,
+        0.5,
+        2.0
+      ],
+      "prediction_index": 266,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.7305314540863037
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286712832,
+  "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S009_R017_hybrid_IR.wav",
+  "query_index": 5934,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.79498743710662,
+    "localization_error_m": 0.99498743710662,
+    "oracle_error_m": 0.19999999999999996,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      2.5,
+      0.0,
+      2.0
+    ],
+    "prediction_index": 243,
+    "success_0_5m": 0,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    -1.0,
+    -1.5,
+    1.3
+  ],
+  "receiver_id": "R017",
+  "room": "Restaurants_idx_22",
+  "run_manifest_sha256": "b5b50134d5d727580408d7f4cd7920a066548355691d60b2da3a44e235879f26",
+  "scene": "Restaurants",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "674af7aafcb2dc555346b6c52df5ceba7249919507c4dd98547a8c62fba24bf8",
+  "source_global": [
+    3.0,
+    0.5,
+    1.3
+  ],
+  "tau": 0.1
+}

@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05832.npz",
+  "arrays_sha256": "e3d6b6ee9f1e77b5b4e4438f3257a65a5e1852deaf3b032745658b045950456c",
+  "candidate_count": 139,
+  "candidate_indices_sha256": "62385975eb7b15c1bc93969c7d541f659365a0ded06de74a238e680637455758",
+  "elapsed_seconds": 1.4445837629027665,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.1682272632606328,
+    "context_conditioning": 0.0901992789003998,
+    "core_forward_total": 1.2584265421610326
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.5348469228349535,
+      "localization_error_m": 0.7348469228349535,
+      "mean_candidate_score": 0.2577219307422638,
+      "oracle_error_m": 0.19999999999999996,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        1.0,
+        -0.5,
+        1.5
+      ],
+      "prediction_index": 64,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.6395438313484192
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286450688,
+  "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+  "query_index": 5832,
+  "random_candidate_metrics": {
+    "excess_error_m": 1.6275666882497066,
+    "localization_error_m": 1.8275666882497066,
+    "oracle_error_m": 0.19999999999999996,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      2.0,
+      -1.0,
+      2.0
+    ],
+    "prediction_index": 101,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.0,
+    1.0,
+    1.8
+  ],
+  "receiver_id": "R017",
+  "room": "LivingRoomsWithHallway_idx_25",
+  "run_manifest_sha256": "b5b50134d5d727580408d7f4cd7920a066548355691d60b2da3a44e235879f26",
+  "scene": "LivingRoomsWithHallway",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "75f5d383416b750317fa1964c4afd0673838edd3b89277e93c6f177ed20ae512",
+  "source_global": [
+    0.5,
+    0.0,
+    1.7
+  ],
+  "tau": 0.1
+}

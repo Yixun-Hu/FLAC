@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_01201.npz",
+  "arrays_sha256": "afd7591b9b995a3c156e1f6d7f198f54a464b9ad710d8f813050f6a547defb62",
+  "candidate_count": 231,
+  "candidate_indices_sha256": "25bffbda0df54b8920206f3c46b81bf59b1ea3885a3ef99132aafdca73d37778",
+  "elapsed_seconds": 2.128943784860894,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.8046186240389943,
+    "context_conditioning": 0.09105334989726543,
+    "core_forward_total": 1.8956719739362597
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.23021728866442667,
+      "mean_candidate_score": 0.207392618060112,
+      "oracle_error_m": 0.23021728866442667,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        0.5,
+        2.5,
+        1.0
+      ],
+      "prediction_index": 33,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.7530650496482849
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286057472,
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R013_hybrid_IR.wav",
+  "query_index": 1201,
+  "random_candidate_metrics": {
+    "excess_error_m": 3.3014961764966415,
+    "localization_error_m": 3.531713465161068,
+    "oracle_error_m": 0.23021728866442667,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      3.5,
+      4.0,
+      2.0
+    ],
+    "prediction_index": 222,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.39,
+    1.53,
+    1.5
+  ],
+  "receiver_id": "R013",
+  "room": "MeetingRoom_idx_20",
+  "run_manifest_sha256": "fc4b2c77531ddf0855668d4b59e803801eeddd18dcff17b7ab9d304fbacd50ab",
+  "scene": "MeetingRoom",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "56896248699b111300acb1695d0bd64f073a8201dfee0078ce5b6e56a9a17c59",
+  "source_global": [
+    0.39,
+    2.53,
+    1.2
+  ],
+  "tau": 0.1
+}

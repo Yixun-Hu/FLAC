@@ -1,0 +1,69 @@
+{
+  "candidate_count": 105,
+  "candidate_indices_sha256": "f6cd60a37338bbdcdf945e1ede4ea17eb43c509d8821fe16dd0a8775eda43a19",
+  "context_count": 8,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "fem_audit": {
+    "candidate_count": 105,
+    "diagnostic_waveform_gain": null,
+    "element_count": 152100,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.2056038974738877,
+    "maximum_relative_solver_residual": 1.9409330595466625e-14,
+    "median_relative_solver_residual": 4.733600800501359e-15,
+    "minimum_element_mean_ratio": 0.7553123435121618,
+    "minimum_element_volume_m3": 0.0002787697731548426,
+    "node_count": 28080,
+    "normalized_impedance": 9.516272396484293,
+    "sabine_absorption": 0.3441939264011464,
+    "sabine_raw_absorption": 0.3441939264011464,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "threads": 12,
+      "total_factorization_seconds": 27.03679760824889,
+      "total_residual_and_sampling_seconds": 1.3678236422128975,
+      "total_solve_seconds": 2.552079250337556,
+      "total_symbolic_analysis_seconds": 0.2274526720866561,
+      "total_system_construction_seconds": 2.0976904404815286
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 74.41328418712428,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.26653061224489794,
+    "t60_valid_contexts": 8,
+    "volume_m3": 42.400882496851885,
+    "waveform_constructed": false
+  },
+  "frequency_band_hz": [
+    80.0,
+    300.0
+  ],
+  "mesh_metadata": {
+    "element_count": 152100,
+    "node_count": 28080,
+    "schema_version": 1,
+    "source_mesh_sha256": "a433d7f64a435473b40177d6315b618be5bb3295de7f894189c37932997f3c95"
+  },
+  "method": "fem_sabine_depth_aabb_response_cache",
+  "omp_prediction_index": 103,
+  "omp_relative_residual_norm": 0.6776148722994363,
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S003_R015_hybrid_IR.wav",
+  "query_index": 1157,
+  "response_file": "query_01157_response.npz",
+  "response_file_sha256": "36f509612da730579f45260eb2edfe335a6b767b87162dd2539a8ea7a1fc1d6c",
+  "room": "MeetingRoom_idx_32",
+  "runtime_seconds": {
+    "solve": 36.001732629025355,
+    "total": 39.71717013302259
+  },
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "d3cba95bb038e10d730b88797aee6ddeaf944df1fc78290486b8157dca98872d",
+  "source_fem_result_sha256": "298b1b75263e76ae3e4fc02cb494d51e7f5996a768478669415be3bbbf25083d",
+  "source_mesh_sha256": "dd325cb8209afbe9518ea6b3635ee45e6d52dc85f34223d2d7bbfadbabd3778b"
+}

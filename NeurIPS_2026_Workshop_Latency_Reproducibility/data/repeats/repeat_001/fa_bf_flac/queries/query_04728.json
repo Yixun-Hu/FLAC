@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_04728.npz",
+  "arrays_sha256": "1b2ce4b25a405d5e120f4bd039b88e6da4db6c9d306ea2343983686fb40e77dc",
+  "candidate_count": 56,
+  "candidate_indices_sha256": "b5ce3fce0eb6cc0b19a4854eecc4a36714ab7102c03c8fd76778e8386b07fae8",
+  "elapsed_seconds": 1.1425117759499699,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 0.7461507238913327,
+    "context_conditioning": 0.32692713709548116,
+    "core_forward_total": 1.073077860986814
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.3674234614174767,
+      "mean_candidate_score": 0.2362745851278305,
+      "oracle_error_m": 0.3674234614174767,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -2.5,
+        -1.0,
+        1.0
+      ],
+      "prediction_index": 23,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.5958496928215027
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1181442048,
+  "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+  "query_index": 4728,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.0,
+    "localization_error_m": 0.3674234614174767,
+    "oracle_error_m": 0.3674234614174767,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      -2.0,
+      -0.5,
+      1.0
+    ],
+    "prediction_index": 38,
+    "success_0_5m": 1,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    -3.25,
+    -0.25,
+    2.1
+  ],
+  "receiver_id": "R023",
+  "room": "Bathrooms_idx_18",
+  "run_manifest_sha256": "e29f9431ec71d5962c2eeeea3835899b61365f7b258db7fdd32dcd2bd8e864b2",
+  "scene": "Bathrooms",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "647194f88438d32e69050ca42f8ab73bf322b74e188afe13536911767e62dad0",
+  "source_global": [
+    -2.25,
+    -0.75,
+    1.1
+  ],
+  "tau": 0.1
+}

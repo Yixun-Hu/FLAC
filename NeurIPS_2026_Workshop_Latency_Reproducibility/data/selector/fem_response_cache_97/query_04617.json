@@ -1,0 +1,69 @@
+{
+  "candidate_count": 28,
+  "candidate_indices_sha256": "b1931b458b3760687c982fe7cb30cd93b5249dcff7b2df6b8b75b18dc302f42a",
+  "context_count": 8,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "fem_audit": {
+    "candidate_count": 28,
+    "diagnostic_waveform_gain": null,
+    "element_count": 57960,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20010312185018242,
+    "maximum_relative_solver_residual": 7.901201459726262e-15,
+    "median_relative_solver_residual": 4.3141548764943495e-15,
+    "minimum_element_mean_ratio": 0.7554646406132344,
+    "minimum_element_volume_m3": 0.0002569876079977028,
+    "node_count": 11088,
+    "normalized_impedance": 24.045735261212698,
+    "sabine_absorption": 0.15333118118189462,
+    "sabine_raw_absorption": 0.15333118118189462,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "threads": 12,
+      "total_factorization_seconds": 9.034084069775417,
+      "total_residual_and_sampling_seconds": 1.2011099895462394,
+      "total_solve_seconds": 1.7850721238646656,
+      "total_symbolic_analysis_seconds": 0.08215620880946517,
+      "total_system_construction_seconds": 0.9088233471848071
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 36.38353839034123,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.42986394557823127,
+    "t60_valid_contexts": 8,
+    "volume_m3": 14.895001759546926,
+    "waveform_constructed": false
+  },
+  "frequency_band_hz": [
+    80.0,
+    300.0
+  ],
+  "mesh_metadata": {
+    "element_count": 57960,
+    "node_count": 11088,
+    "schema_version": 1,
+    "source_mesh_sha256": "55ca566bb53897d4a8e2120faa74bb0234cc130a7b63486d0ad381108a376248"
+  },
+  "method": "fem_sabine_depth_aabb_response_cache",
+  "omp_prediction_index": 18,
+  "omp_relative_residual_norm": 0.9208027961301115,
+  "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+  "query_index": 4617,
+  "response_file": "query_04617_response.npz",
+  "response_file_sha256": "bce633dbde1605e72a45012038cbf84591f868043c293f6ed24b23bcdf24717d",
+  "room": "Bathrooms_idx_14",
+  "runtime_seconds": {
+    "solve": 14.106049333000556,
+    "total": 16.190070759039372
+  },
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "aed9ca7b3303370c2c7767e8b995bc1cab43db88c4cab77838ca426791fab7f8",
+  "source_fem_result_sha256": "07e4e703e082a60beadb94740b0f990a57d5a7d3c569e904205c4bf632b2c62a",
+  "source_mesh_sha256": "81d3e44bcec11d4cc447a45ef0353b1dd426784309f06c076ef9d4b8757f4f93"
+}

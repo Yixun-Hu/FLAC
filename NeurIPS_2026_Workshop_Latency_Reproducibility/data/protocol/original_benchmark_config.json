@@ -1,0 +1,44 @@
+{
+  "agree_checkpoint": "/home/zhixuanzhao/projects/Frame_Average/FLAC-C4-FA-reproduction/weights/AGREE/AGREE_fullAR.pt",
+  "candidate_batch_size": 64,
+  "context_manifest": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json",
+  "cuda_visible_devices": "0",
+  "dataset_root": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms",
+  "device": "cuda:0",
+  "fem_external_runtime": "worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark/external_server_6query_runtime_recovery.json",
+  "fem_fallback_runtime": "worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+  "fem_oversized_dir": "worklog/worklog_yixun/exp_18_depth_aabb_oversized_benchmark",
+  "fem_primary_dir": "worklog/worklog_yixun/exp_16_depth_aabb_matched_97/results",
+  "geometry_audit": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json",
+  "methods": {
+    "fa_bf_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/BF_40k_clean_hybrid_EMA.ckpt",
+      "conditioning_method": "fa_invariant",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    },
+    "few_shot_rir": {
+      "checkpoint": "worklog/worklog_yixun/exp_10_room_helps_baselines_claude/few_shot_rir_train_seed42_run2/best-00100000.ckpt",
+      "model_config": "src/configs/model_configs/baselines/FewShotRIR_Waveform_AR.json"
+    },
+    "vanilla_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/P1_40k_clean_hybrid_EMA.ckpt",
+      "conditioning_method": "vanilla",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    },
+    "yawaug_flac": {
+      "checkpoint": "/home/zhixuanzhao/projects/Frame_Average/Checkpoint/YAWAUG_AR_40k_epoch8-step40000.ckpt",
+      "conditioning_method": "vanilla",
+      "model_config": "src/configs/model_configs/FLAC/AR/FLAC_AR.json"
+    }
+  },
+  "mplconfigdir": "/tmp/matplotlib-core-forward-latency-128",
+  "output_root": "worklog/worklog_yixun/exp_29_core_forward_latency_16room_128",
+  "python": "/home/zhixuanzhao/projects/Frame_Average/FLAC-vanilla/.venv/bin/python",
+  "repeat_count": 3,
+  "schema_version": 2,
+  "score_seed": 42,
+  "selector_latency": "worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/selector_latency_128.json",
+  "selection": "worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/frozen_16room_128.json",
+  "tau": 0.1,
+  "warmup_query_count": 1
+}

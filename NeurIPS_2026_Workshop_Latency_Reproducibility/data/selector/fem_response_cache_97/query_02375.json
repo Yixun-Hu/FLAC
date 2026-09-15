@@ -1,0 +1,69 @@
+{
+  "candidate_count": 55,
+  "candidate_indices_sha256": "bc5bf469bb428ce874fc6326d09c19d20e448b5ad38915542b0554e40932663a",
+  "context_count": 8,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "fem_audit": {
+    "candidate_count": 55,
+    "diagnostic_waveform_gain": null,
+    "element_count": 100800,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20360184608138107,
+    "maximum_relative_solver_residual": 6.696096631586856e-15,
+    "median_relative_solver_residual": 5.417747993208069e-15,
+    "minimum_element_mean_ratio": 0.7547888932355724,
+    "minimum_element_volume_m3": 0.0002706771396891304,
+    "node_count": 18850,
+    "normalized_impedance": 13.732200986473858,
+    "sabine_absorption": 0.25308410625366734,
+    "sabine_raw_absorption": 0.25308410625366734,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "threads": 12,
+      "total_factorization_seconds": 18.391110453289002,
+      "total_residual_and_sampling_seconds": 1.3953808380756527,
+      "total_solve_seconds": 2.613405607873574,
+      "total_symbolic_analysis_seconds": 0.17511432897299528,
+      "total_system_construction_seconds": 1.433501739287749
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 54.50694081782808,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.3184353741496599,
+    "t60_valid_contexts": 8,
+    "volume_m3": 27.284255680664558,
+    "waveform_constructed": false
+  },
+  "frequency_band_hz": [
+    80.0,
+    300.0
+  ],
+  "mesh_metadata": {
+    "element_count": 100800,
+    "node_count": 18850,
+    "schema_version": 1,
+    "source_mesh_sha256": "7b2de12145b19b2f83a455e3c2528c4d63c7c54cff72b1b1ceff63d84deaf31d"
+  },
+  "method": "fem_sabine_depth_aabb_response_cache",
+  "omp_prediction_index": 9,
+  "omp_relative_residual_norm": 0.8424264934378665,
+  "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R012_hybrid_IR.wav",
+  "query_index": 2375,
+  "response_file": "query_02375_response.npz",
+  "response_file_sha256": "60547bcbf7f5c839a05259e0608af520118f0fd4f4bfe3343a6c89891a2b5f3e",
+  "room": "Bedrooms_idx_33",
+  "runtime_seconds": {
+    "solve": 25.826649226015434,
+    "total": 30.283310901839286
+  },
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "81d07d916e6c7fc59e1ce6333515bd382bfd24b7ec1929b56fde93b7de92b343",
+  "source_fem_result_sha256": "04a3219434011a861b350520e0b751d213447249c26e183d87f6c997e82dca9b",
+  "source_mesh_sha256": "eeee8f3f628c06a5fb56745f08bd53ec841a1722ea7af2d80fe7d27b29f1c592"
+}

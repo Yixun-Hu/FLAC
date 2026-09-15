@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05817.npz",
+  "arrays_sha256": "70d7685560857ca91cdd2f6213a9a0c81de5e4c711b84cb4452f63c4af18a083",
+  "candidate_count": 141,
+  "candidate_indices_sha256": "cfc595b510eb3ab62a0accc32442b72d422417499ddf5956b01b467beab6a5e6",
+  "elapsed_seconds": 2.3637722490821034,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.874395937193185,
+    "context_conditioning": 0.32037200196646154,
+    "core_forward_total": 2.1947679391596466
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.5,
+      "localization_error_m": 0.5,
+      "mean_candidate_score": 0.36904826760292053,
+      "oracle_error_m": 0.0,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -2.0,
+        -1.0,
+        1.0
+      ],
+      "prediction_index": 5,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.6501753926277161
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286184960,
+  "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+  "query_index": 5817,
+  "random_candidate_metrics": {
+    "excess_error_m": 2.5495097567963922,
+    "localization_error_m": 2.5495097567963922,
+    "oracle_error_m": 0.0,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      0.0,
+      0.5,
+      1.0
+    ],
+    "prediction_index": 30,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    -0.5,
+    2.0,
+    1.5
+  ],
+  "receiver_id": "R002",
+  "room": "LivingRoomsWithHallway_idx_25",
+  "run_manifest_sha256": "e29f9431ec71d5962c2eeeea3835899b61365f7b258db7fdd32dcd2bd8e864b2",
+  "scene": "LivingRoomsWithHallway",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "05aed41732c3f973e391c7488ea0f7122ebdbaccf8479438847081fa351db0d2",
+  "source_global": [
+    -2.0,
+    -1.0,
+    1.5
+  ],
+  "tau": 0.1
+}

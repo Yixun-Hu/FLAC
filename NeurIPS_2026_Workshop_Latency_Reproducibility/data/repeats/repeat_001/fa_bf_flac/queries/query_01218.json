@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_01218.npz",
+  "arrays_sha256": "3a0f89295639ebb8a5b0bfab32cf1de539ab9bdbda53186246edd27f92549965",
+  "candidate_count": 230,
+  "candidate_indices_sha256": "0c7244d8e0c159179fc2e714eb693408bb390b2da6ccb3691e62c9787abbda19",
+  "elapsed_seconds": 3.569966912968084,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 3.0180160747841,
+    "context_conditioning": 0.3209304769989103,
+    "core_forward_total": 3.3389465517830104
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.11401754250991368,
+      "mean_candidate_score": 0.258489727973938,
+      "oracle_error_m": 0.11401754250991368,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        3.5,
+        0.5,
+        1.5
+      ],
+      "prediction_index": 201,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.7643230557441711
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286840320,
+  "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S006_R016_hybrid_IR.wav",
+  "query_index": 1218,
+  "random_candidate_metrics": {
+    "excess_error_m": 2.922921706141597,
+    "localization_error_m": 3.0369392486515103,
+    "oracle_error_m": 0.11401754250991368,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      3.0,
+      3.5,
+      1.0
+    ],
+    "prediction_index": 186,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.39,
+    0.53,
+    1.4
+  ],
+  "receiver_id": "R016",
+  "room": "MeetingRoom_idx_20",
+  "run_manifest_sha256": "e29f9431ec71d5962c2eeeea3835899b61365f7b258db7fdd32dcd2bd8e864b2",
+  "scene": "MeetingRoom",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "bc8d9255a97920dc9987717d5f18b853078e4155c0a705d700dadb3ce49e60f0",
+  "source_global": [
+    3.39,
+    0.53,
+    1.5
+  ],
+  "tau": 0.1
+}

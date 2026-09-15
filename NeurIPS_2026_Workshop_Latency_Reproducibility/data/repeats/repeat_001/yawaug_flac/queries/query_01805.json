@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_01805.npz",
+  "arrays_sha256": "d8fb412f252a35690aa43d91f472673e57db988d6c55758f020d6fa77beea598",
+  "candidate_count": 404,
+  "candidate_indices_sha256": "dc498ab099533716271f95dfd2e877c1ec4948d70b74f677f89cad4c99338ac4",
+  "elapsed_seconds": 3.620960623025894,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 3.1364346800837666,
+    "context_conditioning": 0.0889227248262614,
+    "core_forward_total": 3.225357404910028
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 1.104353758613273,
+      "localization_error_m": 1.222252019838789,
+      "mean_candidate_score": 0.3604576587677002,
+      "oracle_error_m": 0.11789826122551603,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        15.0,
+        11.5,
+        1.0
+      ],
+      "prediction_index": 254,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6126304864883423
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286450688,
+  "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav",
+  "query_index": 1805,
+  "random_candidate_metrics": {
+    "excess_error_m": 6.764971779680385,
+    "localization_error_m": 6.882870040905901,
+    "oracle_error_m": 0.11789826122551603,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      12.0,
+      6.0,
+      2.0
+    ],
+    "prediction_index": 2,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    15.16,
+    12.95,
+    1.24
+  ],
+  "receiver_id": "R019",
+  "room": "Office_idx_11",
+  "run_manifest_sha256": "fc4b2c77531ddf0855668d4b59e803801eeddd18dcff17b7ab9d304fbacd50ab",
+  "scene": "Office",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "a548ebd6d365c9bd06fad28b8c2f8513efa65cb93352ae7f95ae8f998e71142f",
+  "source_global": [
+    14.41,
+    12.43,
+    1.53
+  ],
+  "tau": 0.1
+}

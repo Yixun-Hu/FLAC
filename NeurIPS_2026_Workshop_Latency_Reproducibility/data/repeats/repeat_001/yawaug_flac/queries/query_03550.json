@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_03550.npz",
+  "arrays_sha256": "11861b5f6e21bf198cc3e3088f25748c8c123bb3b6f8f2db29c662675974e902",
+  "candidate_count": 3723,
+  "candidate_indices_sha256": "286ba84ec07b6c968c2393971b19585519eb5874c19a6f4bb8293c0277b67ee9",
+  "elapsed_seconds": 32.419573629973456,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 28.83883480564691,
+    "context_conditioning": 0.09100149688310921,
+    "core_forward_total": 28.92983630253002
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 2.8491519271520134,
+      "localization_error_m": 3.089983818727859,
+      "mean_candidate_score": 0.30808234214782715,
+      "oracle_error_m": 0.2408318915758458,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        19.0,
+        16.5,
+        1.0
+      ],
+      "prediction_index": 3705,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6181725859642029
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1287630336,
+  "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+  "query_index": 3550,
+  "random_candidate_metrics": {
+    "excess_error_m": 4.451502282372126,
+    "localization_error_m": 4.692334173947972,
+    "oracle_error_m": 0.2408318915758458,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      17.5,
+      9.0,
+      1.5
+    ],
+    "prediction_index": 3312,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    10.54,
+    20.0,
+    1.55
+  ],
+  "receiver_id": "R038",
+  "room": "Auditorium_idx_1",
+  "run_manifest_sha256": "fc4b2c77531ddf0855668d4b59e803801eeddd18dcff17b7ab9d304fbacd50ab",
+  "scene": "Auditorium",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "eae16b17b597791ca3b2ee5148f0d1a4844b771ab8f875df519228077bd88fc9",
+  "source_global": [
+    17.84,
+    13.68,
+    1.5
+  ],
+  "tau": 0.1
+}

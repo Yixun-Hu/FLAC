@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05782.npz",
+  "arrays_sha256": "b4f0b1d57a5791485b05bba0c803dc63ddd17eb64f34b8ff8ffd4a3a029ea4f6",
+  "candidate_count": 139,
+  "candidate_indices_sha256": "e57c4a3726179b91ef75d08f93003b0c344cead04d0a671e67ac1be9bea9dd63",
+  "elapsed_seconds": 2.3149140891619027,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.8463826468214393,
+    "context_conditioning": 0.32218343392014503,
+    "core_forward_total": 2.1685660807415843
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.0,
+      "localization_error_m": 0.0,
+      "mean_candidate_score": 0.16497214138507843,
+      "oracle_error_m": 0.0,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        0.5,
+        -1.0,
+        1.5
+      ],
+      "prediction_index": 42,
+      "success_0_5m": 1,
+      "success_1_0m": 1,
+      "winning_score": 0.6090966463088989
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286840320,
+  "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+  "query_index": 5782,
+  "random_candidate_metrics": {
+    "excess_error_m": 1.6583123951777,
+    "localization_error_m": 1.6583123951777,
+    "oracle_error_m": 0.0,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      2.0,
+      -0.5,
+      1.0
+    ],
+    "prediction_index": 102,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    2.0,
+    -1.0,
+    1.7
+  ],
+  "receiver_id": "R008",
+  "room": "LivingRoomsWithHallway_idx_25",
+  "run_manifest_sha256": "e29f9431ec71d5962c2eeeea3835899b61365f7b258db7fdd32dcd2bd8e864b2",
+  "scene": "LivingRoomsWithHallway",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "f753a181f201a34623968969ff201cff2c2ed2d1d0c7961640b98465d07741dd",
+  "source_global": [
+    0.5,
+    -1.0,
+    1.5
+  ],
+  "tau": 0.1
+}

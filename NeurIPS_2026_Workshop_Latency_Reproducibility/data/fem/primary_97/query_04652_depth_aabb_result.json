@@ -1,0 +1,161 @@
+{
+  "arrays_file": "query_04652_depth_aabb_scores.npz",
+  "arrays_sha256": "c239f048e6492d7e692446fb478d71fb533f7b25afb3d120905bc5d2b0184231",
+  "candidate_count": 27,
+  "context_count": 8,
+  "coverage_protocol": {
+    "all_context_sources_required_inside": true,
+    "candidate_set_policy": "frozen and identical; no filtering or score substitution",
+    "receiver_required_inside": true,
+    "required_candidate_coverage_fraction": 1.0,
+    "strict_gate_passed": true,
+    "target_source_required_inside": true
+  },
+  "depth_path": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Bathrooms/Bathrooms_idx_14/13.npy",
+  "depth_reprojection_audit": {
+    "evaluated_ray_count": 131072,
+    "fraction_aabb_behind_observation": 1.0,
+    "maximum_absolute_error_m": 1.5223259997401335,
+    "median_absolute_error_m": 0.07502977258147236,
+    "median_relative_error": 0.08297572314612389,
+    "p95_absolute_error_m": 0.672417423792998,
+    "p95_relative_error": 1.0726300759495329
+  },
+  "depth_sha256": "4090ee4592e4e45c086fdd95672f153af66165925ae75e93371a870c959b6ff5",
+  "envelope_audit": {
+    "dimensions_m": [
+      2.416903464345027,
+      2.3167282531928173,
+      2.6638916054131174
+    ],
+    "invalid_depth_count": 0,
+    "lower_receiver_local_m": [
+      -1.8104331056052796,
+      -0.662209254244531,
+      -0.9999821165184711
+    ],
+    "maximum_valid_depth_m": 2.8139895736881675,
+    "minimum_valid_depth_m": 0.18775810807310678,
+    "padding_m": 0.05,
+    "upper_receiver_local_m": [
+      0.6064703587397472,
+      1.654518998948286,
+      1.6639094888946462
+    ],
+    "valid_depth_count": 131072,
+    "valid_depth_fraction": 1.0,
+    "volume_m3": 14.915951018721554
+  },
+  "fem_audit": {
+    "candidate_count": 27,
+    "diagnostic_waveform_gain": null,
+    "element_count": 57960,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20019620598286414,
+    "maximum_relative_solver_residual": 7.545411056474577e-15,
+    "median_relative_solver_residual": 4.499404563076762e-15,
+    "minimum_element_mean_ratio": 0.7556076539728003,
+    "minimum_element_volume_m3": 0.0002573490513927101,
+    "node_count": 11088,
+    "normalized_impedance": 25.538535958136894,
+    "sabine_absorption": 0.1450447677692045,
+    "sabine_raw_absorption": 0.1450447677692045,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "maximum_factor_nonzeros": 2113194,
+      "maximum_system_nonzeros": 154634,
+      "threads": 12,
+      "total_factorization_seconds": 8.741159785306081,
+      "total_residual_and_sampling_seconds": 1.028780651744455,
+      "total_solve_seconds": 2.0163488052785397,
+      "total_symbolic_analysis_seconds": 0.06388183915987611,
+      "total_system_construction_seconds": 0.8385568538215011
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 36.41838067310812,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.45462585034013603,
+    "t60_valid_contexts": 8,
+    "volume_m3": 14.915951018721547,
+    "waveform_constructed": false
+  },
+  "interpretation": "depth-panorama-only axis-aligned matched-input FEM baseline; no official unseen-room mesh",
+  "lattice_audit": {
+    "axis_steps_m": [
+      0.115090641159287,
+      0.11583641265964087,
+      0.11582137414839641
+    ],
+    "cell_counts": [
+      21,
+      20,
+      23
+    ],
+    "edge_safety_factor": 0.95,
+    "element_count": 57960,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20019620598286372,
+    "node_count": 11088
+  },
+  "mesh_file": "query_04652_depth_aabb_mesh.npz",
+  "mesh_sha256": "8ae7f34d80e5ef371b8b313d59e0f8d953feda9242de5ac5345bfc8f55ebf5d7",
+  "method": "fem_sabine_depth_aabb",
+  "metrics": {
+    "excess_error_m": 0.12556702623967597,
+    "localization_error_m": 0.46097722286464443,
+    "mean_candidate_score": 0.08033037930727005,
+    "oracle_error_m": 0.33541019662496846,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      2.5,
+      0.5,
+      2.0
+    ],
+    "prediction_index": 18,
+    "success_0_5m": 1,
+    "success_1_0m": 1,
+    "winning_score": 0.2711753249168396
+  },
+  "point_audit": {
+    "candidate_count": 27,
+    "candidate_inside_count": 27,
+    "context_count": 8,
+    "context_inside_count": 8,
+    "source_inside": true
+  },
+  "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+  "query_index": 4652,
+  "receiver_global": [
+    2.95,
+    0.0,
+    0.95
+  ],
+  "receiver_id": "R013",
+  "room": "Bathrooms_idx_14",
+  "runtime_seconds": {
+    "fullband_solve": 13.75288840290159,
+    "mesh_construction": 0.6411534619983286,
+    "operator_construction": 0.9213685318827629,
+    "total": 15.315410396782681
+  },
+  "scene": "Bathrooms",
+  "schema_version": 2,
+  "sha256": "15e6e7504b87de7cdc097e0a19fe2ad18f7434a10a14128452476a5579d9e99d",
+  "source_global": [
+    2.85,
+    0.5,
+    1.7
+  ],
+  "sparse_recovery": {
+    "relative_residual_norm": 0.8537122921842862,
+    "support": [
+      18
+    ]
+  }
+}

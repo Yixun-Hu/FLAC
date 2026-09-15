@@ -1,0 +1,741 @@
+{
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "excluded": [
+    "manifest and geometry-audit loading",
+    "room base-grid reconstruction",
+    "localization metric computation",
+    "result serialization"
+  ],
+  "full_selection_sha256": "9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",
+  "geometry_audit_sha256": "ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a",
+  "queries": [
+    {
+      "candidate_count": 5295,
+      "candidate_indices_sha256": "c7c877d2a53cf279b68918bf9b2fcc98b11e7b349f661a364fd709aa39dbb343",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Cafe/Cafe_idx_1/88.npy",
+      "depth_file_sha256": "5b084f08f53b1537db1edbbd0636aaeabeab09573907105aab953132bd11e78a",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.004692916,
+        "depth_aabb_strict_gate_seconds": 0.015051668,
+        "fallback_total_seconds": 0.019848405,
+        "random_candidate_selection_seconds": 0.000101272
+      },
+      "prediction_index": 57,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "query_index": 179,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.005356238,
+          0.004692916,
+          0.004368522
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.0176042,
+          0.015051668,
+          0.014776458
+        ],
+        "fallback_total_seconds": [
+          0.023121688,
+          0.019848405,
+          0.019240058
+        ],
+        "random_candidate_selection_seconds": [
+          0.00015787,
+          0.000101272,
+          9.2629e-05
+        ]
+      },
+      "room": "Cafe_idx_1",
+      "strict_gate_audit": {
+        "candidate_count": 5295,
+        "candidate_inside_count": 1719,
+        "context_count": 8,
+        "context_inside_count": 5,
+        "source_inside": false
+      }
+    },
+    {
+      "candidate_count": 255,
+      "candidate_indices_sha256": "40b9b8fc60a1d9a3a00739f5e6c85df74cd113a9f5e3bcb7737d1a50ac1124f5",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Office/Office_idx_10/4.npy",
+      "depth_file_sha256": "2152e11128d9201454aa38d061c7d10c7d64fa9436842246535b0753e636e3cb",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002271032,
+        "depth_aabb_strict_gate_seconds": 0.014763548,
+        "fallback_total_seconds": 0.016807198,
+        "random_candidate_selection_seconds": 9.2961e-05
+      },
+      "prediction_index": 236,
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S005_R004_hybrid_IR.wav",
+      "query_index": 1440,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002369728,
+          0.002271032,
+          0.001771385
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016260432,
+          0.014440691,
+          0.014763548
+        ],
+        "fallback_total_seconds": [
+          0.018742789,
+          0.016807198,
+          0.016621744
+        ],
+        "random_candidate_selection_seconds": [
+          0.000109956,
+          9.2961e-05,
+          8.4395e-05
+        ]
+      },
+      "room": "Office_idx_10",
+      "strict_gate_audit": {
+        "candidate_count": 255,
+        "candidate_inside_count": 249,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 407,
+      "candidate_indices_sha256": "33d89cb12c1ff67ab78ed8cad94c697183ba21b179c7850917f0775fff08d63d",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Office/Office_idx_11/15.npy",
+      "depth_file_sha256": "f7390bef914619fe7ac1ce4442acddadfb1a27ac1cd9dfb503b45a3322ad9aac",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002448718,
+        "depth_aabb_strict_gate_seconds": 0.014602415,
+        "fallback_total_seconds": 0.017143699,
+        "random_candidate_selection_seconds": 9.035e-05
+      },
+      "prediction_index": 239,
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S005_R015_hybrid_IR.wav",
+      "query_index": 1751,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002513259,
+          0.002448718,
+          0.001947894
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016500478,
+          0.014602415,
+          0.014568604
+        ],
+        "fallback_total_seconds": [
+          0.019123691,
+          0.017143699,
+          0.016606327
+        ],
+        "random_candidate_selection_seconds": [
+          0.000106908,
+          9.035e-05,
+          8.7589e-05
+        ]
+      },
+      "room": "Office_idx_11",
+      "strict_gate_audit": {
+        "candidate_count": 407,
+        "candidate_inside_count": 194,
+        "context_count": 8,
+        "context_inside_count": 3,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 404,
+      "candidate_indices_sha256": "dc498ab099533716271f95dfd2e877c1ec4948d70b74f677f89cad4c99338ac4",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Office/Office_idx_11/19.npy",
+      "depth_file_sha256": "d01ec1458a68c3713da8974999c340822ccfd5162faef916cab0ed68ea107c56",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.00251482,
+        "depth_aabb_strict_gate_seconds": 0.014688578,
+        "fallback_total_seconds": 0.017298634,
+        "random_candidate_selection_seconds": 9.2827e-05
+      },
+      "prediction_index": 2,
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav",
+      "query_index": 1805,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002604065,
+          0.00251482,
+          0.002078113
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016465195,
+          0.014688578,
+          0.014535369
+        ],
+        "fallback_total_seconds": [
+          0.019181514,
+          0.017298634,
+          0.016699479
+        ],
+        "random_candidate_selection_seconds": [
+          0.000109321,
+          9.2827e-05,
+          8.3628e-05
+        ]
+      },
+      "room": "Office_idx_11",
+      "strict_gate_audit": {
+        "candidate_count": 404,
+        "candidate_inside_count": 380,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 220,
+      "candidate_indices_sha256": "e156ce1a68995a5d9407f127845406b21552433765a4050bf31696dfeb48a048",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_50/25.npy",
+      "depth_file_sha256": "df295ffceca7966ac97fda890dcc377c66d86cc521d525e6ed9fc28802084a04",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002452146,
+        "depth_aabb_strict_gate_seconds": 0.015003786,
+        "fallback_total_seconds": 0.017591846,
+        "random_candidate_selection_seconds": 0.000118039
+      },
+      "prediction_index": 115,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R025_hybrid_IR.wav",
+      "query_index": 5129,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002452146,
+          0.003245806,
+          0.002223125
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015003786,
+          0.018689732,
+          0.014901349
+        ],
+        "fallback_total_seconds": [
+          0.017591846,
+          0.022057399,
+          0.017229665
+        ],
+        "random_candidate_selection_seconds": [
+          0.000133099,
+          0.000118039,
+          0.000102552
+        ]
+      },
+      "room": "Apartments_idx_50",
+      "strict_gate_audit": {
+        "candidate_count": 220,
+        "candidate_inside_count": 179,
+        "context_count": 8,
+        "context_inside_count": 6,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "0118d15de826831e92eb796520ce8c4e4b748019ffb8d5deb0585f9329d24096",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/6.npy",
+      "depth_file_sha256": "68b164cddbe76e59150fa108800617ae4413c501401c9238fcea95a5146517da",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.00238861,
+        "depth_aabb_strict_gate_seconds": 0.014690444,
+        "fallback_total_seconds": 0.017181867,
+        "random_candidate_selection_seconds": 0.000100782
+      },
+      "prediction_index": 169,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S007_R006_hybrid_IR.wav",
+      "query_index": 5182,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002536533,
+          0.00238861,
+          0.001845164
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015155204,
+          0.014690444,
+          0.014624717
+        ],
+        "fallback_total_seconds": [
+          0.017809363,
+          0.017181867,
+          0.016573146
+        ],
+        "random_candidate_selection_seconds": [
+          0.000114862,
+          0.000100483,
+          0.000100782
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 170,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "140ada034cda4ada2e3a05a9434c797e7fc53951c1cf1dec09d3bf4801b3aff5",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/6.npy",
+      "depth_file_sha256": "68b164cddbe76e59150fa108800617ae4413c501401c9238fcea95a5146517da",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002427462,
+        "depth_aabb_strict_gate_seconds": 0.014795533,
+        "fallback_total_seconds": 0.017301542,
+        "random_candidate_selection_seconds": 9.1062e-05
+      },
+      "prediction_index": 89,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "query_index": 5194,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.00246171,
+          0.002427462,
+          0.002147067
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015392512,
+          0.014780634,
+          0.014795533
+        ],
+        "fallback_total_seconds": [
+          0.017990426,
+          0.017301542,
+          0.017032647
+        ],
+        "random_candidate_selection_seconds": [
+          0.000132991,
+          9.1062e-05,
+          8.7624e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 170,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "9fcca28ea7e628a6ecf60a26a9dfa064d57d36730e878e84c48c963bfb48bcd8",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/18.npy",
+      "depth_file_sha256": "f267a0010f4ef2016295c25873673ae309bee5cf8f37afd9c6377a0104d2892e",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002422287,
+        "depth_aabb_strict_gate_seconds": 0.014605216,
+        "fallback_total_seconds": 0.017113442,
+        "random_candidate_selection_seconds": 8.3341e-05
+      },
+      "prediction_index": 23,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "query_index": 5281,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.0025575,
+          0.002422287,
+          0.001839562
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015040272,
+          0.014605216,
+          0.01445959
+        ],
+        "fallback_total_seconds": [
+          0.01773326,
+          0.017113442,
+          0.01638387
+        ],
+        "random_candidate_selection_seconds": [
+          0.000131933,
+          8.3341e-05,
+          8.2344e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 170,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "1ddb55701f9e7a79c6a32faa52cc3828d4c8200e2b21ffea4ee713e0d80d50a7",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/10.npy",
+      "depth_file_sha256": "d4f204f3409f7999461f5d7863c330cd1d4ca92927e5b6a16efd2a0876c1b47b",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002020233,
+        "depth_aabb_strict_gate_seconds": 0.014638281,
+        "fallback_total_seconds": 0.016750706,
+        "random_candidate_selection_seconds": 9.3729e-05
+      },
+      "prediction_index": 9,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S005_R010_hybrid_IR.wav",
+      "query_index": 5296,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002165748,
+          0.002020233,
+          0.001735367
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015363877,
+          0.014638281,
+          0.014449936
+        ],
+        "fallback_total_seconds": [
+          0.017656266,
+          0.016750706,
+          0.016281566
+        ],
+        "random_candidate_selection_seconds": [
+          0.00012318,
+          8.9851e-05,
+          9.3729e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 136,
+        "context_count": 8,
+        "context_inside_count": 7,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "21fe4cf9731bcf63aa4250a015cc50380d96b784e7e8cf7c67f4b65afffbcc60",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/8.npy",
+      "depth_file_sha256": "1cc84e38f8aca4b6c292f86402b935f18518e7c5d2063a1286e8ceb3a23250e1",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002343566,
+        "depth_aabb_strict_gate_seconds": 0.014796684,
+        "fallback_total_seconds": 0.01723418,
+        "random_candidate_selection_seconds": 9.1406e-05
+      },
+      "prediction_index": 167,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R008_hybrid_IR.wav",
+      "query_index": 5333,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002414953,
+          0.002343566,
+          0.001907436
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.01529414,
+          0.014796684,
+          0.014644991
+        ],
+        "fallback_total_seconds": [
+          0.017832367,
+          0.01723418,
+          0.016640561
+        ],
+        "random_candidate_selection_seconds": [
+          0.000119844,
+          9.1406e-05,
+          8.5662e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 170,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "5425ab1f66b2180b6b68a240108790f34346b0e5d61296e038b42f030c52d0ab",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/15.npy",
+      "depth_file_sha256": "7e56b4f0163934f530123ffd4d4a072a226212beb077d50e6dd39e001e54e952",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.00245745,
+        "depth_aabb_strict_gate_seconds": 0.014637172,
+        "fallback_total_seconds": 0.017102452,
+        "random_candidate_selection_seconds": 9.8987e-05
+      },
+      "prediction_index": 158,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "query_index": 5334,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002601151,
+          0.00245745,
+          0.00216315
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015039843,
+          0.014550867,
+          0.014637172
+        ],
+        "fallback_total_seconds": [
+          0.017763812,
+          0.017102452,
+          0.016901751
+        ],
+        "random_candidate_selection_seconds": [
+          0.000119549,
+          9.1609e-05,
+          9.8987e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 159,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 176,
+      "candidate_indices_sha256": "c5e5e36c391c072d7a7b8a26c443036f691d3d5a311f5c8a5b6ac8ba92fc1c8c",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Apartments/Apartments_idx_42/21.npy",
+      "depth_file_sha256": "7fc7b8f176ca3c2fde40935b0befeafebad9e7c63d9cb139d7bcca8420a930eb",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002219874,
+        "depth_aabb_strict_gate_seconds": 0.014647609,
+        "fallback_total_seconds": 0.01697334,
+        "random_candidate_selection_seconds": 0.000103574
+      },
+      "prediction_index": 153,
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "query_index": 5363,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002330696,
+          0.002219874,
+          0.001878209
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.015196517,
+          0.014647609,
+          0.014552709
+        ],
+        "fallback_total_seconds": [
+          0.017654743,
+          0.01697334,
+          0.016520128
+        ],
+        "random_candidate_selection_seconds": [
+          0.000123001,
+          0.000103574,
+          8.6796e-05
+        ]
+      },
+      "room": "Apartments_idx_42",
+      "strict_gate_audit": {
+        "candidate_count": 176,
+        "candidate_inside_count": 159,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 279,
+      "candidate_indices_sha256": "7e45db385fb9e15482d17e82f7e4d84f2f219f28d4635286ff1751b81f39de5a",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/3.npy",
+      "depth_file_sha256": "0d6adee1d31246f5c71366224324c36700d50f44b48f33af6cc98300c2b84590",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002480676,
+        "depth_aabb_strict_gate_seconds": 0.014733475,
+        "fallback_total_seconds": 0.017329324,
+        "random_candidate_selection_seconds": 0.000112807
+      },
+      "prediction_index": 135,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav",
+      "query_index": 5556,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.00252649,
+          0.002480676,
+          0.002222655
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016305597,
+          0.014733475,
+          0.014432504
+        ],
+        "fallback_total_seconds": [
+          0.01895794,
+          0.017329324,
+          0.0167489
+        ],
+        "random_candidate_selection_seconds": [
+          0.000122811,
+          0.000112807,
+          9.1384e-05
+        ]
+      },
+      "room": "LivingRoomsWithHallway_idx_30",
+      "strict_gate_audit": {
+        "candidate_count": 279,
+        "candidate_inside_count": 234,
+        "context_count": 8,
+        "context_inside_count": 7,
+        "source_inside": false
+      }
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "121563851be99c642c79c198abee89c1c13d7265fe1e9386d2c79df64213a5de",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/25.npy",
+      "depth_file_sha256": "67202ced475bd810607366dbe828bb84df403b9b046593a0f0624801d457cc92",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002137381,
+        "depth_aabb_strict_gate_seconds": 0.014817581,
+        "fallback_total_seconds": 0.017065846,
+        "random_candidate_selection_seconds": 0.000108597
+      },
+      "prediction_index": 48,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S001_R025_hybrid_IR.wav",
+      "query_index": 5732,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002158994,
+          0.002137381,
+          0.00181539
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016552521,
+          0.014817581,
+          0.014700149
+        ],
+        "fallback_total_seconds": [
+          0.018846217,
+          0.017065846,
+          0.016605714
+        ],
+        "random_candidate_selection_seconds": [
+          0.000131221,
+          0.000108597,
+          8.7888e-05
+        ]
+      },
+      "room": "LivingRoomsWithHallway_idx_25",
+      "strict_gate_audit": {
+        "candidate_count": 139,
+        "candidate_inside_count": 129,
+        "context_count": 8,
+        "context_inside_count": 7,
+        "source_inside": true
+      }
+    },
+    {
+      "candidate_count": 141,
+      "candidate_indices_sha256": "cfc595b510eb3ab62a0accc32442b72d422417499ddf5956b01b467beab6a5e6",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/2.npy",
+      "depth_file_sha256": "472ea6b72223d8a09850d96e6b3ae03115645d89b62fcd436056f5c6809be590",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002391394,
+        "depth_aabb_strict_gate_seconds": 0.014419777,
+        "fallback_total_seconds": 0.016901183,
+        "random_candidate_selection_seconds": 8.7238e-05
+      },
+      "prediction_index": 30,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "query_index": 5817,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002524701,
+          0.002391394,
+          0.001881294
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.0162076,
+          0.014419777,
+          0.014296495
+        ],
+        "fallback_total_seconds": [
+          0.018858988,
+          0.016901183,
+          0.01626025
+        ],
+        "random_candidate_selection_seconds": [
+          0.000123576,
+          8.7238e-05,
+          8.0157e-05
+        ]
+      },
+      "room": "LivingRoomsWithHallway_idx_25",
+      "strict_gate_audit": {
+        "candidate_count": 141,
+        "candidate_inside_count": 130,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": false
+      }
+    },
+    {
+      "candidate_count": 139,
+      "candidate_indices_sha256": "62385975eb7b15c1bc93969c7d541f659365a0ded06de74a238e680637455758",
+      "depth_file": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/17.npy",
+      "depth_file_sha256": "aba2f115c0471ebfc6fadda0ab57495745e223b5bb6e3701516e4d2154f53e6a",
+      "median_seconds": {
+        "candidate_preparation_seconds": 0.002444328,
+        "depth_aabb_strict_gate_seconds": 0.014606256,
+        "fallback_total_seconds": 0.017163042,
+        "random_candidate_selection_seconds": 0.000109981
+      },
+      "prediction_index": 101,
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "query_index": 5832,
+      "repeat_seconds": {
+        "candidate_preparation_seconds": [
+          0.002493424,
+          0.002444328,
+          0.002325809
+        ],
+        "depth_aabb_strict_gate_seconds": [
+          0.016759572,
+          0.014606256,
+          0.014444691
+        ],
+        "fallback_total_seconds": [
+          0.019389829,
+          0.017163042,
+          0.016881772
+        ],
+        "random_candidate_selection_seconds": [
+          0.000133239,
+          0.000109981,
+          0.000108784
+        ]
+      },
+      "room": "LivingRoomsWithHallway_idx_25",
+      "strict_gate_audit": {
+        "candidate_count": 139,
+        "candidate_inside_count": 134,
+        "context_count": 8,
+        "context_inside_count": 8,
+        "source_inside": true
+      }
+    }
+  ],
+  "query_count": 16,
+  "random_seed": 42,
+  "record_type": "fem_strict_failure_random_candidate_latency",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f",
+  "strict_selection_sha256": "67bdd25f3df704bc1c57558e7cb68cfaa5d9e60758f2c70e87a59eddc33bcfa9",
+  "timing_boundary": "frozen candidate preparation plus depth-AABB strict-coverage detection plus deterministic random candidate selection"
+}

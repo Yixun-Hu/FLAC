@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05281.npz",
+  "arrays_sha256": "19c9a0f38486802b467c46a6e2997ceb95a99e64f9cbcc0c3a239a7766ebe349",
+  "candidate_count": 176,
+  "candidate_indices_sha256": "9fcca28ea7e628a6ecf60a26a9dfa064d57d36730e878e84c48c963bfb48bcd8",
+  "elapsed_seconds": 1.6389933689497411,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.3612731117755175,
+    "context_conditioning": 0.0900420390535146,
+    "core_forward_total": 1.451315150829032
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 0.7071067811865476,
+      "localization_error_m": 0.7071067811865476,
+      "mean_candidate_score": 0.39533182978630066,
+      "oracle_error_m": 0.0,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        0.0,
+        0.5,
+        2.0
+      ],
+      "prediction_index": 59,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.7877594232559204
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286712832,
+  "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+  "query_index": 5281,
+  "random_candidate_metrics": {
+    "excess_error_m": 2.5495097567963922,
+    "localization_error_m": 2.5495097567963922,
+    "oracle_error_m": 0.0,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      -0.5,
+      -1.5,
+      1.5
+    ],
+    "prediction_index": 23,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    2.5,
+    2.0,
+    1.5
+  ],
+  "receiver_id": "R018",
+  "room": "Apartments_idx_42",
+  "run_manifest_sha256": "b5b50134d5d727580408d7f4cd7920a066548355691d60b2da3a44e235879f26",
+  "scene": "Apartments",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "afb7a7df1ae174b1824c79a2a88de0240bac14045e09106ca1747c33cce4636b",
+  "source_global": [
+    0.0,
+    1.0,
+    1.5
+  ],
+  "tau": 0.1
+}

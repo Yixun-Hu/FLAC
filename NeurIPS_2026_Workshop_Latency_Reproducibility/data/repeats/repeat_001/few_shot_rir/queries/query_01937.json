@@ -1,0 +1,83 @@
+{
+  "arrays_file": "queries/query_01937.npz",
+  "arrays_sha256": "931a6ff8f596fe7c95213f17b0def39397052f768f8aba04f34da487e7bf82c0",
+  "candidate_count": 57,
+  "candidate_indices_sha256": "982749d15d817432b59e7b8d6257e67caf9175eb370de84ee15c4ac25b5274ea",
+  "candidate_score_name": "agree_cosine",
+  "context_counts": [
+    8
+  ],
+  "diagnostics": {
+    "8": {
+      "deterministic_waveform_generation": true
+    }
+  },
+  "elapsed_seconds": 0.11419580294750631,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 0.042491958010941744,
+    "core_forward_total": 0.042491958010941744
+  },
+  "method": "few_shot_rir_waveform",
+  "metrics": {
+    "8": {
+      "excess_error_m": 0.3573092340160875,
+      "localization_error_m": 0.5844655678480982,
+      "mean_candidate_score": 0.30446213483810425,
+      "oracle_error_m": 0.22715633383201075,
+      "oracle_normalized_success_0_5m": 1,
+      "oracle_normalized_success_1_0m": 1,
+      "prediction_global": [
+        -5.0,
+        -1.0,
+        1.5
+      ],
+      "prediction_index": 18,
+      "success_0_5m": 0,
+      "success_1_0m": 1,
+      "winning_score": 0.3873472809791565
+    }
+  },
+  "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+  "query_index": 1937,
+  "random_candidate_metrics": {
+    "excess_error_m": 0.09159121517817373,
+    "localization_error_m": 0.3187475490101845,
+    "oracle_error_m": 0.22715633383201075,
+    "oracle_normalized_success_0_5m": 1,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      -5.0,
+      -1.5,
+      1.0
+    ],
+    "prediction_index": 14,
+    "success_0_5m": 1,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    -5.69,
+    -2.59,
+    1.28
+  ],
+  "receiver_id": "R014",
+  "room": "Bedrooms_idx_18",
+  "run_manifest_sha256": "b6ac84e4326f26050e238dc40a5aa02c94be84fdad8c201fb85886b8e2dfdffd",
+  "scene": "Bedrooms",
+  "schema_version": 2,
+  "sha256": "512a5b7c4f15c9fb247bb645b97777afb86038e60ca5578ff3928f5963dbaa67",
+  "source_global": [
+    -4.9,
+    -1.54,
+    1.3
+  ]
+}

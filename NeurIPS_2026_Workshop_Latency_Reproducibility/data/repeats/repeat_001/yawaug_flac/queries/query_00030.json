@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_00030.npz",
+  "arrays_sha256": "1985c82db63ae27a63396ef3558a0560c0842533176719fd42df7b4a63dc4607",
+  "candidate_count": 5296,
+  "candidate_indices_sha256": "54c8c7f0b11328b48cd5b2c7b7076778a647a6bf91a743f33141e207b7f8846a",
+  "elapsed_seconds": 46.06162898405455,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 41.03174152970314,
+    "context_conditioning": 0.09127191104926169,
+    "core_forward_total": 41.1230134407524
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 7.29233537712457,
+      "localization_error_m": 7.618831931470861,
+      "mean_candidate_score": 0.4420459270477295,
+      "oracle_error_m": 0.32649655434629027,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        3.5,
+        14.0,
+        2.5
+      ],
+      "prediction_index": 564,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.6936454772949219
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1287237120,
+  "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+  "query_index": 30,
+  "random_candidate_metrics": {
+    "excess_error_m": 4.874138022318369,
+    "localization_error_m": 5.200634576664659,
+    "oracle_error_m": 0.32649655434629027,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      7.5,
+      11.5,
+      2.5
+    ],
+    "prediction_index": 1527,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    11.65,
+    12.79,
+    1.5
+  ],
+  "receiver_id": "R047",
+  "room": "Cafe_idx_1",
+  "run_manifest_sha256": "fc4b2c77531ddf0855668d4b59e803801eeddd18dcff17b7ab9d304fbacd50ab",
+  "scene": "Cafe",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "ed4970d2301f047185be38b0b450d48b30fbabe5b031c92227fb98c336b87bc2",
+  "source_global": [
+    5.65,
+    6.79,
+    1.3
+  ],
+  "tau": 0.1
+}

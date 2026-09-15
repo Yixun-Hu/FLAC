@@ -1,0 +1,161 @@
+{
+  "arrays_file": "query_00335_depth_aabb_scores.npz",
+  "arrays_sha256": "662fa44d081028c4c04a1298d42386ed8a0e460eaf94eb9871dce4e08f4df77e",
+  "candidate_count": 5296,
+  "context_count": 8,
+  "coverage_protocol": {
+    "all_context_sources_required_inside": true,
+    "candidate_set_policy": "frozen and identical; no filtering or score substitution",
+    "receiver_required_inside": true,
+    "required_candidate_coverage_fraction": 1.0,
+    "strict_gate_passed": true,
+    "target_source_required_inside": true
+  },
+  "depth_path": "/home/zhixuanzhao/projects/rir2rir/FLAC/AcousticRooms/depth_map/Cafe/Cafe_idx_1/63.npy",
+  "depth_reprojection_audit": {
+    "evaluated_ray_count": 131062,
+    "fraction_aabb_behind_observation": 1.0,
+    "maximum_absolute_error_m": 11.236569326344537,
+    "median_absolute_error_m": 0.1572033731992537,
+    "median_relative_error": 0.09967684969922813,
+    "p95_absolute_error_m": 4.066303066164223,
+    "p95_relative_error": 1.2504859268433455
+  },
+  "depth_sha256": "f3530f36c55ade716de30f1f58b70c3671836e272030df3bca2b1e0cd45993ba",
+  "envelope_audit": {
+    "dimensions_m": [
+      24.700772967689858,
+      16.78304029547412,
+      2.9390136569193275
+    ],
+    "invalid_depth_count": 10,
+    "lower_receiver_local_m": [
+      -11.351121357889486,
+      -7.814272458334917,
+      -1.5499717629239018
+    ],
+    "maximum_valid_depth_m": 15.958320830628686,
+    "minimum_valid_depth_m": 1.1000587485682947,
+    "padding_m": 0.05,
+    "upper_receiver_local_m": [
+      13.34965160980037,
+      8.968767837139202,
+      1.3890418939954257
+    ],
+    "valid_depth_count": 131062,
+    "valid_depth_fraction": 0.9999237060546875,
+    "volume_m3": 1218.3800675189425
+  },
+  "fem_audit": {
+    "candidate_count": 5296,
+    "diagnostic_waveform_gain": null,
+    "element_count": 4305000,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.2066631140085904,
+    "maximum_relative_solver_residual": 4.690924089785679e-14,
+    "median_relative_solver_residual": 9.71773907341449e-15,
+    "minimum_element_mean_ratio": 0.7542906825102583,
+    "minimum_element_volume_m3": 0.0002830151144062447,
+    "node_count": 755196,
+    "normalized_impedance": 18.554218525860605,
+    "sabine_absorption": 0.19409829927669842,
+    "sabine_raw_absorption": 0.19409829927669842,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "maximum_factor_nonzeros": 497006657,
+      "maximum_system_nonzeros": 11024886,
+      "threads": 24,
+      "total_factorization_seconds": 2292.796248488128,
+      "total_residual_and_sampling_seconds": 5.243606972973794,
+      "total_solve_seconds": 57.50475379242562,
+      "total_symbolic_analysis_seconds": 5.376921062124893,
+      "total_system_construction_seconds": 48.122566658537835
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 1072.9511235352534,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.9419047619047618,
+    "t60_valid_contexts": 8,
+    "volume_m3": 1218.3800675189473,
+    "waveform_constructed": false
+  },
+  "interpretation": "depth-panorama-only axis-aligned matched-input FEM baseline; no official unseen-room mesh",
+  "lattice_audit": {
+    "axis_steps_m": [
+      0.12049157545214564,
+      0.11987885925338657,
+      0.11756054627677312
+    ],
+    "cell_counts": [
+      205,
+      140,
+      25
+    ],
+    "edge_safety_factor": 0.95,
+    "element_count": 4305000,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.2066631140085881,
+    "node_count": 755196
+  },
+  "mesh_file": "query_00335_depth_aabb_mesh.npz",
+  "mesh_sha256": "363276968a38e0263ecad83b84c483c4ef2693e3c098b72beafc94b15a7d7c79",
+  "method": "fem_sabine_depth_aabb",
+  "metrics": {
+    "excess_error_m": 13.527982865682453,
+    "localization_error_m": 13.854479420028744,
+    "mean_candidate_score": 0.03911677002906799,
+    "oracle_error_m": 0.32649655434629027,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      19.5,
+      6.5,
+      1.5
+    ],
+    "prediction_index": 3821,
+    "success_0_5m": 0,
+    "success_1_0m": 0,
+    "winning_score": 0.3375507593154907
+  },
+  "point_audit": {
+    "candidate_count": 5296,
+    "candidate_inside_count": 5296,
+    "context_count": 8,
+    "context_inside_count": 8,
+    "source_inside": true
+  },
+  "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+  "query_index": 335,
+  "receiver_global": [
+    12.15,
+    11.29,
+    1.5
+  ],
+  "receiver_id": "R063",
+  "room": "Cafe_idx_1",
+  "runtime_seconds": {
+    "fullband_solve": 2458.9458097799215,
+    "mesh_construction": 42.72799976798706,
+    "operator_construction": 58.53571444097906,
+    "total": 2560.2095239888877
+  },
+  "scene": "Cafe",
+  "schema_version": 2,
+  "sha256": "5ec456113025cdbb05be209a4c4ad0575997aaa6578c019c784d57b9db1d674c",
+  "source_global": [
+    5.65,
+    6.79,
+    1.3
+  ],
+  "sparse_recovery": {
+    "relative_residual_norm": 0.8139098454222999,
+    "support": [
+      3821
+    ]
+  }
+}

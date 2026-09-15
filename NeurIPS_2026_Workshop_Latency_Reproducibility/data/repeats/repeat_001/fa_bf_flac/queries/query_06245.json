@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_06245.npz",
+  "arrays_sha256": "60e7559fb5955fb258b59472743f1476700ba2e4ce0a54151043574b61983f84",
+  "candidate_count": 263,
+  "candidate_indices_sha256": "854340718ded0e076ed339eccb2472b79b0cf350dbb1be003691ec296aa8e51d",
+  "elapsed_seconds": 4.054672708967701,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 3.4715922612231225,
+    "context_conditioning": 0.3200139058753848,
+    "core_forward_total": 3.7916061670985073
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 1.0933339945636267,
+      "localization_error_m": 1.1640446726822815,
+      "mean_candidate_score": 0.3502037823200226,
+      "oracle_error_m": 0.07071067811865477,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        1.5,
+        1.0,
+        1.0
+      ],
+      "prediction_index": 249,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.8115095496177673
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286971392,
+  "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R023_hybrid_IR.wav",
+  "query_index": 6245,
+  "random_candidate_metrics": {
+    "excess_error_m": 3.444257316045731,
+    "localization_error_m": 3.5149679941643854,
+    "oracle_error_m": 0.07071067811865477,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 0,
+    "prediction_global": [
+      0.0,
+      -2.5,
+      2.0
+    ],
+    "prediction_index": 119,
+    "success_0_5m": 0,
+    "success_1_0m": 0
+  },
+  "receiver_global": [
+    1.95,
+    -3.05,
+    1.6
+  ],
+  "receiver_id": "R023",
+  "room": "Restaurants_idx_24",
+  "run_manifest_sha256": "e29f9431ec71d5962c2eeeea3835899b61365f7b258db7fdd32dcd2bd8e864b2",
+  "scene": "Restaurants",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "3ca08e52cb798cc32153f9e01fe319a843164c915a5f552e24cee17c99809c6f",
+  "source_global": [
+    0.45,
+    0.95,
+    1.5
+  ],
+  "tau": 0.1
+}

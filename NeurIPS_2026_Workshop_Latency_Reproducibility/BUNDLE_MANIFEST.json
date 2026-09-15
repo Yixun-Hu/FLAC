@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "bundle_name": "NeurIPS_2026_Workshop_Latency_Reproducibility",
+  "created_on": "2026-08-31",
+  "publication_scope": {
+    "repeat_count": 1,
+    "included_repeat": "repeat_001",
+    "later_repeats_included": false,
+    "room_count": 16,
+    "queries_per_room": 8,
+    "query_count": 128,
+    "candidate_evaluations": 92608,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "method_count": 5,
+    "methods": [
+      "vanilla_flac",
+      "fa_bf_flac",
+      "yawaug_flac",
+      "few_shot_rir",
+      "fem_omp"
+    ]
+  },
+  "selection_sha256": "9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",
+  "selector_latency_sha256": "93a5843a47f2dcddefeedd2c4a9c70e1f5c1d8d2be4215c887ced4591cd35026",
+  "expected_summary_sha256": "54e51f07170431f5578869c37431ee3065f3a13861939d74d15171a1da9bdbd5",
+  "learned_query_artifacts": {
+    "method_count": 4,
+    "query_json_per_method": 128,
+    "query_npz_per_method": 128,
+    "run_manifest_per_method": 1
+  },
+  "fem_sources": {
+    "local_primary_result_json": 97,
+    "local_oversized_result_json": 9,
+    "external_server_per_query_runtime": 6,
+    "measured_strict_failure_random_fallback": 16,
+    "successful_query_count": 112,
+    "total_query_count": 128
+  },
+  "selector_sources": {
+    "agree_per_query_records": 128,
+    "actual_fem_response_cache": 97,
+    "shape_matched_synthetic_omp_timing": 15,
+    "omp_not_run_random_fallback": 16
+  },
+  "paper": {
+    "relative_path": "../_Neurips_2026_workshop__Sound_Localization.pdf",
+    "size_bytes": 216330874,
+    "sha256": "87256a022e0433fa813d9002824a9ed1b301b5e5fa8d9cee8b73adccec4f673c"
+  },
+  "integrity_manifest": "SHA256SUMS",
+  "recompute_entrypoint": "code/calculation/recompute_all.py",
+  "canonical_result": "expected/summary_final.json",
+  "human_readable_result": "expected/summary_final.md"
+}

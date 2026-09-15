@@ -1,0 +1,80 @@
+{
+  "arrays_file": "queries/query_05363.npz",
+  "arrays_sha256": "68ae835cebe5b073708b61dee40b80e58c025791c57017ffb91160df42f9af4a",
+  "candidate_count": 176,
+  "candidate_indices_sha256": "c5e5e36c391c072d7a7b8a26c443036f691d3d5a311f5c8a5b6ac8ba92fc1c8c",
+  "elapsed_seconds": 1.6438990340102464,
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": false,
+    "candidate_selection_and_metrics_included": false,
+    "context_count": 8,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "latency_seconds": {
+    "candidate_conditioning_and_generation": 1.3724326428491622,
+    "context_conditioning": 0.09121357486583292,
+    "core_forward_total": 1.4636462177149951
+  },
+  "metrics": {
+    "1": {
+      "excess_error_m": 1.118033988749895,
+      "localization_error_m": 1.118033988749895,
+      "mean_candidate_score": 0.24066270887851715,
+      "oracle_error_m": 0.0,
+      "oracle_normalized_success_0_5m": 0,
+      "oracle_normalized_success_1_0m": 0,
+      "prediction_global": [
+        0.5,
+        0.5,
+        1.5
+      ],
+      "prediction_index": 80,
+      "success_0_5m": 0,
+      "success_1_0m": 0,
+      "winning_score": 0.5740761160850525
+    }
+  },
+  "n_context": 8,
+  "peak_memory_bytes": 1286712832,
+  "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+  "query_index": 5363,
+  "random_candidate_metrics": {
+    "excess_error_m": 1.0,
+    "localization_error_m": 1.0,
+    "oracle_error_m": 0.0,
+    "oracle_normalized_success_0_5m": 0,
+    "oracle_normalized_success_1_0m": 1,
+    "prediction_global": [
+      2.0,
+      1.5,
+      1.5
+    ],
+    "prediction_index": 153,
+    "success_0_5m": 0,
+    "success_1_0m": 1
+  },
+  "receiver_global": [
+    0.0,
+    2.0,
+    1.5
+  ],
+  "receiver_id": "R021",
+  "room": "Apartments_idx_42",
+  "run_manifest_sha256": "fc4b2c77531ddf0855668d4b59e803801eeddd18dcff17b7ab9d304fbacd50ab",
+  "scene": "Apartments",
+  "schema_version": 1,
+  "score_sample_counts": [
+    1
+  ],
+  "sha256": "589f49bd0973550dd5f887ae401608ad132d69dbb44dccef25f7c052913d528a",
+  "source_global": [
+    1.0,
+    1.5,
+    1.5
+  ],
+  "tau": 0.1
+}

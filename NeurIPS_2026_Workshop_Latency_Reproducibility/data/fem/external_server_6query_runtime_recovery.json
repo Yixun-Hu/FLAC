@@ -1,0 +1,98 @@
+{
+  "archived_on": "2026-08-31",
+  "boundary": {
+    "candidate_filtering_included": false,
+    "depth_aabb_preprocessing_included": false,
+    "fem_internal_total_definition": "query-specific structured mesh construction + FEM operator/interpolation construction + 102-bin fullband solve",
+    "input_loading_included": false,
+    "localization_metrics_included": false,
+    "omp_scoring_included": false,
+    "primary_latency_field": "fem_internal_total_seconds",
+    "result_serialization_included": false,
+    "wall_clock_elapsed_field_usage": "audit only"
+  },
+  "cross_check": {
+    "existing_external_summary_query_count": 7,
+    "existing_external_summary_reported_seconds": {
+      "mean": 2400.38,
+      "median": 1567.69,
+      "p90": 4503.77
+    },
+    "external_query_715_seconds_inferred_only_for_cross_check": 1567.68,
+    "reconstructed_seconds": {
+      "mean": 2400.38,
+      "median": 1567.68,
+      "p90": 4503.772
+    },
+    "status": "matches archived seven-query summary to reported precision"
+  },
+  "external_query_count": 6,
+  "query_indices": [
+    30,
+    42,
+    535,
+    917,
+    3800,
+    3841
+  ],
+  "queries": [
+    {
+      "candidate_count": 5296,
+      "candidate_indices_sha256": "54c8c7f0b11328b48cd5b2c7b7076778a647a6bf91a743f33141e207b7f8846a",
+      "fem_internal_total_seconds": 1542.41,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+      "query_index": 30,
+      "room": "Cafe_idx_1",
+      "wall_clock_elapsed_seconds": 1559.96
+    },
+    {
+      "candidate_count": 5296,
+      "candidate_indices_sha256": "5aebf857bed581a0c141bf06ffcfd14fb017ea3a6832e40d89ca45946ec32d8f",
+      "fem_internal_total_seconds": 1528.25,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R051_hybrid_IR.wav",
+      "query_index": 42,
+      "room": "Cafe_idx_1",
+      "wall_clock_elapsed_seconds": 1547.61
+    },
+    {
+      "candidate_count": 5296,
+      "candidate_indices_sha256": "a2da9eed2a3005ef254e18ad4745ee92e2dd147fc0c6f7f74091981482ea7bf3",
+      "fem_internal_total_seconds": 1591.27,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R052_hybrid_IR.wav",
+      "query_index": 535,
+      "room": "Cafe_idx_1",
+      "wall_clock_elapsed_seconds": 1621.97
+    },
+    {
+      "candidate_count": 5295,
+      "candidate_indices_sha256": "53d0d736723114bd4225aa848b0516d03a025685f902cdc6ae640b045e1291bb",
+      "fem_internal_total_seconds": 1557.98,
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R099_hybrid_IR.wav",
+      "query_index": 917,
+      "room": "Cafe_idx_1",
+      "wall_clock_elapsed_seconds": 1583.43
+    },
+    {
+      "candidate_count": 3723,
+      "candidate_indices_sha256": "2b0a0f777292c5aae6074532c20c6b584eb39bb276a6672df76700533588603f",
+      "fem_internal_total_seconds": 4488.72,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav",
+      "query_index": 3800,
+      "room": "Auditorium_idx_1",
+      "wall_clock_elapsed_seconds": 4514.88
+    },
+    {
+      "candidate_count": 3723,
+      "candidate_indices_sha256": "6ac3d4b3d1e97bb8102a95a4482a54e5ebc65e4fb289bd2f7532cc48309eeae5",
+      "fem_internal_total_seconds": 4526.35,
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R041_hybrid_IR.wav",
+      "query_index": 3841,
+      "room": "Auditorium_idx_1",
+      "wall_clock_elapsed_seconds": 4547.45
+    }
+  ],
+  "record_type": "external_server_per_query_runtime_recovery",
+  "schema_version": 1,
+  "sha256": "dd56ef0467c888baec344f0dee6ce12bf67655f57c89e4052081f924cd8022aa",
+  "source": "user-provided external-server runtime table in the Codex conversation"
+}

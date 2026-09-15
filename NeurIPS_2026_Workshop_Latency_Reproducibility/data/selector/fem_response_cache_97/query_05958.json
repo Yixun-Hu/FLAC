@@ -1,0 +1,69 @@
+{
+  "candidate_count": 292,
+  "candidate_indices_sha256": "271c1d6d3862b4966a446de6ade27259161cfc8101a8cc3523b533d5437cdc25",
+  "context_count": 8,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "fem_audit": {
+    "candidate_count": 292,
+    "diagnostic_waveform_gain": null,
+    "element_count": 457380,
+    "frequency_count": 102,
+    "frequency_max_hz": 299.3115234375,
+    "frequency_min_hz": 81.826171875,
+    "maximum_allowed_edge_m": 0.22,
+    "maximum_element_edge_m": 0.20662749026415106,
+    "maximum_relative_solver_residual": 3.732973555358139e-14,
+    "median_relative_solver_residual": 8.275091183843808e-15,
+    "minimum_element_mean_ratio": 0.7553662152457679,
+    "minimum_element_volume_m3": 0.0002829561171903818,
+    "node_count": 82008,
+    "normalized_impedance": 23.314894195284687,
+    "sabine_absorption": 0.15774248276370925,
+    "sabine_raw_absorption": 0.15774248276370925,
+    "sabine_was_clipped": false,
+    "solver_profile": {
+      "backend": "mkl_pardiso",
+      "frequency_count": 102,
+      "threads": 12,
+      "total_factorization_seconds": 155.73648466262966,
+      "total_residual_and_sampling_seconds": 1.7202414360363036,
+      "total_solve_seconds": 7.433303569210693,
+      "total_symbolic_analysis_seconds": 0.727995275054127,
+      "total_system_construction_seconds": 6.325689640594646
+    },
+    "speed_of_sound_m_s": 343.0,
+    "surface_area_m2": 160.73996222149248,
+    "t60_invalid_contexts": 0,
+    "t60_seconds": 0.8217687074829932,
+    "t60_valid_contexts": 8,
+    "volume_m3": 129.41846888053817,
+    "waveform_constructed": false
+  },
+  "frequency_band_hz": [
+    80.0,
+    300.0
+  ],
+  "mesh_metadata": {
+    "element_count": 457380,
+    "node_count": 82008,
+    "schema_version": 1,
+    "source_mesh_sha256": "cc959cda8f63a7b8d8b7bc1b5f22ed71e6e26ee966e4df3b02dda795af2e3d50"
+  },
+  "method": "fem_sabine_depth_aabb_response_cache",
+  "omp_prediction_index": 57,
+  "omp_relative_residual_norm": 0.8441941585178722,
+  "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R001_hybrid_IR.wav",
+  "query_index": 5958,
+  "response_file": "query_05958_response.npz",
+  "response_file_sha256": "47b646034369fe9f50c3b6933c75ef55bb1b91fc879882de6e5de0058fc76beb",
+  "room": "Restaurants_idx_22",
+  "runtime_seconds": {
+    "solve": 179.26141500798985,
+    "total": 189.0836957169231
+  },
+  "schema_version": 1,
+  "selection_sha256": "ec76570086a8c8c3c05c5b0448a9463a804a3fb196e157364d07a382a0657316",
+  "sha256": "a5295353500e37e066ee5197d10c568bd27be0c320fe33f2fc90ae90171fca3c",
+  "source_fem_result_sha256": "4ec6c3de4094f86dd2d5f44bde98295240d7e9357dfe688826bc697fc770ecd3",
+  "source_mesh_sha256": "e8a6137fbbc31c8eac12196dbd4349c64a138ff11d661265fc10327355b49a1b"
+}

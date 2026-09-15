@@ -1,0 +1,5029 @@
+{
+  "aggregation_protocol": "single repeat, then query micro",
+  "fem_provenance": {
+    "failure_policy": {
+      "fem_solve_on_failure": false,
+      "method": "strict-coverage detection then deterministic random candidate"
+    },
+    "hardware_normalized": false,
+    "measured_random_fallback_query_count": 16,
+    "observed_query_count": 112,
+    "omp_source_counts": {
+      "actual_fem_response": 97,
+      "not_run_random_fallback": 16,
+      "shape_matched_synthetic_response": 15
+    },
+    "selector_latency_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/selector_latency_128.json",
+    "selector_latency_sha256": "93a5843a47f2dcddefeedd2c4a9c70e1f5c1d8d2be4215c887ced4591cd35026",
+    "source_counts": {
+      "external_runtime_recovered": 6,
+      "local_oversized": 9,
+      "local_primary_97": 97,
+      "strict_failure_random_candidate_measured": 16
+    }
+  },
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": true,
+    "candidate_selection_included": true,
+    "context_count": 8,
+    "evaluation_metrics_included": false,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "measurement_repeat_count_by_method": {
+    "fa_bf_flac": 1,
+    "fem_omp": 1,
+    "few_shot_rir": 1,
+    "vanilla_flac": 1,
+    "yawaug_flac": 1
+  },
+  "overall": {
+    "fa_bf_flac": {
+      "maximum_seconds": 90.83512499672361,
+      "mean_seconds": 10.918520814995645,
+      "median_seconds": 3.719425128190778,
+      "minimum_seconds": 0.7341386859770864,
+      "p90_seconds": 52.829202034301126,
+      "query_count": 128,
+      "summed_seconds": 1397.5706643194426
+    },
+    "fem_omp": {
+      "maximum_seconds": 10214.124917476904,
+      "mean_seconds": 695.4606903443104,
+      "median_seconds": 70.49619358149357,
+      "minimum_seconds": 0.016750706,
+      "p90_seconds": 1547.0877288490478,
+      "query_count": 128,
+      "summed_seconds": 89018.96836407173
+    },
+    "few_shot_rir": {
+      "maximum_seconds": 9.217115368461236,
+      "mean_seconds": 1.2625940862708376,
+      "median_seconds": 0.3998985269572586,
+      "minimum_seconds": 0.056667837081477046,
+      "p90_seconds": 6.456908550928347,
+      "query_count": 128,
+      "summed_seconds": 161.6120430426672
+    },
+    "vanilla_flac": {
+      "maximum_seconds": 48.61257414193824,
+      "mean_seconds": 6.455721611935587,
+      "median_seconds": 2.103834849316627,
+      "minimum_seconds": 0.3384057574439794,
+      "p90_seconds": 31.741731318621895,
+      "query_count": 128,
+      "summed_seconds": 826.3323663277552
+    },
+    "yawaug_flac": {
+      "maximum_seconds": 46.09743277565576,
+      "mean_seconds": 6.388815334667015,
+      "median_seconds": 2.0726397469406947,
+      "minimum_seconds": 0.34611465339548886,
+      "p90_seconds": 32.39773694365285,
+      "query_count": 128,
+      "summed_seconds": 817.7683628373779
+    }
+  },
+  "per_candidate": {
+    "fa_bf_flac": {
+      "amortized_seconds": 0.01509125199031879,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.027340870419586147,
+      "mean_seconds": 0.017414703192161957,
+      "median_seconds": 0.01653934349850914,
+      "minimum_seconds": 0.014053936782752,
+      "p90_seconds": 0.020351390547929674,
+      "query_count": 128,
+      "summed_seconds": 2.2290820085967304
+    },
+    "fem_omp": {
+      "amortized_seconds": 0.9612449071794197,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 2.744257097656342,
+      "mean_seconds": 0.49687381351037974,
+      "median_seconds": 0.40805683580242863,
+      "minimum_seconds": 3.7485184135977338e-06,
+      "p90_seconds": 0.6551860412434264,
+      "query_count": 128,
+      "summed_seconds": 63.599848129328606
+    },
+    "few_shot_rir": {
+      "amortized_seconds": 0.001745119676946562,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.002498751488962659,
+      "mean_seconds": 0.001808217962512014,
+      "median_seconds": 0.0017687558387906584,
+      "minimum_seconds": 0.0017007738484112037,
+      "p90_seconds": 0.0019074604822643477,
+      "query_count": 128,
+      "summed_seconds": 0.2314518992015378
+    },
+    "vanilla_flac": {
+      "amortized_seconds": 0.008922904784983534,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.012676289831115692,
+      "mean_seconds": 0.009785200735753341,
+      "median_seconds": 0.009556492717610478,
+      "minimum_seconds": 0.008505112528873489,
+      "p90_seconds": 0.010410244218444198,
+      "query_count": 128,
+      "summed_seconds": 1.2525056941764277
+    },
+    "yawaug_flac": {
+      "amortized_seconds": 0.008830428935268853,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.013006537635293271,
+      "mean_seconds": 0.00963069268954125,
+      "median_seconds": 0.009176830185407943,
+      "minimum_seconds": 0.008684122106640813,
+      "p90_seconds": 0.010640102043524927,
+      "query_count": 128,
+      "summed_seconds": 1.23272866426128
+    }
+  },
+  "queries": {
+    "1025": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.792930482653901,
+          "repeat_seconds": [
+            1.792930482653901
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 33.89915213291533,
+          "repeat_seconds": [
+            33.89915213291533
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.186907161725685,
+          "repeat_seconds": [
+            0.186907161725685
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.0550196529366076,
+          "repeat_seconds": [
+            1.0550196529366076
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.008775088004768,
+          "repeat_seconds": [
+            1.008775088004768
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S006_R022_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "1060": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.796602490125224,
+          "repeat_seconds": [
+            1.796602490125224
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 35.49620554107241,
+          "repeat_seconds": [
+            35.49620554107241
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.19251897209323943,
+          "repeat_seconds": [
+            0.19251897209323943
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.0614558623638004,
+          "repeat_seconds": [
+            1.0614558623638004
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.0085901822894812,
+          "repeat_seconds": [
+            1.0085901822894812
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S008_R023_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "1061": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.7967191392090172,
+          "repeat_seconds": [
+            1.7967191392090172
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 32.57229492999613,
+          "repeat_seconds": [
+            32.57229492999613
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.19765560631640255,
+          "repeat_seconds": [
+            0.19765560631640255
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.0466502183116972,
+          "repeat_seconds": [
+            1.0466502183116972
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.017042275518179,
+          "repeat_seconds": [
+            1.017042275518179
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S002_R018_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "1088": {
+      "candidate_count": 106,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.829644448356703,
+          "repeat_seconds": [
+            1.829644448356703
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 32.778804822359234,
+          "repeat_seconds": [
+            32.778804822359234
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.19129612715914845,
+          "repeat_seconds": [
+            0.19129612715914845
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.084817916387692,
+          "repeat_seconds": [
+            1.084817916387692
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.0280190370976925,
+          "repeat_seconds": [
+            1.0280190370976925
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R003_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "1157": {
+      "candidate_count": 105,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.804505491629243,
+          "repeat_seconds": [
+            1.804505491629243
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 31.754330354975536,
+          "repeat_seconds": [
+            31.754330354975536
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.18835190776735544,
+          "repeat_seconds": [
+            0.18835190776735544
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.0787514506373554,
+          "repeat_seconds": [
+            1.0787514506373554
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.0133202488068491,
+          "repeat_seconds": [
+            1.0133202488068491
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S003_R015_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "1201": {
+      "candidate_count": 231,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5715392825659364,
+          "repeat_seconds": [
+            3.5715392825659364
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 90.08092631981708,
+          "repeat_seconds": [
+            90.08092631981708
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4120404354762286,
+          "repeat_seconds": [
+            0.4120404354762286
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.223838272271678,
+          "repeat_seconds": [
+            2.223838272271678
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.117050410248339,
+          "repeat_seconds": [
+            2.117050410248339
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R013_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1204": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.55496047064662,
+          "repeat_seconds": [
+            3.55496047064662
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 81.72894928371534,
+          "repeat_seconds": [
+            81.72894928371534
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.41663801087997854,
+          "repeat_seconds": [
+            0.41663801087997854
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.1946974974125624,
+          "repeat_seconds": [
+            2.1946974974125624
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.1096899637486786,
+          "repeat_seconds": [
+            2.1096899637486786
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R004_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1218": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5596757035236806,
+          "repeat_seconds": [
+            3.5596757035236806
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 80.94621351012029,
+          "repeat_seconds": [
+            80.94621351012029
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4043983086012304,
+          "repeat_seconds": [
+            0.4043983086012304
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.191996115958318,
+          "repeat_seconds": [
+            2.191996115958318
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.104100395925343,
+          "repeat_seconds": [
+            2.104100395925343
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S006_R016_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1257": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5529028286691755,
+          "repeat_seconds": [
+            3.5529028286691755
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 86.0362168722786,
+          "repeat_seconds": [
+            86.0362168722786
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.40126869548112154,
+          "repeat_seconds": [
+            0.40126869548112154
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.198942837305367,
+          "repeat_seconds": [
+            2.198942837305367
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.1088652834296227,
+          "repeat_seconds": [
+            2.1088652834296227
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1287": {
+      "candidate_count": 232,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5817437460646033,
+          "repeat_seconds": [
+            3.5817437460646033
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 82.338068182813,
+          "repeat_seconds": [
+            82.338068182813
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4150990347843617,
+          "repeat_seconds": [
+            0.4150990347843617
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.226737220073119,
+          "repeat_seconds": [
+            2.226737220073119
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.1283399981912225,
+          "repeat_seconds": [
+            2.1283399981912225
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S003_R010_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1297": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.547535835765302,
+          "repeat_seconds": [
+            3.547535835765302
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 89.03443180583417,
+          "repeat_seconds": [
+            89.03443180583417
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4117126807104796,
+          "repeat_seconds": [
+            0.4117126807104796
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.206295389449224,
+          "repeat_seconds": [
+            2.206295389449224
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.1073836956638843,
+          "repeat_seconds": [
+            2.1073836956638843
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S002_R022_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1323": {
+      "candidate_count": 232,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5853401322383434,
+          "repeat_seconds": [
+            3.5853401322383434
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 83.98217970598489,
+          "repeat_seconds": [
+            83.98217970598489
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4125225958414376,
+          "repeat_seconds": [
+            0.4125225958414376
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.2328222400974482,
+          "repeat_seconds": [
+            2.2328222400974482
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.1317977781873196,
+          "repeat_seconds": [
+            2.1317977781873196
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S009_R014_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1368": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.5442828887607902,
+          "repeat_seconds": [
+            3.5442828887607902
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 83.25038351514377,
+          "repeat_seconds": [
+            83.25038351514377
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4049347904510796,
+          "repeat_seconds": [
+            0.4049347904510796
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.1956650665961206,
+          "repeat_seconds": [
+            2.1956650665961206
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.111842683283612,
+          "repeat_seconds": [
+            2.111842683283612
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S004_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20"
+    },
+    "1440": {
+      "candidate_count": 255,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.884142486844212,
+          "repeat_seconds": [
+            3.884142486844212
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.016807198,
+          "repeat_seconds": [
+            0.016807198
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4483228684403002,
+          "repeat_seconds": [
+            0.4483228684403002
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.421971696894616,
+          "repeat_seconds": [
+            2.421971696894616
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3132213491480798,
+          "repeat_seconds": [
+            2.3132213491480798
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S005_R004_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1446": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.8718752211425453,
+          "repeat_seconds": [
+            3.8718752211425453
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 103.65355899883434,
+          "repeat_seconds": [
+            103.65355899883434
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.44792102579958737,
+          "repeat_seconds": [
+            0.44792102579958737
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.4158727016765624,
+          "repeat_seconds": [
+            2.4158727016765624
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.298944007838145,
+          "repeat_seconds": [
+            2.298944007838145
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S001_R018_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1500": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.853510124143213,
+          "repeat_seconds": [
+            3.853510124143213
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 110.65075025404803,
+          "repeat_seconds": [
+            110.65075025404803
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.43771047540940344,
+          "repeat_seconds": [
+            0.43771047540940344
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.4076303616166115,
+          "repeat_seconds": [
+            2.4076303616166115
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.30001088604331,
+          "repeat_seconds": [
+            2.30001088604331
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R012_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1553": {
+      "candidate_count": 255,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.8926134379580617,
+          "repeat_seconds": [
+            3.8926134379580617
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 110.88289018603973,
+          "repeat_seconds": [
+            110.88289018603973
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.44202927965670824,
+          "repeat_seconds": [
+            0.44202927965670824
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.428514290135354,
+          "repeat_seconds": [
+            2.428514290135354
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3095776916015893,
+          "repeat_seconds": [
+            2.3095776916015893
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R019_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1567": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.8625636799260974,
+          "repeat_seconds": [
+            3.8625636799260974
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 121.66066021285951,
+          "repeat_seconds": [
+            121.66066021285951
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4413502246607095,
+          "repeat_seconds": [
+            0.4413502246607095
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.424125551013276,
+          "repeat_seconds": [
+            2.424125551013276
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3015351986978203,
+          "repeat_seconds": [
+            2.3015351986978203
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S005_R024_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1577": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.868437473429367,
+          "repeat_seconds": [
+            3.868437473429367
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 108.94290601694956,
+          "repeat_seconds": [
+            108.94290601694956
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4420714930165559,
+          "repeat_seconds": [
+            0.4420714930165559
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.4199424171820283,
+          "repeat_seconds": [
+            2.4199424171820283
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3027715941425413,
+          "repeat_seconds": [
+            2.3027715941425413
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S009_R016_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1594": {
+      "candidate_count": 255,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.881523684132844,
+          "repeat_seconds": [
+            3.881523684132844
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 113.24493270996027,
+          "repeat_seconds": [
+            113.24493270996027
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.44526239088736475,
+          "repeat_seconds": [
+            0.44526239088736475
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.4094152189791203,
+          "repeat_seconds": [
+            2.4094152189791203
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.318750451086089,
+          "repeat_seconds": [
+            2.318750451086089
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S010_R001_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1595": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.869484626688063,
+          "repeat_seconds": [
+            3.869484626688063
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 106.050801130943,
+          "repeat_seconds": [
+            106.050801130943
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4401854448951781,
+          "repeat_seconds": [
+            0.4401854448951781
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.422204164089635,
+          "repeat_seconds": [
+            2.422204164089635
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.2912160579580814,
+          "repeat_seconds": [
+            2.2912160579580814
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S004_R010_hybrid_IR.wav",
+      "room": "Office_idx_10"
+    },
+    "1692": {
+      "candidate_count": 406,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 6.026224840199575,
+          "repeat_seconds": [
+            6.026224840199575
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 274.7337305271067,
+          "repeat_seconds": [
+            274.7337305271067
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7171322742942721,
+          "repeat_seconds": [
+            0.7171322742942721
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.8335960558615625,
+          "repeat_seconds": [
+            3.8335960558615625
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.6356022336985916,
+          "repeat_seconds": [
+            3.6356022336985916
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S002_R021_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1704": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 5.997306738747284,
+          "repeat_seconds": [
+            5.997306738747284
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 275.6596547467634,
+          "repeat_seconds": [
+            275.6596547467634
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7186777833849192,
+          "repeat_seconds": [
+            0.7186777833849192
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.798352275043726,
+          "repeat_seconds": [
+            3.798352275043726
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.6173246083781123,
+          "repeat_seconds": [
+            3.6173246083781123
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R004_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1751": {
+      "candidate_count": 407,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 6.05412333458662,
+          "repeat_seconds": [
+            6.05412333458662
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017143699,
+          "repeat_seconds": [
+            0.017143699
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7132963160984218,
+          "repeat_seconds": [
+            0.7132963160984218
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.8333124744240195,
+          "repeat_seconds": [
+            3.8333124744240195
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.63542339974083,
+          "repeat_seconds": [
+            3.63542339974083
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S005_R015_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1768": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 6.015179202193394,
+          "repeat_seconds": [
+            6.015179202193394
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 243.6686613180209,
+          "repeat_seconds": [
+            243.6686613180209
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7051179066766053,
+          "repeat_seconds": [
+            0.7051179066766053
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.7987433241214603,
+          "repeat_seconds": [
+            3.7987433241214603
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.6166685211937875,
+          "repeat_seconds": [
+            3.6166685211937875
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S009_R023_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "179": {
+      "candidate_count": 5295,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 88.40102837001905,
+          "repeat_seconds": [
+            88.40102837001905
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.019848405,
+          "repeat_seconds": [
+            0.019848405
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.185658524977043,
+          "repeat_seconds": [
+            9.185658524977043
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 45.244031980866566,
+          "repeat_seconds": [
+            45.244031980866566
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.08630203502253,
+          "repeat_seconds": [
+            46.08630203502253
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "1805": {
+      "candidate_count": 404,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 6.023172890068963,
+          "repeat_seconds": [
+            6.023172890068963
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017298634,
+          "repeat_seconds": [
+            0.017298634
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7027966303285211,
+          "repeat_seconds": [
+            0.7027966303285211
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.780637283110991,
+          "repeat_seconds": [
+            3.780637283110991
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.60756420600228,
+          "repeat_seconds": [
+            3.60756420600228
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1870": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 6.019523870199919,
+          "repeat_seconds": [
+            6.019523870199919
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 261.6470762628596,
+          "repeat_seconds": [
+            261.6470762628596
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7026141360402107,
+          "repeat_seconds": [
+            0.7026141360402107
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.7922602468170226,
+          "repeat_seconds": [
+            3.7922602468170226
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.6135032235179096,
+          "repeat_seconds": [
+            3.6135032235179096
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S010_R024_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1880": {
+      "candidate_count": 402,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 5.991227349732071,
+          "repeat_seconds": [
+            5.991227349732071
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 270.4617766162846,
+          "repeat_seconds": [
+            270.4617766162846
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7074785537552088,
+          "repeat_seconds": [
+            0.7074785537552088
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.7856774660758674,
+          "repeat_seconds": [
+            3.7856774660758674
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.5496219587512314,
+          "repeat_seconds": [
+            3.5496219587512314
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S006_R003_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1896": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 5.984023892786354,
+          "repeat_seconds": [
+            5.984023892786354
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 219.56293238466606,
+          "repeat_seconds": [
+            219.56293238466606
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.7067263489589095,
+          "repeat_seconds": [
+            0.7067263489589095
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 3.794695424847305,
+          "repeat_seconds": [
+            3.794695424847305
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 3.5763151485007256,
+          "repeat_seconds": [
+            3.5763151485007256
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S008_R001_hybrid_IR.wav",
+      "room": "Office_idx_11"
+    },
+    "1925": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1447586414869875,
+          "repeat_seconds": [
+            1.1447586414869875
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 20.464653794886544,
+          "repeat_seconds": [
+            20.464653794886544
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10779490764252841,
+          "repeat_seconds": [
+            0.10779490764252841
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5898291675839573,
+          "repeat_seconds": [
+            0.5898291675839573
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.6004851975012571,
+          "repeat_seconds": [
+            0.6004851975012571
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S009_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "1937": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1415911987423897,
+          "repeat_seconds": [
+            1.1415911987423897
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 21.39682218595408,
+          "repeat_seconds": [
+            21.39682218595408
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10633028787560761,
+          "repeat_seconds": [
+            0.10633028787560761
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5892357747070491,
+          "repeat_seconds": [
+            0.5892357747070491
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5997914678882807,
+          "repeat_seconds": [
+            0.5997914678882807
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "1991": {
+      "candidate_count": 58,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1575893191620708,
+          "repeat_seconds": [
+            1.1575893191620708
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 23.378284675069153,
+          "repeat_seconds": [
+            23.378284675069153
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10779181821271777,
+          "repeat_seconds": [
+            0.10779181821271777
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5994721779134125,
+          "repeat_seconds": [
+            0.5994721779134125
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.6090002451092005,
+          "repeat_seconds": [
+            0.6090002451092005
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S001_R016_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2022": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1337738407310098,
+          "repeat_seconds": [
+            1.1337738407310098
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.23730766051449,
+          "repeat_seconds": [
+            22.23730766051449
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10504865786060691,
+          "repeat_seconds": [
+            0.10504865786060691
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5818049751687795,
+          "repeat_seconds": [
+            0.5818049751687795
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5926594617776573,
+          "repeat_seconds": [
+            0.5926594617776573
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S002_R001_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2128": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.131799794966355,
+          "repeat_seconds": [
+            1.131799794966355
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 21.5883623349946,
+          "repeat_seconds": [
+            21.5883623349946
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10447696479968727,
+          "repeat_seconds": [
+            0.10447696479968727
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5800868498627096,
+          "repeat_seconds": [
+            0.5800868498627096
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5908392579294741,
+          "repeat_seconds": [
+            0.5908392579294741
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R002_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2130": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1426706209313124,
+          "repeat_seconds": [
+            1.1426706209313124
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 21.311285054311156,
+          "repeat_seconds": [
+            21.311285054311156
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10721947206184268,
+          "repeat_seconds": [
+            0.10721947206184268
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5903177100699395,
+          "repeat_seconds": [
+            0.5903177100699395
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.6008303901180625,
+          "repeat_seconds": [
+            0.6008303901180625
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S006_R003_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2134": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.139058989007026,
+          "repeat_seconds": [
+            1.139058989007026
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 23.406779615441337,
+          "repeat_seconds": [
+            23.406779615441337
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10613536788150668,
+          "repeat_seconds": [
+            0.10613536788150668
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5887412379961461,
+          "repeat_seconds": [
+            0.5887412379961461
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5987118077464402,
+          "repeat_seconds": [
+            0.5987118077464402
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R008_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2157": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.127694979077205,
+          "repeat_seconds": [
+            1.127694979077205
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.51228278223425,
+          "repeat_seconds": [
+            22.51228278223425
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10490507888607681,
+          "repeat_seconds": [
+            0.10490507888607681
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5795329250395298,
+          "repeat_seconds": [
+            0.5795329250395298
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5923585158307105,
+          "repeat_seconds": [
+            0.5923585158307105
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S003_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18"
+    },
+    "2188": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1376461570616812,
+          "repeat_seconds": [
+            1.1376461570616812
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 20.45327608892694,
+          "repeat_seconds": [
+            20.45327608892694
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10646940628066659,
+          "repeat_seconds": [
+            0.10646940628066659
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5915172421373427,
+          "repeat_seconds": [
+            0.5915172421373427
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5985084401909262,
+          "repeat_seconds": [
+            0.5985084401909262
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S002_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2259": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1382887735962868,
+          "repeat_seconds": [
+            1.1382887735962868
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.916686553740874,
+          "repeat_seconds": [
+            22.916686553740874
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10472559928894043,
+          "repeat_seconds": [
+            0.10472559928894043
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.585113893263042,
+          "repeat_seconds": [
+            0.585113893263042
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.597887167474255,
+          "repeat_seconds": [
+            0.597887167474255
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2319": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1099406403955072,
+          "repeat_seconds": [
+            1.1099406403955072
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.44158365111798,
+          "repeat_seconds": [
+            22.44158365111798
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.1015804533381015,
+          "repeat_seconds": [
+            0.1015804533381015
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5707445142325014,
+          "repeat_seconds": [
+            0.5707445142325014
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5798299133311957,
+          "repeat_seconds": [
+            0.5798299133311957
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S009_R019_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2345": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.126278358278796,
+          "repeat_seconds": [
+            1.126278358278796
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 24.334458546247333,
+          "repeat_seconds": [
+            24.334458546247333
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10190346627496183,
+          "repeat_seconds": [
+            0.10190346627496183
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5793832731433213,
+          "repeat_seconds": [
+            0.5793832731433213
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.597040415275842,
+          "repeat_seconds": [
+            0.597040415275842
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S004_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2375": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1165556439664215,
+          "repeat_seconds": [
+            1.1165556439664215
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 23.58750058687292,
+          "repeat_seconds": [
+            23.58750058687292
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10155281913466752,
+          "repeat_seconds": [
+            0.10155281913466752
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.570833268109709,
+          "repeat_seconds": [
+            0.570833268109709
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5770338051952422,
+          "repeat_seconds": [
+            0.5770338051952422
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R012_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2405": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1456311820074916,
+          "repeat_seconds": [
+            1.1456311820074916
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.355963713955134,
+          "repeat_seconds": [
+            22.355963713955134
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10273402160964906,
+          "repeat_seconds": [
+            0.10273402160964906
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5780786585528404,
+          "repeat_seconds": [
+            0.5780786585528404
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5934722158126533,
+          "repeat_seconds": [
+            0.5934722158126533
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R002_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2414": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1535937529988587,
+          "repeat_seconds": [
+            1.1535937529988587
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 20.926673454931006,
+          "repeat_seconds": [
+            20.926673454931006
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10442453110590577,
+          "repeat_seconds": [
+            0.10442453110590577
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5859551229514182,
+          "repeat_seconds": [
+            0.5859551229514182
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5991958810482174,
+          "repeat_seconds": [
+            0.5991958810482174
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R021_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "2418": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1555595099925995,
+          "repeat_seconds": [
+            1.1555595099925995
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 22.794680218677968,
+          "repeat_seconds": [
+            22.794680218677968
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.1043293580878526,
+          "repeat_seconds": [
+            0.1043293580878526
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5866922519635409,
+          "repeat_seconds": [
+            0.5866922519635409
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.6008869772776961,
+          "repeat_seconds": [
+            0.6008869772776961
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S005_R016_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33"
+    },
+    "30": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 75.66802386939526,
+          "repeat_seconds": [
+            75.66802386939526
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 1542.4167666841206,
+          "repeat_seconds": [
+            1542.4167666841206
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.159476746805012,
+          "repeat_seconds": [
+            9.159476746805012
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 45.374437836231664,
+          "repeat_seconds": [
+            45.374437836231664
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.01713777938858,
+          "repeat_seconds": [
+            46.01713777938858
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "335": {
+      "candidate_count": 5296,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 75.02674492402002,
+          "repeat_seconds": [
+            75.02674492402002
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 2560.2160220840015,
+          "repeat_seconds": [
+            2560.2160220840015
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.181545758852735,
+          "repeat_seconds": [
+            9.181545758852735
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 45.42021923768334,
+          "repeat_seconds": [
+            45.42021923768334
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.07114476244897,
+          "repeat_seconds": [
+            46.07114476244897
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "3550": {
+      "candidate_count": 3723,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 60.711759788449854,
+          "repeat_seconds": [
+            60.711759788449854
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 5108.384746810654,
+          "repeat_seconds": [
+            5108.384746810654
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.455454448936507,
+          "repeat_seconds": [
+            6.455454448936507
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 32.054857757641,
+          "repeat_seconds": [
+            32.054857757641
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.38930870802142,
+          "repeat_seconds": [
+            32.38930870802142
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "3685": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 59.12083192192949,
+          "repeat_seconds": [
+            59.12083192192949
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 10176.069083830109,
+          "repeat_seconds": [
+            10176.069083830109
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.449749481398612,
+          "repeat_seconds": [
+            6.449749481398612
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.885281778639182,
+          "repeat_seconds": [
+            31.885281778639182
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.496769244549796,
+          "repeat_seconds": [
+            32.496769244549796
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R030_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "3695": {
+      "candidate_count": 3724,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.81605670764111,
+          "repeat_seconds": [
+            52.81605670764111
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 9482.599085532129,
+          "repeat_seconds": [
+            9482.599085532129
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.460301455575973,
+          "repeat_seconds": [
+            6.460301455575973
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.673039057524875,
+          "repeat_seconds": [
+            31.673039057524875
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.44303953205235,
+          "repeat_seconds": [
+            32.44303953205235
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S002_R023_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "3800": {
+      "candidate_count": 3723,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.85987446317449,
+          "repeat_seconds": [
+            52.85987446317449
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 4488.724870590056,
+          "repeat_seconds": [
+            4488.724870590056
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.4745879888068885,
+          "repeat_seconds": [
+            6.4745879888068885
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.681824940489605,
+          "repeat_seconds": [
+            31.681824940489605
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.395421837689355,
+          "repeat_seconds": [
+            32.395421837689355
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "3841": {
+      "candidate_count": 3723,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.89232355472632,
+          "repeat_seconds": [
+            52.89232355472632
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 4526.354954135977,
+          "repeat_seconds": [
+            4526.354954135977
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.479017957113683,
+          "repeat_seconds": [
+            6.479017957113683
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.895656460197642,
+          "repeat_seconds": [
+            31.895656460197642
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.5185161891859,
+          "repeat_seconds": [
+            32.5185161891859
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R041_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "3934": {
+      "candidate_count": 3723,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.694428455550224,
+          "repeat_seconds": [
+            52.694428455550224
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 10127.040997464908,
+          "repeat_seconds": [
+            10127.040997464908
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.4816994071006775,
+          "repeat_seconds": [
+            6.4816994071006775
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.77203019335866,
+          "repeat_seconds": [
+            31.77203019335866
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.39370301319286,
+          "repeat_seconds": [
+            32.39370301319286
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R060_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "4137": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.80459422594868,
+          "repeat_seconds": [
+            52.80459422594868
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 10214.124917476904,
+          "repeat_seconds": [
+            10214.124917476904
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.453514419263229,
+          "repeat_seconds": [
+            6.453514419263229
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.74378810590133,
+          "repeat_seconds": [
+            31.74378810590133
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.4660611927975,
+          "repeat_seconds": [
+            32.4660611927975
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S004_R010_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "42": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 90.83512499672361,
+          "repeat_seconds": [
+            90.83512499672361
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 1528.25656096288,
+          "repeat_seconds": [
+            1528.25656096288
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.188423791667446,
+          "repeat_seconds": [
+            9.188423791667446
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 45.31446943501942,
+          "repeat_seconds": [
+            45.31446943501942
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.07086808467284,
+          "repeat_seconds": [
+            46.07086808467284
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R051_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "4206": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 52.90129575878382,
+          "repeat_seconds": [
+            52.90129575878382
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 10194.917089772644,
+          "repeat_seconds": [
+            10194.917089772644
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 6.490003063110635,
+          "repeat_seconds": [
+            6.490003063110635
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 31.74084983835928,
+          "repeat_seconds": [
+            31.74084983835928
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 32.40313885756768,
+          "repeat_seconds": [
+            32.40313885756768
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R049_hybrid_IR.wav",
+      "room": "Auditorium_idx_1"
+    },
+    "4467": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.738203501328826,
+          "repeat_seconds": [
+            0.738203501328826
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 13.989387860521674,
+          "repeat_seconds": [
+            13.989387860521674
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.0674662902019918,
+          "repeat_seconds": [
+            0.0674662902019918
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.3422598254401237,
+          "repeat_seconds": [
+            0.3422598254401237
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.35117651615291834,
+          "repeat_seconds": [
+            0.35117651615291834
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4469": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7573735250625759,
+          "repeat_seconds": [
+            0.7573735250625759
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 14.122825043974444,
+          "repeat_seconds": [
+            14.122825043974444
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.05805714521557093,
+          "repeat_seconds": [
+            0.05805714521557093
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.34737125528045,
+          "repeat_seconds": [
+            0.34737125528045
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.35631117899902165,
+          "repeat_seconds": [
+            0.35631117899902165
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R020_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4513": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7372446833178401,
+          "repeat_seconds": [
+            0.7372446833178401
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 14.017206319840625,
+          "repeat_seconds": [
+            14.017206319840625
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.05686657829210162,
+          "repeat_seconds": [
+            0.05686657829210162
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.3384057574439794,
+          "repeat_seconds": [
+            0.3384057574439794
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.34611465339548886,
+          "repeat_seconds": [
+            0.34611465339548886
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R011_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4518": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7553903528023511,
+          "repeat_seconds": [
+            0.7553903528023511
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 13.705186751903966,
+          "repeat_seconds": [
+            13.705186751903966
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.05801526899449527,
+          "repeat_seconds": [
+            0.05801526899449527
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.34874157374724746,
+          "repeat_seconds": [
+            0.34874157374724746
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.35419004294089973,
+          "repeat_seconds": [
+            0.35419004294089973
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R023_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4617": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7577060183975846,
+          "repeat_seconds": [
+            0.7577060183975846
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.528954837238416,
+          "repeat_seconds": [
+            15.528954837238416
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.05846686917357147,
+          "repeat_seconds": [
+            0.05846686917357147
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.34940501395612955,
+          "repeat_seconds": [
+            0.34940501395612955
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.3564084377139807,
+          "repeat_seconds": [
+            0.3564084377139807
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4643": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7547918963246047,
+          "repeat_seconds": [
+            0.7547918963246047
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 14.005971423583105,
+          "repeat_seconds": [
+            14.005971423583105
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.0579907801002264,
+          "repeat_seconds": [
+            0.0579907801002264
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.34878883115015924,
+          "repeat_seconds": [
+            0.34878883115015924
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.355593235231936,
+          "repeat_seconds": [
+            0.355593235231936
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S005_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4652": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7341386859770864,
+          "repeat_seconds": [
+            0.7341386859770864
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.316011308925226,
+          "repeat_seconds": [
+            15.316011308925226
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.056667837081477046,
+          "repeat_seconds": [
+            0.056667837081477046
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.33950818609446287,
+          "repeat_seconds": [
+            0.33950818609446287
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.34750227886252105,
+          "repeat_seconds": [
+            0.34750227886252105
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4658": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 0.7518980647437274,
+          "repeat_seconds": [
+            0.7518980647437274
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 14.010314451996237,
+          "repeat_seconds": [
+            14.010314451996237
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.05827627959661186,
+          "repeat_seconds": [
+            0.05827627959661186
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.3484217398799956,
+          "repeat_seconds": [
+            0.3484217398799956
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.3529109407681972,
+          "repeat_seconds": [
+            0.3529109407681972
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14"
+    },
+    "4673": {
+      "candidate_count": 51,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.061599037842825,
+          "repeat_seconds": [
+            1.061599037842825
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.106216376880184,
+          "repeat_seconds": [
+            15.106216376880184
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.0985166619066149,
+          "repeat_seconds": [
+            0.0985166619066149
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5385861170943826,
+          "repeat_seconds": [
+            0.5385861170943826
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.549646919593215,
+          "repeat_seconds": [
+            0.549646919593215
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S007_R019_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4728": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1334272590465844,
+          "repeat_seconds": [
+            1.1334272590465844
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 16.68389395205304,
+          "repeat_seconds": [
+            16.68389395205304
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10822465806268156,
+          "repeat_seconds": [
+            0.10822465806268156
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5829685928765684,
+          "repeat_seconds": [
+            0.5829685928765684
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5918238840531558,
+          "repeat_seconds": [
+            0.5918238840531558
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4775": {
+      "candidate_count": 54,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.098481488181278,
+          "repeat_seconds": [
+            1.098481488181278
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.736412706784904,
+          "repeat_seconds": [
+            15.736412706784904
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10531347803771496,
+          "repeat_seconds": [
+            0.10531347803771496
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.564962511183694,
+          "repeat_seconds": [
+            0.564962511183694
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5775714172050357,
+          "repeat_seconds": [
+            0.5775714172050357
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S006_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4781": {
+      "candidate_count": 58,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.157876194221899,
+          "repeat_seconds": [
+            1.157876194221899
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 18.390930369962007,
+          "repeat_seconds": [
+            18.390930369962007
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10919282725080848,
+          "repeat_seconds": [
+            0.10919282725080848
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5974622275680304,
+          "repeat_seconds": [
+            0.5974622275680304
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.6091174075845629,
+          "repeat_seconds": [
+            0.6091174075845629
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R018_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4784": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1156970544252545,
+          "repeat_seconds": [
+            1.1156970544252545
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 18.92974287015386,
+          "repeat_seconds": [
+            18.92974287015386
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10579913831315935,
+          "repeat_seconds": [
+            0.10579913831315935
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5725750813726336,
+          "repeat_seconds": [
+            0.5725750813726336
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5827427473850548,
+          "repeat_seconds": [
+            0.5827427473850548
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R012_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4786": {
+      "candidate_count": 52,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.0763471452519298,
+          "repeat_seconds": [
+            1.0763471452519298
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.34588112984784,
+          "repeat_seconds": [
+            15.34588112984784
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.10096816602163017,
+          "repeat_seconds": [
+            0.10096816602163017
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5467524998821318,
+          "repeat_seconds": [
+            0.5467524998821318
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.560004630126059,
+          "repeat_seconds": [
+            0.560004630126059
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S002_R010_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4806": {
+      "candidate_count": 51,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.0608954306226224,
+          "repeat_seconds": [
+            1.0608954306226224
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 16.567473621107638,
+          "repeat_seconds": [
+            16.567473621107638
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.09376430767588317,
+          "repeat_seconds": [
+            0.09376430767588317
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.5382784137036651,
+          "repeat_seconds": [
+            0.5382784137036651
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5480401117820293,
+          "repeat_seconds": [
+            0.5480401117820293
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S009_R006_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4893": {
+      "candidate_count": 54,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.1001268262043595,
+          "repeat_seconds": [
+            1.1001268262043595
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 15.29939815425314,
+          "repeat_seconds": [
+            15.29939815425314
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.09960675006732345,
+          "repeat_seconds": [
+            0.09960675006732345
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 0.559687813045457,
+          "repeat_seconds": [
+            0.559687813045457
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 0.5740717819426209,
+          "repeat_seconds": [
+            0.5740717819426209
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18"
+    },
+    "4945": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.9420089533086866,
+          "repeat_seconds": [
+            3.9420089533086866
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 60.76138758705929,
+          "repeat_seconds": [
+            60.76138758705929
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3985283584333956,
+          "repeat_seconds": [
+            0.3985283584333956
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.984202743973583,
+          "repeat_seconds": [
+            1.984202743973583
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0213741227053106,
+          "repeat_seconds": [
+            2.0213741227053106
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S008_R007_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "4971": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.92742362851277,
+          "repeat_seconds": [
+            3.92742362851277
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 63.811914074933156,
+          "repeat_seconds": [
+            63.811914074933156
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.38338360632769763,
+          "repeat_seconds": [
+            0.38338360632769763
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.987244869582355,
+          "repeat_seconds": [
+            1.987244869582355
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0095792470965534,
+          "repeat_seconds": [
+            2.0095792470965534
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R014_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5037": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.963780187536031,
+          "repeat_seconds": [
+            3.963780187536031
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 69.40158774587326,
+          "repeat_seconds": [
+            69.40158774587326
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.38770275260321796,
+          "repeat_seconds": [
+            0.38770275260321796
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.9772899667732418,
+          "repeat_seconds": [
+            1.9772899667732418
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0118977101519704,
+          "repeat_seconds": [
+            2.0118977101519704
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R010_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5053": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.9725141904782504,
+          "repeat_seconds": [
+            3.9725141904782504
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 63.38273016130552,
+          "repeat_seconds": [
+            63.38273016130552
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3845260024536401,
+          "repeat_seconds": [
+            0.3845260024536401
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.0156735826749355,
+          "repeat_seconds": [
+            2.0156735826749355
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.018592354375869,
+          "repeat_seconds": [
+            2.018592354375869
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R019_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5068": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.9211567086167634,
+          "repeat_seconds": [
+            3.9211567086167634
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 62.65876794815995,
+          "repeat_seconds": [
+            62.65876794815995
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.38307763752527535,
+          "repeat_seconds": [
+            0.38307763752527535
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.973937683738768,
+          "repeat_seconds": [
+            1.973937683738768
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0089863187167794,
+          "repeat_seconds": [
+            2.0089863187167794
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S007_R014_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5094": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.965154600329697,
+          "repeat_seconds": [
+            3.965154600329697
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 64.08976432704367,
+          "repeat_seconds": [
+            64.08976432704367
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3878250701818615,
+          "repeat_seconds": [
+            0.3878250701818615
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.9736348846927285,
+          "repeat_seconds": [
+            1.9736348846927285
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.01544903521426,
+          "repeat_seconds": [
+            2.01544903521426
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S010_R001_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5129": {
+      "candidate_count": 220,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.943048779387027,
+          "repeat_seconds": [
+            3.943048779387027
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017591846,
+          "repeat_seconds": [
+            0.017591846
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.38485424616374075,
+          "repeat_seconds": [
+            0.38485424616374075
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.9829012823756784,
+          "repeat_seconds": [
+            1.9829012823756784
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0411790979560465,
+          "repeat_seconds": [
+            2.0411790979560465
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R025_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5163": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.989639471285045,
+          "repeat_seconds": [
+            3.989639471285045
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 65.05944376788102,
+          "repeat_seconds": [
+            65.05944376788102
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.38856773381121457,
+          "repeat_seconds": [
+            0.38856773381121457
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.9811941876541823,
+          "repeat_seconds": [
+            1.9811941876541823
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.0192129272036254,
+          "repeat_seconds": [
+            2.0192129272036254
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S007_R013_hybrid_IR.wav",
+      "room": "Apartments_idx_50"
+    },
+    "5182": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.1557429453823715,
+          "repeat_seconds": [
+            3.1557429453823715
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017181867,
+          "repeat_seconds": [
+            0.017181867
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.29933619732037187,
+          "repeat_seconds": [
+            0.29933619732037187
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.6125813042744994,
+          "repeat_seconds": [
+            1.6125813042744994
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6234873477369547,
+          "repeat_seconds": [
+            1.6234873477369547
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S007_R006_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5194": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.219255232717842,
+          "repeat_seconds": [
+            3.219255232717842
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017301542,
+          "repeat_seconds": [
+            0.017301542
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3052211080212146,
+          "repeat_seconds": [
+            0.3052211080212146
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.616518473951146,
+          "repeat_seconds": [
+            1.616518473951146
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6227209328208119,
+          "repeat_seconds": [
+            1.6227209328208119
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5271": {
+      "candidate_count": 176,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.1547014217358083,
+          "repeat_seconds": [
+            3.1547014217358083
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 108.64131937501952,
+          "repeat_seconds": [
+            108.64131937501952
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.30557575286366045,
+          "repeat_seconds": [
+            0.30557575286366045
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.616619392996654,
+          "repeat_seconds": [
+            1.616619392996654
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6260668297763914,
+          "repeat_seconds": [
+            1.6260668297763914
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S007_R007_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5281": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.1847629419062287,
+          "repeat_seconds": [
+            3.1847629419062287
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017113442,
+          "repeat_seconds": [
+            0.017113442
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3069717427715659,
+          "repeat_seconds": [
+            0.3069717427715659
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.621425244724378,
+          "repeat_seconds": [
+            1.621425244724378
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6304631198290735,
+          "repeat_seconds": [
+            1.6304631198290735
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5296": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.1953075961209834,
+          "repeat_seconds": [
+            3.1953075961209834
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.016750706,
+          "repeat_seconds": [
+            0.016750706
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3039504657499492,
+          "repeat_seconds": [
+            0.3039504657499492
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.6259859935380518,
+          "repeat_seconds": [
+            1.6259859935380518
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6297942199744284,
+          "repeat_seconds": [
+            1.6297942199744284
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S005_R010_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5333": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.2092878920957446,
+          "repeat_seconds": [
+            3.2092878920957446
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.01723418,
+          "repeat_seconds": [
+            0.01723418
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3038482149131596,
+          "repeat_seconds": [
+            0.3038482149131596
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.6228744785767049,
+          "repeat_seconds": [
+            1.6228744785767049
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6224688559304923,
+          "repeat_seconds": [
+            1.6224688559304923
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R008_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5334": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.2145969492848963,
+          "repeat_seconds": [
+            3.2145969492848963
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017102452,
+          "repeat_seconds": [
+            0.017102452
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.31032765633426607,
+          "repeat_seconds": [
+            0.31032765633426607
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.61019341298379,
+          "repeat_seconds": [
+            1.61019341298379
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6303835371509194,
+          "repeat_seconds": [
+            1.6303835371509194
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "535": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 74.47900832886808,
+          "repeat_seconds": [
+            74.47900832886808
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 1591.2767397709936,
+          "repeat_seconds": [
+            1591.2767397709936
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.192843848839402,
+          "repeat_seconds": [
+            9.192843848839402
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 48.55281624291092,
+          "repeat_seconds": [
+            48.55281624291092
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.02760756900534,
+          "repeat_seconds": [
+            46.02760756900534
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R052_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "5363": {
+      "candidate_count": 176,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 3.225294756470248,
+          "repeat_seconds": [
+            3.225294756470248
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.01697334,
+          "repeat_seconds": [
+            0.01697334
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.3064783117733896,
+          "repeat_seconds": [
+            0.3064783117733896
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.6025034487247467,
+          "repeat_seconds": [
+            1.6025034487247467
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.6337664152961224,
+          "repeat_seconds": [
+            1.6337664152961224
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "room": "Apartments_idx_42"
+    },
+    "5433": {
+      "candidate_count": 279,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.263206558069214,
+          "repeat_seconds": [
+            4.263206558069214
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 126.57880823360756,
+          "repeat_seconds": [
+            126.57880823360756
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5048997737467289,
+          "repeat_seconds": [
+            0.5048997737467289
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.6372299077920616,
+          "repeat_seconds": [
+            2.6372299077920616
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.542872044024989,
+          "repeat_seconds": [
+            2.542872044024989
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S005_R014_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5494": {
+      "candidate_count": 279,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.251746531110257,
+          "repeat_seconds": [
+            4.251746531110257
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 136.32905193511397,
+          "repeat_seconds": [
+            136.32905193511397
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4902134579606354,
+          "repeat_seconds": [
+            0.4902134579606354
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.6491801731754094,
+          "repeat_seconds": [
+            2.6491801731754094
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.5518228700384498,
+          "repeat_seconds": [
+            2.5518228700384498
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R011_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5513": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.280373794026673,
+          "repeat_seconds": [
+            4.280373794026673
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 120.87644718913361,
+          "repeat_seconds": [
+            120.87644718913361
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5043924290221184,
+          "repeat_seconds": [
+            0.5043924290221184
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.6928492886945605,
+          "repeat_seconds": [
+            2.6928492886945605
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.570330477086827,
+          "repeat_seconds": [
+            2.570330477086827
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R023_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5544": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.2733271340839565,
+          "repeat_seconds": [
+            4.2733271340839565
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 126.59211854729801,
+          "repeat_seconds": [
+            126.59211854729801
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.49761021486483514,
+          "repeat_seconds": [
+            0.49761021486483514
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.6809753093402833,
+          "repeat_seconds": [
+            2.6809753093402833
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.5428216396830976,
+          "repeat_seconds": [
+            2.5428216396830976
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5556": {
+      "candidate_count": 279,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.2561815560329705,
+          "repeat_seconds": [
+            4.2561815560329705
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017329324,
+          "repeat_seconds": [
+            0.017329324
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.49283322459086776,
+          "repeat_seconds": [
+            0.49283322459086776
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.676616040058434,
+          "repeat_seconds": [
+            2.676616040058434
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.5388063865248114,
+          "repeat_seconds": [
+            2.5388063865248114
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5573": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.2686444986611605,
+          "repeat_seconds": [
+            4.2686444986611605
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 148.75718196993694,
+          "repeat_seconds": [
+            148.75718196993694
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.49244831409305334,
+          "repeat_seconds": [
+            0.49244831409305334
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.6948539612349123,
+          "repeat_seconds": [
+            2.6948539612349123
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.547246575821191,
+          "repeat_seconds": [
+            2.547246575821191
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S002_R011_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5625": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.266996815102175,
+          "repeat_seconds": [
+            4.266996815102175
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 121.918313103728,
+          "repeat_seconds": [
+            121.918313103728
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.49184714583680034,
+          "repeat_seconds": [
+            0.49184714583680034
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.680032616481185,
+          "repeat_seconds": [
+            2.680032616481185
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.5492050459142774,
+          "repeat_seconds": [
+            2.5492050459142774
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5636": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.263560486957431,
+          "repeat_seconds": [
+            4.263560486957431
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 122.10485388292,
+          "repeat_seconds": [
+            122.10485388292
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.493469201028347,
+          "repeat_seconds": [
+            0.493469201028347
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.666356777306646,
+          "repeat_seconds": [
+            2.666356777306646
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.551042231498286,
+          "repeat_seconds": [
+            2.551042231498286
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S008_R004_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30"
+    },
+    "5672": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.318453760119155,
+          "repeat_seconds": [
+            2.318453760119155
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 73.95821844413877,
+          "repeat_seconds": [
+            73.95821844413877
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24609935353510082,
+          "repeat_seconds": [
+            0.24609935353510082
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.3909890283830464,
+          "repeat_seconds": [
+            1.3909890283830464
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3297922131605446,
+          "repeat_seconds": [
+            1.3297922131605446
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S008_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5677": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.301094540860504,
+          "repeat_seconds": [
+            2.301094540860504
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 74.83301425795071,
+          "repeat_seconds": [
+            74.83301425795071
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.2472752621397376,
+          "repeat_seconds": [
+            0.2472752621397376
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.3919434249401093,
+          "repeat_seconds": [
+            1.3919434249401093
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3284102401230484,
+          "repeat_seconds": [
+            1.3284102401230484
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R005_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5685": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.3067365733440965,
+          "repeat_seconds": [
+            2.3067365733440965
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 67.94488719012588,
+          "repeat_seconds": [
+            67.94488719012588
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24724019481800497,
+          "repeat_seconds": [
+            0.24724019481800497
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.3887194436974823,
+          "repeat_seconds": [
+            1.3887194436974823
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.32385568972677,
+          "repeat_seconds": [
+            1.32385568972677
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5732": {
+      "candidate_count": 139,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.2976364789064974,
+          "repeat_seconds": [
+            2.2976364789064974
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017065846,
+          "repeat_seconds": [
+            0.017065846
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24835624382831156,
+          "repeat_seconds": [
+            0.24835624382831156
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.391098678810522,
+          "repeat_seconds": [
+            1.391098678810522
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.329890112625435,
+          "repeat_seconds": [
+            1.329890112625435
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S001_R025_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5782": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.305147994076833,
+          "repeat_seconds": [
+            2.305147994076833
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 71.59079941711389,
+          "repeat_seconds": [
+            71.59079941711389
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24646412720903754,
+          "repeat_seconds": [
+            0.24646412720903754
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.404980830149725,
+          "repeat_seconds": [
+            1.404980830149725
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3250124012120068,
+          "repeat_seconds": [
+            1.3250124012120068
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5817": {
+      "candidate_count": 141,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.333463308867067,
+          "repeat_seconds": [
+            2.333463308867067
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.016901183,
+          "repeat_seconds": [
+            0.016901183
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.2657354506663978,
+          "repeat_seconds": [
+            0.2657354506663978
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.4113393859006464,
+          "repeat_seconds": [
+            1.4113393859006464
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3443560036830604,
+          "repeat_seconds": [
+            1.3443560036830604
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5832": {
+      "candidate_count": 139,
+      "fem_source": "strict_failure_random_candidate_measured",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.2995680246967822,
+          "repeat_seconds": [
+            2.2995680246967822
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 0.017163042,
+          "repeat_seconds": [
+            0.017163042
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24746981356292963,
+          "repeat_seconds": [
+            0.24746981356292963
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.3948849877342582,
+          "repeat_seconds": [
+            1.3948849877342582
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3242160317022353,
+          "repeat_seconds": [
+            1.3242160317022353
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5894": {
+      "candidate_count": 140,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 2.314904500031844,
+          "repeat_seconds": [
+            2.314904500031844
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 71.97437198995613,
+          "repeat_seconds": [
+            71.97437198995613
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.24659406626597047,
+          "repeat_seconds": [
+            0.24659406626597047
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.4009077835362405,
+          "repeat_seconds": [
+            1.4009077835362405
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.3330622920766473,
+          "repeat_seconds": [
+            1.3330622920766473
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R024_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25"
+    },
+    "5912": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.417764272075146,
+          "repeat_seconds": [
+            4.417764272075146
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 177.45000851224177,
+          "repeat_seconds": [
+            177.45000851224177
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5180310197174549,
+          "repeat_seconds": [
+            0.5180310197174549
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.783122041961178,
+          "repeat_seconds": [
+            2.783122041961178
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.650734231574461,
+          "repeat_seconds": [
+            2.650734231574461
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R004_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "5923": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.428117931820452,
+          "repeat_seconds": [
+            4.428117931820452
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 169.0805827777367,
+          "repeat_seconds": [
+            169.0805827777367
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.512128205737099,
+          "repeat_seconds": [
+            0.512128205737099
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.76375161902979,
+          "repeat_seconds": [
+            2.76375161902979
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.643427301896736,
+          "repeat_seconds": [
+            2.643427301896736
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S001_R004_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "5930": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.441121690673754,
+          "repeat_seconds": [
+            4.441121690673754
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 177.26467798417434,
+          "repeat_seconds": [
+            177.26467798417434
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5172646825667471,
+          "repeat_seconds": [
+            0.5172646825667471
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.7842998893465847,
+          "repeat_seconds": [
+            2.7842998893465847
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.6433579199947417,
+          "repeat_seconds": [
+            2.6433579199947417
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R019_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "5934": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.420195140177384,
+          "repeat_seconds": [
+            4.420195140177384
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 177.7092604113277,
+          "repeat_seconds": [
+            177.7092604113277
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5128828615415841,
+          "repeat_seconds": [
+            0.5128828615415841
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.757001828402281,
+          "repeat_seconds": [
+            2.757001828402281
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.649409518111497,
+          "repeat_seconds": [
+            2.649409518111497
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S009_R017_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "5958": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.428000017534941,
+          "repeat_seconds": [
+            4.428000017534941
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 176.66508190031163,
+          "repeat_seconds": [
+            176.66508190031163
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5111123798415065,
+          "repeat_seconds": [
+            0.5111123798415065
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.781378367682919,
+          "repeat_seconds": [
+            2.781378367682919
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.6409883010201156,
+          "repeat_seconds": [
+            2.6409883010201156
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R001_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "5970": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.444387877592817,
+          "repeat_seconds": [
+            4.444387877592817
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 177.6274134251289,
+          "repeat_seconds": [
+            177.6274134251289
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5121364132501185,
+          "repeat_seconds": [
+            0.5121364132501185
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.772030546795577,
+          "repeat_seconds": [
+            2.772030546795577
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.6646953113377094,
+          "repeat_seconds": [
+            2.6646953113377094
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S002_R014_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "6016": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.433023958932608,
+          "repeat_seconds": [
+            4.433023958932608
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 176.81915810424834,
+          "repeat_seconds": [
+            176.81915810424834
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5115784949157387,
+          "repeat_seconds": [
+            0.5115784949157387
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.7439610676374286,
+          "repeat_seconds": [
+            2.7439610676374286
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.64745875261724,
+          "repeat_seconds": [
+            2.64745875261724
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "6054": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.43190271104686,
+          "repeat_seconds": [
+            4.43190271104686
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 177.68944179289974,
+          "repeat_seconds": [
+            177.68944179289974
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.5113681952934712,
+          "repeat_seconds": [
+            0.5113681952934712
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.7892904058098793,
+          "repeat_seconds": [
+            2.7892904058098793
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.655237775295973,
+          "repeat_seconds": [
+            2.655237775295973
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_22"
+    },
+    "6124": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.047897950746119,
+          "repeat_seconds": [
+            4.047897950746119
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 157.5755288042128,
+          "repeat_seconds": [
+            157.5755288042128
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4740270266775042,
+          "repeat_seconds": [
+            0.4740270266775042
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.511237116996199,
+          "repeat_seconds": [
+            2.511237116996199
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.4131033432204276,
+          "repeat_seconds": [
+            2.4131033432204276
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R024_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6204": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.046035191975534,
+          "repeat_seconds": [
+            4.046035191975534
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 137.60848725307733,
+          "repeat_seconds": [
+            137.60848725307733
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.481243058340624,
+          "repeat_seconds": [
+            0.481243058340624
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.508779142284766,
+          "repeat_seconds": [
+            2.508779142284766
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.392453843029216,
+          "repeat_seconds": [
+            2.392453843029216
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6236": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.042718112235889,
+          "repeat_seconds": [
+            4.042718112235889
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 156.3224371119868,
+          "repeat_seconds": [
+            156.3224371119868
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.46537527022883296,
+          "repeat_seconds": [
+            0.46537527022883296
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.4789627608843148,
+          "repeat_seconds": [
+            2.4789627608843148
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.400979778729379,
+          "repeat_seconds": [
+            2.400979778729379
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R023_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6245": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.043308635940775,
+          "repeat_seconds": [
+            4.043308635940775
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 158.6911857048981,
+          "repeat_seconds": [
+            158.6911857048981
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4663861657027155,
+          "repeat_seconds": [
+            0.4663861657027155
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.521319037536159,
+          "repeat_seconds": [
+            2.521319037536159
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.4113042978569865,
+          "repeat_seconds": [
+            2.4113042978569865
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R023_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6252": {
+      "candidate_count": 260,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.0196069029625505,
+          "repeat_seconds": [
+            4.0196069029625505
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 157.99112283997238,
+          "repeat_seconds": [
+            157.99112283997238
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4734562262892723,
+          "repeat_seconds": [
+            0.4734562262892723
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.5158837439958006,
+          "repeat_seconds": [
+            2.5158837439958006
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3908168743364513,
+          "repeat_seconds": [
+            2.3908168743364513
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6280": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.025824809446931,
+          "repeat_seconds": [
+            4.025824809446931
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 157.01493002683856,
+          "repeat_seconds": [
+            157.01493002683856
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4690830814652145,
+          "repeat_seconds": [
+            0.4690830814652145
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.503327724058181,
+          "repeat_seconds": [
+            2.503327724058181
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3958308591973037,
+          "repeat_seconds": [
+            2.3958308591973037
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6281": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.02864194335416,
+          "repeat_seconds": [
+            4.02864194335416
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 152.05784289515577,
+          "repeat_seconds": [
+            152.05784289515577
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4597758734598756,
+          "repeat_seconds": [
+            0.4597758734598756
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.498138310853392,
+          "repeat_seconds": [
+            2.498138310853392
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.3940272382460535,
+          "repeat_seconds": [
+            2.3940272382460535
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S006_R025_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "6303": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 4.044307893142104,
+          "repeat_seconds": [
+            4.044307893142104
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 133.4653448939789,
+          "repeat_seconds": [
+            133.4653448939789
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.4608221664093435,
+          "repeat_seconds": [
+            0.4608221664093435
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 2.5049123936332762,
+          "repeat_seconds": [
+            2.5049123936332762
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 2.39132356736809,
+          "repeat_seconds": [
+            2.39132356736809
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S004_R019_hybrid_IR.wav",
+      "room": "Restaurants_idx_24"
+    },
+    "699": {
+      "candidate_count": 5295,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 74.7637095763348,
+          "repeat_seconds": [
+            74.7637095763348
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 3772.6172053099144,
+          "repeat_seconds": [
+            3772.6172053099144
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.167239831760526,
+          "repeat_seconds": [
+            9.167239831760526
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 48.59593803365715,
+          "repeat_seconds": [
+            48.59593803365715
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.09743277565576,
+          "repeat_seconds": [
+            46.09743277565576
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R085_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "715": {
+      "candidate_count": 5296,
+      "fem_source": "local_oversized",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 74.4296492014546,
+          "repeat_seconds": [
+            74.4296492014546
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 3834.2166105634533,
+          "repeat_seconds": [
+            3834.2166105634533
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.217115368461236,
+          "repeat_seconds": [
+            9.217115368461236
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 48.61257414193824,
+          "repeat_seconds": [
+            48.61257414193824
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 46.03204221720807,
+          "repeat_seconds": [
+            46.03204221720807
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "917": {
+      "candidate_count": 5295,
+      "fem_source": "external_runtime_recovered",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 74.58887798385695,
+          "repeat_seconds": [
+            74.58887798385695
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 1557.9866405672115,
+          "repeat_seconds": [
+            1557.9866405672115
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 9.215812670765445,
+          "repeat_seconds": [
+            9.215812670765445
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 48.60379371372983,
+          "repeat_seconds": [
+            48.60379371372983
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 45.98242655466311,
+          "repeat_seconds": [
+            45.98242655466311
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R099_hybrid_IR.wav",
+      "room": "Cafe_idx_1"
+    },
+    "978": {
+      "candidate_count": 105,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.8073500995524228,
+          "repeat_seconds": [
+            1.8073500995524228
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 31.034447860904038,
+          "repeat_seconds": [
+            31.034447860904038
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.19342819368466735,
+          "repeat_seconds": [
+            0.19342819368466735
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.072666185675189,
+          "repeat_seconds": [
+            1.072666185675189
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.0209858184680343,
+          "repeat_seconds": [
+            1.0209858184680343
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R023_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "988": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.7988108941353858,
+          "repeat_seconds": [
+            1.7988108941353858
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 37.09519911906682,
+          "repeat_seconds": [
+            37.09519911906682
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.18653629999607801,
+          "repeat_seconds": [
+            0.18653629999607801
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.0550363583024591,
+          "repeat_seconds": [
+            1.0550363583024591
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.0134052890352905,
+          "repeat_seconds": [
+            1.0134052890352905
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R017_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    },
+    "996": {
+      "candidate_count": 106,
+      "fem_source": "local_primary_97",
+      "methods": {
+        "fa_bf_flac": {
+          "median_seconds": 1.8366529899649322,
+          "repeat_seconds": [
+            1.8366529899649322
+          ]
+        },
+        "fem_omp": {
+          "median_seconds": 35.481236804043874,
+          "repeat_seconds": [
+            35.481236804043874
+          ]
+        },
+        "few_shot_rir": {
+          "median_seconds": 0.19518680777400732,
+          "repeat_seconds": [
+            0.19518680777400732
+          ]
+        },
+        "vanilla_flac": {
+          "median_seconds": 1.08776527014561,
+          "repeat_seconds": [
+            1.08776527014561
+          ]
+        },
+        "yawaug_flac": {
+          "median_seconds": 1.035113216144964,
+          "repeat_seconds": [
+            1.035113216144964
+          ]
+        }
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32"
+    }
+  },
+  "repeat_count": 1,
+  "repeat_summaries": [
+    {
+      "path": "/home/zhixuanzhao/projects/Frame_Average/NeurIPS_2026_Workshop_Latency_Reproducibility/data/repeats/repeat_001/summary.json",
+      "sha256": "9d354b342a286b1a147dca83fa7cd4498b467b67de971d8e7b4a42b66605b640"
+    }
+  ],
+  "schema_version": 1,
+  "scope": {
+    "aggregation": "query micro",
+    "candidate_evaluations": 92608,
+    "query_count": 128,
+    "room_count": 16,
+    "selection_sha256": "9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b"
+  },
+  "sha256": "54e51f07170431f5578869c37431ee3065f3a13861939d74d15171a1da9bdbd5"
+}

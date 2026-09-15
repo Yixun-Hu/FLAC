@@ -1,0 +1,3478 @@
+{
+  "fem_provenance": {
+    "failure_policy": {
+      "fem_solve_on_failure": false,
+      "method": "strict-coverage detection then deterministic random candidate"
+    },
+    "hardware_normalized": false,
+    "measured_random_fallback_query_count": 16,
+    "observed_query_count": 112,
+    "omp_source_counts": {
+      "actual_fem_response": 97,
+      "not_run_random_fallback": 16,
+      "shape_matched_synthetic_response": 15
+    },
+    "selector_latency_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/selector_latency_128.json",
+    "selector_latency_sha256": "93a5843a47f2dcddefeedd2c4a9c70e1f5c1d8d2be4215c887ced4591cd35026",
+    "source_counts": {
+      "external_runtime_recovered": 6,
+      "local_oversized": 9,
+      "local_primary_97": 97,
+      "strict_failure_random_candidate_measured": 16
+    }
+  },
+  "latency_protocol": {
+    "candidate_filtering_included": false,
+    "candidate_scoring_included": true,
+    "candidate_selection_included": true,
+    "context_count": 8,
+    "evaluation_metrics_included": false,
+    "generated_rirs_per_candidate": 1,
+    "input_loading_included": false,
+    "name": "fem_core_aligned_kctx8_kgen1",
+    "result_serialization_included": false
+  },
+  "overall": {
+    "fa_bf_flac": {
+      "maximum_seconds": 90.83512499672361,
+      "mean_seconds": 10.918520814995645,
+      "median_seconds": 3.719425128190778,
+      "minimum_seconds": 0.7341386859770864,
+      "p90_seconds": 52.829202034301126,
+      "query_count": 128,
+      "summed_seconds": 1397.5706643194426
+    },
+    "fem_omp": {
+      "maximum_seconds": 10214.124917476904,
+      "mean_seconds": 695.4606903443104,
+      "median_seconds": 70.49619358149357,
+      "minimum_seconds": 0.016750706,
+      "p90_seconds": 1547.0877288490478,
+      "query_count": 128,
+      "summed_seconds": 89018.96836407173
+    },
+    "few_shot_rir": {
+      "maximum_seconds": 9.217115368461236,
+      "mean_seconds": 1.2625940862708376,
+      "median_seconds": 0.3998985269572586,
+      "minimum_seconds": 0.056667837081477046,
+      "p90_seconds": 6.456908550928347,
+      "query_count": 128,
+      "summed_seconds": 161.6120430426672
+    },
+    "vanilla_flac": {
+      "maximum_seconds": 48.61257414193824,
+      "mean_seconds": 6.455721611935587,
+      "median_seconds": 2.103834849316627,
+      "minimum_seconds": 0.3384057574439794,
+      "p90_seconds": 31.741731318621895,
+      "query_count": 128,
+      "summed_seconds": 826.3323663277552
+    },
+    "yawaug_flac": {
+      "maximum_seconds": 46.09743277565576,
+      "mean_seconds": 6.388815334667015,
+      "median_seconds": 2.0726397469406947,
+      "minimum_seconds": 0.34611465339548886,
+      "p90_seconds": 32.39773694365285,
+      "query_count": 128,
+      "summed_seconds": 817.7683628373779
+    }
+  },
+  "per_candidate": {
+    "fa_bf_flac": {
+      "amortized_seconds": 0.01509125199031879,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.027340870419586147,
+      "mean_seconds": 0.017414703192161957,
+      "median_seconds": 0.01653934349850914,
+      "minimum_seconds": 0.014053936782752,
+      "p90_seconds": 0.020351390547929674,
+      "query_count": 128,
+      "summed_seconds": 2.2290820085967304
+    },
+    "fem_omp": {
+      "amortized_seconds": 0.9612449071794197,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 2.744257097656342,
+      "mean_seconds": 0.49687381351037974,
+      "median_seconds": 0.40805683580242863,
+      "minimum_seconds": 3.7485184135977338e-06,
+      "p90_seconds": 0.6551860412434264,
+      "query_count": 128,
+      "summed_seconds": 63.599848129328606
+    },
+    "few_shot_rir": {
+      "amortized_seconds": 0.001745119676946562,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.002498751488962659,
+      "mean_seconds": 0.001808217962512014,
+      "median_seconds": 0.0017687558387906584,
+      "minimum_seconds": 0.0017007738484112037,
+      "p90_seconds": 0.0019074604822643477,
+      "query_count": 128,
+      "summed_seconds": 0.2314518992015378
+    },
+    "vanilla_flac": {
+      "amortized_seconds": 0.008922904784983534,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.012676289831115692,
+      "mean_seconds": 0.009785200735753341,
+      "median_seconds": 0.009556492717610478,
+      "minimum_seconds": 0.008505112528873489,
+      "p90_seconds": 0.010410244218444198,
+      "query_count": 128,
+      "summed_seconds": 1.2525056941764277
+    },
+    "yawaug_flac": {
+      "amortized_seconds": 0.008830428935268853,
+      "candidate_evaluations": 92608,
+      "maximum_seconds": 0.013006537635293271,
+      "mean_seconds": 0.00963069268954125,
+      "median_seconds": 0.009176830185407943,
+      "minimum_seconds": 0.008684122106640813,
+      "p90_seconds": 0.010640102043524927,
+      "query_count": 128,
+      "summed_seconds": 1.23272866426128
+    }
+  },
+  "queries": {
+    "1025": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.792930482653901,
+        "fem_omp": 33.89915213291533,
+        "few_shot_rir": 0.186907161725685,
+        "vanilla_flac": 1.0550196529366076,
+        "yawaug_flac": 1.008775088004768
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S006_R022_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.4275930374860764e-05,
+          "generated_encode_seconds": 0.09700728789903224,
+          "observed_encode_seconds": 0.006449375068768859,
+          "scoring_total_seconds": 0.1036690988112241,
+          "similarity_seconds": 0.00022747297771275043
+        },
+        "fem_omp": 0.0010873798746615648,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1060": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.796602490125224,
+        "fem_omp": 35.49620554107241,
+        "few_shot_rir": 0.19251897209323943,
+        "vanilla_flac": 1.0614558623638004,
+        "yawaug_flac": 1.0085901822894812
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S008_R023_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.525405190885067e-05,
+          "generated_encode_seconds": 0.09701129025779665,
+          "observed_encode_seconds": 0.006597281899303198,
+          "scoring_total_seconds": 0.10381664521992207,
+          "similarity_seconds": 0.00021824007853865623
+        },
+        "fem_omp": 0.001090653007850051,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1061": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.7967191392090172,
+        "fem_omp": 32.57229492999613,
+        "few_shot_rir": 0.19765560631640255,
+        "vanilla_flac": 1.0466502183116972,
+        "yawaug_flac": 1.017042275518179
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S002_R018_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.46451997756958e-05,
+          "generated_encode_seconds": 0.09695617109537125,
+          "observed_encode_seconds": 0.009268903871998191,
+          "scoring_total_seconds": 0.10646966332569718,
+          "similarity_seconds": 0.0002099431585520506
+        },
+        "fem_omp": 0.001084313029423356,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1088": {
+      "candidate_count": 106,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.829644448356703,
+        "fem_omp": 32.778804822359234,
+        "few_shot_rir": 0.19129612715914845,
+        "vanilla_flac": 1.084817916387692,
+        "yawaug_flac": 1.0280190370976925
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R003_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.3803051337599754e-05,
+          "generated_encode_seconds": 0.09878326579928398,
+          "observed_encode_seconds": 0.006436060881242156,
+          "scoring_total_seconds": 0.10546646220609546,
+          "similarity_seconds": 0.0002115359529852867
+        },
+        "fem_omp": 0.0010856599546968937,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1157": {
+      "candidate_count": 105,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.804505491629243,
+        "fem_omp": 31.754330354975536,
+        "few_shot_rir": 0.18835190776735544,
+        "vanilla_flac": 1.0787514506373554,
+        "yawaug_flac": 1.0133202488068491
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S003_R015_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.6806100979447365e-05,
+          "generated_encode_seconds": 0.09786532889120281,
+          "observed_encode_seconds": 0.0067822569981217384,
+          "scoring_total_seconds": 0.10484103276394308,
+          "similarity_seconds": 0.0002194379922002554
+        },
+        "fem_omp": 0.0011004540137946606,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1201": {
+      "candidate_count": 231,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5715392825659364,
+        "fem_omp": 90.08092631981708,
+        "few_shot_rir": 0.4120404354762286,
+        "vanilla_flac": 2.223838272271678,
+        "yawaug_flac": 2.117050410248339
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S005_R013_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.760308027267456e-05,
+          "generated_encode_seconds": 0.21432793396525085,
+          "observed_encode_seconds": 0.006471741013228893,
+          "scoring_total_seconds": 0.22137843631207943,
+          "similarity_seconds": 0.00048515317030251026
+        },
+        "fem_omp": 0.0012813799548894167,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1204": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.55496047064662,
+        "fem_omp": 81.72894928371534,
+        "few_shot_rir": 0.41663801087997854,
+        "vanilla_flac": 2.1946974974125624,
+        "yawaug_flac": 2.1096899637486786
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R004_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.697490319609642e-05,
+          "generated_encode_seconds": 0.21350066782906651,
+          "observed_encode_seconds": 0.006395932054147124,
+          "scoring_total_seconds": 0.22048718365840614,
+          "similarity_seconds": 0.0005861485842615366
+        },
+        "fem_omp": 0.0012474178802222013,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1218": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5596757035236806,
+        "fem_omp": 80.94621351012029,
+        "few_shot_rir": 0.4043983086012304,
+        "vanilla_flac": 2.191996115958318,
+        "yawaug_flac": 2.104100395925343
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S006_R016_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7103891372680664e-05,
+          "generated_encode_seconds": 0.2135254789609462,
+          "observed_encode_seconds": 0.006595005979761481,
+          "scoring_total_seconds": 0.2207291517406702,
+          "similarity_seconds": 0.0005715629085898399
+        },
+        "fem_omp": 0.00123994005843997,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1257": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5529028286691755,
+        "fem_omp": 86.0362168722786,
+        "few_shot_rir": 0.40126869548112154,
+        "vanilla_flac": 2.198942837305367,
+        "yawaug_flac": 2.1088652834296227
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.5764027163386345e-05,
+          "generated_encode_seconds": 0.21370319207198918,
+          "observed_encode_seconds": 0.006778369890525937,
+          "scoring_total_seconds": 0.22086732438765466,
+          "similarity_seconds": 0.0005418213550001383
+        },
+        "fem_omp": 0.0013199939858168364,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1287": {
+      "candidate_count": 232,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5817437460646033,
+        "fem_omp": 82.338068182813,
+        "few_shot_rir": 0.4150990347843617,
+        "vanilla_flac": 2.226737220073119,
+        "yawaug_flac": 2.1283399981912225
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S003_R010_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.058517515659332e-05,
+          "generated_encode_seconds": 0.21519640809856355,
+          "observed_encode_seconds": 0.006400112062692642,
+          "scoring_total_seconds": 0.2221666059922427,
+          "similarity_seconds": 0.0005591798108071089
+        },
+        "fem_omp": 0.0012598109897226095,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1297": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.547535835765302,
+        "fem_omp": 89.03443180583417,
+        "few_shot_rir": 0.4117126807104796,
+        "vanilla_flac": 2.206295389449224,
+        "yawaug_flac": 2.1073836956638843
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S002_R022_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5986071452498436e-05,
+          "generated_encode_seconds": 0.21352021279744804,
+          "observed_encode_seconds": 0.006475233938544989,
+          "scoring_total_seconds": 0.22057919250801206,
+          "similarity_seconds": 0.0005478267557919025
+        },
+        "fem_omp": 0.0012573550920933485,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1323": {
+      "candidate_count": 232,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5853401322383434,
+        "fem_omp": 83.98217970598489,
+        "few_shot_rir": 0.4125225958414376,
+        "vanilla_flac": 2.2328222400974482,
+        "yawaug_flac": 2.1317977781873196
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S009_R014_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.749597817659378e-05,
+          "generated_encode_seconds": 0.21536564105190337,
+          "observed_encode_seconds": 0.006547739962115884,
+          "scoring_total_seconds": 0.2225001349579543,
+          "similarity_seconds": 0.0005513608921319246
+        },
+        "fem_omp": 0.0012575299479067326,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1368": {
+      "candidate_count": 230,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.5442828887607902,
+        "fem_omp": 83.25038351514377,
+        "few_shot_rir": 0.4049347904510796,
+        "vanilla_flac": 2.1956650665961206,
+        "yawaug_flac": 2.111842683283612
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S004_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7310877814888954e-05,
+          "generated_encode_seconds": 0.21358999935910106,
+          "observed_encode_seconds": 0.0065435320138931274,
+          "scoring_total_seconds": 0.22064400743693113,
+          "similarity_seconds": 0.0005424569826573133
+        },
+        "fem_omp": 0.001268200110644102,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1440": {
+      "candidate_count": 255,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002271032,
+          "depth_aabb_strict_gate_seconds": 0.014763548,
+          "fallback_total_seconds": 0.016807198,
+          "random_candidate_selection_seconds": 9.2961e-05
+        },
+        "prediction_index": 236,
+        "repeat_seconds": [
+          0.018742789,
+          0.016807198,
+          0.016621744
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.884142486844212,
+        "fem_omp": 0.016807198,
+        "few_shot_rir": 0.4483228684403002,
+        "vanilla_flac": 2.421971696894616,
+        "yawaug_flac": 2.3132213491480798
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S005_R004_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.345217555761337e-05,
+          "generated_encode_seconds": 0.2358989929780364,
+          "observed_encode_seconds": 0.0067597441375255585,
+          "scoring_total_seconds": 0.2433448212686926,
+          "similarity_seconds": 0.000681915320456028
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "1446": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.8718752211425453,
+        "fem_omp": 103.65355899883434,
+        "few_shot_rir": 0.44792102579958737,
+        "vanilla_flac": 2.4158727016765624,
+        "yawaug_flac": 2.298944007838145
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S001_R018_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.897600643336773e-05,
+          "generated_encode_seconds": 0.23483466100879014,
+          "observed_encode_seconds": 0.006846192060038447,
+          "scoring_total_seconds": 0.24235029891133308,
+          "similarity_seconds": 0.0007050621788948774
+        },
+        "fem_omp": 0.0013092269655317068,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1500": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.853510124143213,
+        "fem_omp": 110.65075025404803,
+        "few_shot_rir": 0.43771047540940344,
+        "vanilla_flac": 2.4076303616166115,
+        "yawaug_flac": 2.30001088604331
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R012_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.850615419447422e-05,
+          "generated_encode_seconds": 0.23481135489419103,
+          "observed_encode_seconds": 0.006736042909324169,
+          "scoring_total_seconds": 0.24219358735717833,
+          "similarity_seconds": 0.000657930038869381
+        },
+        "fem_omp": 0.0029292090330272913,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1553": {
+      "candidate_count": 255,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.8926134379580617,
+        "fem_omp": 110.88289018603973,
+        "few_shot_rir": 0.44202927965670824,
+        "vanilla_flac": 2.428514290135354,
+        "yawaug_flac": 2.3095776916015893
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R019_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.1496165320277214e-05,
+          "generated_encode_seconds": 0.23582254583016038,
+          "observed_encode_seconds": 0.006739292060956359,
+          "scoring_total_seconds": 0.24328053160570562,
+          "similarity_seconds": 0.0007307010237127542
+        },
+        "fem_omp": 0.0013027070090174675,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1567": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.8625636799260974,
+        "fem_omp": 121.66066021285951,
+        "few_shot_rir": 0.4413502246607095,
+        "vanilla_flac": 2.424125551013276,
+        "yawaug_flac": 2.3015351986978203
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S005_R024_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.4003984183073044e-05,
+          "generated_encode_seconds": 0.23476651310920715,
+          "observed_encode_seconds": 0.006923514185473323,
+          "scoring_total_seconds": 0.24236524780280888,
+          "similarity_seconds": 0.0007191430777311325
+        },
+        "fem_omp": 0.0013067270629107952,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1577": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.868437473429367,
+        "fem_omp": 108.94290601694956,
+        "few_shot_rir": 0.4420714930165559,
+        "vanilla_flac": 2.4199424171820283,
+        "yawaug_flac": 2.3027715941425413
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S009_R016_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.2084062695503235e-05,
+          "generated_encode_seconds": 0.2347437331918627,
+          "observed_encode_seconds": 0.0070576900616288185,
+          "scoring_total_seconds": 0.24255060614086688,
+          "similarity_seconds": 0.0007170988246798515
+        },
+        "fem_omp": 0.001440160907804966,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1594": {
+      "candidate_count": 255,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.881523684132844,
+        "fem_omp": 113.24493270996027,
+        "few_shot_rir": 0.44526239088736475,
+        "vanilla_flac": 2.4094152189791203,
+        "yawaug_flac": 2.318750451086089
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S010_R001_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.439793363213539e-05,
+          "generated_encode_seconds": 0.23580434499308467,
+          "observed_encode_seconds": 0.007421914953738451,
+          "scoring_total_seconds": 0.2439290159381926,
+          "similarity_seconds": 0.0007426571100950241
+        },
+        "fem_omp": 0.001328909071162343,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1595": {
+      "candidate_count": 254,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.869484626688063,
+        "fem_omp": 106.050801130943,
+        "few_shot_rir": 0.4401854448951781,
+        "vanilla_flac": 2.422204164089635,
+        "yawaug_flac": 2.2912160579580814
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S004_R010_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.109988756477833e-05,
+          "generated_encode_seconds": 0.23481560801155865,
+          "observed_encode_seconds": 0.006896045058965683,
+          "scoring_total_seconds": 0.24244606704451144,
+          "similarity_seconds": 0.0007137299980968237
+        },
+        "fem_omp": 0.0020141599234193563,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1692": {
+      "candidate_count": 406,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 6.026224840199575,
+        "fem_omp": 274.7337305271067,
+        "few_shot_rir": 0.7171322742942721,
+        "vanilla_flac": 3.8335960558615625,
+        "yawaug_flac": 3.6356022336985916
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S002_R021_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.619189374148846e-05,
+          "generated_encode_seconds": 0.37610487709753215,
+          "observed_encode_seconds": 0.006615119986236095,
+          "scoring_total_seconds": 0.3838149809744209,
+          "similarity_seconds": 0.0010472279973328114
+        },
+        "fem_omp": 0.0014435499906539917,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1704": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 5.997306738747284,
+        "fem_omp": 275.6596547467634,
+        "few_shot_rir": 0.7186777833849192,
+        "vanilla_flac": 3.798352275043726,
+        "yawaug_flac": 3.6173246083781123
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R004_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.6664074286818504e-05,
+          "generated_encode_seconds": 0.3744951270055026,
+          "observed_encode_seconds": 0.006637690123170614,
+          "scoring_total_seconds": 0.38215276738628745,
+          "similarity_seconds": 0.001053565414622426
+        },
+        "fem_omp": 0.0014360519126057625,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1751": {
+      "candidate_count": 407,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002448718,
+          "depth_aabb_strict_gate_seconds": 0.014602415,
+          "fallback_total_seconds": 0.017143699,
+          "random_candidate_selection_seconds": 9.035e-05
+        },
+        "prediction_index": 239,
+        "repeat_seconds": [
+          0.019123691,
+          0.017143699,
+          0.016606327
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 6.05412333458662,
+        "fem_omp": 0.017143699,
+        "few_shot_rir": 0.7132963160984218,
+        "vanilla_flac": 3.8333124744240195,
+        "yawaug_flac": 3.63542339974083
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S005_R015_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.9863865822553635e-05,
+          "generated_encode_seconds": 0.3775637629441917,
+          "observed_encode_seconds": 0.006426093867048621,
+          "scoring_total_seconds": 0.38510793959721923,
+          "similarity_seconds": 0.0010782189201563597
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "1768": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 6.015179202193394,
+        "fem_omp": 243.6686613180209,
+        "few_shot_rir": 0.7051179066766053,
+        "vanilla_flac": 3.7987433241214603,
+        "yawaug_flac": 3.6166685211937875
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S009_R023_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.1980063542723656e-05,
+          "generated_encode_seconds": 0.37453175825066864,
+          "observed_encode_seconds": 0.006706231972202659,
+          "scoring_total_seconds": 0.38246736722067,
+          "similarity_seconds": 0.0010725387837737799
+        },
+        "fem_omp": 0.0015297040808945894,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "179": {
+      "candidate_count": 5295,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.004692916,
+          "depth_aabb_strict_gate_seconds": 0.015051668,
+          "fallback_total_seconds": 0.019848405,
+          "random_candidate_selection_seconds": 0.000101272
+        },
+        "prediction_index": 57,
+        "repeat_seconds": [
+          0.023121688,
+          0.019848405,
+          0.019240058
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 88.40102837001905,
+        "fem_omp": 0.019848405,
+        "few_shot_rir": 9.185658524977043,
+        "vanilla_flac": 45.244031980866566,
+        "yawaug_flac": 46.08630203502253
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 7.851398549973965e-05,
+          "generated_encode_seconds": 4.882650202605873,
+          "observed_encode_seconds": 0.006790856132283807,
+          "scoring_total_seconds": 4.904454464092851,
+          "similarity_seconds": 0.01404514443129301
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "1805": {
+      "candidate_count": 404,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.00251482,
+          "depth_aabb_strict_gate_seconds": 0.014688578,
+          "fallback_total_seconds": 0.017298634,
+          "random_candidate_selection_seconds": 9.2827e-05
+        },
+        "prediction_index": 2,
+        "repeat_seconds": [
+          0.019181514,
+          0.017298634,
+          0.016699479
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 6.023172890068963,
+        "fem_omp": 0.017298634,
+        "few_shot_rir": 0.7027966303285211,
+        "vanilla_flac": 3.780637283110991,
+        "yawaug_flac": 3.60756420600228
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S001_R019_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.115584306418896e-05,
+          "generated_encode_seconds": 0.37452221708372235,
+          "observed_encode_seconds": 0.006496399873867631,
+          "scoring_total_seconds": 0.38220680109225214,
+          "similarity_seconds": 0.0011167111806571484
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "1870": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 6.019523870199919,
+        "fem_omp": 261.6470762628596,
+        "few_shot_rir": 0.7026141360402107,
+        "vanilla_flac": 3.7922602468170226,
+        "yawaug_flac": 3.6135032235179096
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S010_R024_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.78249678760767e-05,
+          "generated_encode_seconds": 0.37450253404676914,
+          "observed_encode_seconds": 0.006485942983999848,
+          "scoring_total_seconds": 0.3820586649235338,
+          "similarity_seconds": 0.001058868132531643
+        },
+        "fem_omp": 0.0015029720962047577,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1880": {
+      "candidate_count": 402,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 5.991227349732071,
+        "fem_omp": 270.4617766162846,
+        "few_shot_rir": 0.7074785537552088,
+        "vanilla_flac": 3.7856774660758674,
+        "yawaug_flac": 3.5496219587512314
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S006_R003_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.822590224444866e-05,
+          "generated_encode_seconds": 0.37269608164206147,
+          "observed_encode_seconds": 0.006452118046581745,
+          "scoring_total_seconds": 0.38025907683186233,
+          "similarity_seconds": 0.0010653501376509666
+        },
+        "fem_omp": 0.0014399951323866844,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1896": {
+      "candidate_count": 404,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 5.984023892786354,
+        "fem_omp": 219.56293238466606,
+        "few_shot_rir": 0.7067263489589095,
+        "vanilla_flac": 3.794695424847305,
+        "yawaug_flac": 3.5763151485007256
+      },
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S008_R001_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.818003460764885e-05,
+          "generated_encode_seconds": 0.37449779524467885,
+          "observed_encode_seconds": 0.006426203064620495,
+          "scoring_total_seconds": 0.3820309257134795,
+          "similarity_seconds": 0.0010954467579722404
+        },
+        "fem_omp": 0.0014373029116541147,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1925": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1447586414869875,
+        "fem_omp": 20.464653794886544,
+        "few_shot_rir": 0.10779490764252841,
+        "vanilla_flac": 0.5898291675839573,
+        "yawaug_flac": 0.6004851975012571
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S009_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.5553163141012192e-05,
+          "generated_encode_seconds": 0.05311810411512852,
+          "observed_encode_seconds": 0.007691298145800829,
+          "scoring_total_seconds": 0.06095261056907475,
+          "similarity_seconds": 0.00016976497136056423
+        },
+        "fem_omp": 0.0009882289450615644,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1937": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1415911987423897,
+        "fem_omp": 21.39682218595408,
+        "few_shot_rir": 0.10633028787560761,
+        "vanilla_flac": 0.5892357747070491,
+        "yawaug_flac": 0.5997914678882807
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.6499852538108826e-05,
+          "generated_encode_seconds": 0.05309821595437825,
+          "observed_encode_seconds": 0.010527648031711578,
+          "scoring_total_seconds": 0.06383832986466587,
+          "similarity_seconds": 0.00018596602603793144
+        },
+        "fem_omp": 0.000988462008535862,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "1991": {
+      "candidate_count": 58,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1575893191620708,
+        "fem_omp": 23.378284675069153,
+        "few_shot_rir": 0.10779181821271777,
+        "vanilla_flac": 0.5994721779134125,
+        "yawaug_flac": 0.6090002451092005
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S001_R016_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.6014167815446854e-05,
+          "generated_encode_seconds": 0.05384923703968525,
+          "observed_encode_seconds": 0.010202945908531547,
+          "scoring_total_seconds": 0.06458281516097486,
+          "similarity_seconds": 0.00017292005941271782
+        },
+        "fem_omp": 0.0009889770299196243,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2022": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1337738407310098,
+        "fem_omp": 22.23730766051449,
+        "few_shot_rir": 0.10504865786060691,
+        "vanilla_flac": 0.5818049751687795,
+        "yawaug_flac": 0.5926594617776573
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S002_R001_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.9240036383271217e-05,
+          "generated_encode_seconds": 0.05215673893690109,
+          "observed_encode_seconds": 0.010551566956564784,
+          "scoring_total_seconds": 0.06291846092790365,
+          "similarity_seconds": 0.0001809149980545044
+        },
+        "fem_omp": 0.0009272408206015825,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2128": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.131799794966355,
+        "fem_omp": 21.5883623349946,
+        "few_shot_rir": 0.10447696479968727,
+        "vanilla_flac": 0.5800868498627096,
+        "yawaug_flac": 0.5908392579294741
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R002_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.7311034500598907e-05,
+          "generated_encode_seconds": 0.05212160595692694,
+          "observed_encode_seconds": 0.010298928013071418,
+          "scoring_total_seconds": 0.06262985896319151,
+          "similarity_seconds": 0.00017268303781747818
+        },
+        "fem_omp": 0.000942812068387866,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2130": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1426706209313124,
+        "fem_omp": 21.311285054311156,
+        "few_shot_rir": 0.10721947206184268,
+        "vanilla_flac": 0.5903177100699395,
+        "yawaug_flac": 0.6008303901180625
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S006_R003_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.4818116798996925e-05,
+          "generated_encode_seconds": 0.05310027301311493,
+          "observed_encode_seconds": 0.010398340877145529,
+          "scoring_total_seconds": 0.06370389298535883,
+          "similarity_seconds": 0.00018102210015058517
+        },
+        "fem_omp": 0.000986119033768773,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2134": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.139058989007026,
+        "fem_omp": 23.406779615441337,
+        "few_shot_rir": 0.10613536788150668,
+        "vanilla_flac": 0.5887412379961461,
+        "yawaug_flac": 0.5987118077464402
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R008_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.681005910038948e-05,
+          "generated_encode_seconds": 0.05312008713372052,
+          "observed_encode_seconds": 0.010291208047419786,
+          "scoring_total_seconds": 0.06364455702714622,
+          "similarity_seconds": 0.00017222994938492775
+        },
+        "fem_omp": 0.0009902669116854668,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2157": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.127694979077205,
+        "fem_omp": 22.51228278223425,
+        "few_shot_rir": 0.10490507888607681,
+        "vanilla_flac": 0.5795329250395298,
+        "yawaug_flac": 0.5923585158307105
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S003_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.5474000722169876e-05,
+          "generated_encode_seconds": 0.05210240604355931,
+          "observed_encode_seconds": 0.010500188916921616,
+          "scoring_total_seconds": 0.06281102704815567,
+          "similarity_seconds": 0.0001692250370979309
+        },
+        "fem_omp": 0.0009275851771235466,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2188": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1376461570616812,
+        "fem_omp": 20.45327608892694,
+        "few_shot_rir": 0.10646940628066659,
+        "vanilla_flac": 0.5915172421373427,
+        "yawaug_flac": 0.5985084401909262
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S002_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.06139700114727e-05,
+          "generated_encode_seconds": 0.0531290490180254,
+          "observed_encode_seconds": 0.01043120794929564,
+          "scoring_total_seconds": 0.06381365121342242,
+          "similarity_seconds": 0.00017535104416310787
+        },
+        "fem_omp": 0.000988089945167303,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2259": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1382887735962868,
+        "fem_omp": 22.916686553740874,
+        "few_shot_rir": 0.10472559928894043,
+        "vanilla_flac": 0.585113893263042,
+        "yawaug_flac": 0.597887167474255
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.3529940992593765e-05,
+          "generated_encode_seconds": 0.05308301909826696,
+          "observed_encode_seconds": 0.008545243181288242,
+          "scoring_total_seconds": 0.06181711540557444,
+          "similarity_seconds": 0.00011192099191248417
+        },
+        "fem_omp": 0.0008708951063454151,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2319": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1099406403955072,
+        "fem_omp": 22.44158365111798,
+        "few_shot_rir": 0.1015804533381015,
+        "vanilla_flac": 0.5707445142325014,
+        "yawaug_flac": 0.5798299133311957
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S009_R019_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.515898086130619e-05,
+          "generated_encode_seconds": 0.05133500206284225,
+          "observed_encode_seconds": 0.008051060140132904,
+          "scoring_total_seconds": 0.059593541314825416,
+          "similarity_seconds": 0.0001823201309889555
+        },
+        "fem_omp": 0.0008258020970970392,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2345": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.126278358278796,
+        "fem_omp": 24.334458546247333,
+        "few_shot_rir": 0.10190346627496183,
+        "vanilla_flac": 0.5793832731433213,
+        "yawaug_flac": 0.597040415275842
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S004_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.6382040232419968e-05,
+          "generated_encode_seconds": 0.0520852271001786,
+          "observed_encode_seconds": 0.008028856012970209,
+          "scoring_total_seconds": 0.06031878315843642,
+          "similarity_seconds": 0.00017831800505518913
+        },
+        "fem_omp": 0.000798060093075037,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2375": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1165556439664215,
+        "fem_omp": 23.58750058687292,
+        "few_shot_rir": 0.10155281913466752,
+        "vanilla_flac": 0.570833268109709,
+        "yawaug_flac": 0.5770338051952422
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R012_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.694781869649887e-05,
+          "generated_encode_seconds": 0.05132259102538228,
+          "observed_encode_seconds": 0.008013173006474972,
+          "scoring_total_seconds": 0.059528350131586194,
+          "similarity_seconds": 0.0001672031357884407
+        },
+        "fem_omp": 0.0008027099538594484,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2405": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1456311820074916,
+        "fem_omp": 22.355963713955134,
+        "few_shot_rir": 0.10273402160964906,
+        "vanilla_flac": 0.5780786585528404,
+        "yawaug_flac": 0.5934722158126533
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R002_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.0984869226813316e-05,
+          "generated_encode_seconds": 0.05206600483506918,
+          "observed_encode_seconds": 0.008070427924394608,
+          "scoring_total_seconds": 0.06033365777693689,
+          "similarity_seconds": 0.000178096117451787
+        },
+        "fem_omp": 0.0007985779084265232,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2414": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1535937529988587,
+        "fem_omp": 20.926673454931006,
+        "few_shot_rir": 0.10442453110590577,
+        "vanilla_flac": 0.5859551229514182,
+        "yawaug_flac": 0.5991958810482174
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R021_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.376781776547432e-05,
+          "generated_encode_seconds": 0.05306900502182543,
+          "observed_encode_seconds": 0.008065328933298588,
+          "scoring_total_seconds": 0.061335497070103884,
+          "similarity_seconds": 0.00017785420641303062
+        },
+        "fem_omp": 0.0007360959425568581,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "2418": {
+      "candidate_count": 57,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1555595099925995,
+        "fem_omp": 22.794680218677968,
+        "few_shot_rir": 0.1043293580878526,
+        "vanilla_flac": 0.5866922519635409,
+        "yawaug_flac": 0.6008869772776961
+      },
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S005_R016_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.4130800738930702e-05,
+          "generated_encode_seconds": 0.053042435087263584,
+          "observed_encode_seconds": 0.00802764599211514,
+          "scoring_total_seconds": 0.06127680907957256,
+          "similarity_seconds": 0.00016161706298589706
+        },
+        "fem_omp": 0.0007976139895617962,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "30": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 75.66802386939526,
+        "fem_omp": 1542.4167666841206,
+        "few_shot_rir": 9.159476746805012,
+        "vanilla_flac": 45.374437836231664,
+        "yawaug_flac": 46.01713777938858
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R047_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 8.696503937244415e-05,
+          "generated_encode_seconds": 4.873453451087698,
+          "observed_encode_seconds": 0.006542091956362128,
+          "scoring_total_seconds": 4.894124338636175,
+          "similarity_seconds": 0.014204534236341715
+        },
+        "fem_omp": 0.006766684120520949,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "335": {
+      "candidate_count": 5296,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 75.02674492402002,
+        "fem_omp": 2560.2160220840015,
+        "few_shot_rir": 9.181545758852735,
+        "vanilla_flac": 45.42021923768334,
+        "yawaug_flac": 46.07114476244897
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 8.241296745836735e-05,
+          "generated_encode_seconds": 4.885925110196695,
+          "observed_encode_seconds": 0.00666527496650815,
+          "scoring_total_seconds": 4.908483917126432,
+          "similarity_seconds": 0.014495243085548282
+        },
+        "fem_omp": 0.006498095113784075,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3550": {
+      "candidate_count": 3723,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 60.711759788449854,
+        "fem_omp": 5108.384746810654,
+        "few_shot_rir": 6.455454448936507,
+        "vanilla_flac": 32.054857757641,
+        "yawaug_flac": 32.38930870802142
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 6.505195051431656e-05,
+          "generated_encode_seconds": 3.442824740894139,
+          "observed_encode_seconds": 0.006737530929967761,
+          "scoring_total_seconds": 3.459472405491397,
+          "similarity_seconds": 0.009845425607636571
+        },
+        "fem_omp": 0.004964806837961078,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3685": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 59.12083192192949,
+        "fem_omp": 10176.069083830109,
+        "few_shot_rir": 6.449749481398612,
+        "vanilla_flac": 31.885281778639182,
+        "yawaug_flac": 32.496769244549796
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R030_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 6.659608334302902e-05,
+          "generated_encode_seconds": 3.44158594077453,
+          "observed_encode_seconds": 0.006512420950457454,
+          "scoring_total_seconds": 3.45812925696373,
+          "similarity_seconds": 0.009975015418604016
+        },
+        "fem_omp": 0.004875815007835627,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3695": {
+      "candidate_count": 3724,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 52.81605670764111,
+        "fem_omp": 9482.599085532129,
+        "few_shot_rir": 6.460301455575973,
+        "vanilla_flac": 31.673039057524875,
+        "yawaug_flac": 32.44303953205235
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S002_R023_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 7.004919461905956e-05,
+          "generated_encode_seconds": 3.445024513406679,
+          "observed_encode_seconds": 0.006485390942543745,
+          "scoring_total_seconds": 3.4614315351936966,
+          "similarity_seconds": 0.00985158164985478
+        },
+        "fem_omp": 0.005666441982612014,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3800": {
+      "candidate_count": 3723,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 52.85987446317449,
+        "fem_omp": 4488.724870590056,
+        "few_shot_rir": 6.4745879888068885,
+        "vanilla_flac": 31.681824940489605,
+        "yawaug_flac": 32.395421837689355
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S008_R042_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 7.118401117622852e-05,
+          "generated_encode_seconds": 3.4441447192803025,
+          "observed_encode_seconds": 0.006524047115817666,
+          "scoring_total_seconds": 3.4612204569857568,
+          "similarity_seconds": 0.009807375492528081
+        },
+        "fem_omp": 0.00487059005536139,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3841": {
+      "candidate_count": 3723,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 52.89232355472632,
+        "fem_omp": 4526.354954135977,
+        "few_shot_rir": 6.479017957113683,
+        "vanilla_flac": 31.895656460197642,
+        "yawaug_flac": 32.5185161891859
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R041_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 6.718491204082966e-05,
+          "generated_encode_seconds": 3.4445893657393754,
+          "observed_encode_seconds": 0.006479032104834914,
+          "scoring_total_seconds": 3.4616431621834636,
+          "similarity_seconds": 0.010046310489997268
+        },
+        "fem_omp": 0.004954135976731777,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "3934": {
+      "candidate_count": 3723,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 52.694428455550224,
+        "fem_omp": 10127.040997464908,
+        "few_shot_rir": 6.4816994071006775,
+        "vanilla_flac": 31.77203019335866,
+        "yawaug_flac": 32.39370301319286
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R060_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 6.639794446527958e-05,
+          "generated_encode_seconds": 3.4448008702602237,
+          "observed_encode_seconds": 0.0066277890000492334,
+          "scoring_total_seconds": 3.4617362720891833,
+          "similarity_seconds": 0.01011183811351657
+        },
+        "fem_omp": 0.005005083046853542,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "4137": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 52.80459422594868,
+        "fem_omp": 10214.124917476904,
+        "few_shot_rir": 6.453514419263229,
+        "vanilla_flac": 31.74378810590133,
+        "yawaug_flac": 32.4660611927975
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S004_R010_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 6.852508522570133e-05,
+          "generated_encode_seconds": 3.443100714823231,
+          "observed_encode_seconds": 0.006595110986381769,
+          "scoring_total_seconds": 3.4602140865754336,
+          "similarity_seconds": 0.009916327660903335
+        },
+        "fem_omp": 0.004737071925774217,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "42": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 90.83512499672361,
+        "fem_omp": 1528.25656096288,
+        "few_shot_rir": 9.188423791667446,
+        "vanilla_flac": 45.31446943501942,
+        "yawaug_flac": 46.07086808467284
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R051_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 8.536386303603649e-05,
+          "generated_encode_seconds": 4.878518168115988,
+          "observed_encode_seconds": 0.007437427993863821,
+          "scoring_total_seconds": 4.902876077685505,
+          "similarity_seconds": 0.014360421802848577
+        },
+        "fem_omp": 0.006560962880030274,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "4206": {
+      "candidate_count": 3722,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 52.90129575878382,
+        "fem_omp": 10194.917089772644,
+        "few_shot_rir": 6.490003063110635,
+        "vanilla_flac": 31.74084983835928,
+        "yawaug_flac": 32.40313885756768
+      },
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R049_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 7.121986709535122e-05,
+          "generated_encode_seconds": 3.4437482156790793,
+          "observed_encode_seconds": 0.006712815025821328,
+          "scoring_total_seconds": 3.4604009792674333,
+          "similarity_seconds": 0.010175218805670738
+        },
+        "fem_omp": 0.005085687851533294,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "4467": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.738203501328826,
+        "fem_omp": 13.989387860521674,
+        "few_shot_rir": 0.0674662902019918,
+        "vanilla_flac": 0.3422598254401237,
+        "yawaug_flac": 0.35117651615291834
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7797028198838234e-05,
+          "generated_encode_seconds": 0.02591247810050845,
+          "observed_encode_seconds": 0.007180733140558004,
+          "scoring_total_seconds": 0.03313751122914255,
+          "similarity_seconds": 3.5807956010103226e-05
+        },
+        "fem_omp": 0.000733913155272603,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4469": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7573735250625759,
+        "fem_omp": 14.122825043974444,
+        "few_shot_rir": 0.05805714521557093,
+        "vanilla_flac": 0.34737125528045,
+        "yawaug_flac": 0.35631117899902165
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R020_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.3179996535182e-05,
+          "generated_encode_seconds": 0.02673066104762256,
+          "observed_encode_seconds": 0.006646424066275358,
+          "scoring_total_seconds": 0.033439765218645334,
+          "similarity_seconds": 2.9629096388816833e-05
+        },
+        "fem_omp": 0.000626823864877224,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4513": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7372446833178401,
+        "fem_omp": 14.017206319840625,
+        "few_shot_rir": 0.05686657829210162,
+        "vanilla_flac": 0.3384057574439794,
+        "yawaug_flac": 0.34611465339548886
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R011_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.337394446134567e-05,
+          "generated_encode_seconds": 0.02588692680001259,
+          "observed_encode_seconds": 0.006570094032213092,
+          "scoring_total_seconds": 0.03251277934759855,
+          "similarity_seconds": 2.8524082154035568e-05
+        },
+        "fem_omp": 0.0006415529642254114,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4518": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7553903528023511,
+        "fem_omp": 13.705186751903966,
+        "few_shot_rir": 0.05801526899449527,
+        "vanilla_flac": 0.34874157374724746,
+        "yawaug_flac": 0.35419004294089973
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R023_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.203493542969227e-05,
+          "generated_encode_seconds": 0.02671202807687223,
+          "observed_encode_seconds": 0.006577074993401766,
+          "scoring_total_seconds": 0.033349096076563,
+          "similarity_seconds": 2.8436072170734406e-05
+        },
+        "fem_omp": 0.0005930201150476933,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4617": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7577060183975846,
+        "fem_omp": 15.528954837238416,
+        "few_shot_rir": 0.05846686917357147,
+        "vanilla_flac": 0.34940501395612955,
+        "yawaug_flac": 0.3564084377139807
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.2706884667277336e-05,
+          "generated_encode_seconds": 0.026728641940280795,
+          "observed_encode_seconds": 0.006576851941645145,
+          "scoring_total_seconds": 0.03337602107785642,
+          "similarity_seconds": 2.6526162400841713e-05
+        },
+        "fem_omp": 0.0006356390658766031,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4643": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7547918963246047,
+        "fem_omp": 14.005971423583105,
+        "few_shot_rir": 0.0579907801002264,
+        "vanilla_flac": 0.34878883115015924,
+        "yawaug_flac": 0.355593235231936
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S005_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.264099359512329e-05,
+          "generated_encode_seconds": 0.026724679861217737,
+          "observed_encode_seconds": 0.006528964964672923,
+          "scoring_total_seconds": 0.033292930107563734,
+          "similarity_seconds": 2.8986018151044846e-05
+        },
+        "fem_omp": 0.000589531846344471,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4652": {
+      "candidate_count": 27,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7341386859770864,
+        "fem_omp": 15.316011308925226,
+        "few_shot_rir": 0.056667837081477046,
+        "vanilla_flac": 0.33950818609446287,
+        "yawaug_flac": 0.34750227886252105
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.355718217790127e-05,
+          "generated_encode_seconds": 0.025890695163980126,
+          "observed_encode_seconds": 0.006504674907773733,
+          "scoring_total_seconds": 0.03245805995538831,
+          "similarity_seconds": 2.809707075357437e-05
+        },
+        "fem_omp": 0.0006009121425449848,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4658": {
+      "candidate_count": 28,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 0.7518980647437274,
+        "fem_omp": 14.010314451996237,
+        "few_shot_rir": 0.05827627959661186,
+        "vanilla_flac": 0.3484217398799956,
+        "yawaug_flac": 0.3529109407681972
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R005_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.227707929909229e-05,
+          "generated_encode_seconds": 0.02671612286940217,
+          "observed_encode_seconds": 0.006515628891065717,
+          "scoring_total_seconds": 0.033291657688096166,
+          "similarity_seconds": 2.7582049369812012e-05
+        },
+        "fem_omp": 0.0005721289198845625,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4673": {
+      "candidate_count": 51,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.061599037842825,
+        "fem_omp": 15.106216376880184,
+        "few_shot_rir": 0.0985166619066149,
+        "vanilla_flac": 0.5385861170943826,
+        "yawaug_flac": 0.549646919593215
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S007_R019_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.8460053727030754e-05,
+          "generated_encode_seconds": 0.04784164181910455,
+          "observed_encode_seconds": 0.006628687959164381,
+          "scoring_total_seconds": 0.054542097728699446,
+          "similarity_seconds": 4.578195512294769e-05
+        },
+        "fem_omp": 0.0007609520107507706,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4728": {
+      "candidate_count": 56,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1334272590465844,
+        "fem_omp": 16.68389395205304,
+        "few_shot_rir": 0.10822465806268156,
+        "vanilla_flac": 0.5829685928765684,
+        "yawaug_flac": 0.5918238840531558
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.480996772646904e-05,
+          "generated_encode_seconds": 0.05204547103494406,
+          "observed_encode_seconds": 0.0080976199824363,
+          "scoring_total_seconds": 0.060349398059770465,
+          "similarity_seconds": 0.00018214015290141106
+        },
+        "fem_omp": 0.0008003199473023415,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4775": {
+      "candidate_count": 54,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.098481488181278,
+        "fem_omp": 15.736412706784904,
+        "few_shot_rir": 0.10531347803771496,
+        "vanilla_flac": 0.564962511183694,
+        "yawaug_flac": 0.5775714172050357
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S006_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.320095129311085e-05,
+          "generated_encode_seconds": 0.0503212281037122,
+          "observed_encode_seconds": 0.008118038065731525,
+          "scoring_total_seconds": 0.058576309122145176,
+          "similarity_seconds": 0.00016756798140704632
+        },
+        "fem_omp": 0.0007988009601831436,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4781": {
+      "candidate_count": 58,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.157876194221899,
+        "fem_omp": 18.390930369962007,
+        "few_shot_rir": 0.10919282725080848,
+        "vanilla_flac": 0.5974622275680304,
+        "yawaug_flac": 0.6091174075845629
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R018_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.364216536283493e-05,
+          "generated_encode_seconds": 0.05377272400073707,
+          "observed_encode_seconds": 0.00804530712775886,
+          "scoring_total_seconds": 0.062077120412141085,
+          "similarity_seconds": 0.00020687701180577278
+        },
+        "fem_omp": 0.0008239878807216883,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4784": {
+      "candidate_count": 55,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1156970544252545,
+        "fem_omp": 18.92974287015386,
+        "few_shot_rir": 0.10579913831315935,
+        "vanilla_flac": 0.5725750813726336,
+        "yawaug_flac": 0.5827427473850548
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R012_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.5966204702854156e-05,
+          "generated_encode_seconds": 0.05130490497685969,
+          "observed_encode_seconds": 0.008140707155689597,
+          "scoring_total_seconds": 0.05964164040051401,
+          "similarity_seconds": 0.00016430113464593887
+        },
+        "fem_omp": 0.0008269511163234711,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4786": {
+      "candidate_count": 52,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.0763471452519298,
+        "fem_omp": 15.34588112984784,
+        "few_shot_rir": 0.10096816602163017,
+        "vanilla_flac": 0.5467524998821318,
+        "yawaug_flac": 0.560004630126059
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S002_R010_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.629798837006092e-05,
+          "generated_encode_seconds": 0.0485787249635905,
+          "observed_encode_seconds": 0.007363397162407637,
+          "scoring_total_seconds": 0.056015849113464355,
+          "similarity_seconds": 4.4182874262332916e-05
+        },
+        "fem_omp": 0.0007530690636485815,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4806": {
+      "candidate_count": 51,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.0608954306226224,
+        "fem_omp": 16.567473621107638,
+        "few_shot_rir": 0.09376430767588317,
+        "vanilla_flac": 0.5382784137036651,
+        "yawaug_flac": 0.5480401117820293
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S009_R006_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.808612771332264e-05,
+          "generated_encode_seconds": 0.04778888379223645,
+          "observed_encode_seconds": 0.007201962172985077,
+          "scoring_total_seconds": 0.05505263479426503,
+          "similarity_seconds": 3.6392826586961746e-05
+        },
+        "fem_omp": 0.0007476320024579763,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4893": {
+      "candidate_count": 54,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.1001268262043595,
+        "fem_omp": 15.29939815425314,
+        "few_shot_rir": 0.09960675006732345,
+        "vanilla_flac": 0.559687813045457,
+        "yawaug_flac": 0.5740717819426209
+      },
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R022_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 2.7125002816319466e-05,
+          "generated_encode_seconds": 0.050309106009081006,
+          "observed_encode_seconds": 0.00807835697196424,
+          "scoring_total_seconds": 0.05860047903843224,
+          "similarity_seconds": 0.00018305517733097076
+        },
+        "fem_omp": 0.0008073560893535614,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4945": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.9420089533086866,
+        "fem_omp": 60.76138758705929,
+        "few_shot_rir": 0.3985283584333956,
+        "vanilla_flac": 1.984202743973583,
+        "yawaug_flac": 2.0213741227053106
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S008_R007_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.52680217474699e-05,
+          "generated_encode_seconds": 0.20415053982287645,
+          "observed_encode_seconds": 0.006361879874020815,
+          "scoring_total_seconds": 0.21111541567370296,
+          "similarity_seconds": 0.0005310180131345987
+        },
+        "fem_omp": 0.001261735102161765,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "4971": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.92742362851277,
+        "fem_omp": 63.811914074933156,
+        "few_shot_rir": 0.38338360632769763,
+        "vanilla_flac": 1.987244869582355,
+        "yawaug_flac": 2.0095792470965534
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R014_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.428594209253788e-05,
+          "generated_encode_seconds": 0.2041192001197487,
+          "observed_encode_seconds": 0.0063164441380649805,
+          "scoring_total_seconds": 0.21100440830923617,
+          "similarity_seconds": 0.0005656497087329626
+        },
+        "fem_omp": 0.0012062299065291882,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5037": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.963780187536031,
+        "fem_omp": 69.40158774587326,
+        "few_shot_rir": 0.38770275260321796,
+        "vanilla_flac": 1.9772899667732418,
+        "yawaug_flac": 2.0118977101519704
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R010_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5762088373303413e-05,
+          "generated_encode_seconds": 0.20405584410764277,
+          "observed_encode_seconds": 0.006502025993540883,
+          "scoring_total_seconds": 0.21109077334403992,
+          "similarity_seconds": 0.0005064427386969328
+        },
+        "fem_omp": 0.00126023986376822,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5053": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.9725141904782504,
+        "fem_omp": 63.38273016130552,
+        "few_shot_rir": 0.3845260024536401,
+        "vanilla_flac": 2.0156735826749355,
+        "yawaug_flac": 2.018592354375869
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R019_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7949997931718826e-05,
+          "generated_encode_seconds": 0.20412431005388498,
+          "observed_encode_seconds": 0.007006147177889943,
+          "scoring_total_seconds": 0.21170519245788455,
+          "similarity_seconds": 0.000546600203961134
+        },
+        "fem_omp": 0.0013363321777433157,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5068": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.9211567086167634,
+        "fem_omp": 62.65876794815995,
+        "few_shot_rir": 0.38307763752527535,
+        "vanilla_flac": 1.973937683738768,
+        "yawaug_flac": 2.0089863187167794
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S007_R014_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.669108264148235e-05,
+          "generated_encode_seconds": 0.20409304625354707,
+          "observed_encode_seconds": 0.0063609168864786625,
+          "scoring_total_seconds": 0.21102264267392457,
+          "similarity_seconds": 0.000579542713239789
+        },
+        "fem_omp": 0.0012472881935536861,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5094": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.965154600329697,
+        "fem_omp": 64.08976432704367,
+        "few_shot_rir": 0.3878250701818615,
+        "vanilla_flac": 1.9736348846927285,
+        "yawaug_flac": 2.01544903521426
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S010_R001_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.617396578192711e-05,
+          "generated_encode_seconds": 0.20414853398688138,
+          "observed_encode_seconds": 0.006427566055208445,
+          "scoring_total_seconds": 0.21115816943347454,
+          "similarity_seconds": 0.0005462842527776957
+        },
+        "fem_omp": 0.001231417991220951,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5129": {
+      "candidate_count": 220,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002452146,
+          "depth_aabb_strict_gate_seconds": 0.015003786,
+          "fallback_total_seconds": 0.017591846,
+          "random_candidate_selection_seconds": 0.000118039
+        },
+        "prediction_index": 115,
+        "repeat_seconds": [
+          0.017591846,
+          0.022057399,
+          0.017229665
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.943048779387027,
+        "fem_omp": 0.017591846,
+        "few_shot_rir": 0.38485424616374075,
+        "vanilla_flac": 1.9829012823756784,
+        "yawaug_flac": 2.0411790979560465
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R025_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.8722995668649673e-05,
+          "generated_encode_seconds": 0.2041735660750419,
+          "observed_encode_seconds": 0.006514170905575156,
+          "scoring_total_seconds": 0.21127290115691721,
+          "similarity_seconds": 0.0005507860332727432
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5163": {
+      "candidate_count": 220,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.989639471285045,
+        "fem_omp": 65.05944376788102,
+        "few_shot_rir": 0.38856773381121457,
+        "vanilla_flac": 1.9811941876541823,
+        "yawaug_flac": 2.0192129272036254
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S007_R013_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.640702925622463e-05,
+          "generated_encode_seconds": 0.20416900515556335,
+          "observed_encode_seconds": 0.006606848910450935,
+          "scoring_total_seconds": 0.2112948466092348,
+          "similarity_seconds": 0.0005738779436796904
+        },
+        "fem_omp": 0.0012865709140896797,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5182": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.00238861,
+          "depth_aabb_strict_gate_seconds": 0.014690444,
+          "fallback_total_seconds": 0.017181867,
+          "random_candidate_selection_seconds": 0.000100782
+        },
+        "prediction_index": 169,
+        "repeat_seconds": [
+          0.017809363,
+          0.017181867,
+          0.016573146
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.1557429453823715,
+        "fem_omp": 0.017181867,
+        "few_shot_rir": 0.29933619732037187,
+        "vanilla_flac": 1.6125813042744994,
+        "yawaug_flac": 1.6234873477369547
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S007_R006_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5717152059078217e-05,
+          "generated_encode_seconds": 0.1633047058712691,
+          "observed_encode_seconds": 0.006473915185779333,
+          "scoring_total_seconds": 0.17022946244105697,
+          "similarity_seconds": 0.00038180314004421234
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5194": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002427462,
+          "depth_aabb_strict_gate_seconds": 0.014795533,
+          "fallback_total_seconds": 0.017301542,
+          "random_candidate_selection_seconds": 9.1062e-05
+        },
+        "prediction_index": 89,
+        "repeat_seconds": [
+          0.017990426,
+          0.017301542,
+          0.017032647
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.219255232717842,
+        "fem_omp": 0.017301542,
+        "few_shot_rir": 0.3052211080212146,
+        "vanilla_flac": 1.616518473951146,
+        "yawaug_flac": 1.6227209328208119
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.936793655157089e-05,
+          "generated_encode_seconds": 0.1632615749258548,
+          "observed_encode_seconds": 0.006501423893496394,
+          "scoring_total_seconds": 0.1701319608837366,
+          "similarity_seconds": 0.0003981341142207384
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5271": {
+      "candidate_count": 176,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 3.1547014217358083,
+        "fem_omp": 108.64131937501952,
+        "few_shot_rir": 0.30557575286366045,
+        "vanilla_flac": 1.616619392996654,
+        "yawaug_flac": 1.6260668297763914
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S007_R007_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.539910539984703e-05,
+          "generated_encode_seconds": 0.1632782279048115,
+          "observed_encode_seconds": 0.00642137904651463,
+          "scoring_total_seconds": 0.17012589680962265,
+          "similarity_seconds": 0.0003916637506335974
+        },
+        "fem_omp": 0.0012223729863762856,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5281": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002422287,
+          "depth_aabb_strict_gate_seconds": 0.014605216,
+          "fallback_total_seconds": 0.017113442,
+          "random_candidate_selection_seconds": 8.3341e-05
+        },
+        "prediction_index": 23,
+        "repeat_seconds": [
+          0.01773326,
+          0.017113442,
+          0.01638387
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.1847629419062287,
+        "fem_omp": 0.017113442,
+        "few_shot_rir": 0.3069717427715659,
+        "vanilla_flac": 1.621425244724378,
+        "yawaug_flac": 1.6304631198290735
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5975128412246704e-05,
+          "generated_encode_seconds": 0.16332737286575139,
+          "observed_encode_seconds": 0.006403172854334116,
+          "scoring_total_seconds": 0.17011009389534593,
+          "similarity_seconds": 0.0003435730468481779
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5296": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002020233,
+          "depth_aabb_strict_gate_seconds": 0.014638281,
+          "fallback_total_seconds": 0.016750706,
+          "random_candidate_selection_seconds": 9.3729e-05
+        },
+        "prediction_index": 9,
+        "repeat_seconds": [
+          0.017656266,
+          0.016750706,
+          0.016281566
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.1953075961209834,
+        "fem_omp": 0.016750706,
+        "few_shot_rir": 0.3039504657499492,
+        "vanilla_flac": 1.6259859935380518,
+        "yawaug_flac": 1.6297942199744284
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S005_R010_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.659119829535484e-05,
+          "generated_encode_seconds": 0.16329403594136238,
+          "observed_encode_seconds": 0.0063615720719099045,
+          "scoring_total_seconds": 0.17002461478114128,
+          "similarity_seconds": 0.0003327797167003155
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5333": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002343566,
+          "depth_aabb_strict_gate_seconds": 0.014796684,
+          "fallback_total_seconds": 0.01723418,
+          "random_candidate_selection_seconds": 9.1406e-05
+        },
+        "prediction_index": 167,
+        "repeat_seconds": [
+          0.017832367,
+          0.01723418,
+          0.016640561
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.2092878920957446,
+        "fem_omp": 0.01723418,
+        "few_shot_rir": 0.3038482149131596,
+        "vanilla_flac": 1.6228744785767049,
+        "yawaug_flac": 1.6224688559304923
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R008_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.4600961953401566e-05,
+          "generated_encode_seconds": 0.1632403729017824,
+          "observed_encode_seconds": 0.006526461103931069,
+          "scoring_total_seconds": 0.1702126949094236,
+          "similarity_seconds": 0.00040090223774313927
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5334": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.00245745,
+          "depth_aabb_strict_gate_seconds": 0.014637172,
+          "fallback_total_seconds": 0.017102452,
+          "random_candidate_selection_seconds": 9.8987e-05
+        },
+        "prediction_index": 158,
+        "repeat_seconds": [
+          0.017763812,
+          0.017102452,
+          0.016901751
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.2145969492848963,
+        "fem_omp": 0.017102452,
+        "few_shot_rir": 0.31032765633426607,
+        "vanilla_flac": 1.61019341298379,
+        "yawaug_flac": 1.6303835371509194
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.551505506038666e-05,
+          "generated_encode_seconds": 0.1632462062407285,
+          "observed_encode_seconds": 0.006450224202126265,
+          "scoring_total_seconds": 0.1701588463038206,
+          "similarity_seconds": 0.00042863585986196995
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "535": {
+      "candidate_count": 5296,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 74.47900832886808,
+        "fem_omp": 1591.2767397709936,
+        "few_shot_rir": 9.192843848839402,
+        "vanilla_flac": 48.55281624291092,
+        "yawaug_flac": 46.02760756900534
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R052_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 7.391697727143764e-05,
+          "generated_encode_seconds": 4.894262344343588,
+          "observed_encode_seconds": 0.006741286022588611,
+          "scoring_total_seconds": 4.915282583562657,
+          "similarity_seconds": 0.014463852159678936
+        },
+        "fem_omp": 0.006739770993590355,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "5363": {
+      "candidate_count": 176,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002219874,
+          "depth_aabb_strict_gate_seconds": 0.014647609,
+          "fallback_total_seconds": 0.01697334,
+          "random_candidate_selection_seconds": 0.000103574
+        },
+        "prediction_index": 153,
+        "repeat_seconds": [
+          0.017654743,
+          0.01697334,
+          0.016520128
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 3.225294756470248,
+        "fem_omp": 0.01697334,
+        "few_shot_rir": 0.3064783117733896,
+        "vanilla_flac": 1.6025034487247467,
+        "yawaug_flac": 1.6337664152961224
+      },
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5327160730957985e-05,
+          "generated_encode_seconds": 0.1632410348393023,
+          "observed_encode_seconds": 0.006468785926699638,
+          "scoring_total_seconds": 0.17012019758112729,
+          "similarity_seconds": 0.0003893463872373104
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5433": {
+      "candidate_count": 279,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.263206558069214,
+        "fem_omp": 126.57880823360756,
+        "few_shot_rir": 0.5048997737467289,
+        "vanilla_flac": 2.6372299077920616,
+        "yawaug_flac": 2.542872044024989
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S005_R014_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.691001959145069e-05,
+          "generated_encode_seconds": 0.2587331000249833,
+          "observed_encode_seconds": 0.006606571143493056,
+          "scoring_total_seconds": 0.2663468858227134,
+          "similarity_seconds": 0.0007724885363131762
+        },
+        "fem_omp": 0.0013738959096372128,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5494": {
+      "candidate_count": 279,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.251746531110257,
+        "fem_omp": 136.32905193511397,
+        "few_shot_rir": 0.4902134579606354,
+        "vanilla_flac": 2.6491801731754094,
+        "yawaug_flac": 2.5518228700384498
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R011_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.84058803319931e-05,
+          "generated_encode_seconds": 0.25868810317479074,
+          "observed_encode_seconds": 0.006508651887997985,
+          "scoring_total_seconds": 0.2659943411126733,
+          "similarity_seconds": 0.0008109139744192362
+        },
+        "fem_omp": 0.0013832340482622385,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5513": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.280373794026673,
+        "fem_omp": 120.87644718913361,
+        "few_shot_rir": 0.5043924290221184,
+        "vanilla_flac": 2.6928492886945605,
+        "yawaug_flac": 2.570330477086827
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R023_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.8700876757502556e-05,
+          "generated_encode_seconds": 0.2596696943510324,
+          "observed_encode_seconds": 0.006430884124711156,
+          "scoring_total_seconds": 0.266903794137761,
+          "similarity_seconds": 0.0007540925871580839
+        },
+        "fem_omp": 0.00133988494053483,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5544": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.2733271340839565,
+        "fem_omp": 126.59211854729801,
+        "few_shot_rir": 0.49761021486483514,
+        "vanilla_flac": 2.6809753093402833,
+        "yawaug_flac": 2.5428216396830976
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.847293555736542e-05,
+          "generated_encode_seconds": 0.25968680903315544,
+          "observed_encode_seconds": 0.006380312144756317,
+          "scoring_total_seconds": 0.2668342632241547,
+          "similarity_seconds": 0.0007286691106855869
+        },
+        "fem_omp": 0.0013578541111201048,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5556": {
+      "candidate_count": 279,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002480676,
+          "depth_aabb_strict_gate_seconds": 0.014733475,
+          "fallback_total_seconds": 0.017329324,
+          "random_candidate_selection_seconds": 0.000112807
+        },
+        "prediction_index": 135,
+        "repeat_seconds": [
+          0.01895794,
+          0.017329324,
+          0.0167489
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 4.2561815560329705,
+        "fem_omp": 0.017329324,
+        "few_shot_rir": 0.49283322459086776,
+        "vanilla_flac": 2.676616040058434,
+        "yawaug_flac": 2.5388063865248114
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R003_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7044985219836235e-05,
+          "generated_encode_seconds": 0.2587404807563871,
+          "observed_encode_seconds": 0.006404569838196039,
+          "scoring_total_seconds": 0.2658761946950108,
+          "similarity_seconds": 0.0007483919616788626
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5573": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.2686444986611605,
+        "fem_omp": 148.75718196993694,
+        "few_shot_rir": 0.49244831409305334,
+        "vanilla_flac": 2.6948539612349123,
+        "yawaug_flac": 2.547246575821191
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S002_R011_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.6607030779123306e-05,
+          "generated_encode_seconds": 0.2595534978900105,
+          "observed_encode_seconds": 0.006422275910153985,
+          "scoring_total_seconds": 0.26674473215825856,
+          "similarity_seconds": 0.0007281932048499584
+        },
+        "fem_omp": 0.0013893900904804468,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5625": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.266996815102175,
+        "fem_omp": 121.918313103728,
+        "few_shot_rir": 0.49184714583680034,
+        "vanilla_flac": 2.680032616481185,
+        "yawaug_flac": 2.5492050459142774
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.9997976273298264e-05,
+          "generated_encode_seconds": 0.25968328095041215,
+          "observed_encode_seconds": 0.006488119019195437,
+          "scoring_total_seconds": 0.2668706187978387,
+          "similarity_seconds": 0.0007417560555040836
+        },
+        "fem_omp": 0.0013162458781152964,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5636": {
+      "candidate_count": 280,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.263560486957431,
+        "fem_omp": 122.10485388292,
+        "few_shot_rir": 0.493469201028347,
+        "vanilla_flac": 2.666356777306646,
+        "yawaug_flac": 2.551042231498286
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S008_R004_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.948993980884552e-05,
+          "generated_encode_seconds": 0.25968240993097425,
+          "observed_encode_seconds": 0.006553188897669315,
+          "scoring_total_seconds": 0.26698883972130716,
+          "similarity_seconds": 0.0007611818145960569
+        },
+        "fem_omp": 0.0013617430813610554,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5672": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 2.318453760119155,
+        "fem_omp": 73.95821844413877,
+        "few_shot_rir": 0.24609935353510082,
+        "vanilla_flac": 1.3909890283830464,
+        "yawaug_flac": 1.3297922131605446
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S008_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.0703918784856796e-05,
+          "generated_encode_seconds": 0.12994634686037898,
+          "observed_encode_seconds": 0.006880288943648338,
+          "scoring_total_seconds": 0.13719707122072577,
+          "similarity_seconds": 0.00037644035182893276
+        },
+        "fem_omp": 0.00115701905451715,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5677": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 2.301094540860504,
+        "fem_omp": 74.83301425795071,
+        "few_shot_rir": 0.2472752621397376,
+        "vanilla_flac": 1.3919434249401093,
+        "yawaug_flac": 1.3284102401230484
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R005_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.4556956961750984e-05,
+          "generated_encode_seconds": 0.12987251370213926,
+          "observed_encode_seconds": 0.006404645973816514,
+          "scoring_total_seconds": 0.13662379002198577,
+          "similarity_seconds": 0.0003493439871817827
+        },
+        "fem_omp": 0.001156307989731431,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5685": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 2.3067365733440965,
+        "fem_omp": 67.94488719012588,
+        "few_shot_rir": 0.24724019481800497,
+        "vanilla_flac": 1.3887194436974823,
+        "yawaug_flac": 1.32385568972677
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.3159973099827766e-05,
+          "generated_encode_seconds": 0.12982528004795313,
+          "observed_encode_seconds": 0.006376017816364765,
+          "scoring_total_seconds": 0.1365563916042447,
+          "similarity_seconds": 0.00038258195854723454
+        },
+        "fem_omp": 0.0009221530053764582,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5732": {
+      "candidate_count": 139,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002137381,
+          "depth_aabb_strict_gate_seconds": 0.014817581,
+          "fallback_total_seconds": 0.017065846,
+          "random_candidate_selection_seconds": 0.000108597
+        },
+        "prediction_index": 48,
+        "repeat_seconds": [
+          0.018846217,
+          0.017065846,
+          0.016605714
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 2.2976364789064974,
+        "fem_omp": 0.017065846,
+        "few_shot_rir": 0.24835624382831156,
+        "vanilla_flac": 1.391098678810522,
+        "yawaug_flac": 1.329890112625435
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S001_R025_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.5517849028110504e-05,
+          "generated_encode_seconds": 0.1298264239449054,
+          "observed_encode_seconds": 0.006388447945937514,
+          "scoring_total_seconds": 0.136577702825889,
+          "similarity_seconds": 0.0003140347544103861
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5782": {
+      "candidate_count": 139,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 2.305147994076833,
+        "fem_omp": 71.59079941711389,
+        "few_shot_rir": 0.24646412720903754,
+        "vanilla_flac": 1.404980830149725,
+        "yawaug_flac": 1.3250124012120068
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.289408050477505e-05,
+          "generated_encode_seconds": 0.12977997423149645,
+          "observed_encode_seconds": 0.006401644088327885,
+          "scoring_total_seconds": 0.13658191333524883,
+          "similarity_seconds": 0.0003666288685053587
+        },
+        "fem_omp": 0.0011704640928655863,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5817": {
+      "candidate_count": 141,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002391394,
+          "depth_aabb_strict_gate_seconds": 0.014419777,
+          "fallback_total_seconds": 0.016901183,
+          "random_candidate_selection_seconds": 8.7238e-05
+        },
+        "prediction_index": 30,
+        "repeat_seconds": [
+          0.018858988,
+          0.016901183,
+          0.01626025
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 2.333463308867067,
+        "fem_omp": 0.016901183,
+        "few_shot_rir": 0.2657354506663978,
+        "vanilla_flac": 1.4113393859006464,
+        "yawaug_flac": 1.3443560036830604
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.214390017092228e-05,
+          "generated_encode_seconds": 0.13160925381816924,
+          "observed_encode_seconds": 0.006637105019763112,
+          "scoring_total_seconds": 0.13869536970742047,
+          "similarity_seconds": 0.0003927119541913271
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5832": {
+      "candidate_count": 139,
+      "fem_fallback_measurement": {
+        "median_components_seconds": {
+          "candidate_preparation_seconds": 0.002444328,
+          "depth_aabb_strict_gate_seconds": 0.014606256,
+          "fallback_total_seconds": 0.017163042,
+          "random_candidate_selection_seconds": 0.000109981
+        },
+        "prediction_index": 101,
+        "repeat_seconds": [
+          0.019389829,
+          0.017163042,
+          0.016881772
+        ],
+        "source_file": "/home/zhixuanzhao/projects/Frame_Average/NeuriPs_Workshop/localization-exp/worklog/worklog_yixun/exp_29_core_forward_latency_16room_128/fem_random_fallback_latency_16.json",
+        "source_sha256": "e4f41f3d9ae3e295e70af71cb12a9fad9b7551ddb9c401465394fe9651992e1f"
+      },
+      "fem_source": "strict_failure_random_candidate_measured",
+      "latency_seconds": {
+        "fa_bf_flac": 2.2995680246967822,
+        "fem_omp": 0.017163042,
+        "few_shot_rir": 0.24746981356292963,
+        "vanilla_flac": 1.3948849877342582,
+        "yawaug_flac": 1.3242160317022353
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.329804167151451e-05,
+          "generated_encode_seconds": 0.12976133381016552,
+          "observed_encode_seconds": 0.00637235282920301,
+          "scoring_total_seconds": 0.13645844557322562,
+          "similarity_seconds": 0.00033097085542976856
+        },
+        "fem_omp": 0.0,
+        "fem_omp_source": "not_run_random_fallback"
+      }
+    },
+    "5894": {
+      "candidate_count": 140,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 2.314904500031844,
+        "fem_omp": 71.97437198995613,
+        "few_shot_rir": 0.24659406626597047,
+        "vanilla_flac": 1.4009077835362405,
+        "yawaug_flac": 1.3330622920766473
+      },
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R024_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.340211696922779e-05,
+          "generated_encode_seconds": 0.13062184816226363,
+          "observed_encode_seconds": 0.006355632096529007,
+          "scoring_total_seconds": 0.1373920941259712,
+          "similarity_seconds": 0.0003963781055063009
+        },
+        "fem_omp": 0.0011536390520632267,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5912": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.417764272075146,
+        "fem_omp": 177.45000851224177,
+        "few_shot_rir": 0.5180310197174549,
+        "vanilla_flac": 2.783122041961178,
+        "yawaug_flac": 2.650734231574461
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R004_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.712484613060951e-05,
+          "generated_encode_seconds": 0.27170360111631453,
+          "observed_encode_seconds": 0.006432391935959458,
+          "scoring_total_seconds": 0.2789059958886355,
+          "similarity_seconds": 0.0007194862700998783
+        },
+        "fem_omp": 0.0013195851352065802,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5923": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.428117931820452,
+        "fem_omp": 169.0805827777367,
+        "few_shot_rir": 0.512128205737099,
+        "vanilla_flac": 2.76375161902979,
+        "yawaug_flac": 2.643427301896736
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S001_R004_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.937701694667339e-05,
+          "generated_encode_seconds": 0.2717342581599951,
+          "observed_encode_seconds": 0.006548138102516532,
+          "scoring_total_seconds": 0.27908165799453855,
+          "similarity_seconds": 0.0007497470360249281
+        },
+        "fem_omp": 0.0013679969124495983,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5930": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.441121690673754,
+        "fem_omp": 177.26467798417434,
+        "few_shot_rir": 0.5172646825667471,
+        "vanilla_flac": 2.7842998893465847,
+        "yawaug_flac": 2.6433579199947417
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R019_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.612483851611614e-05,
+          "generated_encode_seconds": 0.27094801398925483,
+          "observed_encode_seconds": 0.006493890890851617,
+          "scoring_total_seconds": 0.278163775568828,
+          "similarity_seconds": 0.0007174019701778889
+        },
+        "fem_omp": 0.001367415999993682,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5934": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.420195140177384,
+        "fem_omp": 177.7092604113277,
+        "few_shot_rir": 0.5128828615415841,
+        "vanilla_flac": 2.757001828402281,
+        "yawaug_flac": 2.649409518111497
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S009_R017_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7877121940255165e-05,
+          "generated_encode_seconds": 0.2709658571984619,
+          "observed_encode_seconds": 0.006326934089884162,
+          "scoring_total_seconds": 0.27845924836583436,
+          "similarity_seconds": 0.0007274800445884466
+        },
+        "fem_omp": 0.0013305421452969313,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5958": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.428000017534941,
+        "fem_omp": 176.66508190031163,
+        "few_shot_rir": 0.5111123798415065,
+        "vanilla_flac": 2.781378367682919,
+        "yawaug_flac": 2.6409883010201156
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R001_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.736699000000954e-05,
+          "generated_encode_seconds": 0.2708284177351743,
+          "observed_encode_seconds": 0.0065374718979001045,
+          "scoring_total_seconds": 0.27814863179810345,
+          "similarity_seconds": 0.00075751100666821
+        },
+        "fem_omp": 0.0013180992100387812,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "5970": {
+      "candidate_count": 293,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.444387877592817,
+        "fem_omp": 177.6274134251289,
+        "few_shot_rir": 0.5121364132501185,
+        "vanilla_flac": 2.772030546795577,
+        "yawaug_flac": 2.6646953113377094
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S002_R014_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7193065509200096e-05,
+          "generated_encode_seconds": 0.27166049159131944,
+          "observed_encode_seconds": 0.006393808173015714,
+          "scoring_total_seconds": 0.2788191665895283,
+          "similarity_seconds": 0.0007261568680405617
+        },
+        "fem_omp": 0.0013382330071181059,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6016": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.433023958932608,
+        "fem_omp": 176.81915810424834,
+        "few_shot_rir": 0.5115784949157387,
+        "vanilla_flac": 2.7439610676374286,
+        "yawaug_flac": 2.64745875261724
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.9105070754885674e-05,
+          "generated_encode_seconds": 0.2709799511358142,
+          "observed_encode_seconds": 0.006499588023871183,
+          "scoring_total_seconds": 0.27818065392784774,
+          "similarity_seconds": 0.0007458818145096302
+        },
+        "fem_omp": 0.0013520789798349142,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6054": {
+      "candidate_count": 292,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.43190271104686,
+        "fem_omp": 177.68944179289974,
+        "few_shot_rir": 0.5113681952934712,
+        "vanilla_flac": 2.7892904058098793,
+        "yawaug_flac": 2.655237775295973
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.510597161948681e-05,
+          "generated_encode_seconds": 0.270838689757511,
+          "observed_encode_seconds": 0.006607390008866787,
+          "scoring_total_seconds": 0.27816965291276574,
+          "similarity_seconds": 0.0007312330417335033
+        },
+        "fem_omp": 0.0013198729138821363,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6124": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.047897950746119,
+        "fem_omp": 157.5755288042128,
+        "few_shot_rir": 0.4740270266775042,
+        "vanilla_flac": 2.511237116996199,
+        "yawaug_flac": 2.4131033432204276
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R024_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7792837247252464e-05,
+          "generated_encode_seconds": 0.24429762084037066,
+          "observed_encode_seconds": 0.00649026595056057,
+          "scoring_total_seconds": 0.251540059922263,
+          "similarity_seconds": 0.0007123041432350874
+        },
+        "fem_omp": 0.0013038408942520618,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6204": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.046035191975534,
+        "fem_omp": 137.60848725307733,
+        "few_shot_rir": 0.481243058340624,
+        "vanilla_flac": 2.508779142284766,
+        "yawaug_flac": 2.392453843029216
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 5.0707021728158e-05,
+          "generated_encode_seconds": 0.2443804529029876,
+          "observed_encode_seconds": 0.007297012954950333,
+          "scoring_total_seconds": 0.2516694332007319,
+          "similarity_seconds": 0.0007255787495523691
+        },
+        "fem_omp": 0.0013571870513260365,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6236": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.042718112235889,
+        "fem_omp": 156.3224371119868,
+        "few_shot_rir": 0.46537527022883296,
+        "vanilla_flac": 2.4789627608843148,
+        "yawaug_flac": 2.400979778729379
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R023_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.236609674990177e-05,
+          "generated_encode_seconds": 0.2445900405291468,
+          "observed_encode_seconds": 0.006606905022636056,
+          "scoring_total_seconds": 0.25190333323553205,
+          "similarity_seconds": 0.0007007899694144726
+        },
+        "fem_omp": 0.0013683929573744535,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6245": {
+      "candidate_count": 263,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.043308635940775,
+        "fem_omp": 158.6911857048981,
+        "few_shot_rir": 0.4663861657027155,
+        "vanilla_flac": 2.521319037536159,
+        "yawaug_flac": 2.4113042978569865
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R023_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.3768901377916336e-05,
+          "generated_encode_seconds": 0.24427777691744268,
+          "observed_encode_seconds": 0.006654947996139526,
+          "scoring_total_seconds": 0.251702468842268,
+          "similarity_seconds": 0.0007303478196263313
+        },
+        "fem_omp": 0.0013441869523376226,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6252": {
+      "candidate_count": 260,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.0196069029625505,
+        "fem_omp": 157.99112283997238,
+        "few_shot_rir": 0.4734562262892723,
+        "vanilla_flac": 2.5158837439958006,
+        "yawaug_flac": 2.3908168743364513
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.052906297147274e-05,
+          "generated_encode_seconds": 0.24351997580379248,
+          "observed_encode_seconds": 0.006640969077125192,
+          "scoring_total_seconds": 0.2510300420690328,
+          "similarity_seconds": 0.0007396971341222525
+        },
+        "fem_omp": 0.0013712020590901375,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6280": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.025824809446931,
+        "fem_omp": 157.01493002683856,
+        "few_shot_rir": 0.4690830814652145,
+        "vanilla_flac": 2.503327724058181,
+        "yawaug_flac": 2.3958308591973037
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.9983075112104416e-05,
+          "generated_encode_seconds": 0.2436454091221094,
+          "observed_encode_seconds": 0.006565694930031896,
+          "scoring_total_seconds": 0.25252690934576094,
+          "similarity_seconds": 0.0007201049011200666
+        },
+        "fem_omp": 0.001325253862887621,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6281": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.02864194335416,
+        "fem_omp": 152.05784289515577,
+        "few_shot_rir": 0.4597758734598756,
+        "vanilla_flac": 2.498138310853392,
+        "yawaug_flac": 2.3940272382460535
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S006_R025_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.711506724357605e-05,
+          "generated_encode_seconds": 0.24372675502672791,
+          "observed_encode_seconds": 0.006401457125321031,
+          "scoring_total_seconds": 0.25091078924015164,
+          "similarity_seconds": 0.0007754727266728878
+        },
+        "fem_omp": 0.0012755030766129494,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "6303": {
+      "candidate_count": 261,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 4.044307893142104,
+        "fem_omp": 133.4653448939789,
+        "few_shot_rir": 0.4608221664093435,
+        "vanilla_flac": 2.5049123936332762,
+        "yawaug_flac": 2.39132356736809
+      },
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S004_R019_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 4.0489016100764275e-05,
+          "generated_encode_seconds": 0.24336959631182253,
+          "observed_encode_seconds": 0.006697923876345158,
+          "scoring_total_seconds": 0.2507684542797506,
+          "similarity_seconds": 0.0007570791058242321
+        },
+        "fem_omp": 0.001323457108810544,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "699": {
+      "candidate_count": 5295,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 74.7637095763348,
+        "fem_omp": 3772.6172053099144,
+        "few_shot_rir": 9.167239831760526,
+        "vanilla_flac": 48.59593803365715,
+        "yawaug_flac": 46.09743277565576
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R085_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 8.014892227947712e-05,
+          "generated_encode_seconds": 4.894796476699412,
+          "observed_encode_seconds": 0.006632452830672264,
+          "scoring_total_seconds": 4.916214109165594,
+          "similarity_seconds": 0.014198074117302895
+        },
+        "fem_omp": 0.006560873938724399,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "715": {
+      "candidate_count": 5296,
+      "fem_source": "local_oversized",
+      "latency_seconds": {
+        "fa_bf_flac": 74.4296492014546,
+        "fem_omp": 3834.2166105634533,
+        "few_shot_rir": 9.217115368461236,
+        "vanilla_flac": 48.61257414193824,
+        "yawaug_flac": 46.03204221720807
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 9.121792390942574e-05,
+          "generated_encode_seconds": 4.897390164900571,
+          "observed_encode_seconds": 0.006541048176586628,
+          "scoring_total_seconds": 4.918862215476111,
+          "similarity_seconds": 0.014207863947376609
+        },
+        "fem_omp": 0.006681870203465223,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "917": {
+      "candidate_count": 5295,
+      "fem_source": "external_runtime_recovered",
+      "latency_seconds": {
+        "fa_bf_flac": 74.58887798385695,
+        "fem_omp": 1557.9866405672115,
+        "few_shot_rir": 9.215812670765445,
+        "vanilla_flac": 48.60379371372983,
+        "yawaug_flac": 45.98242655466311
+      },
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S004_R099_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 8.114497177302837e-05,
+          "generated_encode_seconds": 4.899574882350862,
+          "observed_encode_seconds": 0.0065845169592648745,
+          "scoring_total_seconds": 4.92075499589555,
+          "similarity_seconds": 0.014182867016643286
+        },
+        "fem_omp": 0.006640567211434245,
+        "fem_omp_source": "shape_matched_synthetic_response"
+      }
+    },
+    "978": {
+      "candidate_count": 105,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.8073500995524228,
+        "fem_omp": 31.034447860904038,
+        "few_shot_rir": 0.19342819368466735,
+        "vanilla_flac": 1.072666185675189,
+        "yawaug_flac": 1.0209858184680343
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R023_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.75211238861084e-05,
+          "generated_encode_seconds": 0.09793579392135143,
+          "observed_encode_seconds": 0.006666577886790037,
+          "scoring_total_seconds": 0.10484965075738728,
+          "similarity_seconds": 0.0002139899879693985
+        },
+        "fem_omp": 0.000936051132157445,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "988": {
+      "candidate_count": 104,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.7988108941353858,
+        "fem_omp": 37.09519911906682,
+        "few_shot_rir": 0.18653629999607801,
+        "vanilla_flac": 1.0550363583024591,
+        "yawaug_flac": 1.0134052890352905
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R017_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.556697629392147e-05,
+          "generated_encode_seconds": 0.09702622704207897,
+          "observed_encode_seconds": 0.00636302400380373,
+          "scoring_total_seconds": 0.10359882097691298,
+          "similarity_seconds": 0.0001875369343906641
+        },
+        "fem_omp": 0.0008979560807347298,
+        "fem_omp_source": "actual_fem_response"
+      }
+    },
+    "996": {
+      "candidate_count": 106,
+      "fem_source": "local_primary_97",
+      "latency_seconds": {
+        "fa_bf_flac": 1.8366529899649322,
+        "fem_omp": 35.481236804043874,
+        "few_shot_rir": 0.19518680777400732,
+        "vanilla_flac": 1.08776527014561,
+        "yawaug_flac": 1.035113216144964
+      },
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "selector_latency_seconds": {
+        "agree": {
+          "argmax_seconds": 3.7321122363209724e-05,
+          "generated_encode_seconds": 0.09877458913251758,
+          "observed_encode_seconds": 0.006669078022241592,
+          "scoring_total_seconds": 0.10565541102550924,
+          "similarity_seconds": 0.0002145790494978428
+        },
+        "fem_omp": 0.0008894400671124458,
+        "fem_omp_source": "actual_fem_response"
+      }
+    }
+  },
+  "schema_version": 3,
+  "scope": {
+    "aggregation": "query micro",
+    "candidate_evaluations": 92608,
+    "query_count": 128,
+    "room_count": 16,
+    "selection_sha256": "9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b"
+  },
+  "sha256": "9d354b342a286b1a147dca83fa7cd4498b467b67de971d8e7b4a42b66605b640"
+}
