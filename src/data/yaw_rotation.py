@@ -383,6 +383,15 @@ def rotate_scene_metadata(
             rot_p = rot.to(device=pose.device, dtype=pose.dtype)
             out[key] = torch.einsum("ij,...j->...i", rot_p, pose)
 
+    # exp_23 orientation field: the scene's reference direction ('facing', a world-frame
+    # vector consumed only by the ViT path) is covariant -- it turns with the world whenever
+    # the panorama does, regardless of which pose keys the caller selected. Absent -> no-op.
+    if "facing" in md:
+        facing = md["facing"]
+        assert isinstance(facing, torch.Tensor)
+        rot_f = rot.to(device=facing.device, dtype=facing.dtype)
+        out["facing"] = torch.einsum("ij,...j->...i", rot_f, facing)
+
     return out
 
 

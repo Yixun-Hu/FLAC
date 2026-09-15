@@ -246,6 +246,8 @@ class GeometryConditioner(Conditioner):
                  model_type: str = "vit",
                  token_pool: str = "linear",
                  gradient_checkpointing: bool = False,
+                 orientation_field: bool = False,
+                 orientation_scale: float = 1.0,
                  name="GeometryConditioner"):
         super().__init__(dim, output_dim, project_out=False)
         self.name = name
@@ -255,6 +257,13 @@ class GeometryConditioner(Conditioner):
         self.max_value = max_value
         self.model_type = model_type
         self.token_pool = token_pool
+        # exp_23 orientation field: append the scene's reference direction (the
+        # loudspeaker facing, metadata key 'facing', a world-frame unit vector) as a
+        # constant XYZ vector field -- channels [3:6] -- scaled by orientation_scale.
+        # Off by default (byte-identical inputs to before). Requires a ViT whose
+        # patch conv was widened to 6 input channels (widen_input_channels).
+        self.orientation_field = bool(orientation_field)
+        self.orientation_scale = float(orientation_scale)
 
         # Opt-in activation checkpointing for the ViT backbone: trades backward-time
         # recompute for a large activation-memory saving with numerically identical
@@ -269,19 +278,32 @@ class GeometryConditioner(Conditioner):
         self.vit.to(device)
         self.proj_out.to(device)
 
-        depth_coords, coords = [], []
+        depth_coords, coords, facings = [], [], []
         for c in coord:
             coords.append(c['coord'].float().to(device))
             depth_coords.append(c['depth'].float().to(device))
+            if self.orientation_field:
+                if 'facing' not in c:
+                    raise ValueError(
+                        f"{self.name}: orientation_field is enabled but the sample metadata "
+                        "carries no 'facing' key (the dataset's metadata module must provide "
+                        "the world-frame facing direction, e.g. HAA_md_ori.py)")
+                facings.append(c['facing'].float().to(device).reshape(3))
 
         coord = torch.stack(coords, dim=0)  # [B, 3] or [B, N, 3]
         if coord.ndim == 2:
             coord = coord.unsqueeze(1) # [B, 1, 3]
         depth_coord = torch.stack(depth_coords, dim=0)
+        if self.orientation_field:
+            facing = torch.stack(facings, dim=0)  # [B, 3]
+            facing_field = (facing * self.orientation_scale)[:, :, None, None].expand(
+                -1, -1, depth_coord.shape[-2], depth_coord.shape[-1])  # [B, 3, H, W], constant over pixels
 
         encoded_coords = []
         for i in range(coord.shape[1]):
             c = (coord[:, i, :, None, None] - depth_coord) / self.max_value # [B, 3, H, W]
+            if self.orientation_field:
+                c = torch.cat([c, facing_field.to(c.dtype)], dim=1)  # [B, 6, H, W]
             if self.model_type == 'dino':
                 outputs = self.vit(c)
                 pooled_output = outputs.pooler_output
@@ -398,6 +420,11 @@ class MultiConditioner(nn.Module):
                         conditioner_input = {'coord': coord, 'depth': x[add_input][0]}
                     else:
                         conditioner_input = {'coord': x[condition_key], 'depth': x[add_input]}
+                    # exp_23 orientation field: the scene's reference direction rides along
+                    # when the metadata module provides it (absent -> unchanged behaviour).
+                    if 'facing' in x:
+                        f = x['facing']
+                        conditioner_input['facing'] = f[0] if isinstance(f, (list, tuple)) and len(f) == 1 else f
 
                 else:
                     #Unwrap the condition info if it's a single-element list or tuple, this is to support collation functions that wrap everything in a list
@@ -432,6 +459,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
 
     vit_model = None
     _cyl_first_vit_block = None   # exp_19 CYL port: shared-backbone equality guard
+    _cyl_orientation_field = False  # exp_23: orientation field agreement guard
     dist_embedder_proj = None
 
     for conditioner_info in config["configs"]:
@@ -495,6 +523,19 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                         vit_model.load_state_dict(blob["backbone"], strict=True)
                         print(f"Loaded SSL backbone from {ssl_ckpt} "
                               f"(SSL step {blob.get('step')})")
+
+                    # exp_23 orientation field: widen the patch conv by one extra XYZ triple
+                    # (zero-initialised, so the loaded weights' mapping is inherited exactly) and
+                    # let GeometryConditioner append the covariant facing field at forward time.
+                    # The flag lives at the conditioner level (sibling of "ViT"/"max_value") so it
+                    # reaches GeometryConditioner(**conditioner_config) unchanged; it is read
+                    # here only to size the backbone. Absent -> byte-identical to before.
+                    _cyl_orientation_field = bool(conditioner_config.get('orientation_field', False))
+                    if _cyl_orientation_field:
+                        from cylindrical_dinov3 import widen_input_channels
+                        n_ch = widen_input_channels(vit_model, 3)
+                        print(f"orientation_field ENABLED: patch conv widened to {n_ch} input channels "
+                              f"(scale={float(conditioner_config.get('orientation_scale', 1.0))})")
 
                     if vit_config.get('freeze', False):
                         print('Freezing ViT model parameters...')
@@ -589,6 +630,11 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                         "cylindrical_dinov3: a second ViTCoordinates conditioner's ViT "
                         "block differs from the one that built the shared backbone -- "
                         "make them equal or remove the second one.")
+                if _cyl_first_vit_block is not None and \
+                        bool(conditioner_config.get('orientation_field', False)) != _cyl_orientation_field:
+                    raise ValueError(
+                        "cylindrical_dinov3: 'orientation_field' must be set identically on every "
+                        "ViTCoordinates conditioner that shares the (possibly widened) backbone.")
             conditioners[id] = GeometryConditioner(**conditioner_config, vit_model=vit_model, vit_proj=vit_proj, lin_proj=lin_proj, model_type=model_type)
 
         elif conditioner_type == "dist_embedder":

@@ -1,0 +1,3 @@
+0c1c37e807b27c92961301994c6b3cdb4412e1e5dd12be91ce0d909cb52312b1  outputs_FLAC/exp19_inits/HAA_init_CYLORI.ckpt
+conditioner.conditioners.source_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0
+conditioner.conditioners.context_poses_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0

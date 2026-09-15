@@ -1,0 +1,23 @@
+{
+ "_doc": "Loudspeaker facing direction per HAA scene, world frame (same frame as poses_metadata / speaker_xyz). Estimated from the distance-corrected direct-path energy of the ground-truth RIRs vs receiver azimuth (front sectors -135..-45 deg are 16-23 dB louder than the back in every Base room; see directivity_probe in the exp_23 record). Consumed by HAA_md_ori.py as md['facing'].",
+ "classroomBase": [
+  0.0,
+  -1.0,
+  0.0
+ ],
+ "complexBase": [
+  0.0,
+  -1.0,
+  0.0
+ ],
+ "dampenedBase": [
+  0.0,
+  -1.0,
+  0.0
+ ],
+ "hallwayBase": [
+  0.0,
+  -1.0,
+  0.0
+ ]
+}
