@@ -100,3 +100,7 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
   3.55 @1000 (vanilla's checkpoint-selected best 2.95 @410 remains better). Caveats: one training
   seed per arm; `orientation_scale` is a tuned constant (2.7 → partial, 27 → parity; monotone); the
   facing direction is supplied from the dataset (estimated from the RIRs; same in all rooms).
+- 2026-09-15 09:4x EDT: Yixun: **"co-tenant when free"** → `gpu_watch_seed43.sh` armed: launches
+  `chain_seed43.sh` (CYLORI27 seed 43 → P1 seed 43, ckpt/100, ckpt-1000 grids) on the first card
+  with ≥ 8 GB free on three consecutive 60-s polls (GPU 1 checked first). Both cards held 46 GB
+  xRIR jobs at arming time (GPU 1 ETA ~Sep 16 09:00, GPU 0 ~Sep 17 05:00).
