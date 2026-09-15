@@ -15,7 +15,8 @@ ARMS = {"P1":   ("outputs_FLAC/exp19_HAA_P1",     "exp19_HAA_P1",     "vanilla",
         "BF":   ("outputs_FLAC/exp19_HAA_BF",     "exp19_HAA_BF",     "fa_invariant", "Per-angle FA (B-F→HAA)"),
         "CYL":  ("outputs_FLAC/exp19_HAA_CYL",    "exp19_HAA_CYL",    "fa_invariant", "CylDINO no-SSL (AR-40k→HAA)"),
         "CYLSSL":("outputs_FLAC/exp19_HAA_CYLSSL","exp19_HAA_CYLSSL", "fa_invariant", "CylDINO SSL (AR-42.5k→HAA)"),
-        "CYLORI":("outputs_FLAC/exp23_HAA_CYLORI","exp23_HAA_CYLORI", "fa_invariant", "CylDINO no-SSL + orientation field (AR-40k→HAA)")}
+        "CYLORI":("outputs_FLAC/exp23_HAA_CYLORI","exp23_HAA_CYLORI", "fa_invariant", "CylDINO no-SSL + orientation field s=2.7 (AR-40k→HAA)"),
+        "CYLORI27":("outputs_FLAC/exp23_HAA_CYLORI27","exp23_HAA_CYLORI27", "fa_invariant", "CylDINO no-SSL + orientation field s=27 (AR-40k→HAA)")}
 def records(arm, step, K, seeds):
     root, stem, cm, _ = ARMS[arm]
     fs = sorted(f for f in glob.glob(f"{root}/**/*metrics*{stem}_S{step}_K{K}_s*.json", recursive=True)
