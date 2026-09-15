@@ -1,0 +1,6 @@
+=== exp_19 HAA eval grid | arms='CYL CYLSSL' | 2026-08-22_01-33-17 | HEAD c90ff241d324c863ff975953ce82d51487c95bc5 | dry_run=0 ===
+protocol: cfg=1.0 steps=1 autocast=bf16 seeds=42 43 44 45 46 endpoints=410 1000 | per-scene recorded
+lock: worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_eval.lock owned=1
+gate: no train.py from this worktree is running
+co-tenancy DISCLOSED: foreign train.py (other checkouts): 19809(/home/yixunhu/codespace/exp-12-arms) 20231(/home/yixunhu/codespace/exp-12-arms) 20554(/home/yixunhu/codespace/exp-12-arms) 20555(/home/yixunhu/codespace/exp-12-arms) 20621(/home/yixunhu/codespace/exp-12-arms) 20622(/home/yixunhu/codespace/exp-12-arms) 20689(/home/yixunhu/codespace/exp-12-arms) 20690(/home/yixunhu/codespace/exp-12-arms) 20737(/home/yixunhu/codespace/exp-12-arms) 20738(/home/yixunhu/codespace/exp-12-arms) 20785(/home/yixunhu/codespace/exp-12-arms) 20786(/home/yixunhu/codespace/exp-12-arms) 20833(/home/yixunhu/codespace/exp-12-arms) 20841(/home/yixunhu/codespace/exp-12-arms)
+SOURCE PIN FAILED for 'eval_FLAC.py' - the evaluator, a split or an arm config moved - abort

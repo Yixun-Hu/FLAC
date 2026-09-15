@@ -1,0 +1,5 @@
+[nas-archive] exp19_HAA_CYL: 100 checkpoints to archive | 2026-08-22T03:44:46-04:00
+[nas-archive] exp19_HAA_CYL: done, local 100 vs NAS 100, sampled-sha fails: 0 | 2026-08-22T03:58:05-04:00
+[nas-archive] exp19_HAA_CYLSSL: 100 checkpoints to archive | 2026-08-22T03:58:05-04:00
+[nas-archive] exp19_HAA_CYLSSL: done, local 100 vs NAS 100, sampled-sha fails: 0 | 2026-08-22T04:11:22-04:00
+[nas-archive] ARCHIVE COMPLETE | 2026-08-22T04:11:22-04:00

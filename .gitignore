@@ -192,3 +192,8 @@ worklog/worklog_yixun/handoff_snapshots/
 # how VANL's came back. Ignoring them makes blanket adds safe; the operator still
 # commits COMPLETED transcripts deliberately with `git add -f`.
 worklog/worklog_yixun/exp_11_fa_orbit_claude/slurm_train_exp11-*.out
+
+# local reference material + runtime pointers (2026-09-15 cleanup)
+/HAA
+/*.pdf
+worklog/**/*.lock

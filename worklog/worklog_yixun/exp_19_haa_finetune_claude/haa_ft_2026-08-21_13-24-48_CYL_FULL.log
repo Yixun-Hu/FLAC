@@ -1,0 +1,24 @@
+=== exp_19 HAA finetune | ARM=CYL MODE=FULL GPU=0 | 2026-08-21_13-24-48 | HEAD fddbe07b136856775b430a59456bc012d162184a | dry_run=0 logger=wandb ===
+identity: name=FLAC_exp19_HAA_CYL | experiment=exp19_HAA_CYL | save-dir=outputs_FLAC/exp19_HAA_CYL
+budget:   endpoint=1000 | cadence=10 | val-every=10 | batch=16x accum 4 = eff 64
+config:   worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_CYL.json
+init:     outputs_FLAC/exp19_inits/HAA_init_CYL.ckpt
+locks:    worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_ft_CYL.lock + worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_gpu0.lock held for the whole run; gate lock owned=1
+revision: EXPECT_SHA=fddbe07b136856775b430a59456bc012d162184a matches HEAD
+source pins OK (14 files match the reviewed revision, incl. both HAA split inventories)
+tree clean across the training closure (train.py defaults.ini baselines src/models src/data src/training src/configs src/inference src/metrics src/interface src/__init__.py data/HAA/train_base.json data/HAA/val_base.json) | branch: exp17-yawaug-scratch
+init gate OK: outputs_FLAC/exp19_inits/HAA_init_CYL.ckpt matches its manifest line (49ca5250ccdbbd932ea798f81f5ed055a5a9928fd186c332f9f2be776c07d235)
+config contract OK: worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_CYL.json == src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json + cylindrical_dinov3/cylindrical_xyz x2 + grad-ckpt x2 + fa_invariant on the trivial orbit [0.0]
+preflight treatment plan: arm=CYL deltas_registered=1-per-arm use_ema=True
+  train_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 48 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/0.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/535.wav (617338 bytes) OK
+  val_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 560 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/1.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/573.wav (617338 bytes) OK
+  dataset inventory OK (both splits' first and last files present and non-empty)
+R1 probe: SKIPPED for the CYL arm
+R1 probe SKIP REASON: trivial orbit [0.0]: the fa path performs no rotation, so the rotate-machinery gate has nothing to certify; backbone equivariance is an architecture property measured elsewhere
+namespace OK: outputs_FLAC/exp19_HAA_CYL holds no checkpoints
+wandb identity check FAILED: No module named 'wandb'
+wandb identity != yh4742@princeton.edu - set the right key or use LOGGER=none - abort

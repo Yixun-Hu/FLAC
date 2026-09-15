@@ -1,0 +1,24 @@
+=== exp_19 HAA finetune | ARM=CYLSSL MODE=FULL GPU=1 | 2026-08-21_13-24-53 | HEAD fddbe07b136856775b430a59456bc012d162184a | dry_run=0 logger=wandb ===
+identity: name=FLAC_exp19_HAA_CYLSSL | experiment=exp19_HAA_CYLSSL | save-dir=outputs_FLAC/exp19_HAA_CYLSSL
+budget:   endpoint=1000 | cadence=10 | val-every=10 | batch=16x accum 4 = eff 64
+config:   worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_CYLSSL.json
+init:     outputs_FLAC/exp19_inits/HAA_init_CYLSSL.ckpt
+locks:    worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_ft_CYLSSL.lock + worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_gpu1.lock held for the whole run; gate lock owned=1
+revision: EXPECT_SHA=fddbe07b136856775b430a59456bc012d162184a matches HEAD
+source pins OK (14 files match the reviewed revision, incl. both HAA split inventories)
+tree clean across the training closure (train.py defaults.ini baselines src/models src/data src/training src/configs src/inference src/metrics src/interface src/__init__.py data/HAA/train_base.json data/HAA/val_base.json) | branch: exp17-yawaug-scratch
+init gate OK: outputs_FLAC/exp19_inits/HAA_init_CYLSSL.ckpt matches its manifest line (77949de5b658ecd4a4bfbe4a7f3c4a809899fb610741f827146a3db5c3249108)
+config contract OK: worklog/worklog_yixun/exp_19_haa_finetune_claude/FLAC_HAA_finetune_CYLSSL.json == src/configs/model_configs/FLAC/HAA/FLAC_HAA_finetune.json + cylindrical_dinov3/cylindrical_xyz x2 + lowband/m0_registers x2 + grad-ckpt x2 + fa_invariant on the trivial orbit [0.0]
+preflight treatment plan: arm=CYLSSL deltas_registered=1-per-arm use_ema=True
+  train_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 48 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/0.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/535.wav (617338 bytes) OK
+  val_base.json: root 'HAA' (symlink) -> /media/diskstation/yixunhu/FLAC/HAA; 4 scenes, 560 files
+    first: HAA/classroomBase/mono_rirs_22050Hz/1.wav (617338 bytes) OK
+    last: HAA/hallwayBase/mono_rirs_22050Hz/573.wav (617338 bytes) OK
+  dataset inventory OK (both splits' first and last files present and non-empty)
+R1 probe: SKIPPED for the CYLSSL arm
+R1 probe SKIP REASON: trivial orbit [0.0]: the fa path performs no rotation, so the rotate-machinery gate has nothing to certify; backbone equivariance is an architecture property measured elsewhere
+namespace OK: outputs_FLAC/exp19_HAA_CYLSSL holds no checkpoints
+wandb identity check FAILED: No module named 'wandb'
+wandb identity != yh4742@princeton.edu - set the right key or use LOGGER=none - abort

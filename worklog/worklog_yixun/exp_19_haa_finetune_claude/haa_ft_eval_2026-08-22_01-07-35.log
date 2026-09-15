@@ -1,0 +1,6 @@
+=== exp_19 HAA eval grid | arms='CYL CYLSSL' | 2026-08-22_01-07-35 | HEAD 23888ad8f9ec0028341d7f2da36d883c95c50f8c | dry_run=0 ===
+protocol: cfg=1.0 steps=1 autocast=bf16 seeds=42 43 44 45 46 endpoints=410 1000 | per-scene recorded
+lock: worklog/worklog_yixun/exp_19_haa_finetune_claude/.haa_eval.lock owned=1
+REFUSING: train.py from THIS worktree is still running (pid(s) 539052 539056). An arm that is
+  still training has no final step-1000 checkpoint, and evaluating beside it contends
+  for the same cards. Wait for it to finish.
