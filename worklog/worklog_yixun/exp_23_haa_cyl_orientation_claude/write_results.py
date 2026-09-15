@@ -44,8 +44,9 @@ try: md += ["## ckpt-410 (second registered reading)", "", run("--arms", "P1,CYL
 except Exception as e: md += [f"(ckpt-410 unavailable: {e})"]
 md += ["## Steps curve (K=8, seed 42, paper convention)", "", run("--arms", ("P1,CYLORI,CYLORI27" if "CYLORI27" in ARMSET else "P1,CYLORI"), "--curve")]
 md += ["## Pooled convention (evaluator flat keys), ckpt-1000", "", run("--arms", ARMSET, "--step", "1000", "--style", "pooled")]
-md += ["## LaTeX rows (Yixun's macro style; \\bms = best in the K block)", "", "```latex",
-       latex_block(["P1", "CYLORI"], {"P1": "\\FLAC{}~\\citep{brunetto2026flac}", "CYLORI": "\\CylDINO{} (+facing)"}), "```", "",
+BEST = "CYLORI27" if "CYLORI27" in ARMSET else "CYLORI"
+md += ["## LaTeX rows (Yixun's macro style; \\bms = best in the K block) — P1 vs the facing arm " + BEST, "", "```latex",
+       latex_block(["P1", BEST], {"P1": "\\FLAC{}~\\citep{brunetto2026flac}", BEST: "\\CylDINO{} (+facing)"}), "```", "",
        "Multi-row variant (adds the field-off control and, when present, the 10x-scale arm):", "", "```latex",
        latex_block(ARMSET.split(","), {"P1": "\\FLAC{}~\\citep{brunetto2026flac}", "CYL": "\\CylDINO{}", "CYLORI": "\\CylDINO{} (+facing, s=2.7)", "CYLORI27": "\\CylDINO{} (+facing, s=27)"}), "```", ""]
 open(f"{E}/results_cylori.md", "w").write("\n".join(md))

@@ -89,3 +89,14 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
 - 2026-09-15 ~01:29 EDT: follow-on **CYLORI27** (identical except `orientation_scale` 27 = 10× the
   effective learning speed of the new weights under Adam; ckpt every 50) auto-launched on GPU 0
   (`chain_cylori27.sh`), evals chained.
+- 2026-09-15 05:58 EDT: **CYLORI27 chain DONE** (FULL rc=0, 20 ckpts; 18/18 cells rc=0). ckpt-1000,
+  paper convention — K=8: T60 **3.533** (P1 3.413, CYL 5.411), C50 **2.158** (P1 2.202 → CylDINO
+  better), EDT **85.8** (85.0), R@1 4.96 (5.18), R@5 18.77 (19.17), R@10 31.45 (31.69), FD 0.5814
+  (0.5778). K=1: T60 3.680 (3.617), C50 **2.231** (2.254 → better), EDT 91.0 (88.0), R@1 4.68 (5.08),
+  R@5 **19.16** (19.07 → better), R@10 **31.44** (31.22 → better), FD 0.5655 (0.5645). Per room the
+  hallway is essentially repaired (T60 4.02 vs P1 3.43; from 8.85) and the complex room is now better
+  than vanilla (2.51 vs 2.84). **Parity with vanilla at the registered endpoint** (wins 4 of 12 core
+  cells, within 1–4 % elsewhere) from a clean sweep of 12/12 losses by 13–59 %. Curve: T60 3.50 @600,
+  3.55 @1000 (vanilla's checkpoint-selected best 2.95 @410 remains better). Caveats: one training
+  seed per arm; `orientation_scale` is a tuned constant (2.7 → partial, 27 → parity; monotone); the
+  facing direction is supplied from the dataset (estimated from the RIRs; same in all rooms).
