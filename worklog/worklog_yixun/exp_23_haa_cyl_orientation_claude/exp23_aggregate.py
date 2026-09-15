@@ -16,7 +16,9 @@ ARMS = {"P1":   ("outputs_FLAC/exp19_HAA_P1",     "exp19_HAA_P1",     "vanilla",
         "CYL":  ("outputs_FLAC/exp19_HAA_CYL",    "exp19_HAA_CYL",    "fa_invariant", "CylDINO no-SSL (AR-40k→HAA)"),
         "CYLSSL":("outputs_FLAC/exp19_HAA_CYLSSL","exp19_HAA_CYLSSL", "fa_invariant", "CylDINO SSL (AR-42.5k→HAA)"),
         "CYLORI":("outputs_FLAC/exp23_HAA_CYLORI","exp23_HAA_CYLORI", "fa_invariant", "CylDINO no-SSL + orientation field s=2.7 (AR-40k→HAA)"),
-        "CYLORI27":("outputs_FLAC/exp23_HAA_CYLORI27","exp23_HAA_CYLORI27", "fa_invariant", "CylDINO no-SSL + orientation field s=27 (AR-40k→HAA)")}
+        "CYLORI27":("outputs_FLAC/exp23_HAA_CYLORI27","exp23_HAA_CYLORI27", "fa_invariant", "CylDINO no-SSL + orientation field s=27 (AR-40k→HAA)"),
+        "CYLORI27_s43":("outputs_FLAC/exp23_HAA_CYLORI27_s43","exp23_HAA_CYLORI27_s43", "fa_invariant", "CylDINO no-SSL + orientation field s=27, FT seed 43"),
+        "P1_s43":("outputs_FLAC/exp23_HAA_P1_s43","exp23_HAA_P1_s43", "vanilla", "Vanilla FLAC (P1@40k→HAA), FT seed 43")}
 def records(arm, step, K, seeds):
     root, stem, cm, _ = ARMS[arm]
     fs = sorted(f for f in glob.glob(f"{root}/**/*metrics*{stem}_S{step}_K{K}_s*.json", recursive=True)
