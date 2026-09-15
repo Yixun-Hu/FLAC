@@ -78,3 +78,14 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
 
 - 2026-09-14 20:29 EDT: FULL launched on GPU 0 (`chain_full_then_eval.sh`; pid 1897484; wandb
   `FLAC_exp23_HAA_CYLORI/peedunwm`), evals auto-chained. Results: `results_cylori.md` (pending).
+- 2026-09-15 01:27 EDT: CYLORI chain DONE (FULL rc=0, 100 ckpts; 28/28 eval cells rc=0). **Results:
+  `results_cylori.md`.** Headline (ckpt-1000, K=8, paper): T60 5.411 → **4.835** (P1 3.413), C50
+  3.442 → **3.044** (2.202), EDT 119.5 → **108.2** (85.0), R@1 4.10 → 4.31 (5.18), R@10 27.65 → 28.97
+  (31.69), FD 0.6035 → 0.5969 (0.5778). The facing field improves every metric at both K and both
+  registered endpoints, acts where predicted (hallway T60 8.85 → 7.23, EDT 172 → 147), and its
+  T60 curve is still descending through step 800 while vanilla peaks at 410 — consistent with the
+  new zero-init channels being learning-rate-limited at 5e-6. It closes ~⅓ of the gap to vanilla
+  but does NOT overtake it.
+- 2026-09-15 ~01:29 EDT: follow-on **CYLORI27** (identical except `orientation_scale` 27 = 10× the
+  effective learning speed of the new weights under Adam; ckpt every 50) auto-launched on GPU 0
+  (`chain_cylori27.sh`), evals chained.
