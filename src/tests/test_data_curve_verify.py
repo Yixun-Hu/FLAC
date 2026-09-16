@@ -376,6 +376,54 @@ def test_verifier_and_generator_share_one_eligibility_definition():
     assert "S00{" not in source and verify.__dict__.get("SAMPLER_TAIL") is None
 
 
+def _dead_target_splits(tmp_path):
+    """A committed set whose train.json holds one sampler-unreachable target."""
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train.json")
+    train = json.loads(open(path).read())
+    train["Toy2"]["Toy2_idx_0"].append("S010_R099_hybrid_IR.wav")   # rebuilds to S0010_*
+    open(path, "w").write(json.dumps(train))
+    return data_dir
+
+
+def test_verifier_calls_the_generators_eligibility_functions(tmp_path, monkeypatch):
+    """Stronger than reading the source (codex round-E E2): the generator's functions are
+    replaced by counting wrappers and must be the ones the verifier actually runs."""
+    import src.tools.make_ar_train_subsets as generator
+
+    calls = {"histogram": 0, "candidates": 0}
+    real_histogram, real_candidates = generator.context_histogram, generator.sampler_candidates
+
+    def counting_histogram(files):
+        calls["histogram"] += 1
+        return real_histogram(files)
+
+    def counting_candidates(target, room_files):
+        calls["candidates"] += 1
+        return real_candidates(target, room_files)
+
+    monkeypatch.setattr(generator, "context_histogram", counting_histogram)
+    monkeypatch.setattr(generator, "sampler_candidates", counting_candidates)
+
+    results = verify.check_split_contents(_dead_target_splits(tmp_path))
+    assert calls["histogram"] > 0 and calls["candidates"] > 0, calls
+    assert not _ok(results, "full split has no dead targets")[0]   # verdict unchanged
+
+
+def test_verifier_verdict_follows_the_generators_histogram(tmp_path, monkeypatch):
+    """And it is the returned VALUE that decides, not a re-implementation beside it: a
+    sentinel histogram claiming starvation must make the verifier report starvation."""
+    import src.tools.make_ar_train_subsets as generator
+
+    data_dir = _splits(tmp_path)          # built with the real function, then swapped
+    monkeypatch.setattr(generator, "context_histogram",
+                        lambda files: {"0": 7, "1-7": 0, ">=8": 0})
+    results = verify.check_split_contents(data_dir)
+    ok, starved = _ok(results, "no starved targets")
+    assert not ok, [r.line() for r in results]
+    assert "7" in starved[0].detail
+
+
 def test_split_contents_fail_when_a_split_leaves_train_json(tmp_path):
     data_dir = _splits(tmp_path)
     path = os.path.join(data_dir, "train_frac075_s2026.json")
