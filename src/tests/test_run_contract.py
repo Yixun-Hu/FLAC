@@ -41,9 +41,11 @@ from prefigure.prefigure import get_all_args
 from train import ModelConfigEmbedderCallback
 from src.training.run_contract import (
     CONTRACT_FILENAME,
+    IDENTITY_FIELDS,
     CONTRACT_VERSION,
     RESUME_LOG_FILENAME,
     CheckpointContractError,
+    ContractMismatchError,
     RunContractCallback,
     append_resume_log,
     build_contract,
@@ -706,6 +708,56 @@ def test_load_or_create_contract_returns_what_the_file_holds(tmp_path, launch_fi
     run_dir = tmp_path / "dc_cyl_f025"
     contract = load_or_create_contract(str(run_dir), contract_builder(launch_files))
     assert contract == json.load(open(run_dir / CONTRACT_FILENAME))
+
+
+# --- codex BLOCKING 1: a persisted contract is reused only if the run's identity matches
+IDENTITY_OVERRIDES = {
+    "run_id": {"run_id": "dc_van_f025"},
+    "fraction": {"fraction": 0.5},
+    "seed": {"seed": 43},
+    "micro_batch": {"micro_batch": 16},
+    "num_gpus": {"num_gpus": 1},
+    "accum_batches": {"accum_batches": 2},
+    "sync_batchnorm": {"sync_batchnorm": False},
+    "flac_sha": {"flac_sha": "c" * 40},
+    "package_sha": {"package_sha": "d" * 40},
+}
+
+
+@pytest.fixture
+def persisted_run(tmp_path, launch_files):
+    """A run whose contract sidecar already exists (the state every resume starts from)."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    contract = load_or_create_contract(str(run_dir), contract_builder(launch_files))
+    path = run_dir / CONTRACT_FILENAME
+    return {"run_dir": run_dir, "path": path, "contract": contract,
+            "bytes": path.read_bytes()}
+
+
+@pytest.mark.parametrize("field", sorted(IDENTITY_OVERRIDES))
+def test_BLOCKING1_a_changed_identity_field_is_refused(persisted_run, launch_files, field):
+    """The failure Codex blocked on: relaunching into an existing run dir with different
+    inputs must NOT silently inherit the old contract (every checkpoint would then claim a
+    run that never happened). One field at a time, each rejected by name."""
+    builder = contract_builder(launch_files, **IDENTITY_OVERRIDES[field])
+
+    with pytest.raises(ContractMismatchError) as excinfo:
+        load_or_create_contract(str(persisted_run["run_dir"]), builder)
+
+    assert field in str(excinfo.value)
+    assert persisted_run["path"].read_bytes() == persisted_run["bytes"]   # never rewritten
+
+
+def test_BLOCKING1_identity_fields_are_the_whole_contract_minus_two():
+    """Exactly two keys are excluded from the identity comparison: ``launched_at`` (it is
+    what a resume inherits) and ``model_config_path`` (informational, see above)."""
+    assert set(IDENTITY_FIELDS) == CONTRACT_KEYS - {"launched_at", "model_config_path"}
+    assert len(IDENTITY_FIELDS) == 13
+
+
+def test_BLOCKING1_contract_mismatch_error_is_a_value_error():
+    assert issubclass(ContractMismatchError, ValueError)
+    assert not issubclass(ContractMismatchError, CheckpointContractError)
 
 
 def test_append_resume_log_records_resumes_outside_the_contract(tmp_path, launch_files):

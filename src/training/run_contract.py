@@ -30,9 +30,37 @@ CONTRACT_VERSION = 1
 CONTRACT_FILENAME = "run_contract.json"
 RESUME_LOG_FILENAME = "resume_log.json"
 
+_MISSING = object()
+
+#: The fields that ARE the run's identity: if any of them changes, the persisted contract
+#: describes a different run and must never be inherited. Only two contract keys are left
+#: out -- ``launched_at`` (precisely what a resume inherits) and ``model_config_path``,
+#: which is INFORMATIONAL only: the config's identity is its content
+#: (``model_config_digest``), and the same config is legitimately re-read from another
+#: absolute path (another checkout, a NAS copy) on a later launch.
+IDENTITY_FIELDS = (
+    "run_id",
+    "fraction",
+    "dataset_config_sha256",
+    "split_sha256",
+    "model_config_digest",
+    "seed",
+    "micro_batch",
+    "num_gpus",
+    "accum_batches",
+    "sync_batchnorm",
+    "flac_sha",
+    "package_sha",
+    "contract_version",
+)
+
 
 class CheckpointContractError(ValueError):
     """A checkpoint does not match the contract of the run it claims to belong to."""
+
+
+class ContractMismatchError(ValueError):
+    """A run dir already holds a contract describing a *different* run than this launch."""
 
 
 def canonical_digest(obj):
@@ -133,9 +161,6 @@ class RunContractCallback(pl.Callback):
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["run_contract"] = copy.deepcopy(self.contract)
-
-
-_MISSING = object()
 
 
 def validate_checkpoint(path, expected_contract, expected_model_config, expect_step,
@@ -250,23 +275,55 @@ def _write_json_atomically(path, obj):
 
 
 def load_or_create_contract(run_dir, build_fn):
-    """The contract of a run is created **once** and re-read verbatim ever after.
+    """The contract of a run is created **once** and re-read ever after -- but only for the
+    same run.
 
-    First launch: ``build_fn()`` is called, its result persisted as
-    ``<run_dir>/run_contract.json`` and returned. Every later launch of the same run (i.e.
-    every resume) finds the file and returns it **verbatim**, so checkpoints saved after a
-    resume carry the contract of the original launch -- a rebuilt contract would have a new
-    ``launched_at`` and would no longer match any earlier checkpoint.
+    ``build_fn(launched_at)`` must return a freshly built contract using the launch's
+    CURRENT inputs, stamped with the ``launched_at`` it is handed (``None`` => its own).
 
-    The value returned on the creating launch is the JSON round trip of what was just
-    written, so the in-memory contract can never differ from the one a later launch
-    re-reads. Resumes are recorded by ``append_resume_log``, never inside the contract.
+    First launch: ``build_fn(launched_at=None)`` is persisted as
+    ``<run_dir>/run_contract.json`` and its JSON round trip returned, so the in-memory
+    contract can never differ from the one a later launch re-reads.
+
+    Every later launch (i.e. every resume) rebuilds a candidate with the *persisted*
+    ``launched_at`` and compares every field in ``IDENTITY_FIELDS``. All equal => the
+    persisted contract is returned **verbatim**, so checkpoints saved after a resume carry
+    the contract of the original launch (a rebuilt one would have a new ``launched_at`` and
+    would match no earlier checkpoint). Any difference => ``ContractMismatchError`` and the
+    sidecar is left **untouched**: relaunching into an existing run dir with a different
+    split, config, seed or batch geometry is a new run, and silently inheriting the old
+    contract would make every checkpoint claim a run that never happened (codex BLOCKING 1).
+
+    Resumes are recorded by ``append_resume_log``, never inside the contract.
     """
     path = os.path.join(run_dir, CONTRACT_FILENAME)
     if not os.path.exists(path):
-        _write_json_atomically(path, build_fn())
+        _write_json_atomically(path, build_fn(launched_at=None))
+        with open(path) as fin:
+            return json.load(fin)
+
     with open(path) as fin:
-        return json.load(fin)
+        persisted = json.load(fin)
+    if not isinstance(persisted, dict):
+        raise ContractMismatchError(
+            f"{path} is not a contract object: it holds a {type(persisted).__name__}"
+        )
+    candidate = build_fn(launched_at=persisted.get("launched_at"))
+    differing = [
+        field for field in IDENTITY_FIELDS
+        if persisted.get(field, _MISSING) != candidate.get(field, _MISSING)
+    ]
+    if differing:
+        details = "; ".join(
+            f"{field}: persisted {persisted.get(field, None)!r} vs this launch "
+            f"{candidate.get(field, None)!r}" for field in differing
+        )
+        raise ContractMismatchError(
+            f"{path} describes a different run and was NOT modified -- {details}. Launch "
+            "this configuration in its own --run-dir, or point the launcher back at the "
+            "inputs this run was created with."
+        )
+    return persisted
 
 
 def append_resume_log(run_dir, entry):
@@ -339,21 +396,25 @@ def build_arg_parser():
 
 def _cmd_make_contract(args):
     """stdout is ONLY the path, so the launcher can capture it with $(...)."""
-    contract = load_or_create_contract(args.run_dir, lambda: build_contract(
-        run_id=args.run_id,
-        fraction=args.fraction,
-        dataset_config_path=args.dataset_config,
-        split_json_path=args.split_json,
-        model_config_path=args.model_config,
-        seed=args.seed,
-        micro_batch=args.micro_batch,
-        num_gpus=args.num_gpus,
-        accum_batches=args.accum_batches,
-        sync_batchnorm=args.sync_batchnorm,
-        flac_sha=args.flac_sha,
-        package_sha=args.package_sha,
-        launched_at=args.launched_at,
-    ))
+    def build_fn(launched_at=None):
+        """Rebuild the contract from THIS launch's inputs; inherit a persisted timestamp."""
+        return build_contract(
+            run_id=args.run_id,
+            fraction=args.fraction,
+            dataset_config_path=args.dataset_config,
+            split_json_path=args.split_json,
+            model_config_path=args.model_config,
+            seed=args.seed,
+            micro_batch=args.micro_batch,
+            num_gpus=args.num_gpus,
+            accum_batches=args.accum_batches,
+            sync_batchnorm=args.sync_batchnorm,
+            flac_sha=args.flac_sha,
+            package_sha=args.package_sha,
+            launched_at=args.launched_at if launched_at is None else launched_at,
+        )
+
+    contract = load_or_create_contract(args.run_dir, build_fn)
     print(f"run contract for {contract['run_id']} launched at {contract['launched_at']}",
           file=sys.stderr)
     print(os.path.join(args.run_dir, CONTRACT_FILENAME))
