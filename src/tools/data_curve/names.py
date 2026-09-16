@@ -23,6 +23,7 @@ here is ever typed into a shell:
 looks exactly where the evaluator writes.
 """
 import hashlib
+import json
 import os
 
 #: fraction tag -> fraction. The tag is the filename/run-id form ("025"), the value the
@@ -446,6 +447,66 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     return violations
 
 
+# ======================================================================================
+# check-metrics: is a metrics JSON really this cell's, scored from this checkpoint?
+# ======================================================================================
+# The launcher used to accept a metrics file on `json.load` + a non-empty `metrics` object
+# (codex round-F finding 2): that says nothing about which checkpoint produced it or under
+# which protocol. `eval_FLAC.build_metrics_record` stores the checkpoint path and all four
+# conditioning flags, so the same binding the bundle gets is available here -- and unlike
+# the bundle, the metrics JSON is what the results table is built from.
+def check_metrics(path, expect_ckpt, expect_cond_method, expect_angles, expect_rotate,
+                  expect_autocast):
+    """Return the list of violations of one cell's metrics JSON (empty == it is this cell's).
+
+    An unreadable or unparseable file is a violation, not an exception -- a half-written
+    JSON simply means the cell is not done. ``ValueError`` is raised only for an unplanned
+    ``expect_cond_method``: that is a bug in the caller, not a verdict about the artifact.
+    """
+    if expect_cond_method not in set(ARM_COND_METHOD.values()):
+        raise ValueError(f"unknown --cond-method {expect_cond_method!r}; the experiment "
+                         f"scores with {sorted(set(ARM_COND_METHOD.values()))}")
+    try:
+        with open(path) as fin:
+            record = json.load(fin)
+    except (OSError, ValueError) as err:
+        return [f"{path}: cannot be read as JSON ({type(err).__name__}: {err})"]
+    if not isinstance(record, dict):
+        return [f"{path}: is a {type(record).__name__}, not a metrics record"]
+
+    violations = []
+    metrics = record.get("metrics")
+    if not isinstance(metrics, dict) or not metrics:
+        violations.append(f"metrics is {metrics!r}, expected a non-empty object")
+    got_ckpt = os.path.normpath(str(record.get("ckpt_path")))
+    want_ckpt = os.path.normpath(str(expect_ckpt))
+    if got_ckpt != want_ckpt:
+        violations.append(
+            f"ckpt_path is {got_ckpt!r}, expected the validated final checkpoint {want_ckpt!r}")
+    if record.get("cond_method") != expect_cond_method:
+        violations.append(
+            f"cond_method is {record.get('cond_method')!r}, expected {expect_cond_method!r}")
+    # eval_FLAC records the angles only for the frame-averaged path (`None` for vanilla),
+    # so the expectation follows the cond method exactly as it does in check_bundle.
+    want_angles = ([float(a) for a in str(expect_angles).split(",")]
+                   if expect_cond_method == "fa_invariant" else None)
+    angles = record.get("frame_avg_angles")
+    if angles is not None:
+        try:
+            angles = [float(a) for a in angles]
+        except (TypeError, ValueError):
+            pass
+    if angles != want_angles:
+        violations.append(f"frame_avg_angles is {angles!r}, expected {want_angles!r}")
+    rotate = record.get("rotate_deg")
+    if not isinstance(rotate, (int, float)) or float(rotate) != float(expect_rotate):
+        violations.append(f"rotate_deg is {rotate!r}, expected {float(expect_rotate)}")
+    if record.get("cond_autocast") != expect_autocast:
+        violations.append(
+            f"cond_autocast is {record.get('cond_autocast')!r}, expected {expect_autocast!r}")
+    return violations
+
+
 def _build_arg_parser():
     import argparse
 
@@ -471,11 +532,44 @@ def _build_arg_parser():
     check.add_argument("--expect-ckpt-sha256", required=True,
                        help="that checkpoint's sha256, as the launcher computed it when it "
                             "validated the checkpoint")
+
+    metrics = sub.add_parser("check-metrics",
+                             help="validate one cell's metrics JSON (the results table's "
+                                  "own input), bound to the validated final checkpoint")
+    metrics.add_argument("--json", dest="json_path", required=True)
+    metrics.add_argument("--expect-ckpt", required=True)
+    # Every protocol flag is explicit for BOTH arms (CLAUDE.md "Eval-protocol flags"):
+    # a default here would be the one place the experiment could drift unnoticed.
+    metrics.add_argument("--expect-cond-method", required=True,
+                         choices=sorted(set(ARM_COND_METHOD.values())))
+    metrics.add_argument("--expect-angles", required=True)
+    metrics.add_argument("--expect-rotate", required=True, type=float)
+    metrics.add_argument("--expect-autocast", required=True)
     return parser
+
+
+def _main_check_metrics(args):
+    try:
+        violations = check_metrics(args.json_path, args.expect_ckpt, args.expect_cond_method,
+                                   args.expect_angles, args.expect_rotate,
+                                   args.expect_autocast)
+    except ValueError as err:
+        print(f"check-metrics called with bad arguments: {err}")
+        return EXIT_INPUT_ERROR
+    if violations:
+        for violation in violations:
+            print(f"FAIL {args.json_path}: {violation}")
+        return EXIT_BUNDLE_VIOLATION
+    print(f"PASS {args.json_path}: cond_method={args.expect_cond_method} "
+          f"angles={args.expect_angles} rotate={args.expect_rotate} "
+          f"autocast={args.expect_autocast} ckpt={args.expect_ckpt}")
+    return EXIT_OK
 
 
 def main(argv=None):
     args = _build_arg_parser().parse_args(argv)
+    if args.command == "check-metrics":
+        return _main_check_metrics(args)
     try:
         violations = check_bundle(args.pt, args.expect_n, args.expect_seed, args.expect_K,
                                   args.expect_arm, args.expect_eval_name, args.config_root,

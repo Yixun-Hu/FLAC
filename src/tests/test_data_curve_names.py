@@ -459,6 +459,74 @@ def test_check_bundle_rejects_an_unreadable_bundle(tmp_path):
                                                        4, 42, 8, "cyl"))
 
 
+# ================================================= the check-metrics contract (round F)
+def _write_metrics(tmp_path, ckpt, *, arm="cyl", name="metrics.json", **overrides):
+    """A metrics JSON in exactly the shape ``eval_FLAC`` writes for one cell."""
+    import json as _json
+
+    import eval_FLAC
+
+    method = names.ARM_COND_METHOD[arm]
+    record = eval_FLAC.build_metrics_record(
+        {"T60": 0.1, "C50": 1.2}, ckpt, 0.0, method,
+        [0.0] if method == "fa_invariant" else None, "bf16")
+    record.update(overrides)
+    path = tmp_path / name
+    path.write_text(_json.dumps(record, indent=4))
+    return str(path)
+
+
+def _metrics_args(ckpt, arm="cyl"):
+    return dict(expect_ckpt=ckpt, expect_cond_method=names.ARM_COND_METHOD[arm],
+                expect_angles=names.FRAME_AVG_ANGLES, expect_rotate=names.ROTATE_DEG,
+                expect_autocast=names.COND_AUTOCAST)
+
+
+def test_check_metrics_accepts_both_arms_own_records(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    for arm in names.ARMS:
+        path = _write_metrics(tmp_path, ckpt, arm=arm, name=f"{arm}.json")
+        assert names.check_metrics(path, **_metrics_args(ckpt, arm)) == []
+
+
+def test_check_metrics_rejects_a_record_from_a_foreign_checkpoint(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    foreign, _ = _real_ckpt(tmp_path, arm="van", content=b"another run")
+    path = _write_metrics(tmp_path, foreign)
+    violations = names.check_metrics(path, **_metrics_args(ckpt))
+    assert any("ckpt_path" in v for v in violations), violations
+
+
+@pytest.mark.parametrize("override,needle", [
+    ({"metrics": {}}, "metrics"),
+    ({"metrics": None}, "metrics"),
+    ({"cond_method": "vanilla"}, "cond_method"),
+    ({"frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}, "frame_avg_angles"),
+    ({"rotate_deg": 45.0}, "rotate_deg"),
+    ({"cond_autocast": "default"}, "cond_autocast"),
+])
+def test_check_metrics_rejects_a_protocol_mismatch(tmp_path, override, needle):
+    ckpt, _ = _real_ckpt(tmp_path)
+    path = _write_metrics(tmp_path, ckpt, **override)
+    violations = names.check_metrics(path, **_metrics_args(ckpt))
+    assert any(needle in v for v in violations), violations
+
+
+def test_check_metrics_treats_an_unreadable_record_as_not_done(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    half = tmp_path / "half.json"
+    half.write_text('{"metrics": {"T60": 1.0}, "ckpt_pa')
+    assert names.check_metrics(str(half), **_metrics_args(ckpt))
+    assert names.check_metrics(str(tmp_path / "absent.json"), **_metrics_args(ckpt))
+
+
+def test_check_metrics_rejects_an_unplanned_cond_method(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    path = _write_metrics(tmp_path, ckpt)
+    with pytest.raises(ValueError):
+        names.check_metrics(path, ckpt, "frame_avg", "0", 0.0, "bf16")
+
+
 def _cli(*args):
     return subprocess.run([sys.executable, "-m", "src.tools.data_curve.names", *args],
                           cwd=REPO_ROOT, capture_output=True, text=True)
@@ -507,3 +575,22 @@ def test_check_bundle_cli_refuses_a_foreign_checkpoint(tmp_path):
                 "--expect-ckpt-sha256", digest)
     assert proc.returncode == 3, proc.stdout
     assert "ckpt_path" in proc.stdout
+
+
+def test_check_metrics_cli_exit_codes(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    good = _write_metrics(tmp_path, ckpt)
+    flags = ("--expect-ckpt", ckpt, "--expect-cond-method", "fa_invariant",
+             "--expect-angles", "0", "--expect-rotate", "0", "--expect-autocast", "bf16")
+    ok = _cli("check-metrics", "--json", good, *flags)
+    assert ok.returncode == 0, ok.stderr
+    assert "PASS" in ok.stdout and ckpt in ok.stdout
+
+    foreign, _ = _real_ckpt(tmp_path, arm="van", content=b"another run")
+    stale = _write_metrics(tmp_path, foreign, name="stale.json")
+    bad = _cli("check-metrics", "--json", stale, *flags)
+    assert bad.returncode == 3, bad.stdout
+    assert "ckpt_path" in bad.stdout
+
+    argerr = _cli("check-metrics", "--json", good, "--expect-ckpt", ckpt)
+    assert argerr.returncode == 2, argerr.stdout    # every protocol flag is required
