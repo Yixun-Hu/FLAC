@@ -463,3 +463,77 @@ def test_a_mismatched_pin_writes_no_artifact_at_all(tmp_path, monkeypatch):
     )
     assert not os.path.exists(paths["metrics"])
     assert not os.path.exists(paths["predictions"])
+
+
+# --------------------------------------------------------------------------- #
+# H: hash and load are ONE descriptor, end to end (codex full-r3 finding 1)
+#
+# Round G's window: the evaluator hashed pathname A, closed it, and reopened A to
+# load. Between the two, A could be replaced by another contract-valid step-40000
+# file B -- B was scored, A's digest was stamped, and restoring A before the gates
+# ran left both of them satisfied. The two ways the file can change under us are
+# tested separately, because they must end differently: a *rename* over the
+# pathname cannot touch the inode an open descriptor already names (so the
+# ORIGINAL loads and the run stands), while an in-place *mutation* of that inode
+# is real and must stop the run before anything is scored or written.
+# --------------------------------------------------------------------------- #
+def _copy_bytes(src, dst):
+    with open(src, "rb") as fin, open(dst, "wb") as fout:
+        fout.write(fin.read())
+
+
+def test_a_pathname_swapped_between_hash_and_load_never_reaches_the_scorer(
+        tmp_path, monkeypatch):
+    ckpt = str(tmp_path / "toy.ckpt")            # _run_loop writes A here
+    impostor = str(tmp_path / "impostor.ckpt")   # B: loadable, different bytes
+    torch.save({"state_dict": {}, "marker": "IMPOSTOR"}, impostor)
+    swapped, loaded = [], []
+    real_load = torch.load
+
+    def swapping_load(handle, *args, **kwargs):
+        if hasattr(handle, "fileno") and not swapped:    # the evaluator's ckpt load
+            swapped.append(True)
+            backup, staged = str(tmp_path / "A.bytes"), str(tmp_path / "B.staged")
+            _copy_bytes(ckpt, backup)
+            _copy_bytes(impostor, staged)
+            os.replace(staged, ckpt)             # B renamed over A's pathname
+            obj = real_load(handle, *args, **kwargs)
+            loaded.append(obj)
+            os.replace(backup, ckpt)             # A restored before the gates look
+            return obj
+        return real_load(handle, *args, **kwargs)
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", swapping_load)
+    _, metric_callback, paths, _ = _run_loop(tmp_path, monkeypatch, eval_name="hswap")
+
+    assert swapped == [True], "the swap never happened: the test proves nothing"
+    assert "marker" not in loaded[0], "the impostor's bytes were loaded and scored"
+    assert len(metric_callback.scored) == 2                  # the run itself stands
+    digest = _ckpt_digest(tmp_path)                          # A's bytes, restored
+    assert json.loads(open(paths["metrics"]).read())["ckpt_sha256"] == digest
+    assert _load_bundle(paths["predictions"])["meta"]["ckpt_sha256"] == digest
+
+
+def test_an_in_place_mutation_during_the_load_writes_no_artifact_at_all(
+        tmp_path, monkeypatch):
+    ckpt = str(tmp_path / "toy.ckpt")
+    real_load = torch.load
+
+    def mutating_load(handle, *args, **kwargs):
+        obj = real_load(handle, *args, **kwargs)
+        if hasattr(handle, "fileno"):
+            with open(ckpt, "r+b") as other:     # same inode, a different handle
+                other.seek(0, os.SEEK_END)
+                other.write(b"mutated in place under the evaluator")
+        return obj
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", mutating_load)
+    with pytest.raises(eval_FLAC.CheckpointMutatedDuringLoad):
+        _run_loop(tmp_path, monkeypatch, eval_name="hmutate")
+
+    paths = eval_FLAC.build_output_paths(
+        ckpt, steps=1, cfg_scale=1.0, eval_name="hmutate",
+        cond_method="vanilla", rotate_deg=0.0,
+    )
+    assert not os.path.exists(paths["metrics"])
+    assert not os.path.exists(paths["predictions"])

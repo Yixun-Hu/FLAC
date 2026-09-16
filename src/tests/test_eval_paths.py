@@ -598,3 +598,108 @@ def test_cli_accepts_the_new_flag_and_aborts_non_zero_on_a_mismatch(tmp_path):
     assert b"unrecognized arguments" not in proc.stderr
     blob = (proc.stdout + proc.stderr).decode()
     assert "00" * 32 in blob and "sha256" in blob.lower()
+
+
+# --------------------------------------------------------------------------- #
+# H: the digest and the load come from ONE open descriptor
+# (codex full-r3 finding 1)
+#
+# Round G hashed pathname A, closed it, and later reopened A for ``torch.load``.
+# A checkpoint swapped in between -- another contract-valid step-40000 file --
+# was therefore scored while every artifact was stamped with A's digest, and
+# restoring A before the gates ran made both of them pass. The window closes by
+# never letting go of the file: one ``open``, hash *that* descriptor, ``seek(0)``
+# and load from the same descriptor (a rename cannot move an inode out from under
+# an open fd), then re-hash and re-``fstat`` it to catch an in-place mutation --
+# all before anything is scored or written.
+# --------------------------------------------------------------------------- #
+def test_load_checkpoint_bound_to_digest_returns_the_object_and_its_digest(tmp_path):
+    path = str(tmp_path / "toy.ckpt")
+    torch.save({"state_dict": {}, "marker": "ORIGINAL"}, path)
+
+    obj, digest = eval_FLAC.load_checkpoint_bound_to_digest(path)
+
+    assert obj["marker"] == "ORIGINAL"
+    assert digest == eval_FLAC.file_sha256(path)
+
+
+def test_the_hashed_bytes_and_the_loaded_bytes_come_from_the_same_descriptor(
+        tmp_path, monkeypatch):
+    """The structural guarantee: ``torch.load`` is handed the OPEN FILE that was
+    hashed (positioned at 0), not the pathname it was opened from."""
+    path = str(tmp_path / "toy.ckpt")
+    torch.save({"state_dict": {}}, path)
+    seen = {}
+    real_load = torch.load
+
+    def spy_load(handle, *args, **kwargs):
+        seen["has_fileno"] = hasattr(handle, "fileno")
+        seen["stat"] = os.fstat(handle.fileno())
+        seen["pos"] = handle.tell()
+        return real_load(handle, *args, **kwargs)
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", spy_load)
+    eval_FLAC.load_checkpoint_bound_to_digest(path)
+
+    assert seen["has_fileno"] and seen["pos"] == 0
+    assert os.path.samestat(seen["stat"], os.stat(path))
+
+
+def test_a_pathname_replaced_mid_load_cannot_change_the_bytes_that_are_read(
+        tmp_path, monkeypatch):
+    """The finding itself, at unit level: B is renamed over A *after* the hash and
+    *before* the load. An open descriptor names an inode, not a directory entry,
+    so A is what loads -- and A's digest is what the caller gets to stamp."""
+    path = str(tmp_path / "toy.ckpt")
+    torch.save({"state_dict": {}, "marker": "ORIGINAL"}, path)
+    original_digest = eval_FLAC.file_sha256(path)
+    impostor = str(tmp_path / "impostor.ckpt")
+    torch.save({"state_dict": {}, "marker": "IMPOSTOR"}, impostor)
+    real_load = torch.load
+
+    def replacing_load(handle, *args, **kwargs):
+        os.replace(impostor, path)          # A -> B at the SAME pathname
+        return real_load(handle, *args, **kwargs)
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", replacing_load)
+    obj, digest = eval_FLAC.load_checkpoint_bound_to_digest(path)
+
+    assert obj["marker"] == "ORIGINAL"
+    assert digest == original_digest
+    assert eval_FLAC.file_sha256(path) != original_digest   # the swap really happened
+
+
+def test_an_in_place_mutation_during_the_load_is_refused(tmp_path, monkeypatch):
+    """The other half: the inode itself is written through a second handle, so the
+    bytes that were digested are not the bytes on disk any more."""
+    path = str(tmp_path / "toy.ckpt")
+    torch.save({"state_dict": {}}, path)
+    before = eval_FLAC.file_sha256(path)
+    real_load = torch.load
+
+    def mutating_load(handle, *args, **kwargs):
+        obj = real_load(handle, *args, **kwargs)
+        with open(path, "r+b") as other:    # same inode, a different handle
+            other.seek(0, os.SEEK_END)
+            other.write(b"mutated in place while the loader held it open")
+        return obj
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", mutating_load)
+    with pytest.raises(eval_FLAC.CheckpointMutatedDuringLoad) as err:
+        eval_FLAC.load_checkpoint_bound_to_digest(path)
+
+    message = str(err.value)
+    assert before in message and path in message
+    assert eval_FLAC.file_sha256(path) != before
+
+
+def test_a_pinned_mismatch_is_refused_before_torch_ever_sees_the_descriptor(
+        tmp_path, monkeypatch):
+    path, digest = _ckpt_file(tmp_path)
+    Path(path).write_bytes(b"another contract-valid step=40000 checkpoint")
+    loads = []
+    monkeypatch.setattr(eval_FLAC.torch, "load", lambda *a, **k: loads.append(a))
+
+    with pytest.raises(eval_FLAC.CheckpointDigestMismatch):
+        eval_FLAC.load_checkpoint_bound_to_digest(path, digest)
+    assert loads == []
