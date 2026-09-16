@@ -189,14 +189,14 @@ def _seed_final_ckpt(harness, arm, content="stale"):
 def test_a_an_unvalidatable_existing_final_is_fatal_before_any_training(harness):
     """Finding B1: a filename alone used to mark an arm SKIPPED, so a corrupt or cross-run
     cyl final let van train for days before anything checked it."""
-    _seed_final_ckpt(harness, "cyl")
+    ckpt = _seed_final_ckpt(harness, "cyl")
     proc = harness.run(STUB_RC_VALIDATE_FINAL=3)
 
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert not harness.marker("train_dc_cyl_f025")
     assert not harness.marker("train_dc_van_f025")
-    assert "run contract" in proc.stdout or "contract" in proc.stdout
-    assert os.path.exists(_seed_final_ckpt(harness, "cyl", "stale"))   # never deleted
+    assert "NOT" in proc.stdout and ckpt in proc.stdout     # names what it refused to trust
+    assert os.path.exists(ckpt) and open(ckpt).read() == "stale"   # never deleted or touched
 
 
 def test_a2_a_validated_existing_final_skips_only_that_arm(harness):
