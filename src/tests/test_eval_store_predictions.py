@@ -17,7 +17,9 @@ callback input** -- the metric callback's own ``float()`` cast and its
 ``max_len`` (8000-sample) crop happen *inside* scoring and are deliberately not
 part of the artifact.
 """
+import hashlib
 import json
+import os
 import types
 
 import pytest
@@ -228,7 +230,7 @@ def _fake_batches(sizes=(2, 3)):
 
 
 def _run_loop(tmp_path, monkeypatch, store_predictions=True, eval_name="c2",
-              batch_sizes=(2, 3)):
+              batch_sizes=(2, 3), expect_ckpt_sha256=None):
     """Drive evaluate_model over ``batch_sizes`` fake batches; return
     (pretransform, metric_callback, output paths, n_items)."""
     model_cfg = tmp_path / "model.json"
@@ -267,6 +269,7 @@ def _run_loop(tmp_path, monkeypatch, store_predictions=True, eval_name="c2",
         str(model_cfg), str(dataset_cfg), str(ckpt),
         steps=1, cfg_scale=1.0, batch_size=2, device="cpu", eval_name=eval_name,
         seed=42, store_predictions=store_predictions, cond_autocast="off",
+        expect_ckpt_sha256=expect_ckpt_sha256,
     )
 
     paths = eval_FLAC.build_output_paths(
@@ -400,3 +403,63 @@ def test_saved_bundle_n_items_counts_the_stored_rows(tmp_path, monkeypatch):
     bundle = _load_bundle(paths["predictions"])
     assert n_items == 6
     assert bundle["meta"]["n_items"] == bundle["predictions"].shape[0] == 6
+
+
+# --------------------------------------------------------------------------- #
+# G: the checkpoint digest travels with the artifact (codex full-r2 finding 1)
+# --------------------------------------------------------------------------- #
+def test_predictions_meta_carries_the_checkpoint_digest():
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", **_meta_kwargs(ckpt_sha256="cd" * 32))
+    assert meta["ckpt_sha256"] == "cd" * 32
+
+
+def test_predictions_meta_digest_defaults_to_none_for_legacy_callers():
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", 42, 7, "vanilla", None, 0.0, 32, "default",
+    )
+    assert meta["ckpt_sha256"] is None
+    # ... and the legacy keys are still all there
+    assert meta["dataset_config"] == "ds.json" and meta["stored_after_clamp_pad"] is True
+
+
+def _ckpt_digest(tmp_path):
+    return hashlib.sha256((tmp_path / "toy.ckpt").read_bytes()).hexdigest()
+
+
+def test_both_artifacts_carry_the_digest_of_the_checkpoint_actually_loaded(
+        tmp_path, monkeypatch):
+    """No flag passed -- a legacy call site -- and the digest is embedded anyway,
+    in the bundle meta AND in the metrics JSON the results table reads."""
+    _, _, paths, _ = _run_loop(tmp_path, monkeypatch, eval_name="gdigest")
+    digest = _ckpt_digest(tmp_path)
+
+    assert _load_bundle(paths["predictions"])["meta"]["ckpt_sha256"] == digest
+    record = json.loads(open(paths["metrics"]).read())
+    assert record["ckpt_sha256"] == digest
+    assert record["ckpt_path"] == str(tmp_path / "toy.ckpt")
+
+
+def test_a_matching_pin_proceeds_and_embeds_the_same_digest(tmp_path, monkeypatch):
+    ckpt = tmp_path / "toy.ckpt"
+    torch.save({"state_dict": {}}, str(ckpt))       # the digest _run_loop will pin
+    digest = hashlib.sha256(ckpt.read_bytes()).hexdigest()
+
+    _, metric_callback, paths, n_items = _run_loop(
+        tmp_path, monkeypatch, eval_name="gpinned", expect_ckpt_sha256=digest)
+
+    assert len(metric_callback.scored) == 2         # the run really happened
+    assert _load_bundle(paths["predictions"])["meta"]["ckpt_sha256"] == digest
+    assert json.loads(open(paths["metrics"]).read())["ckpt_sha256"] == digest
+
+
+def test_a_mismatched_pin_writes_no_artifact_at_all(tmp_path, monkeypatch):
+    with pytest.raises(eval_FLAC.CheckpointDigestMismatch):
+        _run_loop(tmp_path, monkeypatch, eval_name="gstale",
+                  expect_ckpt_sha256="00" * 32)
+    paths = eval_FLAC.build_output_paths(
+        str(tmp_path / "toy.ckpt"), steps=1, cfg_scale=1.0, eval_name="gstale",
+        cond_method="vanilla", rotate_deg=0.0,
+    )
+    assert not os.path.exists(paths["metrics"])
+    assert not os.path.exists(paths["predictions"])

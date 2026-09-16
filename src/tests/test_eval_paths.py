@@ -20,7 +20,9 @@ being reproducible:
 ``build_output_paths`` is a pure string function, so ``CKPT`` below need not
 exist on disk; the leading directory is preserved by ``os.path.join``.
 """
+import hashlib
 import json
+import os
 import subprocess
 import sys
 import types
@@ -488,3 +490,111 @@ def test_load_integrity_stray_and_escape_hatch(capsys):
     eval_FLAC.check_load_integrity(["model.gone"], [], allow_partial_load=True)
     out = capsys.readouterr().out
     assert "model.gone" in out and "WARNING" in out
+
+
+# --------------------------------------------------------------------------- #
+# checkpoint-digest binding (codex full-r2 finding 1)
+#
+# A checkpoint replaced at the SAME pathname by another contract-valid
+# step-40000 file used to be undetectable: the artifacts recorded only
+# ``ckpt_path``, so nothing they carried could disagree with the new bytes. The
+# evaluator therefore (a) digests the checkpoint BEFORE loading it, (b) refuses
+# to run when that digest is not the one the launcher pinned, and (c) embeds the
+# digest of the file it actually loaded in BOTH artifacts, always.
+# --------------------------------------------------------------------------- #
+def _ckpt_file(tmp_path, content=b"checkpoint bytes", name="pinned.ckpt"):
+    path = tmp_path / name
+    path.write_bytes(content)
+    return str(path), hashlib.sha256(content).hexdigest()
+
+
+def test_file_sha256_matches_hashlib_over_several_chunks(tmp_path):
+    """Checkpoints are ~700 MB, so the digest is chunked; it must still be the
+    digest of the whole file."""
+    path, digest = _ckpt_file(tmp_path, b"z" * (3 * (1 << 20) + 7))
+    assert eval_FLAC.file_sha256(path) == digest
+
+
+def test_resolve_ckpt_sha256_returns_the_digest_of_the_file_on_disk(tmp_path):
+    path, digest = _ckpt_file(tmp_path)
+    assert eval_FLAC.resolve_ckpt_sha256(path) == digest              # nothing pinned
+    assert eval_FLAC.resolve_ckpt_sha256(path, digest) == digest      # pinned and matching
+    assert eval_FLAC.resolve_ckpt_sha256(path, digest.upper()) == digest
+    assert eval_FLAC.resolve_ckpt_sha256(path, f"  {digest}  ") == digest
+
+
+def test_resolve_ckpt_sha256_refuses_a_checkpoint_replaced_at_the_same_path(tmp_path):
+    """The exact hazard: same pathname, different bytes, both plausible."""
+    path, digest = _ckpt_file(tmp_path)
+    Path(path).write_bytes(b"another contract-valid step=40000 checkpoint")
+    with pytest.raises(eval_FLAC.CheckpointDigestMismatch) as err:
+        eval_FLAC.resolve_ckpt_sha256(path, digest)
+    message = str(err.value)
+    assert digest in message and path in message
+    assert eval_FLAC.file_sha256(path) in message   # names both digests, not just "mismatch"
+
+
+def test_metrics_record_carries_the_checkpoint_digest():
+    rec = eval_FLAC.build_metrics_record(
+        {"T60": 1.23}, CKPT, rotate_deg=0.0, cond_method="vanilla",
+        frame_avg_angles=None, cond_autocast="bf16", ckpt_sha256="ab" * 32,
+    )
+    assert rec["ckpt_sha256"] == "ab" * 32
+    # every legacy key survives, and no other key appears
+    assert set(rec) == {"metrics", "ckpt_path", "rotate_deg", "cond_method",
+                        "frame_avg_angles", "cond_autocast", "ckpt_sha256"}
+    json.loads(json.dumps(rec))
+
+
+def test_metrics_record_digest_defaults_to_none_for_legacy_callers():
+    rec = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None)
+    assert rec["ckpt_sha256"] is None
+
+
+def test_evaluate_model_refuses_a_pinned_mismatch_before_loading_anything(
+        tmp_path, monkeypatch):
+    """The abort happens before ``torch.load`` and before model construction: the
+    model/dataset configs below do not exist, so any later check would surface a
+    FileNotFoundError instead of the digest error."""
+    ckpt, digest = _ckpt_file(tmp_path)
+    Path(ckpt).write_bytes(b"replaced after the launcher validated it")
+    loads = []
+    real_load = torch.load
+
+    def spy_load(*args, **kwargs):
+        loads.append(args)
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(eval_FLAC.torch, "load", spy_load)
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda *a, **k: pytest.fail("evaluate_model reached model construction"),
+    )
+
+    with pytest.raises(eval_FLAC.CheckpointDigestMismatch):
+        eval_FLAC.evaluate_model(
+            str(tmp_path / "missing_model.json"), str(tmp_path / "missing_dataset.json"),
+            ckpt, steps=1, cfg_scale=1.0, device="cpu",
+            expect_ckpt_sha256=digest,
+        )
+    assert loads == [], "the checkpoint was loaded before its digest was checked"
+
+
+def test_cli_accepts_the_new_flag_and_aborts_non_zero_on_a_mismatch(tmp_path):
+    """The launcher passes ``--expect-ckpt-sha256`` on every eval argv; a mismatch
+    must stop the process with a clear message, not a silently wrong number."""
+    root = str(Path(__file__).resolve().parents[2])
+    ckpt = tmp_path / "toy.ckpt"
+    ckpt.write_bytes(b"checkpoint bytes")
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES="")
+    proc = subprocess.run(
+        [sys.executable, "eval_FLAC.py",
+         "--model-config", str(tmp_path / "missing.json"),
+         "--dataset-config", str(tmp_path / "missing_ds.json"),
+         "--ckpt-path", str(ckpt), "--expect-ckpt-sha256", "00" * 32],
+        capture_output=True, cwd=root, env=env,
+    )
+    assert proc.returncode != 0
+    assert b"unrecognized arguments" not in proc.stderr
+    blob = (proc.stdout + proc.stderr).decode()
+    assert "00" * 32 in blob and "sha256" in blob.lower()
