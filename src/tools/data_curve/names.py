@@ -22,6 +22,7 @@ here is ever typed into a shell:
 (pinned by a test that compares against the real function) so the launcher's skip logic
 looks exactly where the evaluator writes.
 """
+import hashlib
 import os
 
 #: fraction tag -> fraction. The tag is the filename/run-id form ("025"), the value the
@@ -284,8 +285,34 @@ EXIT_OK = 0
 EXIT_INPUT_ERROR = 2        # the caller's own arguments are wrong (a launcher bug)
 EXIT_BUNDLE_VIOLATION = 3   # the artifact disagrees with the cell it claims to be
 
+#: The worktree this module lives in: names.py -> data_curve -> tools -> src -> root.
+#: Used to locate the eval configs by their repo-relative paths without depending on cwd.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 
-def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None):
+
+def eval_dataset_config_path(K, config_root=None):
+    """Absolute path of the full unseen-eval config K is evaluated with."""
+    root = REPO_ROOT if config_root is None else config_root
+    return os.path.join(root, EVAL_DATASET_CONFIGS[_check_k(K)])
+
+
+def eval_dataset_config_sha256(K, config_root=None):
+    """sha256 of that config file -- the cell's full-split provenance (codex M4).
+
+    ``eval_FLAC`` records only the config *path* in a bundle's meta, so until a future
+    round embeds a sha there, the launcher records this one, computed at check time from
+    the worktree the evaluation ran in. Raises ``OSError`` if the file is not readable.
+    """
+    digest = hashlib.sha256()
+    with open(eval_dataset_config_path(K, config_root), "rb") as fin:
+        for chunk in iter(lambda: fin.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None,
+                 config_root=None):
     """Return the list of violations (empty == the bundle is this cell's, exactly as scored).
 
     Loads on CPU with ``weights_only=False`` (the bundle is a dict of a tensor and a meta
@@ -319,11 +346,21 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     if "n_samples" in meta:
         expect("n_samples", meta.get("n_samples"), expect_n)
     expect("seed", meta.get("seed"), expect_seed)
-    got_ds = os.path.basename(str(meta.get("dataset_config")))
-    want_ds = os.path.basename(EVAL_DATASET_CONFIGS[expect_K])
+    # The WHOLE relative path, normalised, not the basename (codex M4): a custom or reduced
+    # config named acousticroom_unseeneval.json in another directory would otherwise pass as
+    # the full unseen eval, which announcement 01 forbids.
+    got_ds = os.path.normpath(str(meta.get("dataset_config")))
+    want_ds = EVAL_DATASET_CONFIGS[expect_K]
     if got_ds != want_ds:
         violations.append(
-            f"meta.dataset_config is {got_ds!r}, expected {want_ds!r} for K={expect_K}"
+            f"meta.dataset_config is {got_ds!r}, expected exactly {want_ds!r} for K={expect_K}"
+        )
+    try:
+        eval_dataset_config_sha256(expect_K, config_root)
+    except OSError as err:
+        violations.append(
+            f"the expected eval config {eval_dataset_config_path(expect_K, config_root)!r} "
+            f"is not readable, so its sha256 cannot certify this cell ({err})"
         )
     expect("cond_method", meta.get("cond_method"), ARM_COND_METHOD[expect_arm])
     want_angles = [float(FRAME_AVG_ANGLES)] if expect_arm == "cyl" else None
@@ -372,6 +409,9 @@ def _build_arg_parser():
     check.add_argument("--expect-K", required=True, type=int)
     check.add_argument("--expect-arm", required=True, choices=list(ARMS))
     check.add_argument("--expect-eval-name", default=None)
+    check.add_argument("--config-root", default=None,
+                       help="worktree the expected eval config is read from (default: this "
+                            "module's own repository root)")
     return parser
 
 
@@ -379,7 +419,7 @@ def main(argv=None):
     args = _build_arg_parser().parse_args(argv)
     try:
         violations = check_bundle(args.pt, args.expect_n, args.expect_seed, args.expect_K,
-                                  args.expect_arm, args.expect_eval_name)
+                                  args.expect_arm, args.expect_eval_name, args.config_root)
     except ValueError as err:
         print(f"check-bundle called with bad arguments: {err}")
         return EXIT_INPUT_ERROR
@@ -387,9 +427,14 @@ def main(argv=None):
         for violation in violations:
             print(f"FAIL {args.pt}: {violation}")
         return EXIT_BUNDLE_VIOLATION
+    # The sha is printed for the launcher to record per cell (codex M4): the bundle meta
+    # carries the config's path but no sha, so this is the cell's full-split provenance
+    # until a future round embeds one in eval_FLAC's meta.
     print(f"PASS {args.pt}: n={args.expect_n} seed={args.expect_seed} K={args.expect_K} "
           f"arm={args.expect_arm} ({ARM_COND_METHOD[args.expect_arm]}, autocast "
-          f"{COND_AUTOCAST}, rotate {int(ROTATE_DEG)})")
+          f"{COND_AUTOCAST}, rotate {int(ROTATE_DEG)}) "
+          f"dataset_config={EVAL_DATASET_CONFIGS[args.expect_K]} "
+          f"dataset_config_sha256={eval_dataset_config_sha256(args.expect_K, args.config_root)}")
     return EXIT_OK
 
 

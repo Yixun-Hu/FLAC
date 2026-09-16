@@ -18,6 +18,7 @@ Two hazards these tests exist for:
 CPU-only and filesystem-free except for the ``check-bundle`` cases, which write small
 tensors into ``tmp_path``.
 """
+import hashlib
 import os
 import subprocess
 import sys
@@ -333,6 +334,37 @@ def test_check_bundle_rejects_a_protocol_mismatch(tmp_path, kwargs, args, needle
     assert any(needle in v for v in violations), violations
 
 
+def test_check_bundle_accepts_an_unnormalised_but_identical_config_path(tmp_path):
+    path = _write_bundle(
+        tmp_path,
+        dataset_config="./src/configs/dataset_configs/AR/eval/./acousticroom_unseeneval.json")
+    assert names.check_bundle(path, 4, 42, 8, "cyl") == []
+
+
+def test_check_bundle_rejects_a_same_named_config_from_another_directory(tmp_path):
+    """codex M4: a basename match let a custom/reduced config with 6,337 different entries
+    pass as the full unseen eval (announcement 01). The whole relative path is pinned."""
+    path = _write_bundle(tmp_path,
+                         dataset_config="/tmp/mine/acousticroom_unseeneval.json")
+    violations = names.check_bundle(path, 4, 42, 8, "cyl")
+    assert any("dataset_config" in v for v in violations), violations
+    assert any(names.EVAL_DATASET_CONFIGS[8] in v for v in violations), violations
+
+
+def test_eval_dataset_config_sha256_hashes_the_committed_config():
+    for k, rel in names.EVAL_DATASET_CONFIGS.items():
+        expected = hashlib.sha256(open(os.path.join(REPO_ROOT, rel), "rb").read()).hexdigest()
+        assert names.eval_dataset_config_sha256(k) == expected
+
+
+def test_check_bundle_fails_when_the_expected_config_cannot_be_hashed(tmp_path):
+    """The sha is the cell's full-split provenance until eval_FLAC embeds one, so a config
+    root without it cannot certify anything."""
+    path = _write_bundle(tmp_path)
+    violations = names.check_bundle(path, 4, 42, 8, "cyl", config_root=str(tmp_path))
+    assert any("sha256" in v or "readable" in v for v in violations), violations
+
+
 def test_check_bundle_rejects_a_wrong_eval_name(tmp_path):
     path = _write_bundle(tmp_path)
     violations = names.check_bundle(path, 4, 42, 8, "cyl",
@@ -372,6 +404,10 @@ def test_check_bundle_cli_exit_codes(tmp_path):
               "--expect-eval-name", "dc_cyl_f025_K8_s42")
     assert ok.returncode == 0, ok.stderr
     assert "PASS" in ok.stdout
+    # the launcher records this token as the cell's dataset-config provenance (codex M4)
+    sha = hashlib.sha256(open(os.path.join(REPO_ROOT, names.EVAL_DATASET_CONFIGS[8]),
+                              "rb").read()).hexdigest()
+    assert f"dataset_config_sha256={sha}" in ok.stdout
 
     bad = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
                "--expect-K", "8", "--expect-arm", "van")
