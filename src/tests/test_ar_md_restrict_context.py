@@ -207,6 +207,9 @@ def test_B5_plain_exception_still_resamples(tree, capsys):
 # The pinned implementation (commit 7bbd8aa), copied VERBATIM — B1's reference.
 # Only the sampler's name changes (`_pinned_reference`); the two helpers it calls are
 # copied verbatim too, so the reference is independent of any later edit to AR_md.py.
+# Trailing whitespace on three blank lines was normalized away (git diff --check): what
+# B1 pins is semantic equivalence — the returned tensors and the numpy RNG state — not
+# the whitespace of the source.
 # ======================================================================================
 def get_3d_point_camera_coord(source_pose, point_3d):
     camera_matrix = None
@@ -249,7 +252,7 @@ def _pinned_reference(ir_file_path, num_ref_sources, metadata_path, max_len=9600
         select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=True)
     all_ref_irs = []
     all_ref_src_pos = []
-    
+
     for fp in select_other_src_ir_paths:
         ref_wav, rate = torchaudio.load(fp)
         assert rate == 22050, "IR sampling rate must be 22050!"
@@ -261,9 +264,9 @@ def _pinned_reference(ir_file_path, num_ref_sources, metadata_path, max_len=9600
         all_ref_irs.append(ref_wav)
 
         src_loc, rec_loc = get_receiver_source_location(fp, metadata_path=metadata_path)
-        
+
         proj_src_loc = get_3d_point_camera_coord(rec_loc, src_loc)
-        
+
         all_ref_src_pos.append(torch.Tensor(proj_src_loc).float())
     all_ref_irs = torch.cat(all_ref_irs, dim=0)
     all_ref_src_pos = torch.vstack(all_ref_src_pos)

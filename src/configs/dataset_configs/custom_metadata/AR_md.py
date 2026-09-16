@@ -48,7 +48,7 @@ def get_custom_metadata(info, audio):
         all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
         md['context_poses'] = all_ref_src_pos # [N, 3]  
         md['context_poses_vit'] = all_ref_src_pos
-        md['context_audio'] = all_ref_irs # [N, max_len_cond]
+        md['context_audio'] = all_ref_irs # [N, 1, max_len_cond]
 
     # Load Depth
     if depth_config.get('load', False):
