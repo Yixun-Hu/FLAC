@@ -757,3 +757,102 @@ def test_B8_training_process_exits_non_zero_on_a_contract_violation(big_tree, tm
     assert completed.returncode != 0
     assert "DatasetContractError" in completed.stderr
     assert "PRODUCED A BATCH" not in completed.stdout
+
+
+# ======================================================================================
+# B9 (round B-fix) — EVERY split-index failure is fail-closed
+# ======================================================================================
+# A split we cannot read or cannot trust must terminate the run. Raw OSError /
+# JSONDecodeError / AttributeError / TypeError would all be swallowed by
+# SampleDataset.__getitem__'s generic fallback and silently resampled away, which is the
+# exact failure mode round B exists to close.
+def write_raw_split(tree, name, text):
+    path = os.path.join(tree["splits_dir"], name)
+    with open(path, "w") as fout:
+        fout.write(text)
+    return path
+
+
+@pytest.mark.parametrize(
+    "name, payload",
+    [
+        ("not_json.json", "{ this is not json"),
+        ("empty.json", ""),
+        ("root_is_a_list.json", '["ToyScene_idx_0"]'),
+        ("root_is_a_string.json", '"ToyScene"'),
+        ("scene_not_a_dict.json", '{"ToyScene": ["S001_R001_hybrid_IR.wav"]}'),
+        ("scene_is_null.json", '{"ToyScene": null}'),
+        ("room_not_a_list.json", '{"ToyScene": {"ToyScene_idx_0": "S001_R001_hybrid_IR.wav"}}'),
+        ("room_is_a_dict.json", '{"ToyScene": {"ToyScene_idx_0": {"S001": 1}}}'),
+        ("filename_not_a_str.json", '{"ToyScene": {"ToyScene_idx_0": [123]}}'),
+        ("filename_is_null.json", '{"ToyScene": {"ToyScene_idx_0": [null]}}'),
+    ],
+)
+def test_B9_malformed_split_raises_dataset_contract_error(tree, ar_md, name, payload):
+    path = write_raw_split(tree, name, payload)
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md._load_split_room_index(path)
+
+    assert path in str(excinfo.value)
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory"])
+def test_B9_unreadable_split_raises_dataset_contract_error(tree, ar_md, kind):
+    if kind == "missing":
+        path = os.path.join(tree["splits_dir"], "does_not_exist.json")
+    else:
+        path = os.path.join(tree["splits_dir"], "a_directory.json")
+        os.makedirs(path)
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md._load_split_room_index(path)
+
+    assert path in str(excinfo.value)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a 0o000 file regardless")
+def test_B9_permission_denied_split_raises_dataset_contract_error(tree, ar_md):
+    path = write_split(tree, "locked.json", full_split(tree))
+    os.chmod(path, 0o000)
+    try:
+        with pytest.raises(DatasetContractError):
+            ar_md._load_split_room_index(path)
+    finally:
+        os.chmod(path, 0o644)
+
+
+def test_B9_scene_not_a_dict_is_fatal_through_get_custom_metadata(tree, ar_md):
+    """The HAA-style scene -> [files] schema is not a valid AR restriction index."""
+    room = tree["rooms"][0]
+    path = write_raw_split(tree, "haa_style.json", '{"ToyScene": ["S001_R001_hybrid_IR.wav"]}')
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md.get_custom_metadata(
+            make_info(tree, room, 1, 1, path, modalities(restrict=True)), None
+        )
+
+    assert "scene/room split" in str(excinfo.value)
+
+
+def test_B9_split_replaced_by_malformed_json_after_construction_is_fatal(
+    big_tree, tmp_path, monkeypatch
+):
+    room = big_tree["rooms"][0]
+    split_path = write_split(big_tree, "swap_malformed.json", full_split(big_tree, rooms=[room]))
+    sentinel = str(tmp_path / "resampled.txt")
+    forbid_resampling(monkeypatch, sentinel)
+
+    loader = build_loader(big_tree, split_path, restrict=True)
+    assert len(loader.dataset) == 6
+
+    temporary = split_path + ".tmp"
+    with open(temporary, "w") as fout:
+        fout.write("{ truncated json")
+    os.replace(temporary, split_path)
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        next(iter(loader))
+
+    assert "not valid JSON" in str(excinfo.value)
+    assert not os.path.exists(sentinel), "no replacement sample may be drawn"

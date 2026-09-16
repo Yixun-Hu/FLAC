@@ -62,14 +62,31 @@ def get_custom_metadata(info, audio):
 
 ############# UTILS #############
 def _load_split_room_index(json_path_canonical):
-    """Parse a split JSON (scene -> room -> [basenames]) into {(scene, room): frozenset}."""
-    with open(json_path_canonical, "r") as fin:
-        split_dict = json.load(fin)
+    """Parse a split JSON (scene -> room -> [basenames]) into {(scene, room): frozenset}.
+
+    Fail-closed: a split we cannot read, or cannot trust, must terminate the run, so every
+    failure becomes a DatasetContractError. A raw OSError / JSONDecodeError / AttributeError
+    / TypeError would be caught by SampleDataset.__getitem__ and silently resampled away.
+    """
+    try:
+        with open(json_path_canonical, "r") as fin:
+            split_dict = json.load(fin)
+    except OSError as err:
+        raise DatasetContractError(f"split {json_path_canonical} cannot be read: {err}") from None
+    except (json.JSONDecodeError, UnicodeDecodeError) as err:
+        raise DatasetContractError(f"split {json_path_canonical} is not valid JSON: {err}") from None
+    if not isinstance(split_dict, dict):
+        raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: root is {type(split_dict).__name__}")
     index = {}
     for scene, rooms in split_dict.items():
         if not isinstance(rooms, dict):
-            raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: scene {scene}")
+            raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: scene {scene} is {type(rooms).__name__}")
         for room, files in rooms.items():
+            if not isinstance(files, list):
+                raise DatasetContractError(f"split {json_path_canonical} room {scene}/{room} is not a list of filenames: {type(files).__name__}")
+            for fn in files:
+                if not isinstance(fn, str):
+                    raise DatasetContractError(f"split {json_path_canonical} room {scene}/{room} lists a non-string filename: {fn!r}")
             index[(scene, room)] = frozenset(os.path.basename(fn) for fn in files)
     return index
 
