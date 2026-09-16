@@ -181,10 +181,13 @@ def topup_zero_context(
     """
     room_files = list(perm) if room_files is None else list(room_files)
     present, int_nodes = _room_index(room_files)
-    if len(perm) != len(present) or present != set(perm):
+    # Both lists must be duplicate-free and equal as sets. Comparing only len(perm) with
+    # the number of DISTINCT room_files let a duplicated room_files entry through (codex
+    # E1), which would take the node universe from a list that is not perm's permutation.
+    if len(perm) != len(present) or len(room_files) != len(present) or present != set(perm):
         raise ValueError(
-            f"perm ({len(perm)} entries) is not a permutation of room_files "
-            f"({len(present)} distinct entries)"
+            f"perm ({len(perm)} entries) and room_files ({len(room_files)} entries, "
+            f"{len(present)} distinct) must be duplicate-free permutations of each other"
         )
     unknown = set(selected) - present
     if unknown:

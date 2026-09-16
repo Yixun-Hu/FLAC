@@ -961,6 +961,11 @@ def test_A9_topup_rejects_a_perm_that_is_not_a_permutation_of_the_room():
         mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN, PERM_TEN + [_f("S011", "R014")])
     with pytest.raises(ValueError):
         mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN + [PERM_TEN[0]], TEN_SOURCE_ROOM)
+    # codex E1: a DUPLICATE in room_files kept both `len(perm) == len(distinct room_files)`
+    # and `set(room_files) == set(perm)` true, so the guard passed and the node universe
+    # silently came from a list that is not a permutation of perm.
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN, list(PERM_TEN) + [PERM_TEN[0]])
     out, added = mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN, list(TEN_SOURCE_ROOM))
     assert added == [_f("S005", "R014")]                # explicit room_files == implicit one
     assert (out, added) == mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN)
