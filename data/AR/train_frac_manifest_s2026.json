@@ -1,0 +1,8073 @@
+{
+ "seed": 2026,
+ "python_version": "3.10.20",
+ "source_train_json_sha256": "aa4e52d616fc42e88d5e4952c7e7ff266347615a60f93a0590b707f5eeaead03",
+ "fractions": {
+  "0.25": {
+   "raw_prefix": 72749,
+   "new_topup": 536,
+   "inherited_topup": 0,
+   "final": 73285,
+   "effective_epochs_at_40k_x64": 34.93211434809306,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 16702,
+    ">=8": 56583
+   },
+   "per_room": {
+    "Apartments_idx_0": {
+     "raw_prefix": 400,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 400,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 163,
+      ">=8": 237
+     }
+    },
+    "Apartments_idx_1": {
+     "raw_prefix": 275,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 276,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 276,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_10": {
+     "raw_prefix": 588,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 588,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 529
+     }
+    },
+    "Apartments_idx_11": {
+     "raw_prefix": 494,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 494,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 51,
+      ">=8": 443
+     }
+    },
+    "Apartments_idx_12": {
+     "raw_prefix": 475,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 475,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 120,
+      ">=8": 355
+     }
+    },
+    "Apartments_idx_13": {
+     "raw_prefix": 475,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 475,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 133,
+      ">=8": 342
+     }
+    },
+    "Apartments_idx_15": {
+     "raw_prefix": 475,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 475,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 362
+     }
+    },
+    "Apartments_idx_16": {
+     "raw_prefix": 525,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 525,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 87,
+      ">=8": 438
+     }
+    },
+    "Apartments_idx_17": {
+     "raw_prefix": 475,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 475,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 116,
+      ">=8": 359
+     }
+    },
+    "Apartments_idx_18": {
+     "raw_prefix": 525,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 525,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 88,
+      ">=8": 437
+     }
+    },
+    "Apartments_idx_19": {
+     "raw_prefix": 538,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 538,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 76,
+      ">=8": 462
+     }
+    },
+    "Apartments_idx_2": {
+     "raw_prefix": 262,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 262,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 262,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_21": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 46,
+      ">=8": 566
+     }
+    },
+    "Apartments_idx_22": {
+     "raw_prefix": 562,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 562,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 49,
+      ">=8": 513
+     }
+    },
+    "Apartments_idx_23": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 50,
+      ">=8": 575
+     }
+    },
+    "Apartments_idx_24": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 39,
+      ">=8": 586
+     }
+    },
+    "Apartments_idx_25": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 567
+     }
+    },
+    "Apartments_idx_26": {
+     "raw_prefix": 550,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 550,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 64,
+      ">=8": 486
+     }
+    },
+    "Apartments_idx_27": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 32,
+      ">=8": 593
+     }
+    },
+    "Apartments_idx_28": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 39,
+      ">=8": 586
+     }
+    },
+    "Apartments_idx_29": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 24,
+      ">=8": 601
+     }
+    },
+    "Apartments_idx_3": {
+     "raw_prefix": 525,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 525,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 60,
+      ">=8": 465
+     }
+    },
+    "Apartments_idx_30": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 22,
+      ">=8": 603
+     }
+    },
+    "Apartments_idx_31": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 23,
+      ">=8": 602
+     }
+    },
+    "Apartments_idx_32": {
+     "raw_prefix": 525,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 525,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 430
+     }
+    },
+    "Apartments_idx_33": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 29,
+      ">=8": 596
+     }
+    },
+    "Apartments_idx_34": {
+     "raw_prefix": 575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 61,
+      ">=8": 514
+     }
+    },
+    "Apartments_idx_35": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 31,
+      ">=8": 594
+     }
+    },
+    "Apartments_idx_36": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 31,
+      ">=8": 594
+     }
+    },
+    "Apartments_idx_37": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 49,
+      ">=8": 576
+     }
+    },
+    "Apartments_idx_38": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 41,
+      ">=8": 571
+     }
+    },
+    "Apartments_idx_39": {
+     "raw_prefix": 600,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 600,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 52,
+      ">=8": 548
+     }
+    },
+    "Apartments_idx_4": {
+     "raw_prefix": 326,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 326,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 170,
+      ">=8": 156
+     }
+    },
+    "Apartments_idx_40": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_41": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_43": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_44": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_45": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_46": {
+     "raw_prefix": 40,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 43,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_47": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_48": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_49": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_5": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 38,
+      ">=8": 574
+     }
+    },
+    "Apartments_idx_51": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_52": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_53": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_54": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_55": {
+     "raw_prefix": 52,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 53,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 53,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_56": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_57": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_58": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_59": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_6": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 617
+     }
+    },
+    "Apartments_idx_7": {
+     "raw_prefix": 412,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 414,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 183,
+      ">=8": 231
+     }
+    },
+    "Apartments_idx_8": {
+     "raw_prefix": 600,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 600,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 36,
+      ">=8": 564
+     }
+    },
+    "Apartments_idx_9": {
+     "raw_prefix": 588,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 588,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 67,
+      ">=8": 521
+     }
+    },
+    "Auditorium_idx_0": {
+     "raw_prefix": 2475,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 2475,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 2475
+     }
+    },
+    "Bathrooms_idx_0": {
+     "raw_prefix": 77,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 78,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 78,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_1": {
+     "raw_prefix": 21,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 28,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 28,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_10": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_11": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_12": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_13": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_16": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_17": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_19": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_2": {
+     "raw_prefix": 48,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 51,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 51,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_20": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_21": {
+     "raw_prefix": 52,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 59,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_23": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_24": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_25": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_26": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_27": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_28": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_29": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_3": {
+     "raw_prefix": 98,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 99,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 99,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_4": {
+     "raw_prefix": 104,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 104,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_5": {
+     "raw_prefix": 79,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 80,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 80,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_6": {
+     "raw_prefix": 72,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 75,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 75,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_7": {
+     "raw_prefix": 112,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 115,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 115,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_8": {
+     "raw_prefix": 40,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 43,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_9": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_0": {
+     "raw_prefix": 270,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 270,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 176,
+      ">=8": 94
+     }
+    },
+    "Bedrooms_idx_1": {
+     "raw_prefix": 236,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 236,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 130,
+      ">=8": 106
+     }
+    },
+    "Bedrooms_idx_10": {
+     "raw_prefix": 150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 39
+     }
+    },
+    "Bedrooms_idx_11": {
+     "raw_prefix": 272,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 272,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 149,
+      ">=8": 123
+     }
+    },
+    "Bedrooms_idx_12": {
+     "raw_prefix": 300,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 300,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 195,
+      ">=8": 105
+     }
+    },
+    "Bedrooms_idx_13": {
+     "raw_prefix": 130,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 130,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_14": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_15": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_16": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_17": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_19": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_2": {
+     "raw_prefix": 214,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 214,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 111
+     }
+    },
+    "Bedrooms_idx_20": {
+     "raw_prefix": 52,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 59,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_21": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_22": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_23": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_24": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_25": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_26": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_27": {
+     "raw_prefix": 52,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 53,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 53,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_28": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_29": {
+     "raw_prefix": 50,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_3": {
+     "raw_prefix": 144,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 144,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 144,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_30": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_31": {
+     "raw_prefix": 65,
+     "new_topup": 8,
+     "inherited_topup": 0,
+     "final": 73,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 73,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_32": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_4": {
+     "raw_prefix": 223,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 223,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 155,
+      ">=8": 68
+     }
+    },
+    "Bedrooms_idx_5": {
+     "raw_prefix": 208,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 209,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 184,
+      ">=8": 25
+     }
+    },
+    "Bedrooms_idx_6": {
+     "raw_prefix": 246,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 246,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 159,
+      ">=8": 87
+     }
+    },
+    "Bedrooms_idx_7": {
+     "raw_prefix": 263,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 263,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 51,
+      ">=8": 212
+     }
+    },
+    "Bedrooms_idx_8": {
+     "raw_prefix": 225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 110,
+      ">=8": 115
+     }
+    },
+    "Bedrooms_idx_9": {
+     "raw_prefix": 280,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 280,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 98,
+      ">=8": 182
+     }
+    },
+    "Cafe_idx_0": {
+     "raw_prefix": 2500,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 2500,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 2500
+     }
+    },
+    "ListeningRoom_idx_0": {
+     "raw_prefix": 1406,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1406,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1406
+     }
+    },
+    "ListeningRoom_idx_1": {
+     "raw_prefix": 1392,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1392,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 7,
+      ">=8": 1385
+     }
+    },
+    "ListeningRoom_idx_3": {
+     "raw_prefix": 210,
+     "new_topup": 13,
+     "inherited_topup": 0,
+     "final": 223,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 223,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_0": {
+     "raw_prefix": 350,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 351,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 261,
+      ">=8": 90
+     }
+    },
+    "LivingRoomsWithHallway_idx_1": {
+     "raw_prefix": 342,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 342,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 237
+     }
+    },
+    "LivingRoomsWithHallway_idx_10": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 20,
+      ">=8": 605
+     }
+    },
+    "LivingRoomsWithHallway_idx_11": {
+     "raw_prefix": 538,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 538,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 68,
+      ">=8": 470
+     }
+    },
+    "LivingRoomsWithHallway_idx_12": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 35,
+      ">=8": 577
+     }
+    },
+    "LivingRoomsWithHallway_idx_13": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 50,
+      ">=8": 575
+     }
+    },
+    "LivingRoomsWithHallway_idx_14": {
+     "raw_prefix": 600,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 600,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 51,
+      ">=8": 549
+     }
+    },
+    "LivingRoomsWithHallway_idx_15": {
+     "raw_prefix": 588,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 588,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 44,
+      ">=8": 544
+     }
+    },
+    "LivingRoomsWithHallway_idx_16": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 34,
+      ">=8": 578
+     }
+    },
+    "LivingRoomsWithHallway_idx_17": {
+     "raw_prefix": 600,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 600,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 34,
+      ">=8": 566
+     }
+    },
+    "LivingRoomsWithHallway_idx_18": {
+     "raw_prefix": 355,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 355,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 174,
+      ">=8": 181
+     }
+    },
+    "LivingRoomsWithHallway_idx_19": {
+     "raw_prefix": 380,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 380,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 208,
+      ">=8": 172
+     }
+    },
+    "LivingRoomsWithHallway_idx_2": {
+     "raw_prefix": 280,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 280,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 172,
+      ">=8": 108
+     }
+    },
+    "LivingRoomsWithHallway_idx_20": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_21": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_22": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_23": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_24": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_26": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_27": {
+     "raw_prefix": 45,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 48,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 48,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_28": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_29": {
+     "raw_prefix": 50,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_3": {
+     "raw_prefix": 450,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 450,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 146,
+      ">=8": 304
+     }
+    },
+    "LivingRoomsWithHallway_idx_31": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_32": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_33": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_34": {
+     "raw_prefix": 40,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 43,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_35": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_36": {
+     "raw_prefix": 40,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 43,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_37": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_38": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_39": {
+     "raw_prefix": 40,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 46,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 46,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_4": {
+     "raw_prefix": 371,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 371,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 159,
+      ">=8": 212
+     }
+    },
+    "LivingRoomsWithHallway_idx_5": {
+     "raw_prefix": 388,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 388,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 167,
+      ">=8": 221
+     }
+    },
+    "LivingRoomsWithHallway_idx_6": {
+     "raw_prefix": 455,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 455,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 146,
+      ">=8": 309
+     }
+    },
+    "LivingRoomsWithHallway_idx_7": {
+     "raw_prefix": 500,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 500,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 399
+     }
+    },
+    "LivingRoomsWithHallway_idx_8": {
+     "raw_prefix": 380,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 380,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 119,
+      ">=8": 261
+     }
+    },
+    "LivingRoomsWithHallway_idx_9": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 44,
+      ">=8": 581
+     }
+    },
+    "MeetingRoom_idx_0": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 14,
+      ">=8": 611
+     }
+    },
+    "MeetingRoom_idx_1": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 22,
+      ">=8": 603
+     }
+    },
+    "MeetingRoom_idx_10": {
+     "raw_prefix": 575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 74,
+      ">=8": 501
+     }
+    },
+    "MeetingRoom_idx_11": {
+     "raw_prefix": 562,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 562,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 60,
+      ">=8": 502
+     }
+    },
+    "MeetingRoom_idx_12": {
+     "raw_prefix": 266,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 266,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 177,
+      ">=8": 89
+     }
+    },
+    "MeetingRoom_idx_13": {
+     "raw_prefix": 98,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 101,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_14": {
+     "raw_prefix": 40,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 44,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 44,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_15": {
+     "raw_prefix": 562,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 562,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 69,
+      ">=8": 493
+     }
+    },
+    "MeetingRoom_idx_16": {
+     "raw_prefix": 52,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 59,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_17": {
+     "raw_prefix": 52,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 58,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 58,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_18": {
+     "raw_prefix": 52,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 59,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_19": {
+     "raw_prefix": 40,
+     "new_topup": 6,
+     "inherited_topup": 0,
+     "final": 46,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 46,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_2": {
+     "raw_prefix": 252,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 253,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 253,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_21": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_22": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_23": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_24": {
+     "raw_prefix": 43,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 46,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 46,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_25": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_26": {
+     "raw_prefix": 50,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_27": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_28": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_29": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_3": {
+     "raw_prefix": 612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 52,
+      ">=8": 560
+     }
+    },
+    "MeetingRoom_idx_30": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_31": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_33": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_34": {
+     "raw_prefix": 52,
+     "new_topup": 7,
+     "inherited_topup": 0,
+     "final": 59,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 59,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_35": {
+     "raw_prefix": 40,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 42,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 42,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_4": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 582
+     }
+    },
+    "MeetingRoom_idx_5": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 20,
+      ">=8": 605
+     }
+    },
+    "MeetingRoom_idx_6": {
+     "raw_prefix": 100,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 101,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_7": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 20,
+      ">=8": 605
+     }
+    },
+    "MeetingRoom_idx_8": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 37,
+      ">=8": 588
+     }
+    },
+    "MeetingRoom_idx_9": {
+     "raw_prefix": 258,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 260,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 220,
+      ">=8": 40
+     }
+    },
+    "Office_idx_0": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 26,
+      ">=8": 599
+     }
+    },
+    "Office_idx_1": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 21,
+      ">=8": 604
+     }
+    },
+    "Office_idx_12": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Office_idx_13": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Office_idx_14": {
+     "raw_prefix": 210,
+     "new_topup": 18,
+     "inherited_topup": 0,
+     "final": 228,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 228,
+      ">=8": 0
+     }
+    },
+    "Office_idx_15": {
+     "raw_prefix": 210,
+     "new_topup": 19,
+     "inherited_topup": 0,
+     "final": 229,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 229,
+      ">=8": 0
+     }
+    },
+    "Office_idx_2": {
+     "raw_prefix": 488,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 488,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 375
+     }
+    },
+    "Office_idx_3": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 15,
+      ">=8": 610
+     }
+    },
+    "Office_idx_4": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 31,
+      ">=8": 594
+     }
+    },
+    "Office_idx_5": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 75,
+      ">=8": 550
+     }
+    },
+    "Office_idx_6": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 45,
+      ">=8": 580
+     }
+    },
+    "Office_idx_7": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 34,
+      ">=8": 591
+     }
+    },
+    "Office_idx_8": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Office_idx_9": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_0": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 45,
+      ">=8": 580
+     }
+    },
+    "Restaurants_idx_1": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 38,
+      ">=8": 587
+     }
+    },
+    "Restaurants_idx_10": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 38,
+      ">=8": 587
+     }
+    },
+    "Restaurants_idx_11": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 21,
+      ">=8": 604
+     }
+    },
+    "Restaurants_idx_12": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 28,
+      ">=8": 597
+     }
+    },
+    "Restaurants_idx_13": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 60,
+      ">=8": 565
+     }
+    },
+    "Restaurants_idx_14": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 7,
+      ">=8": 618
+     }
+    },
+    "Restaurants_idx_15": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 6,
+      ">=8": 619
+     }
+    },
+    "Restaurants_idx_16": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 41,
+      ">=8": 584
+     }
+    },
+    "Restaurants_idx_17": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 14,
+      ">=8": 611
+     }
+    },
+    "Restaurants_idx_18": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 15,
+      ">=8": 610
+     }
+    },
+    "Restaurants_idx_19": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 617
+     }
+    },
+    "Restaurants_idx_2": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 37,
+      ">=8": 588
+     }
+    },
+    "Restaurants_idx_20": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_21": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_23": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_25": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_26": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_27": {
+     "raw_prefix": 52,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 52,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 52,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_28": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_29": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_3": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 36,
+      ">=8": 589
+     }
+    },
+    "Restaurants_idx_30": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_31": {
+     "raw_prefix": 62,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 67,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 67,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_32": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_33": {
+     "raw_prefix": 52,
+     "new_topup": 5,
+     "inherited_topup": 0,
+     "final": 57,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 57,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_34": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_35": {
+     "raw_prefix": 52,
+     "new_topup": 3,
+     "inherited_topup": 0,
+     "final": 55,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 55,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_36": {
+     "raw_prefix": 52,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 54,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 54,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_37": {
+     "raw_prefix": 40,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 44,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 44,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_38": {
+     "raw_prefix": 52,
+     "new_topup": 4,
+     "inherited_topup": 0,
+     "final": 56,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 56,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_39": {
+     "raw_prefix": 52,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 53,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 53,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_4": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 26,
+      ">=8": 599
+     }
+    },
+    "Restaurants_idx_5": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 5,
+      ">=8": 620
+     }
+    },
+    "Restaurants_idx_6": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 45,
+      ">=8": 580
+     }
+    },
+    "Restaurants_idx_7": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 46,
+      ">=8": 579
+     }
+    },
+    "Restaurants_idx_8": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 30,
+      ">=8": 595
+     }
+    },
+    "Restaurants_idx_9": {
+     "raw_prefix": 625,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 625,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 27,
+      ">=8": 598
+     }
+    }
+   }
+  },
+  "0.5": {
+   "raw_prefix": 145607,
+   "new_topup": 20,
+   "inherited_topup": 15,
+   "final": 145642,
+   "effective_epochs_at_40k_x64": 17.577347193803984,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 14040,
+    ">=8": 131602
+   },
+   "per_room": {
+    "Apartments_idx_0": {
+     "raw_prefix": 800,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 800,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 800
+     }
+    },
+    "Apartments_idx_1": {
+     "raw_prefix": 550,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 550,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 44,
+      ">=8": 506
+     }
+    },
+    "Apartments_idx_10": {
+     "raw_prefix": 1175,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1175,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1175
+     }
+    },
+    "Apartments_idx_11": {
+     "raw_prefix": 989,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 989,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 989
+     }
+    },
+    "Apartments_idx_12": {
+     "raw_prefix": 950,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 950,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 950
+     }
+    },
+    "Apartments_idx_13": {
+     "raw_prefix": 950,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 950,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 950
+     }
+    },
+    "Apartments_idx_15": {
+     "raw_prefix": 950,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 950,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 950
+     }
+    },
+    "Apartments_idx_16": {
+     "raw_prefix": 1050,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1050,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1050
+     }
+    },
+    "Apartments_idx_17": {
+     "raw_prefix": 950,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 950,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 950
+     }
+    },
+    "Apartments_idx_18": {
+     "raw_prefix": 1050,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1050,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1050
+     }
+    },
+    "Apartments_idx_19": {
+     "raw_prefix": 1075,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1075,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1075
+     }
+    },
+    "Apartments_idx_2": {
+     "raw_prefix": 525,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 525,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 39,
+      ">=8": 486
+     }
+    },
+    "Apartments_idx_21": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "Apartments_idx_22": {
+     "raw_prefix": 1125,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1125,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1125
+     }
+    },
+    "Apartments_idx_23": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_24": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_25": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_26": {
+     "raw_prefix": 1100,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1100,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1100
+     }
+    },
+    "Apartments_idx_27": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_28": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_29": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_3": {
+     "raw_prefix": 1050,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1050,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1050
+     }
+    },
+    "Apartments_idx_30": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_31": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_32": {
+     "raw_prefix": 1050,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1050,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1050
+     }
+    },
+    "Apartments_idx_33": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_34": {
+     "raw_prefix": 1150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1150
+     }
+    },
+    "Apartments_idx_35": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_36": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_37": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_38": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "Apartments_idx_39": {
+     "raw_prefix": 1200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1200
+     }
+    },
+    "Apartments_idx_4": {
+     "raw_prefix": 651,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 651,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 643
+     }
+    },
+    "Apartments_idx_40": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Apartments_idx_41": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_43": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 97,
+      ">=8": 9
+     }
+    },
+    "Apartments_idx_44": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_45": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_46": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_47": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_48": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_49": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_5": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "Apartments_idx_51": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Apartments_idx_52": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_53": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_54": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_55": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_56": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Apartments_idx_57": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_58": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_59": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Apartments_idx_6": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Apartments_idx_7": {
+     "raw_prefix": 825,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 825,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 825
+     }
+    },
+    "Apartments_idx_8": {
+     "raw_prefix": 1200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1200
+     }
+    },
+    "Apartments_idx_9": {
+     "raw_prefix": 1175,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1175,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1175
+     }
+    },
+    "Auditorium_idx_0": {
+     "raw_prefix": 4950,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 4950,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 4950
+     }
+    },
+    "Bathrooms_idx_0": {
+     "raw_prefix": 154,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 154,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 49
+     }
+    },
+    "Bathrooms_idx_1": {
+     "raw_prefix": 42,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 43,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_10": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bathrooms_idx_11": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_12": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bathrooms_idx_13": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_16": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_17": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_19": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_2": {
+     "raw_prefix": 95,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 95,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_20": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_21": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 1,
+     "final": 107,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 107,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_23": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_24": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_25": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bathrooms_idx_26": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_27": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_28": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_29": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_3": {
+     "raw_prefix": 195,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 195,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 119,
+      ">=8": 76
+     }
+    },
+    "Bathrooms_idx_4": {
+     "raw_prefix": 207,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 207,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 68,
+      ">=8": 139
+     }
+    },
+    "Bathrooms_idx_5": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 91,
+      ">=8": 67
+     }
+    },
+    "Bathrooms_idx_6": {
+     "raw_prefix": 143,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 143,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 38
+     }
+    },
+    "Bathrooms_idx_7": {
+     "raw_prefix": 224,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 224,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 164,
+      ">=8": 60
+     }
+    },
+    "Bathrooms_idx_8": {
+     "raw_prefix": 80,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 80,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 71,
+      ">=8": 9
+     }
+    },
+    "Bathrooms_idx_9": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_0": {
+     "raw_prefix": 540,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 540,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 540
+     }
+    },
+    "Bedrooms_idx_1": {
+     "raw_prefix": 472,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 472,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 472
+     }
+    },
+    "Bedrooms_idx_10": {
+     "raw_prefix": 299,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 299,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 291
+     }
+    },
+    "Bedrooms_idx_11": {
+     "raw_prefix": 544,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 544,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 544
+     }
+    },
+    "Bedrooms_idx_12": {
+     "raw_prefix": 600,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 600,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 600
+     }
+    },
+    "Bedrooms_idx_13": {
+     "raw_prefix": 261,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 261,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 166
+     }
+    },
+    "Bedrooms_idx_14": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_15": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_16": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_17": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 97,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_19": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 88,
+      ">=8": 18
+     }
+    },
+    "Bedrooms_idx_2": {
+     "raw_prefix": 429,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 429,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 429
+     }
+    },
+    "Bedrooms_idx_20": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_21": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_22": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_23": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_24": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_25": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_26": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_27": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Bedrooms_idx_28": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 87,
+      ">=8": 18
+     }
+    },
+    "Bedrooms_idx_29": {
+     "raw_prefix": 100,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 100,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 100,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_3": {
+     "raw_prefix": 288,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 288,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 90,
+      ">=8": 198
+     }
+    },
+    "Bedrooms_idx_30": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_31": {
+     "raw_prefix": 130,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 130,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 130,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_32": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Bedrooms_idx_4": {
+     "raw_prefix": 446,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 446,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 446
+     }
+    },
+    "Bedrooms_idx_5": {
+     "raw_prefix": 416,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 416,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 416
+     }
+    },
+    "Bedrooms_idx_6": {
+     "raw_prefix": 493,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 493,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 493
+     }
+    },
+    "Bedrooms_idx_7": {
+     "raw_prefix": 526,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 526,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 526
+     }
+    },
+    "Bedrooms_idx_8": {
+     "raw_prefix": 450,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 450,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 450
+     }
+    },
+    "Bedrooms_idx_9": {
+     "raw_prefix": 560,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 560,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 560
+     }
+    },
+    "Cafe_idx_0": {
+     "raw_prefix": 5000,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 5000,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 5000
+     }
+    },
+    "ListeningRoom_idx_0": {
+     "raw_prefix": 2812,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 2812,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 2812
+     }
+    },
+    "ListeningRoom_idx_1": {
+     "raw_prefix": 2785,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 2785,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 2785
+     }
+    },
+    "ListeningRoom_idx_3": {
+     "raw_prefix": 420,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 420,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 402,
+      ">=8": 18
+     }
+    },
+    "LivingRoomsWithHallway_idx_0": {
+     "raw_prefix": 700,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 700,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 5,
+      ">=8": 695
+     }
+    },
+    "LivingRoomsWithHallway_idx_1": {
+     "raw_prefix": 684,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 684,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 684
+     }
+    },
+    "LivingRoomsWithHallway_idx_10": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "LivingRoomsWithHallway_idx_11": {
+     "raw_prefix": 1075,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1075,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1075
+     }
+    },
+    "LivingRoomsWithHallway_idx_12": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "LivingRoomsWithHallway_idx_13": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "LivingRoomsWithHallway_idx_14": {
+     "raw_prefix": 1200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1200
+     }
+    },
+    "LivingRoomsWithHallway_idx_15": {
+     "raw_prefix": 1175,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1175,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1175
+     }
+    },
+    "LivingRoomsWithHallway_idx_16": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "LivingRoomsWithHallway_idx_17": {
+     "raw_prefix": 1200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1200
+     }
+    },
+    "LivingRoomsWithHallway_idx_18": {
+     "raw_prefix": 710,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 710,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 7,
+      ">=8": 703
+     }
+    },
+    "LivingRoomsWithHallway_idx_19": {
+     "raw_prefix": 760,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 760,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 760
+     }
+    },
+    "LivingRoomsWithHallway_idx_2": {
+     "raw_prefix": 560,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 560,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 560
+     }
+    },
+    "LivingRoomsWithHallway_idx_20": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_21": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_22": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_23": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_24": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "LivingRoomsWithHallway_idx_26": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_27": {
+     "raw_prefix": 90,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 91,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 91,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_28": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_29": {
+     "raw_prefix": 100,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 100,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 100,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_3": {
+     "raw_prefix": 900,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 900,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 892
+     }
+    },
+    "LivingRoomsWithHallway_idx_31": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_32": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_33": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "LivingRoomsWithHallway_idx_34": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_35": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_36": {
+     "raw_prefix": 81,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 82,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 82,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_37": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 97,
+      ">=8": 9
+     }
+    },
+    "LivingRoomsWithHallway_idx_38": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_39": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_4": {
+     "raw_prefix": 742,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 742,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 742
+     }
+    },
+    "LivingRoomsWithHallway_idx_5": {
+     "raw_prefix": 776,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 776,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 776
+     }
+    },
+    "LivingRoomsWithHallway_idx_6": {
+     "raw_prefix": 910,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 910,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 6,
+      ">=8": 904
+     }
+    },
+    "LivingRoomsWithHallway_idx_7": {
+     "raw_prefix": 1000,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1000,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1000
+     }
+    },
+    "LivingRoomsWithHallway_idx_8": {
+     "raw_prefix": 760,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 760,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 760
+     }
+    },
+    "LivingRoomsWithHallway_idx_9": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_0": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_1": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_10": {
+     "raw_prefix": 1150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1150
+     }
+    },
+    "MeetingRoom_idx_11": {
+     "raw_prefix": 1125,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1125,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1125
+     }
+    },
+    "MeetingRoom_idx_12": {
+     "raw_prefix": 532,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 532,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 532
+     }
+    },
+    "MeetingRoom_idx_13": {
+     "raw_prefix": 196,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 196,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 138,
+      ">=8": 58
+     }
+    },
+    "MeetingRoom_idx_14": {
+     "raw_prefix": 80,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_15": {
+     "raw_prefix": 1125,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1125,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1125
+     }
+    },
+    "MeetingRoom_idx_16": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 1,
+     "final": 107,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 98,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_17": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_18": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_19": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_2": {
+     "raw_prefix": 504,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 504,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 43,
+      ">=8": 461
+     }
+    },
+    "MeetingRoom_idx_21": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_22": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_23": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_24": {
+     "raw_prefix": 86,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 86,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 86,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_25": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_26": {
+     "raw_prefix": 100,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 100,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 91,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_27": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_28": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_29": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_3": {
+     "raw_prefix": 1225,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1225,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1225
+     }
+    },
+    "MeetingRoom_idx_30": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_31": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_33": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_34": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 97,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_35": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_4": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_5": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_6": {
+     "raw_prefix": 200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 118,
+      ">=8": 82
+     }
+    },
+    "MeetingRoom_idx_7": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_8": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "MeetingRoom_idx_9": {
+     "raw_prefix": 516,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 516,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 19,
+      ">=8": 497
+     }
+    },
+    "Office_idx_0": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_1": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_12": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Office_idx_13": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Office_idx_14": {
+     "raw_prefix": 420,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 420,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 411,
+      ">=8": 9
+     }
+    },
+    "Office_idx_15": {
+     "raw_prefix": 420,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 421,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 421,
+      ">=8": 0
+     }
+    },
+    "Office_idx_2": {
+     "raw_prefix": 975,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 975,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 975
+     }
+    },
+    "Office_idx_3": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_4": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_5": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_6": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_7": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Office_idx_8": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Office_idx_9": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_0": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_1": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_10": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_11": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_12": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_13": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_14": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_15": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_16": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_17": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_18": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_19": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_2": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_20": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_21": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_23": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_25": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Restaurants_idx_26": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_27": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_28": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_29": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_3": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_30": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_31": {
+     "raw_prefix": 125,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 126,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 117,
+      ">=8": 9
+     }
+    },
+    "Restaurants_idx_32": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_33": {
+     "raw_prefix": 105,
+     "new_topup": 1,
+     "inherited_topup": 0,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 106,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_34": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_35": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 106,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 97,
+      ">=8": 9
+     }
+    },
+    "Restaurants_idx_36": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Restaurants_idx_37": {
+     "raw_prefix": 81,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 81,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 81,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_38": {
+     "raw_prefix": 105,
+     "new_topup": 2,
+     "inherited_topup": 0,
+     "final": 107,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 107,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_39": {
+     "raw_prefix": 105,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 105,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 9
+     }
+    },
+    "Restaurants_idx_4": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_5": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_6": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_7": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_8": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    },
+    "Restaurants_idx_9": {
+     "raw_prefix": 1250,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1250,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1250
+     }
+    }
+   }
+  },
+  "0.75": {
+   "raw_prefix": 218461,
+   "new_topup": 0,
+   "inherited_topup": 2,
+   "final": 218463,
+   "effective_epochs_at_40k_x64": 11.71823146253599,
+   "context_histogram": {
+    "0": 0,
+    "1-7": 13974,
+    ">=8": 204489
+   },
+   "per_room": {
+    "Apartments_idx_0": {
+     "raw_prefix": 1200,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1200,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1200
+     }
+    },
+    "Apartments_idx_1": {
+     "raw_prefix": 825,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 825,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 825
+     }
+    },
+    "Apartments_idx_10": {
+     "raw_prefix": 1762,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1762,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1762
+     }
+    },
+    "Apartments_idx_11": {
+     "raw_prefix": 1484,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1484,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1484
+     }
+    },
+    "Apartments_idx_12": {
+     "raw_prefix": 1425,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1425,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1425
+     }
+    },
+    "Apartments_idx_13": {
+     "raw_prefix": 1425,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1425,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1425
+     }
+    },
+    "Apartments_idx_15": {
+     "raw_prefix": 1425,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1425,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1425
+     }
+    },
+    "Apartments_idx_16": {
+     "raw_prefix": 1575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1575
+     }
+    },
+    "Apartments_idx_17": {
+     "raw_prefix": 1425,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1425,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1425
+     }
+    },
+    "Apartments_idx_18": {
+     "raw_prefix": 1575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1575
+     }
+    },
+    "Apartments_idx_19": {
+     "raw_prefix": 1612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1612
+     }
+    },
+    "Apartments_idx_2": {
+     "raw_prefix": 788,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 788,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 788
+     }
+    },
+    "Apartments_idx_21": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "Apartments_idx_22": {
+     "raw_prefix": 1688,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1688,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1688
+     }
+    },
+    "Apartments_idx_23": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_24": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_25": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_26": {
+     "raw_prefix": 1650,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1650,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1650
+     }
+    },
+    "Apartments_idx_27": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_28": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_29": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_3": {
+     "raw_prefix": 1575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1575
+     }
+    },
+    "Apartments_idx_30": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_31": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_32": {
+     "raw_prefix": 1575,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1575,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1575
+     }
+    },
+    "Apartments_idx_33": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_34": {
+     "raw_prefix": 1725,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1725,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1725
+     }
+    },
+    "Apartments_idx_35": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_36": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_37": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_38": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "Apartments_idx_39": {
+     "raw_prefix": 1800,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1800,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1800
+     }
+    },
+    "Apartments_idx_4": {
+     "raw_prefix": 976,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 976,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 976
+     }
+    },
+    "Apartments_idx_40": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 130,
+      ">=8": 28
+     }
+    },
+    "Apartments_idx_41": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 94,
+      ">=8": 64
+     }
+    },
+    "Apartments_idx_43": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 93,
+      ">=8": 65
+     }
+    },
+    "Apartments_idx_44": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Apartments_idx_45": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 139,
+      ">=8": 19
+     }
+    },
+    "Apartments_idx_46": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 9
+     }
+    },
+    "Apartments_idx_47": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Apartments_idx_48": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 57
+     }
+    },
+    "Apartments_idx_49": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Apartments_idx_5": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "Apartments_idx_51": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Apartments_idx_52": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 54
+     }
+    },
+    "Apartments_idx_53": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 120,
+      ">=8": 38
+     }
+    },
+    "Apartments_idx_54": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Apartments_idx_55": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Apartments_idx_56": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Apartments_idx_57": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Apartments_idx_58": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 93,
+      ">=8": 65
+     }
+    },
+    "Apartments_idx_59": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Apartments_idx_6": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Apartments_idx_7": {
+     "raw_prefix": 1238,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1238,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1238
+     }
+    },
+    "Apartments_idx_8": {
+     "raw_prefix": 1800,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1800,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1800
+     }
+    },
+    "Apartments_idx_9": {
+     "raw_prefix": 1762,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1762,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1762
+     }
+    },
+    "Auditorium_idx_0": {
+     "raw_prefix": 7425,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 7425,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 7425
+     }
+    },
+    "Bathrooms_idx_0": {
+     "raw_prefix": 231,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 231,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 223
+     }
+    },
+    "Bathrooms_idx_1": {
+     "raw_prefix": 63,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 64,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 64,
+      ">=8": 0
+     }
+    },
+    "Bathrooms_idx_10": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bathrooms_idx_11": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 120,
+      ">=8": 38
+     }
+    },
+    "Bathrooms_idx_12": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Bathrooms_idx_13": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Bathrooms_idx_16": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 94,
+      ">=8": 64
+     }
+    },
+    "Bathrooms_idx_17": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bathrooms_idx_19": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 76,
+      ">=8": 82
+     }
+    },
+    "Bathrooms_idx_2": {
+     "raw_prefix": 142,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 142,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 96,
+      ">=8": 46
+     }
+    },
+    "Bathrooms_idx_20": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 102,
+      ">=8": 56
+     }
+    },
+    "Bathrooms_idx_21": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 63
+     }
+    },
+    "Bathrooms_idx_23": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 109,
+      ">=8": 49
+     }
+    },
+    "Bathrooms_idx_24": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Bathrooms_idx_25": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Bathrooms_idx_26": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bathrooms_idx_27": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "Bathrooms_idx_28": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Bathrooms_idx_29": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 93,
+      ">=8": 65
+     }
+    },
+    "Bathrooms_idx_3": {
+     "raw_prefix": 292,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 292,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 284
+     }
+    },
+    "Bathrooms_idx_4": {
+     "raw_prefix": 310,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 310,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 8,
+      ">=8": 302
+     }
+    },
+    "Bathrooms_idx_5": {
+     "raw_prefix": 236,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 236,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 236
+     }
+    },
+    "Bathrooms_idx_6": {
+     "raw_prefix": 214,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 214,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 21,
+      ">=8": 193
+     }
+    },
+    "Bathrooms_idx_7": {
+     "raw_prefix": 336,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 336,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 34,
+      ">=8": 302
+     }
+    },
+    "Bathrooms_idx_8": {
+     "raw_prefix": 120,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 120,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 92,
+      ">=8": 28
+     }
+    },
+    "Bathrooms_idx_9": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 119,
+      ">=8": 39
+     }
+    },
+    "Bedrooms_idx_0": {
+     "raw_prefix": 810,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 810,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 810
+     }
+    },
+    "Bedrooms_idx_1": {
+     "raw_prefix": 709,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 709,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 709
+     }
+    },
+    "Bedrooms_idx_10": {
+     "raw_prefix": 448,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 448,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 448
+     }
+    },
+    "Bedrooms_idx_11": {
+     "raw_prefix": 817,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 817,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 817
+     }
+    },
+    "Bedrooms_idx_12": {
+     "raw_prefix": 900,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 900,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 900
+     }
+    },
+    "Bedrooms_idx_13": {
+     "raw_prefix": 392,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 392,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 392
+     }
+    },
+    "Bedrooms_idx_14": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 86,
+      ">=8": 72
+     }
+    },
+    "Bedrooms_idx_15": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Bedrooms_idx_16": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 109,
+      ">=8": 49
+     }
+    },
+    "Bedrooms_idx_17": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 102,
+      ">=8": 56
+     }
+    },
+    "Bedrooms_idx_19": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "Bedrooms_idx_2": {
+     "raw_prefix": 644,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 644,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 644
+     }
+    },
+    "Bedrooms_idx_20": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bedrooms_idx_21": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 94,
+      ">=8": 64
+     }
+    },
+    "Bedrooms_idx_22": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "Bedrooms_idx_23": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Bedrooms_idx_24": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Bedrooms_idx_25": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bedrooms_idx_26": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bedrooms_idx_27": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Bedrooms_idx_28": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "Bedrooms_idx_29": {
+     "raw_prefix": 150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 55
+     }
+    },
+    "Bedrooms_idx_3": {
+     "raw_prefix": 432,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 432,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 432
+     }
+    },
+    "Bedrooms_idx_30": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Bedrooms_idx_31": {
+     "raw_prefix": 195,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 195,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 140,
+      ">=8": 55
+     }
+    },
+    "Bedrooms_idx_32": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Bedrooms_idx_4": {
+     "raw_prefix": 668,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 668,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 668
+     }
+    },
+    "Bedrooms_idx_5": {
+     "raw_prefix": 624,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 624,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 624
+     }
+    },
+    "Bedrooms_idx_6": {
+     "raw_prefix": 740,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 740,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 740
+     }
+    },
+    "Bedrooms_idx_7": {
+     "raw_prefix": 790,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 790,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 790
+     }
+    },
+    "Bedrooms_idx_8": {
+     "raw_prefix": 674,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 674,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 674
+     }
+    },
+    "Bedrooms_idx_9": {
+     "raw_prefix": 840,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 840,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 840
+     }
+    },
+    "Cafe_idx_0": {
+     "raw_prefix": 7500,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 7500,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 7500
+     }
+    },
+    "ListeningRoom_idx_0": {
+     "raw_prefix": 4219,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 4219,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 4219
+     }
+    },
+    "ListeningRoom_idx_1": {
+     "raw_prefix": 4178,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 4178,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 4178
+     }
+    },
+    "ListeningRoom_idx_3": {
+     "raw_prefix": 630,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 630,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 418,
+      ">=8": 212
+     }
+    },
+    "LivingRoomsWithHallway_idx_0": {
+     "raw_prefix": 1050,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1050,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1050
+     }
+    },
+    "LivingRoomsWithHallway_idx_1": {
+     "raw_prefix": 1026,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1026,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1026
+     }
+    },
+    "LivingRoomsWithHallway_idx_10": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "LivingRoomsWithHallway_idx_11": {
+     "raw_prefix": 1612,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1612,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1612
+     }
+    },
+    "LivingRoomsWithHallway_idx_12": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "LivingRoomsWithHallway_idx_13": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "LivingRoomsWithHallway_idx_14": {
+     "raw_prefix": 1800,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1800,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1800
+     }
+    },
+    "LivingRoomsWithHallway_idx_15": {
+     "raw_prefix": 1762,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1762,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1762
+     }
+    },
+    "LivingRoomsWithHallway_idx_16": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "LivingRoomsWithHallway_idx_17": {
+     "raw_prefix": 1800,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1800,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1800
+     }
+    },
+    "LivingRoomsWithHallway_idx_18": {
+     "raw_prefix": 1064,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1064,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1064
+     }
+    },
+    "LivingRoomsWithHallway_idx_19": {
+     "raw_prefix": 1139,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1139,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1139
+     }
+    },
+    "LivingRoomsWithHallway_idx_2": {
+     "raw_prefix": 840,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 840,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 840
+     }
+    },
+    "LivingRoomsWithHallway_idx_20": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "LivingRoomsWithHallway_idx_21": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 57
+     }
+    },
+    "LivingRoomsWithHallway_idx_22": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 84,
+      ">=8": 74
+     }
+    },
+    "LivingRoomsWithHallway_idx_23": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 131,
+      ">=8": 27
+     }
+    },
+    "LivingRoomsWithHallway_idx_24": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 129,
+      ">=8": 29
+     }
+    },
+    "LivingRoomsWithHallway_idx_26": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 120,
+      ">=8": 38
+     }
+    },
+    "LivingRoomsWithHallway_idx_27": {
+     "raw_prefix": 135,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 135,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 98,
+      ">=8": 37
+     }
+    },
+    "LivingRoomsWithHallway_idx_28": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 110,
+      ">=8": 48
+     }
+    },
+    "LivingRoomsWithHallway_idx_29": {
+     "raw_prefix": 150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 105,
+      ">=8": 45
+     }
+    },
+    "LivingRoomsWithHallway_idx_3": {
+     "raw_prefix": 1350,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1350,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1350
+     }
+    },
+    "LivingRoomsWithHallway_idx_31": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "LivingRoomsWithHallway_idx_32": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "LivingRoomsWithHallway_idx_33": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 101,
+      ">=8": 57
+     }
+    },
+    "LivingRoomsWithHallway_idx_34": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 0
+     }
+    },
+    "LivingRoomsWithHallway_idx_35": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "LivingRoomsWithHallway_idx_36": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 18
+     }
+    },
+    "LivingRoomsWithHallway_idx_37": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 1,
+     "final": 159,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 56
+     }
+    },
+    "LivingRoomsWithHallway_idx_38": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 139,
+      ">=8": 19
+     }
+    },
+    "LivingRoomsWithHallway_idx_39": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 9
+     }
+    },
+    "LivingRoomsWithHallway_idx_4": {
+     "raw_prefix": 1112,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1112,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1112
+     }
+    },
+    "LivingRoomsWithHallway_idx_5": {
+     "raw_prefix": 1163,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1163,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1163
+     }
+    },
+    "LivingRoomsWithHallway_idx_6": {
+     "raw_prefix": 1365,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1365,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1365
+     }
+    },
+    "LivingRoomsWithHallway_idx_7": {
+     "raw_prefix": 1500,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1500,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1500
+     }
+    },
+    "LivingRoomsWithHallway_idx_8": {
+     "raw_prefix": 1140,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1140,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1140
+     }
+    },
+    "LivingRoomsWithHallway_idx_9": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_0": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_1": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_10": {
+     "raw_prefix": 1725,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1725,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1725
+     }
+    },
+    "MeetingRoom_idx_11": {
+     "raw_prefix": 1688,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1688,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1688
+     }
+    },
+    "MeetingRoom_idx_12": {
+     "raw_prefix": 798,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 798,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 798
+     }
+    },
+    "MeetingRoom_idx_13": {
+     "raw_prefix": 294,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 294,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 29,
+      ">=8": 265
+     }
+    },
+    "MeetingRoom_idx_14": {
+     "raw_prefix": 120,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 120,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 120,
+      ">=8": 0
+     }
+    },
+    "MeetingRoom_idx_15": {
+     "raw_prefix": 1688,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1688,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1688
+     }
+    },
+    "MeetingRoom_idx_16": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 86,
+      ">=8": 72
+     }
+    },
+    "MeetingRoom_idx_17": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "MeetingRoom_idx_18": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 63
+     }
+    },
+    "MeetingRoom_idx_19": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 18
+     }
+    },
+    "MeetingRoom_idx_2": {
+     "raw_prefix": 756,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 756,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 756
+     }
+    },
+    "MeetingRoom_idx_21": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 54
+     }
+    },
+    "MeetingRoom_idx_22": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "MeetingRoom_idx_23": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "MeetingRoom_idx_24": {
+     "raw_prefix": 128,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 128,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 119,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_25": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "MeetingRoom_idx_26": {
+     "raw_prefix": 150,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 150,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 46
+     }
+    },
+    "MeetingRoom_idx_27": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 94,
+      ">=8": 64
+     }
+    },
+    "MeetingRoom_idx_28": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "MeetingRoom_idx_29": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "MeetingRoom_idx_3": {
+     "raw_prefix": 1838,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1838,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1838
+     }
+    },
+    "MeetingRoom_idx_30": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 102,
+      ">=8": 56
+     }
+    },
+    "MeetingRoom_idx_31": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "MeetingRoom_idx_33": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 104,
+      ">=8": 54
+     }
+    },
+    "MeetingRoom_idx_34": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "MeetingRoom_idx_35": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 9
+     }
+    },
+    "MeetingRoom_idx_4": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_5": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_6": {
+     "raw_prefix": 300,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 300,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 300
+     }
+    },
+    "MeetingRoom_idx_7": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_8": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "MeetingRoom_idx_9": {
+     "raw_prefix": 774,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 774,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 774
+     }
+    },
+    "Office_idx_0": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_1": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_12": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 93,
+      ">=8": 65
+     }
+    },
+    "Office_idx_13": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Office_idx_14": {
+     "raw_prefix": 630,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 630,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 438,
+      ">=8": 192
+     }
+    },
+    "Office_idx_15": {
+     "raw_prefix": 630,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 630,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 465,
+      ">=8": 165
+     }
+    },
+    "Office_idx_2": {
+     "raw_prefix": 1462,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1462,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1462
+     }
+    },
+    "Office_idx_3": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_4": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_5": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_6": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_7": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Office_idx_8": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Office_idx_9": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "Restaurants_idx_0": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_1": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_10": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_11": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_12": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_13": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_14": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_15": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_16": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_17": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_18": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_19": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_2": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_20": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "Restaurants_idx_21": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Restaurants_idx_23": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 95,
+      ">=8": 63
+     }
+    },
+    "Restaurants_idx_25": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Restaurants_idx_26": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Restaurants_idx_27": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 36
+     }
+    },
+    "Restaurants_idx_28": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 113,
+      ">=8": 45
+     }
+    },
+    "Restaurants_idx_29": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 102,
+      ">=8": 56
+     }
+    },
+    "Restaurants_idx_3": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_30": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Restaurants_idx_31": {
+     "raw_prefix": 188,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 188,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 114,
+      ">=8": 74
+     }
+    },
+    "Restaurants_idx_32": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 130,
+      ">=8": 28
+     }
+    },
+    "Restaurants_idx_33": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "Restaurants_idx_34": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 112,
+      ">=8": 46
+     }
+    },
+    "Restaurants_idx_35": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Restaurants_idx_36": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 103,
+      ">=8": 55
+     }
+    },
+    "Restaurants_idx_37": {
+     "raw_prefix": 122,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 122,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 122,
+      ">=8": 0
+     }
+    },
+    "Restaurants_idx_38": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 111,
+      ">=8": 47
+     }
+    },
+    "Restaurants_idx_39": {
+     "raw_prefix": 158,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 158,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 121,
+      ">=8": 37
+     }
+    },
+    "Restaurants_idx_4": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_5": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_6": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_7": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_8": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    },
+    "Restaurants_idx_9": {
+     "raw_prefix": 1875,
+     "new_topup": 0,
+     "inherited_topup": 0,
+     "final": 1875,
+     "context_histogram": {
+      "0": 0,
+      "1-7": 0,
+      ">=8": 1875
+     }
+    }
+   }
+  }
+ },
+ "files": {
+  "train_frac025_s2026.json": "7490340bf9ccbdcc4d8639582db9d3f3fcb1c137a90a0d1947c3dc87d761a8ac",
+  "train_frac050_s2026.json": "dbfad32674e7944b32d7fb05bdcb9eddcae02e8c8164b868015034b568c761a9",
+  "train_frac075_s2026.json": "57388ce870f63d9d64fda0c6722f85625580f5572b44b85add4130a8788d26c1"
+ }
+}
