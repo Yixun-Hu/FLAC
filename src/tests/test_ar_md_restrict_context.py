@@ -270,6 +270,24 @@ def _pinned_reference(ir_file_path, num_ref_sources, metadata_path, max_len=9600
     return all_ref_irs, all_ref_src_pos
 
 
+def assert_identical_rng_state(actual, expected):
+    """The numpy RNG must be left in EXACTLY the state the pinned implementation leaves.
+
+    Equal return values are not enough: an implementation that consumed one extra draw
+    after the selection would still return the pinned tensors for a single call, but
+    every later sample of that epoch would diverge from the pinned stream.
+    """
+    assert len(actual) == len(expected)
+    for got, want in zip(actual, expected):
+        if isinstance(want, np.ndarray):
+            assert isinstance(got, np.ndarray)
+            assert got.dtype == want.dtype
+            assert np.array_equal(got, want)
+        else:
+            assert type(got) is type(want)
+            assert got == want
+
+
 def drawn_markers(ref_irs):
     """Impulse position of every drawn context IR (shape [N, 1, max_len]) -> its identity."""
     assert ref_irs.dim() == 3 and ref_irs.shape[1] == 1
@@ -293,6 +311,7 @@ def test_B1_default_path_is_bitwise_the_pinned_implementation(
     ref_irs, ref_pos = _pinned_reference(
         target, num_ref_sources, metadata_dir(tree), max_len=IR_LEN
     )
+    reference_state = np.random.get_state()
 
     np.random.seed(seed)
     new_irs, new_pos = ar_md.get_ir_and_location_for_other_sources(
@@ -302,9 +321,11 @@ def test_B1_default_path_is_bitwise_the_pinned_implementation(
         max_len=IR_LEN,
         allowed_basenames=None,
     )
+    new_state = np.random.get_state()
 
     assert torch.equal(new_irs, ref_irs)
     assert torch.equal(new_pos, ref_pos)
+    assert_identical_rng_state(new_state, reference_state)
     assert new_irs.shape == (num_ref_sources, 1, IR_LEN)
     assert new_pos.shape == (num_ref_sources, 3)
     if num_ref_sources > 2:  # the replacement branch really was the one exercised
@@ -317,14 +338,17 @@ def test_B1_default_path_is_the_default_argument(tree, ar_md):
 
     np.random.seed(7)
     ref_irs, ref_pos = _pinned_reference(target, 8, metadata_dir(tree), max_len=IR_LEN)
+    reference_state = np.random.get_state()
 
     np.random.seed(7)
     new_irs, new_pos = ar_md.get_ir_and_location_for_other_sources(
         target, num_ref_sources=8, metadata_path=metadata_dir(tree), max_len=IR_LEN
     )
+    new_state = np.random.get_state()
 
     assert torch.equal(new_irs, ref_irs)
     assert torch.equal(new_pos, ref_pos)
+    assert_identical_rng_state(new_state, reference_state)
 
 
 # ======================================================================================
