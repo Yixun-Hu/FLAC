@@ -227,8 +227,11 @@ def test_train_argv_rejects_a_mismatched_run_dir_or_contract(save_dir, contract)
 CKPT = f"{NAS}/dc_cyl_f025/epoch=8-step=40000.ckpt"
 
 
+CKPT_SHA = "ab" * 32
+
+
 def test_eval_argv_cyl_K8_is_the_frozen_protocol():
-    assert names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT) == [
+    assert names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT, CKPT_SHA) == [
         "python", "eval_FLAC.py",
         "--model-config", KIT_CYL,
         "--dataset-config", "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
@@ -241,13 +244,14 @@ def test_eval_argv_cyl_K8_is_the_frozen_protocol():
         "--steps", "1",
         "--cfg-scale", "1.0",
         "--eval-name", "dc_cyl_f025_K8_s42",
+        "--expect-ckpt-sha256", CKPT_SHA,
         "--store_predictions",
     ]
 
 
 def test_eval_argv_van_K1_is_the_frozen_protocol():
     ckpt = f"{NAS}/dc_van_f075/epoch=8-step=40000.ckpt"
-    assert names.eval_argv("van", "075", 1, 46, KIT_VAN, ckpt) == [
+    assert names.eval_argv("van", "075", 1, 46, KIT_VAN, ckpt, CKPT_SHA) == [
         "python", "eval_FLAC.py",
         "--model-config", KIT_VAN,
         "--dataset-config", "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
@@ -260,6 +264,7 @@ def test_eval_argv_van_K1_is_the_frozen_protocol():
         "--steps", "1",
         "--cfg-scale", "1.0",
         "--eval-name", "dc_van_f075_K1_s46",
+        "--expect-ckpt-sha256", CKPT_SHA,
         "--store_predictions",
     ]
 
@@ -268,7 +273,8 @@ def test_eval_argv_maps_K_to_the_full_unseen_config_and_arm_to_cond_method():
     for arm, tag, k, seed in ALL_CELLS:
         cfg = KIT_CYL if arm == "cyl" else KIT_VAN
         argv = names.eval_argv(arm, tag, k, seed, cfg,
-                               f"{NAS}/{names.run_id(arm, tag)}/epoch=8-step=40000.ckpt")
+                               f"{NAS}/{names.run_id(arm, tag)}/epoch=8-step=40000.ckpt",
+                               CKPT_SHA)
         ds = argv[argv.index("--dataset-config") + 1]
         assert ds == names.EVAL_DATASET_CONFIGS[k]
         assert "unseeneval_1.json" in ds if k == 1 else ds.endswith("unseeneval.json")
@@ -281,7 +287,7 @@ def test_eval_argv_maps_K_to_the_full_unseen_config_and_arm_to_cond_method():
 def test_eval_argv_rejects_a_checkpoint_from_another_run():
     with pytest.raises(ValueError):
         names.eval_argv("cyl", "025", 8, 42, KIT_CYL,
-                        f"{NAS}/dc_van_f025/epoch=8-step=40000.ckpt")
+                        f"{NAS}/dc_van_f025/epoch=8-step=40000.ckpt", CKPT_SHA)
 
 
 # ============================================================ the check-bundle contract
@@ -299,6 +305,9 @@ def _write_bundle(tmp_path, *, n=4, arm="cyl", k=8, seed=42, tag="025",
         eval_name=names.eval_name(arm, tag, k, seed), steps=1, cfg_scale=1.0,
     )
     meta.update(meta_overrides)
+    # ... exactly as the evaluator would: the digest of the file it loaded.
+    if "ckpt_sha256" not in meta_overrides and os.path.exists(str(meta["ckpt_path"])):
+        meta["ckpt_sha256"] = names.file_sha256(str(meta["ckpt_path"]))
     if predictions is None:
         predictions = torch.zeros(n, 1, names.SAMPLE_LEN)
     path = tmp_path / "bundle.pt"
@@ -469,15 +478,18 @@ def _write_metrics(tmp_path, ckpt, *, arm="cyl", name="metrics.json", **override
     method = names.ARM_COND_METHOD[arm]
     record = eval_FLAC.build_metrics_record(
         {"T60": 0.1, "C50": 1.2}, ckpt, 0.0, method,
-        [0.0] if method == "fa_invariant" else None, "bf16")
+        [0.0] if method == "fa_invariant" else None, "bf16",
+        ckpt_sha256=names.file_sha256(ckpt) if os.path.exists(ckpt) else None)
     record.update(overrides)
     path = tmp_path / name
     path.write_text(_json.dumps(record, indent=4))
     return str(path)
 
 
-def _metrics_args(ckpt, arm="cyl"):
-    return dict(expect_ckpt=ckpt, expect_cond_method=names.ARM_COND_METHOD[arm],
+def _metrics_args(ckpt, arm="cyl", ckpt_sha256=None):
+    return dict(expect_ckpt=ckpt,
+                expect_ckpt_sha256=ckpt_sha256 or names.file_sha256(ckpt),
+                expect_cond_method=names.ARM_COND_METHOD[arm],
                 expect_angles=names.FRAME_AVG_ANGLES, expect_rotate=names.ROTATE_DEG,
                 expect_autocast=names.COND_AUTOCAST)
 
@@ -524,7 +536,8 @@ def test_check_metrics_rejects_an_unplanned_cond_method(tmp_path):
     ckpt, _ = _real_ckpt(tmp_path)
     path = _write_metrics(tmp_path, ckpt)
     with pytest.raises(ValueError):
-        names.check_metrics(path, ckpt, "frame_avg", "0", 0.0, "bf16")
+        names.check_metrics(path, ckpt, names.file_sha256(ckpt), "frame_avg", "0",
+                            0.0, "bf16")
 
 
 def _cli(*args):
@@ -580,7 +593,8 @@ def test_check_bundle_cli_refuses_a_foreign_checkpoint(tmp_path):
 def test_check_metrics_cli_exit_codes(tmp_path):
     ckpt, _ = _real_ckpt(tmp_path)
     good = _write_metrics(tmp_path, ckpt)
-    flags = ("--expect-ckpt", ckpt, "--expect-cond-method", "fa_invariant",
+    flags = ("--expect-ckpt", ckpt, "--expect-ckpt-sha256", names.file_sha256(ckpt),
+             "--expect-cond-method", "fa_invariant",
              "--expect-angles", "0", "--expect-rotate", "0", "--expect-autocast", "bf16")
     ok = _cli("check-metrics", "--json", good, *flags)
     assert ok.returncode == 0, ok.stderr
@@ -594,3 +608,112 @@ def test_check_metrics_cli_exit_codes(tmp_path):
 
     argerr = _cli("check-metrics", "--json", good, "--expect-ckpt", ckpt)
     assert argerr.returncode == 2, argerr.stdout    # every protocol flag is required
+
+
+# ================= the embedded checkpoint digest (codex full-r2 finding 1)
+# A checkpoint replaced at the SAME pathname by another contract-valid step-40000 file
+# defeated every gate we had: the path still matched, and re-hashing the file only ever
+# confirmed the NEW bytes. Now `eval_FLAC` stamps the digest of the bytes it loaded into
+# both artifacts, and both gates require it to be the digest the launcher validated.
+def test_eval_argv_pins_the_validated_checkpoint_digest():
+    argv = names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT, CKPT_SHA)
+    assert argv[argv.index("--expect-ckpt-sha256") + 1] == CKPT_SHA
+    assert argv.count("--expect-ckpt-sha256") == 1
+
+
+def test_eval_argv_will_not_build_an_unbound_command():
+    """The digest is required, and an empty or malformed one is refused: an eval that
+    is not pinned to the validated bytes must not be constructible at all."""
+    with pytest.raises(TypeError):
+        names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT)
+    for bad in ("", None, "not-a-digest", "ab" * 31, "AB" * 32 + "x"):
+        with pytest.raises(ValueError):
+            names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT, bad)
+
+
+def test_eval_argv_accepts_the_dry_run_placeholder():
+    """A dry run has no checkpoint to hash, so it prints the one explicit sentinel --
+    which no evaluator would ever accept, since it is not a digest."""
+    argv = names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT, names.DRYRUN_SHA256)
+    assert argv[argv.index("--expect-ckpt-sha256") + 1] == names.DRYRUN_SHA256
+
+
+def test_check_bundle_rejects_the_digest_of_the_checkpoint_it_was_NOT_scored_from(tmp_path):
+    ckpt, digest_a = _real_ckpt(tmp_path, content=b"checkpoint A")
+    path = _write_bundle(tmp_path, ckpt_path=ckpt)          # embeds digest A
+    open(ckpt, "wb").write(b"checkpoint B, also a valid step=40000")
+    digest_b = hashlib.sha256(open(ckpt, "rb").read()).hexdigest()
+    assert digest_a != digest_b
+
+    violations = names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                                    expect_ckpt_sha256=digest_b)
+    assert any("ckpt_sha256" in v for v in violations), violations
+    # ... and the same bundle is still this cell's under the digest it WAS scored from
+    open(ckpt, "wb").write(b"checkpoint A")
+    assert names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                              expect_ckpt_sha256=digest_a) == []
+
+
+def test_check_bundle_refuses_a_bundle_that_carries_no_digest_at_all(tmp_path):
+    """Pre-round-G artifacts: unbindable, therefore not countable."""
+    ckpt, digest = _real_ckpt(tmp_path)
+    path = _write_bundle(tmp_path, ckpt_path=ckpt, ckpt_sha256=None)
+    violations = names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                                    expect_ckpt_sha256=digest)
+    assert any("ckpt_sha256" in v for v in violations), violations
+
+
+def test_check_bundle_refuses_a_digest_expectation_without_a_checkpoint(tmp_path):
+    path = _write_bundle(tmp_path)
+    with pytest.raises(ValueError):
+        names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt_sha256="ab" * 32)
+
+
+def test_check_metrics_rejects_the_digest_of_another_checkpoint(tmp_path):
+    ckpt, digest_a = _real_ckpt(tmp_path, content=b"checkpoint A")
+    path = _write_metrics(tmp_path, ckpt)                   # embeds digest A
+    open(ckpt, "wb").write(b"checkpoint B, also a valid step=40000")
+    digest_b = hashlib.sha256(open(ckpt, "rb").read()).hexdigest()
+
+    violations = names.check_metrics(path, **_metrics_args(ckpt, ckpt_sha256=digest_b))
+    assert any("ckpt_sha256" in v for v in violations), violations
+
+
+def test_check_metrics_refuses_a_record_that_carries_no_digest(tmp_path):
+    ckpt, digest = _real_ckpt(tmp_path)
+    path = _write_metrics(tmp_path, ckpt, ckpt_sha256=None)
+    violations = names.check_metrics(path, **_metrics_args(ckpt))
+    assert any("ckpt_sha256" in v for v in violations), violations
+
+
+def test_the_cli_gates_exit_3_on_a_stale_embedded_digest(tmp_path):
+    """The whole point: the path is unchanged and the file on disk hashes to exactly what
+    the launcher validated. Only the artifacts remember the bytes they came from."""
+    ckpt, _ = _real_ckpt(tmp_path, content=b"checkpoint A")
+    bundle = _write_bundle(tmp_path, ckpt_path=ckpt)
+    metrics = _write_metrics(tmp_path, ckpt, name="stale_digest.json")
+    open(ckpt, "wb").write(b"checkpoint B, also a valid step=40000")
+    digest_b = hashlib.sha256(open(ckpt, "rb").read()).hexdigest()
+
+    bad_bundle = _cli("check-bundle", "--pt", bundle, "--expect-n", "4", "--expect-seed",
+                      "42", "--expect-K", "8", "--expect-arm", "cyl", "--expect-ckpt",
+                      ckpt, "--expect-ckpt-sha256", digest_b)
+    assert bad_bundle.returncode == 3, bad_bundle.stdout
+    assert "ckpt_sha256" in bad_bundle.stdout
+
+    bad_metrics = _cli("check-metrics", "--json", metrics, "--expect-ckpt", ckpt,
+                       "--expect-ckpt-sha256", digest_b, "--expect-cond-method",
+                       "fa_invariant", "--expect-angles", "0", "--expect-rotate", "0",
+                       "--expect-autocast", "bf16")
+    assert bad_metrics.returncode == 3, bad_metrics.stdout
+    assert "ckpt_sha256" in bad_metrics.stdout
+
+
+def test_check_metrics_cli_requires_the_digest(tmp_path):
+    ckpt, _ = _real_ckpt(tmp_path)
+    good = _write_metrics(tmp_path, ckpt)
+    unbound = _cli("check-metrics", "--json", good, "--expect-ckpt", ckpt,
+                   "--expect-cond-method", "fa_invariant", "--expect-angles", "0",
+                   "--expect-rotate", "0", "--expect-autocast", "bf16")
+    assert unbound.returncode == 2, unbound.stdout
+    assert "--expect-ckpt-sha256" in unbound.stderr
