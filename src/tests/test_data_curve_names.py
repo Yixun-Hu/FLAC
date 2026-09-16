@@ -142,3 +142,142 @@ def test_metrics_basename_carries_the_arm_suffix():
     van = os.path.basename(names.metrics_json_path(ckpt, "van", "025", 8, 42))
     assert cyl == "epoch=8-step=40000_metrics_1_1.0_dc_cyl_f025_K8_s42_fa_invariant_a1.json"
     assert van == "epoch=8-step=40000_metrics_1_1.0_dc_van_f025_K8_s42.json"
+
+
+# ================================================================== the training argv
+KIT_CYL = "/kit/configs/FLAC_AR_exp14_cylS.json"
+KIT_VAN = "/kit/configs/FLAC_AR_exp14_vanS.json"
+NAS = "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve"
+
+
+def test_train_argv_is_the_frozen_exp13_recipe_token_by_token():
+    argv = names.train_argv(
+        "cyl", "025", KIT_CYL,
+        "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json",
+        f"{NAS}/dc_cyl_f025", f"{NAS}/dc_cyl_f025/run_contract.json",
+    )
+    assert argv == [
+        "python", "train.py",
+        "--model-config", KIT_CYL,
+        "--dataset-config",
+        "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json",
+        "--pretransform-ckpt-path", "weights/FLAC/VAE.safetensors",
+        "--max-steps", "40000",
+        "--batch-size", "32",
+        "--accum-batches", "1",
+        "--num-workers", "6",
+        "--seed", "42",
+        "--num-gpus", "2",
+        "--strategy", "ddp_find_unused_parameters_true",
+        "--sync-batchnorm", "true",
+        "--logger", "none",
+        "--checkpoint-every", "2500",
+        "--name", "dc_cyl_f025",
+        "--experiment-name", "dc_cyl_f025",
+        "--save-dir", f"{NAS}/dc_cyl_f025",
+        "--run-contract-json", f"{NAS}/dc_cyl_f025/run_contract.json",
+    ]
+
+
+def test_train_argv_appends_ckpt_path_only_when_resuming():
+    base = names.train_argv(
+        "van", "050", KIT_VAN, names.TRAIN_DATASET_CONFIGS["050"],
+        f"{NAS}/dc_van_f050", f"{NAS}/dc_van_f050/run_contract.json",
+    )
+    assert "--ckpt-path" not in base
+    resumed = names.train_argv(
+        "van", "050", KIT_VAN, names.TRAIN_DATASET_CONFIGS["050"],
+        f"{NAS}/dc_van_f050", f"{NAS}/dc_van_f050/run_contract.json",
+        ckpt_path=f"{NAS}/dc_van_f050/epoch=1-step=25000.ckpt",
+    )
+    assert resumed == base + ["--ckpt-path", f"{NAS}/dc_van_f050/epoch=1-step=25000.ckpt"]
+
+
+def test_train_argv_rejects_a_dataset_config_of_another_fraction():
+    """The one substitution the run contract exists to prevent (plan §4 Round D)."""
+    with pytest.raises(ValueError) as err:
+        names.train_argv(
+            "cyl", "025", KIT_CYL, names.TRAIN_DATASET_CONFIGS["050"],
+            f"{NAS}/dc_cyl_f025", f"{NAS}/dc_cyl_f025/run_contract.json",
+        )
+    assert "acousticroom_train_frac025.json" in str(err.value)
+
+
+def test_train_argv_rejects_the_other_arms_model_config():
+    with pytest.raises(ValueError):
+        names.train_argv(
+            "cyl", "025", KIT_VAN, names.TRAIN_DATASET_CONFIGS["025"],
+            f"{NAS}/dc_cyl_f025", f"{NAS}/dc_cyl_f025/run_contract.json",
+        )
+
+
+@pytest.mark.parametrize("save_dir,contract", [
+    (f"{NAS}/dc_van_f025", f"{NAS}/dc_cyl_f025/run_contract.json"),   # another run's contract
+    (f"{NAS}/dc_cyl_f050", f"{NAS}/dc_cyl_f050/run_contract.json"),   # save dir != run id
+    (f"{NAS}/dc_cyl_f025", f"{NAS}/dc_cyl_f025/contract.json"),       # not the sidecar name
+])
+def test_train_argv_rejects_a_mismatched_run_dir_or_contract(save_dir, contract):
+    with pytest.raises(ValueError):
+        names.train_argv("cyl", "025", KIT_CYL, names.TRAIN_DATASET_CONFIGS["025"],
+                         save_dir, contract)
+
+
+# ==================================================================== the eval argv
+CKPT = f"{NAS}/dc_cyl_f025/epoch=8-step=40000.ckpt"
+
+
+def test_eval_argv_cyl_K8_is_the_frozen_protocol():
+    assert names.eval_argv("cyl", "025", 8, 42, KIT_CYL, CKPT) == [
+        "python", "eval_FLAC.py",
+        "--model-config", KIT_CYL,
+        "--dataset-config", "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+        "--ckpt-path", CKPT,
+        "--cond-method", "fa_invariant",
+        "--frame-avg-angles", "0",
+        "--rotate-deg", "0",
+        "--cond-autocast", "bf16",
+        "--seed", "42",
+        "--steps", "1",
+        "--cfg-scale", "1.0",
+        "--eval-name", "dc_cyl_f025_K8_s42",
+        "--store_predictions",
+    ]
+
+
+def test_eval_argv_van_K1_is_the_frozen_protocol():
+    ckpt = f"{NAS}/dc_van_f075/epoch=8-step=40000.ckpt"
+    assert names.eval_argv("van", "075", 1, 46, KIT_VAN, ckpt) == [
+        "python", "eval_FLAC.py",
+        "--model-config", KIT_VAN,
+        "--dataset-config", "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+        "--ckpt-path", ckpt,
+        "--cond-method", "vanilla",
+        "--frame-avg-angles", "0",
+        "--rotate-deg", "0",
+        "--cond-autocast", "bf16",
+        "--seed", "46",
+        "--steps", "1",
+        "--cfg-scale", "1.0",
+        "--eval-name", "dc_van_f075_K1_s46",
+        "--store_predictions",
+    ]
+
+
+def test_eval_argv_maps_K_to_the_full_unseen_config_and_arm_to_cond_method():
+    for arm, tag, k, seed in ALL_CELLS:
+        cfg = KIT_CYL if arm == "cyl" else KIT_VAN
+        argv = names.eval_argv(arm, tag, k, seed, cfg,
+                               f"{NAS}/{names.run_id(arm, tag)}/epoch=8-step=40000.ckpt")
+        ds = argv[argv.index("--dataset-config") + 1]
+        assert ds == names.EVAL_DATASET_CONFIGS[k]
+        assert "unseeneval_1.json" in ds if k == 1 else ds.endswith("unseeneval.json")
+        assert argv[argv.index("--cond-method") + 1] == names.ARM_COND_METHOD[arm]
+        # announcement 05: all four conditioning flags are explicit for BOTH arms
+        for flag in ("--cond-method", "--frame-avg-angles", "--rotate-deg", "--cond-autocast"):
+            assert argv.count(flag) == 1
+
+
+def test_eval_argv_rejects_a_checkpoint_from_another_run():
+    with pytest.raises(ValueError):
+        names.eval_argv("cyl", "025", 8, 42, KIT_CYL,
+                        f"{NAS}/dc_van_f025/epoch=8-step=40000.ckpt")

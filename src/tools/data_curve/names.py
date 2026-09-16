@@ -156,3 +156,118 @@ def predictions_pt_path(ckpt_path, arm, tag, K, seed):
     path = _output_paths(ckpt_path, arm, tag, K, seed)["predictions"]
     assert_no_forbidden_substring(os.path.basename(path))
     return path
+
+
+#: arm -> the kit model config's basename. Both files are sha-pinned by
+#: ``src.tools.data_curve.verify``; requiring the exact basename here means an arm can
+#: never be launched or scored with the other arm's architecture.
+ARM_MODEL_CONFIG_BASENAMES = {
+    "cyl": "FLAC_AR_exp14_cylS.json",
+    "van": "FLAC_AR_exp14_vanS.json",
+}
+
+
+def _check_model_config(arm, model_config):
+    expected = ARM_MODEL_CONFIG_BASENAMES[arm]
+    if not isinstance(model_config, str) or os.path.basename(model_config) != expected:
+        raise ValueError(
+            f"arm {arm!r} must be run with {expected}, got {model_config!r}"
+        )
+    return model_config
+
+
+def _check_run_dir(run, run_dir, what):
+    if not isinstance(run_dir, str) or not run_dir:
+        raise ValueError(f"{what} must be a non-empty path, got {run_dir!r}")
+    if os.path.basename(run_dir.rstrip("/")) != run:
+        raise ValueError(
+            f"{what} {run_dir!r} is not the run directory of {run!r}: checkpoints and the "
+            "contract of one run never live under another run's name"
+        )
+    return run_dir.rstrip("/")
+
+
+def train_argv(arm, tag, model_config, dataset_config, save_dir, run_contract_json,
+               ckpt_path=None):
+    """The frozen training command of one run (plan §2; == exp_13 tier B == exp_07 P1).
+
+    Every value is fixed by the recipe; the four paths are inputs because they differ
+    between the kit, the worktree and the NAS. Three substitutions are fail-closed,
+    because each produces a run that looks healthy and means something else:
+
+    * ``dataset_config`` must be *this* fraction's config (a wrong one trains on another
+      fraction while every record says otherwise),
+    * ``model_config`` must be this arm's config,
+    * ``save_dir`` must be the run's own directory and ``run_contract_json`` the
+      ``run_contract.json`` sidecar inside it (a foreign contract would be embedded in
+      every checkpoint this run writes).
+
+    ``ckpt_path`` is appended **only** when resuming -- and a resume is a fresh stochastic
+    continuation (PL restores no RNG or dataloader position), which the launcher discloses.
+    """
+    run = run_id(arm, tag)
+    _check_model_config(arm, model_config)
+    expected_ds = TRAIN_DATASET_CONFIGS[tag]
+    if os.path.basename(str(dataset_config)) != os.path.basename(expected_ds):
+        raise ValueError(
+            f"fraction {tag} must be trained with {os.path.basename(expected_ds)}, got "
+            f"{dataset_config!r}"
+        )
+    save_dir = _check_run_dir(run, save_dir, "--save-dir")
+    if (os.path.dirname(str(run_contract_json)) != save_dir
+            or os.path.basename(str(run_contract_json)) != "run_contract.json"):
+        raise ValueError(
+            f"--run-contract-json must be {save_dir}/run_contract.json, got "
+            f"{run_contract_json!r}"
+        )
+    argv = [
+        "python", "train.py",
+        "--model-config", model_config,
+        "--dataset-config", dataset_config,
+        "--pretransform-ckpt-path", PRETRANSFORM_CKPT,
+        "--max-steps", str(MAX_STEPS),
+        "--batch-size", str(MICRO_BATCH),
+        "--accum-batches", str(ACCUM_BATCHES),
+        "--num-workers", str(NUM_WORKERS),
+        "--seed", str(TRAIN_SEED),
+        "--num-gpus", str(NUM_GPUS),
+        "--strategy", STRATEGY,
+        "--sync-batchnorm", SYNC_BATCHNORM,
+        "--logger", LOGGER,
+        "--checkpoint-every", str(CHECKPOINT_EVERY),
+        "--name", run,
+        "--experiment-name", run,
+        "--save-dir", save_dir,
+        "--run-contract-json", run_contract_json,
+    ]
+    if ckpt_path:
+        argv += ["--ckpt-path", ckpt_path]
+    return argv
+
+
+def eval_argv(arm, tag, K, seed, model_config, ckpt_path):
+    """The frozen evaluation command of one cell (plan §2, announcement 05).
+
+    All four conditioning flags are explicit for **both** arms, K selects one of the two
+    existing full unseen-eval configs (announcement 01: never a subsampled eval), and the
+    checkpoint must live in this run's directory -- scoring one arm's checkpoint under the
+    other's protocol is the exp_09 protocol error, and it is not detectable in the numbers.
+    """
+    run = run_id(arm, tag)
+    _check_model_config(arm, model_config)
+    _check_run_dir(run, os.path.dirname(str(ckpt_path)), "--ckpt-path's directory")
+    return [
+        "python", "eval_FLAC.py",
+        "--model-config", model_config,
+        "--dataset-config", EVAL_DATASET_CONFIGS[_check_k(K)],
+        "--ckpt-path", ckpt_path,
+        "--cond-method", ARM_COND_METHOD[arm],
+        "--frame-avg-angles", FRAME_AVG_ANGLES,
+        "--rotate-deg", str(int(ROTATE_DEG)),
+        "--cond-autocast", COND_AUTOCAST,
+        "--seed", str(_check_seed(seed)),
+        "--steps", str(EVAL_STEPS),
+        "--cfg-scale", str(EVAL_CFG_SCALE),
+        "--eval-name", eval_name(arm, tag, K, seed),
+        "--store_predictions",
+    ]
