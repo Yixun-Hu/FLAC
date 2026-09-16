@@ -1,9 +1,15 @@
 #!/bin/bash
 # exp_14 ladder rung 5: smallest-batch, NO-checkpoint smoke per arm, 2-GPU DDP+SyncBN (co-tenant with exp13_vanB by Yixun's decision).
 # Planner one-off; hardened in round F (codex finding 4: these scripts used to write their
-# .done marker whatever happened). Acceptance, per arm: train.py exits 0 AND its log carries
-# the `max_steps=<STEPS> reached` banner. Only then is the .done marker written; otherwise a
-# .failed marker names the reason and the script exits non-zero. Never touches other processes.
+# .done marker whatever happened) and corrected in round G (codex full-r2 finding 3: the
+# round-F banner check searched for `max_steps=3 reached`, which matches NEITHER recorded
+# successful log -- Lightning writes it with backticks -- so the rung would have failed on
+# its own evidence). Acceptance, per arm, all of: train.py exits 0, Lightning's real
+# ``\`Trainer.fit\` stopped: \`max_steps=<STEPS>\` reached`` banner, THIS arm's backbone
+# banner (the arms differ only there), and a finite train/loss. Only then is the .done
+# marker written; otherwise a .failed marker names the reason and the script exits
+# non-zero. The checks live in ladder_checks.sh, so the recorded logs can be replayed
+# through exactly this code. Never touches other processes.
 set -euo pipefail
 WT="${WT:-/home/yixunhu/codespace/exp-14-data-curve}"
 KIT="${KIT:-/home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude}"
@@ -15,6 +21,8 @@ STEPS="${STEPS:-3}"
 TS=$(date +%Y-%m-%d_%H-%M-%S)
 fail () { printf 'RUNG5_FAILED %s | %s\n' "$*" "$(date -Is)" > "$REC/rung5_smoke_${TS}.failed"
   echo "rung5 FAILED: $*" >&2; exit 1; }
+# shellcheck source=/dev/null
+source "$REC/ladder_checks.sh" || fail "cannot source $REC/ladder_checks.sh"
 # shellcheck source=/dev/null
 source "$CONDA_SH" || fail "cannot source $CONDA_SH"
 conda activate flac || fail "cannot activate the flac env"
@@ -34,7 +42,9 @@ for ARM in cyl van; do
     --name smoke5_dc_$ARM --experiment-name smoke5_dc_$ARM --save-dir "$NAS/smoke5_$ARM" >> "$LOG" 2>&1 || RC=$?
   echo "=== rung5 $ARM rc=$RC end $(date -Is)" | tee -a "$LOG"
   [ "$RC" = 0 ] || fail "$ARM: train.py exited $RC (see $LOG)"
-  grep -qF "max_steps=$STEPS reached" "$LOG" \
-    || fail "$ARM: rc 0 but no 'max_steps=$STEPS reached' banner in $LOG"
+  lc_fit_banner "$LOG" "$STEPS" \
+    || fail "$ARM: rc 0 but no Lightning max_steps=$STEPS banner in $LOG"
+  lc_backbone "$LOG" "$ARM" || fail "$ARM: its own backbone banner is missing from $LOG"
+  lc_finite_loss "$LOG" || fail "$ARM: no finite train/loss in $LOG"
 done
 echo "RUNG5_DONE $(date -Is)" > "$REC/rung5_smoke_${TS}.done"
