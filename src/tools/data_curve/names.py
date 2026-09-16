@@ -271,3 +271,127 @@ def eval_argv(arm, tag, K, seed, model_config, ckpt_path):
         "--eval-name", eval_name(arm, tag, K, seed),
         "--store_predictions",
     ]
+
+
+# ======================================================================================
+# check-bundle: is a stored prediction bundle really this cell's, exactly as scored?
+# ======================================================================================
+# A cell counts as complete only when its metrics JSON *and* a prediction bundle that
+# proves the protocol exist (plan §2, announcement 08). The metrics JSON carries neither
+# the seed nor the dataset config, so the bundle's meta is the only full-split provenance
+# there is -- and the launcher skips an existing cell on the strength of this check.
+EXIT_OK = 0
+EXIT_INPUT_ERROR = 2        # the caller's own arguments are wrong (a launcher bug)
+EXIT_BUNDLE_VIOLATION = 3   # the artifact disagrees with the cell it claims to be
+
+
+def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None):
+    """Return the list of violations (empty == the bundle is this cell's, exactly as scored).
+
+    Loads on CPU with ``weights_only=False`` (the bundle is a dict of a tensor and a meta
+    dict written by ``torch.save``). An unreadable, truncated or malformed file is a
+    violation, not an exception: a half-written bundle simply means the cell is not done.
+    ``ValueError`` is raised only for an unplanned arm/K/seed -- that is a bug in the
+    caller, not a verdict about the artifact.
+    """
+    import torch  # deferred: the name/argv helpers must stay importable without torch
+
+    _check_arm(expect_arm)
+    _check_k(expect_K)
+    _check_seed(expect_seed)
+    try:
+        bundle = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as err:
+        return [f"{path}: cannot be loaded ({type(err).__name__}: {err})"]
+    if not isinstance(bundle, dict) or "meta" not in bundle or "predictions" not in bundle:
+        return [f"{path}: not a prediction bundle (no 'predictions'/'meta' keys)"]
+    meta = bundle["meta"]
+    if not isinstance(meta, dict):
+        return [f"{path}: meta is a {type(meta).__name__}, not a dict"]
+
+    violations = []
+
+    def expect(key, value, wanted):
+        if value != wanted:
+            violations.append(f"meta.{key} is {value!r}, expected {wanted!r}")
+
+    expect("n_items", meta.get("n_items"), expect_n)
+    if "n_samples" in meta:
+        expect("n_samples", meta.get("n_samples"), expect_n)
+    expect("seed", meta.get("seed"), expect_seed)
+    got_ds = os.path.basename(str(meta.get("dataset_config")))
+    want_ds = os.path.basename(EVAL_DATASET_CONFIGS[expect_K])
+    if got_ds != want_ds:
+        violations.append(
+            f"meta.dataset_config is {got_ds!r}, expected {want_ds!r} for K={expect_K}"
+        )
+    expect("cond_method", meta.get("cond_method"), ARM_COND_METHOD[expect_arm])
+    want_angles = [float(FRAME_AVG_ANGLES)] if expect_arm == "cyl" else None
+    angles = meta.get("frame_avg_angles")
+    if angles is not None:
+        try:
+            angles = [float(a) for a in angles]
+        except (TypeError, ValueError):
+            pass
+    expect("frame_avg_angles", angles, want_angles)
+    rotate = meta.get("rotate_deg")
+    if not isinstance(rotate, (int, float)) or float(rotate) != ROTATE_DEG:
+        violations.append(f"meta.rotate_deg is {rotate!r}, expected {ROTATE_DEG}")
+    expect("cond_autocast", meta.get("cond_autocast"), COND_AUTOCAST)
+    # Round C: only a bundle stored *after* the clamp/pad is the tensor that was scored.
+    expect("stored_after_clamp_pad", meta.get("stored_after_clamp_pad"), True)
+    if expect_eval_name is not None:
+        expect("eval_name", meta.get("eval_name"), expect_eval_name)
+
+    predictions = bundle["predictions"]
+    if not torch.is_tensor(predictions):
+        violations.append(f"predictions is a {type(predictions).__name__}, not a tensor")
+    else:
+        wanted_shape = (expect_n, 1, SAMPLE_LEN)
+        if tuple(predictions.shape) != wanted_shape:
+            violations.append(
+                f"predictions shape is {tuple(predictions.shape)}, expected {wanted_shape}"
+            )
+        if not bool(torch.isfinite(predictions.float()).all()):
+            violations.append("predictions contain non-finite values")
+    return violations
+
+
+def _build_arg_parser():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m src.tools.data_curve.names",
+        description="Check that a stored prediction bundle is the cell it claims to be.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    check = sub.add_parser("check-bundle", help="validate one --store_predictions bundle")
+    check.add_argument("--pt", required=True, help="the *_predictions_*.pt bundle")
+    check.add_argument("--expect-n", required=True, type=int)
+    check.add_argument("--expect-seed", required=True, type=int)
+    check.add_argument("--expect-K", required=True, type=int)
+    check.add_argument("--expect-arm", required=True, choices=list(ARMS))
+    check.add_argument("--expect-eval-name", default=None)
+    return parser
+
+
+def main(argv=None):
+    args = _build_arg_parser().parse_args(argv)
+    try:
+        violations = check_bundle(args.pt, args.expect_n, args.expect_seed, args.expect_K,
+                                  args.expect_arm, args.expect_eval_name)
+    except ValueError as err:
+        print(f"check-bundle called with bad arguments: {err}")
+        return EXIT_INPUT_ERROR
+    if violations:
+        for violation in violations:
+            print(f"FAIL {args.pt}: {violation}")
+        return EXIT_BUNDLE_VIOLATION
+    print(f"PASS {args.pt}: n={args.expect_n} seed={args.expect_seed} K={args.expect_K} "
+          f"arm={args.expect_arm} ({ARM_COND_METHOD[args.expect_arm]}, autocast "
+          f"{COND_AUTOCAST}, rotate {int(ROTATE_DEG)})")
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

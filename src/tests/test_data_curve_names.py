@@ -281,3 +281,103 @@ def test_eval_argv_rejects_a_checkpoint_from_another_run():
     with pytest.raises(ValueError):
         names.eval_argv("cyl", "025", 8, 42, KIT_CYL,
                         f"{NAS}/dc_van_f025/epoch=8-step=40000.ckpt")
+
+
+# ============================================================ the check-bundle contract
+def _write_bundle(tmp_path, *, n=4, arm="cyl", k=8, seed=42, tag="025",
+                  predictions=None, **meta_overrides):
+    """A prediction bundle in exactly the shape ``eval_FLAC --store_predictions`` writes."""
+    import torch
+
+    import eval_FLAC
+
+    meta = eval_FLAC.build_predictions_meta(
+        names.EVAL_DATASET_CONFIGS[k], seed, n, names.ARM_COND_METHOD[arm],
+        [0.0] if arm == "cyl" else None, 0.0, 64, "bf16",
+        ckpt_path=f"{NAS}/{names.run_id(arm, tag)}/epoch=8-step=40000.ckpt",
+        eval_name=names.eval_name(arm, tag, k, seed), steps=1, cfg_scale=1.0,
+    )
+    meta.update(meta_overrides)
+    if predictions is None:
+        predictions = torch.zeros(n, 1, names.SAMPLE_LEN)
+    path = tmp_path / "bundle.pt"
+    torch.save({"predictions": predictions, "meta": meta}, path)
+    return str(path)
+
+
+def test_check_bundle_accepts_a_matching_bundle(tmp_path):
+    path = _write_bundle(tmp_path)
+    assert names.check_bundle(path, 4, 42, 8, "cyl",
+                              expect_eval_name="dc_cyl_f025_K8_s42") == []
+
+
+def test_check_bundle_accepts_the_van_protocol(tmp_path):
+    path = _write_bundle(tmp_path, arm="van", k=1, seed=46, tag="075")
+    assert names.check_bundle(path, 4, 46, 1, "van") == []
+
+
+@pytest.mark.parametrize("kwargs,args,needle", [
+    ({}, (5, 42, 8, "cyl"), "n_items"),                              # wrong item count
+    ({}, (4, 43, 8, "cyl"), "seed"),                                 # wrong seed
+    ({}, (4, 42, 1, "cyl"), "dataset_config"),                       # K1 asked, K8 bundle
+    ({}, (4, 42, 8, "van"), "cond_method"),                          # other arm's protocol
+    ({"cond_autocast": "default"}, (4, 42, 8, "cyl"), "cond_autocast"),
+    ({"rotate_deg": 45.0}, (4, 42, 8, "cyl"), "rotate_deg"),
+    ({"frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}, (4, 42, 8, "cyl"), "frame_avg_angles"),
+    ({"stored_after_clamp_pad": False}, (4, 42, 8, "cyl"), "stored_after_clamp_pad"),
+])
+def test_check_bundle_rejects_a_protocol_mismatch(tmp_path, kwargs, args, needle):
+    path = _write_bundle(tmp_path, **kwargs)
+    violations = names.check_bundle(path, *args)
+    assert violations, "expected a violation"
+    assert any(needle in v for v in violations), violations
+
+
+def test_check_bundle_rejects_a_wrong_eval_name(tmp_path):
+    path = _write_bundle(tmp_path)
+    violations = names.check_bundle(path, 4, 42, 8, "cyl",
+                                    expect_eval_name="dc_cyl_f050_K8_s42")
+    assert any("eval_name" in v for v in violations), violations
+
+
+def test_check_bundle_rejects_a_wrong_shape_and_non_finite_values(tmp_path):
+    import torch
+
+    short = _write_bundle(tmp_path, predictions=torch.zeros(4, 1, 8000))
+    assert any("shape" in v for v in names.check_bundle(short, 4, 42, 8, "cyl"))
+
+    nans = torch.zeros(4, 1, names.SAMPLE_LEN)
+    nans[2, 0, 7] = float("nan")
+    path = _write_bundle(tmp_path, predictions=nans)
+    assert any("finite" in v for v in names.check_bundle(path, 4, 42, 8, "cyl"))
+
+
+def test_check_bundle_rejects_an_unreadable_bundle(tmp_path):
+    broken = tmp_path / "truncated.pt"
+    broken.write_bytes(b"not a torch file")
+    assert any("load" in v for v in names.check_bundle(str(broken), 4, 42, 8, "cyl"))
+    assert any("load" in v for v in names.check_bundle(str(tmp_path / "absent.pt"),
+                                                       4, 42, 8, "cyl"))
+
+
+def _cli(*args):
+    return subprocess.run([sys.executable, "-m", "src.tools.data_curve.names", *args],
+                          cwd=REPO_ROOT, capture_output=True, text=True)
+
+
+def test_check_bundle_cli_exit_codes(tmp_path):
+    good = _write_bundle(tmp_path)
+    ok = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
+              "--expect-K", "8", "--expect-arm", "cyl",
+              "--expect-eval-name", "dc_cyl_f025_K8_s42")
+    assert ok.returncode == 0, ok.stderr
+    assert "PASS" in ok.stdout
+
+    bad = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
+               "--expect-K", "8", "--expect-arm", "van")
+    assert bad.returncode == 3, bad.stderr        # the artifact disagrees
+    assert "FAIL" in bad.stdout or "FAIL" in bad.stderr
+
+    argerr = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "7",
+                  "--expect-K", "8", "--expect-arm", "cyl")
+    assert argerr.returncode == 2, argerr.stderr  # unplanned seed: a launcher bug
