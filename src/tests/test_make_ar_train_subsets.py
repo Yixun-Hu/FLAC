@@ -430,8 +430,15 @@ def test_A5_does_not_mutate_the_input_split():
 def test_A5_manifest_records_provenance_placeholders():
     _, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
     assert manifest["python_version"] == platform.python_version()
-    assert manifest["source_train_json_sha256"] is None   # filled in by write_outputs
-    assert manifest["files"] == {}                        # ditto
+    assert manifest["source_train_json_sha256"] is None   # no source path given
+    assert manifest["files"] == {}                        # filled in by write_outputs
+
+
+def test_A5_manifest_records_the_source_digest_when_the_path_is_given(tmp_path):
+    src = tmp_path / "train.json"
+    src.write_text(json.dumps(TOY_SPLIT, indent=4), encoding="utf-8")
+    _, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
+    assert manifest["source_train_json_sha256"] == hashlib.sha256(src.read_bytes()).hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -469,10 +476,10 @@ def _write_toy_train_json(tmp_path):
 
 def test_A6_write_outputs_emits_named_splits_manifest_and_detached_checksums(tmp_path):
     src = _write_toy_train_json(tmp_path)
-    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
     before = copy.deepcopy(manifest)
     out_dir = tmp_path / "out" / "nested"          # must be created by the tool
-    paths = mas.write_outputs(str(out_dir), subsets, manifest, 7, str(src))
+    paths = mas.write_outputs(str(out_dir), subsets, manifest, 7)
 
     names = ["train_frac025_s7.json", "train_frac050_s7.json", "train_frac075_s7.json"]
     assert sorted(p.name for p in out_dir.iterdir()) == sorted(
@@ -486,8 +493,8 @@ def test_A6_write_outputs_emits_named_splits_manifest_and_detached_checksums(tmp
 
 def test_A6_manifest_hashes_every_emitted_split_but_not_itself(tmp_path):
     src = _write_toy_train_json(tmp_path)
-    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
-    mas.write_outputs(str(tmp_path / "out"), subsets, manifest, 7, str(src))
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
+    mas.write_outputs(str(tmp_path / "out"), subsets, manifest, 7)
     out_dir = tmp_path / "out"
     written = json.loads((out_dir / "train_frac_manifest_s7.json").read_text(encoding="utf-8"))
 
@@ -502,9 +509,9 @@ def test_A6_manifest_hashes_every_emitted_split_but_not_itself(tmp_path):
 
 def test_A6_detached_checksum_file_verifies_manifest_and_splits(tmp_path):
     src = _write_toy_train_json(tmp_path)
-    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
     out_dir = tmp_path / "out"
-    mas.write_outputs(str(out_dir), subsets, manifest, 7, str(src))
+    mas.write_outputs(str(out_dir), subsets, manifest, 7)
 
     lines = (out_dir / "train_frac_manifest_s7.sha256").read_text(encoding="utf-8").splitlines()
     covered = {}
@@ -524,27 +531,61 @@ def test_A6_rerun_is_byte_identical_and_seed_changes_the_bytes(tmp_path):
     src = _write_toy_train_json(tmp_path)
     blobs = []
     for run in ("a", "b"):
-        subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+        subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
         out_dir = tmp_path / run
-        mas.write_outputs(str(out_dir), subsets, manifest, 7, str(src))
+        mas.write_outputs(str(out_dir), subsets, manifest, 7)
         blobs.append({p.name: p.read_bytes() for p in sorted(out_dir.iterdir())})
     assert blobs[0] == blobs[1]
 
     big = {"Scene": {"Scene_idx_0": [_f(f"S{s:03d}", f"R{r:03d}") for s in range(1, 5) for r in range(1, 11)]}}
     outs = {}
     for seed in (7, 8):
-        subsets, manifest = mas.build_subsets(big, FRACS, seed=seed)
+        subsets, manifest = mas.build_subsets(big, FRACS, seed=seed, train_json_path=str(src))
         out_dir = tmp_path / f"seed{seed}"
-        mas.write_outputs(str(out_dir), subsets, manifest, seed, str(src))
+        mas.write_outputs(str(out_dir), subsets, manifest, seed)
         outs[seed] = {p.name: p.read_bytes() for p in sorted(out_dir.iterdir())}
     assert set(outs[7]) & set(outs[8]) == set()    # the seed is part of every filename
     assert outs[7]["train_frac025_s7.json"] != outs[8]["train_frac025_s8.json"]
 
 
 def test_A6_write_outputs_rejects_fractions_without_a_whole_percent_tag(tmp_path):
-    subsets, manifest = mas.build_subsets(TOY_SPLIT, [0.333], seed=7)
+    src = _write_toy_train_json(tmp_path)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, [0.333], seed=7, train_json_path=str(src))
     with pytest.raises(ValueError):
-        mas.write_outputs(str(tmp_path / "out"), subsets, manifest, 7, None)
+        mas.write_outputs(str(tmp_path / "out"), subsets, manifest)
+
+
+def test_A6_write_outputs_takes_the_seed_tag_from_the_manifest(tmp_path):
+    """The filename seed tag is provenance: it must come from the manifest that describes the
+    build, never from a second, free-floating argument that could disagree with it."""
+    src = _write_toy_train_json(tmp_path)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
+    out_dir = tmp_path / "out"
+    paths = mas.write_outputs(str(out_dir), subsets, manifest)      # no seed argument at all
+    assert os.path.basename(paths["manifest"]) == "train_frac_manifest_s7.json"
+    assert [os.path.basename(paths["splits"][f]) for f in FRACS] == [
+        "train_frac025_s7.json", "train_frac050_s7.json", "train_frac075_s7.json"
+    ]
+
+
+def test_A6_write_outputs_rejects_a_seed_that_disagrees_with_the_manifest(tmp_path):
+    src = _write_toy_train_json(tmp_path)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
+    out_dir = tmp_path / "out"
+    with pytest.raises(ValueError):
+        mas.write_outputs(str(out_dir), subsets, manifest, 2026)    # mislabels every filename
+    assert not out_dir.exists() or list(out_dir.iterdir()) == []
+
+
+def test_A6_write_outputs_requires_a_source_digest_in_the_manifest(tmp_path):
+    """A split file whose manifest cannot say which train.json it came from is unusable as a
+    run pin, so emitting one must fail rather than produce unprovenanced artifacts."""
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)  # no source path
+    assert manifest["source_train_json_sha256"] is None
+    out_dir = tmp_path / "out"
+    with pytest.raises(ValueError):
+        mas.write_outputs(str(out_dir), subsets, manifest, 7)
+    assert not out_dir.exists() or list(out_dir.iterdir()) == []
 
 
 # ======================================================================================
@@ -559,9 +600,9 @@ def test_A6_cli_round_trip_writes_the_same_artifacts_and_summarises(tmp_path, ca
     ])
     assert rc == 0
 
-    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7, train_json_path=str(src))
     reference = tmp_path / "reference"
-    mas.write_outputs(str(reference), subsets, manifest, 7, str(src))
+    mas.write_outputs(str(reference), subsets, manifest, 7)
     assert {p.name: p.read_bytes() for p in sorted(out_dir.iterdir())} == {
         p.name: p.read_bytes() for p in sorted(reference.iterdir())
     }

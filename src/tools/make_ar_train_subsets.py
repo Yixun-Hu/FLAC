@@ -170,7 +170,9 @@ def _validated_fractions(fractions) -> list[float]:
     return sorted(fracs)
 
 
-def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict, dict]:
+def build_subsets(
+    split: dict, fractions: list[float], seed: int, train_json_path=None
+) -> tuple[dict, dict]:
     """Build the nested per-room subsets of ``split`` and the manifest describing them.
 
     ``split`` is the AR ``scene -> room -> [basenames]`` mapping. The manifest reports, per
@@ -179,7 +181,8 @@ def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict,
     room can be audited on its own. Returns
     ``({fraction: split_like}, manifest)``; the emitted split-likes carry the same scene/room
     keys (in sorted order) with the retained files sorted inside each room. The input is
-    never mutated.
+    never mutated. ``train_json_path`` (the file ``split`` was read from) is hashed into the
+    manifest as ``source_train_json_sha256`` — the provenance ``write_outputs`` then requires.
     """
     fracs = _validated_fractions(fractions)
     rng = random.Random(seed)
@@ -224,7 +227,7 @@ def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict,
     manifest = {
         "seed": seed,
         "python_version": platform.python_version(),
-        "source_train_json_sha256": None,  # filled in by write_outputs
+        "source_train_json_sha256": _sha256_file(train_json_path) if train_json_path else None,
         "fractions": {
             str(frac): {
                 **totals[frac],
@@ -260,7 +263,7 @@ def _dumps(obj) -> bytes:
     return (json.dumps(obj, indent=1, sort_keys=False, ensure_ascii=True) + "\n").encode("utf-8")
 
 
-def write_outputs(out_dir: str, subsets: dict, manifest: dict, seed: int, train_json_path=None) -> dict:
+def write_outputs(out_dir: str, subsets: dict, manifest: dict, seed=None) -> dict:
     """Write the split files, the manifest and a detached ``sha256sum -c`` checksum file.
 
     Emits ``train_frac<PPP>_s<seed>.json`` per fraction, ``train_frac_manifest_s<seed>.json``
@@ -268,17 +271,30 @@ def write_outputs(out_dir: str, subsets: dict, manifest: dict, seed: int, train_
     but never of itself) and ``train_frac_manifest_s<seed>.sha256``, which covers the three
     splits *and* the manifest. Byte-deterministic: re-running writes identical bytes. The
     caller's ``manifest`` is not mutated. Returns the written paths.
+
+    The seed tag in every filename is taken from ``manifest["seed"]``, so a file can never be
+    labelled with a seed the manifest does not describe; the optional ``seed`` argument is a
+    cross-check only and must agree with it. ``manifest["source_train_json_sha256"]`` must
+    already be set (``build_subsets(..., train_json_path=...)``): an emitted split that cannot
+    name the ``train.json`` it came from is unusable as a run pin.
     """
+    manifest_seed = manifest["seed"]
+    if seed is not None and seed != manifest_seed:
+        raise ValueError(
+            f"seed {seed!r} disagrees with the manifest's seed {manifest_seed!r}"
+        )
+    if not manifest.get("source_train_json_sha256"):
+        raise ValueError(
+            "manifest['source_train_json_sha256'] is missing; build the subsets with "
+            "build_subsets(..., train_json_path=<train.json>) so the outputs carry provenance"
+        )
     os.makedirs(out_dir, exist_ok=True)
     manifest = dict(manifest)
-    manifest["source_train_json_sha256"] = (
-        _sha256_file(train_json_path) if train_json_path else None
-    )
 
     digests: dict[str, str] = {}
     split_paths: dict[float, str] = {}
     for frac in sorted(subsets):
-        name = f"train_frac{_frac_tag(frac)}_s{seed}.json"
+        name = f"train_frac{_frac_tag(frac)}_s{manifest_seed}.json"
         path = os.path.join(out_dir, name)
         payload = _dumps(subsets[frac])
         with open(path, "wb") as fh:
@@ -287,13 +303,13 @@ def write_outputs(out_dir: str, subsets: dict, manifest: dict, seed: int, train_
         split_paths[frac] = path
     manifest["files"] = digests
 
-    manifest_name = f"train_frac_manifest_s{seed}.json"
+    manifest_name = f"train_frac_manifest_s{manifest_seed}.json"
     manifest_path = os.path.join(out_dir, manifest_name)
     manifest_payload = _dumps(manifest)
     with open(manifest_path, "wb") as fh:
         fh.write(manifest_payload)
 
-    checksums_name = f"train_frac_manifest_s{seed}.sha256"
+    checksums_name = f"train_frac_manifest_s{manifest_seed}.sha256"
     checksums_path = os.path.join(out_dir, checksums_name)
     lines = [f"{digests[name]}  {name}" for name in digests]
     lines.append(f"{hashlib.sha256(manifest_payload).hexdigest()}  {manifest_name}")
@@ -315,8 +331,8 @@ def main(argv=None) -> int:
         split = json.loads(fh.read())
     fractions = [float(tok) for tok in args.fractions.split(",") if tok.strip()]
 
-    subsets, manifest = build_subsets(split, fractions, args.seed)
-    paths = write_outputs(args.out_dir, subsets, manifest, args.seed, args.train_json)
+    subsets, manifest = build_subsets(split, fractions, args.seed, args.train_json)
+    paths = write_outputs(args.out_dir, subsets, manifest, args.seed)
 
     for frac in sorted(subsets):
         entry = manifest["fractions"][str(frac)]
