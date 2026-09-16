@@ -445,3 +445,201 @@ def test_a_manifest_that_disagrees_with_its_own_arithmetic_is_flagged():
     manifest["fractions"]["0.5"]["effective_epochs_at_40k_x64"] = 1.0
     _, violations = assemble.effective_epochs(manifest)
     assert any("0.5" in v for v in violations)
+
+
+# =====================================================================================
+# The whole document: six runs + two anchors -> one table, one verdict, one provenance
+# =====================================================================================
+JITTER = {42: -0.02, 43: -0.01, 44: 0.0, 45: 0.01, 46: 0.02}   # mean exactly 0
+BENEFIT = {"025": 0.9, "050": 0.7, "075": 0.6}                 # shrinking with more data
+ANCHORS_JSON = os.path.join(FIXTURES, "anchors_tier_S.json")
+
+
+def _anchor_means(arm, K):
+    with open(ANCHORS_JSON) as fin:
+        reference = json.load(fin)
+    block = reference[assemble.ANCHOR_REFERENCE_KEYS[arm]][f"K{K}"]
+    return {metric: block[metric][0] for metric in assemble.METRICS}
+
+
+def run_cell_values(arm, tag, K, seed):
+    """Synthetic cell values: van sits on its 100 % anchor, cyl beats it by BENEFIT[tag].
+
+    The per-seed jitter is shared by both arms, so the PAIRED benefit has sd 0 while each
+    arm on its own has a visible spread -- which is exactly the property the paired form
+    exists for, and it would vanish if the assembler differenced the means instead.
+    """
+    values = {m: v + JITTER[seed] for m, v in _anchor_means("van", K).items()}
+    if arm == "van":
+        return values
+    benefit = BENEFIT[tag]
+    values["T60"] -= benefit
+    values["EDT"] -= 2 * benefit
+    values["C50"] += 0.1                       # CylDINO is WORSE on C50, as at 100 %
+    values["R@1"] += benefit / 2
+    values["R@5"] += benefit
+    values["R@10"] += benefit
+    return values
+
+
+def fixture_nas(tmp_path, drop=()):
+    """A NAS root holding all six finished runs; ``drop`` removes ``(arm, tag, K, seed)``."""
+    nas = tmp_path / "nas"
+    nas.mkdir(exist_ok=True)
+    for tag in sorted(names.FRACTIONS):
+        for arm in names.ARMS:
+            cells = {(K, seed): run_cell_values(arm, tag, K, seed)
+                     for K in names.K_VALUES for seed in names.SEEDS
+                     if (arm, tag, K, seed) not in drop}
+            write_run(nas, arm, tag, cells=cells)
+    return str(nas)
+
+
+def fixture_anchor_dirs(tmp_path):
+    """Raw 100 % anchor cells whose per-seed means reproduce the reference exactly."""
+    out = {}
+    for arm in names.ARMS:
+        directory = str(tmp_path / f"anchor_{arm}")
+        os.makedirs(directory, exist_ok=True)
+        for K in names.K_VALUES:
+            base = _anchor_means(arm, K)
+            for seed in names.SEEDS:
+                record = cell_record(arm, "anchor.ckpt",
+                                     {m: v + JITTER[seed] for m, v in base.items()})
+                record.pop("ckpt_sha256")
+                path = os.path.join(directory, f"anchor_ref_K{K}_s{seed}.json")
+                with open(path, "w") as fout:
+                    json.dump(record, fout)
+        out[arm] = directory
+    return out
+
+
+def build(tmp_path, **kwargs):
+    return assemble.build_curve(
+        kwargs.pop("nas_root", None) or fixture_nas(tmp_path),
+        ANCHORS_JSON,
+        split_manifest_path=os.path.join(FIXTURES, "split_manifest.json"),
+        **kwargs)
+
+
+def test_a_complete_curve_reaches_the_pre_registered_verdict(tmp_path):
+    doc = build(tmp_path)
+    assert doc["violations"] == []
+    assert doc["complete"] is True
+    assert doc["verdict"]["verdict"] == "SUPPORTED"
+    assert doc["curve"]["K8"]["T60"]["25"]["benefit"]["mean"] == pytest.approx(0.9)
+    assert doc["curve"]["K8"]["T60"]["100"]["benefit"]["mean"] == pytest.approx(0.5)
+
+
+def test_the_paired_benefit_survives_the_whole_pipeline(tmp_path):
+    doc = build(tmp_path)
+    row = doc["curve"]["K8"]["EDT"]["50"]
+    assert row["benefit"]["form"] == "paired"
+    assert row["benefit"]["sd"] == pytest.approx(0.0)     # shared jitter cancels per seed
+    assert row["cyl"]["sd"] > 0                            # but each arm alone does vary
+
+
+def test_without_raw_anchor_cells_the_hundred_percent_point_is_marginal(tmp_path):
+    doc = build(tmp_path)
+    assert doc["anchor_form"] == "marginal"
+    assert doc["curve"]["K8"]["T60"]["100"]["benefit"]["sd"] is None
+    assert any("marginal" in d for d in doc["disclosures"])
+
+
+def test_raw_anchor_cells_promote_the_hundred_percent_point_to_the_paired_form(tmp_path):
+    doc = build(tmp_path, anchor_cell_dirs=fixture_anchor_dirs(tmp_path))
+    assert doc["anchor_form"] == "paired"
+    row = doc["curve"]["K8"]["T60"]["100"]
+    assert row["benefit"]["form"] == "paired"
+    assert row["benefit"]["mean"] == pytest.approx(0.5)
+    assert row["benefit"]["sd"] == pytest.approx(0.0)
+
+
+def test_an_incomplete_anchor_directory_falls_back_to_the_marginal_form(tmp_path):
+    dirs = fixture_anchor_dirs(tmp_path)
+    os.remove(os.path.join(dirs["cyl"], "anchor_ref_K8_s46.json"))
+    doc = build(tmp_path, anchor_cell_dirs=dirs)
+    assert doc["anchor_form"] == "marginal"
+    assert any("s46" in v for v in doc["violations"])
+
+
+def test_a_row_short_of_five_seeds_makes_the_verdict_pending(tmp_path):
+    nas = fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)])
+    doc = build(tmp_path, nas_root=nas)
+    assert doc["curve"]["K8"]["T60"]["50"]["complete"] is False
+    assert doc["verdict"]["verdict"] == "PENDING"
+    assert doc["complete"] is False
+
+
+def test_data_equivalence_is_reported_for_every_metric_and_K(tmp_path):
+    doc = build(tmp_path)
+    assert sorted(doc["data_equivalence"]) == ["K1", "K8"]
+    assert sorted(doc["data_equivalence"]["K8"]) == sorted(assemble.METRICS)
+    # cyl at 25 % already beats van@100 on T60 in this fixture: boundary-censored.
+    assert doc["data_equivalence"]["K8"]["T60"]["kind"] == "censored_at_min"
+    # ... and never catches up on C50, where CylDINO is worse by construction.
+    assert doc["data_equivalence"]["K8"]["C50"]["kind"] == "none"
+
+
+def test_the_document_round_trips_through_json_with_stable_keys(tmp_path):
+    doc = build(tmp_path)
+    path = tmp_path / "data_curve.json"
+    with open(path, "w") as fout:
+        json.dump(doc, fout)
+    with open(path) as fin:
+        reloaded = json.load(fin)
+    assert reloaded == doc
+
+
+def test_the_markdown_carries_the_numbers_the_verdict_and_the_provenance(tmp_path):
+    doc = build(tmp_path)
+    md = assemble.render_markdown(doc)
+    for K in names.K_VALUES:
+        assert f"K = {K}" in md
+    for metric in assemble.METRICS:
+        assert metric in md
+    assert "SUPPORTED" in md
+    assert "Data equivalence" in md
+    assert CKPT_SHA in md                       # which checkpoint bytes produced the cells
+    assert "fa_invariant" in md and "vanilla" in md      # both protocols, stated
+    assert "dc_cyl_f025_K8_s42" in md                    # a cell path, not just a number
+    assert "34.84" not in md and "10240.0" in md         # the FIXTURE's effective epochs
+
+
+def test_the_markdown_states_the_fixed_compute_estimand(tmp_path):
+    md = assemble.render_markdown(build(tmp_path))
+    assert "fixed-compute" in md
+    assert "item-weighted" in md and "per-scene" in md
+
+
+# ------------------------------------------------------------------------------- CLI
+def test_cli_writes_both_artifacts_and_exits_zero(tmp_path):
+    out_json, out_md = tmp_path / "curve.json", tmp_path / "curve.md"
+    rc = assemble.main(["--nas-root", fixture_nas(tmp_path), "--anchors", ANCHORS_JSON,
+                        "--split-manifest", os.path.join(FIXTURES, "split_manifest.json"),
+                        "--out-json", str(out_json), "--out-md", str(out_md)])
+    assert rc == 0
+    with open(out_json) as fin:
+        assert json.load(fin)["verdict"]["verdict"] == "SUPPORTED"
+    assert "SUPPORTED" in out_md.read_text()
+
+
+def test_cli_accepts_the_two_anchor_cell_directories(tmp_path):
+    dirs = fixture_anchor_dirs(tmp_path)
+    out_json = tmp_path / "curve.json"
+    rc = assemble.main(["--nas-root", fixture_nas(tmp_path), "--anchors", ANCHORS_JSON,
+                        "--split-manifest", os.path.join(FIXTURES, "split_manifest.json"),
+                        "--anchor-cells-p1", dirs["van"], "--anchor-cells-cyl", dirs["cyl"],
+                        "--out-json", str(out_json)])
+    assert rc == 0
+    with open(out_json) as fin:
+        assert json.load(fin)["anchor_form"] == "paired"
+
+
+def test_cli_strict_exits_non_zero_on_a_missing_seed(tmp_path):
+    nas = fixture_nas(tmp_path, drop=[("van", "075", 1, 42)])
+    argv = ["--nas-root", nas, "--anchors", ANCHORS_JSON, "--split-manifest",
+            os.path.join(FIXTURES, "split_manifest.json"), "--out-json",
+            str(tmp_path / "curve.json")]
+    assert assemble.main(argv) == 0                       # marked, but rendered
+    assert assemble.main(argv + ["--strict"]) != 0        # and fatal when it must be
