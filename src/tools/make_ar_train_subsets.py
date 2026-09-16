@@ -34,6 +34,14 @@ from collections import defaultdict
 
 TARGET_DRAWS_AT_40K_X64 = 40_000 * 64  # optimizer steps x effective batch, the exp_14 budget
 COUNT_KEYS = ("raw_prefix", "new_topup", "inherited_topup", "final")
+#: The rule by which this tool decides that one entry can serve as another's acoustic
+#: context. Recorded in the manifest so an emitted split always names the rule it was built
+#: under (round E; the superseded rule was raw-token equality).
+ELIGIBILITY_RULE = "sampler_faithful_S00int_v1"
+#: The two literals the pinned sampler hard-codes when it rebuilds a candidate file name:
+#: ``f"S00{node}_{receiver token}_hybrid_IR.wav"`` (``AR_md.py`` @ ``7bbd8aa``, unchanged).
+SAMPLER_SOURCE_PREFIX = "S00"
+SAMPLER_TAIL = "hybrid_IR.wav"
 # AR RIR basename grammar: S<digits>_R<digits>_<non-empty tail>, e.g. S0012_R0077_hybrid_IR.wav
 _BASENAME_RE = re.compile(r"(S[0-9]+)_(R[0-9]+)_(.+)", re.DOTALL)
 
@@ -56,6 +64,66 @@ def parse_nodes(fname: str) -> tuple[str, str]:
             f"malformed RIR basename (expected S<digits>_R<digits>_<tail>): {fname!r}"
         )
     return match.group(1), match.group(2)
+
+
+def sampler_node(source_token: str) -> int:
+    """The INTEGER the pinned sampler reduces a source token to (``"S010" -> 10``)."""
+    return int(source_token[1:])
+
+
+def _room_index(room_files) -> tuple[set, list]:
+    """``(set of basenames, ascending integer source nodes)`` — built once per room.
+
+    The node universe is exactly the sampler's ``all_src_node``: every source token in the
+    room, reduced to an integer, de-duplicated.
+    """
+    present = set(room_files)
+    return present, sorted({sampler_node(parse_nodes(f)[0]) for f in present})
+
+
+def _candidates_from_index(target_basename: str, present: set, int_nodes: list) -> list[str]:
+    """``sampler_candidates`` against a pre-built room index (the hot path)."""
+    src_tok, rec_tok = parse_nodes(target_basename)
+    me = sampler_node(src_tok)
+    out = []
+    for node in int_nodes:
+        if node == me:
+            continue
+        name = f"{SAMPLER_SOURCE_PREFIX}{node}_{rec_tok}_{SAMPLER_TAIL}"
+        if name in present:
+            out.append(name)
+    return out
+
+
+def sampler_candidates(target_basename: str, room_files) -> list[str]:
+    """The acoustic-context pool the PINNED sampler would offer for ``target_basename``.
+
+    This mirrors ``AR_md.get_ir_and_location_for_other_sources`` (``7bbd8aa``) exactly, and
+    it is the single definition of "eligible context" for this experiment (plan §3
+    "Amendment 1"). The sampler does **not** compare tokens: it parses every source token in
+    the room to an integer (``all_src_node``), drops the target's own node, rebuilds each
+    remaining one as ``f"S00{node}_{receiver token}_hybrid_IR.wav"`` and silently discards a
+    rebuilt name that does not exist. Two consequences follow, and both are load-bearing:
+
+    * in the 111 AR training rooms whose ten sources are spelled ``S001…S010``, node 10 is
+      rebuilt as ``"S0010"``, which does not exist — so ``S010`` is **never reachable as a
+      context** there. It remains a perfectly good *target* (it can use the other nine).
+      This is an upstream quirk that the 100 % anchors trained under; exp_14 reproduces it
+      rather than fixing it, so that every point of the curve shares one sampler;
+    * the tail is hard-coded, so an entry whose basename does not end in ``_hybrid_IR.wav``
+      can never be drawn either.
+
+    ``room_files`` is the room's full basename list — on AR, ``train.json``'s room list.
+    (The sampler's own universe is ``os.listdir`` of the room directory, a superset; the two
+    agree here because any rebuilt name that is in ``room_files`` necessarily contributes its
+    own node to ``room_files``'s node set, and a name outside ``room_files`` is outside the
+    split and therefore outside every subset anyway.)
+
+    Returns the candidates in ascending node order; a malformed basename raises
+    ``ValueError`` via :func:`parse_nodes`.
+    """
+    present, int_nodes = _room_index(room_files)
+    return _candidates_from_index(target_basename, present, int_nodes)
 
 
 def room_permutation(sorted_files: list[str], rng) -> list[str]:

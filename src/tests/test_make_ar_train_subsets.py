@@ -801,3 +801,89 @@ def test_A7_regression_fixture_nesting_and_full_coverage():
         assert s25 <= s50 <= s75 <= set(TOY_SPLIT[scene][room])
     assert set(EXPECTED_S7[0.75]["Alpha"]["Alpha_idx_1"]) == set(TOY_ROOM_A1)
     assert set(TOY_ROOM_B0) - set(EXPECTED_S7[0.75]["Beta"]["Beta_idx_0"]) == {_f("S001", "R021")}
+
+
+# ======================================================================================
+# A8 — sampler_candidates (round E, plan §3 "Amendment 1"): eligibility exactly as the
+# PINNED sampler sees it.
+#
+# ``AR_md.get_ir_and_location_for_other_sources`` does not compare tokens. It parses every
+# source token in the room to an INTEGER, rebuilds a candidate name as
+# ``f"S00{node}_{receiver token}_hybrid_IR.wav"`` and silently drops a name that is not on
+# disk. Two consequences this section pins shut:
+#
+#   * in the 111 AR training rooms whose ten sources are spelled ``S001…S010`` the node 10
+#     comes back as ``"S0010"``, which does not exist — ``S010`` is therefore NEVER reachable
+#     as a context there (an upstream quirk the 100 % anchors trained under);
+#   * the tail is hard-coded, so an entry whose basename does not end in ``_hybrid_IR.wav``
+#     can never be drawn either.
+#
+# Token equality ("same receiver, different source token") believed both were reachable, and
+# that is the bug round E removes.
+# ======================================================================================
+TEN_SOURCE_ROOM = [
+    _f(f"S{s:03d}", r) for r in ("R014", "R015") for s in range(1, 11)
+]  # S001…S010 at two receivers — the shape of the 111 ten-source AR training rooms
+
+
+def test_A8_sampler_candidates_drop_the_unreachable_tenth_source():
+    """``S010_R014`` is a *token*-neighbour of ``S007_R014`` but not a sampler candidate:
+    node 10 is rebuilt as ``S0010_R014_hybrid_IR.wav``, which does not exist."""
+    cands = mas.sampler_candidates(_f("S007", "R014"), TEN_SOURCE_ROOM)
+    assert cands == [_f(f"S{s:03d}", "R014") for s in (1, 2, 3, 4, 5, 6, 8, 9)]
+    assert _f("S010", "R014") not in cands
+    # the token-based rule this replaces would have counted nine neighbours, not eight
+    token_based = [f for f in TEN_SOURCE_ROOM
+                   if mas.parse_nodes(f)[1] == "R014" and mas.parse_nodes(f)[0] != "S007"]
+    assert len(token_based) == 9 and len(cands) == 8
+
+
+def test_A8_the_unreachable_source_can_still_USE_every_other_source_as_context():
+    """S010 is unreachable as a *context*, not as a *target*: it keeps all nine others."""
+    cands = mas.sampler_candidates(_f("S010", "R014"), TEN_SOURCE_ROOM)
+    assert cands == [_f(f"S{s:03d}", "R014") for s in range(1, 10)]
+
+
+def test_A8_sampler_candidates_are_receiver_local_and_node_ascending():
+    for target in (_f("S003", "R015"), _f("S010", "R015")):
+        cands = mas.sampler_candidates(target, TEN_SOURCE_ROOM)
+        assert all(mas.parse_nodes(c)[1] == "R015" for c in cands)
+        assert cands == sorted(cands, key=lambda c: int(mas.parse_nodes(c)[0][1:]))
+    assert mas.sampler_candidates(_f("S001", "R014"), TEN_SOURCE_ROOM) != \
+        mas.sampler_candidates(_f("S001", "R015"), TEN_SOURCE_ROOM)
+
+
+def test_A8_sampler_candidates_require_the_hard_coded_hybrid_IR_tail():
+    """The sampler rebuilds ``…_hybrid_IR.wav`` and nothing else, so entries carrying any
+    other tail have an empty pool however many token-neighbours they have."""
+    room = ["S001_R001_a.wav", "S001_R001_b.wav", "S002_R001_c.wav"]
+    assert mas.sampler_candidates("S001_R001_a.wav", room) == []
+    assert mas.sampler_candidates("S002_R001_c.wav", room) == []
+    mixed = room + [_f("S003", "R001")]
+    assert mas.sampler_candidates("S001_R001_a.wav", mixed) == [_f("S003", "R001")]
+
+
+def test_A8_sampler_candidates_collapse_source_tokens_that_share_an_integer_node():
+    """``S012`` and ``S0012`` are ONE node to the sampler; the rebuilt spelling (``S0012``)
+    is the only one it can reach, and a target of that node has no candidate of its own."""
+    room = ["S012_R001_hybrid_IR.wav", "S0012_R001_hybrid_IR.wav", _f("S003", "R001")]
+    assert mas.sampler_candidates(_f("S003", "R001"), room) == ["S0012_R001_hybrid_IR.wav"]
+    assert mas.sampler_candidates("S012_R001_hybrid_IR.wav", room) == [_f("S003", "R001")]
+    assert mas.sampler_candidates("S0012_R001_hybrid_IR.wav", room) == [_f("S003", "R001")]
+
+
+def test_A8_sampler_candidates_do_not_require_the_target_to_be_in_the_room_list():
+    """The histogram asks about retained targets against the retained room; the top-up asks
+    about the same target against the FULL room. Neither may depend on the target's own
+    membership, and the target is never its own candidate."""
+    subset = [_f("S007", "R014"), _f("S010", "R014")]
+    assert mas.sampler_candidates(_f("S007", "R014"), subset) == []
+    assert mas.sampler_candidates(_f("S010", "R014"), subset) == [_f("S007", "R014")]
+    assert mas.sampler_candidates(_f("S002", "R014"), subset) == [_f("S007", "R014")]
+
+
+def test_A8_sampler_candidates_reject_a_malformed_basename():
+    with pytest.raises(ValueError):
+        mas.sampler_candidates("not_a_rir.wav", TEN_SOURCE_ROOM)
+    with pytest.raises(ValueError):
+        mas.sampler_candidates(_f("S001", "R014"), TEN_SOURCE_ROOM + ["junk.wav"])
