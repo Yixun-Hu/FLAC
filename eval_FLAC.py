@@ -83,18 +83,46 @@ def resolve_cond_autocast(mode):
     return modes[mode]
 
 
+# What a stored prediction bundle IS, recorded in its own meta: the tensor the
+# metric callback was handed. The callback's internal float32 cast and its
+# max_len crop (8000 samples on AR; metric_callback.py:114) happen during
+# scoring and are deliberately NOT applied to the artifact.
+PREDICTIONS_ARTIFACT_CONTRACT = (
+    "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+)
+
+
 def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
-                           frame_avg_angles, rotate_deg, batch_size, cond_autocast):
-    """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator guard)."""
+                           frame_avg_angles, rotate_deg, batch_size, cond_autocast,
+                           ckpt_path=None, eval_name=None, steps=None, cfg_scale=None):
+    """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator guard).
+
+    The legacy keys are unchanged (the comparator guards ``dataset_config`` /
+    ``seed`` / ``batch_size`` / ``cond_method`` / ``frame_avg_angles`` /
+    ``cond_autocast``). Announcement 08 adds run provenance -- ``ckpt_path``,
+    ``eval_name``, ``steps``, ``cfg_scale``, ``n_items`` -- so a bundle alone
+    identifies the cell that produced it, plus the two constants
+    ``stored_after_clamp_pad`` / ``artifact_contract`` that state what the
+    tensor is. Those two are NOT parameters: they are facts about the code path
+    that wrote the file, and a caller must not be able to mislabel an artifact.
+    ``n_items`` mirrors ``n_samples`` (kept for the exp_02 comparator).
+    """
     return {
         "dataset_config": dataset_config_path,
         "seed": seed,
         "n_samples": n_samples,
+        "n_items": n_samples,
         "cond_method": cond_method,
         "frame_avg_angles": frame_avg_angles,
         "rotate_deg": rotate_deg,
         "batch_size": batch_size,
         "cond_autocast": cond_autocast,
+        "ckpt_path": ckpt_path,
+        "eval_name": eval_name,
+        "steps": steps,
+        "cfg_scale": cfg_scale,
+        "stored_after_clamp_pad": True,
+        "artifact_contract": PREDICTIONS_ARTIFACT_CONTRACT,
     }
 
 
@@ -376,6 +404,7 @@ def evaluate_model(
             "meta": build_predictions_meta(
                 dataset_config_path, seed, int(decoded_samples_all.shape[0]),
                 cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
+                ckpt_path=ckpt_path, eval_name=eval_name, steps=steps, cfg_scale=cfg_scale,
             ),
         }
         torch.save(preds_bundle, path2save_preds)

@@ -307,3 +307,96 @@ def test_stored_predictions_differ_from_the_raw_decoder_output(tmp_path, monkeyp
     assert stored.min() >= -1.0 and stored.max() <= 1.0    # clamped
     assert torch.equal(stored[..., :DECODED_LEN], raw.clamp(-1.0, 1.0))
     assert torch.equal(stored[..., DECODED_LEN:], torch.zeros(n_items, 1, REAL_LEN - DECODED_LEN))
+
+
+# --------------------------------------------------------------------------- #
+# C3: bundle meta carries the run's provenance (plan §2 completion contract)
+# --------------------------------------------------------------------------- #
+CONTRACT = ("clamped/padded callback input (float32 cast and 8000-sample crop "
+            "are scoring-internal)")
+
+
+def _meta_kwargs(**over):
+    kwargs = dict(
+        seed=42, n_samples=7, cond_method="fa_invariant",
+        frame_avg_angles=[0.0], rotate_deg=0.0, batch_size=32,
+        cond_autocast="bf16", ckpt_path="ckpts/step=40000.ckpt",
+        eval_name="dc_cyl_f025_K8_s42", steps=1, cfg_scale=1.0,
+    )
+    kwargs.update(over)
+    return kwargs
+
+
+def test_predictions_meta_carries_the_new_provenance_fields():
+    meta = eval_FLAC.build_predictions_meta("ds.json", **_meta_kwargs())
+    assert meta["ckpt_path"] == "ckpts/step=40000.ckpt"
+    assert meta["eval_name"] == "dc_cyl_f025_K8_s42"
+    assert meta["steps"] == 1
+    assert meta["cfg_scale"] == 1.0
+    assert meta["stored_after_clamp_pad"] is True
+    assert meta["artifact_contract"] == CONTRACT
+
+
+def test_predictions_meta_n_items_mirrors_n_samples():
+    """``n_items`` is the announcement-08 name; ``n_samples`` stays for the
+    exp_02 comparator. They must never disagree."""
+    for n in (0, 1, 6337):
+        meta = eval_FLAC.build_predictions_meta("ds.json", **_meta_kwargs(n_samples=n))
+        assert meta["n_items"] == meta["n_samples"] == n
+
+
+def test_predictions_meta_keeps_every_legacy_key():
+    """The exp_02 comparator's guarded keys (and rotate_deg) survive unchanged."""
+    meta = eval_FLAC.build_predictions_meta("ds.json", **_meta_kwargs())
+    assert meta["dataset_config"] == "ds.json"
+    assert meta["seed"] == 42
+    assert meta["n_samples"] == 7
+    assert meta["cond_method"] == "fa_invariant"
+    assert meta["frame_avg_angles"] == [0.0]
+    assert meta["rotate_deg"] == 0.0
+    assert meta["batch_size"] == 32
+    assert meta["cond_autocast"] == "bf16"
+
+
+def test_predictions_meta_new_fields_are_optional():
+    """Legacy call sites (positional, no provenance) still work: the new
+    provenance fields default to None, the two constants are always present."""
+    meta = eval_FLAC.build_predictions_meta(
+        "ds.json", 42, 7, "vanilla", None, 0.0, 32, "default",
+    )
+    assert meta["ckpt_path"] is None and meta["eval_name"] is None
+    assert meta["steps"] is None and meta["cfg_scale"] is None
+    assert meta["stored_after_clamp_pad"] is True
+    assert meta["artifact_contract"] == CONTRACT
+
+
+def test_saved_bundle_meta_matches_the_run(tmp_path, monkeypatch):
+    """End-to-end: the meta in the file on disk describes the run that wrote it."""
+    _, _, paths, n_items = _run_loop(tmp_path, monkeypatch, eval_name="c3meta")
+    meta = _load_bundle(paths["predictions"])["meta"]
+
+    assert meta["ckpt_path"] == str(tmp_path / "toy.ckpt")
+    assert meta["eval_name"] == "c3meta"
+    assert meta["steps"] == 1
+    assert meta["cfg_scale"] == 1.0
+    assert meta["n_items"] == meta["n_samples"] == n_items
+    assert meta["stored_after_clamp_pad"] is True
+    assert meta["artifact_contract"] == CONTRACT
+    # protocol fields the completion contract checks per cell
+    assert meta["dataset_config"] == str(tmp_path / "dataset.json")
+    assert meta["seed"] == 42
+    assert meta["cond_method"] == "vanilla"
+    assert meta["frame_avg_angles"] is None
+    assert meta["rotate_deg"] == 0.0
+    assert meta["batch_size"] == 2
+    assert meta["cond_autocast"] == "off"
+
+
+def test_saved_bundle_n_items_counts_the_stored_rows(tmp_path, monkeypatch):
+    """n_items is the real row count of the stored tensor, not a config echo."""
+    _, _, paths, n_items = _run_loop(
+        tmp_path, monkeypatch, eval_name="c3count", batch_sizes=(3, 1, 2)
+    )
+    bundle = _load_bundle(paths["predictions"])
+    assert n_items == 6
+    assert bundle["meta"]["n_items"] == bundle["predictions"].shape[0] == 6
