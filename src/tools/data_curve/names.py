@@ -76,6 +76,14 @@ COND_AUTOCAST = "bf16"
 N_ITEMS_UNSEEN = 6337
 SAMPLE_LEN = 10240
 
+#: What ``eval_FLAC`` stamps into every stored bundle as ``meta.artifact_contract``.
+#: Mirrored here -- like ``_output_paths`` mirrors ``build_output_paths`` -- so this module
+#: stays importable without torch; a test pins it against the evaluator's own constant. A
+#: bundle written by an evaluator with a different contract is a different artifact.
+PREDICTIONS_ARTIFACT_CONTRACT = (
+    "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+)
+
 
 def assert_no_forbidden_substring(s):
     """Return ``s`` unless it carries ``exp14_`` (finding r3-3), else ``ValueError``."""
@@ -297,6 +305,15 @@ def eval_dataset_config_path(K, config_root=None):
     return os.path.join(root, EVAL_DATASET_CONFIGS[_check_k(K)])
 
 
+def file_sha256(path):
+    """sha256 of a file, read in 1 MiB chunks (checkpoints are ~700 MB). Raises ``OSError``."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as fin:
+        for chunk in iter(lambda: fin.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def eval_dataset_config_sha256(K, config_root=None):
     """sha256 of that config file -- the cell's full-split provenance (codex M4).
 
@@ -304,15 +321,35 @@ def eval_dataset_config_sha256(K, config_root=None):
     round embeds a sha there, the launcher records this one, computed at check time from
     the worktree the evaluation ran in. Raises ``OSError`` if the file is not readable.
     """
-    digest = hashlib.sha256()
-    with open(eval_dataset_config_path(K, config_root), "rb") as fin:
-        for chunk in iter(lambda: fin.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return file_sha256(eval_dataset_config_path(K, config_root))
+
+
+def _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256):
+    """The artifact-to-checkpoint binding of one bundle (codex round-F finding 2).
+
+    ``meta.ckpt_path`` is the only checkpoint identity a bundle carries (``eval_FLAC``
+    stores no digest), so the path is compared normalised, and -- when the launcher passes
+    the digest it computed when it validated that checkpoint -- the file is re-hashed.
+    """
+    want = os.path.normpath(str(expect_ckpt))
+    got = os.path.normpath(str(meta.get("ckpt_path")))
+    if got != want:
+        return [f"meta.ckpt_path is {got!r}, expected the validated final checkpoint {want!r}"]
+    if expect_ckpt_sha256 is None:
+        return []
+    try:
+        digest = file_sha256(want)
+    except OSError as err:
+        return [f"meta.ckpt_path {want!r} cannot be hashed, so this bundle cannot be bound "
+                f"to the validated checkpoint ({err})"]
+    if digest != expect_ckpt_sha256:
+        return [f"the checkpoint {want!r} now hashes to {digest}, not the {expect_ckpt_sha256} "
+                "the launcher validated: it was replaced after validation"]
+    return []
 
 
 def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None,
-                 config_root=None):
+                 config_root=None, expect_ckpt=None, expect_ckpt_sha256=None):
     """Return the list of violations (empty == the bundle is this cell's, exactly as scored).
 
     Loads on CPU with ``weights_only=False`` (the bundle is a dict of a tensor and a meta
@@ -320,6 +357,14 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     violation, not an exception: a half-written bundle simply means the cell is not done.
     ``ValueError`` is raised only for an unplanned arm/K/seed -- that is a bug in the
     caller, not a verdict about the artifact.
+
+    ``expect_ckpt`` binds the artifact to the *validated* final checkpoint (codex round-F
+    finding 2): without it a bundle left over from another checkpoint -- an earlier run of
+    the same cell, a resumed run, another arm -- parses, carries the right protocol, and is
+    counted as this cell's result. ``expect_ckpt_sha256`` additionally re-hashes that
+    checkpoint file, so a checkpoint replaced *after* the launcher validated it is caught
+    too. Both are optional here for library callers; the CLI requires them, because the
+    launcher is the only production caller and it must never count an unbound artifact.
     """
     import torch  # deferred: the name/argv helpers must stay importable without torch
 
@@ -375,10 +420,17 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     if not isinstance(rotate, (int, float)) or float(rotate) != ROTATE_DEG:
         violations.append(f"meta.rotate_deg is {rotate!r}, expected {ROTATE_DEG}")
     expect("cond_autocast", meta.get("cond_autocast"), COND_AUTOCAST)
-    # Round C: only a bundle stored *after* the clamp/pad is the tensor that was scored.
+    # Round C: only a bundle stored *after* the clamp/pad is the tensor that was scored,
+    # and only an evaluator with this artifact contract writes that tensor.
     expect("stored_after_clamp_pad", meta.get("stored_after_clamp_pad"), True)
+    expect("artifact_contract", meta.get("artifact_contract"), PREDICTIONS_ARTIFACT_CONTRACT)
+    # The frozen sampling protocol of every cell (plan §2): one Euler step, no CFG.
+    expect("steps", meta.get("steps"), EVAL_STEPS)
+    expect("cfg_scale", meta.get("cfg_scale"), EVAL_CFG_SCALE)
     if expect_eval_name is not None:
         expect("eval_name", meta.get("eval_name"), expect_eval_name)
+    if expect_ckpt is not None:
+        violations += _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256)
 
     predictions = bundle["predictions"]
     if not torch.is_tensor(predictions):
@@ -412,6 +464,13 @@ def _build_arg_parser():
     check.add_argument("--config-root", default=None,
                        help="worktree the expected eval config is read from (default: this "
                             "module's own repository root)")
+    # Required, not optional: an artifact that is not bound to the validated final
+    # checkpoint must never be counted (codex round-F finding 2).
+    check.add_argument("--expect-ckpt", required=True,
+                       help="the validated final checkpoint this cell was scored from")
+    check.add_argument("--expect-ckpt-sha256", required=True,
+                       help="that checkpoint's sha256, as the launcher computed it when it "
+                            "validated the checkpoint")
     return parser
 
 
@@ -419,7 +478,8 @@ def main(argv=None):
     args = _build_arg_parser().parse_args(argv)
     try:
         violations = check_bundle(args.pt, args.expect_n, args.expect_seed, args.expect_K,
-                                  args.expect_arm, args.expect_eval_name, args.config_root)
+                                  args.expect_arm, args.expect_eval_name, args.config_root,
+                                  args.expect_ckpt, args.expect_ckpt_sha256)
     except ValueError as err:
         print(f"check-bundle called with bad arguments: {err}")
         return EXIT_INPUT_ERROR
@@ -434,7 +494,8 @@ def main(argv=None):
           f"arm={args.expect_arm} ({ARM_COND_METHOD[args.expect_arm]}, autocast "
           f"{COND_AUTOCAST}, rotate {int(ROTATE_DEG)}) "
           f"dataset_config={EVAL_DATASET_CONFIGS[args.expect_K]} "
-          f"dataset_config_sha256={eval_dataset_config_sha256(args.expect_K, args.config_root)}")
+          f"dataset_config_sha256={eval_dataset_config_sha256(args.expect_K, args.config_root)} "
+          f"ckpt={args.expect_ckpt} ckpt_sha256={args.expect_ckpt_sha256}")
     return EXIT_OK
 
 

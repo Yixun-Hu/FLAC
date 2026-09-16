@@ -306,10 +306,77 @@ def _write_bundle(tmp_path, *, n=4, arm="cyl", k=8, seed=42, tag="025",
     return str(path)
 
 
+def _real_ckpt(tmp_path, arm="cyl", tag="025", content=b"checkpoint bytes"):
+    """A stand-in for the validated final checkpoint, and its digest."""
+    import hashlib as _hashlib
+
+    run_dir = tmp_path / "nas" / names.run_id(arm, tag)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / "epoch=8-step=40000.ckpt"
+    path.write_bytes(content)
+    return str(path), _hashlib.sha256(content).hexdigest()
+
+
 def test_check_bundle_accepts_a_matching_bundle(tmp_path):
     path = _write_bundle(tmp_path)
     assert names.check_bundle(path, 4, 42, 8, "cyl",
                               expect_eval_name="dc_cyl_f025_K8_s42") == []
+
+
+# ------------------------------------- the artifact ⇄ checkpoint binding (codex round F)
+def test_the_artifact_contract_constant_mirrors_the_evaluator(tmp_path):
+    """``names`` must stay importable without torch, so the contract string is mirrored --
+    and a mirror that drifts would silently stop rejecting foreign artifacts."""
+    import eval_FLAC
+
+    assert names.PREDICTIONS_ARTIFACT_CONTRACT == eval_FLAC.PREDICTIONS_ARTIFACT_CONTRACT
+
+
+def test_check_bundle_binds_the_artifact_to_the_validated_checkpoint(tmp_path):
+    ckpt, digest = _real_ckpt(tmp_path)
+    path = _write_bundle(tmp_path, ckpt_path=ckpt)
+    assert names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                              expect_ckpt_sha256=digest) == []
+    # an unnormalised spelling of the same file is the same file
+    odd = os.path.join(os.path.dirname(ckpt), ".", "", os.path.basename(ckpt))
+    assert names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=odd) == []
+
+
+def test_check_bundle_rejects_a_bundle_from_a_foreign_checkpoint(tmp_path):
+    """Codex round-F finding 2: a stale bundle from another checkpoint parses, carries the
+    right protocol, and used to be counted (and skipped) as this cell's result."""
+    ckpt, digest = _real_ckpt(tmp_path)
+    foreign, _ = _real_ckpt(tmp_path, arm="van", content=b"another run")
+    path = _write_bundle(tmp_path, ckpt_path=foreign)
+    violations = names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                                    expect_ckpt_sha256=digest)
+    assert any("ckpt_path" in v for v in violations), violations
+    assert any(ckpt in v for v in violations), violations
+
+
+def test_check_bundle_rejects_a_checkpoint_replaced_after_validation(tmp_path):
+    ckpt, digest = _real_ckpt(tmp_path)
+    path = _write_bundle(tmp_path, ckpt_path=ckpt)
+    open(ckpt, "wb").write(b"a rerun overwrote it")
+    violations = names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                                    expect_ckpt_sha256=digest)
+    assert any("replaced after validation" in v for v in violations), violations
+
+    os.remove(ckpt)
+    gone = names.check_bundle(path, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                              expect_ckpt_sha256=digest)
+    assert any("cannot be hashed" in v for v in gone), gone
+
+
+@pytest.mark.parametrize("override,needle", [
+    ({"steps": 4}, "steps"),
+    ({"cfg_scale": 3.0}, "cfg_scale"),
+    ({"artifact_contract": "raw decoder output"}, "artifact_contract"),
+])
+def test_check_bundle_rejects_a_foreign_sampling_protocol(tmp_path, override, needle):
+    path = _write_bundle(tmp_path, **override)
+    violations = names.check_bundle(path, 4, 42, 8, "cyl")
+    assert any(needle in v for v in violations), violations
 
 
 def test_check_bundle_accepts_the_van_protocol(tmp_path):
@@ -398,22 +465,45 @@ def _cli(*args):
 
 
 def test_check_bundle_cli_exit_codes(tmp_path):
-    good = _write_bundle(tmp_path)
+    ckpt, digest = _real_ckpt(tmp_path)
+    good = _write_bundle(tmp_path, ckpt_path=ckpt)
+    bind = ["--expect-ckpt", ckpt, "--expect-ckpt-sha256", digest]
     ok = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
               "--expect-K", "8", "--expect-arm", "cyl",
-              "--expect-eval-name", "dc_cyl_f025_K8_s42")
+              "--expect-eval-name", "dc_cyl_f025_K8_s42", *bind)
     assert ok.returncode == 0, ok.stderr
     assert "PASS" in ok.stdout
-    # the launcher records this token as the cell's dataset-config provenance (codex M4)
+    # the launcher records these tokens as the cell's provenance (codex M4, round-F 2)
     sha = hashlib.sha256(open(os.path.join(REPO_ROOT, names.EVAL_DATASET_CONFIGS[8]),
                               "rb").read()).hexdigest()
     assert f"dataset_config_sha256={sha}" in ok.stdout
+    assert f"ckpt_sha256={digest}" in ok.stdout
 
     bad = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
-               "--expect-K", "8", "--expect-arm", "van")
+               "--expect-K", "8", "--expect-arm", "van", *bind)
     assert bad.returncode == 3, bad.stderr        # the artifact disagrees
     assert "FAIL" in bad.stdout or "FAIL" in bad.stderr
 
     argerr = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "7",
-                  "--expect-K", "8", "--expect-arm", "cyl")
+                  "--expect-K", "8", "--expect-arm", "cyl", *bind)
     assert argerr.returncode == 2, argerr.stderr  # unplanned seed: a launcher bug
+
+
+def test_check_bundle_cli_refuses_an_unbound_artifact(tmp_path):
+    """A launcher that forgets the binding must not get a verdict at all (round-F 2)."""
+    good = _write_bundle(tmp_path)
+    unbound = _cli("check-bundle", "--pt", good, "--expect-n", "4", "--expect-seed", "42",
+                   "--expect-K", "8", "--expect-arm", "cyl")
+    assert unbound.returncode == 2, unbound.stdout
+    assert "--expect-ckpt" in unbound.stderr
+
+
+def test_check_bundle_cli_refuses_a_foreign_checkpoint(tmp_path):
+    ckpt, digest = _real_ckpt(tmp_path)
+    foreign, _ = _real_ckpt(tmp_path, arm="van", content=b"another run")
+    stale = _write_bundle(tmp_path, ckpt_path=foreign)
+    proc = _cli("check-bundle", "--pt", stale, "--expect-n", "4", "--expect-seed", "42",
+                "--expect-K", "8", "--expect-arm", "cyl", "--expect-ckpt", ckpt,
+                "--expect-ckpt-sha256", digest)
+    assert proc.returncode == 3, proc.stdout
+    assert "ckpt_path" in proc.stdout
