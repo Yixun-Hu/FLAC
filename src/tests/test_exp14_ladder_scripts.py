@@ -66,8 +66,11 @@ if [ "${1:-}" = "train.py" ]; then
     *cyl*) BB="Loading cylindrical_dinov3 ViT from facebook/dinov3-vits16-pretrain-lvd1689m (gauge=cylindrical_xyz, azimuth_mode=full, prefix_mode=strip, attn=eager)..." ;;
     *) BB="Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m..." ;;
   esac
+  # The batch total the real ladder logs carry: 18368 at micro-batch 2 (rung 5),
+  # 1148 at 32 (rungs 6 and 7). Both are per-arm evidence the rungs now check.
+  case "$(arg --batch-size "$@")" in 2) TOT=18368 ;; *) TOT=1148 ;; esac
   DEF="$BB
-Epoch 0:   0%|          | ${MS}/1148 [00:04<8:13:30,  0.62it/s, v_num=0, train/loss=2.040, train/std_data=1.070]\`Trainer.fit\` stopped: \`max_steps=${MS}\` reached."
+Epoch 0:   0%|          | ${MS}/${TOT} [00:04<8:13:30,  0.62it/s, v_num=0, train/loss=2.040, train/std_data=1.070]\`Trainer.fit\` stopped: \`max_steps=${MS}\` reached."
   O="STUB_OUT_$NAME"; echo "${!O:-${STUB_TRAIN_STDOUT:-$DEF}}"
   C="STUB_CKPT_$NAME"
   if [ "${!C:-${STUB_TRAIN_CKPT:-0}}" = 1 ]; then
@@ -286,6 +289,7 @@ def test_the_recorded_rung5_logs_pass_the_new_checks(arm):
     log = RUNG5_LOGS[arm]
     assert _check("fit-banner", log, "3").returncode == 0
     assert _check("backbone", log, arm).returncode == 0
+    assert _check("batches", log, "3/18368").returncode == 0
     assert _check("finite-loss", log).returncode == 0
 
 
@@ -342,7 +346,7 @@ def test_the_checks_reject_what_they_are_for(tmp_path):
       "Epoch 0: | 3/1148 [00:04, train/loss=2.0]`Trainer.fit` stopped: `max_steps=3` "
       "reached."}, "backbone"),                                      # no backbone banner
     ({"STUB_OUT_smoke5_dc_cyl":
-      "Loading cylindrical_dinov3 ViT from x\ntrain/loss=nan, "
+      "Loading cylindrical_dinov3 ViT from x\nEpoch 0: | 3/18368 [, train/loss=nan, "
       "x]`Trainer.fit` stopped: `max_steps=3` reached."}, "loss"),   # diverged
 ])
 def test_rung5_requires_the_banner_the_backbone_and_a_finite_loss(ladder, override, needle):
@@ -406,4 +410,88 @@ def test_rung7_refuses_a_caller_supplied_fixed_run_dir(ladder):
     assert proc.returncode != 0, proc.stdout
     assert not ladder.markers_named(".done")
     assert any("RUN" in (ladder.rec / f).read_text()
+               for f in ladder.markers_named(".failed"))
+
+
+# =============================================== round H: the r2 hardening, actually wired
+# Codex full-r3 finding 2: round G put the batch-count and no-checkpoint checks in
+# ladder_checks.sh, but only rung 6 ever called them -- rung 5 checked neither its
+# ``3/18368`` nor that it had written no checkpoints, and rung 7 never called the
+# ``5/1148`` check its own recorded log satisfies. And ``finite-loss`` was a character
+# whitelist, so ``1e999`` (an overflow to +inf), ``+`` and ``.`` all counted as finite.
+@pytest.mark.parametrize("value", [
+    "nan", "NaN", "-nan", "inf", "-inf", "Infinity",   # the divergences it is for
+    "1e999",                                           # overflows to +inf: the r3 case
+    "+", "-", ".", "e5", "1.2.3", "1e", "--3",         # malformed, not numbers at all
+])
+def test_the_finite_loss_check_rejects_every_non_finite_or_malformed_value(tmp_path, value):
+    log = tmp_path / "loss.log"
+    log.write_text(f"Epoch 0: | 3/18368 [00:04, train/loss={value}, train/std_data=1.0]\n")
+    assert _check("finite-loss", str(log)).returncode != 0, value
+
+
+def test_the_finite_loss_check_rejects_an_empty_value(tmp_path):
+    log = tmp_path / "empty.log"
+    log.write_text("Epoch 0: | 3/18368 [00:04, train/loss=, train/std_data=1.0]\n")
+    assert _check("finite-loss", str(log)).returncode != 0
+
+
+@pytest.mark.parametrize("value", [
+    "2.040", "2.100", "0", "0.0", "-0.5", "1e-3", "1E+3", "3.", ".5",
+    "1.7976931348623157e308",                          # the largest finite double
+])
+def test_the_finite_loss_check_accepts_real_numbers(tmp_path, value):
+    log = tmp_path / "ok.log"
+    log.write_text(f"Epoch 0: | 3/18368 [00:04, train/loss={value}, train/std_data=1.0]\n")
+    assert _check("finite-loss", str(log)).returncode == 0, value
+
+
+# ------------------------------------------------------------ rung 5: batches + no ckpts
+@pytest.mark.parametrize("override,needle", [
+    ({"STUB_OUT_smoke5_dc_van":
+      "Loading ViT model from x\nEpoch 0: | 2/18368 [, train/loss=2.1]"
+      "`Trainer.fit` stopped: `max_steps=3` reached."}, "3/18368"),   # never reached step 3
+    ({"STUB_CKPT_smoke5_dc_cyl": 1}, "checkpoint"),                   # must write none
+])
+def test_rung5_writes_failed_when_it_misses_its_batch_count_or_writes_a_checkpoint(
+        ladder, override, needle):
+    proc = ladder.run("rung5_smoke.sh", **override)
+    assert proc.returncode != 0, proc.stdout
+    assert not ladder.markers_named(".done")
+    failed = ladder.markers_named(".failed")
+    assert len(failed) == 1 and needle in (ladder.rec / failed[0]).read_text()
+
+
+def test_rung5_saves_into_directories_no_earlier_invocation_could_have_written(ladder):
+    """Same hazard rung 7 was given an invocation-unique dir for: a checkpoint left in a
+    FIXED save dir makes the zero-checkpoint check a statement about someone else's run."""
+    assert ladder.run("rung5_smoke.sh").returncode == 0
+    made = sorted(p.name for p in ladder.nas.iterdir())
+    assert len(made) == 2 and made != ["smoke5_cyl", "smoke5_van"], made
+
+    assert ladder.run("rung5_smoke.sh").returncode == 0
+    again = sorted(p.name for p in ladder.nas.iterdir())
+    assert len(again) == 4 and len(set(again)) == 4, again
+
+
+def test_rung5_is_not_failed_by_a_checkpoint_an_earlier_invocation_left_behind(ladder):
+    stale = ladder.nas / "smoke5_cyl"
+    stale.mkdir()
+    (stale / "epoch=0-step=3.ckpt").write_text("an earlier invocation's checkpoint")
+
+    assert ladder.run("rung5_smoke.sh").returncode == 0
+    assert ladder.markers_named(".done") and not ladder.markers_named(".failed")
+    assert (stale / "epoch=0-step=3.ckpt").exists()      # and nothing of yours was touched
+
+
+# ------------------------------------------------------------------- rung 7: the batches
+def test_rung7_writes_failed_when_the_fit_never_reached_its_batch_count(ladder):
+    proc = ladder.run(
+        "rung7_nas_ckpt.sh", STUB_TRAIN_CKPT=1,
+        STUB_OUT_smoke7_cyl="Loading cylindrical_dinov3 ViT from x\n"
+                            "Epoch 0: | 4/1148 [, train/loss=2.4]"
+                            "`Trainer.fit` stopped: `max_steps=5` reached.")
+    assert proc.returncode != 0, proc.stdout
+    assert not ladder.markers_named(".done")
+    assert any("5/1148" in (ladder.rec / f).read_text()
                for f in ladder.markers_named(".failed"))
