@@ -1,0 +1,12 @@
+{
+  "_provenance": "FIXTURE, not measurement. Schema-identical to exp_13's tier_S_reference.json (the real 100 % anchors) with invented, deliberately round numbers so a test that reads the wrong arm's block, the wrong K or the wrong metric fails loudly instead of landing near a plausible value.",
+  "encoder_params": {"S": 21596544, "B": 85660416},
+  "P1_vanilla_S": {
+    "K1": {"T60": [11.0, 0.1], "C50": [1.0, 0.01], "EDT": [44.0, 0.4], "R@1": [5.0, 0.1], "R@5": [15.0, 0.1], "R@10": [22.0, 0.2]},
+    "K8": {"T60": [10.0, 0.1], "C50": [1.0, 0.01], "EDT": [40.0, 0.4], "R@1": [5.0, 0.1], "R@5": [15.0, 0.1], "R@10": [23.0, 0.2]}
+  },
+  "CylDINO_core_S": {
+    "K1": {"T60": [10.5, 0.2], "C50": [1.1, 0.02], "EDT": [43.0, 0.3], "R@1": [5.5, 0.2], "R@5": [16.0, 0.2], "R@10": [23.0, 0.3]},
+    "K8": {"T60": [9.5, 0.2], "C50": [1.1, 0.02], "EDT": [39.0, 0.3], "R@1": [5.4, 0.2], "R@5": [16.0, 0.2], "R@10": [24.0, 0.3]}
+  }
+}

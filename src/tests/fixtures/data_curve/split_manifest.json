@@ -1,0 +1,20 @@
+{
+  "_provenance": "FIXTURE, not measurement. The fields src.tools.data_curve.assemble reads out of data/AR/train_frac_manifest_s2026.json (schema of Round A), with small invented counts: 1,000 training targets in the full split so the effective-epoch arithmetic is checkable by hand (40000 x 64 / 1000 = 2560).",
+  "seed": 2026,
+  "python_version": "3.10.20",
+  "dead_targets_full": 0,
+  "full_split_context_histogram": {"0": 0, "1-7": 100, ">=8": 900},
+  "source_train_json_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "fractions": {
+    "0.25": {"raw_prefix": 250, "new_topup": 0, "inherited_topup": 0, "final": 250,
+             "effective_epochs_at_40k_x64": 10240.0,
+             "context_histogram": {"0": 0, "1-7": 50, ">=8": 200}},
+    "0.5": {"raw_prefix": 500, "new_topup": 0, "inherited_topup": 0, "final": 500,
+            "effective_epochs_at_40k_x64": 5120.0,
+            "context_histogram": {"0": 0, "1-7": 60, ">=8": 440}},
+    "0.75": {"raw_prefix": 750, "new_topup": 0, "inherited_topup": 0, "final": 750,
+             "effective_epochs_at_40k_x64": 3413.3333333333335,
+             "context_histogram": {"0": 0, "1-7": 70, ">=8": 680}}
+  },
+  "files": {}
+}

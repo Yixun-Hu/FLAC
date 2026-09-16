@@ -19,9 +19,12 @@ applies is pre-registered in the plan and pinned here rather than argued about a
 CPU-only and filesystem-free except the loader cases, which write small JSONs in
 ``tmp_path``. No GPU, no NAS, no network.
 """
+import json
+import os
+
 import pytest
 
-from src.tools.data_curve import assemble
+from src.tools.data_curve import assemble, names
 
 
 # --------------------------------------------------------------------------- orientation
@@ -184,3 +187,261 @@ def test_equality_is_decided_at_the_reporting_precision():
 def test_data_equivalence_prints_the_whole_g_vector_beside_the_label():
     out = assemble.data_equivalence(_g(-1.0, -0.5, 0.5, 0.8))
     assert out["g"] == {25: -1.0, 50: -0.5, 75: 0.5, 100: 0.8}
+
+
+# ===================================================================================
+# Loading the cells off the NAS: whose numbers are these, and are there five of them?
+# ===================================================================================
+BASE_METRICS = {
+    "T60": 9.0, "Invalid T60": 0.0, "C50": 1.0, "EDT": 40.0, "FD": 0.32,
+    "RIR_to_GT_RIR_R@1": 5.0, "RIR_to_GT_RIR_R@5": 15.0, "RIR_to_GT_RIR_R@10": 23.0,
+    "RIR_to_geom_R@1": 3.8, "RIR_to_geom_R@5": 13.0, "RIR_to_geom_R@10": 20.0,
+}
+CKPT_SHA = "a" * 64
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "data_curve")
+
+
+def cell_record(arm, ckpt, values=None, ckpt_sha256=CKPT_SHA, **overrides):
+    """One metrics JSON exactly as ``eval_FLAC.build_metrics_record`` writes it."""
+    metrics = dict(BASE_METRICS)
+    for metric, value in (values or {}).items():
+        metrics[assemble.METRIC_KEYS[metric]] = value
+    record = {
+        "metrics": metrics,
+        "ckpt_path": ckpt,
+        "rotate_deg": names.ROTATE_DEG,
+        "cond_method": names.ARM_COND_METHOD[arm],
+        "frame_avg_angles": [0.0] if arm == "cyl" else None,
+        "cond_autocast": names.COND_AUTOCAST,
+        "ckpt_sha256": ckpt_sha256,
+    }
+    record.update(overrides)
+    return record
+
+
+def write_run(nas_root, arm, tag, cells=None, epoch=8, step=names.MAX_STEPS, **kwargs):
+    """A finished run directory on a fake NAS: one final checkpoint plus its metric JSONs.
+
+    ``cells`` maps ``(K, seed)`` to either a ``{metric: value}`` dict or a whole record
+    override; omitted cells are simply absent, which is how an unfinished arm looks.
+    """
+    run_dir = os.path.join(str(nas_root), names.run_id(arm, tag))
+    os.makedirs(run_dir, exist_ok=True)
+    ckpt = os.path.join(run_dir, f"epoch={epoch}-step={step}.ckpt")
+    with open(ckpt, "wb") as fout:
+        fout.write(b"not a real checkpoint")
+    if cells is None:
+        cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
+    for (K, seed), spec in cells.items():
+        record = spec if "metrics" in spec else cell_record(arm, ckpt, spec, **kwargs)
+        with open(names.metrics_json_path(ckpt, arm, tag, K, seed), "w") as fout:
+            json.dump(record, fout)
+    return ckpt
+
+
+def test_final_checkpoint_is_the_single_step_40000_file(tmp_path):
+    ckpt = write_run(tmp_path, "cyl", "025", cells={})
+    run_dir = os.path.dirname(ckpt)
+    open(os.path.join(run_dir, "epoch=1-step=2500.ckpt"), "wb").close()
+    assert assemble.final_checkpoint(run_dir) == ckpt
+
+
+def test_final_checkpoint_refuses_a_run_that_has_not_reached_40000(tmp_path):
+    run_dir = tmp_path / "dc_cyl_f025"
+    run_dir.mkdir()
+    (run_dir / "epoch=1-step=2500.ckpt").write_bytes(b"")
+    with pytest.raises(assemble.DataCurveError):
+        assemble.final_checkpoint(str(run_dir))
+
+
+def test_final_checkpoint_refuses_two_candidates(tmp_path):
+    ckpt = write_run(tmp_path, "cyl", "025", cells={})
+    run_dir = os.path.dirname(ckpt)
+    open(os.path.join(run_dir, "epoch=9-step=40000.ckpt"), "wb").close()
+    with pytest.raises(assemble.DataCurveError):
+        assemble.final_checkpoint(run_dir)
+
+
+def test_load_run_reads_all_ten_cells(tmp_path):
+    write_run(tmp_path, "cyl", "025")
+    run = assemble.load_run(str(tmp_path), "cyl", "025")
+    assert run["violations"] == []
+    assert run["run_id"] == "dc_cyl_f025"
+    assert run["ckpt_sha256"] == CKPT_SHA
+    assert sorted(run["cells"][8]) == list(names.SEEDS)
+    assert run["cells"][1][42]["metrics"]["T60"] == pytest.approx(9.0)
+
+
+def test_load_run_marks_a_missing_seed_instead_of_averaging_four(tmp_path):
+    cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
+    del cells[(8, 45)]
+    write_run(tmp_path, "van", "050", cells=cells)
+    run = assemble.load_run(str(tmp_path), "van", "050")
+    assert 45 not in run["cells"][8]
+    assert any("s45" in v and "K8" in v for v in run["violations"])
+
+
+@pytest.mark.parametrize("field, value", [
+    ("cond_method", "vanilla"),          # a cyl cell scored down the stock path
+    ("frame_avg_angles", None),
+    ("rotate_deg", 45.0),
+    ("cond_autocast", "off"),
+])
+def test_load_run_refuses_a_cell_scored_under_another_protocol(tmp_path, field, value):
+    cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
+    run_dir = tmp_path / "dc_cyl_f075"
+    run_dir.mkdir()
+    ckpt = str(run_dir / f"epoch=8-step={names.MAX_STEPS}.ckpt")
+    cells[(8, 44)] = cell_record("cyl", ckpt, **{field: value})
+    write_run(tmp_path, "cyl", "075", cells=cells)
+    run = assemble.load_run(str(tmp_path), "cyl", "075")
+    assert 44 not in run["cells"][8]
+    assert any(field in v for v in run["violations"])
+
+
+def test_load_run_refuses_cells_that_disagree_about_the_checkpoint_digest(tmp_path):
+    cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
+    run_dir = tmp_path / "dc_van_f025"
+    run_dir.mkdir()
+    ckpt = str(run_dir / f"epoch=8-step={names.MAX_STEPS}.ckpt")
+    cells[(1, 43)] = cell_record("van", ckpt, ckpt_sha256="b" * 64)
+    write_run(tmp_path, "van", "025", cells=cells)
+    run = assemble.load_run(str(tmp_path), "van", "025")
+    assert any("ckpt_sha256" in v for v in run["violations"])
+
+
+# --------------------------------------------------------- aggregation and paired benefit
+def test_aggregate_marks_a_row_that_is_short_of_five_seeds():
+    out = assemble.aggregate({42: 1.0, 43: 2.0, 44: 3.0, 45: 4.0})
+    assert out["complete"] is False
+    assert out["n"] == 4
+    assert assemble.aggregate({s: 1.0 for s in names.SEEDS})["complete"] is True
+
+
+def test_paired_benefit_differences_per_seed_not_differences_of_means():
+    # Same means, but the per-seed differences are constant: the paired sd must be 0
+    # while the marginal arms each have a visible spread.
+    cyl = {42: 8.0, 43: 9.0, 44: 10.0, 45: 11.0, 46: 12.0}
+    van = {s: v + 1.0 for s, v in cyl.items()}
+    out = assemble.paired_benefit("T60", cyl, van)
+    assert out["form"] == "paired"
+    assert out["mean"] == pytest.approx(1.0)
+    assert out["sd"] == pytest.approx(0.0)
+    assert out["n"] == 5
+
+
+def test_paired_benefit_orients_recall_the_other_way():
+    cyl = {s: 6.0 for s in names.SEEDS}
+    van = {s: 5.0 for s in names.SEEDS}
+    assert assemble.paired_benefit("R@1", cyl, van)["mean"] == pytest.approx(1.0)
+    assert assemble.paired_benefit("T60", cyl, van)["mean"] == pytest.approx(-1.0)
+
+
+def test_paired_benefit_refuses_when_the_two_arms_do_not_share_seeds():
+    cyl = {42: 1.0, 43: 1.0, 44: 1.0, 45: 1.0, 46: 1.0}
+    van = {42: 2.0, 43: 2.0, 44: 2.0, 45: 2.0}
+    assert assemble.paired_benefit("T60", cyl, van) is None
+
+
+def test_marginal_benefit_is_a_difference_of_means_with_no_paired_sd():
+    out = assemble.marginal_benefit("T60", {"mean": 9.5, "sd": 0.2, "n": 5},
+                                    {"mean": 10.0, "sd": 0.1, "n": 5})
+    assert out["form"] == "marginal"
+    assert out["mean"] == pytest.approx(0.5)
+    assert out["sd"] is None
+
+
+# ---------------------------------------------------------------------------- anchors
+def test_anchor_reference_maps_each_arm_to_its_tier_s_block():
+    anchors = assemble.load_anchor_reference(os.path.join(FIXTURES, "anchors_tier_S.json"))
+    assert anchors["van"][8]["T60"]["mean"] == pytest.approx(10.0)
+    assert anchors["cyl"][8]["T60"]["mean"] == pytest.approx(9.5)
+    assert anchors["cyl"][1]["R@10"]["sd"] == pytest.approx(0.3)
+    assert anchors["van"][8]["T60"]["form"] == "marginal"
+
+
+def write_anchor_cells(directory, arm, names_by_cell, manifest=None):
+    os.makedirs(directory, exist_ok=True)
+    for (K, seed), basename in names_by_cell.items():
+        record = cell_record(arm, "anchor.ckpt", {"T60": 10.0 + seed - 42 + K / 100.0})
+        record.pop("ckpt_sha256")          # the historical anchors predate the digest
+        with open(os.path.join(directory, basename), "w") as fout:
+            json.dump(record, fout)
+    if manifest is not None:
+        with open(os.path.join(directory, "anchor_cells.json"), "w") as fout:
+            json.dump(manifest, fout)
+    return directory
+
+
+def _anchor_basenames():
+    return {(K, s): f"epoch=8-step=40000_metrics_1_1.0_ref_K{K}_s{s}.json"
+            for K in names.K_VALUES for s in names.SEEDS}
+
+
+def test_anchor_cells_are_paired_by_the_K_and_seed_in_their_names(tmp_path):
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", _anchor_basenames())
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert violations == []
+    assert sorted(cells[8]) == list(names.SEEDS)
+    assert cells[8][43]["metrics"]["T60"] == pytest.approx(11.08)
+
+
+def test_a_cell_whose_name_carries_no_K_or_seed_is_placed_by_the_pinned_manifest(tmp_path):
+    # D10: P1's seed-42 K=8 anchor is the screen cell `..._exp07_P1_screen_S40000_ema.json`,
+    # whose name says neither. Guessing is not an option; the mapping is pinned.
+    basenames = _anchor_basenames()
+    screen = "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json"
+    basenames[(8, 42)] = screen
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames,
+                                   manifest={screen: {"K": 8, "seed": 42}})
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert violations == []
+    assert os.path.basename(cells[8][42]["path"]) == screen
+
+
+def test_an_unplaceable_anchor_cell_is_refused_not_guessed(tmp_path):
+    basenames = _anchor_basenames()
+    basenames[(8, 42)] = "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json"
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames)
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert cells[8].get(42) is None
+    assert any("screen" in v for v in violations)
+
+
+def test_a_missing_anchor_seed_refuses_the_paired_form(tmp_path):
+    basenames = _anchor_basenames()
+    del basenames[(1, 46)]
+    directory = write_anchor_cells(str(tmp_path / "cyl"), "cyl", basenames)
+    _, violations = assemble.load_anchor_cells(directory, "cyl")
+    assert any("K1" in v and "s46" in v for v in violations)
+
+
+def test_two_cells_claiming_one_anchor_slot_are_refused(tmp_path):
+    basenames = _anchor_basenames()
+    directory = write_anchor_cells(str(tmp_path / "cyl"), "cyl", basenames)
+    duplicate = os.path.join(directory, "epoch=8-step=40000_metrics_1_1.0_dup_K8_s42.json")
+    with open(duplicate, "w") as fout:
+        json.dump(cell_record("cyl", "anchor.ckpt"), fout)
+    _, violations = assemble.load_anchor_cells(directory, "cyl")
+    assert any("more than one" in v for v in violations)
+
+
+# ------------------------------------------------------------------- effective epochs
+def test_effective_epochs_are_recomputed_and_cross_checked_against_the_manifest():
+    with open(os.path.join(FIXTURES, "split_manifest.json")) as fin:
+        manifest = json.load(fin)
+    epochs, violations = assemble.effective_epochs(manifest)
+    assert violations == []
+    assert epochs[25] == pytest.approx(10240.0)
+    assert epochs[75] == pytest.approx(3413.3333333333335)
+    # 100 % is not in the manifest's `fractions` block: it is the full split, whose size
+    # the histogram carries (100 + 900 = 1000 targets).
+    assert epochs[100] == pytest.approx(2560.0)
+
+
+def test_a_manifest_that_disagrees_with_its_own_arithmetic_is_flagged():
+    with open(os.path.join(FIXTURES, "split_manifest.json")) as fin:
+        manifest = json.load(fin)
+    manifest["fractions"]["0.5"]["effective_epochs_at_40k_x64"] = 1.0
+    _, violations = assemble.effective_epochs(manifest)
+    assert any("0.5" in v for v in violations)
