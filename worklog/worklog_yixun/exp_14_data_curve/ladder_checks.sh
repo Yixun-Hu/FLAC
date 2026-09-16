@@ -11,6 +11,7 @@
 #   bash ladder_checks.sh fit-banner    <log> <steps>
 #   bash ladder_checks.sh backbone      <log> <cyl|van>
 #   bash ladder_checks.sh finite-loss   <log>
+#   bash ladder_checks.sh is-finite     <value>
 #   bash ladder_checks.sh batches       <log> <n/total>
 #   bash ladder_checks.sh no-checkpoints <dir> [dir…]
 #
@@ -41,6 +42,20 @@ lc_backbone () {
     lc_say "the van log $log loaded the CYLINDRICAL backbone"; return 1; fi
   return 0; }
 
+# Is this string a finite double? Parsed as a number, not spelled: the character
+# whitelist this replaces called `1e999` (which overflows to +inf), `+`, `.`, `e5` and
+# `1.2.3` finite numbers (codex full-r3 finding 2). Anything python3 cannot parse, and
+# anything that parses to nan or +-inf, fails -- as does a missing python3, because a
+# gate that cannot run must not pass.
+lc_is_finite () {
+  command -v python3 >/dev/null 2>&1 \
+    || { lc_say "python3 is required to check whether '${1:-}' is finite"; return 2; }
+  python3 -c 'import math, sys
+try:
+    sys.exit(0 if math.isfinite(float(sys.argv[1])) else 1)
+except (TypeError, ValueError):
+    sys.exit(1)' "${1:-}"; }
+
 # A run that reached its steps but produced nan/inf learned nothing; the progress bar
 # carries the last value, so the last `train/loss=` in the log is the one that counts.
 lc_finite_loss () {
@@ -48,9 +63,8 @@ lc_finite_loss () {
   [ -f "$log" ] || { lc_say "no such log: $log"; return 1; }
   value=$( { grep -o 'train/loss=[^], ]*' "$log" || true; } | tail -1 | sed 's/^train.loss=//')
   [ -n "$value" ] || { lc_say "no train/loss at all in $log"; return 1; }
-  case "$value" in                    # nan / inf carry letters the numeric set excludes
-    ''|*[!0-9.eE+-]*) lc_say "train/loss=$value is not a finite number in $log"; return 1 ;;
-  esac
+  lc_is_finite "$value" \
+    || { lc_say "train/loss=$value is not a finite number in $log"; return 1; }
   return 0; }
 
 # The batch the run actually reached, e.g. 5/1148 -- an exit code alone proves nothing
@@ -74,9 +88,11 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     fit-banner)     lc_fit_banner "$@" ;;
     backbone)       lc_backbone "$@" ;;
     finite-loss)    lc_finite_loss "$@" ;;
+    is-finite)      lc_is_finite "$@" ;;
     batches)        lc_batches "$@" ;;
     no-checkpoints) lc_no_checkpoints "$@" ;;
-    *) lc_say "usage: ladder_checks.sh {fit-banner|backbone|finite-loss|batches|no-checkpoints} …"
+    *) lc_say "usage: ladder_checks.sh \
+{fit-banner|backbone|finite-loss|is-finite|batches|no-checkpoints} …"
        exit 2 ;;
   esac
 fi

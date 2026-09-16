@@ -6,8 +6,10 @@
 # <RUN_BASE>/smoke7_cyl_<ts>-<pid>, it must be empty of checkpoints before training, and
 # the checkpoint that is validated must have been written after this run started -- its
 # inode and sha256 are recorded. Acceptance: make-contract 0, train.py 0, Lightning's
-# max_steps banner + the cyl backbone banner + a finite loss, a NEW step-5 checkpoint whose
-# size is non-zero and unchanged across STABLE_WAIT, and `validate --for-resume` 0. Only
+# max_steps banner + the cyl backbone banner + the 5/1148 batch count + a finite loss, a
+# NEW step-5 checkpoint whose size is non-zero and unchanged across STABLE_WAIT, and
+# `validate --for-resume` 0 (round H, codex full-r3 finding 2: the batch check existed,
+# but only the standalone replay test ever called it). Only
 # then the .done marker; otherwise .failed + exit 1.
 set -euo pipefail
 WT="${WT:-/home/yixunhu/codespace/exp-14-data-curve}"
@@ -18,7 +20,7 @@ CONDA_SH="${CONDA_SH:-$HOME/miniconda3/etc/profile.d/conda.sh}"
 PKG_SRC="${PKG_SRC:-/home/yixunhu/codespace/cylindrical-dinov3-exp13pin/src}"
 PKG_DIR="${PKG_DIR:-/home/yixunhu/codespace/cylindrical-dinov3-exp13pin}"
 STABLE_WAIT="${STABLE_WAIT:-60}"
-STEPS="${STEPS:-5}"
+STEPS="${STEPS:-5}"; BATCHES="${BATCHES:-5/1148}"   # the recorded run's own evidence
 RUN_GIVEN="${RUN:-}"           # snapshot before this script makes its own (see the guard)
 TS=$(date +%Y-%m-%d_%H-%M-%S); LOG=$REC/rung7_nas_cyl_${TS}.log
 # Unique per INVOCATION, not per name: nothing an earlier run left behind can be in here.
@@ -54,6 +56,7 @@ echo "=== rung7 train rc=$RC $(date -Is)" | tee -a "$LOG"
 [ "$RC" = 0 ] || fail "train.py exited $RC (see $LOG)"
 lc_fit_banner "$LOG" "$STEPS" || fail "rc 0 but no Lightning max_steps=$STEPS banner in $LOG"
 lc_backbone "$LOG" cyl || fail "the cyl backbone banner is missing from $LOG"
+lc_batches "$LOG" "$BATCHES" || fail "the fit never reached $BATCHES in $LOG"
 lc_finite_loss "$LOG" || fail "no finite train/loss in $LOG"
 CK=$(find "$RUN" -name "*step=$STEPS.ckpt" -print -quit)
 [ -n "$CK" ] || fail "no step-$STEPS checkpoint under $RUN"
