@@ -10,7 +10,10 @@ six runs rest on:
 * the committed split files are the ones the detached checksum file and the manifest
   describe, and -- recomputed from the files themselves, never trusted from the manifest --
   they are nested, have zero starved targets, and have the sizes and eligible-context
-  histograms the manifest claims;
+  histograms the manifest claims. "Eligible" means what the PINNED sampler can actually
+  reconstruct (``make_ar_train_subsets.sampler_candidates``, imported not copied), and the
+  full split's own figures under that rule -- zero dead targets, and how many targets have
+  fewer than 8 reachable contexts -- are reported as the baseline;
 * ``train.json`` / ``unseen_eval.json`` / the VAE are the pinned bytes;
 * the receiver-level anchor audit (plan §3 D3): no on-disk RIR outside ``train.json``
   sits at a receiver that ``train.json`` uses, which is what makes the historical 100 %
@@ -321,8 +324,18 @@ def check_split_contents(data_dir):
     Nothing here trusts the manifest's own numbers: the sizes, the histograms, the nesting
     and the absence of starved targets are recomputed with the round-A primitives and then
     compared against what the manifest says.
+
+    Eligibility is the generator's own ``sampler_candidates`` — imported, never
+    re-implemented, so the verifier and the emitted files can never drift apart about what
+    counts as an eligible context (round E, plan §3 "Amendment 1"). The FULL split's numbers
+    under that rule are reported as well: they are the baseline the fractions are read
+    against, and a dead target there would invalidate the construction itself.
     """
-    from src.tools.make_ar_train_subsets import context_histogram
+    from src.tools.make_ar_train_subsets import (
+        ELIGIBILITY_RULE,
+        context_histogram,
+        sampler_candidates,
+    )
 
     manifest_name, _ = _manifest_names()
     try:
@@ -358,6 +371,22 @@ def check_split_contents(data_dir):
         "splits are nested", not breaks,
         " ⊆ ".join(FRACTION_TAGS) + " holds entry-wise" if not breaks
         else f"{len(breaks)} entry/entries lost by a larger fraction: {breaks[:5]}",
+    ))
+
+    full_hist = {"0": 0, "1-7": 0, ">=8": 0}
+    for files in train.values():
+        for bin_name, n in context_histogram(files).items():
+            full_hist[bin_name] += n
+    dead = []
+    if full_hist["0"]:
+        for (_, room), files in sorted(train.items()):
+            dead += [f"{room}/{f}" for f in sorted(files) if not sampler_candidates(f, files)]
+    listed_total = sum(len(f) for f in train.values())
+    results.append(CheckResult(
+        "full split has no dead targets", not dead,
+        f"0 of {listed_total} train.json targets unreachable, {full_hist['1-7']} with < 8 "
+        f"reachable contexts (eligibility: {ELIGIBILITY_RULE})" if not dead
+        else f"{len(dead)} dead target(s) in train.json: {dead[:5]}",
     ))
 
     histograms = {tag: {key: context_histogram(files) for key, files in rooms.items()}

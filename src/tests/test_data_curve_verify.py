@@ -275,6 +275,53 @@ def test_split_contents_fail_on_a_starved_target(tmp_path):
     assert "1" in starved[0].detail
 
 
+def test_split_contents_report_the_full_splits_own_eligibility(tmp_path):
+    """Round E: the fractions are judged against the sampler's reachability, so the verifier
+    must also state the baseline the fractions are compared against — the FULL split's dead
+    targets (which must be 0) and its ``< 8``-reachable-context count."""
+    data_dir = _splits(tmp_path)
+    results = verify.check_split_contents(data_dir)
+    ok, dead = _ok(results, "full split has no dead targets")
+    assert ok, [r.line() for r in results]
+    train = json.loads(open(os.path.join(data_dir, "train.json")).read())
+    full = {"0": 0, "1-7": 0, ">=8": 0}
+    for rooms in train.values():
+        for files in rooms.values():
+            for bin_name, n in subsets.context_histogram(set(files)).items():
+                full[bin_name] += n
+    assert full["0"] == 0
+    assert str(full["1-7"]) in dead[0].detail          # the "< 8" count is reported
+    assert subsets.ELIGIBILITY_RULE in dead[0].detail  # ... and the rule it was judged under
+
+
+def test_split_contents_fail_when_the_full_split_has_a_dead_target(tmp_path):
+    """A target the pinned sampler can never reach a context for is unrepairable by any
+    subset, so it invalidates the whole construction rather than one fraction. The extra
+    entry sits at its own receiver, so every committed split stays a subset of train.json
+    and only this check fires."""
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train.json")
+    train = json.loads(open(path).read())
+    train["Toy2"]["Toy2_idx_0"].append("S010_R099_hybrid_IR.wav")   # rebuilds to S0010_* : dead
+    open(path, "w").write(json.dumps(train))
+    results = verify.check_split_contents(data_dir)
+    ok, dead = _ok(results, "full split has no dead targets")
+    assert not ok, [r.line() for r in results]
+    assert "S010_R099_hybrid_IR.wav" in dead[0].detail
+    assert _ok(results, "splits are subsets of train.json")[0]      # nothing else disturbed
+    assert _ok(results, "no starved targets")[0]
+
+
+def test_verifier_and_generator_share_one_eligibility_definition():
+    """No second implementation (brief, round E): the verifier's reachability must be the
+    generator's function object, not a copy that can drift from it."""
+    import src.tools.data_curve.verify as verify_module
+
+    source = open(verify_module.__file__, encoding="utf-8").read()
+    assert "sampler_candidates" in source
+    assert "S00{" not in source and verify.__dict__.get("SAMPLER_TAIL") is None
+
+
 def test_split_contents_fail_when_a_split_leaves_train_json(tmp_path):
     data_dir = _splits(tmp_path)
     path = os.path.join(data_dir, "train_frac075_s2026.json")
