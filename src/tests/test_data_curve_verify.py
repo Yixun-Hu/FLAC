@@ -230,6 +230,73 @@ def test_git_head_still_passes_with_untracked_files_only(tmp_path):
     assert "untracked" in result.detail or "clean" in result.detail
 
 
+# ------------------------------------------------- the kit that actually runs (round F)
+def _git_kit(tmp_path):
+    """A kit inside a git repo: ``scripts/`` + ``configs/`` plus a worklog that the running
+    experiment legitimately writes into. Returns ``(repo, kit_dir, head, launcher_sha)``."""
+    repo = tmp_path / "kitrepo"
+    kit = repo / "worklog" / "exp_14_kit"
+    (kit / "scripts").mkdir(parents=True)
+    (kit / "configs").mkdir(parents=True)
+    (kit / "scripts" / "exp14_launch.sh").write_text("#!/bin/bash\necho launch\n")
+    (kit / "configs" / "FLAC_AR_exp14_cylS.json").write_text("{}\n")
+    (kit / "records.md").write_text("round F\n")
+    env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+    for args in (["init", "-q"], ["add", "-A"],
+                 ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-qm", "kit"]):
+        done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True,
+                              text=True, env=env)
+        assert done.returncode == 0, done.stderr
+    return (str(repo), str(kit), _head(str(repo)),
+            _sha(str(kit / "scripts" / "exp14_launch.sh")))
+
+
+def test_kit_head_passes_clean_and_fails_on_a_modified_launcher(tmp_path):
+    """Round-F finding 3: a tracked edit to exp14_launch.sh changed launch control and
+    arguments while every pinned sha stayed true."""
+    _repo, kit, head, _launcher = _git_kit(tmp_path)
+    assert verify.check_git_head(kit, head, "kit", verify.KIT_TRACKED_SCOPE).ok
+
+    launcher = os.path.join(kit, "scripts", "exp14_launch.sh")
+    open(launcher, "a").write("rm -rf /\n")
+    result = verify.check_git_head(kit, head, "kit", verify.KIT_TRACKED_SCOPE)
+    assert not result.ok, result.line()
+    assert "exp14_launch.sh" in result.detail
+
+
+def test_kit_head_fails_on_a_modified_arm_config(tmp_path):
+    _repo, kit, head, _launcher = _git_kit(tmp_path)
+    open(os.path.join(kit, "configs", "FLAC_AR_exp14_cylS.json"), "a").write("{}\n")
+    assert not verify.check_git_head(kit, head, "kit", verify.KIT_TRACKED_SCOPE).ok
+
+
+def test_kit_head_tolerates_the_worklog_this_experiment_writes(tmp_path):
+    """The kit's own records are written while the campaign runs, so the dirty check is
+    scoped to scripts/ + configs/ -- and nothing else is excused by that."""
+    _repo, kit, head, _launcher = _git_kit(tmp_path)
+    open(os.path.join(kit, "records.md"), "a").write("a launch record\n")
+    result = verify.check_git_head(kit, head, "kit", verify.KIT_TRACKED_SCOPE)
+    assert result.ok, result.line()
+    assert not verify.check_git_head(kit, head, "kit").ok      # unscoped would fail
+
+
+def test_kit_head_fails_on_a_sha_mismatch_or_a_missing_expectation(tmp_path):
+    _repo, kit, _head, _launcher = _git_kit(tmp_path)
+    assert not verify.check_git_head(kit, "0" * 40, "kit", verify.KIT_TRACKED_SCOPE).ok
+    missing = verify.check_git_head(kit, None, "kit", verify.KIT_TRACKED_SCOPE)
+    assert not missing.ok and "no expected sha" in missing.detail
+
+
+def test_kit_launcher_pins_the_executing_script(tmp_path):
+    _repo, kit, _head, launcher_sha = _git_kit(tmp_path)
+    assert verify.check_kit_launcher(kit, launcher_sha).ok
+    # a launcher copied elsewhere and edited hashes differently
+    assert not verify.check_kit_launcher(kit, "0" * 64).ok
+    missing = verify.check_kit_launcher(kit, "")
+    assert not missing.ok and "no expected sha256" in missing.detail
+    assert not verify.check_kit_launcher(str(tmp_path), launcher_sha).ok
+
+
 def test_git_head_distinguishes_a_git_error_from_a_mismatch(tmp_path):
     outside = verify.check_git_head(str(tmp_path), "0" * 40, "package")
     assert not outside.ok
@@ -485,15 +552,17 @@ def test_run_all_reports_every_check_and_summarises(tmp_path, capsys):
         data_dir=_splits(tmp_path), dataset_root=None, expected_arm_shas=shas,
     )
     failed = [r for r in results if not r.ok]
-    expected_failures = ["package HEAD"]
+    # the tmp_path kit is not a git repo and carries no launcher: both kit checks FAIL,
+    # which is exactly the fail-closed behaviour a missing launch record must produce.
+    expected_failures = ["package HEAD", "kit HEAD", "kit launcher"]
     if _tracked_dirty(REPO_ROOT):   # mid-round: the FLAC identity check must fail too
-        expected_failures = ["FLAC worktree HEAD", "package HEAD"]
+        expected_failures = ["FLAC worktree HEAD", *expected_failures]
     assert sorted(r.name for r in failed) == sorted(expected_failures), \
         [r.line() for r in results]
     assert verify.report(results) == verify.EXIT_FAILED
     out = capsys.readouterr().out
     assert out.count("PASS ") == len(results) - len(expected_failures)
-    assert "FAIL package HEAD" in out
+    assert "FAIL package HEAD" in out and "FAIL kit HEAD" in out
 
 
 def test_run_all_skips_the_anchor_audit_only_when_no_root_is_given(tmp_path):
@@ -502,7 +571,9 @@ def test_run_all_skips_the_anchor_audit_only_when_no_root_is_given(tmp_path):
                   expect_flac_sha=_head(REPO_ROOT), expect_pkg_sha=_head(REPO_ROOT),
                   data_dir=_splits(tmp_path), expected_arm_shas=shas)
     without = verify.run_all(dataset_root=None, **common)
-    tolerated = {"FLAC worktree HEAD", "package HEAD"} if _tracked_dirty(REPO_ROOT) else set()
+    tolerated = {"kit HEAD", "kit launcher"}      # the tmp kit is not a git checkout
+    if _tracked_dirty(REPO_ROOT):
+        tolerated |= {"FLAC worktree HEAD", "package HEAD"}
     assert all(r.ok for r in without if r.name not in tolerated), [r.line() for r in without]
     assert not any("anchor" in r.name for r in without)
 
@@ -526,17 +597,35 @@ def _toy_dataset_root(tmp_path):
     return str(root)
 
 
+#: The kit expectations the launcher passes; a tmp_path kit matches neither, so both kit
+#: checks FAIL -- which is what a CLI run outside the real kit must produce.
+CLI_KIT_FLAGS = ["--expect-kit-sha", "0" * 40, "--expect-launcher-sha256", "0" * 64]
+
+
 def test_cli_exits_3_when_a_check_fails(tmp_path):
     kit, _ = _kit(tmp_path)
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
          "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
          "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--flac-wt", REPO_ROOT,
+         *CLI_KIT_FLAGS,
          "--data-dir", _splits(tmp_path), "--dataset-root", _toy_dataset_root(tmp_path)],
         cwd=REPO_ROOT, capture_output=True, text=True)
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert "FAIL FLAC worktree HEAD" in proc.stdout
     assert "PASS receiver-level anchor audit" in proc.stdout   # never skippable (N7)
+
+
+def test_cli_requires_the_kit_expectations(tmp_path):
+    """Round-F finding 3: the kit gate must not be omittable by leaving a flag off."""
+    kit, _ = _kit(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, "-m", "src.tools.data_curve.verify",
+         "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit],
+        cwd=REPO_ROOT, capture_output=True, text=True)
+    assert proc.returncode == 2
+    assert "--expect-kit-sha" in proc.stderr
 
 
 def test_cli_has_no_flag_that_skips_the_anchor_audit(tmp_path):
@@ -545,7 +634,8 @@ def test_cli_has_no_flag_that_skips_the_anchor_audit(tmp_path):
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
          "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
-         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--skip-anchor-audit"],
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, *CLI_KIT_FLAGS,
+         "--skip-anchor-audit"],
         cwd=REPO_ROOT, capture_output=True, text=True)
     assert proc.returncode == 2                     # argparse: unrecognized argument
     assert "--skip-anchor-audit" in proc.stderr
@@ -579,10 +669,19 @@ def test_cli_exits_0_on_the_real_launch_contract():
             "review; this check un-skips itself the moment the manifest names the new rule."
         )
     head = _head(REPO_ROOT)
+    kit_head = _head(kit)
+    launcher = os.path.join(kit, verify.KIT_LAUNCHER_REL)
+    if not kit_head or not os.path.exists(launcher):
+        pytest.skip("the kit is not a git checkout with a launcher")
+    if subprocess.run(["git", "-C", kit, "diff", "--quiet", "HEAD", "--",
+                       *verify.KIT_TRACKED_SCOPE], capture_output=True).returncode != 0:
+        pytest.skip("the kit's scripts/configs are modified: the launch contract cannot "
+                    "pass (round-F finding 3) until the round's kit commit has landed")
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
          "--expect-flac-sha", head, "--expect-pkg-sha", head,
-         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--dataset-root", dataset_root],
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--dataset-root", dataset_root,
+         "--expect-kit-sha", kit_head, "--expect-launcher-sha256", _sha(launcher)],
         cwd=REPO_ROOT, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "FAIL" not in proc.stdout

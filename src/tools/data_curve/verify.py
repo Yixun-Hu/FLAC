@@ -18,7 +18,10 @@ six runs rest on:
 * the receiver-level anchor audit (plan §3 D3): no on-disk RIR outside ``train.json``
   sits at a receiver that ``train.json`` uses, which is what makes the historical 100 %
   runs exact anchors under the restricted-context definition;
-* both repositories are at the sha the launch record names.
+* both repositories are at the sha the launch record names, and so is the **kit** --
+  whose ``scripts/`` and ``configs/`` (the launcher and the two arm configs: the control
+  and the arguments of the campaign) must additionally be tracked-clean, and whose
+  launcher must be byte-identical to the script that is actually executing.
 
 Every check prints ``PASS``/``FAIL`` with the numbers behind it; any FAIL exits 3. The
 expected git shas are **passed in** from the immutable launch record and never hard-coded
@@ -205,7 +208,7 @@ def check_pinned_files(flac_wt, expected=None):
     return results
 
 
-def check_git_head(repo_dir, expected_sha, label):
+def check_git_head(repo_dir, expected_sha, label, scope=()):
     """``git -C <repo> rev-parse HEAD`` equals the launch record's sha **and** the tracked
     tree is clean.
 
@@ -214,7 +217,16 @@ def check_git_head(repo_dir, expected_sha, label):
     non-zero ``git diff --quiet HEAD`` is a FAIL, and a git failure is reported as such
     rather than as a mismatch. Untracked files are explicitly allowed -- the FLAC worktree
     carries untracked ``AcousticRooms`` / ``weights`` symlinks by design.
+
+    ``scope`` limits the dirty check to pathspecs relative to ``repo_dir`` (codex round-F
+    finding 3). The kit lives inside a repository whose worklog *records this experiment
+    while it runs*, so a whole-tree check there would be guaranteed to fail; the scope is
+    the directories that decide what runs, and nothing else is thereby excused.
     """
+    if not expected_sha:
+        return CheckResult(f"{label} HEAD", False,
+                           f"no expected sha was supplied for {repo_dir}: the launch record "
+                           "must name the commit that runs")
     try:
         head = subprocess.run(["git", "-C", repo_dir, "rev-parse", "HEAD"],
                               capture_output=True, text=True, timeout=60)
@@ -230,15 +242,17 @@ def check_git_head(repo_dir, expected_sha, label):
         return CheckResult(f"{label} HEAD", False,
                            f"{found} != expected {expected_sha} ({repo_dir})")
 
+    pathspec = (["--", *scope] if scope else [])
     try:
-        dirty = subprocess.run(["git", "-C", repo_dir, "diff", "--quiet", "HEAD"],
+        dirty = subprocess.run(["git", "-C", repo_dir, "diff", "--quiet", "HEAD", *pathspec],
                                capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.SubprocessError) as err:
         return CheckResult(f"{label} HEAD", False,
                            f"git diff could not be run on {repo_dir}: {err}")
     if dirty.returncode == 1:
-        changed = subprocess.run(["git", "-C", repo_dir, "diff", "--name-only", "HEAD"],
-                                 capture_output=True, text=True)
+        changed = subprocess.run(
+            ["git", "-C", repo_dir, "diff", "--name-only", "HEAD", *pathspec],
+            capture_output=True, text=True)
         names = [n for n in changed.stdout.split() if n][:5]
         return CheckResult(
             f"{label} HEAD", False,
@@ -249,8 +263,40 @@ def check_git_head(repo_dir, expected_sha, label):
         return CheckResult(f"{label} HEAD", False,
                            f"git diff failed on {repo_dir} (rc {dirty.returncode}): "
                            f"{dirty.stderr.strip()}")
+    where = f" under {list(scope)}" if scope else ""
     return CheckResult(f"{label} HEAD", True,
-                       f"{found} ({repo_dir}, tracked tree clean; untracked files allowed)")
+                       f"{found} ({repo_dir}, tracked tree{where} clean; untracked allowed)")
+
+
+#: The kit file that starts this experiment, relative to ``--kit-dir``.
+KIT_LAUNCHER_REL = os.path.join("scripts", "exp14_launch.sh")
+#: The kit directories whose tracked bytes decide what runs. The kit's own worklog is
+#: written *by* the running experiment, so it is deliberately outside this scope.
+KIT_TRACKED_SCOPE = ("scripts", "configs")
+
+
+def check_kit_launcher(kit_dir, expected_sha256, launcher_rel=KIT_LAUNCHER_REL):
+    """The launcher that is executing is the kit's committed launcher (round-F finding 3).
+
+    The running script hashes itself (``sha256sum "$0"``) and passes the digest; this
+    compares it with the kit file's own bytes. Together with the scoped dirty check above,
+    that is the whole chain: the executing file == the kit's file == the kit's HEAD. A
+    launcher copied elsewhere and edited has a different digest and is refused.
+    """
+    path = os.path.join(kit_dir, launcher_rel)
+    if not expected_sha256:
+        return CheckResult("kit launcher", False,
+                           f"no expected sha256 was supplied for {path}: the running "
+                           "launcher must hash itself and pass the digest")
+    try:
+        digest = sha256_file(path)
+    except OSError as err:
+        return CheckResult("kit launcher", False, f"{path} cannot be hashed ({err})")
+    if digest != expected_sha256:
+        return CheckResult("kit launcher", False,
+                           f"the executing launcher hashes to {expected_sha256}, but "
+                           f"{path} is {digest}: they are not the same file")
+    return CheckResult("kit launcher", True, f"{path} == the executing script ({digest})")
 
 
 # ======================================================================================
@@ -540,7 +586,8 @@ def _guarded(label, fn, *args, **kwargs):
 
 
 def run_all(flac_wt, kit_dir, pkg_dir, expect_flac_sha, expect_pkg_sha, data_dir=None,
-            dataset_root=None, train_json=None, expected_arm_shas=None):
+            dataset_root=None, train_json=None, expected_arm_shas=None,
+            expect_kit_sha=None, expect_launcher_sha256=None):
     """Every check of the launch contract, in report order. ``dataset_root=None`` skips
     only the anchor audit (the one check that needs the RIR tree on disk)."""
     data_dir = data_dir or os.path.join(flac_wt, "data", "AR")
@@ -558,6 +605,11 @@ def run_all(flac_wt, kit_dir, pkg_dir, expect_flac_sha, expect_pkg_sha, data_dir
     results += _guarded("FLAC worktree HEAD", check_git_head, flac_wt, expect_flac_sha,
                         "FLAC worktree")
     results += _guarded("package HEAD", check_git_head, pkg_dir, expect_pkg_sha, "package")
+    # Round-F finding 3: the kit holds the launcher and the two arm configs, i.e. the
+    # control and the arguments of the whole campaign, and was outside the identity gate.
+    results += _guarded("kit HEAD", check_git_head, kit_dir, expect_kit_sha, "kit",
+                        KIT_TRACKED_SCOPE)
+    results += _guarded("kit launcher", check_kit_launcher, kit_dir, expect_launcher_sha256)
     return results
 
 
@@ -587,6 +639,10 @@ def main(argv=None):
                         help="the package worktree reached via PYTHONPATH")
     parser.add_argument("--kit-dir", required=True,
                         help="the experiment kit (its configs/ holds the two arm configs)")
+    parser.add_argument("--expect-kit-sha", required=True,
+                        help="kit repository HEAD recorded in the launch record")
+    parser.add_argument("--expect-launcher-sha256", required=True,
+                        help="sha256 of the launcher that is running (`sha256sum \"$0\"`)")
     parser.add_argument("--flac-wt", default=default_wt)
     parser.add_argument("--data-dir", default=None, help="default: <flac-wt>/data/AR")
     parser.add_argument("--dataset-root", default=None,
@@ -601,6 +657,8 @@ def main(argv=None):
         expect_flac_sha=args.expect_flac_sha, expect_pkg_sha=args.expect_pkg_sha,
         data_dir=args.data_dir,
         dataset_root=dataset_root,
+        expect_kit_sha=args.expect_kit_sha,
+        expect_launcher_sha256=args.expect_launcher_sha256,
     ))
 
 
