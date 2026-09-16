@@ -23,12 +23,15 @@ crossing fraction from the printed g vector; the aggregation is the pinned evalu
 convention -- one item-weighted value over the whole 6,337-item unseen split per eval seed,
 then mean +- sd over seeds 42-46. Never per-scene (plan §1, §11).
 """
+import argparse
+import datetime
 import glob
 import json
 import math
 import os
 import re
 import statistics
+import sys
 
 from src.tools.data_curve import names
 
@@ -482,3 +485,343 @@ def effective_epochs(manifest, max_steps=names.MAX_STEPS, global_batch=GLOBAL_BA
         violations.append("the split manifest carries no full_split_context_histogram, so "
                           f"the {ANCHOR_PCT} % anchor's effective epochs cannot be computed")
     return epochs, violations
+
+
+#: Exit codes. 4 is "the artifacts on disk do not yet support the table that was asked
+#: for" -- a state the launcher and the analyst both need to be able to branch on.
+EXIT_OK, EXIT_INPUT_ERROR, EXIT_INCOMPLETE = 0, 2, 4
+#: Round A's manifest, next to the split files it describes.
+DEFAULT_SPLIT_MANIFEST = os.path.join(names.REPO_ROOT, "data", "AR",
+                                      "train_frac_manifest_s2026.json")
+#: Plan §11, carried into every results artifact verbatim rather than remembered.
+DISCLOSURES = (
+    f"Fixed-compute estimand -- a fixed-compute efficiency curve under jointly reduced "
+    f"target and context diversity: every run is {names.MAX_STEPS:,} optimizer steps x a global "
+    f"batch of {GLOBAL_BATCH} = {names.MAX_STEPS * GLOBAL_BATCH:,} target draws, so the "
+    "25 % arm revisits each RIR ~4x more often than the 100 % arm (effective epochs per "
+    "fraction are tabulated below). This is NOT a fixed-epoch learning curve.",
+    f"Aggregation is the pinned evaluator's AR convention: one item-weighted value over "
+    f"the whole {names.N_ITEMS_UNSEEN:,}-item unseen split per eval seed, then mean +- sd "
+    f"over seeds {names.SEEDS[0]}-{names.SEEDS[-1]}. No per-scene averaging anywhere in "
+    "this experiment.",
+    "One training seed per cell: sd(d_s) is EVAL-seed noise, not training-run uncertainty "
+    "(exp_12 Amendment 2), so the verdict is descriptive. The known step-to-step band on "
+    "this stack is ~ +-0.5 T60.",
+    "Nested subsets with jointly reduced target AND context diversity; both arms are "
+    "scored under their own conditioning protocol with all four flags explicit "
+    "(announcement 05).",
+    "Frame-average chunking is N/A on this pin (announcement 06): the cyl arm trains and "
+    "scores with frame_avg_angles = [0], orbit size 1.",
+)
+
+
+def _stringify(obj):
+    """JSON uses string keys; make that true in memory too, so a reload compares equal."""
+    if isinstance(obj, dict):
+        return {str(key): _stringify(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_stringify(value) for value in obj]
+    return obj
+
+
+def _row(metric, pct, cyl_by_seed, van_by_seed, seeds, source):
+    """One (metric, K, fraction) row: both arms aggregated and their oriented benefit.
+
+    The benefit falls back to the marginal form when the arms are not exactly paired --
+    and the row is marked incomplete in the same breath, so nothing downstream can mistake
+    a difference of four-seed means for the pre-registered B_f.
+    """
+    cyl_agg = aggregate(cyl_by_seed, seeds)
+    van_agg = aggregate(van_by_seed, seeds)
+    benefit = paired_benefit(metric, cyl_by_seed, van_by_seed, seeds) \
+        or marginal_benefit(metric, cyl_agg, van_agg)
+    return {"fraction_pct": pct, "cyl": cyl_agg, "van": van_agg, "benefit": benefit,
+            "complete": bool(cyl_agg["complete"] and van_agg["complete"]), "source": source}
+
+
+def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_dirs=None,
+                fraction_tags=None, ks=names.K_VALUES, seeds=names.SEEDS, metrics=METRICS,
+                generated_at=None):
+    """The whole data-curve document: six runs, two anchors, one verdict, one provenance.
+
+    The 100 % point is *paired* only when raw per-seed anchor cells are supplied for both
+    arms and complete (plan D10); otherwise it degrades to the marginal form and says so.
+    An incomplete primary cell makes the verdict PENDING rather than a verdict computed
+    over whichever cells happen to exist.
+    """
+    tags = sorted(fraction_tags or names.FRACTIONS)
+    pcts = [int(round(names.FRACTIONS[tag] * 100)) for tag in tags] + [ANCHOR_PCT]
+    violations = []
+
+    runs = {}
+    for arm in names.ARMS:
+        for tag in tags:
+            runs[(arm, tag)] = load_run(nas_root, arm, tag, seeds, ks)
+            violations += runs[(arm, tag)]["violations"]
+
+    reference = load_anchor_reference(anchors_path, ks=ks)
+    anchor_cells, anchor_form = {}, "marginal"
+    if anchor_cell_dirs:
+        clean = True
+        for arm in names.ARMS:
+            directory = anchor_cell_dirs.get(arm)
+            if not directory:
+                violations.append(f"anchor cells: no directory for the {arm} arm, so the "
+                                  "paired 100 % form is not available")
+                clean = False
+                continue
+            anchor_cells[arm], bad = load_anchor_cells(directory, arm, seeds, ks)
+            violations += [f"anchor {arm}: {b}" for b in bad]
+            clean = clean and not bad
+        anchor_form = "paired" if clean else "marginal"
+
+    epochs = {}
+    if split_manifest_path:
+        with open(split_manifest_path) as fin:
+            epochs, bad = effective_epochs(json.load(fin))
+        violations += bad
+
+    curve = {}
+    for K in ks:
+        curve[f"K{K}"] = {}
+        for metric in metrics:
+            rows = {}
+            for tag, pct in zip(tags, pcts):
+                by_seed = {arm: {seed: cell["metrics"][metric] for seed, cell
+                                 in runs[(arm, tag)]["cells"][K].items()}
+                           for arm in names.ARMS}
+                rows[str(pct)] = _row(metric, pct, by_seed["cyl"], by_seed["van"], seeds,
+                                      source=f"dc_*_f{tag} @ {nas_root}")
+            if anchor_form == "paired":
+                by_seed = {arm: {seed: cell["metrics"][metric]
+                                 for seed, cell in anchor_cells[arm][K].items()}
+                           for arm in names.ARMS}
+                rows[str(ANCHOR_PCT)] = _row(metric, ANCHOR_PCT, by_seed["cyl"],
+                                             by_seed["van"], seeds,
+                                             source="raw 100 % anchor cells (exp_13 tier S)")
+            else:
+                cyl_agg, van_agg = (dict(reference[arm][K][metric]) for arm in ("cyl", "van"))
+                rows[str(ANCHOR_PCT)] = {
+                    "fraction_pct": ANCHOR_PCT, "cyl": cyl_agg, "van": van_agg,
+                    "benefit": marginal_benefit(metric, cyl_agg, van_agg), "complete": True,
+                    "source": os.path.basename(anchors_path)}
+            curve[f"K{K}"][metric] = rows
+
+    primary = curve[f"K{PRIMARY_K}"]
+    pending = [f"{m} @ {pct} %" for m in PRIMARY_METRICS for pct in pcts
+               if not primary[m][str(pct)]["complete"]
+               or primary[m][str(pct)]["benefit"] is None]
+    if pending:
+        verdict_block = {"verdict": "PENDING", "rule": None, "primary_K": PRIMARY_K,
+                         "primary_metrics": list(PRIMARY_METRICS), "annotations": [],
+                         "reason": "not every primary cell is complete: " + ", ".join(pending)}
+    else:
+        verdict_block = verdict(
+            {m: {pct: primary[m][str(pct)]["benefit"]["mean"] for pct in pcts}
+             for m in PRIMARY_METRICS}, fractions=tuple(pcts))
+
+    equivalence = {}
+    for K in ks:
+        equivalence[f"K{K}"] = {}
+        for metric in metrics:
+            rows = curve[f"K{K}"][metric]
+            van_100 = rows[str(ANCHOR_PCT)]["van"]["mean"]
+            g = {pct: oriented_benefit(metric, van_100, rows[str(pct)]["cyl"]["mean"])
+                 for pct in pcts
+                 if van_100 is not None and rows[str(pct)]["cyl"]["mean"] is not None}
+            if len(g) != len(pcts):
+                equivalence[f"K{K}"][metric] = {
+                    "kind": "pending", "outcome": "pending (missing cells)", "g": g,
+                    "f_star": None, "bracket": None, "fractions": list(pcts)}
+            else:
+                equivalence[f"K{K}"][metric] = data_equivalence(g, fractions=tuple(pcts))
+
+    disclosures = list(DISCLOSURES)
+    disclosures.append(
+        "The 100 % point is PAIRED: raw per-seed anchor cells were supplied for both arms, "
+        "so B_100 carries a per-seed sd like every other fraction."
+        if anchor_form == "paired" else
+        "The 100 % point is reported in the MARGINAL form (`anchor_form: marginal`; "
+        "mean +- sd per arm, B_100 = "
+        "difference of means, no paired sd): the raw per-seed anchor cells were not "
+        "supplied for both arms (plan D10). The verdict rule uses B only, so it still "
+        "evaluates.")
+
+    document = {
+        "schema": "exp_14_data_curve/1",
+        "generated_at": generated_at or datetime.datetime.now().astimezone().isoformat(),
+        "sources": {"nas_root": nas_root, "anchor_reference": anchors_path,
+                    "split_manifest": split_manifest_path,
+                    "anchor_cell_dirs": dict(anchor_cell_dirs or {})},
+        "anchor_form": anchor_form,
+        "fractions_pct": pcts,
+        "effective_epochs": epochs,
+        "curve": curve,
+        "verdict": verdict_block,
+        "data_equivalence": equivalence,
+        "provenance": {
+            "runs": {run["run_id"]: {
+                "arm": run["arm"], "fraction_tag": run["fraction_tag"],
+                "run_dir": run["run_dir"], "ckpt": run["ckpt"],
+                "ckpt_sha256": run["ckpt_sha256"], "protocol": run["protocol"],
+                "cells": {f"K{K}": {seed: cell["path"] for seed, cell
+                                    in sorted(run["cells"][K].items())} for K in ks},
+            } for run in runs.values()},
+            "anchor_cells": {arm: {f"K{K}": {seed: cell["path"] for seed, cell
+                                             in sorted(cells[K].items())} for K in ks}
+                             for arm, cells in anchor_cells.items()},
+        },
+        "disclosures": disclosures,
+        "violations": violations,
+        "complete": not violations and verdict_block["verdict"] != "PENDING",
+    }
+    return _stringify(document)
+
+
+def _fmt(cell, dp=REPORT_DP):
+    """``mean +- sd`` at the reporting precision; an absent sd prints as a bare mean."""
+    if not cell or cell.get("mean") is None:
+        return "--"
+    if cell.get("sd") is None:
+        return f"{cell['mean']:.{dp}f}"
+    return f"{cell['mean']:.{dp}f} +- {cell['sd']:.{dp}f}"
+
+
+def _benefit_header(metric):
+    return ("B_f = van - cyl" if metric in LOWER_IS_BETTER else "B_f = cyl - van")
+
+
+def render_markdown(doc):
+    """The human-readable twin of ``data_curve.json`` -- same numbers, same caveats.
+
+    Every table states its own orientation in the column header, every row says whether it
+    is complete, and the provenance section names the file each number came from: the
+    point is that a reader can re-derive the verdict without trusting this script.
+    """
+    out = ["# exp_14 -- data-efficiency curve: CylDINO core S vs stock DINOv3 S "
+           f"(@{names.MAX_STEPS//1000}k, AR unseen)", "",
+           f"Generated {doc['generated_at']} by `src.tools.data_curve.assemble` from "
+           f"`{doc['sources']['nas_root']}`.", "",
+           "## Estimand and disclosures", ""]
+    out += [f"- {line}" for line in doc["disclosures"]]
+    epochs = doc.get("effective_epochs") or {}
+    if epochs:
+        out += ["", "### Effective epochs per fraction", "",
+                "| fraction | " + " | ".join(f"{pct} %" for pct in doc["fractions_pct"]) + " |",
+                "|---" * (len(doc["fractions_pct"]) + 1) + "|",
+                "| effective epochs | " + " | ".join(
+                    f"{epochs[str(pct)]:.2f}" if str(pct) in epochs else "--"
+                    for pct in doc["fractions_pct"]) + " |"]
+    for key, block in sorted(doc["curve"].items()):
+        out += ["", f"## K = {key[1:]}", ""]
+        for metric in METRICS:
+            better = "lower is better" if metric in LOWER_IS_BETTER else "higher is better"
+            out += [f"### {metric} ({better})", "",
+                    f"| fraction | eff. epochs | CylDINO core S | stock DINOv3 S | "
+                    f"{_benefit_header(metric)} | form | n | complete |",
+                    "|---" * 8 + "|"]
+            for pct in doc["fractions_pct"]:
+                row = block[metric][str(pct)]
+                benefit = row["benefit"] or {}
+                out.append(
+                    f"| {pct} % | "
+                    + (f"{epochs[str(pct)]:.2f}" if str(pct) in epochs else "--")
+                    + f" | {_fmt(row['cyl'])} | {_fmt(row['van'])} | {_fmt(benefit)} | "
+                    + f"{benefit.get('form', '--')} | {row['cyl'].get('n', 0)} | "
+                    + ("yes" if row["complete"] else "**NO**") + " |")
+            out.append("")
+    v = doc["verdict"]
+    out += ["## Verdict (pre-registered, plan §1)", "",
+            f"**{v['verdict']}** -- rule {v.get('rule') or v.get('reason', '')}", ""]
+    if v.get("annotations"):
+        out += [f"- {a}" for a in v["annotations"]] + [""]
+    if v.get("benefits"):
+        out += [f"| metric (K = {v['primary_K']}) | "
+                + " | ".join(f"B_{pct}" for pct in doc["fractions_pct"]) + " | non-positive at |",
+                "|---" * (len(doc["fractions_pct"]) + 2) + "|"]
+        for metric in v["primary_metrics"]:
+            out.append(f"| {metric} | " + " | ".join(
+                f"{v['benefits'][metric][str(pct)]:+.{REPORT_DP}f}"
+                for pct in doc["fractions_pct"])
+                + " | " + (", ".join(f"{p} %" for p in v["non_positive"][metric]) or "--") + " |")
+        out.append("")
+    out += ["## Data equivalence -- how little data CylDINO needs to match stock @100 %", "",
+            "g(f) = cyl(f) vs stock@100 %, oriented so g >= 0 means \"at least as good\"; "
+            "upward scan, first match.", "",
+            "| K | metric | " + " | ".join(f"g({pct})" for pct in doc["fractions_pct"])
+            + " | outcome | f* |", "|---" * (len(doc["fractions_pct"]) + 4) + "|"]
+    for key, block in sorted(doc["data_equivalence"].items()):
+        for metric in METRICS:
+            eq = block[metric]
+            star = "--" if eq.get("f_star") is None else f"{eq['f_star']:.1f} %"
+            out.append(f"| {key[1:]} | {metric} | " + " | ".join(
+                (f"{eq['g'][str(pct)]:+.{REPORT_DP}f}" if str(pct) in eq["g"] else "--")
+                for pct in doc["fractions_pct"]) + f" | {eq['outcome']} | {star} |")
+    out += ["", "## Provenance", ""]
+    for run_id, run in sorted(doc["provenance"]["runs"].items()):
+        protocol = ", ".join(f"{k}={v}" for k, v in sorted(run["protocol"].items()))
+        out += [f"### {run_id} ({run['arm']} arm, fraction {run['fraction_tag']})", "",
+                f"- checkpoint: `{run['ckpt']}`",
+                f"- ckpt_sha256: `{run['ckpt_sha256']}`",
+                f"- protocol: {protocol}", "- cells:", ""]
+        out += [f"  - `{path}`" for K in sorted(run["cells"])
+                for _, path in sorted(run["cells"][K].items())]
+        out.append("")
+    for arm, cells in sorted(doc["provenance"].get("anchor_cells", {}).items()):
+        out += [f"### 100 % anchor cells ({arm} arm)", ""]
+        out += [f"  - `{path}`" for K in sorted(cells) for _, path in sorted(cells[K].items())]
+        out.append("")
+    if doc["violations"]:
+        out += ["## Open violations (this table is NOT complete)", ""]
+        out += [f"- {line}" for line in doc["violations"]] + [""]
+    return "\n".join(out) + "\n"
+
+
+def main(argv=None):
+    """CLI: assemble ``data_curve.json`` + ``data_curve.md`` from the NAS run dirs."""
+    parser = argparse.ArgumentParser(
+        prog="python -m src.tools.data_curve.assemble",
+        description="Assemble exp_14's data-efficiency curve from the cells on the NAS.")
+    parser.add_argument("--nas-root", required=True,
+                        help="the directory holding the dc_<arm>_f<tag> run directories")
+    parser.add_argument("--anchors", required=True,
+                        help="exp_13's tier_S_reference.json (the 100 %% anchors)")
+    parser.add_argument("--split-manifest", default=DEFAULT_SPLIT_MANIFEST,
+                        help="Round A's train_frac_manifest_s2026.json (effective epochs)")
+    parser.add_argument("--anchor-cells-p1", default=None,
+                        help="directory of the 10 raw P1 (van) 100 %% cells; with "
+                             "--anchor-cells-cyl this promotes B_100 to the paired form")
+    parser.add_argument("--anchor-cells-cyl", default=None,
+                        help="directory of the 10 raw cylNoSSL 100 %% cells")
+    parser.add_argument("--out-json", default=None)
+    parser.add_argument("--out-md", default=None)
+    parser.add_argument("--strict", action="store_true",
+                        help="exit non-zero if anything is missing, mismatched or unpaired")
+    args = parser.parse_args(argv)
+
+    dirs = {arm: path for arm, path in (("van", args.anchor_cells_p1),
+                                        ("cyl", args.anchor_cells_cyl)) if path}
+    try:
+        doc = build_curve(args.nas_root, args.anchors,
+                          split_manifest_path=args.split_manifest,
+                          anchor_cell_dirs=dirs or None)
+    except (OSError, ValueError, KeyError) as err:
+        print(f"assemble: {type(err).__name__}: {err}", file=sys.stderr)
+        return EXIT_INPUT_ERROR
+    if args.out_json:
+        with open(args.out_json, "w") as fout:
+            json.dump(doc, fout, indent=1, sort_keys=True)
+    if args.out_md:
+        with open(args.out_md, "w") as fout:
+            fout.write(render_markdown(doc))
+    print(f"verdict: {doc['verdict']['verdict']} | anchors: {doc['anchor_form']} | "
+          f"complete: {doc['complete']} | violations: {len(doc['violations'])}")
+    for line in doc["violations"]:
+        print(f"  ! {line}", file=sys.stderr)
+    if args.strict and doc["violations"]:
+        return EXIT_INCOMPLETE
+    return EXIT_OK
+
+
+if __name__ == "__main__":     # pragma: no cover - exercised through main() in tests
+    sys.exit(main())
