@@ -36,6 +36,11 @@ K_VALUES = (1, 8)
 #: The substring that would misclassify a model_comparison row (finding r3-3).
 FORBIDDEN_SUBSTRING = "exp14_"
 
+#: The one non-digest a ``--expect-ckpt-sha256`` may be: a DRY RUN has no checkpoint to
+#: hash, so it prints this instead. It is deliberately not hex, so an evaluator handed it
+#: refuses every real checkpoint -- a dry-run argv can never be pasted into a real run.
+DRYRUN_SHA256 = "DRYRUN"
+
 #: arm -> ``--cond-method``. ``fa_invariant`` with a single angle is what the cyl arm is
 #: trained with (announcement 06: orbit size 1, no chunking on this pin).
 ARM_COND_METHOD = {"cyl": "fa_invariant", "van": "vanilla"}
@@ -115,6 +120,24 @@ def _check_k(k):
     if isinstance(k, bool) or k not in K_VALUES:
         raise ValueError(f"unplanned K={k!r}; the experiment evaluates {K_VALUES}")
     return k
+
+
+def _check_ckpt_sha256(digest):
+    """Accept a lowercase 64-hex sha256 (or the dry-run sentinel); refuse anything else.
+
+    An empty, ``None`` or malformed digest means the caller has no validated checkpoint
+    identity to pin, and an evaluation that is not pinned to the bytes the run contract
+    was checked against is exactly what codex full-r2 finding 1 is about.
+    """
+    if digest == DRYRUN_SHA256:
+        return digest
+    if not isinstance(digest, str) or len(digest) != 64 \
+            or any(c not in "0123456789abcdef" for c in digest):
+        raise ValueError(
+            f"expected the validated checkpoint's sha256 (64 lowercase hex characters) "
+            f"or {DRYRUN_SHA256!r}, got {digest!r}"
+        )
+    return digest
 
 
 def _check_seed(seed):
@@ -255,17 +278,23 @@ def train_argv(arm, tag, model_config, dataset_config, save_dir, run_contract_js
     return argv
 
 
-def eval_argv(arm, tag, K, seed, model_config, ckpt_path):
+def eval_argv(arm, tag, K, seed, model_config, ckpt_path, ckpt_sha256):
     """The frozen evaluation command of one cell (plan §2, announcement 05).
 
     All four conditioning flags are explicit for **both** arms, K selects one of the two
     existing full unseen-eval configs (announcement 01: never a subsampled eval), and the
     checkpoint must live in this run's directory -- scoring one arm's checkpoint under the
     other's protocol is the exp_09 protocol error, and it is not detectable in the numbers.
+
+    ``ckpt_sha256`` is required, not optional (codex full-r2 finding 1): the evaluator
+    re-hashes ``ckpt_path`` before loading it and refuses to run unless it is these bytes,
+    then stamps the digest into both artifacts. A checkpoint replaced at the same pathname
+    therefore stops the cell instead of silently producing a plausible number.
     """
     run = run_id(arm, tag)
     _check_model_config(arm, model_config)
     _check_run_dir(run, os.path.dirname(str(ckpt_path)), "--ckpt-path's directory")
+    _check_ckpt_sha256(ckpt_sha256)
     return [
         "python", "eval_FLAC.py",
         "--model-config", model_config,
@@ -279,6 +308,7 @@ def eval_argv(arm, tag, K, seed, model_config, ckpt_path):
         "--steps", str(EVAL_STEPS),
         "--cfg-scale", str(EVAL_CFG_SCALE),
         "--eval-name", eval_name(arm, tag, K, seed),
+        "--expect-ckpt-sha256", ckpt_sha256,
         "--store_predictions",
     ]
 
@@ -325,12 +355,32 @@ def eval_dataset_config_sha256(K, config_root=None):
     return file_sha256(eval_dataset_config_path(K, config_root))
 
 
-def _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256):
-    """The artifact-to-checkpoint binding of one bundle (codex round-F finding 2).
+def _check_embedded_digest(kind, embedded, expect_ckpt_sha256):
+    """The artifact's own memory of the bytes it was produced from (full-r2 finding 1).
 
-    ``meta.ckpt_path`` is the only checkpoint identity a bundle carries (``eval_FLAC``
-    stores no digest), so the path is compared normalised, and -- when the launcher passes
-    the digest it computed when it validated that checkpoint -- the file is re-hashed.
+    Re-hashing the file only ever confirms the bytes that are there NOW, so it cannot tell
+    an artifact scored from checkpoint A apart from one scored after the same pathname was
+    replaced by another contract-valid B. Only a digest the evaluator stamped in at scoring
+    time can: an artifact written before round G carries none, and is not countable.
+    """
+    if embedded is None:
+        return [f"{kind}.ckpt_sha256 is absent: this artifact was written by an evaluator "
+                "that did not record which checkpoint bytes it scored, so it cannot be "
+                "bound to the validated checkpoint (re-run the cell)"]
+    if str(embedded) != expect_ckpt_sha256:
+        return [f"{kind}.ckpt_sha256 is {embedded!r}, but the validated final checkpoint is "
+                f"{expect_ckpt_sha256}: this artifact was produced from other checkpoint "
+                "bytes at the same pathname"]
+    return []
+
+
+def _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256):
+    """The artifact-to-checkpoint binding of one bundle (codex round-F 2 + full-r2 1).
+
+    Three things must agree: the path the bundle names, the digest the bundle *carries*
+    (stamped in by ``eval_FLAC`` when it loaded that file), and the digest of the file on
+    disk now. The middle one is the new half: without it, bytes replaced at the same
+    pathname pass, because re-hashing only ever sees the replacement.
     """
     want = os.path.normpath(str(expect_ckpt))
     got = os.path.normpath(str(meta.get("ckpt_path")))
@@ -338,15 +388,18 @@ def _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256):
         return [f"meta.ckpt_path is {got!r}, expected the validated final checkpoint {want!r}"]
     if expect_ckpt_sha256 is None:
         return []
+    violations = _check_embedded_digest("meta", meta.get("ckpt_sha256"), expect_ckpt_sha256)
     try:
         digest = file_sha256(want)
     except OSError as err:
-        return [f"meta.ckpt_path {want!r} cannot be hashed, so this bundle cannot be bound "
-                f"to the validated checkpoint ({err})"]
+        return violations + [
+            f"meta.ckpt_path {want!r} cannot be hashed, so this bundle cannot be bound "
+            f"to the validated checkpoint ({err})"]
     if digest != expect_ckpt_sha256:
-        return [f"the checkpoint {want!r} now hashes to {digest}, not the {expect_ckpt_sha256} "
-                "the launcher validated: it was replaced after validation"]
-    return []
+        violations.append(
+            f"the checkpoint {want!r} now hashes to {digest}, not the {expect_ckpt_sha256} "
+            "the launcher validated: it was replaced after validation")
+    return violations
 
 
 def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None,
@@ -372,6 +425,9 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     _check_arm(expect_arm)
     _check_k(expect_K)
     _check_seed(expect_seed)
+    if expect_ckpt_sha256 is not None and expect_ckpt is None:
+        raise ValueError("expect_ckpt_sha256 without expect_ckpt binds nothing: pass the "
+                         "validated final checkpoint too")
     try:
         bundle = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as err:
@@ -455,8 +511,8 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
 # which protocol. `eval_FLAC.build_metrics_record` stores the checkpoint path and all four
 # conditioning flags, so the same binding the bundle gets is available here -- and unlike
 # the bundle, the metrics JSON is what the results table is built from.
-def check_metrics(path, expect_ckpt, expect_cond_method, expect_angles, expect_rotate,
-                  expect_autocast):
+def check_metrics(path, expect_ckpt, expect_ckpt_sha256, expect_cond_method, expect_angles,
+                  expect_rotate, expect_autocast):
     """Return the list of violations of one cell's metrics JSON (empty == it is this cell's).
 
     An unreadable or unparseable file is a violation, not an exception -- a half-written
@@ -483,6 +539,9 @@ def check_metrics(path, expect_ckpt, expect_cond_method, expect_angles, expect_r
     if got_ckpt != want_ckpt:
         violations.append(
             f"ckpt_path is {got_ckpt!r}, expected the validated final checkpoint {want_ckpt!r}")
+    else:
+        violations += _check_embedded_digest("record", record.get("ckpt_sha256"),
+                                             _check_ckpt_sha256(expect_ckpt_sha256))
     if record.get("cond_method") != expect_cond_method:
         violations.append(
             f"cond_method is {record.get('cond_method')!r}, expected {expect_cond_method!r}")
@@ -538,6 +597,8 @@ def _build_arg_parser():
                                   "own input), bound to the validated final checkpoint")
     metrics.add_argument("--json", dest="json_path", required=True)
     metrics.add_argument("--expect-ckpt", required=True)
+    metrics.add_argument("--expect-ckpt-sha256", required=True,
+                         help="the digest the evaluator must have stamped into this record")
     # Every protocol flag is explicit for BOTH arms (CLAUDE.md "Eval-protocol flags"):
     # a default here would be the one place the experiment could drift unnoticed.
     metrics.add_argument("--expect-cond-method", required=True,
@@ -550,9 +611,9 @@ def _build_arg_parser():
 
 def _main_check_metrics(args):
     try:
-        violations = check_metrics(args.json_path, args.expect_ckpt, args.expect_cond_method,
-                                   args.expect_angles, args.expect_rotate,
-                                   args.expect_autocast)
+        violations = check_metrics(args.json_path, args.expect_ckpt, args.expect_ckpt_sha256,
+                                   args.expect_cond_method, args.expect_angles,
+                                   args.expect_rotate, args.expect_autocast)
     except ValueError as err:
         print(f"check-metrics called with bad arguments: {err}")
         return EXIT_INPUT_ERROR
@@ -562,7 +623,8 @@ def _main_check_metrics(args):
         return EXIT_BUNDLE_VIOLATION
     print(f"PASS {args.json_path}: cond_method={args.expect_cond_method} "
           f"angles={args.expect_angles} rotate={args.expect_rotate} "
-          f"autocast={args.expect_autocast} ckpt={args.expect_ckpt}")
+          f"autocast={args.expect_autocast} ckpt={args.expect_ckpt} "
+          f"ckpt_sha256={args.expect_ckpt_sha256}")
     return EXIT_OK
 
 
