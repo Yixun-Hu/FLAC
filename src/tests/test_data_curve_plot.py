@@ -17,9 +17,8 @@ checked-in ``data_curve.json`` fixture that was produced by ``assemble.build_cur
 itself, and one test proves the fixture still has the schema the assembler emits. CPU-only.
 """
 import json
+import math
 import os
-
-import pytest
 
 from src.tools.data_curve import assemble, plot
 
@@ -83,10 +82,8 @@ def test_the_axis_labels_are_set_in_the_serif_stack():
 def test_both_arms_use_the_project_palette_and_distinct_marker_shapes():
     figure, axes = plot.build_figure(load_fixture(), 8)
     try:
-        lines = {line.get_label(): line for line in axes[0].get_lines() if line.get_label()
-                 in plot.SERIES_LABELS.values()}
-        stock = lines[plot.SERIES_LABELS["van"]]
-        cyl = lines[plot.SERIES_LABELS["cyl"]]
+        stock = plot.arm_line(axes[0], "van")
+        cyl = plot.arm_line(axes[0], "cyl")
         assert stock.get_color().upper() == "#1F77B4"
         assert cyl.get_color().upper() == "#FF7F0E"
         assert (stock.get_marker(), cyl.get_marker()) == ("o", "s")
@@ -100,9 +97,8 @@ def test_both_arms_use_the_project_palette_and_distinct_marker_shapes():
 def test_every_measured_fraction_including_the_anchor_is_on_the_curve():
     figure, axes = plot.build_figure(load_fixture(), 8)
     try:
-        line = next(ln for ln in axes[0].get_lines()
-                    if ln.get_label() == plot.SERIES_LABELS["cyl"])
-        assert sorted(line.get_xdata()) == [25.0, 50.0, 75.0, 100.0]
+        assert sorted(plot.arm_line(axes[0], "cyl").get_xdata()) == \
+            [25.0, 50.0, 75.0, 100.0]
     finally:
         plot.close(figure)
 
@@ -116,16 +112,18 @@ def test_the_seed_sd_is_drawn_as_an_error_bar():
         plot.close(figure)
 
 
-def test_a_row_without_a_mean_is_absent_from_the_line_not_interpolated():
+def test_a_row_without_a_mean_breaks_the_line_instead_of_bridging_it():
     doc = load_fixture()
     doc["curve"]["K8"]["T60"]["50"]["cyl"] = {"mean": None, "sd": None, "n": 0,
                                               "seeds": [], "complete": False}
     doc["curve"]["K8"]["T60"]["50"]["complete"] = False
     figure, axes = plot.build_figure(doc, 8)
     try:
-        line = next(ln for ln in axes[0].get_lines()
-                    if ln.get_label() == plot.SERIES_LABELS["cyl"])
-        assert sorted(line.get_xdata()) == [25.0, 75.0, 100.0]
+        line = plot.arm_line(axes[0], "cyl")
+        xs, ys = list(line.get_xdata()), list(line.get_ydata())
+        assert [x for x, y in zip(xs, ys) if y == y] == [25.0, 75.0, 100.0]
+        # NaN, not a dropped x: a dropped x would have joined 25 % straight to 75 %.
+        assert math.isnan(ys[xs.index(50.0)])
     finally:
         plot.close(figure)
 
