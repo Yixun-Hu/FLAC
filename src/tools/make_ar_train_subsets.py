@@ -45,3 +45,22 @@ def parse_nodes(fname: str) -> tuple[str, str]:
     if not tail:
         raise ValueError(f"malformed RIR basename (empty tail): {fname!r}")
     return src, rec
+
+
+def room_permutation(sorted_files: list[str], rng) -> list[str]:
+    """Return ``rng.sample(sorted_files, n)`` — the ONLY RNG consumption of this module.
+
+    One draw per room, taken in scene-sorted / room-sorted order, is what makes the whole
+    build bit-reproducible from ``seed`` alone.
+    """
+    return rng.sample(sorted_files, len(sorted_files))
+
+
+def raw_prefix(perm: list[str], frac: float) -> list[str]:
+    """The first ``max(1, round(frac * len(perm)))`` entries of ``perm``.
+
+    ``round`` is Python's built-in banker's rounding (ties-to-even), e.g. ``0.25 * 6 -> 2``
+    but ``0.25 * 10 -> 2`` and ``0.75 * 6 -> 4``. Because it is a prefix of one fixed
+    permutation, ascending fractions are automatically nested.
+    """
+    return list(perm[: max(1, round(frac * len(perm)))])
