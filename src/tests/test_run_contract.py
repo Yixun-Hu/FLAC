@@ -72,6 +72,8 @@ CONTRACT_KEYS = {
     "contract_version",
 }
 
+LAUNCHED_AT = "2026-09-16T18:00:00+00:00"
+
 MODEL_CONFIG = {
     "model_type": "diffusion_cond",
     "sample_size": 65536,
@@ -115,7 +117,7 @@ def make_contract(launch_files, **overrides):
         sync_batchnorm=True,
         flac_sha="a" * 40,
         package_sha="b" * 40,
-        launched_at="2026-09-16T18:00:00+00:00",
+        launched_at=LAUNCHED_AT,
     )
     kwargs.update(overrides)
     return build_contract(**kwargs)
@@ -656,43 +658,53 @@ def test_D13_revert_guard_train_py_wires_the_flag():
 # ======================================================================================
 # D17 — persistence and resume continuity
 # ======================================================================================
+def contract_builder(launch_files, timestamp=LAUNCHED_AT, **overrides):
+    """A ``build_fn`` of the shape ``load_or_create_contract`` calls: it is handed the
+    persisted ``launched_at`` when one exists, so the candidate it returns differs from the
+    persisted contract only where the run's *identity* really changed."""
+    def build_fn(launched_at=None):
+        return make_contract(launch_files, launched_at=launched_at or timestamp, **overrides)
+    return build_fn
+
+
 def test_load_or_create_contract_creates_the_sidecar_once(tmp_path, launch_files):
     """First launch: the contract is built, written to <run-dir>/run_contract.json and
     returned. The run dir is created if the launcher has not made it yet."""
     run_dir = tmp_path / "dc_cyl_f025"
     calls = []
 
-    def build_fn():
-        calls.append(1)
+    def build_fn(launched_at=None):
+        calls.append(launched_at)
         return make_contract(launch_files)
 
     contract = load_or_create_contract(str(run_dir), build_fn)
 
-    assert calls == [1]
+    assert calls == [None]                          # nothing persisted yet to inherit
     path = run_dir / CONTRACT_FILENAME
     assert json.load(open(path)) == contract
     assert open(path).read().startswith("{\n ")     # indent=1, readable in a worklog
 
 
 def test_D17_load_or_create_contract_returns_the_persisted_contract_verbatim(tmp_path, launch_files):
-    """Resume: the sidecar wins and the builder is never called. A freshly minted contract
-    carries a new launched_at, so a resumed run that rebuilt it would start embedding a
-    contract that no earlier checkpoint matches -- which is exactly what the rejection in
-    test_D17_resumed_checkpoint... demonstrates."""
+    """Resume with unchanged inputs: the sidecar wins, even though this launch would have
+    minted a later ``launched_at``. A rebuilt contract would no longer match any earlier
+    checkpoint -- the rejection in test_D17_resumed_checkpoint... shows exactly that."""
     run_dir = tmp_path / "dc_cyl_f025"
-    original = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+    original = load_or_create_contract(str(run_dir), contract_builder(launch_files))
 
-    def must_not_be_called():
-        raise AssertionError("a resume must re-read the contract, never rebuild it")
+    later = load_or_create_contract(
+        str(run_dir), contract_builder(launch_files, timestamp="2026-09-18T02:00:00+00:00")
+    )
 
-    assert load_or_create_contract(str(run_dir), must_not_be_called) == original
+    assert later == original
+    assert later["launched_at"] == LAUNCHED_AT
 
 
 def test_load_or_create_contract_returns_what_the_file_holds(tmp_path, launch_files):
     """The returned dict is the JSON round trip of the file (not the in-memory build), so
     the in-memory contract can never differ from the one a later launch re-reads."""
     run_dir = tmp_path / "dc_cyl_f025"
-    contract = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+    contract = load_or_create_contract(str(run_dir), contract_builder(launch_files))
     assert contract == json.load(open(run_dir / CONTRACT_FILENAME))
 
 
@@ -700,7 +712,7 @@ def test_append_resume_log_records_resumes_outside_the_contract(tmp_path, launch
     """Each resume appends {timestamp, from_ckpt, from_sha} to a SEPARATE resume_log.json;
     the contract itself never changes, or every resumed checkpoint would stop matching."""
     run_dir = tmp_path / "dc_cyl_f025"
-    contract = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+    contract = load_or_create_contract(str(run_dir), contract_builder(launch_files))
 
     first = {"timestamp": "2026-09-18T02:00:00+00:00", "from_ckpt": "step=2500.ckpt", "from_sha": "d" * 64}
     second = {"timestamp": "2026-09-19T02:00:00+00:00", "from_ckpt": "step=5000.ckpt", "from_sha": "e" * 64}
@@ -725,7 +737,7 @@ def test_D17_resumed_checkpoint_carries_the_original_contract(trained, tmp_path)
     the ORIGINAL contract, while a freshly minted one (new launched_at) is rejected -- so
     the launcher must re-read, never rebuild."""
     run_dir = trained["root"]
-    persisted = load_or_create_contract(str(run_dir), lambda: trained["contract"])
+    persisted = load_or_create_contract(str(run_dir), lambda launched_at=None: trained["contract"])
     assert persisted == trained["contract"]
 
     resumed_ckpt = run_training(run_dir / "checkpoints", persisted, MODEL_CONFIG,
@@ -851,3 +863,4 @@ def test_cli_module_entry_point_runs(validate_inputs):
                          cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
     assert bad.returncode == 3
     assert "global_step" in bad.stderr
+
