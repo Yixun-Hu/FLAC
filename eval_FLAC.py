@@ -323,11 +323,14 @@ def evaluate_model(
             if module.diffusion.pretransform is not None:
                 fakes = module.diffusion.pretransform.decode(fakes)
             
-            if store_predictions:
-                decoded_samples.append(fakes.cpu())
-            
             # Clamp and pad if necessary
             fakes, reals = clamp_and_pad(fakes, reals)
+
+            # Announcement 08: store the EXACTLY-AS-SCORED tensor, i.e. the
+            # clamped/padded `fakes` handed to update_metrics below. Nothing
+            # between this line and that call mutates `fakes`; keep it that way.
+            if store_predictions:
+                decoded_samples.append(fakes.cpu())
 
             # Compute metrics
             scene_list = [md["scene"] for md in metadata]

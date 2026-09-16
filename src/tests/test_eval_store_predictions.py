@@ -17,11 +17,14 @@ callback input** -- the metric callback's own ``float()`` cast and its
 ``max_len`` (8000-sample) crop happen *inside* scoring and are deliberately not
 part of the artifact.
 """
-import torch
+import json
+import types
 
 import pytest
+import torch
 
 import eval_FLAC  # noqa: E402  (heavy but side-effect-free at import)
+import src.inference.sampling as sampling  # patched in place: the loop imports it inline
 
 
 # --------------------------------------------------------------------------- #
@@ -128,3 +131,179 @@ def test_clamp_and_pad_matches_pinned_block(shape_f, shape_r):
     exp_f, exp_r = _pinned_clamp_and_pad(fakes.clone(), reals.clone())
     assert torch.equal(got_f, exp_f)
     assert torch.equal(got_r, exp_r)
+
+
+# --------------------------------------------------------------------------- #
+# C2: loop-level proof that the STORED tensor is the SCORED tensor
+#
+# evaluate_model is driven end-to-end on CPU with every heavy piece stubbed at
+# the eval_FLAC namespace (the pattern of test_eval_paths.py's wiring test),
+# but -- unlike that test -- with a NON-empty dataloader, so the per-batch loop
+# really runs. The sampler is patched on ``src.inference.sampling`` because the
+# loop imports it inside the body.
+# --------------------------------------------------------------------------- #
+DOWNSAMPLING_RATIO = 8
+SAMPLE_SIZE = 64
+DECODED_LEN = 5      # shorter than REAL_LEN -> the pad branch fires
+REAL_LEN = 8
+DECODE_GAIN = 5.0    # pushes the decoder output well outside [-1, 1]
+
+
+class _RecordingPretransform:
+    """Stand-in VAE decoder: returns an out-of-range, too-short waveform and
+    keeps a copy of every raw output (the pre-round-C artifact)."""
+
+    downsampling_ratio = DOWNSAMPLING_RATIO
+
+    def __init__(self):
+        self.raw = []
+
+    def decode(self, latents):
+        out = latents[:, :1, :DECODED_LEN] * DECODE_GAIN
+        self.raw.append(out.detach().clone())
+        return out
+
+
+class _FakeDiffusion:
+    def __init__(self, pretransform, io_channels=4):
+        self.model = types.SimpleNamespace(diffusion_objective="rectified_flow")
+        self.pretransform = pretransform
+        self.io_channels = io_channels
+        self.dist_shift = None
+        self.conditioner = lambda metadata, device: {}
+
+    def get_conditioning_inputs(self, conditioning):
+        return {}
+
+
+class _FakeLoopModule:
+    """PL-wrapper stand-in whose .diffusion drives the real per-batch loop."""
+
+    def __init__(self, pretransform):
+        self.diffusion = _FakeDiffusion(pretransform)
+        self.device = "cpu"
+
+    def eval(self):
+        return self
+
+    def requires_grad_(self, flag):
+        return self
+
+    def to(self, device):
+        return self
+
+
+class _RecordingMetricCallback:
+    """Records the exact tensor handed to update_metrics -- the scored input."""
+
+    def __init__(self):
+        self.scored = []
+
+    def update_metrics(self, stage, pred, ref, scene=None, filename=None,
+                       eval_type=None, depth=None):
+        self.scored.append(pred.detach().clone())
+
+    def compute_metrics(self, stage):
+        return {"T60": 1.0}
+
+
+def _md(i):
+    g = torch.Generator().manual_seed(i)
+    return {
+        "scene": f"scene{i}",
+        "depth": torch.randn(3, 4, 6, generator=g),
+        "source": torch.randn(3, generator=g),
+    }
+
+
+def _fake_batches(sizes=(2, 3)):
+    batches, idx = [], 0
+    for n in sizes:
+        g = torch.Generator().manual_seed(100 + n)
+        reals = torch.randn(n, 1, REAL_LEN, generator=g)
+        metadata = [_md(idx + j) for j in range(n)]
+        batches.append((reals, metadata))
+        idx += n
+    return batches
+
+
+def _run_loop(tmp_path, monkeypatch, store_predictions=True, eval_name="c2",
+              batch_sizes=(2, 3)):
+    """Drive evaluate_model over ``batch_sizes`` fake batches; return
+    (pretransform, metric_callback, output paths, n_items)."""
+    model_cfg = tmp_path / "model.json"
+    model_cfg.write_text(json.dumps({
+        "model_type": "diffusion_cond", "sample_size": SAMPLE_SIZE,
+        "sample_rate": 22050, "audio_channels": 1, "training": {"use_ema": False},
+    }))
+    dataset_cfg = tmp_path / "dataset.json"
+    dataset_cfg.write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+    ckpt = tmp_path / "toy.ckpt"
+    torch.save({"state_dict": {}}, str(ckpt))
+
+    pretransform = _RecordingPretransform()
+    metric_callback = _RecordingMetricCallback()
+    batches = _fake_batches(batch_sizes)
+
+    monkeypatch.setattr(
+        eval_FLAC, "create_model_from_config",
+        lambda cfg: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], [])),
+    )
+    monkeypatch.setattr(
+        eval_FLAC, "create_training_wrapper_from_config",
+        lambda cfg, model: _FakeLoopModule(pretransform),
+    )
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config", lambda *a, **k: batches)
+    monkeypatch.setattr(
+        eval_FLAC, "create_metric_callback_from_config", lambda *a, **k: metric_callback
+    )
+    # The loop imports the sampler inside the body -> patch the module attribute.
+    monkeypatch.setattr(
+        sampling, "sample_discrete_euler",
+        lambda model, x, steps=None, **kw: x,
+    )
+
+    eval_FLAC.evaluate_model(
+        str(model_cfg), str(dataset_cfg), str(ckpt),
+        steps=1, cfg_scale=1.0, batch_size=2, device="cpu", eval_name=eval_name,
+        seed=42, store_predictions=store_predictions, cond_autocast="off",
+    )
+
+    paths = eval_FLAC.build_output_paths(
+        str(ckpt), steps=1, cfg_scale=1.0, eval_name=eval_name,
+        cond_method="vanilla", rotate_deg=0.0,
+    )
+    return pretransform, metric_callback, paths, sum(batch_sizes)
+
+
+def _load_bundle(path):
+    return torch.load(path, map_location="cpu", weights_only=False)
+
+
+def test_stored_predictions_are_bitwise_the_scored_tensor(tmp_path, monkeypatch):
+    """The saved bundle == torch.cat of exactly what update_metrics received."""
+    pretransform, metric_callback, paths, n_items = _run_loop(tmp_path, monkeypatch)
+
+    bundle = _load_bundle(paths["predictions"])
+    stored = bundle["predictions"]
+    scored = torch.cat(metric_callback.scored, dim=0)
+
+    assert len(metric_callback.scored) == 2, "the per-batch loop did not run twice"
+    assert stored.shape == scored.shape == (n_items, 1, REAL_LEN)
+    assert torch.equal(stored, scored)
+
+
+def test_stored_predictions_differ_from_the_raw_decoder_output(tmp_path, monkeypatch):
+    """Fixture sanity + regression pin: the raw decode really was out-of-range
+    and too short, so storing it (the pre-round-C behaviour) is detectable."""
+    pretransform, _, paths, n_items = _run_loop(tmp_path, monkeypatch, eval_name="c2raw")
+
+    raw = torch.cat(pretransform.raw, dim=0)
+    assert raw.shape == (n_items, 1, DECODED_LEN)
+    assert raw.abs().max() > 1.0, "fixture no longer exercises the clamp"
+
+    stored = _load_bundle(paths["predictions"])["predictions"]
+    assert stored.shape[-1] == REAL_LEN                    # padded
+    assert stored.min() >= -1.0 and stored.max() <= 1.0    # clamped
+    assert torch.equal(stored[..., :DECODED_LEN], raw.clamp(-1.0, 1.0))
+    assert torch.equal(stored[..., DECODED_LEN:], torch.zeros(n_items, 1, REAL_LEN - DECODED_LEN))
