@@ -432,9 +432,11 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     _check_arm(expect_arm)
     _check_k(expect_K)
     _check_seed(expect_seed)
-    if expect_ckpt_sha256 is not None and expect_ckpt is None:
-        raise ValueError("expect_ckpt_sha256 without expect_ckpt binds nothing: pass the "
-                         "validated final checkpoint too")
+    if expect_ckpt_sha256 is not None:
+        if expect_ckpt is None:
+            raise ValueError("expect_ckpt_sha256 without expect_ckpt binds nothing: pass "
+                             "the validated final checkpoint too")
+        _check_ckpt_sha256(expect_ckpt_sha256)
     try:
         bundle = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as err:
@@ -529,6 +531,7 @@ def check_metrics(path, expect_ckpt, expect_ckpt_sha256, expect_cond_method, exp
     if expect_cond_method not in set(ARM_COND_METHOD.values()):
         raise ValueError(f"unknown --cond-method {expect_cond_method!r}; the experiment "
                          f"scores with {sorted(set(ARM_COND_METHOD.values()))}")
+    _check_ckpt_sha256(expect_ckpt_sha256)
     try:
         with open(path) as fin:
             record = json.load(fin)
@@ -548,7 +551,7 @@ def check_metrics(path, expect_ckpt, expect_ckpt_sha256, expect_cond_method, exp
             f"ckpt_path is {got_ckpt!r}, expected the validated final checkpoint {want_ckpt!r}")
     else:
         violations += _check_embedded_digest("record", record.get("ckpt_sha256"),
-                                             _check_ckpt_sha256(expect_ckpt_sha256))
+                                             expect_ckpt_sha256)
     if record.get("cond_method") != expect_cond_method:
         violations.append(
             f"cond_method is {record.get('cond_method')!r}, expected {expect_cond_method!r}")

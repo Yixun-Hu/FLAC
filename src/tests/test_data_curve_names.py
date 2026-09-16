@@ -489,8 +489,10 @@ def _write_metrics(tmp_path, ckpt, *, arm="cyl", name="metrics.json", **override
 
 
 def _metrics_args(ckpt, arm="cyl", ckpt_sha256=None):
+    if ckpt_sha256 is None:                       # "" is a MALFORMED digest, not a default
+        ckpt_sha256 = names.file_sha256(ckpt)
     return dict(expect_ckpt=ckpt,
-                expect_ckpt_sha256=ckpt_sha256 or names.file_sha256(ckpt),
+                expect_ckpt_sha256=ckpt_sha256,
                 expect_cond_method=names.ARM_COND_METHOD[arm],
                 expect_angles=names.FRAME_AVG_ANGLES, expect_rotate=names.ROTATE_DEG,
                 expect_autocast=names.COND_AUTOCAST)
@@ -719,3 +721,23 @@ def test_check_metrics_cli_requires_the_digest(tmp_path):
                    "--expect-rotate", "0", "--expect-autocast", "bf16")
     assert unbound.returncode == 2, unbound.stdout
     assert "--expect-ckpt-sha256" in unbound.stderr
+
+
+def test_the_gates_refuse_a_malformed_digest_expectation_as_a_caller_bug(tmp_path):
+    """A launcher that hands a gate something that is not a digest has a bug; that is an
+    input error (exit 2), not a verdict about the artifact."""
+    ckpt, _ = _real_ckpt(tmp_path)
+    bundle = _write_bundle(tmp_path, ckpt_path=ckpt)
+    metrics = _write_metrics(tmp_path, ckpt, name="malformed.json")
+    for bad in ("", "not-a-digest", "ab" * 31):
+        with pytest.raises(ValueError):
+            names.check_bundle(bundle, 4, 42, 8, "cyl", expect_ckpt=ckpt,
+                               expect_ckpt_sha256=bad)
+        with pytest.raises(ValueError):
+            names.check_metrics(metrics, **_metrics_args(ckpt, ckpt_sha256=bad))
+
+    proc = _cli("check-metrics", "--json", metrics, "--expect-ckpt", ckpt,
+                "--expect-ckpt-sha256", "not-a-digest", "--expect-cond-method",
+                "fa_invariant", "--expect-angles", "0", "--expect-rotate", "0",
+                "--expect-autocast", "bf16")
+    assert proc.returncode == 2, proc.stdout
