@@ -345,6 +345,42 @@ def test_A5_manifest_counts_reconcile_per_fraction_and_per_room():
             assert entry[key] == sum(rc[key] for rc in per_room.values())
 
 
+def test_A5_per_room_entries_pin_every_field_including_the_histogram():
+    """Every per-room manifest entry carries exactly the four counts AND its own eligible-
+    context histogram (no per-room effective epochs: the 40k x 64 budget is global), each
+    equal to the value recomputed from the emitted room, and the per-room values sum to the
+    fraction-level totals — histogram bins included."""
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    bins = ("0", "1-7", ">=8")
+    for frac in FRACS:
+        entry = manifest["fractions"][str(frac)]
+        summed_counts = dict.fromkeys(mas.COUNT_KEYS, 0)
+        summed_hist = dict.fromkeys(bins, 0)
+        for scene, room in _rooms(TOY_SPLIT):
+            room_entry = manifest["fractions"][str(frac)]["per_room"][room]
+            assert tuple(room_entry) == mas.COUNT_KEYS + ("context_histogram",)
+            files = subsets[frac][scene][room]
+            prefix = mas.raw_prefix(
+                mas.room_permutation(sorted(TOY_SPLIT[scene][room]), random.Random(0)), frac
+            )
+            assert room_entry["raw_prefix"] == len(prefix)
+            assert room_entry["final"] == len(files)
+            assert room_entry["final"] == (
+                room_entry["raw_prefix"] + room_entry["new_topup"] + room_entry["inherited_topup"]
+            )
+            assert room_entry["context_histogram"] == mas.context_histogram(set(files))
+            assert sum(room_entry["context_histogram"].values()) == room_entry["final"]
+            for key in mas.COUNT_KEYS:
+                summed_counts[key] += room_entry[key]
+            for b in bins:
+                summed_hist[b] += room_entry["context_histogram"][b]
+        assert summed_counts == {key: entry[key] for key in mas.COUNT_KEYS}
+        assert summed_hist == entry["context_histogram"]
+        assert "effective_epochs_at_40k_x64" not in manifest["fractions"][str(frac)]["per_room"][
+            "Alpha_idx_0"
+        ]
+
+
 def test_A5_no_starved_target_survives_in_any_fraction():
     subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
     for frac in FRACS:
@@ -617,6 +653,22 @@ EXPECTED_S7_PER_ROOM = {
     0.75: {"Alpha_idx_0": (2, 0, 0, 2), "Alpha_idx_1": (4, 1, 1, 6), "Beta_idx_0": (8, 0, 1, 9)},
 }
 EXPECTED_S7_TOTALS = {0.25: (5, 3, 0, 8), 0.5: (9, 3, 2, 14), 0.75: (14, 1, 2, 17)}
+
+
+def _hist(n_zero, n_one_to_seven, n_ge8):
+    return {"0": n_zero, "1-7": n_one_to_seven, ">=8": n_ge8}
+
+
+# Per-room eligible-context histograms. Every retained receiver in the toy split ends up with
+# 2 or 3 retained sources, so every entry lands in the "1-7" bin (and none in "0"):
+#   .25  A0 {R001:S001,S002}=2 | A1 {R010:S001,S002}=2 | B0 {R020:S001,S003}+{R021:S002,S003}=4
+#   .50  A0 2 | A1 {R010,R011} x 2 = 4 | B0 {R020,R021,R022,R023} x 2 = 8
+#   .75  A0 2 | A1 {R010,R011,R012} x 2 = 6 | B0 {R020:3 sources}+{R021,R022,R023} x 2 = 9
+EXPECTED_S7_PER_ROOM_HIST = {
+    0.25: {"Alpha_idx_0": _hist(0, 2, 0), "Alpha_idx_1": _hist(0, 2, 0), "Beta_idx_0": _hist(0, 4, 0)},
+    0.5: {"Alpha_idx_0": _hist(0, 2, 0), "Alpha_idx_1": _hist(0, 4, 0), "Beta_idx_0": _hist(0, 8, 0)},
+    0.75: {"Alpha_idx_0": _hist(0, 2, 0), "Alpha_idx_1": _hist(0, 6, 0), "Beta_idx_0": _hist(0, 9, 0)},
+}
 EXPECTED_S7_HIST = {
     0.25: {"0": 0, "1-7": 8, ">=8": 0},
     0.5: {"0": 0, "1-7": 14, ">=8": 0},
@@ -687,6 +739,10 @@ def test_A7_regression_fixture_seed_7_matches_the_hand_derived_algorithm():
         assert entry["context_histogram"] == EXPECTED_S7_HIST[frac]
         for room, expected in EXPECTED_S7_PER_ROOM[frac].items():
             assert tuple(entry["per_room"][room][key] for key in mas.COUNT_KEYS) == expected
+            assert entry["per_room"][room]["context_histogram"] == EXPECTED_S7_PER_ROOM_HIST[frac][room]
+        assert sum(
+            r["context_histogram"]["1-7"] for r in entry["per_room"].values()
+        ) == EXPECTED_S7_HIST[frac]["1-7"]
 
 
 def test_A7_regression_fixture_nesting_and_full_coverage():

@@ -173,7 +173,10 @@ def _validated_fractions(fractions) -> list[float]:
 def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict, dict]:
     """Build the nested per-room subsets of ``split`` and the manifest describing them.
 
-    ``split`` is the AR ``scene -> room -> [basenames]`` mapping. Returns
+    ``split`` is the AR ``scene -> room -> [basenames]`` mapping. The manifest reports, per
+    fraction, the four counts + effective epochs (a global quantity) + the eligible-context
+    histogram, and repeats the four counts **and that histogram** per room, so every emitted
+    room can be audited on its own. Returns
     ``({fraction: split_like}, manifest)``; the emitted split-likes carry the same scene/room
     keys (in sorted order) with the retained files sorted inside each room. The input is
     never mutated.
@@ -209,11 +212,12 @@ def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict,
                     "inherited_topup": len(selection - set(prefix) - set(added)),
                     "final": len(selection),
                 }
+                room_histogram = context_histogram(selection)
                 subsets[frac].setdefault(scene, {})[room] = sorted(selection)
-                per_room[frac][room] = counts
+                per_room[frac][room] = {**counts, "context_histogram": room_histogram}
                 for key in COUNT_KEYS:
                     totals[frac][key] += counts[key]
-                for bin_name, n in context_histogram(selection).items():
+                for bin_name, n in room_histogram.items():
                     histogram[frac][bin_name] += n
                 inherited_selection = selection
 
