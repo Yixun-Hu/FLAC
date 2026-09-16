@@ -78,3 +78,12 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 - OPEN DECISIONS (Yixun): (1) BF+YAW mesh arms per option ii; (2) exact-aggregate tie is A6000-architecture-bound — decision needed only before any cross-hardware rerun of the off-grid control; (3) Planner Ruling 3 (matched-batching tie) veto window.
 - Known caveats: AGREE_fullAR leakage label on all exp_22 absolute levels; mesh subset 16/17 rooms; canonical-heading only; sparse-retrieval bank slightly supersets released selector pool (S010 blindspot, disclosed).
 - Deferred optional: quantile viz renders (registered case list ca3d16b1) + real-score pipeline panel.
+
+
+## exp_14 data_curve (2026-09-16) — open items / caveats
+- **Live long-running launcher** (`exp14_launch.sh`, pid in `worklog/worklog_yixun/exp_14_data_curve/launch_f025.log` on branch `exp-14-data-curve`): never edit `scripts/exp14_launch.sh` in the kit while it runs (bash reads incrementally). Launcher record-write hardening (integrative r4 N3, `|| die` on record writes) is deferred to a v2 launcher for pairs 2–3.
+- **Anchor raw cells (D10):** the 10 cylNoSSL@40k per-seed JSONs (`SWEEP_S40000`) live only on the origin A6000 box (`exp-09-cyl-dinov3-no-ssl` checkout). Until copied to the NAS (sha-pinned), the 100 % point is marginal (mean ± sd), not paired. P1@40k is complete locally (K8 s42 = `exp07_P1_screen_S40000_ema.json`, sha 8bd130a7…).
+- **Estimand wording:** CylDINO *core method* (backbone + cylindrical pose-feature conditioning path, angles [0]) vs P1 — six config keys differ, not a backbone-only ablation (integrative r4 M2).
+- **Sampler quirk (upstream, kept):** `AR_md.py` rebuilds context names as `S00{int}`; in 111 ten-source rooms `S010` is never reachable as a context. Subsets are built sampler-faithfully (plan §3 Amendment 1); the anchors trained under the same quirk.
+- **Fixed-compute curve:** 40k steps everywhere ⇒ 34.8 / 17.6 / 11.7 / 8.8 effective epochs at 25/50/75/100 %.
+- Deadline note from exp_13 (Sep 24): only the 25 % pair lands before it (ETD ≈ Sep 19); 50 % ≈ Sep 22–23; 75 % ≈ Sep 26–27 (uncontended pace).

@@ -1,5 +1,22 @@
 # HANDOFF.md — working-memory contract for the next session
 
+**Last updated:** 2026-09-16 19:20 EDT (Fable 5.1 seat, this box, FLAC checkout on `localization-exp`; the experiment runs from the SIBLING worktree `~/codespace/exp-14-data-curve`, branch `exp-14-data-curve`).
+
+## ⚡ LIVE: exp_14 data_curve — pair 1 (25 %) training, launched 2026-09-16 19:08:56 EDT
+- **What:** CylDINO-core vs P1-vanilla FLAC on the 25 % AR subset (`data/AR/train_frac025_s2026.json`, 73,473 targets, contexts restricted), P1 recipe (2×A6000 DDP+SyncBN, 32×2×accum 1, seed 42, 40k steps, ckpt every 2500), both arms concurrent on GPUs 0,1.
+- **Processes (ours):** launcher `bash …/exp_14_data_curve_claude/scripts/exp14_launch.sh` (pid in `launch_f025.log`, started 19:08:32 from `~/codespace/exp-14-data-curve`); trainings `dc_cyl_f025` pid 1836861, `dc_van_f025` pid 1836892 (2 ranks each). Verify ownership with `readlink /proc/<pid>/cwd` == `/home/yixunhu/codespace/exp-14-data-curve`. **Never kill or edit; never edit the launcher script while it runs.**
+- **Logs/records:** `~/codespace/exp-14-data-curve/worklog/worklog_yixun/exp_14_data_curve/{launch_f025.log, launch_driver_f025_20260916T190832.out, train_dc_{cyl,van}_f025.log, at_launch_*.txt}`; NAS run dirs `/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_{cyl,van}_f025/` (checkpoints direct to NAS + `run_contract.json`).
+- **Pins:** FLAC `66901577104d0b0b49f512825eb211cdedf180e8`, package `~/codespace/cylindrical-dinov3-exp13pin` `79c5b876…`, kit `65570dcd…`, launcher sha256 `00423f45…`.
+- **ETDs:** van ≈ Sep 18 14:00 EDT, cyl ≈ Sep 19 morning (shares GPUs until van ends); then the launcher validates both step-40000 ckpts (`validate` incl. digest), runs 20 eval cells (K1 lane GPU0 ‖ K8 lane GPU1, `--store_predictions --expect-ckpt-sha256`), prints `PAIR f025 COMPLETE` and writes `data_curve_launch_summary.json`.
+- **When it finishes:** (1) read the summary + `launch_f025.log`; (2) import cells to the FLAC table via `python -m src.tools.data_curve.import_cells` (round D3, in progress at handoff) → row spec in `gen_model_comparison.py` on `localization-exp` → regenerate, commit, push (announcement 04); (3) launch pair 2 (`TAG=050`) with the same launch line (`data_curve_command.md`; read the kit HEAD at launch), then pair 3 (`TAG=075`); (4) assemble with `python -m src.tools.data_curve.assemble` after all pairs.
+- **If a training dies:** do NOT hand-launch train.py; re-run the launch line with `RESUME=1` (the launcher validates the newest checkpoint with `--for-resume`, appends `resume_log.json`, refuses identity mismatches). A resume is a fresh stochastic continuation — disclose.
+- **Bookkeeping home:** `~/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude/` (plan r4 + Amendment 1, worklog, 4 plan reviews, code reviews A/B/C/D1/D2/D2fix/E/full r1–r4, params, command, configs, launcher). Commit + push there after every action (kit HEAD moves; that is fine).
+- **In flight at handoff:** Coder round D3 (assemble/import/plot, new files only) — review with Codex when it lands (`data_curve_codex_code_D3_review.md`).
+
+---
+*(Previous handoff content below, kept for continuity.)*
+
+
 Assume the reader has NO memory beyond the repo + `master_experiment_tracker.md` + `issue_report.md` + this file.
 
 **Last updated:** 2026-08-21 ~04:45 EDT (Fable 5 seat, exp_18 session on mae-cab-lab-server, branch `localization-exp`). **exp_18 CLOSED+pushed; exp_20 loc_crossarm CLOSED (BF>P1 Holm-confirmed both regimes); exp_22 loc_meshgrid ACTIVE (P1-first, assets fetched, kickoff in flight).** Nothing is training or running. Read `worklog/worklog_yixun/exp_18_loc_invert_claude/` (results → analysis → HTML) before touching anything localization-related.
