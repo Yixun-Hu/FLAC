@@ -77,29 +77,34 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     }
 
 
+def stream_sha256(handle, chunk_size=1 << 20):
+    """sha256 of everything left in ``handle``, read in 1 MiB chunks.
+
+    Takes an *open descriptor* rather than a path: what a checkpoint is called can
+    be changed under us, but the inode an open file already names cannot.
+    """
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: handle.read(chunk_size), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
 def file_sha256(path, chunk_size=1 << 20):
     """sha256 of a file, read in 1 MiB chunks (checkpoints are ~700 MB)."""
-    digest = hashlib.sha256()
     with open(path, "rb") as fin:
-        for chunk in iter(lambda: fin.read(chunk_size), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+        return stream_sha256(fin, chunk_size)
 
 
 class CheckpointDigestMismatch(RuntimeError):
     """The checkpoint on disk is not the one the caller pinned."""
 
 
-def resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256=None):
-    """Digest the checkpoint **before** it is loaded; refuse a pinned mismatch.
+class CheckpointMutatedDuringLoad(RuntimeError):
+    """The checkpoint file changed while this run was reading it."""
 
-    Returns the digest of the bytes at ``ckpt_path`` so the caller can embed it
-    in every artifact. When ``expect_ckpt_sha256`` is given (the launcher's pin,
-    computed when it validated that checkpoint against the run contract), a
-    disagreement raises :class:`CheckpointDigestMismatch` -- before any load, so
-    a replaced checkpoint can never produce a plausible-looking number.
-    """
-    digest = file_sha256(ckpt_path)
+
+def refuse_unpinned_digest(ckpt_path, digest, expect_ckpt_sha256):
+    """Return ``digest``; raise when a pin was given and disagrees with it."""
     if expect_ckpt_sha256 is None:
         return digest
     want = str(expect_ckpt_sha256).strip().lower()
@@ -110,6 +115,63 @@ def resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256=None):
             "was loaded and no artifact was written."
         )
     return digest
+
+
+def resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256=None):
+    """Digest the checkpoint at ``ckpt_path``; refuse a pinned mismatch.
+
+    Unchanged public behaviour for callers that hold only a path. ``evaluate_model``
+    uses :func:`load_checkpoint_bound_to_digest` instead, because a pathname cannot
+    bind a digest to the bytes that are afterwards loaded through it.
+    """
+    return refuse_unpinned_digest(ckpt_path, file_sha256(ckpt_path), expect_ckpt_sha256)
+
+
+def file_identity(status):
+    """The part of ``os.fstat`` that must not change while we hold the file open."""
+    return (status.st_ino, status.st_size, status.st_mtime_ns)
+
+
+def load_checkpoint_bound_to_digest(ckpt_path, expect_ckpt_sha256=None,
+                                    map_location='cpu'):
+    """Hash and load a checkpoint from ONE open descriptor; return (object, digest).
+
+    Codex full-r3 finding 1. Hashing a pathname, closing it and reopening it to load
+    leaves a window in which that name can be made to point at different bytes:
+    another contract-valid step-40000 checkpoint gets scored, the first one's digest
+    gets stamped, and restoring the original before the gates run leaves every check
+    satisfied. So the file is opened once and never let go of:
+
+    * ``fstat`` and hash the descriptor, then compare with the caller's pin -- a
+      disagreement aborts here, with nothing loaded and nothing written;
+    * ``seek(0)`` and hand ``torch.load`` that same descriptor. A rename over the
+      pathname cannot move an inode out from under an open fd, so what is loaded is
+      what was hashed;
+    * ``seek(0)``, re-hash and re-``fstat``. An in-place mutation of the inode -- the
+      one change a descriptor cannot rule out -- surfaces as a different digest or a
+      different (inode, size, mtime_ns), and aborts the run BEFORE anything is scored
+      or any artifact is written.
+
+    The digest returned is thus the digest of the bytes that were actually loaded,
+    which is the one that belongs in the artifacts.
+    """
+    with open(ckpt_path, "rb") as fin:
+        before = os.fstat(fin.fileno())
+        digest = stream_sha256(fin)
+        refuse_unpinned_digest(ckpt_path, digest, expect_ckpt_sha256)
+        fin.seek(0)
+        checkpoint = torch.load(fin, map_location=map_location)
+        fin.seek(0)
+        after_digest = stream_sha256(fin)
+        after = os.fstat(fin.fileno())
+    if after_digest != digest or file_identity(after) != file_identity(before):
+        raise CheckpointMutatedDuringLoad(
+            f"{ckpt_path} changed while it was being loaded: sha256 {digest} -> "
+            f"{after_digest}, (inode, size, mtime_ns) {file_identity(before)} -> "
+            f"{file_identity(after)}. The bytes that were digested are not the bytes "
+            "on that inode now, so nothing was scored and no artifact was written."
+        )
+    return checkpoint, digest
 
 
 def resolve_cond_autocast(mode):
@@ -271,10 +333,12 @@ def evaluate_model(
             return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
         return torch.amp.autocast(device, dtype=ac_dtype)
 
-    # The identity of the bytes this run scores, taken BEFORE anything is opened
-    # (codex full-r2 finding 1). `expect_ckpt_sha256` is the launcher's pin: a
+    # The identity of the bytes this run scores, bound to the descriptor they are
+    # read from (codex full-r2 finding 1, tightened by full-r3 finding 1: hashing a
+    # pathname and reopening it to load leaves a window in which the name can be
+    # made to point at other bytes). `expect_ckpt_sha256` is the launcher's pin: a
     # disagreement aborts here, with no model, no dataloader and no artifact.
-    ckpt_sha256 = resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256)
+    ckpt, ckpt_sha256 = load_checkpoint_bound_to_digest(ckpt_path, expect_ckpt_sha256)
 
     torch.set_float32_matmul_precision('medium')
 
@@ -289,8 +353,8 @@ def evaluate_model(
 
     training_config = model_config.get('training', None)
     
-    # Load ckpt
-    ckpt = torch.load(ckpt_path, map_location='cpu')
+    # The checkpoint was already loaded above, from the descriptor whose digest
+    # `ckpt_sha256` is -- so the state dict below IS the bytes the artifacts name.
     state_dict = ckpt['state_dict']
     for key in list(state_dict.keys()):
         if key.startswith('diffusion.'):
