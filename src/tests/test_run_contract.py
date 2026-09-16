@@ -131,7 +131,7 @@ def make_contract(launch_files, **overrides):
 def test_D11_canonical_digest_is_the_documented_sha256():
     """The definition is the contract (both sides of the check must compute it the same
     way): sha256 of the FROZEN literal ``json.dumps(obj, sort_keys=True,
-    separators=(',', ':'))`` -- stdlib defaults otherwise, ``ensure_ascii`` included -- 
+    separators=(',', ':'))`` -- stdlib defaults otherwise, ``ensure_ascii`` included --
     encoded as UTF-8. Anything added to that call changes every digest ever computed."""
     payload = json.dumps(MODEL_CONFIG, sort_keys=True, separators=(",", ":"))
     assert canonical_digest(MODEL_CONFIG) == hashlib.sha256(payload.encode("utf-8")).hexdigest()
