@@ -37,7 +37,6 @@ import os
 import platform
 import random
 import re
-from collections import defaultdict
 
 TARGET_DRAWS_AT_40K_X64 = 40_000 * 64  # optimizer steps x effective batch, the exp_14 budget
 COUNT_KEYS = ("raw_prefix", "new_topup", "inherited_topup", "final")
