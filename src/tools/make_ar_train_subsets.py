@@ -29,33 +29,33 @@ import json
 import os
 import platform
 import random
+import re
 from collections import defaultdict
 
 TARGET_DRAWS_AT_40K_X64 = 40_000 * 64  # optimizer steps x effective batch, the exp_14 budget
 COUNT_KEYS = ("raw_prefix", "new_topup", "inherited_topup", "final")
+# AR RIR basename grammar: S<digits>_R<digits>_<non-empty tail>, e.g. S0012_R0077_hybrid_IR.wav
+_BASENAME_RE = re.compile(r"(S[0-9]+)_(R[0-9]+)_(.+)", re.DOTALL)
 
 
 def parse_nodes(fname: str) -> tuple[str, str]:
     """Return ``(source_token, receiver_token)`` for an AR RIR basename.
 
-    ``"S0012_R0077_hybrid_IR.wav" -> ("S0012", "R0077")``. The tokens are returned verbatim
-    (raw strings, never int-parsed). Anything that is not ``S<id>_R<id>_<tail>`` with all
-    three parts non-empty raises ``ValueError`` — malformed names must fail loudly rather
-    than silently collapse two nodes into one.
+    ``"S0012_R0077_hybrid_IR.wav" -> ("S0012", "R0077")``. The grammar is
+    ``S<digits>_R<digits>_<non-empty tail>`` (ASCII digits only, at least one); every real AR
+    basename satisfies it. The tokens are returned **verbatim** as strings and never
+    int-parsed, so "S001" and "S0012" stay different sources. Anything else raises
+    ``ValueError`` — a malformed name must fail loudly rather than silently collapse two
+    nodes into one (e.g. ``"Sabc_Rxyz_…"`` must not become the node pair ``("Sabc", "Rxyz")``).
     """
     if not isinstance(fname, str):
         raise ValueError(f"expected a filename string, got {type(fname).__name__}")
-    parts = fname.split("_", 2)
-    if len(parts) != 3:
-        raise ValueError(f"malformed RIR basename (expected S<id>_R<id>_<tail>): {fname!r}")
-    src, rec, tail = parts
-    if len(src) < 2 or src[0] != "S":
-        raise ValueError(f"malformed source token {src!r} in {fname!r}")
-    if len(rec) < 2 or rec[0] != "R":
-        raise ValueError(f"malformed receiver token {rec!r} in {fname!r}")
-    if not tail:
-        raise ValueError(f"malformed RIR basename (empty tail): {fname!r}")
-    return src, rec
+    match = _BASENAME_RE.fullmatch(fname)
+    if match is None:
+        raise ValueError(
+            f"malformed RIR basename (expected S<digits>_R<digits>_<tail>): {fname!r}"
+        )
+    return match.group(1), match.group(2)
 
 
 def room_permutation(sorted_files: list[str], rng) -> list[str]:

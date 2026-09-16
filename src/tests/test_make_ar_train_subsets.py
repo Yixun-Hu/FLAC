@@ -60,6 +60,12 @@ def test_A1_parse_nodes_compares_raw_strings_not_integers():
         "_R0077_hybrid_IR.wav",          # empty source token
         "S0012__hybrid_IR.wav",          # empty receiver token
         "S0012_R0077_",                  # empty tail
+        "Sabc_Rxyz_hybrid_IR.wav",       # non-numeric ids
+        "SS_RR_tail",                    # non-numeric ids
+        "S_R1_x",                        # empty source id
+        "S1_R_x",                        # empty receiver id
+        "S12a_R34_x",                    # trailing non-digit in the source id
+        "S12_R3-4_x",                    # non-digit in the receiver id
     ],
 )
 def test_A1_parse_nodes_malformed_raises(bad):
