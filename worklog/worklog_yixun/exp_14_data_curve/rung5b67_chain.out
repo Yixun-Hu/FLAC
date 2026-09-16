@@ -1,0 +1,12 @@
+=== rung5b start 2026-09-16T15:49:57-04:00 FLAC=e86aed1
+=== rung5b rc=1 end 2026-09-16T15:50:16-04:00
+=== surviving train.py procs from this worktree: 0
+=== checkpoints written: 0
+=== rung7 start 2026-09-16T15:51:29-04:00 FLAC=9021585
+contract: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke7_cyl/run_contract.json rc=0
+=== rung7 train rc=0 2026-09-16T15:52:36-04:00
+ckpt: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke7_cyl/epoch=0-step=5.ckpt size=723906737
+size after 60s: 723906737
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+OK /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke7_cyl/epoch=0-step=5.ckpt: run_id=smoke7_cyl step=5 resumable
+=== validate rc=0
