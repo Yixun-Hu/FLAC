@@ -250,18 +250,57 @@ def validate_checkpoint(path, expected_contract, expected_model_config, expect_s
         )
 
     if for_resume:
-        optimizer_states = checkpoint.get("optimizer_states") or []
-        if not optimizer_states or not optimizer_states[0].get("state"):
-            raise CheckpointContractError(
-                f"checkpoint {path} cannot be resumed from: its optimizer state is empty, "
-                "so the resumed run would restart Adam from scratch at the step-0 warmup lr"
-            )
-        if not checkpoint.get("lr_schedulers"):
-            raise CheckpointContractError(
-                f"checkpoint {path} cannot be resumed from: it carries no lr_scheduler "
-                "state, so the schedule would be rebuilt from the config"
-            )
+        _require_resume_state(path, checkpoint)
     return contract
+
+
+def _type_name(value):
+    return "absent" if value is _MISSING else type(value).__name__
+
+
+def _require_resume_state(path, checkpoint):
+    """The resume half of the gate: the state containers are *type-checked*, not duck-typed.
+
+    A malformed checkpoint must come out as a contract verdict, never as an AttributeError
+    or a TypeError escaping into the launcher (codex MEDIUM 3): ``optimizer_states`` has to
+    be a non-empty list of dicts whose first entry carries a non-empty dict ``state``, and
+    ``lr_schedulers`` a non-empty list of dicts. Resuming without real optimizer state
+    silently restarts Adam at the step-0 warmup lr and rebuilds the schedule from the
+    config (CLAUDE.md "Checkpoint surgery on warm resume") -- invisible in the loss curve.
+    """
+    optimizer_states = checkpoint.get("optimizer_states", _MISSING)
+    if not isinstance(optimizer_states, list) or not optimizer_states:
+        raise CheckpointContractError(
+            f"checkpoint {path} cannot be resumed from: optimizer_states is "
+            f"{_type_name(optimizer_states)}, expected a non-empty list"
+        )
+    first = optimizer_states[0]
+    if not isinstance(first, dict):
+        raise CheckpointContractError(
+            f"checkpoint {path} cannot be resumed from: optimizer_states[0] is a "
+            f"{_type_name(first)}, expected a dict"
+        )
+    state = first.get("state", _MISSING)
+    if not isinstance(state, dict) or not state:
+        raise CheckpointContractError(
+            f"checkpoint {path} cannot be resumed from: its optimizer state is "
+            f"{'empty' if isinstance(state, dict) else _type_name(state)}, so the resumed "
+            "run would restart Adam from scratch at the step-0 warmup lr"
+        )
+
+    schedulers = checkpoint.get("lr_schedulers", _MISSING)
+    if not isinstance(schedulers, list) or not schedulers:
+        raise CheckpointContractError(
+            f"checkpoint {path} cannot be resumed from: lr_schedulers is "
+            f"{_type_name(schedulers)}, expected a non-empty list -- the schedule would be "
+            "rebuilt from the config"
+        )
+    for index, entry in enumerate(schedulers):
+        if not isinstance(entry, dict):
+            raise CheckpointContractError(
+                f"checkpoint {path} cannot be resumed from: lr_schedulers[{index}] is a "
+                f"{_type_name(entry)}, expected a dict"
+            )
 
 
 def _write_json_atomically(path, obj):

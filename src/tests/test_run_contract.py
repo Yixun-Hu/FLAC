@@ -999,3 +999,44 @@ def test_cli_make_contract_refuses_a_run_dir_created_for_another_run(tmp_path, l
     assert code == 2
     assert "seed" in capsys.readouterr().err
     assert (run_dir / CONTRACT_FILENAME).read_bytes() == before
+
+
+# --- codex MEDIUM 3: the resume-state containers are type-checked, never duck-typed
+@pytest.mark.parametrize("value,needle", [
+    ([None], "optimizer"),                       # a list whose entry is not a dict
+    ([{}], "optimizer"),                         # a dict with no "state"
+    ({}, "optimizer"),                           # not a list at all
+    ({"0": {"state": {"step": 1}}}, "optimizer"),  # a non-empty dict: indexing it raises
+    ([{"state": "x"}], "optimizer"),             # "state" present but not a dict
+    ([{"state": {}}], "optimizer"),              # the empty-Adam case, still rejected
+])
+def test_MEDIUM3_for_resume_type_checks_optimizer_states(trained, tmp_path, value, needle):
+    """A malformed checkpoint must be a contract verdict, not an AttributeError/TypeError
+    escaping into the launcher (pytest.raises(CheckpointContractError) fails on either)."""
+    path = rewrite_checkpoint(trained["ckpt"], tmp_path / "opt.ckpt",
+                              lambda ckpt: ckpt.__setitem__("optimizer_states", value))
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(path, trained["contract"], MODEL_CONFIG, expect_step=1, for_resume=True)
+    assert needle in str(excinfo.value)
+
+
+@pytest.mark.parametrize("value", [[None], [[]], "x", {}, {"0": {}}, [{"scheduler": 1}, None]])
+def test_MEDIUM3_for_resume_type_checks_lr_schedulers(trained, tmp_path, value):
+    """Truthiness is not a schema: a string, a list of lists or a list with a None entry
+    all used to pass the resume gate."""
+    path = rewrite_checkpoint(trained["ckpt"], tmp_path / "sched.ckpt",
+                              lambda ckpt: ckpt.__setitem__("lr_schedulers", value))
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(path, trained["contract"], MODEL_CONFIG, expect_step=1, for_resume=True)
+    assert "lr_scheduler" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("key,value", [
+    ("optimizer_states", [None]), ("lr_schedulers", "x"),
+])
+def test_MEDIUM3_malformed_resume_state_is_ignored_when_not_resuming(trained, tmp_path, key, value):
+    """Still only a resume concern: an evaluation-time validation of the same file passes."""
+    path = rewrite_checkpoint(trained["ckpt"], tmp_path / "eval.ckpt",
+                              lambda ckpt: ckpt.__setitem__(key, value))
+    assert validate_checkpoint(path, trained["contract"], MODEL_CONFIG, expect_step=1,
+                               for_resume=False) == trained["contract"]
