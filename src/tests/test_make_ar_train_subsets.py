@@ -234,12 +234,20 @@ def test_A4_topup_never_re_adds_an_already_selected_entry():
 
 
 def test_A4_topup_single_pass_resolves_later_targets_via_earlier_additions():
-    """A receiver holding two selected entries of the SAME source is fixed by one addition:
-    the second entry must not trigger a second (duplicate) top-up."""
-    perm = ["S001_R001_a.wav", "S001_R001_b.wav", "S002_R001_c.wav"]
+    """One addition clears every starved target it can reach, and the walk must not spend a
+    second addition on a target the first one already fixed.
+
+    Round E fixture: nodes 10 and 11 are rebuilt by the sampler as ``S0010``/``S0011``, which
+    do not exist, so BOTH selected entries start out starved. Walking ``perm``, the first
+    (``S010_R001``) takes the earliest reachable entry, ``S007_R001`` at index 2 — which also
+    un-starves ``S011_R001``, so index 1 adds nothing. ``S007_R001`` is then itself starved
+    (``S010``/``S011`` are unreachable as contexts) and takes ``S003_R001`` at index 3, the
+    only node that can reach it. Two additions for three repairs, in one pass."""
+    perm = [_f("S010", "R001"), _f("S011", "R001"), _f("S007", "R001"), _f("S003", "R001")]
     out, added = mas.topup_zero_context({perm[0], perm[1]}, perm)
-    assert added == ["S002_R001_c.wav"]
+    assert added == [_f("S007", "R001"), _f("S003", "R001")]
     assert out == set(perm)
+    assert mas.context_histogram(out)["0"] == 0
 
 
 def test_A4_topup_raises_when_the_full_room_has_no_other_source_at_that_receiver():
@@ -271,9 +279,14 @@ def test_A5_context_histogram_bins_by_number_of_other_sources():
 
 
 def test_A5_context_histogram_counts_distinct_sources_and_mixes_receivers():
-    # same source twice at one receiver (different tails) is ONE other source, not two
+    # Round E: the sampler only ever rebuilds "<source>_<receiver>_hybrid_IR.wav", so entries
+    # carrying any other tail are unreachable however many token-neighbours they have (A8).
     room = {"S001_R001_a.wav", "S001_R001_b.wav", "S002_R001_c.wav"}
-    assert mas.context_histogram(room) == {"0": 0, "1-7": 3, ">=8": 0}
+    assert mas.context_histogram(room) == {"0": 3, "1-7": 0, ">=8": 0}
+    # same source twice at one receiver (different tails) is ONE reachable node, not two --
+    # and the reachable entry itself has no pool, because neither tail is the sampler's.
+    room2 = {"S001_R001_a.wav", "S001_R001_b.wav", _f("S002", "R001")}
+    assert mas.context_histogram(room2) == {"0": 1, "1-7": 2, ">=8": 0}
     mixed = {_f("S001", "R001"), _f("S002", "R001"), _f("S001", "R002")}
     assert mas.context_histogram(mixed) == {"0": 1, "1-7": 2, ">=8": 0}
 
@@ -887,3 +900,108 @@ def test_A8_sampler_candidates_reject_a_malformed_basename():
         mas.sampler_candidates("not_a_rir.wav", TEN_SOURCE_ROOM)
     with pytest.raises(ValueError):
         mas.sampler_candidates(_f("S001", "R014"), TEN_SOURCE_ROOM + ["junk.wav"])
+
+
+# ======================================================================================
+# A9 — the eligibility judgements themselves (round E): starvation, top-up choice, the
+# histogram and the full-split contract all read the pool through ``sampler_candidates``.
+# ======================================================================================
+PERM_TEN = (
+    [_f("S007", "R014"), _f("S010", "R014"), _f("S005", "R014"), _f("S001", "R014")]
+    + [_f(f"S{s:03d}", "R014") for s in (2, 3, 4, 6, 8, 9)]
+    + [_f(f"S{s:03d}", "R015") for s in range(1, 11)]
+)
+
+
+def test_A9_perm_ten_is_a_permutation_of_the_ten_source_room():
+    assert sorted(PERM_TEN) == sorted(TEN_SOURCE_ROOM)
+
+
+def test_A9_topup_starves_a_pair_only_token_equality_would_have_accepted():
+    """The bug rung 4 found, in one assertion. ``{S007_R014, S010_R014}`` looks healthy to
+    token equality (two different source tokens at one receiver) but the sampler cannot
+    reach ``S010`` from ``S007``, so ``S007_R014`` is starved and must be topped up with the
+    EARLIEST reachable entry of ``perm`` — ``S005_R014`` at index 2, even though the
+    unreachable ``S010_R014`` sits earlier at index 1."""
+    selected = {_f("S007", "R014"), _f("S010", "R014")}
+    assert mas.sampler_candidates(_f("S007", "R014"), selected) == []       # starved
+    assert mas.sampler_candidates(_f("S010", "R014"), selected) == [_f("S007", "R014")]
+    out, added = mas.topup_zero_context(selected, PERM_TEN)
+    assert added == [_f("S005", "R014")]
+    assert out == selected | {_f("S005", "R014")}
+    assert mas.context_histogram(out) == {"0": 0, "1-7": 3, ">=8": 0}
+
+
+def test_A9_topup_repairs_an_addition_that_lies_EARLIER_in_the_permutation():
+    """An added entry can itself be starved, and it can sit at an index the walk has already
+    passed — so a single pass is not enough. Here ``S010_R001`` (unreachable as a context)
+    takes ``S001_R001`` at index 0; ``S001_R001`` can only be reached by ``S007_R001``, and
+    ``S010`` cannot repay it. The tool must keep walking until nothing is starved."""
+    perm = [_f("S001", "R001"), _f("S007", "R001"), _f("S010", "R001")]
+    out, added = mas.topup_zero_context({_f("S010", "R001")}, perm)
+    assert added == [_f("S001", "R001"), _f("S007", "R001")]
+    assert out == set(perm)
+    assert mas.context_histogram(out)["0"] == 0
+
+
+def test_A9_topup_raises_when_a_starved_target_has_no_reachable_entry_at_all():
+    """``S001`` and ``S010`` are token-neighbours at R001, so the superseded rule repaired
+    this room happily; the sampler can reach neither direction's rebuild but one — S001 has
+    an empty pool — so it is a contract violation that must fail loudly."""
+    perm = [_f("S001", "R001"), _f("S010", "R001")]
+    assert mas.sampler_candidates(perm[0], perm) == []
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({perm[0]}, perm)
+
+
+def test_A9_topup_rejects_a_perm_that_is_not_a_permutation_of_the_room():
+    """``room_files`` fixes the node universe the sampler sees; it must be exactly ``perm``,
+    or the earliest-in-``perm`` choice would be reaching for entries it cannot order."""
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN, PERM_TEN + [_f("S011", "R014")])
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN + [PERM_TEN[0]], TEN_SOURCE_ROOM)
+    out, added = mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN, list(TEN_SOURCE_ROOM))
+    assert added == [_f("S005", "R014")]                # explicit room_files == implicit one
+    assert (out, added) == mas.topup_zero_context({PERM_TEN[0]}, PERM_TEN)
+
+
+def test_A9_context_histogram_bins_reachable_candidates_only():
+    assert mas.context_histogram({_f("S007", "R014"), _f("S010", "R014")}) == {
+        "0": 1, "1-7": 1, ">=8": 0}
+    # S001..S008 + S010 at one receiver: token equality gives every entry 8 neighbours (all
+    # ">=8"); the sampler gives S001..S008 only 7 (S010 is unreachable) and S010 itself 8.
+    nine = {_f(f"S{s:03d}", "R001") for s in (1, 2, 3, 4, 5, 6, 7, 8, 10)}
+    assert mas.context_histogram(nine) == {"0": 0, "1-7": 8, ">=8": 1}
+
+
+def test_A9_manifest_names_the_eligibility_rule_and_the_full_split_facts():
+    _, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert manifest["eligibility"] == mas.ELIGIBILITY_RULE == "sampler_faithful_S00int_v1"
+    expected = {"0": 0, "1-7": 0, ">=8": 0}
+    for scene, room in _rooms(TOY_SPLIT):
+        for bin_name, n in mas.context_histogram(set(TOY_SPLIT[scene][room])).items():
+            expected[bin_name] += n
+    assert manifest["full_split_context_histogram"] == expected
+    assert manifest["dead_targets_full"] == expected["0"] == 0
+
+
+def test_A9_build_subsets_refuses_a_split_that_has_a_dead_target():
+    """A target the sampler can never give a context to cannot be repaired by ANY subset, so
+    it is a property of ``train.json`` itself and must stop the build. (AR has none — that is
+    the fact ``dead_targets_full == 0`` records.)"""
+    split = {"Alpha": {"Alpha_idx_0": [_f("S001", "R001"), _f("S010", "R001")]}}
+    with pytest.raises(ValueError, match="S001_R001"):
+        mas.build_subsets(split, FRACS, seed=7)
+
+
+def test_A9_build_subsets_still_emits_zero_starved_targets_under_the_new_rule():
+    ten = {"Ten": {"Ten_idx_0": list(TEN_SOURCE_ROOM)}}
+    subsets, manifest = mas.build_subsets(ten, FRACS, seed=2026)
+    for frac in FRACS:
+        entry = manifest["fractions"][str(frac)]
+        assert entry["context_histogram"]["0"] == 0
+        retained = set(subsets[frac]["Ten"]["Ten_idx_0"])
+        assert mas.context_histogram(retained)["0"] == 0
+        for target in retained:
+            assert any(c in retained for c in mas.sampler_candidates(target, TEN_SOURCE_ROOM))

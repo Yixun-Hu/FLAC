@@ -11,15 +11,22 @@ emitted files):
    ``rng.sample(sorted_files, n)`` — the only RNG consumption in this module.
 3. Raw prefix for fraction ``f``: the first ``max(1, round(f * n))`` entries of that
    permutation (Python's built-in ``round`` — banker's rounding, ties-to-even).
-4. Top-up (deterministic, no RNG): a retained target whose receiver holds no *other* retained
-   source would have an empty acoustic-context pool, so the earliest permutation entry with
-   the same receiver and a different source is added.
+4. Top-up (deterministic, no RNG): a retained target none of whose *sampler-reachable*
+   contexts is retained would have an empty acoustic-context pool, so the earliest
+   permutation entry that is a sampler candidate of it is added.
 5. Nesting: fractions are processed in ascending order and
    ``S_f = raw_prefix(perm, f) ∪ S_{previous f}``, with the top-up applied to that union, so
    ``S_25 ⊆ S_50 ⊆ S_75``.
 
-Node identity is the raw ``S…`` / ``R…`` token string ("S001" and "S0012" are different
-sources); tokens are never int-parsed.
+**Eligibility is sampler-faithful** (``ELIGIBILITY_RULE``, plan §3 "Amendment 1"): whether one
+entry can serve as another's context is decided by :func:`sampler_candidates`, which rebuilds
+candidate names exactly the way the pinned ``AR_md.py`` sampler does. It is emphatically *not*
+"same receiver token, different source token" — see that function for why the two differ on
+111 AR rooms.
+
+Node identity for *selection* is still the raw ``S…`` / ``R…`` token string ("S001" and
+"S0012" are different files); only the eligibility question goes through the sampler's
+integer reconstruction.
 """
 from __future__ import annotations
 
@@ -145,77 +152,88 @@ def raw_prefix(perm: list[str], frac: float) -> list[str]:
     return list(perm[: max(1, round(frac * len(perm)))])
 
 
-def topup_zero_context(selected: set[str], perm: list[str]) -> tuple[set[str], list[str]]:
+def topup_zero_context(
+    selected: set[str], perm: list[str], room_files=None
+) -> tuple[set[str], list[str]]:
     """Add the entries needed so that every retained target has a non-empty context pool.
 
-    A retained target is *starved* when its receiver holds no other retained entry with a
-    **different source**: FLAC draws the K acoustic-context RIRs from the other sources at the
-    target's receiver, so such a target would be untrainable under the restricted sampler.
-    The repair walks ``perm`` in permutation order (restricted to the selection, which grows
-    as entries are added) and, for each starved target, adds the **earliest** ``perm`` entry
-    that shares the receiver and carries a different source. Deterministic: no RNG.
+    A retained target is *starved* when none of its :func:`sampler_candidates` is retained:
+    FLAC draws the K acoustic-context RIRs from that pool, so such a target would be
+    untrainable under the restricted sampler. The repair walks ``perm`` in permutation order
+    (restricted to the selection, which grows as entries are added) and, for each starved
+    target, adds the **earliest ``perm`` entry that is a sampler candidate of it**.
+    Deterministic: no RNG.
 
-    One pass suffices: the addition gives that receiver two sources, so the added entry and
-    every other selected entry at that receiver are non-starved afterwards.
+    ``room_files`` is the room's full basename list, i.e. the node universe eligibility is
+    judged against; it defaults to ``perm`` and must be a permutation of it (a caller may
+    still pass it explicitly to state the universe it means).
+
+    Unlike the superseded token rule, **one pass does not suffice**: an addition need not be
+    reachable *from* the target it repairs (``S010`` can use ``S001`` while ``S001`` cannot
+    use ``S010``), and it can sit at an index the walk has already passed. The walk therefore
+    repeats until a pass adds nothing. It terminates because every pass strictly grows a
+    subset of the finite room, and it is deterministic because each pass visits ``perm`` in
+    order. Repeated passes never *un*-starve-then-re-starve a target: ``current`` only grows.
 
     Returns ``(new_selection, added_in_order)``; the caller's set is never mutated. Raises
-    ``ValueError`` if the full room offers no other source at a starved receiver (impossible
-    on AR — the contract must fail loudly rather than emit an untrainable target).
+    ``ValueError`` if a starved target has no sampler candidate anywhere in the full room
+    list — a *dead* target, impossible on AR (``dead_targets_full == 0``), and a contract
+    violation that must fail loudly rather than emit an untrainable target.
     """
-    nodes = {f: parse_nodes(f) for f in perm}
-    unknown = set(selected) - nodes.keys()
+    room_files = list(perm) if room_files is None else list(room_files)
+    present, int_nodes = _room_index(room_files)
+    if len(perm) != len(present) or present != set(perm):
+        raise ValueError(
+            f"perm ({len(perm)} entries) is not a permutation of room_files "
+            f"({len(present)} distinct entries)"
+        )
+    unknown = set(selected) - present
     if unknown:
         raise ValueError(f"selected entries absent from the permutation: {sorted(unknown)!r}")
 
-    by_receiver = defaultdict(list)  # receiver -> entries in permutation order
-    for f in perm:
-        by_receiver[nodes[f][1]].append(f)
-
+    order = {f: i for i, f in enumerate(perm)}
+    pools: dict[str, list[str]] = {}
     current = set(selected)
-    sources_at = defaultdict(set)  # receiver -> sources currently retained there
-    for f in current:
-        src, rec = nodes[f]
-        sources_at[rec].add(src)
-
     added: list[str] = []
-    for f in perm:
-        if f not in current:
-            continue
-        src, rec = nodes[f]
-        if sources_at[rec] - {src}:
-            continue  # already has another source at this receiver
-        for cand in by_receiver[rec]:
-            if nodes[cand][0] != src:
-                break
-        else:
-            raise ValueError(
-                f"receiver {rec!r} has only source {src!r} in the full room list; "
-                "cannot build a context pool for it"
-            )
-        current.add(cand)  # cand cannot already be selected, else f would not be starved
-        added.append(cand)
-        sources_at[rec].add(nodes[cand][0])
-    return current, added
+    while True:
+        grew = False
+        for f in perm:
+            if f not in current:
+                continue
+            pool = pools.get(f)
+            if pool is None:
+                pool = pools[f] = _candidates_from_index(f, present, int_nodes)
+            if any(cand in current for cand in pool):
+                continue  # already has a reachable context
+            if not pool:
+                raise ValueError(
+                    f"{f!r} has no sampler-reachable context anywhere in the full room "
+                    "list; cannot build a context pool for it"
+                )
+            cand = min(pool, key=order.__getitem__)  # earliest in permutation order
+            current.add(cand)  # cand cannot already be selected, else f would not be starved
+            added.append(cand)
+            grew = True
+        if not grew:
+            return current, added
 
 
 def context_histogram(room_subset: set[str]) -> dict:
-    """Bin the retained entries of one room by their number of *other* retained sources.
+    """Bin the retained entries of one room by their number of retained *reachable* contexts.
 
-    For each retained target, count the distinct sources retained at its receiver other than
-    its own (that is exactly FLAC's eligible acoustic-context pool under the restricted
-    sampler). Bins: ``"0"`` (starved — must be 0 after the top-up), ``"1-7"`` (the sampler
+    For each retained target, count its :func:`sampler_candidates` that are themselves
+    retained — that is exactly FLAC's eligible acoustic-context pool under the restricted
+    sampler. Bins: ``"0"`` (starved — must be 0 after the top-up), ``"1-7"`` (the sampler
     draws K=8 references WITH replacement) and ``">=8"``.
-    """
-    sources_at = defaultdict(set)
-    nodes = {}
-    for f in room_subset:
-        src, rec = parse_nodes(f)
-        nodes[f] = (src, rec)
-        sources_at[rec].add(src)
 
+    Judging the pool against the retained room alone is exact: a candidate must be retained
+    to count, and a retained candidate necessarily contributes its own node to the retained
+    room's node universe, so nothing is lost by not passing the full room list.
+    """
+    present, int_nodes = _room_index(room_subset)
     hist = {"0": 0, "1-7": 0, ">=8": 0}
-    for src, rec in nodes.values():
-        n_other = len(sources_at[rec] - {src})
+    for f in present:
+        n_other = len(_candidates_from_index(f, present, int_nodes))
         if n_other == 0:
             hist["0"] += 1
         elif n_other < 8:
@@ -246,7 +264,10 @@ def build_subsets(
     ``split`` is the AR ``scene -> room -> [basenames]`` mapping. The manifest reports, per
     fraction, the four counts + effective epochs (a global quantity) + the eligible-context
     histogram, and repeats the four counts **and that histogram** per room, so every emitted
-    room can be audited on its own. Returns
+    room can be audited on its own. At the top level it names the eligibility rule the build
+    used and the full split's own facts under it (``dead_targets_full``, which must be 0, and
+    ``full_split_context_histogram``, whose ``"1-7"`` bin is the replacement-sampling
+    baseline the fractions are compared against). Returns
     ``({fraction: split_like}, manifest)``; the emitted split-likes carry the same scene/room
     keys (in sorted order) with the retained files sorted inside each room. The input is
     never mutated. ``train_json_path`` (the file ``split`` was read from) is hashed into the
@@ -259,6 +280,7 @@ def build_subsets(
     per_room = {f: {} for f in fracs}
     histogram = {f: {"0": 0, "1-7": 0, ">=8": 0} for f in fracs}
     totals = {f: dict.fromkeys(COUNT_KEYS, 0) for f in fracs}
+    full_histogram = {"0": 0, "1-7": 0, ">=8": 0}
     seen_rooms = set()
 
     for scene in sorted(split):
@@ -274,6 +296,19 @@ def build_subsets(
                 raise ValueError(f"duplicate room name {room!r} (manifest keys room-wise)")
             seen_rooms.add(room)
 
+            # The full room's own eligibility, before any subsetting: a target with no
+            # sampler-reachable context anywhere cannot be repaired by ANY subset, so it is
+            # a property of train.json itself and must stop the build (AR has none).
+            full_room_hist = context_histogram(set(files))
+            if full_room_hist["0"]:
+                dead = sorted(f for f in files if not sampler_candidates(f, files))
+                raise ValueError(
+                    f"room {scene}/{room} has {len(dead)} dead target(s) — no sampler-"
+                    f"reachable context in the FULL split: {dead[:5]!r}"
+                )
+            for bin_name, n in full_room_hist.items():
+                full_histogram[bin_name] += n
+
             perm = room_permutation(sorted(files), rng)
             inherited_selection: set[str] = set()
             for frac in fracs:  # ascending: each fraction inherits the smaller one
@@ -286,6 +321,11 @@ def build_subsets(
                     "final": len(selection),
                 }
                 room_histogram = context_histogram(selection)
+                if room_histogram["0"]:
+                    raise ValueError(  # the top-up's post-condition, checked not assumed
+                        f"{room_histogram['0']} starved target(s) survived the top-up in "
+                        f"{scene}/{room} at fraction {frac}"
+                    )
                 subsets[frac].setdefault(scene, {})[room] = sorted(selection)
                 per_room[frac][room] = {**counts, "context_histogram": room_histogram}
                 for key in COUNT_KEYS:
@@ -297,6 +337,9 @@ def build_subsets(
     manifest = {
         "seed": seed,
         "python_version": platform.python_version(),
+        "eligibility": ELIGIBILITY_RULE,
+        "dead_targets_full": full_histogram["0"],
+        "full_split_context_histogram": full_histogram,
         "source_train_json_sha256": _sha256_file(train_json_path) if train_json_path else None,
         "fractions": {
             str(frac): {

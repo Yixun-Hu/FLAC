@@ -384,6 +384,18 @@ def test_cli_exits_0_on_the_real_launch_contract():
         pytest.skip("kit not available")
     if not os.path.isdir(os.path.join(dataset_root, "single_channel_ir_1")):
         pytest.skip("AcousticRooms not available")
+    manifest_path = os.path.join(REPO_ROOT, "data", "AR",
+                                 f"train_frac_manifest_s{verify.SPLIT_SEED}.json")
+    with open(manifest_path) as fin:
+        eligibility = json.load(fin).get("eligibility")
+    if eligibility != subsets.ELIGIBILITY_RULE:
+        pytest.skip(
+            f"the committed splits were built under eligibility {eligibility!r}, not "
+            f"{subsets.ELIGIBILITY_RULE!r}: round E redefined an eligible context as one the "
+            "PINNED sampler can actually reconstruct, and under that rule these files have "
+            "229 / 25 / 0 starved targets. The Planner regenerates and commits them after "
+            "review; this check un-skips itself the moment the manifest names the new rule."
+        )
     head = _head(REPO_ROOT)
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
