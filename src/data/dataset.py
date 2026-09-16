@@ -17,6 +17,10 @@ from .utils import Stereo, PseudoStereo, Mono, PadCrop_Normalized_T, AddNoise, R
 AUDIO_KEYS = ("flac", "wav", "mp3", "m4a", "ogg", "opus")
 
 
+class DatasetContractError(RuntimeError):
+    """Fatal dataset-contract violation: must terminate the run, never be resampled."""
+
+
 def json_scandir( 
     dir: str,  # top-level directory at which to begin scanning
     json_file_path: str,  # json file to read
@@ -304,6 +308,9 @@ class SampleDataset(torch.utils.data.Dataset):
                     del info["__audio__"]
 
             return (audio, info)
+        except DatasetContractError:
+            # A violated dataset contract must terminate the run: never resample it away.
+            raise
         except Exception as e:
             print(f'Couldn\'t load file {audio_filename}: {e}')
             return self[random.randrange(len(self))]
