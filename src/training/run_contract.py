@@ -15,9 +15,12 @@ Two hashes, two jobs, never interchanged (finding r3-2):
   from a dict on both sides -- at launch from the arm's JSON file and at validation from
   the embedded dict -- and must not change when the source file is reformatted.
 """
+import copy
 import datetime
 import hashlib
 import json
+
+import pytorch_lightning as pl
 
 CONTRACT_VERSION = 1
 
@@ -98,3 +101,27 @@ def build_contract(run_id, fraction, dataset_config_path, split_json_path,
         "launched_at": _utc_now() if launched_at is None else str(launched_at),
         "contract_version": CONTRACT_VERSION,
     }
+
+
+class RunContractCallback(pl.Callback):
+    """Embed the run's contract in every checkpoint Lightning writes.
+
+    Mirrors ``train.ModelConfigEmbedderCallback`` (which writes ``checkpoint["model_config"]``
+    the same way); the two together make a checkpoint self-identifying: *this* model config,
+    trained by *this* run on *this* split with *this* code.
+
+    The contract is deep-copied on the way in and on the way out, so a checkpoint never
+    aliases the launcher's live dict and a later mutation of either side cannot rewrite
+    what an already-saved (or a future) checkpoint claims.
+    """
+
+    def __init__(self, contract):
+        if not isinstance(contract, dict):
+            raise TypeError(
+                "RunContractCallback needs the parsed contract dict, got "
+                f"{type(contract).__name__} -- load run_contract.json before constructing it"
+            )
+        self.contract = copy.deepcopy(contract)
+
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        checkpoint["run_contract"] = copy.deepcopy(self.contract)

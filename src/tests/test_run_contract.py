@@ -23,15 +23,20 @@ Two hashes with two different jobs, never mixed (finding r3-2):
 
 CPU-only: the Lightning runs below are `accelerator="cpu"` on a two-parameter module.
 """
+import glob
 import hashlib
 import json
 import os
 
 import pytest
+import pytorch_lightning as pl
+import torch
 
+from train import ModelConfigEmbedderCallback
 from src.training.run_contract import (
     CONTRACT_VERSION,
     CheckpointContractError,
+    RunContractCallback,
     build_contract,
     canonical_digest,
     file_sha256,
@@ -240,3 +245,106 @@ def test_build_contract_defaults_launched_at_to_an_utc_timestamp(launch_files):
 def test_checkpoint_contract_error_is_a_value_error():
     """The launcher may catch ``ValueError``; the dedicated type keeps messages precise."""
     assert issubclass(CheckpointContractError, ValueError)
+
+
+# ======================================================================================
+# D12 — RunContractCallback: the contract is in every checkpoint Lightning writes
+# ======================================================================================
+class TinyModule(pl.LightningModule):
+    """Two-parameter CPU stand-in for FLAC: enough to produce real optimizer and
+    scheduler state in a checkpoint, cheap enough to fit a unit test."""
+
+    def __init__(self):
+        super().__init__()
+        self.layer = torch.nn.Linear(2, 1)
+
+    def training_step(self, batch, batch_idx):
+        return self.layer(batch).square().mean()
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
+
+
+def run_training(ckpt_dir, contract, model_config, max_steps, resume_from=None):
+    """Run ``max_steps`` CPU steps with the three callbacks a data-curve run uses and
+    return the path of the checkpoint saved at step ``max_steps``."""
+    torch.manual_seed(0)
+    loader = torch.utils.data.DataLoader(torch.randn(8, 2), batch_size=2)
+    trainer = pl.Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_steps=max_steps,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        num_sanity_val_steps=0,
+        default_root_dir=str(ckpt_dir),
+        callbacks=[
+            pl.callbacks.ModelCheckpoint(
+                dirpath=str(ckpt_dir), every_n_train_steps=1, save_top_k=-1
+            ),
+            ModelConfigEmbedderCallback(model_config),
+            RunContractCallback(contract),
+        ],
+    )
+    trainer.fit(TinyModule(), loader, ckpt_path=resume_from)
+    saved = glob.glob(os.path.join(str(ckpt_dir), f"*step={max_steps}*.ckpt"))
+    assert len(saved) == 1, saved
+    return saved[0]
+
+
+@pytest.fixture(scope="module")
+def trained(tmp_path_factory):
+    """One real (CPU, 1-step) training run with the round-D callbacks attached."""
+    root = tmp_path_factory.mktemp("run")
+    files = {
+        "model_config": write_json(root / "model.json", MODEL_CONFIG, indent=4),
+        "dataset_config": write_json(root / "dataset.json", {"datasets": []}),
+        "split": write_json(root / "split.json", {"Scene": {"Scene_idx_0": ["a.wav"]}}),
+    }
+    contract = make_contract(files)
+    ckpt = run_training(root / "checkpoints", contract, MODEL_CONFIG, max_steps=1)
+    return {"root": root, "files": files, "contract": contract, "ckpt": ckpt}
+
+
+def test_D12_checkpoint_carries_the_run_contract_and_the_model_config(trained):
+    """The whole point of round D: a checkpoint identifies its own run."""
+    checkpoint = torch.load(trained["ckpt"], map_location="cpu", weights_only=False)
+    assert checkpoint["run_contract"] == trained["contract"]
+    assert checkpoint["model_config"] == MODEL_CONFIG   # ModelConfigEmbedderCallback's key
+    assert checkpoint["global_step"] == 1
+    assert checkpoint["optimizer_states"][0]["state"]   # real optimizer state
+    assert checkpoint["lr_schedulers"]
+
+
+def test_D12_embedded_contract_is_a_deep_copy_of_the_callbacks_contract():
+    """A checkpoint must not alias the launcher's live dict: mutating the embedded copy
+    (or the dict handed to the constructor) may never change what later checkpoints say."""
+    contract = {"run_id": "dc_cyl_f025", "nested": {"fraction": 0.25}}
+    callback = RunContractCallback(contract)
+
+    contract["nested"]["fraction"] = 0.5          # the caller mutates its own dict
+    first = {}
+    callback.on_save_checkpoint(None, None, first)
+    assert first["run_contract"] == {"run_id": "dc_cyl_f025", "nested": {"fraction": 0.25}}
+
+    first["run_contract"]["nested"]["fraction"] = 0.75   # something mutates a checkpoint
+    second = {}
+    callback.on_save_checkpoint(None, None, second)
+    assert second["run_contract"]["nested"]["fraction"] == 0.25
+
+
+def test_D12_callback_keeps_every_other_checkpoint_key(trained):
+    """The callback only adds its key; the Lightning checkpoint is otherwise untouched."""
+    checkpoint = torch.load(trained["ckpt"], map_location="cpu", weights_only=False)
+    assert {"state_dict", "optimizer_states", "lr_schedulers", "global_step", "epoch"} <= set(checkpoint)
+
+
+@pytest.mark.parametrize("bad", [None, "run_contract.json", ["run_id"], 1])
+def test_D12_callback_refuses_a_non_dict_contract(bad):
+    """Fail-closed at construction: a path or a None would embed a contract that can never
+    match, and the failure would only surface hours later at validation time."""
+    with pytest.raises(TypeError):
+        RunContractCallback(bad)
