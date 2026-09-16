@@ -40,6 +40,7 @@ from src.training.run_contract import (
     build_contract,
     canonical_digest,
     file_sha256,
+    validate_checkpoint,
 )
 
 CONTRACT_KEYS = {
@@ -348,3 +349,154 @@ def test_D12_callback_refuses_a_non_dict_contract(bad):
     match, and the failure would only surface hours later at validation time."""
     with pytest.raises(TypeError):
         RunContractCallback(bad)
+
+
+# ======================================================================================
+# D14/D15/D16 — validate_checkpoint: the fail-closed gate before a checkpoint is trusted
+# ======================================================================================
+def rewrite_checkpoint(source, dest, mutate):
+    """Load a checkpoint, apply ``mutate`` to the dict, save the result under ``dest``."""
+    checkpoint = torch.load(source, map_location="cpu", weights_only=False)
+    mutate(checkpoint)
+    torch.save(checkpoint, dest)
+    return str(dest)
+
+
+def test_D14_validate_accepts_the_matching_checkpoint(trained):
+    """Right step, right model config, right contract -> the loaded contract comes back."""
+    returned = validate_checkpoint(
+        trained["ckpt"], trained["contract"], MODEL_CONFIG, expect_step=1, for_resume=False
+    )
+    assert returned == trained["contract"]
+
+
+def test_D14_validate_accepts_a_reformatted_but_identical_model_config(trained, tmp_path):
+    """The expected config is compared as a parsed dict, so the launcher may re-read the
+    arm's JSON from anywhere and in any formatting."""
+    reformatted = json.load(open(write_json(tmp_path / "compact.json", MODEL_CONFIG,
+                                            separators=(",", ":"), sort_keys=True)))
+    assert validate_checkpoint(
+        trained["ckpt"], trained["contract"], reformatted, expect_step=1, for_resume=False
+    ) == trained["contract"]
+
+
+def test_D14_validate_for_resume_accepts_real_optimizer_and_scheduler_state(trained):
+    """D12's run really stepped the optimizer, so the checkpoint carries Adam state and a
+    scheduler entry -- the extra conditions for resuming from it."""
+    assert validate_checkpoint(
+        trained["ckpt"], trained["contract"], MODEL_CONFIG, expect_step=1, for_resume=True
+    ) == trained["contract"]
+
+
+def test_D15_rejects_another_fractions_contract(trained, tmp_path):
+    """The failure round D exists for: a 50 % checkpoint validated as the 25 % run's."""
+    other = dict(trained["contract"], run_id="dc_cyl_f050", fraction=0.5,
+                 split_sha256="c" * 64)
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(trained["ckpt"], other, MODEL_CONFIG, expect_step=1, for_resume=False)
+    message = str(excinfo.value)
+    assert "run_contract" in message
+    assert "fraction" in message and "run_id" in message and "split_sha256" in message
+
+
+def test_D15_rejects_a_wrong_step(trained):
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(trained["ckpt"], trained["contract"], MODEL_CONFIG,
+                            expect_step=2500, for_resume=False)
+    assert "global_step" in str(excinfo.value)
+    assert "2500" in str(excinfo.value)
+
+
+def test_D15_rejects_a_legacy_checkpoint_without_a_contract(trained, tmp_path):
+    """Checkpoints written before round D (the 100 % anchors) carry no contract; they are
+    not silently accepted, they are named as legacy."""
+    legacy = rewrite_checkpoint(trained["ckpt"], tmp_path / "legacy.ckpt",
+                                lambda ckpt: ckpt.pop("run_contract"))
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(legacy, trained["contract"], MODEL_CONFIG, expect_step=1,
+                            for_resume=False)
+    assert "legacy checkpoint without run_contract" in str(excinfo.value)
+
+
+def test_D15_rejects_an_embedded_model_config_that_differs_from_the_expected_dict(trained):
+    """(finding r3-2) The embedded dict is compared to the expected *parsed* config, not
+    only through the digest -- a contract could otherwise be reused across arms."""
+    expected = dict(MODEL_CONFIG, sample_size=32768)
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(trained["ckpt"], trained["contract"], expected, expect_step=1,
+                            for_resume=False)
+    assert "model config" in str(excinfo.value)
+
+
+def test_D15_rejects_a_digest_mismatch(trained):
+    """Separately from the dict comparison: the contract's model_config_digest must be the
+    canonical digest of the config the checkpoint embeds (the two checks fail
+    independently, so a contract carrying another arm's digest is caught)."""
+    tampered = dict(trained["contract"], model_config_digest=canonical_digest({"other": 1}))
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(trained["ckpt"], tampered, MODEL_CONFIG, expect_step=1,
+                            for_resume=False)
+    assert "digest" in str(excinfo.value)
+
+
+def test_D15_rejects_a_contract_without_a_digest(trained):
+    tampered = {k: v for k, v in trained["contract"].items() if k != "model_config_digest"}
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(trained["ckpt"], tampered, MODEL_CONFIG, expect_step=1,
+                            for_resume=False)
+    assert "model_config_digest" in str(excinfo.value)
+
+
+def test_D15_rejects_a_checkpoint_without_an_embedded_model_config(trained, tmp_path):
+    stripped = rewrite_checkpoint(trained["ckpt"], tmp_path / "no_config.ckpt",
+                                  lambda ckpt: ckpt.pop("model_config"))
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(stripped, trained["contract"], MODEL_CONFIG, expect_step=1,
+                            for_resume=False)
+    assert "model_config" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("kind", ["missing", "truncated", "not_a_checkpoint"])
+def test_D15_rejects_an_unloadable_file(trained, tmp_path, kind):
+    """A partial .ckpt never counts (plan §4 Round D): a file the loader cannot read is a
+    contract violation, not a traceback the launcher has to interpret."""
+    if kind == "missing":
+        path = str(tmp_path / "does_not_exist.ckpt")
+    elif kind == "truncated":
+        path = str(tmp_path / "partial.ckpt")
+        with open(trained["ckpt"], "rb") as src, open(path, "wb") as dst:
+            dst.write(src.read(4096))
+    else:
+        path = str(tmp_path / "text.ckpt")
+        with open(path, "w") as fout:
+            fout.write("not a checkpoint")
+
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(path, trained["contract"], MODEL_CONFIG, expect_step=1,
+                            for_resume=False)
+    assert path in str(excinfo.value)
+
+
+@pytest.mark.parametrize("mutate,needle", [
+    (lambda ckpt: ckpt["optimizer_states"][0].__setitem__("state", {}), "optimizer"),
+    (lambda ckpt: ckpt.__setitem__("optimizer_states", []), "optimizer"),
+    (lambda ckpt: ckpt.pop("optimizer_states"), "optimizer"),
+    (lambda ckpt: ckpt.__setitem__("lr_schedulers", []), "lr_scheduler"),
+    (lambda ckpt: ckpt.pop("lr_schedulers"), "lr_scheduler"),
+])
+def test_D16_for_resume_rejects_missing_optimizer_or_scheduler_state(trained, tmp_path, mutate, needle):
+    """Resuming from a checkpoint with no optimizer state silently restarts Adam at the
+    step-0 warmup lr (CLAUDE.md "Checkpoint surgery"); for_resume makes that fail-closed."""
+    path = rewrite_checkpoint(trained["ckpt"], tmp_path / f"stripped_{needle}_{id(mutate)}.ckpt", mutate)
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(path, trained["contract"], MODEL_CONFIG, expect_step=1, for_resume=True)
+    assert needle in str(excinfo.value)
+
+
+def test_D16_the_same_checkpoint_is_valid_when_not_resuming(trained, tmp_path):
+    """The optimizer/scheduler conditions apply ONLY to a resume: a completed run's final
+    checkpoint is still a valid run artifact for evaluation."""
+    stripped = rewrite_checkpoint(trained["ckpt"], tmp_path / "no_opt.ckpt",
+                                  lambda ckpt: ckpt["optimizer_states"][0].__setitem__("state", {}))
+    assert validate_checkpoint(stripped, trained["contract"], MODEL_CONFIG, expect_step=1,
+                               for_resume=False) == trained["contract"]

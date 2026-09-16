@@ -21,6 +21,7 @@ import hashlib
 import json
 
 import pytorch_lightning as pl
+import torch
 
 CONTRACT_VERSION = 1
 
@@ -125,3 +126,107 @@ class RunContractCallback(pl.Callback):
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["run_contract"] = copy.deepcopy(self.contract)
+
+
+_MISSING = object()
+
+
+def validate_checkpoint(path, expected_contract, expected_model_config, expect_step,
+                        for_resume=False):
+    """Fail-closed gate: is the file at ``path`` the checkpoint this run promised?
+
+    Returns the contract loaded from the checkpoint; raises ``CheckpointContractError``
+    with a precise message otherwise. The checks, in order:
+
+    1. the file loads at all (a partial ``.ckpt`` is a violation, never a traceback the
+       launcher has to interpret -- plan §4 Round D "a partial .ckpt never counts");
+    2. ``global_step == expect_step`` (the boundary the launcher is waiting for);
+    3. the embedded ``model_config`` (written by ``train.ModelConfigEmbedderCallback``)
+       equals ``expected_model_config`` *as parsed dicts*;
+    4. its ``canonical_digest`` equals the contract's ``model_config_digest`` -- an
+       independent check, so a contract carrying another arm's digest is caught even when
+       the embedded config matches;
+    5. the embedded ``run_contract`` equals ``expected_contract`` **exactly** (wrong
+       fraction / wrong run / wrong split sha => reject);
+    6. when ``for_resume``: non-empty ``optimizer_states[0]["state"]`` and a non-empty
+       ``lr_schedulers``. Resuming without them silently restarts Adam at the step-0
+       warmup lr and rebuilds the schedule (CLAUDE.md "Checkpoint surgery on warm
+       resume"), which would be invisible in the loss curve.
+    """
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as err:
+        raise CheckpointContractError(
+            f"checkpoint {path} cannot be loaded ({type(err).__name__}: {err})"
+        ) from None
+    if not isinstance(checkpoint, dict):
+        raise CheckpointContractError(
+            f"checkpoint {path} is not a Lightning checkpoint: it loads as "
+            f"{type(checkpoint).__name__}"
+        )
+
+    step = checkpoint.get("global_step", _MISSING)
+    if step != expect_step:
+        found = "absent" if step is _MISSING else repr(step)
+        raise CheckpointContractError(
+            f"checkpoint {path} is at global_step {found}, expected {expect_step}"
+        )
+
+    if "model_config" not in checkpoint:
+        raise CheckpointContractError(
+            f"checkpoint {path} embeds no model_config (ModelConfigEmbedderCallback was "
+            "not attached to the run that wrote it)"
+        )
+    embedded_config = checkpoint["model_config"]
+    if embedded_config != expected_model_config:
+        raise CheckpointContractError(
+            f"checkpoint {path} embeds a different model config than the expected one "
+            "(compared as parsed dicts)"
+        )
+    if "model_config_digest" not in expected_contract:
+        raise CheckpointContractError(
+            "the expected contract has no model_config_digest -- it was not built by "
+            "build_contract"
+        )
+    digest = canonical_digest(embedded_config)
+    if digest != expected_contract["model_config_digest"]:
+        raise CheckpointContractError(
+            f"checkpoint {path} embeds a model config whose canonical digest {digest} is "
+            f"not the contract's model_config_digest {expected_contract['model_config_digest']}"
+        )
+
+    if "run_contract" not in checkpoint:
+        raise CheckpointContractError(
+            f"checkpoint {path} is a legacy checkpoint without run_contract: it cannot be "
+            "attributed to a run"
+        )
+    contract = checkpoint["run_contract"]
+    if not isinstance(contract, dict):
+        raise CheckpointContractError(
+            f"checkpoint {path} carries a run_contract of type {type(contract).__name__}, "
+            "not a dict"
+        )
+    if contract != expected_contract:
+        differing = sorted(
+            key for key in set(contract) | set(expected_contract)
+            if contract.get(key, _MISSING) != expected_contract.get(key, _MISSING)
+        )
+        raise CheckpointContractError(
+            f"checkpoint {path} belongs to a different run: run_contract differs in "
+            f"{differing} (checkpoint run_id={contract.get('run_id')!r}, expected "
+            f"run_id={expected_contract.get('run_id')!r})"
+        )
+
+    if for_resume:
+        optimizer_states = checkpoint.get("optimizer_states") or []
+        if not optimizer_states or not optimizer_states[0].get("state"):
+            raise CheckpointContractError(
+                f"checkpoint {path} cannot be resumed from: its optimizer state is empty, "
+                "so the resumed run would restart Adam from scratch at the step-0 warmup lr"
+            )
+        if not checkpoint.get("lr_schedulers"):
+            raise CheckpointContractError(
+                f"checkpoint {path} cannot be resumed from: it carries no lr_scheduler "
+                "state, so the schedule would be rebuilt from the config"
+            )
+    return contract
