@@ -239,6 +239,10 @@ def test_two_invocations_never_overwrite_each_other_s_summary(tmp_path):
                  if p.startswith("data_curve_launch_summary_f")]
     assert len(summaries) == 2, summaries
     assert os.path.islink(os.path.join(env["REC"], "data_curve_launch_summary.json"))
+    # a record on a shared box is readable by the other session, as `>` used to leave it
+    for name in summaries:
+        mode = os.stat(os.path.join(env["REC"], name)).st_mode & 0o777
+        assert mode & 0o044 == 0o044, (name, oct(mode))
 
 
 def test_a_second_launcher_for_the_same_tag_is_refused(tmp_path):
