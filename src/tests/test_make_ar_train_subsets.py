@@ -17,7 +17,9 @@ its input. Because six 40k-step trainings are pinned to those files, the algorit
 
 Test ids follow the plan's A1-A7 contract list.
 """
+import copy
 import random
+import types
 
 import pytest
 
@@ -264,3 +266,145 @@ def test_A5_context_histogram_counts_distinct_sources_and_mixes_receivers():
     assert mas.context_histogram(room) == {"0": 0, "1-7": 3, ">=8": 0}
     mixed = {_f("S001", "R001"), _f("S002", "R001"), _f("S001", "R002")}
     assert mas.context_histogram(mixed) == {"0": 1, "1-7": 2, ">=8": 0}
+
+
+# ======================================================================================
+# A5 — build_subsets (properties; A7 pins the exact algorithm output)
+# ======================================================================================
+FRACS = [0.25, 0.5, 0.75]
+
+
+def _rooms(split):
+    return [(scene, room) for scene in split for room in split[scene]]
+
+
+def test_A5_output_keys_match_the_input_split_in_sorted_order():
+    subsets, _ = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert sorted(subsets) == FRACS
+    for frac in FRACS:
+        out = subsets[frac]
+        assert list(out) == sorted(TOY_SPLIT)                       # scenes, sorted
+        for scene in out:
+            assert list(out[scene]) == sorted(TOY_SPLIT[scene])     # rooms, sorted
+        assert set(_rooms(out)) == set(_rooms(TOY_SPLIT))
+
+
+def test_A5_every_retained_file_comes_from_the_input_and_rooms_are_sorted():
+    subsets, _ = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    for frac in FRACS:
+        for scene, room in _rooms(subsets[frac]):
+            files = subsets[frac][scene][room]
+            assert files == sorted(files)
+            assert len(files) == len(set(files))
+            assert set(files) <= set(TOY_SPLIT[scene][room])
+            assert len(files) >= 1
+
+
+def test_A5_subsets_are_nested_and_grow_with_the_fraction():
+    subsets, _ = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    for scene, room in _rooms(TOY_SPLIT):
+        s25 = set(subsets[0.25][scene][room])
+        s50 = set(subsets[0.5][scene][room])
+        s75 = set(subsets[0.75][scene][room])
+        assert s25 <= s50 <= s75
+
+
+def test_A5_manifest_counts_reconcile_per_fraction_and_per_room():
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert manifest["seed"] == 7
+    assert list(manifest["fractions"]) == ["0.25", "0.5", "0.75"]
+    for frac in FRACS:
+        entry = manifest["fractions"][str(frac)]
+        assert entry["final"] == entry["raw_prefix"] + entry["new_topup"] + entry["inherited_topup"]
+        assert entry["final"] == sum(
+            len(subsets[frac][scene][room]) for scene, room in _rooms(subsets[frac])
+        )
+        assert entry["effective_epochs_at_40k_x64"] == pytest.approx(40_000 * 64 / entry["final"])
+        per_room = entry["per_room"]
+        assert set(per_room) == {room for _, room in _rooms(TOY_SPLIT)}
+        for scene, room in _rooms(TOY_SPLIT):
+            rc = per_room[room]
+            assert rc["final"] == rc["raw_prefix"] + rc["new_topup"] + rc["inherited_topup"]
+            assert rc["final"] == len(subsets[frac][scene][room])
+            assert rc["raw_prefix"] == len(
+                mas.raw_prefix(
+                    mas.room_permutation(sorted(TOY_SPLIT[scene][room]), random.Random(0)), frac
+                )
+            )
+        for key in ("raw_prefix", "new_topup", "inherited_topup", "final"):
+            assert entry[key] == sum(rc[key] for rc in per_room.values())
+
+
+def test_A5_no_starved_target_survives_in_any_fraction():
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    for frac in FRACS:
+        assert manifest["fractions"][str(frac)]["context_histogram"]["0"] == 0
+        total = {"0": 0, "1-7": 0, ">=8": 0}
+        for scene, room in _rooms(subsets[frac]):
+            for bin_name, n in mas.context_histogram(set(subsets[frac][scene][room])).items():
+                total[bin_name] += n
+        assert total == manifest["fractions"][str(frac)]["context_histogram"]
+        assert sum(total.values()) == manifest["fractions"][str(frac)]["final"]
+
+
+def test_A5_consumes_exactly_one_sample_draw_per_room_and_no_other_rng(monkeypatch):
+    spies = []
+
+    def factory(seed):
+        spy = SpyRandom(seed)
+        spies.append(spy)
+        return spy
+
+    monkeypatch.setattr(mas, "random", types.SimpleNamespace(Random=factory))
+    subsets, _ = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert len(spies) == 1                       # ONE PRNG for the whole build
+    expected = [
+        ("sample", tuple(sorted(TOY_SPLIT[scene][room])), len(TOY_SPLIT[scene][room]))
+        for scene in sorted(TOY_SPLIT)
+        for room in sorted(TOY_SPLIT[scene])
+    ]
+    assert spies[0].calls == expected            # one draw per room, in sorted order
+    assert subsets[0.25] == mas.build_subsets(TOY_SPLIT, FRACS, seed=7)[0][0.25]
+
+
+def test_A5_is_deterministic_seed_dependent_and_order_independent():
+    a, ma = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    b, mb = mas.build_subsets(TOY_SPLIT, list(reversed(FRACS)), seed=7)
+    assert a == b and ma == mb                   # fractions are sorted ascending internally
+    c, _ = mas.build_subsets(TOY_SPLIT, FRACS, seed=8)
+    assert c[0.25] != a[0.25]
+
+
+def test_A5_does_not_mutate_the_input_split():
+    before = copy.deepcopy(TOY_SPLIT)
+    mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert TOY_SPLIT == before
+
+
+def test_A5_manifest_records_provenance_placeholders():
+    import platform
+
+    _, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    assert manifest["python_version"] == platform.python_version()
+    assert manifest["source_train_json_sha256"] is None   # filled in by write_outputs
+    assert manifest["files"] == {}                        # ditto
+
+
+@pytest.mark.parametrize(
+    "split",
+    [
+        {"Alpha": {"Alpha_idx_0": []}},                                     # empty room
+        {"Alpha": {"Alpha_idx_0": [_f("S001", "R001")] * 2}},               # duplicate file
+        {"Alpha": {"R": [_f("S001", "R001"), _f("S002", "R001")]},
+         "Beta": {"R": [_f("S001", "R001"), _f("S002", "R001")]}},          # room name clash
+    ],
+)
+def test_A5_rejects_malformed_splits(split):
+    with pytest.raises(ValueError):
+        mas.build_subsets(split, FRACS, seed=7)
+
+
+@pytest.mark.parametrize("fractions", [[], [0.0], [-0.25], [1.5], [0.25, 0.25]])
+def test_A5_rejects_malformed_fractions(fractions):
+    with pytest.raises(ValueError):
+        mas.build_subsets(TOY_SPLIT, fractions, seed=7)

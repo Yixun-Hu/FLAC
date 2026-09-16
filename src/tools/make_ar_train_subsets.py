@@ -23,7 +23,12 @@ sources); tokens are never int-parsed.
 """
 from __future__ import annotations
 
+import platform
+import random
 from collections import defaultdict
+
+TARGET_DRAWS_AT_40K_X64 = 40_000 * 64  # optimizer steps x effective batch, the exp_14 budget
+COUNT_KEYS = ("raw_prefix", "new_topup", "inherited_topup", "final")
 
 
 def parse_nodes(fname: str) -> tuple[str, str]:
@@ -146,3 +151,81 @@ def context_histogram(room_subset: set[str]) -> dict:
         else:
             hist[">=8"] += 1
     return hist
+
+
+def _validated_fractions(fractions) -> list[float]:
+    """Sorted-ascending, de-duplicated fractions in (0, 1]; the nesting needs that order."""
+    fracs = [float(f) for f in fractions]
+    if not fracs:
+        raise ValueError("no fractions given")
+    if len(set(fracs)) != len(fracs):
+        raise ValueError(f"duplicate fractions: {fracs!r}")
+    for f in fracs:
+        if not 0.0 < f <= 1.0:
+            raise ValueError(f"fraction out of range (0, 1]: {f!r}")
+    return sorted(fracs)
+
+
+def build_subsets(split: dict, fractions: list[float], seed: int) -> tuple[dict, dict]:
+    """Build the nested per-room subsets of ``split`` and the manifest describing them.
+
+    ``split`` is the AR ``scene -> room -> [basenames]`` mapping. Returns
+    ``({fraction: split_like}, manifest)``; the emitted split-likes carry the same scene/room
+    keys (in sorted order) with the retained files sorted inside each room. The input is
+    never mutated.
+    """
+    fracs = _validated_fractions(fractions)
+    rng = random.Random(seed)
+
+    subsets = {f: {} for f in fracs}
+    per_room = {f: {} for f in fracs}
+    histogram = {f: {"0": 0, "1-7": 0, ">=8": 0} for f in fracs}
+    totals = {f: dict.fromkeys(COUNT_KEYS, 0) for f in fracs}
+    seen_rooms = set()
+
+    for scene in sorted(split):
+        for room in sorted(split[scene]):
+            files = split[scene][room]
+            if not files:
+                raise ValueError(f"empty room {scene}/{room}")
+            if len(set(files)) != len(files):
+                raise ValueError(f"duplicate basenames in room {scene}/{room}")
+            if room in seen_rooms:
+                raise ValueError(f"duplicate room name {room!r} (manifest keys room-wise)")
+            seen_rooms.add(room)
+
+            perm = room_permutation(sorted(files), rng)
+            inherited_selection: set[str] = set()
+            for frac in fracs:  # ascending: each fraction inherits the smaller one
+                prefix = raw_prefix(perm, frac)
+                selection, added = topup_zero_context(set(prefix) | inherited_selection, perm)
+                counts = {
+                    "raw_prefix": len(prefix),
+                    "new_topup": len(added),
+                    "inherited_topup": len(selection - set(prefix) - set(added)),
+                    "final": len(selection),
+                }
+                subsets[frac].setdefault(scene, {})[room] = sorted(selection)
+                per_room[frac][room] = counts
+                for key in COUNT_KEYS:
+                    totals[frac][key] += counts[key]
+                for bin_name, n in context_histogram(selection).items():
+                    histogram[frac][bin_name] += n
+                inherited_selection = selection
+
+    manifest = {
+        "seed": seed,
+        "python_version": platform.python_version(),
+        "source_train_json_sha256": None,  # filled in by write_outputs
+        "fractions": {
+            str(frac): {
+                **totals[frac],
+                "effective_epochs_at_40k_x64": TARGET_DRAWS_AT_40K_X64 / totals[frac]["final"],
+                "context_histogram": histogram[frac],
+                "per_room": per_room[frac],
+            }
+            for frac in fracs
+        },
+        "files": {},  # filled in by write_outputs
+    }
+    return subsets, manifest
