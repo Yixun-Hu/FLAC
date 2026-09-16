@@ -194,6 +194,8 @@ def build_subsets(
     seen_rooms = set()
 
     for scene in sorted(split):
+        if not split[scene]:
+            raise ValueError(f"scene {scene!r} has no rooms")
         for room in sorted(split[scene]):
             files = split[scene][room]
             if not files:

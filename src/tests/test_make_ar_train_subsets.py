@@ -448,9 +448,14 @@ def test_A5_manifest_records_the_source_digest_when_the_path_is_given(tmp_path):
         {"Alpha": {"Alpha_idx_0": [_f("S001", "R001")] * 2}},               # duplicate file
         {"Alpha": {"R": [_f("S001", "R001"), _f("S002", "R001")]},
          "Beta": {"R": [_f("S001", "R001"), _f("S002", "R001")]}},          # room name clash
+        {"Alpha": {}},                                                      # empty scene
+        {"Alpha": {"Alpha_idx_0": [_f("S001", "R001"), _f("S002", "R001")]},
+         "Beta": {}},                                                       # one empty scene
     ],
 )
 def test_A5_rejects_malformed_splits(split):
+    """A scene with no rooms is a data-integrity error in train.json, not a silently empty
+    output: rejecting it keeps `output keys == input keys` true by construction."""
     with pytest.raises(ValueError):
         mas.build_subsets(split, FRACS, seed=7)
 
