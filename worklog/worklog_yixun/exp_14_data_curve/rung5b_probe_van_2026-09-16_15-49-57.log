@@ -1,0 +1,213 @@
+=== rung5b start 2026-09-16T15:49:57-04:00 FLAC=e86aed1
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+Missing logger folder: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5b_probe/lightning_logs
+Missing logger folder: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5b_probe/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5b_probe exists and is not empty.
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 8345 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 8345 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/2086 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/2086 [00:00<?, ?it/s] DatasetContractError: Caught DatasetContractError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/data/dataset.py", line 292, in __getitem__
+    custom_metadata = custom_metadata_fn(info, audio)
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 48, in get_custom_metadata
+    all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 163, in get_ir_and_location_for_other_sources
+    raise DatasetContractError(f"no in-split context for {ir_file_path}")
+src.data.dataset.DatasetContractError: no in-split context for AcousticRooms/single_channel_ir_1/Bathrooms/Bathrooms_idx_26/S002_R005_hybrid_IR.wav
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/home/yixunhu/codespace/exp-14-data-curve/train.py", line 253, in <module>
+[rank1]:     main()
+[rank1]:   File "/home/yixunhu/codespace/exp-14-data-curve/train.py", line 250, in main
+[rank1]:     trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank1]:     call._call_and_handle_interrupt(
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank1]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank1]:     return function(*args, **kwargs)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank1]:     self._run(model, ckpt_path=ckpt_path)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank1]:     results = self._run_stage()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank1]:     self.fit_loop.run()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank1]:     self.advance()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank1]:     self.epoch_loop.run(self._data_fetcher)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank1]:     self.advance(data_fetcher)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 202, in advance
+[rank1]:     batch, _, __ = next(data_fetcher)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 127, in __next__
+[rank1]:     batch = super().__next__()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 56, in __next__
+[rank1]:     batch = next(self.iterator)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 326, in __next__
+[rank1]:     out = next(self._iterator)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 74, in __next__
+[rank1]:     out[i] = next(self.iterators[i])
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 733, in __next__
+[rank1]:     data = self._next_data()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1515, in _next_data
+[rank1]:     return self._process_data(data, worker_id)
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1550, in _process_data
+[rank1]:     data.reraise()
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/_utils.py", line 750, in reraise
+[rank1]:     raise exception
+[rank1]: src.data.dataset.DatasetContractError: Caught DatasetContractError in DataLoader worker process 0.
+[rank1]: Original Traceback (most recent call last):
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+[rank1]:     data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+[rank1]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank1]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+[rank1]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank1]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/data/dataset.py", line 292, in __getitem__
+[rank1]:     custom_metadata = custom_metadata_fn(info, audio)
+[rank1]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 48, in get_custom_metadata
+[rank1]:     all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
+[rank1]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 163, in get_ir_and_location_for_other_sources
+[rank1]:     raise DatasetContractError(f"no in-split context for {ir_file_path}")
+[rank1]: src.data.dataset.DatasetContractError: no in-split context for AcousticRooms/single_channel_ir_1/Bathrooms/Bathrooms_idx_26/S002_R005_hybrid_IR.wav
+
+DatasetContractError: Caught DatasetContractError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/data/dataset.py", line 292, in __getitem__
+    custom_metadata = custom_metadata_fn(info, audio)
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 48, in get_custom_metadata
+    all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
+  File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 163, in get_ir_and_location_for_other_sources
+    raise DatasetContractError(f"no in-split context for {ir_file_path}")
+src.data.dataset.DatasetContractError: no in-split context for AcousticRooms/single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_9/S0012_R0025_hybrid_IR.wav
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/yixunhu/codespace/exp-14-data-curve/train.py", line 253, in <module>
+[rank0]:     main()
+[rank0]:   File "/home/yixunhu/codespace/exp-14-data-curve/train.py", line 250, in main
+[rank0]:     trainer.fit(training_wrapper, train_dl, val_dl, ckpt_path=args.ckpt_path if args.ckpt_path else None)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 545, in fit
+[rank0]:     call._call_and_handle_interrupt(
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/call.py", line 43, in _call_and_handle_interrupt
+[rank0]:     return trainer.strategy.launcher.launch(trainer_fn, *args, trainer=trainer, **kwargs)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/strategies/launchers/subprocess_script.py", line 102, in launch
+[rank0]:     return function(*args, **kwargs)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 581, in _fit_impl
+[rank0]:     self._run(model, ckpt_path=ckpt_path)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 990, in _run
+[rank0]:     results = self._run_stage()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/trainer.py", line 1036, in _run_stage
+[rank0]:     self.fit_loop.run()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 202, in run
+[rank0]:     self.advance()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py", line 359, in advance
+[rank0]:     self.epoch_loop.run(self._data_fetcher)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 136, in run
+[rank0]:     self.advance(data_fetcher)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/training_epoch_loop.py", line 202, in advance
+[rank0]:     batch, _, __ = next(data_fetcher)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 127, in __next__
+[rank0]:     batch = super().__next__()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fetchers.py", line 56, in __next__
+[rank0]:     batch = next(self.iterator)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 326, in __next__
+[rank0]:     out = next(self._iterator)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/utilities/combined_loader.py", line 74, in __next__
+[rank0]:     out[i] = next(self.iterators[i])
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 733, in __next__
+[rank0]:     data = self._next_data()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1515, in _next_data
+[rank0]:     return self._process_data(data, worker_id)
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1550, in _process_data
+[rank0]:     data.reraise()
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/_utils.py", line 750, in reraise
+[rank0]:     raise exception
+[rank0]: src.data.dataset.DatasetContractError: Caught DatasetContractError in DataLoader worker process 0.
+[rank0]: Original Traceback (most recent call last):
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+[rank0]:     data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+[rank0]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank0]:   File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+[rank0]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank0]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/data/dataset.py", line 292, in __getitem__
+[rank0]:     custom_metadata = custom_metadata_fn(info, audio)
+[rank0]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 48, in get_custom_metadata
+[rank0]:     all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
+[rank0]:   File "/home/yixunhu/codespace/exp-14-data-curve/src/configs/dataset_configs/custom_metadata/AR_md.py", line 163, in get_ir_and_location_for_other_sources
+[rank0]:     raise DatasetContractError(f"no in-split context for {ir_file_path}")
+[rank0]: src.data.dataset.DatasetContractError: no in-split context for AcousticRooms/single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_9/S0012_R0025_hybrid_IR.wav
+
+Epoch 0:   0%|          | 0/2086 [00:01<?, ?it/s][rank0]:[W916 15:50:15.359847596 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+=== rung5b rc=1 end 2026-09-16T15:50:16-04:00
+=== surviving train.py procs from this worktree: 0
+=== checkpoints written: 0
