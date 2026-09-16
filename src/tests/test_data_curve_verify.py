@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -175,14 +176,67 @@ def _head(repo):
                           capture_output=True, text=True).stdout.strip()
 
 
-def test_git_head_passes_on_the_expected_sha():
-    result = verify.check_git_head(REPO_ROOT, _head(REPO_ROOT), "FLAC worktree")
-    assert result.ok, result.line()
+def _tracked_dirty(repo):
+    """True while tracked files are modified -- the normal state mid-round. The launch
+    contract legitimately FAILs then (finding B2), so tests that run against this live
+    worktree must expect that outcome rather than assume a clean tree."""
+    return subprocess.run(["git", "-C", repo, "diff", "--quiet", "HEAD"],
+                          capture_output=True).returncode != 0
 
 
 def test_git_head_fails_on_another_sha_and_outside_a_repo(tmp_path):
     assert not verify.check_git_head(REPO_ROOT, "0" * 40, "FLAC worktree").ok
     assert not verify.check_git_head(str(tmp_path), "0" * 40, "package").ok
+
+
+def _git_repo(tmp_path, name="repo"):
+    """A one-commit git repository, and its HEAD."""
+    repo = tmp_path / name
+    repo.mkdir()
+    (repo / "code.py").write_text("x = 1\n")
+    env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+    for args in (["init", "-q"], ["add", "code.py"],
+                 ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-qm", "c"]):
+        done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True,
+                              text=True, env=env)
+        assert done.returncode == 0, done.stderr
+    return str(repo), _head(str(repo))
+
+
+def test_git_head_fails_when_tracked_files_are_modified(tmp_path):
+    """Finding B2: HEAD equality alone let dirty train.py / evaluator / package code run
+    while every check passed. A modified tracked file is now a FAIL."""
+    repo, head = _git_repo(tmp_path)
+    assert verify.check_git_head(repo, head, "package").ok        # clean first
+    open(os.path.join(repo, "code.py"), "a").write("x = 2  # uncommitted\n")
+    result = verify.check_git_head(repo, head, "package")
+    assert not result.ok, result.line()
+    assert "modified" in result.detail and head in result.detail
+
+
+def test_git_head_fails_when_a_tracked_file_is_deleted(tmp_path):
+    repo, head = _git_repo(tmp_path)
+    os.remove(os.path.join(repo, "code.py"))
+    assert not verify.check_git_head(repo, head, "package").ok
+
+
+def test_git_head_still_passes_with_untracked_files_only(tmp_path):
+    """The FLAC worktree legitimately carries untracked AcousticRooms / weights symlinks."""
+    repo, head = _git_repo(tmp_path)
+    (Path(repo) / "AcousticRooms").mkdir()
+    (Path(repo) / "notes.txt").write_text("scratch\n")
+    result = verify.check_git_head(repo, head, "package")
+    assert result.ok, result.line()
+    assert "untracked" in result.detail or "clean" in result.detail
+
+
+def test_git_head_distinguishes_a_git_error_from_a_mismatch(tmp_path):
+    outside = verify.check_git_head(str(tmp_path), "0" * 40, "package")
+    assert not outside.ok
+    assert "not a git repository" in outside.detail
+    repo, head = _git_repo(tmp_path)
+    mismatch = verify.check_git_head(repo, "0" * 40, "package")
+    assert not mismatch.ok and "!=" in mismatch.detail
 
 
 # ------------------------------------------------------- the committed split artifacts
@@ -383,10 +437,14 @@ def test_run_all_reports_every_check_and_summarises(tmp_path, capsys):
         data_dir=_splits(tmp_path), dataset_root=None, expected_arm_shas=shas,
     )
     failed = [r for r in results if not r.ok]
-    assert [r.name for r in failed] == ["package HEAD"], [r.line() for r in results]
+    expected_failures = ["package HEAD"]
+    if _tracked_dirty(REPO_ROOT):   # mid-round: the FLAC identity check must fail too
+        expected_failures = ["FLAC worktree HEAD", "package HEAD"]
+    assert sorted(r.name for r in failed) == sorted(expected_failures), \
+        [r.line() for r in results]
     assert verify.report(results) == verify.EXIT_FAILED
     out = capsys.readouterr().out
-    assert out.count("PASS ") == len(results) - 1
+    assert out.count("PASS ") == len(results) - len(expected_failures)
     assert "FAIL package HEAD" in out
 
 
@@ -396,7 +454,8 @@ def test_run_all_skips_the_anchor_audit_only_when_no_root_is_given(tmp_path):
                   expect_flac_sha=_head(REPO_ROOT), expect_pkg_sha=_head(REPO_ROOT),
                   data_dir=_splits(tmp_path), expected_arm_shas=shas)
     without = verify.run_all(dataset_root=None, **common)
-    assert all(r.ok for r in without), [r.line() for r in without]
+    tolerated = {"FLAC worktree HEAD", "package HEAD"} if _tracked_dirty(REPO_ROOT) else set()
+    assert all(r.ok for r in without if r.name not in tolerated), [r.line() for r in without]
     assert not any("anchor" in r.name for r in without)
 
     root, train_json = _dataset_root(
@@ -431,6 +490,9 @@ def test_cli_exits_0_on_the_real_launch_contract():
         pytest.skip("kit not available")
     if not os.path.isdir(os.path.join(dataset_root, "single_channel_ir_1")):
         pytest.skip("AcousticRooms not available")
+    if _tracked_dirty(REPO_ROOT):
+        pytest.skip("tracked files are modified: the launch contract cannot pass (B2) "
+                    "until the round's commits have landed")
     manifest_path = os.path.join(REPO_ROOT, "data", "AR",
                                  f"train_frac_manifest_s{verify.SPLIT_SEED}.json")
     with open(manifest_path) as fin:

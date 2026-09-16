@@ -206,24 +206,51 @@ def check_pinned_files(flac_wt, expected=None):
 
 
 def check_git_head(repo_dir, expected_sha, label):
-    """``git -C <repo> rev-parse HEAD`` equals the sha the launch record names."""
+    """``git -C <repo> rev-parse HEAD`` equals the launch record's sha **and** the tracked
+    tree is clean.
+
+    HEAD equality alone is not identity (finding B2): a modified ``train.py``, evaluator,
+    verifier or package file changes what runs while every recorded sha stays true. So a
+    non-zero ``git diff --quiet HEAD`` is a FAIL, and a git failure is reported as such
+    rather than as a mismatch. Untracked files are explicitly allowed -- the FLAC worktree
+    carries untracked ``AcousticRooms`` / ``weights`` symlinks by design.
+    """
     try:
         head = subprocess.run(["git", "-C", repo_dir, "rev-parse", "HEAD"],
                               capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as err:
-        return CheckResult(f"{label} HEAD", False, f"git failed on {repo_dir}: {err}")
+        return CheckResult(f"{label} HEAD", False,
+                           f"git could not be run on {repo_dir}: {err}")
     if head.returncode != 0:
         return CheckResult(f"{label} HEAD", False,
-                           f"{repo_dir} is not a git repository ({head.stderr.strip()})")
+                           f"{repo_dir} is not a git repository, or git failed: "
+                           f"{head.stderr.strip()}")
     found = head.stdout.strip()
-    dirty = subprocess.run(["git", "-C", repo_dir, "diff", "--quiet", "HEAD"],
-                           capture_output=True, text=True)
-    state = "clean" if dirty.returncode == 0 else "TRACKED FILES MODIFIED"
-    return CheckResult(
-        f"{label} HEAD", found == expected_sha,
-        f"{found} ({repo_dir}, tracked-file state: {state})" if found == expected_sha
-        else f"{found} != expected {expected_sha} ({repo_dir})",
-    )
+    if found != expected_sha:
+        return CheckResult(f"{label} HEAD", False,
+                           f"{found} != expected {expected_sha} ({repo_dir})")
+
+    try:
+        dirty = subprocess.run(["git", "-C", repo_dir, "diff", "--quiet", "HEAD"],
+                               capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as err:
+        return CheckResult(f"{label} HEAD", False,
+                           f"git diff could not be run on {repo_dir}: {err}")
+    if dirty.returncode == 1:
+        changed = subprocess.run(["git", "-C", repo_dir, "diff", "--name-only", "HEAD"],
+                                 capture_output=True, text=True)
+        names = [n for n in changed.stdout.split() if n][:5]
+        return CheckResult(
+            f"{label} HEAD", False,
+            f"{found} is checked out in {repo_dir} but tracked files are modified, so the "
+            f"code that would run is not that commit: {names}",
+        )
+    if dirty.returncode != 0:
+        return CheckResult(f"{label} HEAD", False,
+                           f"git diff failed on {repo_dir} (rc {dirty.returncode}): "
+                           f"{dirty.stderr.strip()}")
+    return CheckResult(f"{label} HEAD", True,
+                       f"{found} ({repo_dir}, tracked tree clean; untracked files allowed)")
 
 
 # ======================================================================================
