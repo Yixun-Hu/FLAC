@@ -1,5 +1,5 @@
 {
- "_fixture": "FIXTURE, not a measurement: synthetic cells assembled by src.tools.data_curve.assemble so the plot tests exercise the real document schema. No number here came from a trained model.",
+ "_fixture": "FIXTURE, not a measurement. Produced by src.tools.data_curve.assemble.build_curve itself over synthetic cells, so the plot tests exercise the real document schema. Recipe: van sits exactly on its anchors_tier_S.json mean at every fraction; cyl beats it by BENEFIT = {25%: 0.9, 50%: 0.7, 75%: 0.6} on T60, 2x that on EDT, +0.1 on C50 (worse, as at 100 %) and +BENEFIT on the recalls; each seed carries a small fixed jitter; ckpt_sha256 is 64 'a' characters; anchors are the MARGINAL form. No number here came from a trained model.",
  "anchor_form": "marginal",
  "complete": true,
  "curve": {

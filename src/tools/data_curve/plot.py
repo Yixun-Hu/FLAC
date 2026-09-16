@@ -144,7 +144,7 @@ def plot_curve(doc, out_dir, ks=None, panels=PANEL_METRICS, stem="data_curve", d
     """Render one PNG + SVG per K into ``out_dir``; returns what was written."""
     os.makedirs(out_dir, exist_ok=True)
     written = []
-    for K in (ks if ks is not None else sorted(key[1:] for key in doc["curve"])):
+    for K in (ks if ks is not None else sorted((key[1:] for key in doc["curve"]), key=int)):
         figure, _ = build_figure(doc, K, panels)
         try:
             paths = figure_paths(out_dir, K, stem)
