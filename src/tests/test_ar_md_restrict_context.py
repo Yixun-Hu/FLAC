@@ -800,6 +800,28 @@ def test_B9_malformed_split_raises_dataset_contract_error(tree, ar_md, name, pay
     assert path in str(excinfo.value)
 
 
+def test_B9_invalid_utf8_split_raises_dataset_contract_error(tree, ar_md):
+    """(codex round-C nit) A split whose *bytes* are not valid UTF-8 fails while being
+    decoded, before any JSON parsing: ``json.load`` raises ``UnicodeDecodeError``, which
+    is a ``ValueError`` but **not** a ``json.JSONDecodeError``, so the malformed-payload
+    matrix above never exercised it. The production path already names
+    ``UnicodeDecodeError`` in its except clause (``AR_md._load_split_room_index``); this
+    pins it, because dropping it would let a raw ``UnicodeDecodeError`` escape into
+    ``SampleDataset.__getitem__``'s generic fallback and be silently resampled away.
+    Both the loader and the cached accessor must be fail-closed."""
+    path = os.path.join(tree["splits_dir"], "invalid_utf8.json")
+    with open(path, "wb") as fout:
+        fout.write(b"\xff\xfe{")  # UTF-16-LE BOM + "{": not decodable as UTF-8
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md._load_split_room_index(path)
+    assert path in str(excinfo.value)
+    assert "not valid JSON" in str(excinfo.value)
+
+    with pytest.raises(DatasetContractError):
+        ar_md._split_room_index(path)  # the cached accessor is fail-closed too
+
+
 @pytest.mark.parametrize("kind", ["missing", "directory"])
 def test_B9_unreadable_split_raises_dataset_contract_error(tree, ar_md, kind):
     if kind == "missing":
