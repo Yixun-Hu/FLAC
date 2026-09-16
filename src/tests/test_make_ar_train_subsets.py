@@ -241,3 +241,26 @@ def test_A4_topup_raises_when_the_full_room_has_no_other_source_at_that_receiver
 def test_A4_topup_rejects_selected_entries_absent_from_the_permutation():
     with pytest.raises(ValueError):
         mas.topup_zero_context({_f("S009", "R099")}, PERM_B0)
+
+
+# ======================================================================================
+# A5a — context_histogram (eligible-context bins; the "< 8" bins are where FLAC's sampler
+# has to draw the K=8 references WITH replacement)
+# ======================================================================================
+def test_A5_context_histogram_bins_by_number_of_other_sources():
+    assert mas.context_histogram(set()) == {"0": 0, "1-7": 0, ">=8": 0}
+    assert mas.context_histogram({_f("S001", "R001")}) == {"0": 1, "1-7": 0, ">=8": 0}
+    two = {_f("S001", "R001"), _f("S002", "R001")}
+    assert mas.context_histogram(two) == {"0": 0, "1-7": 2, ">=8": 0}
+    eight = {_f(f"S{i:03d}", "R001") for i in range(1, 9)}
+    assert mas.context_histogram(eight) == {"0": 0, "1-7": 8, ">=8": 0}   # 7 others each
+    nine = {_f(f"S{i:03d}", "R001") for i in range(1, 10)}
+    assert mas.context_histogram(nine) == {"0": 0, "1-7": 0, ">=8": 9}    # 8 others each
+
+
+def test_A5_context_histogram_counts_distinct_sources_and_mixes_receivers():
+    # same source twice at one receiver (different tails) is ONE other source, not two
+    room = {"S001_R001_a.wav", "S001_R001_b.wav", "S002_R001_c.wav"}
+    assert mas.context_histogram(room) == {"0": 0, "1-7": 3, ">=8": 0}
+    mixed = {_f("S001", "R001"), _f("S002", "R001"), _f("S001", "R002")}
+    assert mas.context_histogram(mixed) == {"0": 1, "1-7": 2, ">=8": 0}

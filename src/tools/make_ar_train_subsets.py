@@ -119,3 +119,30 @@ def topup_zero_context(selected: set[str], perm: list[str]) -> tuple[set[str], l
         added.append(cand)
         sources_at[rec].add(nodes[cand][0])
     return current, added
+
+
+def context_histogram(room_subset: set[str]) -> dict:
+    """Bin the retained entries of one room by their number of *other* retained sources.
+
+    For each retained target, count the distinct sources retained at its receiver other than
+    its own (that is exactly FLAC's eligible acoustic-context pool under the restricted
+    sampler). Bins: ``"0"`` (starved — must be 0 after the top-up), ``"1-7"`` (the sampler
+    draws K=8 references WITH replacement) and ``">=8"``.
+    """
+    sources_at = defaultdict(set)
+    nodes = {}
+    for f in room_subset:
+        src, rec = parse_nodes(f)
+        nodes[f] = (src, rec)
+        sources_at[rec].add(src)
+
+    hist = {"0": 0, "1-7": 0, ">=8": 0}
+    for src, rec in nodes.values():
+        n_other = len(sources_at[rec] - {src})
+        if n_other == 0:
+            hist["0"] += 1
+        elif n_other < 8:
+            hist["1-7"] += 1
+        else:
+            hist[">=8"] += 1
+    return hist
