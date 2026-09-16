@@ -384,6 +384,12 @@ def load_or_create_contract(run_dir, build_fn):
         raise ContractMismatchError(
             f"{path} is not a contract object: it holds a {type(persisted).__name__}"
         )
+    # A persisted sidecar is judged complete BEFORE it is used (codex M5): a truncated one
+    # carrying every identity field but, say, no `launched_at` used to be inherited and then
+    # read at `contract["launched_at"]` -- an uncaught KeyError, i.e. exit 1, which a
+    # launcher cannot classify. ContractSchemaError maps to exit 2 and leaves the file
+    # untouched; repairing it is a human decision, never this function's.
+    require_contract_fields(persisted, path)
     candidate = build_fn(launched_at=persisted.get("launched_at"))
     differing = [
         field for field in IDENTITY_FIELDS

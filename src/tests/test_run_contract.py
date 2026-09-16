@@ -799,11 +799,19 @@ def test_BLOCKING1_a_changed_contract_version_is_refused(persisted_run, launch_f
 
 def test_BLOCKING1_a_missing_identity_key_in_the_sidecar_is_refused(persisted_run, launch_files):
     """A hand-edited or pre-round-D sidecar cannot be verified, so it is refused rather
-    than half-trusted."""
+    than half-trusted.
+
+    Since round D2-fix (codex M5) the refusal is a ``ContractSchemaError``: an incomplete
+    sidecar is a *schema* verdict (it is not a contract at all), while a complete sidecar
+    describing another run is the *identity* verdict ``ContractMismatchError``. Both are
+    ValueErrors and both exit 2 at the CLI boundary, so the launcher's behaviour is
+    unchanged -- what changed is that a missing field can no longer reach any code that
+    indexes it.
+    """
     truncated = {k: v for k, v in persisted_run["contract"].items() if k != "split_sha256"}
     write_json(persisted_run["path"], truncated, indent=1)
 
-    with pytest.raises(ContractMismatchError) as excinfo:
+    with pytest.raises(ContractSchemaError) as excinfo:
         load_or_create_contract(str(persisted_run["run_dir"]), contract_builder(launch_files))
     assert "split_sha256" in str(excinfo.value)
 
@@ -1037,6 +1045,30 @@ def test_MEDIUM2_make_contract_exit_codes(tmp_path, launch_files):
         tmp_path / "other3", launch_files,
         **{"--model-config": write_json(tmp_path / "list.json", ["FLAC"])}))
     assert non_object.returncode == 2
+
+
+@pytest.mark.parametrize("dropped", ["launched_at", "model_config_path"])
+def test_D2fix_make_contract_rejects_a_sidecar_missing_a_non_identity_field(
+        tmp_path, launch_files, dropped):
+    """codex M5: `require_contract_fields` was never applied to a *persisted* sidecar.
+
+    A sidecar carrying all 13 identity fields but no ``launched_at`` was reused and then
+    read at ``contract['launched_at']`` -- an uncaught KeyError, i.e. exit 1, the one
+    outcome a launcher cannot classify. A missing informational ``model_config_path`` was
+    worse: make-contract returned 0 and the run launched, failing only at final validation
+    (the embedded contract could never equal a complete expected one).
+    """
+    run_dir = tmp_path / "dc_cyl_f025"
+    assert run_cli(*make_contract_argv(run_dir, launch_files)).returncode == 0
+    sidecar = json.load(open(run_dir / CONTRACT_FILENAME))
+    del sidecar[dropped]
+    write_json(run_dir / CONTRACT_FILENAME, sidecar, indent=1)
+
+    again = run_cli(*make_contract_argv(run_dir, launch_files))
+    assert again.returncode == 2, again.stdout + again.stderr
+    assert dropped in last_stderr_line(again)
+    # the truncated sidecar is reported, never silently repaired
+    assert dropped not in json.load(open(run_dir / CONTRACT_FILENAME))
 
 
 def test_MEDIUM2_validate_exit_codes(validate_inputs, tmp_path):
