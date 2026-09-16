@@ -591,16 +591,16 @@ def main(argv=None):
     parser.add_argument("--data-dir", default=None, help="default: <flac-wt>/data/AR")
     parser.add_argument("--dataset-root", default=None,
                         help="default: <flac-wt>/AcousticRooms (the RIR tree, read-only)")
-    parser.add_argument("--skip-anchor-audit", action="store_true",
-                        help="skip the only check that walks the RIR tree")
     args = parser.parse_args(argv)
 
+    # The anchor audit is not optional (finding N7): a successful verifier result always
+    # includes it, so the CLI has no way to report success without walking the RIR tree.
     dataset_root = args.dataset_root or os.path.join(args.flac_wt, "AcousticRooms")
     return report(run_all(
         flac_wt=args.flac_wt, kit_dir=args.kit_dir, pkg_dir=args.pkg_dir,
         expect_flac_sha=args.expect_flac_sha, expect_pkg_sha=args.expect_pkg_sha,
         data_dir=args.data_dir,
-        dataset_root=None if args.skip_anchor_audit else dataset_root,
+        dataset_root=dataset_root,
     ))
 
 

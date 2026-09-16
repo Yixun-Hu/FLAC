@@ -466,16 +466,41 @@ def test_run_all_skips_the_anchor_audit_only_when_no_root_is_given(tmp_path):
     assert len(anchor) == 1 and not anchor[0].ok      # S001 sits at a listed receiver
 
 
+def _toy_dataset_root(tmp_path):
+    """The RIR tree TOY_SPLIT describes, so the CLI's anchor audit has something to walk."""
+    root = tmp_path / "toy_AR"
+    for scene, rooms in TOY_SPLIT.items():
+        for room, files in rooms.items():
+            room_dir = root / "single_channel_ir_1" / scene / room
+            room_dir.mkdir(parents=True, exist_ok=True)
+            for fname in files:
+                (room_dir / fname).write_bytes(b"")
+    return str(root)
+
+
 def test_cli_exits_3_when_a_check_fails(tmp_path):
     kit, _ = _kit(tmp_path)
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
          "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
          "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--flac-wt", REPO_ROOT,
-         "--data-dir", _splits(tmp_path), "--skip-anchor-audit"],
+         "--data-dir", _splits(tmp_path), "--dataset-root", _toy_dataset_root(tmp_path)],
         cwd=REPO_ROOT, capture_output=True, text=True)
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert "FAIL FLAC worktree HEAD" in proc.stdout
+    assert "PASS receiver-level anchor audit" in proc.stdout   # never skippable (N7)
+
+
+def test_cli_has_no_flag_that_skips_the_anchor_audit(tmp_path):
+    """Finding N7: a production run must not be able to report success without the audit."""
+    kit, _ = _kit(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, "-m", "src.tools.data_curve.verify",
+         "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--skip-anchor-audit"],
+        cwd=REPO_ROOT, capture_output=True, text=True)
+    assert proc.returncode == 2                     # argparse: unrecognized argument
+    assert "--skip-anchor-audit" in proc.stderr
 
 
 def test_cli_exits_0_on_the_real_launch_contract():
