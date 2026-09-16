@@ -555,3 +555,141 @@ def test_A6_cli_never_touches_its_input(tmp_path):
     before = src.read_bytes()
     mas.main(["--train-json", str(src), "--out-dir", str(tmp_path / "o1"), "--seed", "7"])
     assert src.read_bytes() == before
+
+
+# ======================================================================================
+# A7 — hand-derived regression fixture (pins the ALGORITHM, not just its properties)
+# ======================================================================================
+EXPECTED_S7 = {
+    0.25: {
+        "Alpha": {
+            "Alpha_idx_0": [_f("S001", "R001"), _f("S002", "R001")],
+            "Alpha_idx_1": [_f("S001", "R010"), _f("S002", "R010")],
+        },
+        "Beta": {
+            "Beta_idx_0": [
+                _f("S001", "R020"), _f("S002", "R021"), _f("S003", "R020"), _f("S003", "R021"),
+            ],
+        },
+    },
+    0.5: {
+        "Alpha": {
+            "Alpha_idx_0": [_f("S001", "R001"), _f("S002", "R001")],
+            "Alpha_idx_1": [
+                _f("S001", "R010"), _f("S001", "R011"), _f("S002", "R010"), _f("S002", "R011"),
+            ],
+        },
+        "Beta": {
+            "Beta_idx_0": [
+                _f("S001", "R020"), _f("S001", "R022"), _f("S001", "R023"), _f("S002", "R021"),
+                _f("S002", "R022"), _f("S002", "R023"), _f("S003", "R020"), _f("S003", "R021"),
+            ],
+        },
+    },
+    0.75: {
+        "Alpha": {
+            "Alpha_idx_0": [_f("S001", "R001"), _f("S002", "R001")],
+            "Alpha_idx_1": [
+                _f("S001", "R010"), _f("S001", "R011"), _f("S001", "R012"),
+                _f("S002", "R010"), _f("S002", "R011"), _f("S002", "R012"),
+            ],
+        },
+        "Beta": {
+            "Beta_idx_0": [
+                _f("S001", "R020"), _f("S001", "R022"), _f("S001", "R023"), _f("S002", "R020"),
+                _f("S002", "R021"), _f("S002", "R022"), _f("S002", "R023"), _f("S003", "R020"),
+                _f("S003", "R021"),
+            ],
+        },
+    },
+}
+
+# (raw_prefix, new_topup, inherited_topup, final) per room, hand-derived below.
+EXPECTED_S7_PER_ROOM = {
+    0.25: {"Alpha_idx_0": (1, 1, 0, 2), "Alpha_idx_1": (2, 0, 0, 2), "Beta_idx_0": (2, 2, 0, 4)},
+    0.5: {"Alpha_idx_0": (1, 0, 1, 2), "Alpha_idx_1": (3, 1, 0, 4), "Beta_idx_0": (5, 2, 1, 8)},
+    0.75: {"Alpha_idx_0": (2, 0, 0, 2), "Alpha_idx_1": (4, 1, 1, 6), "Beta_idx_0": (8, 0, 1, 9)},
+}
+EXPECTED_S7_TOTALS = {0.25: (5, 3, 0, 8), 0.5: (9, 3, 2, 14), 0.75: (14, 1, 2, 17)}
+EXPECTED_S7_HIST = {
+    0.25: {"0": 0, "1-7": 8, ">=8": 0},
+    0.5: {"0": 0, "1-7": 14, ">=8": 0},
+    0.75: {"0": 0, "1-7": 17, ">=8": 0},
+}
+
+
+def test_A7_regression_fixture_seed_7_matches_the_hand_derived_algorithm():
+    """Hand derivation (only the three permutations come from the PRNG; everything after them
+    is worked out by applying plan §3 by hand). Names abbreviated ``Sxxx_Ryyy``.
+
+    Iteration order: scenes sorted -> Alpha, Beta; rooms sorted -> Alpha_idx_0, Alpha_idx_1,
+    Beta_idx_0; one ``random.Random(7)`` consumed in that order, so
+
+      perm(Alpha_idx_0) = [S002_R001, S001_R001]
+      perm(Alpha_idx_1) = [S002_R010, S001_R010, S002_R011, S001_R012, S002_R012, S001_R011]
+      perm(Beta_idx_0)  = [S003_R021, S001_R020, S001_R023, S003_R020, S002_R022,
+                           S002_R023, S002_R020, S002_R021, S001_R022, S001_R021]
+
+    Alpha_idx_0 (n=2; receiver R001 carries S001, S002)
+      f=.25  k=max(1, round(0.5))=1 -> prefix [S002_R001]. S002_R001 is the only entry at R001
+             -> starved; earliest R001 entry with another source = index 1 (S001_R001) -> add.
+             raw 1, new 1, inherited 0, final 2.
+      f=.50  k=round(1.0)=1 -> prefix [S002_R001]; union with S_25 = both; nobody starved.
+             raw 1, new 0, inherited 1 (S001_R001 comes only from S_25), final 2.
+      f=.75  k=round(1.5)=2 (ties-to-even) -> prefix = both. raw 2, new 0, inherited 0, final 2.
+
+    Alpha_idx_1 (n=6; R010/R011/R012 each carry S001, S002)
+      f=.25  k=round(1.5)=2 -> prefix [S002_R010, S001_R010]; R010 already has two sources ->
+             no top-up. raw 2, new 0, inherited 0, final 2.
+      f=.50  k=3 -> prefix [S002_R010, S001_R010, S002_R011]; union adds nothing new.
+             Walk: S002_R011 is alone at R011 -> earliest other source at R011 is index 5
+             (S001_R011) -> add; when the walk reaches index 5 that entry is no longer starved.
+             raw 3, new 1, inherited 0, final 4.
+      f=.75  k=round(4.5)=4 (ties-to-even) -> prefix [S002_R010, S001_R010, S002_R011,
+             S001_R012]; union with S_50 re-adds S001_R011 (inherited). Walk: S001_R012 alone at
+             R012 -> earliest other source at R012 is index 4 (S002_R012) -> add.
+             raw 4, new 1, inherited 1, final 6 (the whole room).
+
+    Beta_idx_0 (n=10; R020 {S001,S002,S003}, R021 {S001,S002,S003}, R022 {S001,S002},
+                R023 {S001,S002})
+      f=.25  k=round(2.5)=2 (ties-to-even) -> prefix [S003_R021, S001_R020]. Walk in
+             permutation order: S003_R021 alone at R021 -> earliest other source at R021 is
+             index 7 (S002_R021) -> add. S001_R020 alone at R020 -> earliest other source at
+             R020 is index 3 (S003_R020), NOT index 6 (S002_R020) -> add.
+             raw 2, new 2, inherited 0, final 4.
+      f=.50  k=5 -> prefix indices 0-4 [S003_R021, S001_R020, S001_R023, S003_R020, S002_R022];
+             union with S_25 inherits S002_R021 (index 7). Walk: S001_R023 alone at R023 ->
+             add index 5 (S002_R023); S002_R022 alone at R022 -> add index 8 (S001_R022).
+             raw 5, new 2, inherited 1, final 8.
+      f=.75  k=round(7.5)=8 (ties-to-even) -> prefix indices 0-7; union with S_50 inherits
+             S001_R022 (index 8). Every receiver now holds >= 2 sources -> no top-up. Only
+             index 9 (S001_R021) is left out. raw 8, new 0, inherited 1, final 9.
+
+    Totals: .25 -> 5/3/0/8, .50 -> 9/3/2/14, .75 -> 14/1/2/17. Every retained target has 1 or 2
+    other retained sources at its receiver, so the eligible-context histogram is entirely in the
+    "1-7" bin: 8 / 14 / 17 entries, and the "0" bin is empty at every fraction.
+    """
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+
+    for frac in FRACS:
+        assert subsets[frac] == EXPECTED_S7[frac]
+        assert list(subsets[frac]) == ["Alpha", "Beta"]
+        assert list(subsets[frac]["Alpha"]) == ["Alpha_idx_0", "Alpha_idx_1"]
+
+        entry = manifest["fractions"][str(frac)]
+        assert tuple(entry[key] for key in mas.COUNT_KEYS) == EXPECTED_S7_TOTALS[frac]
+        assert entry["context_histogram"] == EXPECTED_S7_HIST[frac]
+        for room, expected in EXPECTED_S7_PER_ROOM[frac].items():
+            assert tuple(entry["per_room"][room][key] for key in mas.COUNT_KEYS) == expected
+
+
+def test_A7_regression_fixture_nesting_and_full_coverage():
+    """The hand-derived expectation is itself nested, and at 75 % the two small rooms are fully
+    covered while Beta_idx_0 keeps 9 of its 10 entries."""
+    for scene, room in _rooms(TOY_SPLIT):
+        s25 = set(EXPECTED_S7[0.25][scene][room])
+        s50 = set(EXPECTED_S7[0.5][scene][room])
+        s75 = set(EXPECTED_S7[0.75][scene][room])
+        assert s25 <= s50 <= s75 <= set(TOY_SPLIT[scene][room])
+    assert set(EXPECTED_S7[0.75]["Alpha"]["Alpha_idx_1"]) == set(TOY_ROOM_A1)
+    assert set(TOY_ROOM_B0) - set(EXPECTED_S7[0.75]["Beta"]["Beta_idx_0"]) == {_f("S001", "R021")}
