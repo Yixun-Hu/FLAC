@@ -166,3 +166,78 @@ def test_A3_raw_prefix_is_nested_across_ascending_fractions():
     p75 = mas.raw_prefix(perm, 0.75)
     assert p50[: len(p25)] == p25
     assert p75[: len(p50)] == p50
+
+
+# ======================================================================================
+# A4 — topup_zero_context
+#
+# ``PERM_B0`` is the seed-7 permutation of the 10-file toy room (see A7 for the derivation);
+# it is hard-coded here so these tests exercise the top-up rule alone, with no RNG involved.
+# Receivers in that room: R020 {S001,S002,S003}, R021 {S001,S002,S003}, R022 {S001,S002},
+# R023 {S001,S002}.
+# ======================================================================================
+PERM_B0 = [
+    _f("S003", "R021"),  # 0
+    _f("S001", "R020"),  # 1
+    _f("S001", "R023"),  # 2
+    _f("S003", "R020"),  # 3
+    _f("S002", "R022"),  # 4
+    _f("S002", "R023"),  # 5
+    _f("S002", "R020"),  # 6
+    _f("S002", "R021"),  # 7
+    _f("S001", "R022"),  # 8
+    _f("S001", "R021"),  # 9
+]
+
+
+def test_A4_topup_adds_the_earliest_same_receiver_other_source_entry():
+    """Both prefix entries are starved; each gets the EARLIEST permutation entry that shares
+    its receiver and carries a different source — for R020 that is index 3 (S003), not the
+    lower-numbered source S002 which sits at index 6."""
+    selected = {PERM_B0[0], PERM_B0[1]}
+    out, added = mas.topup_zero_context(selected, PERM_B0)
+    assert added == [_f("S002", "R021"), _f("S003", "R020")]  # walk order = permutation order
+    assert out == {PERM_B0[0], PERM_B0[1], _f("S002", "R021"), _f("S003", "R020")}
+    assert selected == {PERM_B0[0], PERM_B0[1]}  # caller's set never mutated
+
+
+def test_A4_topup_leaves_non_starved_selection_unchanged():
+    perm = [_f("S002", "R001"), _f("S001", "R001")]
+    selected = {perm[0], perm[1]}
+    out, added = mas.topup_zero_context(selected, perm)
+    assert added == []
+    assert out == selected
+
+
+def test_A4_topup_never_re_adds_an_already_selected_entry():
+    out, added = mas.topup_zero_context(set(PERM_B0), PERM_B0)
+    assert added == []
+    assert out == set(PERM_B0)
+    # a mixed case: only the starved target triggers an addition, nothing already present
+    selected = {_f("S001", "R020"), _f("S003", "R020"), _f("S002", "R022")}
+    out, added = mas.topup_zero_context(selected, PERM_B0)
+    assert added == [_f("S001", "R022")]
+    assert not set(added) & selected
+    assert out == selected | {_f("S001", "R022")}
+
+
+def test_A4_topup_single_pass_resolves_later_targets_via_earlier_additions():
+    """A receiver holding two selected entries of the SAME source is fixed by one addition:
+    the second entry must not trigger a second (duplicate) top-up."""
+    perm = ["S001_R001_a.wav", "S001_R001_b.wav", "S002_R001_c.wav"]
+    out, added = mas.topup_zero_context({perm[0], perm[1]}, perm)
+    assert added == ["S002_R001_c.wav"]
+    assert out == set(perm)
+
+
+def test_A4_topup_raises_when_the_full_room_has_no_other_source_at_that_receiver():
+    """Contract violation (cannot happen on AR): fail loudly instead of emitting a starved
+    target whose acoustic-context pool would be empty."""
+    perm = [_f("S001", "R001"), _f("S001", "R002")]
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({perm[0]}, perm)
+
+
+def test_A4_topup_rejects_selected_entries_absent_from_the_permutation():
+    with pytest.raises(ValueError):
+        mas.topup_zero_context({_f("S009", "R099")}, PERM_B0)

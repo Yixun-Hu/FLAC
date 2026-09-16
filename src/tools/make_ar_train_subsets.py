@@ -23,6 +23,8 @@ sources); tokens are never int-parsed.
 """
 from __future__ import annotations
 
+from collections import defaultdict
+
 
 def parse_nodes(fname: str) -> tuple[str, str]:
     """Return ``(source_token, receiver_token)`` for an AR RIR basename.
@@ -64,3 +66,56 @@ def raw_prefix(perm: list[str], frac: float) -> list[str]:
     permutation, ascending fractions are automatically nested.
     """
     return list(perm[: max(1, round(frac * len(perm)))])
+
+
+def topup_zero_context(selected: set[str], perm: list[str]) -> tuple[set[str], list[str]]:
+    """Add the entries needed so that every retained target has a non-empty context pool.
+
+    A retained target is *starved* when its receiver holds no other retained entry with a
+    **different source**: FLAC draws the K acoustic-context RIRs from the other sources at the
+    target's receiver, so such a target would be untrainable under the restricted sampler.
+    The repair walks ``perm`` in permutation order (restricted to the selection, which grows
+    as entries are added) and, for each starved target, adds the **earliest** ``perm`` entry
+    that shares the receiver and carries a different source. Deterministic: no RNG.
+
+    One pass suffices: the addition gives that receiver two sources, so the added entry and
+    every other selected entry at that receiver are non-starved afterwards.
+
+    Returns ``(new_selection, added_in_order)``; the caller's set is never mutated. Raises
+    ``ValueError`` if the full room offers no other source at a starved receiver (impossible
+    on AR — the contract must fail loudly rather than emit an untrainable target).
+    """
+    nodes = {f: parse_nodes(f) for f in perm}
+    unknown = set(selected) - nodes.keys()
+    if unknown:
+        raise ValueError(f"selected entries absent from the permutation: {sorted(unknown)!r}")
+
+    by_receiver = defaultdict(list)  # receiver -> entries in permutation order
+    for f in perm:
+        by_receiver[nodes[f][1]].append(f)
+
+    current = set(selected)
+    sources_at = defaultdict(set)  # receiver -> sources currently retained there
+    for f in current:
+        src, rec = nodes[f]
+        sources_at[rec].add(src)
+
+    added: list[str] = []
+    for f in perm:
+        if f not in current:
+            continue
+        src, rec = nodes[f]
+        if sources_at[rec] - {src}:
+            continue  # already has another source at this receiver
+        for cand in by_receiver[rec]:
+            if nodes[cand][0] != src:
+                break
+        else:
+            raise ValueError(
+                f"receiver {rec!r} has only source {src!r} in the full room list; "
+                "cannot build a context pool for it"
+            )
+        current.add(cand)  # cand cannot already be selected, else f would not be starved
+        added.append(cand)
+        sources_at[rec].add(nodes[cand][0])
+    return current, added
