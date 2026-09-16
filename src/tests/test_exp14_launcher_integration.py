@@ -17,7 +17,13 @@ b. a preflight failure of the *second* arm leaves no process started at all;
 c. an evaluator that exits 0 without writing its metrics JSON fails the cell;
 d. a verifier failure (e.g. the dirty-tree FAIL of finding B2) stops everything;
 e. ``PYTHONPATH`` must be the ``src`` of the package directory that was verified;
-f. the happy path: both arms train, validate, and 20 cells complete.
+f. the happy path: both arms train, validate, and 20 cells complete;
+g. a second invocation skips the completed cells;
+h. a lane that is killed mid-way fails the pipeline, whatever the cells before it did
+   (round-F finding 1: bare ``wait`` returned success for a lane that never finished);
+i. an artifact naming a foreign checkpoint is refused (round-F finding 2);
+j. ... and is therefore re-evaluated rather than skipped;
+k. two launchers for the same TAG cannot run at once (round-F finding 5).
 """
 import json
 import os
@@ -71,12 +77,31 @@ if [ "${1:-}" = "-m" ]; then
           echo "OK $CK"; exit 0 ;;
       esac ;;
     src.tools.data_curve.names)
-      PT="$(arg --pt "$@")"; NAME="$(arg --expect-eval-name "$@")"
-      echo "$NAME" >> "$M/bundlecheck"
-      RC="${STUB_RC_BUNDLE:-0}"
-      [ -s "$PT" ] || RC="${STUB_RC_BUNDLE_MISSING:-3}"
-      [ "$RC" = 0 ] || { echo "FAIL $PT: stubbed"; exit "$RC"; }
-      echo "PASS $PT: stubbed dataset_config_sha256=$STUB_CFG_SHA"; exit 0 ;;
+      case "${3:-}" in
+        check-bundle)
+          PT="$(arg --pt "$@")"; NAME="$(arg --expect-eval-name "$@")"
+          XC="$(arg --expect-ckpt "$@")"; XS="$(arg --expect-ckpt-sha256 "$@")"
+          echo "$NAME" >> "$M/bundlecheck"
+          # round-F 2: the launcher must bind every artifact to the validated checkpoint
+          [ -n "$XC" ] && [ -n "$XS" ] || { echo "FAIL $PT: unbound check-bundle"; exit 2; }
+          RC="${STUB_RC_BUNDLE:-0}"; FROM=""
+          [ -s "$PT" ] || RC="${STUB_RC_BUNDLE_MISSING:-3}"
+          # the stub evaluator writes, as the bundle's body, the checkpoint it scored
+          [ -s "$PT" ] && FROM="$(cat "$PT")"
+          [ -z "$FROM" ] || [ "$FROM" = "$XC" ] || RC=3
+          if [ -e "$XC" ] && [ "$XS" != "$(sha256sum "$XC" | cut -d" " -f1)" ]; then RC=3; fi
+          [ "$RC" = 0 ] || { echo "FAIL $PT: stubbed (from='$FROM' expected='$XC')"; exit "$RC"; }
+          echo "PASS $PT: stubbed dataset_config_sha256=$STUB_CFG_SHA ckpt_sha256=$XS"
+          exit 0 ;;
+        check-metrics)
+          J="$(arg --json "$@")"; XC="$(arg --expect-ckpt "$@")"
+          echo "$J" >> "$M/metricscheck"
+          [ -n "$XC" ] || { echo "FAIL $J: unbound check-metrics"; exit 2; }
+          [ -s "$J" ] || { echo "FAIL $J: no metrics JSON"; exit 3; }
+          grep -q "\"ckpt_path\": \"$XC\"" "$J" \
+            || { echo "FAIL $J: metrics ckpt_path is not $XC"; exit 3; }
+          echo "PASS $J: stubbed"; exit 0 ;;
+      esac ;;
   esac
 fi
 
@@ -88,15 +113,22 @@ case "${1:-}" in
     mkdir -p "$SD"; echo "fake checkpoint" > "$SD/epoch=8-step=40000.ckpt"; exit 0 ;;
   eval_FLAC.py)
     CK="$(arg --ckpt-path "$@")"; NAME="$(arg --eval-name "$@")"
-    SUF=""; [ "$(arg --cond-method "$@")" = fa_invariant ] && SUF="_fa_invariant_a1"
+    CM="$(arg --cond-method "$@")"; SUF=""
+    [ "$CM" = fa_invariant ] && SUF="_fa_invariant_a1"
     BASE="$(dirname "$CK")/$(basename "$CK" .ckpt)"
     echo "$NAME" >> "$M/evaluated"
+    # a lane that dies mid-way: the evaluator kills the lane subshell that started it
+    if [ "${STUB_EVAL_KILL_AT:-}" = "$NAME" ]; then
+      echo "$NAME" >> "$M/killed_lane"; kill -9 "$PPID" 2>/dev/null; exit 137; fi
     [ "${STUB_RC_EVAL:-0}" = 0 ] || exit "${STUB_RC_EVAL}"
+    WROTE="$CK"
+    [ "${STUB_EVAL_FOREIGN_CKPT:-0}" = 1 ] \
+      && WROTE="$(dirname "$CK")/foreign_step=40000.ckpt"
     [ "${STUB_EVAL_NO_BUNDLE:-0}" = 1 ] \
-      || echo "bundle" > "${BASE}_predictions_1_1.0_${NAME}${SUF}.pt"
+      || echo "$WROTE" > "${BASE}_predictions_1_1.0_${NAME}${SUF}.pt"
     [ "${STUB_EVAL_NO_METRICS:-0}" = 1 ] \
-      || printf '{"metrics": {"T60": 1.0}, "cond_method": "x"}\n' \
-           > "${BASE}_metrics_1_1.0_${NAME}${SUF}.json"
+      || printf '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "cond_method": "%s"}\n' \
+           "$WROTE" "$CM" > "${BASE}_metrics_1_1.0_${NAME}${SUF}.json"
     exit 0 ;;
   -c)
     case "$*" in *append_resume_log*)
@@ -155,6 +187,7 @@ class Harness:
             "GPUS": "0,1",
             "EXPECT_FLAC_SHA": "a" * 40,
             "EXPECT_PKG_SHA": "b" * 40,
+            "EXPECT_KIT_SHA": "c" * 40,
             "POLL_SECONDS": "1",
             "STABLE_WAIT": "0",
             "CUDA_VISIBLE_DEVICES": "",
@@ -277,9 +310,93 @@ def test_f_the_happy_path_trains_validates_and_completes_twenty_cells(harness):
     assert len(open(harness.markers / "validate_final_cyl").read().split()) == 1
     # M4: the per-cell record carries the eval config's sha computed at check time
     done = [line for line in open(harness.markers / "bundlecheck").read().split() if line]
-    assert len(done) == 20
-    cells = harness.summary()["cells"]
+    assert len(done) == 40          # once in the lane, once in the final enumeration
+    cells = summary["cells"]
     assert len(cells) == 20 and all(CFG_SHA in entry for entry in cells)
+    # round-F 1 + 2: the verdict is a re-check of all twenty planned cells, each bound to
+    # the digest the launcher computed when it validated that arm's final checkpoint.
+    assert summary["cells_final"] == 20
+    assert "final enumeration: 20/20" in proc.stdout
+    for arm in names.ARMS:
+        digest = summary["runs"][arm]["final_ckpt_sha256"]
+        assert len(digest) == 64, digest
+
+
+def _seed_cell_artifacts(harness, arm, ckpt, body):
+    """Write the two artifacts of every cell of one arm, naming ``body`` as their source."""
+    base = ckpt[:-len(".ckpt")]
+    suffix = "_fa_invariant_a1" if arm == "cyl" else ""
+    for k in names.K_VALUES:
+        for seed in names.SEEDS:
+            name = names.eval_name(arm, TAG, k, seed)
+            open(f"{base}_predictions_1_1.0_{name}{suffix}.pt", "w").write(body)
+            open(f"{base}_metrics_1_1.0_{name}{suffix}.json", "w").write(
+                '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "cond_method": "x"}\n' % body)
+
+
+def test_h_a_lane_that_dies_after_n_cells_fails_the_pipeline(harness):
+    """Round-F finding 1: both lanes were backgrounded and awaited with a bare `wait`,
+    which reports success even for a lane that was killed -- so the launcher could write
+    COMPLETE with four of ten K=1 cells present and no failure marker anywhere."""
+    victim = names.eval_name("cyl", TAG, 1, 44)          # the 5th cell of the K=1 lane
+    proc = harness.run(STUB_EVAL_KILL_AT=victim)
+
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "COMPLETE" not in proc.stdout
+    assert open(harness.markers / "killed_lane").read().split() == [victim]
+    summary = harness.summary()
+    assert summary["status"] == "failed"
+    assert summary["cells_final"] < 20
+    # the K=8 lane ran to the end, so the failure is the lane's, not a cell's
+    assert len(open(harness.markers / "evaluated").read().split()) < 20
+    assert "lane" in proc.stdout
+
+
+def test_i_an_artifact_naming_a_foreign_checkpoint_fails_the_cell(harness):
+    """Round-F finding 2: metrics_ok proved only that the JSON parsed, so a result from
+    another checkpoint was counted as this cell's."""
+    proc = harness.run(STUB_EVAL_FOREIGN_CKPT=1)
+
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    summary = harness.summary()
+    assert summary["cells_evaluated"] == 0
+    assert len(summary["failed_cells"]) == 20
+    assert summary["cells_final"] == 0
+
+
+def test_j_stale_artifacts_from_another_checkpoint_are_re_evaluated_not_skipped(harness):
+    for arm in names.ARMS:
+        ckpt = _seed_final_ckpt(harness, arm)
+        _seed_cell_artifacts(harness, arm, ckpt,
+                             os.path.join(os.path.dirname(ckpt), "foreign_step=40000.ckpt"))
+    proc = harness.run()
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert len(open(harness.markers / "evaluated").read().split()) == 20   # none skipped
+    summary = harness.summary()
+    assert summary["cells_skipped"] == 0 and summary["cells_evaluated"] == 20
+
+
+def test_k_two_launchers_for_the_same_tag_cannot_run_at_once(harness):
+    """Round-F finding 5: an atomic per-tag lock -- and a stale lock is reported, never
+    removed by the launcher itself."""
+    lock = harness.tmp / "rec" / f".lock_f{TAG}"
+    lock.mkdir()
+    (lock / "pid").write_text(f"{os.getpid()} this test\n")
+    held = harness.run()
+    assert held.returncode == 3, held.stdout + held.stderr
+    assert not harness.marker("verify")            # refused before anything ran
+    assert str(os.getpid()) in held.stdout + held.stderr
+
+    (lock / "pid").write_text("4194303 a launcher that was killed\n")
+    stale = harness.run()
+    assert stale.returncode == 3
+    assert "dead" in stale.stdout + stale.stderr
+    assert lock.is_dir()                           # this script deletes nothing of ours
+
+    lock.joinpath("pid").unlink()
+    lock.rmdir()
+    assert harness.run().returncode == 0           # and the lock was only ever advisory
 
 
 def test_g_a_second_invocation_skips_the_completed_cells(harness):

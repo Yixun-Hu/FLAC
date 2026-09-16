@@ -14,12 +14,16 @@ test can assert -- without a GPU, without the NAS and without launching anything
 * **any** non-zero exit of the verifier, of ``make-contract`` or of ``validate`` stops the
   pipeline with exit 3 before anything downstream happens (the D1 review's addendum),
   simulated through the launcher's ``DRY_RUN_FAIL`` hook rather than by running the real
-  CLIs against real data.
+  CLIs against real data,
+* the round-F gates are printed where they will run: the verifier pins the kit and the
+  launcher's own bytes, the twenty planned cells are re-enumerated after the lanes, and
+  every marker, record and summary this invocation writes carries its unique launch id.
 
 ``FLAC_WT`` is this worktree (the launcher hashes the real dataset config and split), while
 the kit, the NAS root and the records dir are ``tmp_path``, so nothing is written into the
 repository.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -53,6 +57,7 @@ def _layout(tmp_path):
         "GPUS": "0,1",
         "EXPECT_FLAC_SHA": "a" * 40,
         "EXPECT_PKG_SHA": "b" * 40,
+        "EXPECT_KIT_SHA": "c" * 40,
         "DRY_RUN": "1",
         "CUDA_VISIBLE_DEVICES": "",
     }
@@ -84,6 +89,17 @@ def _cfg(env, arm):
 
 def _run_dir(env, arm):
     return os.path.join(env["NAS_ROOT"], names.run_id(arm, TAG))
+
+
+def _launcher_sha256():
+    return hashlib.sha256(open(SCRIPT, "rb").read()).hexdigest()
+
+
+def _one_summary(env):
+    """The invocation's own summary, reached through the `latest` pointer."""
+    pointer = os.path.join(env["REC"], "data_curve_launch_summary.json")
+    assert os.path.islink(pointer), "the stable name must be a pointer, never the record"
+    return json.load(open(pointer))
 
 
 def test_the_launcher_is_syntactically_valid_bash():
@@ -145,20 +161,111 @@ def test_dry_run_records_the_launch_and_writes_a_summary(tmp_path):
     pids = dict(_tagged(proc.stdout, "PID"))
     for arm in names.ARMS:
         run = names.run_id(arm, TAG)
-        path = os.path.join(env["REC"], f"at_launch_{run}.txt")
-        assert records[run] == path
+        path = records[run]
+        # N7/round-F 5: the record is named for THIS invocation, so a second launcher
+        # cannot overwrite the first one's record of what it started.
+        assert os.path.basename(path).startswith(f"at_launch_{run}_"), path
         assert pids[run] == "DRYRUN"
         record = open(path).read()
         for needle in (f"run: {run}", "host: ", f"flac_sha: {'a' * 40}",
                        f"package_sha: {'b' * 40}", "argv: python train.py",
-                       f"split: {names.SPLIT_FILES[TAG]}", "pid: DRYRUN"):
+                       f"split: {names.SPLIT_FILES[TAG]}", "pid: DRYRUN",
+                       "final_ckpt_sha256: "):
             assert needle in record, record
 
-    summary = json.load(open(os.path.join(env["REC"], "data_curve_launch_summary.json")))
+    summary = _one_summary(env)
     assert summary["tag"] == TAG and summary["fraction"] == 0.25
     assert summary["dry_run"] is True and summary["status"] == "complete"
     assert summary["runs"]["cyl"]["run_id"] == "dc_cyl_f025"
     assert summary["failed_cells"] == []
+    assert summary["launch_ts"] and summary["launcher_sha256"] == _launcher_sha256()
+    assert summary["kit_sha"] == "c" * 40
+    assert summary["cells_final"] == 20
+
+
+def test_dry_run_verifies_the_kit_and_its_own_bytes_before_anything_else(tmp_path):
+    """Round-F finding 3: the kit holds the launcher and both arm configs, and the running
+    launcher proves it IS the kit's launcher by passing its own sha256."""
+    env = _layout(tmp_path)
+    proc = _run(env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    verify = dict(_tagged(proc.stdout, "CMD"))["verify"]
+    assert f"--expect-kit-sha {'c' * 40}" in verify
+    assert f"--expect-launcher-sha256 {_launcher_sha256()}" in verify
+    assert f"--kit-dir {env['KIT']}" in verify
+
+
+def test_the_launcher_refuses_to_run_without_the_kit_sha(tmp_path):
+    env = _layout(tmp_path)
+    del env["EXPECT_KIT_SHA"]
+    full = dict(os.environ)
+    full.pop("EXPECT_KIT_SHA", None)
+    full.update(env)
+    proc = subprocess.run(["bash", SCRIPT], capture_output=True, text=True, env=full)
+    assert proc.returncode != 0
+    assert "EXPECT_KIT_SHA" in proc.stderr
+
+
+def test_dry_run_enumerates_the_twenty_planned_cells_after_the_lanes(tmp_path):
+    """Round-F finding 1: `wait` without job ids let the launcher write COMPLETE with fewer
+    than 20 evaluated cells. The verdict is now a re-check of every planned cell."""
+    env = _layout(tmp_path)
+    proc = _run(env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    checked = [label[len("finalcheck:"):] for label, _ in _tagged(proc.stdout, "CMD")
+               if label.startswith("finalcheck:")]
+    planned = [names.eval_name(arm, TAG, k, seed)
+               for k in names.K_VALUES for seed in names.SEEDS for arm in names.ARMS]
+    # metrics JSON and bundle, for each of the twenty planned cells
+    assert sorted(set(checked)) == sorted(planned)
+    assert len(checked) == 40
+    commands = [cmd for label, cmd in _tagged(proc.stdout, "CMD")
+                if label.startswith("finalcheck:")]
+    assert sum("check-metrics" in c for c in commands) == 20
+    assert sum("check-bundle" in c for c in commands) == 20
+    # every cell check is bound to its arm's validated final checkpoint (round-F 2)
+    for arm in names.ARMS:
+        ckpt = os.path.join(_run_dir(env, arm), "dryrun_step=40000.ckpt")
+        assert sum(f"--expect-ckpt {ckpt} " in c + " " for c in commands) == 20
+
+
+def test_two_invocations_never_overwrite_each_other_s_summary(tmp_path):
+    """Finding N7 / round-F 5: `>` to a fixed name, and a same-second timestamp, lost one
+    invocation's record. Names now carry the timestamp AND the pid."""
+    env = _layout(tmp_path)
+    assert _run(env).returncode == 0
+    assert _run(env).returncode == 0
+    summaries = [p for p in os.listdir(env["REC"])
+                 if p.startswith("data_curve_launch_summary_f")]
+    assert len(summaries) == 2, summaries
+    assert os.path.islink(os.path.join(env["REC"], "data_curve_launch_summary.json"))
+
+
+def test_a_second_launcher_for_the_same_tag_is_refused(tmp_path):
+    """Round-F finding 5: an atomic per-tag lock, with a stale-pid check that never
+    deletes anything by itself."""
+    env = _layout(tmp_path)
+    lock = os.path.join(env["REC"], f".lock_f{TAG}")
+    os.makedirs(lock)
+    with open(os.path.join(lock, "pid"), "w") as fout:
+        fout.write(f"{os.getpid()} held-by-this-test\n")
+    held = _run(env)
+    assert held.returncode == 3, held.stdout + held.stderr
+    assert str(os.getpid()) in held.stdout + held.stderr
+    assert not _tagged(held.stdout, "CMD")          # nothing was even printed
+
+    with open(os.path.join(lock, "pid"), "w") as fout:
+        fout.write("4194303 a launcher that was killed\n")   # > /proc/sys/kernel/pid_max
+    stale = _run(env)
+    assert stale.returncode == 3
+    assert "dead" in (stale.stdout + stale.stderr)
+    assert os.path.isdir(lock)                      # refused, never removed for us
+
+
+def test_a_completed_invocation_releases_its_lock(tmp_path):
+    env = _layout(tmp_path)
+    assert _run(env).returncode == 0
+    assert not os.path.exists(os.path.join(env["REC"], f".lock_f{TAG}"))
 
 
 @pytest.mark.parametrize("step,rc,after", [
