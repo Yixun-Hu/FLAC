@@ -147,8 +147,10 @@ def build_contract(run_id, fraction, dataset_config_path, split_json_path,
                    sync_batchnorm, flac_sha, package_sha, launched_at=None):
     """Assemble the contract of one run from the files and settings it is launched with.
 
-    Reads the three pinned files (so a missing one is a fail-closed ``OSError`` at launch,
-    not a silent hole in the contract) and normalises every field to a JSON-stable
+    Reads the three pinned files, so a missing or unusable one is fail-closed at launch
+    rather than a silent hole in the contract (``OSError`` from the two byte-sha'd files,
+    ``ContractSchemaError`` for a model config that is missing, malformed or not a JSON
+    object -- the CLI maps both to exit 2). Normalises every field to a JSON-stable
     primitive: the contract is persisted as ``run_contract.json``, re-read verbatim on
     every resume and compared with ``==`` against the copy embedded in a checkpoint, so a
     value that does not survive ``json.dumps``/``json.loads`` unchanged would break

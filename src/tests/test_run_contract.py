@@ -46,6 +46,7 @@ from src.training.run_contract import (
     RESUME_LOG_FILENAME,
     CheckpointContractError,
     ContractMismatchError,
+    ContractSchemaError,
     RunContractCallback,
     append_resume_log,
     build_contract,
@@ -274,9 +275,24 @@ def test_build_contract_normalises_sync_batchnorm_to_a_real_bool(launch_files, g
 
 
 def test_build_contract_rejects_an_unreadable_input(tmp_path, launch_files):
-    """Fail-closed at build time: a missing split file is a launch bug, not a contract."""
+    """Fail-closed at build time: a missing split file is a launch bug, not a contract.
+    The two byte-sha'd files surface as OSError..."""
     with pytest.raises(OSError):
         make_contract(launch_files, split_json_path=str(tmp_path / "nope.json"))
+
+
+@pytest.mark.parametrize("payload", [None, "{ not json", '["FLAC"]'])
+def test_build_contract_rejects_an_unusable_model_config(tmp_path, launch_files, payload):
+    """...while the model config, which must PARSE to an object before it can be digested,
+    surfaces as ContractSchemaError -- missing, malformed, or a non-object root. Both are
+    exit 2 at the CLI (never a checkpoint verdict)."""
+    path = str(tmp_path / "unusable.json")
+    if payload is not None:
+        with open(path, "w") as fout:
+            fout.write(payload)
+
+    with pytest.raises(ContractSchemaError):
+        make_contract(launch_files, model_config_path=path)
 
 
 def test_build_contract_defaults_launched_at_to_an_utc_timestamp(launch_files):
