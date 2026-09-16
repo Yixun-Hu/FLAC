@@ -1,0 +1,19 @@
+run: dc_cyl_f025
+launched_at: 2026-09-16T19:08:55-04:00
+host: mae-cab-lab-server
+launch_ts: 20260916T190832-1836418
+launcher_sha256: 00423f454d2f89928c1c8abe6b701187f24d029693f3e3eac5a1d7aba788b1e5
+flac_wt: /home/yixunhu/codespace/exp-14-data-curve
+flac_sha: 66901577104d0b0b49f512825eb211cdedf180e8
+pkg_dir: /home/yixunhu/codespace/cylindrical-dinov3-exp13pin
+package_sha: 79c5b876d3a604fb88bf78996ac95d7ca91bc3dd
+kit: /home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude
+kit_sha: 65570dcd982ee05c4cf3da18ae76f0de61290a4b
+model_config: /home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude/configs/FLAC_AR_exp14_cylS.json (8df8a8117449ced6c9e7068891e119327f69d89bbeff11532fe1fa98066fab90)
+dataset_config: src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json (7ac8243f94cf9abc652e1a667c51263436041ea7a1fb0e8ed868c7e07fae7a21)
+split: data/AR/train_frac025_s2026.json (ce33f34f74b055d98a576c5aa5398d058c698d4cce9049e9648bcf3edf27122d)
+run_contract: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_cyl_f025/run_contract.json
+state: fresh
+resume_from: none (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+argv: python train.py --model-config /home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude/configs/FLAC_AR_exp14_cylS.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --logger none --checkpoint-every 2500 --name dc_cyl_f025 --experiment-name dc_cyl_f025 --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_cyl_f025 --run-contract-json /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_cyl_f025/run_contract.json
+pid: 1836861
