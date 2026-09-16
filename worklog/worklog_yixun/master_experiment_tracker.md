@@ -40,7 +40,7 @@ Living index — one row per experiment; updated at every session handoff/compac
 ## exp_22 — ORBITRIR frame-averaging port (2026-08-29 → 2026-09-04) — CLOSED, ALL PASS
 Clean commit-by-commit port of the exp_07 B-F method onto upstream FLAC → github.com:Yixun-Hu/ORBITRIR main@1f6e3bf (24 commits, 4 Codex rounds, 243 tests). Acceptance vs B-F 40k BIT-IDENTICAL (10/10 pins |Δ|=0.0000, K=1+K=8); rot90 C4-invariant ≤0.0033; trained-as guard refuses off-diagonal (override reproduces the historical 2x2 row exactly, disclosed). Anonymous-review packaging done (HAA purged, identity scrubbed). Full record: exp_22_orbitrir_fa_port_claude/.
 
-## exp_23 — haa_cyl_orientation (CylDINO no-SSL + covariant loudspeaker-facing field on HAA) — RESULTS 2026-09-15: PARITY with vanilla (s=27); seed-43 robustness runs queued
+## exp_23 — haa_cyl_orientation (CylDINO no-SSL + covariant loudspeaker-facing field on HAA) — RESULTS 2026-09-15: PARITY with vanilla (s=27); seed-43 robustness STOPPED 2026-09-16 12:04 at Yixun's request (GPU handed over; CYLORI27_s43 ckpts 100–500 kept, unevaluated)
 Yixun's /goal: can CylDINO no-SSL (AR-40k → HAA) beat vanilla FLAC on HAA? Diagnosis without
 training: optimisation ruled out (val-loss gap 3 %), AR/HAA panorama-convention mismatch ruled out
 (geometric audit), gap localised to the hallway (CYL T60 8.85 vs P1 3.43; classroom a tie), cause =

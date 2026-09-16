@@ -104,3 +104,11 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
   `chain_seed43.sh` (CYLORI27 seed 43 → P1 seed 43, ckpt/100, ckpt-1000 grids) on the first card
   with ≥ 8 GB free on three consecutive 60-s polls (GPU 1 checked first). Both cards held 46 GB
   xRIR jobs at arming time (GPU 1 ETA ~Sep 16 09:00, GPU 0 ~Sep 17 05:00).
+- 2026-09-16 10:11 EDT: watcher launched the seed-43 chain on GPU 1 (CYLORI27 seed 43 first).
+- 2026-09-16 12:04 EDT: **STOPPED at Yixun's request** ("Please stop at the earliest checkpoint of
+  exp_23, I will leave the GPU to another experiment"): chain + watcher cancelled, waited for the
+  step-500 checkpoint (written 12:03:41, full size), SIGINT to train.py at 12:04:07 (Lightning
+  KeyboardInterrupt; SIGTERM follow-up at +90 s), GPU 1 free at 12:05:5x. `exp23_HAA_CYLORI27_s43`
+  holds checkpoints 100–500 (unevaluated; resumable with `--ckpt-path` on the step-500 file). The
+  P1 seed-43 run never started. The two-seed robustness check is therefore **incomplete**; the
+  headline (seed-42) tables stand as published in `results_cylori.md`. Nothing deleted.
