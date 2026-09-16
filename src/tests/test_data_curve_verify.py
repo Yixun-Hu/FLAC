@@ -373,7 +373,10 @@ def test_cli_exits_3_when_a_check_fails(tmp_path):
 
 
 def test_cli_exits_0_on_the_real_launch_contract():
-    """The full contract, as the launcher runs it, against this worktree and the kit."""
+    """The full contract, as the launcher runs it, against this worktree and the kit.
+
+    The RIR tree is reached only through the injected ``--dataset-root``, and the verifier
+    never writes: this is a read-only integration check of the real launch gate."""
     kit = os.path.join(os.path.dirname(REPO_ROOT), "cylindrical-dinov3", "worklog",
                        "worklog_yixun", "exp_14_data_curve_claude")
     dataset_root = os.path.join(REPO_ROOT, "AcousticRooms")
@@ -385,7 +388,7 @@ def test_cli_exits_0_on_the_real_launch_contract():
     proc = subprocess.run(
         [sys.executable, "-m", "src.tools.data_curve.verify",
          "--expect-flac-sha", head, "--expect-pkg-sha", head,
-         "--pkg-dir", REPO_ROOT, "--kit-dir", kit],
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--dataset-root", dataset_root],
         cwd=REPO_ROOT, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "FAIL" not in proc.stdout
