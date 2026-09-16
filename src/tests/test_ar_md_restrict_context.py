@@ -28,6 +28,8 @@ import importlib.util
 import json
 import os
 import random
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -38,6 +40,7 @@ from src.data.dataset import (
     DatasetContractError,
     LocalDatasetConfig,
     SampleDataset,
+    create_dataloader_from_config,
 )
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -544,3 +547,189 @@ def test_B4_flag_without_a_split_path_is_fatal(tree, ar_md):
 
     with pytest.raises(DatasetContractError):
         ar_md.get_custom_metadata(info, None)
+
+
+# ======================================================================================
+# B6-B8 — integration through the real DataLoader, worker and process boundaries
+# ======================================================================================
+def make_dataset_config(tree, split_path, restrict, max_context=8):
+    """The shape of ``src/configs/dataset_configs/AR/train/acousticroom_train.json``."""
+    return {
+        "dataset_type": "audio_dir",
+        "datasets": [
+            {
+                "id": "AcousticRooms",
+                "path": tree["dataset_dir"],
+                "json_file_path": split_path,
+                "custom_metadata_module": AR_MD_PATH,
+                "folder_name": "single_channel_ir_1",
+            }
+        ],
+        "random_crop": False,
+        "augs": False,
+        "force_channels": "mono",
+        "drop_last": False,
+        "modalities": modalities(max_context=max_context, restrict=restrict),
+    }
+
+
+def build_loader(tree, split_path, restrict, num_workers=2, max_context=8):
+    return create_dataloader_from_config(
+        make_dataset_config(tree, split_path, restrict, max_context=max_context),
+        batch_size=1,
+        sample_size=10240,
+        sample_rate=SR,
+        audio_channels=1,
+        num_workers=num_workers,
+        shuffle=False,
+    )
+
+
+def count_index_loads(loader, tree, counter_path):
+    """Wrap the split-index loader in the hook module the loader just exec'd (pre-fork)."""
+    metadata_fn = loader.dataset.custom_metadata_fns[tree["dataset_dir"]]
+    module_globals = metadata_fn.__globals__
+    original_loader = module_globals["_load_split_room_index"]
+
+    def counting_loader(path, _original=original_loader, _counter=counter_path):
+        with open(_counter, "a") as fout:
+            fout.write(f"{os.getpid()}\n")
+        return _original(path)
+
+    module_globals["_load_split_room_index"] = counting_loader
+
+
+def forbid_resampling(monkeypatch, sentinel_path):
+    """Record any call to the resample fallback's RNG (inherited by forked workers)."""
+    original_randrange = random.randrange
+
+    def recording_randrange(*args, _original=original_randrange, _sentinel=sentinel_path, **kwargs):
+        with open(_sentinel, "a") as fout:
+            fout.write(f"{os.getpid()}\n")
+        return _original(*args, **kwargs)
+
+    monkeypatch.setattr(random, "randrange", recording_randrange)
+
+
+@pytest.fixture
+def big_tree(tmp_path):
+    """Two rooms, so both workers get batches."""
+    return build_toy_tree(tmp_path, rooms=("ToyScene_idx_0", "ToyScene_idx_1"))
+
+
+def test_B6_two_workers_two_epochs_only_draw_in_split_contexts(big_tree, tmp_path, capfd):
+    split = {room: [ir_basename(s, r) for r in big_tree["receivers"] for s in (1, 2)]
+             for room in big_tree["rooms"]}          # 2 of the 3 sources are in-split
+    split_path = write_split(big_tree, "two_of_three.json", split)
+    counter_path = str(tmp_path / "index_loads.txt")
+
+    loader = build_loader(big_tree, split_path, restrict=True)
+    count_index_loads(loader, big_tree, counter_path)
+    assert len(loader.dataset) == 8  # only in-split files are targets
+
+    seen_targets = 0
+    for _ in range(2):  # persistent workers: a second epoch must not re-parse the split
+        for audio, infos in loader:
+            for info in infos:
+                target = os.path.basename(info["path"])
+                room = info["relpath"].split("/")[-2]
+                drawn = [big_tree["file_of_marker"][m] for m in drawn_markers(info["context_audio"])]
+                assert info["context_audio"].shape == (8, 1, IR_LEN)
+                assert all(drawn_room == room for drawn_room, _ in drawn)
+                assert all(basename in split[room] for _, basename in drawn)
+                assert all(basename != target for _, basename in drawn)
+                seen_targets += 1
+
+    assert seen_targets == 16
+    assert "Couldn't load file" not in capfd.readouterr().out
+
+    with open(counter_path) as fin:
+        pids = [line.strip() for line in fin if line.strip()]
+    assert sorted(pids) == sorted(set(pids)), "each worker must parse the split exactly once"
+    assert len(pids) == 2, f"expected one parse in each of the 2 workers, got {pids}"
+    assert str(os.getpid()) not in pids, "the parent must never parse the split"
+
+
+def test_B7a_room_removed_from_the_split_after_construction_is_fatal(
+    big_tree, tmp_path, monkeypatch
+):
+    present, removed = big_tree["rooms"][1], big_tree["rooms"][0]
+    split_path = write_split(big_tree, "swap.json", full_split(big_tree, rooms=[removed]))
+    sentinel = str(tmp_path / "resampled.txt")
+    forbid_resampling(monkeypatch, sentinel)
+
+    loader = build_loader(big_tree, split_path, restrict=True)
+    assert len(loader.dataset) == 6  # the targets of the room that is about to disappear
+
+    # Atomically swap in a split that no longer lists the room the targets live in.
+    temporary = split_path + ".tmp"
+    with open(temporary, "w") as fout:
+        json.dump({SCENE: full_split(big_tree, rooms=[present])}, fout)
+    os.replace(temporary, split_path)
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        next(iter(loader))
+
+    assert "does not list room" in str(excinfo.value)
+    assert not os.path.exists(sentinel), "no replacement sample may be drawn"
+
+
+def test_B7b_empty_context_pool_in_a_worker_is_fatal(big_tree, tmp_path, monkeypatch):
+    # Every receiver keeps exactly one source => every restricted context pool is empty.
+    split = {room: [ir_basename(1, r) for r in big_tree["receivers"]] for room in big_tree["rooms"]}
+    split_path = write_split(big_tree, "one_source_per_receiver.json", split)
+    sentinel = str(tmp_path / "resampled.txt")
+    forbid_resampling(monkeypatch, sentinel)
+
+    loader = build_loader(big_tree, split_path, restrict=True)
+    assert len(loader.dataset) == 4
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        next(iter(loader))
+
+    assert "no in-split context" in str(excinfo.value)
+    assert not os.path.exists(sentinel), "no replacement sample may be drawn"
+
+
+def test_B7b_without_the_flag_the_same_split_trains_happily(big_tree):
+    """Control: the fatal path is the restriction, not the fixture."""
+    split = {room: [ir_basename(1, r) for r in big_tree["receivers"]] for room in big_tree["rooms"]}
+    split_path = write_split(big_tree, "one_source_per_receiver.json", split)
+
+    loader = build_loader(big_tree, split_path, restrict=False)
+    audio, infos = next(iter(loader))
+
+    assert audio.shape == (1, 1, 10240)
+    assert infos[0]["context_audio"].shape == (8, 1, IR_LEN)
+
+
+def test_B8_training_process_exits_non_zero_on_a_contract_violation(big_tree, tmp_path):
+    split = {room: [ir_basename(1, r) for r in big_tree["receivers"]] for room in big_tree["rooms"]}
+    split_path = write_split(big_tree, "one_source_per_receiver.json", split)
+
+    config_path = tmp_path / "dataset_config.json"
+    with open(config_path, "w") as fout:
+        json.dump(make_dataset_config(big_tree, split_path, restrict=True), fout)
+
+    driver_path = tmp_path / "driver.py"
+    driver_path.write_text(
+        "import json, sys\n"
+        "from src.data.dataset import create_dataloader_from_config\n"
+        "config = json.load(open(sys.argv[1]))\n"
+        "loader = create_dataloader_from_config(config, batch_size=1, sample_size=10240,\n"
+        "                                       sample_rate=22050, audio_channels=1,\n"
+        "                                       num_workers=2, shuffle=False)\n"
+        "for batch in loader:\n"
+        "    print('PRODUCED A BATCH', flush=True)\n"
+        "    break\n"
+    )
+
+    environment = dict(os.environ, PYTHONPATH=REPO_ROOT, CUDA_VISIBLE_DEVICES="")
+    completed = subprocess.run(
+        [sys.executable, str(driver_path), str(config_path)],
+        cwd=REPO_ROOT, env=environment, capture_output=True, text=True, timeout=300,
+    )
+
+    assert completed.returncode != 0
+    assert "DatasetContractError" in completed.stderr
+    assert "PRODUCED A BATCH" not in completed.stdout
