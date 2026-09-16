@@ -98,6 +98,30 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     }
 
 
+def clamp_and_pad(fakes, reals):
+    """Bring a decoded batch into scoring form: the exact pre-metric transform.
+
+    Verbatim semantics of the in-loop block at pin ``7bbd8aa``
+    (``eval_FLAC.py:305-311``), extracted so ``--store_predictions`` can save
+    *the same tensor the metric callback scores* (announcement 08):
+
+    1. ``fakes`` is clamped to ``[-1, 1]``;
+    2. if the shapes still differ, the **shorter** of ``fakes`` / ``reals`` is
+       zero-padded on the last dim up to the longer one's length.
+
+    Pure: neither input is mutated (``clamp``/``pad`` both return new tensors)
+    and an untouched side comes back as the same object; dtype and device are
+    preserved.
+    """
+    fakes = fakes.clamp(-1.0, 1.0)
+    if fakes.shape != reals.shape:
+        if fakes.shape[-1] < reals.shape[-1]:
+            fakes = torch.nn.functional.pad(fakes, (0, reals.shape[-1] - fakes.shape[-1]))
+        else:
+            reals = torch.nn.functional.pad(reals, (0, fakes.shape[-1] - reals.shape[-1]))
+    return fakes, reals
+
+
 # Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
 # evaluate_model's 'diffusion.' strip: EMA copy/bookkeeping and loss-module buffers.
 # Verified against outputs_FLAC/ft_vanilla/epoch=0-step=2000.ckpt (1279 keys):
@@ -303,13 +327,8 @@ def evaluate_model(
                 decoded_samples.append(fakes.cpu())
             
             # Clamp and pad if necessary
-            fakes = fakes.clamp(-1.0, 1.0) 
-            if fakes.shape != reals.shape:
-                if fakes.shape[-1] < reals.shape[-1]:
-                    fakes = torch.nn.functional.pad(fakes, (0, reals.shape[-1] - fakes.shape[-1]))
-                else:
-                    reals = torch.nn.functional.pad(reals, (0, fakes.shape[-1] - reals.shape[-1]))
-    
+            fakes, reals = clamp_and_pad(fakes, reals)
+
             # Compute metrics
             scene_list = [md["scene"] for md in metadata]
             depth_list = [md["depth"] if 'depth' in md else None for md in metadata]
