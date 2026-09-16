@@ -23,13 +23,18 @@ h. a lane that is killed mid-way fails the pipeline, whatever the cells before i
    (round-F finding 1: bare ``wait`` returned success for a lane that never finished);
 i. an artifact naming a foreign checkpoint is refused (round-F finding 2);
 j. ... and is therefore re-evaluated rather than skipped;
-k. two launchers for the same TAG cannot run at once (round-F finding 5).
+k. two launchers for the same TAG cannot run at once (round-F finding 5) -- including
+   two that use different REC directories, because the lock belongs to the run target;
+l. artifacts with the right checkpoint PATH but a stale embedded digest are refused and
+   the cell is re-evaluated (codex full-r2 finding 1).
 """
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -84,22 +89,27 @@ if [ "${1:-}" = "-m" ]; then
           echo "$NAME" >> "$M/bundlecheck"
           # round-F 2: the launcher must bind every artifact to the validated checkpoint
           [ -n "$XC" ] && [ -n "$XS" ] || { echo "FAIL $PT: unbound check-bundle"; exit 2; }
-          RC="${STUB_RC_BUNDLE:-0}"; FROM=""
+          RC="${STUB_RC_BUNDLE:-0}"; FROM=""; FROMSHA=""
           [ -s "$PT" ] || RC="${STUB_RC_BUNDLE_MISSING:-3}"
           # the stub evaluator writes, as the bundle's body, the checkpoint it scored
-          [ -s "$PT" ] && FROM="$(cat "$PT")"
+          # and the digest of the bytes it loaded (full-r2 1): "<path> <sha256>"
+          [ -s "$PT" ] && { read -r FROM FROMSHA < "$PT" || true; }
           [ -z "$FROM" ] || [ "$FROM" = "$XC" ] || RC=3
+          [ -z "$FROM" ] || [ "$FROMSHA" = "$XS" ] || RC=3
           if [ -e "$XC" ] && [ "$XS" != "$(sha256sum "$XC" | cut -d" " -f1)" ]; then RC=3; fi
           [ "$RC" = 0 ] || { echo "FAIL $PT: stubbed (from='$FROM' expected='$XC')"; exit "$RC"; }
           echo "PASS $PT: stubbed dataset_config_sha256=$STUB_CFG_SHA ckpt_sha256=$XS"
           exit 0 ;;
         check-metrics)
           J="$(arg --json "$@")"; XC="$(arg --expect-ckpt "$@")"
+          XS="$(arg --expect-ckpt-sha256 "$@")"
           echo "$J" >> "$M/metricscheck"
-          [ -n "$XC" ] || { echo "FAIL $J: unbound check-metrics"; exit 2; }
+          [ -n "$XC" ] && [ -n "$XS" ] || { echo "FAIL $J: unbound check-metrics"; exit 2; }
           [ -s "$J" ] || { echo "FAIL $J: no metrics JSON"; exit 3; }
           grep -q "\"ckpt_path\": \"$XC\"" "$J" \
             || { echo "FAIL $J: metrics ckpt_path is not $XC"; exit 3; }
+          grep -q "\"ckpt_sha256\": \"$XS\"" "$J" \
+            || { echo "FAIL $J: metrics ckpt_sha256 is not $XS"; exit 3; }
           echo "PASS $J: stubbed"; exit 0 ;;
       esac ;;
   esac
@@ -109,14 +119,26 @@ case "${1:-}" in
   train.py)
     RUN="$(arg --name "$@")"; SD="$(arg --save-dir "$@")"
     echo "$*" > "$M/train_$RUN"
+    if [ -n "${STUB_TRAIN_WAIT:-}" ]; then      # hold the launcher inside its lock
+      N=0; while [ ! -e "$STUB_TRAIN_WAIT" ] && [ "$N" -lt 600 ]; do sleep 0.1
+        N=$((N + 1)); done; fi
     [ "${STUB_RC_TRAIN:-0}" = 0 ] || exit "${STUB_RC_TRAIN}"
     mkdir -p "$SD"; echo "fake checkpoint" > "$SD/epoch=8-step=40000.ckpt"; exit 0 ;;
   eval_FLAC.py)
     CK="$(arg --ckpt-path "$@")"; NAME="$(arg --eval-name "$@")"
     CM="$(arg --cond-method "$@")"; SUF=""
+    XS="$(arg --expect-ckpt-sha256 "$@")"
     [ "$CM" = fa_invariant ] && SUF="_fa_invariant_a1"
     BASE="$(dirname "$CK")/$(basename "$CK" .ckpt)"
     echo "$NAME" >> "$M/evaluated"
+    # the real evaluator hashes --ckpt-path BEFORE loading it and refuses a mismatch,
+    # then stamps the digest of the bytes it loaded into both artifacts (full-r2 1).
+    echo "$NAME $XS" >> "$M/evaluated_sha"
+    [ -n "$XS" ] || { echo "eval_FLAC: no --expect-ckpt-sha256" >&2; exit 2; }
+    if [ "${STUB_EVAL_SWAP_CKPT:-0}" = 1 ]; then    # replaced after the launcher hashed it
+      printf 'another contract-valid step=40000 checkpoint' > "$CK"; fi
+    SHA="$(sha256sum "$CK" | cut -d" " -f1)"
+    [ "$XS" = "$SHA" ] || { echo "eval_FLAC: REFUSED $CK is $SHA not $XS" >&2; exit 4; }
     # a lane that dies mid-way: the evaluator kills the lane subshell that started it
     if [ "${STUB_EVAL_KILL_AT:-}" = "$NAME" ]; then
       echo "$NAME" >> "$M/killed_lane"; kill -9 "$PPID" 2>/dev/null; exit 137; fi
@@ -125,10 +147,10 @@ case "${1:-}" in
     [ "${STUB_EVAL_FOREIGN_CKPT:-0}" = 1 ] \
       && WROTE="$(dirname "$CK")/foreign_step=40000.ckpt"
     [ "${STUB_EVAL_NO_BUNDLE:-0}" = 1 ] \
-      || echo "$WROTE" > "${BASE}_predictions_1_1.0_${NAME}${SUF}.pt"
+      || echo "$WROTE $SHA" > "${BASE}_predictions_1_1.0_${NAME}${SUF}.pt"
     [ "${STUB_EVAL_NO_METRICS:-0}" = 1 ] \
-      || printf '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "cond_method": "%s"}\n' \
-           "$WROTE" "$CM" > "${BASE}_metrics_1_1.0_${NAME}${SUF}.json"
+      || printf '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "ckpt_sha256": "%s", "cond_method": "%s"}\n' \
+           "$WROTE" "$SHA" "$CM" > "${BASE}_metrics_1_1.0_${NAME}${SUF}.json"
     exit 0 ;;
   -c)
     case "$*" in *append_resume_log*)
@@ -173,8 +195,12 @@ class Harness:
 
     def run(self, **overrides):
         env = dict(os.environ)
-        env.update({
-            "PATH": self.bin + os.pathsep + env["PATH"],
+        env.update(self._env(**overrides))
+        return subprocess.run(["bash", SCRIPT], capture_output=True, text=True, env=env)
+
+    def _env(self, **overrides):
+        env = {
+            "PATH": self.bin + os.pathsep + os.environ["PATH"],
             "STUB_MARKERS": str(self.markers),
             "STUB_REAL_PYTHON": sys.executable,
             "STUB_CFG_SHA": CFG_SHA,
@@ -191,9 +217,16 @@ class Harness:
             "POLL_SECONDS": "1",
             "STABLE_WAIT": "0",
             "CUDA_VISIBLE_DEVICES": "",
-        })
+        }
         env.update({k: str(v) for k, v in overrides.items()})
-        return subprocess.run(["bash", SCRIPT], capture_output=True, text=True, env=env)
+        return env
+
+    def spawn(self, **overrides):
+        """The same invocation, backgrounded, for the two-launcher cases."""
+        env = dict(os.environ)
+        env.update(self._env(**overrides))
+        return subprocess.Popen(["bash", SCRIPT], stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, env=env)
 
     def marker(self, name):
         return (self.markers / name).exists()
@@ -322,16 +355,22 @@ def test_f_the_happy_path_trains_validates_and_completes_twenty_cells(harness):
         assert len(digest) == 64, digest
 
 
-def _seed_cell_artifacts(harness, arm, ckpt, body):
-    """Write the two artifacts of every cell of one arm, naming ``body`` as their source."""
+def _seed_cell_artifacts(harness, arm, ckpt, body, digest=None):
+    """Write the two artifacts of every cell of one arm, naming ``body`` as their source
+    and ``digest`` as the checkpoint bytes they claim to have been scored from."""
     base = ckpt[:-len(".ckpt")]
     suffix = "_fa_invariant_a1" if arm == "cyl" else ""
+    if digest is None:
+        digest = hashlib.sha256(open(body, "rb").read()).hexdigest() \
+            if os.path.exists(body) else "0" * 64
     for k in names.K_VALUES:
         for seed in names.SEEDS:
             name = names.eval_name(arm, TAG, k, seed)
-            open(f"{base}_predictions_1_1.0_{name}{suffix}.pt", "w").write(body)
+            open(f"{base}_predictions_1_1.0_{name}{suffix}.pt", "w").write(
+                f"{body} {digest}\n")
             open(f"{base}_metrics_1_1.0_{name}{suffix}.json", "w").write(
-                '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "cond_method": "x"}\n' % body)
+                '{"metrics": {"T60": 1.0}, "ckpt_path": "%s", "ckpt_sha256": "%s", '
+                '"cond_method": "x"}\n' % (body, digest))
 
 
 def test_h_a_lane_that_dies_after_n_cells_fails_the_pipeline(harness):
@@ -380,7 +419,7 @@ def test_j_stale_artifacts_from_another_checkpoint_are_re_evaluated_not_skipped(
 def test_k_two_launchers_for_the_same_tag_cannot_run_at_once(harness):
     """Round-F finding 5: an atomic per-tag lock -- and a stale lock is reported, never
     removed by the launcher itself."""
-    lock = harness.tmp / "rec" / f".lock_f{TAG}"
+    lock = harness.tmp / "nas" / f".lock_f{TAG}"
     lock.mkdir()
     (lock / "pid").write_text(f"{os.getpid()} this test\n")
     held = harness.run()
@@ -408,3 +447,70 @@ def test_g_a_second_invocation_skips_the_completed_cells(harness):
     assert len(open(harness.markers / "evaluated").read().split()) == first   # none re-run
     assert again.stdout.count("SKIPPED") >= 20
     assert harness.summary()["cells_skipped"] == 20
+
+
+def test_f2_every_eval_is_pinned_to_the_validated_checkpoint_digest(harness):
+    """Codex full-r2 finding 1: the launcher hands the evaluator the digest it computed
+    when it validated that arm's final checkpoint, and the evaluator refuses anything
+    else. The stub mirrors both halves, so an unpinned argv fails the whole run."""
+    proc = harness.run()
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    pinned = [line.split() for line in
+              open(harness.markers / "evaluated_sha").read().splitlines() if line]
+    assert len(pinned) == 20
+    summary = harness.summary()
+    for arm in names.ARMS:
+        digest = summary["runs"][arm]["final_ckpt_sha256"]
+        assert len(digest) == 64
+        cells = [sha for name, sha in pinned if name.startswith(f"dc_{arm}_")]
+        assert len(cells) == 10 and set(cells) == {digest}
+
+
+def test_l_artifacts_with_the_right_path_but_stale_bytes_are_refused(harness):
+    """THE round-2 case: same pathname, another contract-valid step-40000 checkpoint.
+    Path and protocol still match; only the digest the artifacts carry disagrees, so the
+    cells must be re-evaluated rather than skipped."""
+    for arm in names.ARMS:
+        ckpt = _seed_final_ckpt(harness, arm)
+        _seed_cell_artifacts(harness, arm, ckpt, ckpt, digest="0" * 64)
+    proc = harness.run()
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert len(open(harness.markers / "evaluated").read().split()) == 20   # none skipped
+    summary = harness.summary()
+    assert summary["cells_skipped"] == 0 and summary["cells_evaluated"] == 20
+    assert summary["cells_final"] == 20
+
+
+def test_l2_a_checkpoint_replaced_after_validation_stops_every_cell(harness):
+    """And if the bytes change between the launcher's digest and the evaluator's, the
+    evaluator itself refuses: no cell may be scored from a checkpoint nobody validated."""
+    proc = harness.run(STUB_EVAL_SWAP_CKPT=1)
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert harness.summary()["cells_final"] == 0
+
+
+def test_k2_two_launchers_with_different_records_dirs_share_one_lock(harness, tmp_path):
+    """Round-2 finding 2: the lock used to live under REC, so two launchers writing the
+    same NAS run directories from different records dirs both got in."""
+    gate = tmp_path / "let-training-finish"
+    (tmp_path / "rec2").mkdir()
+    first = harness.spawn(STUB_TRAIN_WAIT=str(gate))
+    lock = tmp_path / "nas" / f".lock_f{TAG}"
+    try:
+        deadline = time.time() + 60
+        while not (lock / "pid").exists() and time.time() < deadline:
+            assert first.poll() is None, "the first launcher exited before taking the lock"
+            time.sleep(0.05)
+        assert (lock / "pid").exists(), "no lock was taken under NAS_ROOT"
+
+        second = harness.run(REC=str(tmp_path / "rec2"))
+        assert second.returncode == 3, second.stdout + second.stderr
+        blob = second.stdout + second.stderr
+        assert str(first.pid) in blob and "already holds" in blob, blob
+    finally:
+        gate.write_text("go\n")
+        out = first.communicate(timeout=180)[0]
+    assert first.returncode == 0, out
+    assert not lock.exists(), "the holder's EXIT trap must release its own lock"

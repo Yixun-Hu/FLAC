@@ -137,7 +137,8 @@ def test_dry_run_prints_the_twenty_eval_cells_in_the_planned_interleaving(tmp_pa
             for arm in names.ARMS:         # arms interleaved inside a lane
                 ckpt = os.path.join(_run_dir(env, arm), "dryrun_step=40000.ckpt")
                 expected.append((f"eval:{names.eval_name(arm, TAG, K, seed)}",
-                                 names.eval_argv(arm, TAG, K, seed, _cfg(env, arm), ckpt)))
+                                 names.eval_argv(arm, TAG, K, seed, _cfg(env, arm), ckpt,
+                                                 names.DRYRUN_SHA256)))
     assert [label for label, _ in printed] == [label for label, _ in expected]
     assert [cmd.split() for _, cmd in printed] == [argv for _, argv in expected]
 
@@ -227,6 +228,8 @@ def test_dry_run_enumerates_the_twenty_planned_cells_after_the_lanes(tmp_path):
     for arm in names.ARMS:
         ckpt = os.path.join(_run_dir(env, arm), "dryrun_step=40000.ckpt")
         assert sum(f"--expect-ckpt {ckpt} " in c + " " for c in commands) == 20
+    # ... and to the digest of those bytes (codex full-r2 1): BOTH gates, all 40 commands
+    assert sum("--expect-ckpt-sha256 " in c for c in commands) == 40
 
 
 def test_two_invocations_never_overwrite_each_other_s_summary(tmp_path):
@@ -249,7 +252,7 @@ def test_a_second_launcher_for_the_same_tag_is_refused(tmp_path):
     """Round-F finding 5: an atomic per-tag lock, with a stale-pid check that never
     deletes anything by itself."""
     env = _layout(tmp_path)
-    lock = os.path.join(env["REC"], f".lock_f{TAG}")
+    lock = os.path.join(env["NAS_ROOT"], f".lock_f{TAG}")
     os.makedirs(lock)
     with open(os.path.join(lock, "pid"), "w") as fout:
         fout.write(f"{os.getpid()} held-by-this-test\n")
@@ -269,7 +272,7 @@ def test_a_second_launcher_for_the_same_tag_is_refused(tmp_path):
 def test_a_completed_invocation_releases_its_lock(tmp_path):
     env = _layout(tmp_path)
     assert _run(env).returncode == 0
-    assert not os.path.exists(os.path.join(env["REC"], f".lock_f{TAG}"))
+    assert not os.path.exists(os.path.join(env["NAS_ROOT"], f".lock_f{TAG}"))
 
 
 @pytest.mark.parametrize("step,rc,after", [
@@ -313,3 +316,62 @@ def test_a_half_finished_run_is_never_resumed_without_RESUME(tmp_path):
     assert "--for-resume" in validate and "--expect-step 2500" in validate
     # ... and the van arm, which has no checkpoints, still starts fresh
     assert "--ckpt-path" not in printed["train:dc_van_f025"]
+
+
+# ------------------------------------------- the checkpoint digest (codex full-r2 1)
+def test_dry_run_pins_the_checkpoint_digest_on_every_eval(tmp_path):
+    """Every eval argv carries --expect-ckpt-sha256, so the evaluator re-hashes the
+    checkpoint before loading it and refuses bytes replaced at the same pathname."""
+    env = _layout(tmp_path)
+    proc = _run(env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    evals = [cmd for label, cmd in _tagged(proc.stdout, "ARGV") if label.startswith("eval:")]
+    assert len(evals) == 20
+    for cmd in evals:
+        tokens = cmd.split()
+        assert tokens.count("--expect-ckpt-sha256") == 1, cmd
+        # a dry run has no checkpoint to hash, so the one explicit sentinel is printed
+        assert tokens[tokens.index("--expect-ckpt-sha256") + 1] == names.DRYRUN_SHA256
+    # the digest is announced once per arm, next to the checkpoint it belongs to
+    announced = [line for line in proc.stdout.splitlines() if " SHA256 " in line]
+    assert len(announced) == 2, announced
+
+
+def test_the_launcher_refuses_a_run_target_it_cannot_lock(tmp_path):
+    """Round-2 finding 2: the lock is global per run target, so it must live under
+    NAS_ROOT -- and a NAS_ROOT that cannot be created or written is fatal (exit 3),
+    never a silently un-locked run."""
+    env = _layout(tmp_path)
+    parent = tmp_path / "readonly"
+    parent.mkdir()
+    parent.chmod(0o500)
+    env["NAS_ROOT"] = str(parent / "nas")
+    try:
+        proc = _run(env)
+    finally:
+        parent.chmod(0o700)
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "NAS_ROOT" in proc.stdout + proc.stderr
+    assert not _tagged(proc.stdout, "CMD")          # nothing ran, nothing was verified
+
+
+def test_the_lock_is_the_run_target_not_the_records_dir(tmp_path):
+    """Two launchers with different REC directories write the same NAS run dirs, so a
+    lock under REC lets both in. A stale lock under the records dir must not block."""
+    env = _layout(tmp_path)
+    (tmp_path / "rec2").mkdir()
+    rec_lock = os.path.join(env["REC"], f".lock_f{TAG}")
+    os.makedirs(rec_lock)
+    with open(os.path.join(rec_lock, "pid"), "w") as fout:
+        fout.write(f"{os.getpid()} an old per-REC lock\n")
+
+    assert _run(env).returncode == 0                # the per-REC lock is not the lock
+    nas_lock = os.path.join(env["NAS_ROOT"], f".lock_f{TAG}")
+    os.makedirs(nas_lock)
+    with open(os.path.join(nas_lock, "pid"), "w") as fout:
+        fout.write(f"{os.getpid()} held-by-this-test\n")
+    env["REC"] = str(tmp_path / "rec2")             # a different records dir ...
+    blocked = _run(env)
+    assert blocked.returncode == 3, blocked.stdout  # ... is still the same run target
+    assert str(os.getpid()) in blocked.stdout + blocked.stderr
