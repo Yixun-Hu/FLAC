@@ -748,6 +748,75 @@ def test_BLOCKING1_a_changed_identity_field_is_refused(persisted_run, launch_fil
     assert persisted_run["path"].read_bytes() == persisted_run["bytes"]   # never rewritten
 
 
+@pytest.mark.parametrize("key,payload,field", [
+    ("split", {"Scene": {"Scene_idx_0": ["a.wav", "b.wav"]}}, "split_sha256"),
+    ("dataset_config", {"datasets": [{"json_file_path": "data/AR/train_frac050_s2026.json"}]},
+     "dataset_config_sha256"),
+    ("model_config", dict(MODEL_CONFIG, sample_size=32768), "model_config_digest"),
+])
+def test_BLOCKING1_rewritten_input_content_at_the_same_path_is_refused(
+    persisted_run, launch_files, key, payload, field
+):
+    """The subtler half: the launcher passes the SAME paths, but the file behind one of
+    them now holds different content (a regenerated split, an edited arm config)."""
+    write_json(launch_files[key], payload)
+
+    with pytest.raises(ContractMismatchError) as excinfo:
+        load_or_create_contract(str(persisted_run["run_dir"]), contract_builder(launch_files))
+
+    assert field in str(excinfo.value)
+    assert persisted_run["path"].read_bytes() == persisted_run["bytes"]
+
+
+def test_BLOCKING1_a_changed_contract_version_is_refused(persisted_run, launch_files):
+    """contract_version cannot be varied through build_contract (it is the module's own
+    constant), so it is exercised through a builder that returns a v2 contract."""
+    base = contract_builder(launch_files)
+
+    def build_v2(launched_at=None):
+        return dict(base(launched_at), contract_version=2)
+
+    with pytest.raises(ContractMismatchError) as excinfo:
+        load_or_create_contract(str(persisted_run["run_dir"]), build_v2)
+    assert "contract_version" in str(excinfo.value)
+
+
+def test_BLOCKING1_a_missing_identity_key_in_the_sidecar_is_refused(persisted_run, launch_files):
+    """A hand-edited or pre-round-D sidecar cannot be verified, so it is refused rather
+    than half-trusted."""
+    truncated = {k: v for k, v in persisted_run["contract"].items() if k != "split_sha256"}
+    write_json(persisted_run["path"], truncated, indent=1)
+
+    with pytest.raises(ContractMismatchError) as excinfo:
+        load_or_create_contract(str(persisted_run["run_dir"]), contract_builder(launch_files))
+    assert "split_sha256" in str(excinfo.value)
+
+
+def test_BLOCKING1_a_sidecar_that_is_not_an_object_is_refused(persisted_run, launch_files):
+    write_json(persisted_run["path"], ["dc_cyl_f025"])
+    with pytest.raises(ContractMismatchError):
+        load_or_create_contract(str(persisted_run["run_dir"]), contract_builder(launch_files))
+
+
+def test_BLOCKING1_model_config_path_is_informational_and_not_compared(
+    persisted_run, launch_files, tmp_path
+):
+    """Decision: ``model_config_path`` stays in the contract as INFORMATIONAL only. The
+    config's identity is its content (``model_config_digest``), and the same config is
+    legitimately re-read from another absolute path (another checkout, a NAS copy) on a
+    later launch. Only ``launched_at`` and this field are excluded from the comparison."""
+    os.makedirs(tmp_path / "moved", exist_ok=True)
+    moved = write_json(tmp_path / "moved" / "model.json", MODEL_CONFIG, indent=4)
+
+    reused = load_or_create_contract(
+        str(persisted_run["run_dir"]),
+        contract_builder(launch_files, model_config_path=moved),
+    )
+
+    assert reused == persisted_run["contract"]                       # verbatim
+    assert reused["model_config_path"] == launch_files["model_config"]   # the original
+
+
 def test_BLOCKING1_identity_fields_are_the_whole_contract_minus_two():
     """Exactly two keys are excluded from the identity comparison: ``launched_at`` (it is
     what a resume inherits) and ``model_config_path`` (informational, see above)."""
@@ -916,3 +985,17 @@ def test_cli_module_entry_point_runs(validate_inputs):
     assert bad.returncode == 3
     assert "global_step" in bad.stderr
 
+
+def test_cli_make_contract_refuses_a_run_dir_created_for_another_run(tmp_path, launch_files, capsys):
+    """(codex BLOCKING 1 at the CLI boundary) A relaunch with a different seed into the
+    same run dir exits 2 -- an input error the launcher must fix, never a silent reuse."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    assert run_contract_main(make_contract_argv(run_dir, launch_files)) == 0
+    before = (run_dir / CONTRACT_FILENAME).read_bytes()
+    capsys.readouterr()
+
+    code = run_contract_main(make_contract_argv(run_dir, launch_files, **{"--seed": "43"}))
+
+    assert code == 2
+    assert "seed" in capsys.readouterr().err
+    assert (run_dir / CONTRACT_FILENAME).read_bytes() == before

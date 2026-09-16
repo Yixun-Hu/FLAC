@@ -414,7 +414,11 @@ def _cmd_make_contract(args):
             launched_at=args.launched_at if launched_at is None else launched_at,
         )
 
-    contract = load_or_create_contract(args.run_dir, build_fn)
+    try:
+        contract = load_or_create_contract(args.run_dir, build_fn)
+    except ContractMismatchError as err:
+        print(f"CONTRACT MISMATCH: {err}", file=sys.stderr)
+        return EXIT_INPUT_ERROR
     print(f"run contract for {contract['run_id']} launched at {contract['launched_at']}",
           file=sys.stderr)
     print(os.path.join(args.run_dir, CONTRACT_FILENAME))
