@@ -23,6 +23,7 @@ sources); tokens are never int-parsed.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -296,3 +297,37 @@ def write_outputs(out_dir: str, subsets: dict, manifest: dict, seed: int, train_
         fh.write(("\n".join(lines) + "\n").encode("utf-8"))
 
     return {"splits": split_paths, "manifest": manifest_path, "checksums": checksums_path}
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--train-json", required=True, help="source split (read-only, never modified)")
+    ap.add_argument("--out-dir", required=True, help="directory the subsets are written to")
+    ap.add_argument("--fractions", default="0.25,0.5,0.75", help="comma-separated fractions")
+    ap.add_argument("--seed", type=int, default=2026, help="PRNG seed (part of every filename)")
+    args = ap.parse_args(argv)
+
+    with open(args.train_json, "rb") as fh:
+        split = json.loads(fh.read())
+    fractions = [float(tok) for tok in args.fractions.split(",") if tok.strip()]
+
+    subsets, manifest = build_subsets(split, fractions, args.seed)
+    paths = write_outputs(args.out_dir, subsets, manifest, args.seed, args.train_json)
+
+    for frac in sorted(subsets):
+        entry = manifest["fractions"][str(frac)]
+        hist = entry["context_histogram"]
+        print(
+            f"frac={frac:<5} raw_prefix={entry['raw_prefix']} new_topup={entry['new_topup']} "
+            f"inherited_topup={entry['inherited_topup']} final={entry['final']} "
+            f"ctx[0/1-7/>=8]={hist['0']}/{hist['1-7']}/{hist['>=8']} "
+            f"eff_epochs@40kx64={entry['effective_epochs_at_40k_x64']:.2f} "
+            f"-> {os.path.basename(paths['splits'][frac])}"
+        )
+    print(f"manifest: {paths['manifest']}")
+    print(f"checksums: {paths['checksums']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

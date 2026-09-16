@@ -503,3 +503,55 @@ def test_A6_write_outputs_rejects_fractions_without_a_whole_percent_tag(tmp_path
     subsets, manifest = mas.build_subsets(TOY_SPLIT, [0.333], seed=7)
     with pytest.raises(ValueError):
         mas.write_outputs(str(tmp_path / "out"), subsets, manifest, 7, None)
+
+
+# ======================================================================================
+# A6 (continued) — the CLI round trip
+# ======================================================================================
+def test_A6_cli_round_trip_writes_the_same_artifacts_and_summarises(tmp_path, capsys):
+    src = _write_toy_train_json(tmp_path)
+    out_dir = tmp_path / "cli"
+    rc = mas.main([
+        "--train-json", str(src), "--out-dir", str(out_dir),
+        "--fractions", "0.25,0.5,0.75", "--seed", "7",
+    ])
+    assert rc == 0
+
+    subsets, manifest = mas.build_subsets(TOY_SPLIT, FRACS, seed=7)
+    reference = tmp_path / "reference"
+    mas.write_outputs(str(reference), subsets, manifest, 7, str(src))
+    assert {p.name: p.read_bytes() for p in sorted(out_dir.iterdir())} == {
+        p.name: p.read_bytes() for p in sorted(reference.iterdir())
+    }
+
+    printed = capsys.readouterr().out.splitlines()
+    summary = [ln for ln in printed if "final=" in ln]
+    assert len(summary) == 3                                   # one line per fraction
+    for frac, line in zip(FRACS, summary):
+        entry = manifest["fractions"][str(frac)]
+        for token in (
+            f"raw_prefix={entry['raw_prefix']}",
+            f"new_topup={entry['new_topup']}",
+            f"inherited_topup={entry['inherited_topup']}",
+            f"final={entry['final']}",
+            str(entry["context_histogram"]["0"]),
+            str(entry["context_histogram"]["1-7"]),
+        ):
+            assert token in line
+
+
+def test_A6_cli_defaults_are_the_frozen_fractions_and_seed(tmp_path):
+    src = _write_toy_train_json(tmp_path)
+    out_dir = tmp_path / "defaults"
+    assert mas.main(["--train-json", str(src), "--out-dir", str(out_dir)]) == 0
+    assert sorted(p.name for p in out_dir.iterdir()) == [
+        "train_frac025_s2026.json", "train_frac050_s2026.json", "train_frac075_s2026.json",
+        "train_frac_manifest_s2026.json", "train_frac_manifest_s2026.sha256",
+    ]
+
+
+def test_A6_cli_never_touches_its_input(tmp_path):
+    src = _write_toy_train_json(tmp_path)
+    before = src.read_bytes()
+    mas.main(["--train-json", str(src), "--out-dir", str(tmp_path / "o1"), "--seed", "7"])
+    assert src.read_bytes() == before
