@@ -54,6 +54,9 @@ IDENTITY_FIELDS = (
     "contract_version",
 )
 
+#: Every key a contract must carry (identity + the two non-identity keys).
+CONTRACT_FIELDS = IDENTITY_FIELDS + ("model_config_path", "launched_at")
+
 
 class CheckpointContractError(ValueError):
     """A checkpoint does not match the contract of the run it claims to belong to."""
@@ -61,6 +64,10 @@ class CheckpointContractError(ValueError):
 
 class ContractMismatchError(ValueError):
     """A run dir already holds a contract describing a *different* run than this launch."""
+
+
+class ContractSchemaError(ValueError):
+    """A JSON document that has to be a contract (or a model config) is not one."""
 
 
 def canonical_digest(obj):
@@ -83,6 +90,35 @@ def file_sha256(path):
         for chunk in iter(lambda: fin.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def load_json_object(path, what):
+    """Read a JSON file that must hold an object; every failure is a ContractSchemaError.
+
+    Missing file, invalid JSON and a non-object root are all *input* errors (the CLI maps
+    them to exit 2), never checkpoint verdicts and never uncaught exceptions.
+    """
+    try:
+        with open(path) as fin:
+            parsed = json.load(fin)
+    except OSError as err:
+        raise ContractSchemaError(f"{what} {path} cannot be read: {err}") from None
+    except ValueError as err:
+        raise ContractSchemaError(f"{what} {path} is not valid JSON: {err}") from None
+    if not isinstance(parsed, dict):
+        raise ContractSchemaError(
+            f"{what} {path} is not a JSON object: it holds a {type(parsed).__name__}"
+        )
+    return parsed
+
+
+def require_contract_fields(contract, path):
+    """Every CONTRACT_FIELDS key must be present before a contract is used to judge a
+    checkpoint -- a truncated sidecar is a launcher bug, not a checkpoint verdict."""
+    missing = [field for field in CONTRACT_FIELDS if field not in contract]
+    if missing:
+        raise ContractSchemaError(f"contract {path} is missing required field(s): {missing}")
+    return contract
 
 
 def _as_bool(value):
@@ -118,8 +154,7 @@ def build_contract(run_id, fraction, dataset_config_path, split_json_path,
     value that does not survive ``json.dumps``/``json.loads`` unchanged would break
     resume continuity. ``launched_at`` defaults to now (UTC).
     """
-    with open(model_config_path) as fin:
-        model_config = json.load(fin)
+    model_config = load_json_object(model_config_path, "model config")
     return {
         "run_id": str(run_id),
         "fraction": float(fraction),
@@ -387,9 +422,12 @@ def append_resume_log(run_dir, entry):
 # ======================================================================================
 # CLIs used by the round-D2 bash launcher: `python -m src.training.run_contract …`
 # ======================================================================================
+# The exit-code contract both subcommands honour (codex MEDIUM 2). No path may exit 1:
+# an uncaught exception is the one outcome a launcher cannot classify.
 EXIT_OK = 0
-EXIT_INPUT_ERROR = 2          # the CLI's own inputs are unreadable (a launcher bug)
-EXIT_CONTRACT_VIOLATION = 3   # the checkpoint does not match the contract (a verdict)
+EXIT_INPUT_ERROR = 2          # the CLI's own inputs are wrong (a launcher bug), incl. a
+                              # run dir that belongs to another run (ContractMismatchError)
+EXIT_CONTRACT_VIOLATION = 3   # ONLY a CheckpointContractError: the checkpoint disagrees
 
 
 def build_arg_parser():
@@ -458,6 +496,13 @@ def _cmd_make_contract(args):
     except ContractMismatchError as err:
         print(f"CONTRACT MISMATCH: {err}", file=sys.stderr)
         return EXIT_INPUT_ERROR
+    except (OSError, ValueError, TypeError) as err:
+        print(f"make-contract failed: {err}", file=sys.stderr)
+        return EXIT_INPUT_ERROR
+    except Exception as err:  # never exit 1: a launcher cannot classify an uncaught crash
+        print(f"make-contract failed unexpectedly ({type(err).__name__}: {err})",
+              file=sys.stderr)
+        return EXIT_INPUT_ERROR
     print(f"run contract for {contract['run_id']} launched at {contract['launched_at']}",
           file=sys.stderr)
     print(os.path.join(args.run_dir, CONTRACT_FILENAME))
@@ -466,12 +511,12 @@ def _cmd_make_contract(args):
 
 def _cmd_validate(args):
     try:
-        with open(args.contract) as fin:
-            expected_contract = json.load(fin)
-        with open(args.model_config) as fin:
-            expected_model_config = json.load(fin)
-    except (OSError, ValueError) as err:
-        print(f"run_contract validate: cannot read its own inputs ({err})", file=sys.stderr)
+        expected_contract = require_contract_fields(
+            load_json_object(args.contract, "contract"), args.contract
+        )
+        expected_model_config = load_json_object(args.model_config, "model config")
+    except (OSError, ValueError, TypeError) as err:
+        print(f"validate failed: {err}", file=sys.stderr)
         return EXIT_INPUT_ERROR
     try:
         contract = validate_checkpoint(args.ckpt, expected_contract, expected_model_config,
@@ -479,6 +524,9 @@ def _cmd_validate(args):
     except CheckpointContractError as err:
         print(f"CONTRACT VIOLATION: {err}", file=sys.stderr)
         return EXIT_CONTRACT_VIOLATION
+    except Exception as err:  # never exit 1 (see _cmd_make_contract)
+        print(f"validate failed unexpectedly ({type(err).__name__}: {err})", file=sys.stderr)
+        return EXIT_INPUT_ERROR
     print(f"OK {args.ckpt}: run_id={contract.get('run_id')} step={args.expect_step}"
           f"{' resumable' if args.for_resume else ''}")
     return EXIT_OK

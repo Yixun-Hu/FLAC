@@ -968,37 +968,95 @@ def test_cli_validate_exits_two_when_its_own_inputs_are_unreadable(validate_inpu
     assert capsys.readouterr().err
 
 
-def test_cli_module_entry_point_runs(validate_inputs):
-    """`python -m src.training.run_contract` is the form the round-D2 bash launcher uses,
-    so the module-level __main__ wiring (exit codes included) is exercised for real."""
+def run_cli(*argv):
+    """One real `python -m src.training.run_contract` process (the launcher's own form)."""
     env = dict(os.environ, CUDA_VISIBLE_DEVICES="", PYTHONPATH=_REPO_ROOT)
-    base = [sys.executable, "-m", "src.training.run_contract"]
+    return subprocess.run([sys.executable, "-m", "src.training.run_contract", *argv],
+                          cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
 
-    ok = subprocess.run(base + validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
-                                             validate_inputs["model_config"], 1),
-                        cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
+
+def last_stderr_line(result):
+    """The CLI's own message. Importing the package emits an unrelated pkg_resources
+    deprecation warning on this box, so the contract is "one line of OUR output", checked
+    as the last non-empty stderr line."""
+    lines = [line for line in result.stderr.strip().splitlines() if line.strip()]
+    assert lines, "the CLI must say why it failed"
+    return lines[-1]
+
+
+def write_text(path, text):
+    with open(path, "w") as fout:
+        fout.write(text)
+    return str(path)
+
+
+# (codex MEDIUM 2) The exit-code contract, exercised end to end in subprocesses:
+#   0 = the thing asked for succeeded
+#   2 = the CLI's own inputs are wrong (unreadable / invalid JSON / non-object root /
+#       missing contract fields / this run dir belongs to another run)
+#   3 = ONLY a CheckpointContractError: the checkpoint does not match the contract
+# No path may exit 1 (an uncaught exception), which is what a launcher cannot classify.
+def test_MEDIUM2_make_contract_exit_codes(tmp_path, launch_files):
+    run_dir = tmp_path / "dc_cyl_f025"
+    ok = run_cli(*make_contract_argv(run_dir, launch_files))
+    assert ok.returncode == 0, ok.stderr
+    assert ok.stdout.strip() == str(run_dir / CONTRACT_FILENAME)
+
+    mismatch = run_cli(*make_contract_argv(run_dir, launch_files, **{"--seed": "43"}))
+    assert mismatch.returncode == 2
+    assert last_stderr_line(mismatch).startswith("CONTRACT MISMATCH: ")
+    assert "seed" in last_stderr_line(mismatch)
+
+    missing_input = run_cli(*make_contract_argv(
+        tmp_path / "other", launch_files, **{"--split-json": str(tmp_path / "absent.json")}))
+    assert missing_input.returncode == 2
+    assert last_stderr_line(missing_input).startswith("make-contract failed: ")
+
+    bad_json = run_cli(*make_contract_argv(
+        tmp_path / "other2", launch_files,
+        **{"--model-config": write_text(tmp_path / "broken.json", "{ not json")}))
+    assert bad_json.returncode == 2
+
+    non_object = run_cli(*make_contract_argv(
+        tmp_path / "other3", launch_files,
+        **{"--model-config": write_json(tmp_path / "list.json", ["FLAC"])}))
+    assert non_object.returncode == 2
+
+
+def test_MEDIUM2_validate_exit_codes(validate_inputs, tmp_path):
+    ok = run_cli(*validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                validate_inputs["model_config"], 1, for_resume=True))
     assert ok.returncode == 0, ok.stderr
 
-    bad = subprocess.run(base + validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
-                                              validate_inputs["model_config"], 2),
-                         cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
-    assert bad.returncode == 3
-    assert "global_step" in bad.stderr
+    violation = run_cli(*validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                       validate_inputs["model_config"], 2))
+    assert violation.returncode == 3
+    assert "global_step" in violation.stderr
+
+    absent_ckpt = run_cli(*validate_argv(tmp_path / "absent.ckpt", validate_inputs["contract"],
+                                         validate_inputs["model_config"], 1))
+    assert absent_ckpt.returncode == 3   # a checkpoint that cannot be loaded is a verdict
 
 
-def test_cli_make_contract_refuses_a_run_dir_created_for_another_run(tmp_path, launch_files, capsys):
-    """(codex BLOCKING 1 at the CLI boundary) A relaunch with a different seed into the
-    same run dir exits 2 -- an input error the launcher must fix, never a silent reuse."""
-    run_dir = tmp_path / "dc_cyl_f025"
-    assert run_contract_main(make_contract_argv(run_dir, launch_files)) == 0
-    before = (run_dir / CONTRACT_FILENAME).read_bytes()
-    capsys.readouterr()
+@pytest.mark.parametrize("what,payload", [
+    ("contract", ["dc_cyl_f025"]),                       # non-object root
+    ("contract", "{ not json"),                          # invalid JSON
+    ("contract", {"run_id": "dc_cyl_f025"}),             # missing required fields
+    ("model_config", ["FLAC"]),                          # non-object root
+    ("model_config", "{ not json"),                      # invalid JSON
+])
+def test_MEDIUM2_validate_rejects_its_own_bad_inputs_with_exit_2(validate_inputs, tmp_path, what, payload):
+    """A launcher bug (a mistyped sidecar, a half-written JSON) must never be reported as
+    a checkpoint verdict, and never as an uncaught exception."""
+    path = (write_text(tmp_path / f"bad_{what}.json", payload) if isinstance(payload, str)
+            else write_json(tmp_path / f"bad_{what}.json", payload))
+    argv = validate_argv(validate_inputs["ckpt"],
+                         path if what == "contract" else validate_inputs["contract"],
+                         path if what == "model_config" else validate_inputs["model_config"], 1)
+    result = run_cli(*argv)
+    assert result.returncode == 2, result.stderr
+    assert last_stderr_line(result).startswith("validate failed: ")   # one line, ours
 
-    code = run_contract_main(make_contract_argv(run_dir, launch_files, **{"--seed": "43"}))
-
-    assert code == 2
-    assert "seed" in capsys.readouterr().err
-    assert (run_dir / CONTRACT_FILENAME).read_bytes() == before
 
 
 # --- codex MEDIUM 3: the resume-state containers are type-checked, never duck-typed
