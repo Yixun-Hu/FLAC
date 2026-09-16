@@ -1,6 +1,7 @@
 import os
 import argparse
 import contextlib
+import hashlib
 import json
 import math
 from tqdm import tqdm
@@ -51,12 +52,19 @@ def build_output_paths(
 
 
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
-                         cond_autocast='default'):
+                         cond_autocast='default', ckpt_sha256=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
     ``cond_method``, ``frame_avg_angles`` (the C4 frame-average angles used
-    for ``fa_invariant``; ``None`` for vanilla) and ``cond_autocast``.
+    for ``fa_invariant``), ``cond_autocast`` -- and ``ckpt_sha256``, the digest
+    of the checkpoint file this record was scored from.
+
+    The digest is what makes the record *bindable*: a path alone cannot tell a
+    result produced from checkpoint bytes A apart from one produced after the
+    same pathname was replaced by another contract-valid step-40000 file B
+    (codex full-r2 finding 1). ``evaluate_model`` always supplies it; ``None``
+    is only for library callers that have no file in hand.
     """
     return {
         "metrics": metrics_dict,
@@ -65,7 +73,43 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "cond_method": cond_method,
         "frame_avg_angles": frame_avg_angles,
         "cond_autocast": cond_autocast,
+        "ckpt_sha256": ckpt_sha256,
     }
+
+
+def file_sha256(path, chunk_size=1 << 20):
+    """sha256 of a file, read in 1 MiB chunks (checkpoints are ~700 MB)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as fin:
+        for chunk in iter(lambda: fin.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+class CheckpointDigestMismatch(RuntimeError):
+    """The checkpoint on disk is not the one the caller pinned."""
+
+
+def resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256=None):
+    """Digest the checkpoint **before** it is loaded; refuse a pinned mismatch.
+
+    Returns the digest of the bytes at ``ckpt_path`` so the caller can embed it
+    in every artifact. When ``expect_ckpt_sha256`` is given (the launcher's pin,
+    computed when it validated that checkpoint against the run contract), a
+    disagreement raises :class:`CheckpointDigestMismatch` -- before any load, so
+    a replaced checkpoint can never produce a plausible-looking number.
+    """
+    digest = file_sha256(ckpt_path)
+    if expect_ckpt_sha256 is None:
+        return digest
+    want = str(expect_ckpt_sha256).strip().lower()
+    if digest != want:
+        raise CheckpointDigestMismatch(
+            f"{ckpt_path} hashes to sha256 {digest}, not the {want} that was pinned: "
+            "the checkpoint at this path is not the one the caller validated. Nothing "
+            "was loaded and no artifact was written."
+        )
+    return digest
 
 
 def resolve_cond_autocast(mode):
@@ -94,7 +138,8 @@ PREDICTIONS_ARTIFACT_CONTRACT = (
 
 def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
                            frame_avg_angles, rotate_deg, batch_size, cond_autocast,
-                           ckpt_path=None, eval_name=None, steps=None, cfg_scale=None):
+                           ckpt_path=None, eval_name=None, steps=None, cfg_scale=None,
+                           ckpt_sha256=None):
     """Sidecar meta saved by ``--store_predictions`` (read by the exp_02 comparator guard).
 
     The legacy keys are unchanged (the comparator guards ``dataset_config`` /
@@ -106,6 +151,9 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     tensor is. Those two are NOT parameters: they are facts about the code path
     that wrote the file, and a caller must not be able to mislabel an artifact.
     ``n_items`` mirrors ``n_samples`` (kept for the exp_02 comparator).
+    ``ckpt_sha256`` is the digest of the checkpoint file the run loaded -- the
+    only thing in a bundle that a checkpoint replaced at the same pathname
+    cannot satisfy (codex full-r2 finding 1).
     """
     return {
         "dataset_config": dataset_config_path,
@@ -121,6 +169,7 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
         "eval_name": eval_name,
         "steps": steps,
         "cfg_scale": cfg_scale,
+        "ckpt_sha256": ckpt_sha256,
         "stored_after_clamp_pad": True,
         "artifact_contract": PREDICTIONS_ARTIFACT_CONTRACT,
     }
@@ -201,6 +250,7 @@ def evaluate_model(
     frame_avg_angles=None,
     cond_autocast='default',
     allow_partial_load=False,
+    expect_ckpt_sha256=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -220,6 +270,11 @@ def evaluate_model(
         if ac_dtype is None:
             return torch.amp.autocast(device)  # per-device default: exp_01/02 protocol
         return torch.amp.autocast(device, dtype=ac_dtype)
+
+    # The identity of the bytes this run scores, taken BEFORE anything is opened
+    # (codex full-r2 finding 1). `expect_ckpt_sha256` is the launcher's pin: a
+    # disagreement aborts here, with no model, no dataloader and no artifact.
+    ckpt_sha256 = resolve_ckpt_sha256(ckpt_path, expect_ckpt_sha256)
 
     torch.set_float32_matmul_precision('medium')
 
@@ -388,7 +443,7 @@ def evaluate_model(
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
         metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
-        cond_autocast=cond_autocast,
+        cond_autocast=cond_autocast, ckpt_sha256=ckpt_sha256,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -405,6 +460,7 @@ def evaluate_model(
                 dataset_config_path, seed, int(decoded_samples_all.shape[0]),
                 cond_method, frame_angles_record, rotate_deg, batch_size, cond_autocast,
                 ckpt_path=ckpt_path, eval_name=eval_name, steps=steps, cfg_scale=cfg_scale,
+                ckpt_sha256=ckpt_sha256,
             ),
         }
         torch.save(preds_bundle, path2save_preds)
@@ -431,6 +487,7 @@ if __name__ == "__main__":
     parser.add_argument("--frame-avg-angles", type=str, default=",".join(str(int(a)) for a in DEFAULT_FRAME_ANGLES), help="Comma-separated yaw angles in degrees for fa_invariant frame averaging; the first must be 0. Ignored when --cond-method vanilla.")
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
     parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
+    parser.add_argument("--expect-ckpt-sha256", type=str, default=None, help="The sha256 the caller expects --ckpt-path to have. When given, the file is hashed BEFORE it is loaded and the run aborts if it disagrees -- the only way to notice a checkpoint replaced at the same pathname. The digest of the file actually loaded is embedded in the metrics JSON and in the prediction bundle either way.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -438,21 +495,26 @@ if __name__ == "__main__":
 
     frame_avg_angles = tuple(float(a) for a in args.frame_avg_angles.split(","))
 
-    evaluate_model(
-        args.model_config,
-        args.dataset_config,
-        args.ckpt_path,
-        cfg_scale=args.cfg_scale,
-        steps=args.steps,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        device=args.device,
-        eval_name=args.eval_name,
-        seed=args.seed,
-        store_predictions=args.store_predictions,
-        rotate_deg=args.rotate_deg,
-        cond_method=args.cond_method,
-        frame_avg_angles=frame_avg_angles,
-        cond_autocast=args.cond_autocast,
-        allow_partial_load=args.allow_partial_load,
-    )
+    try:
+        evaluate_model(
+            args.model_config,
+            args.dataset_config,
+            args.ckpt_path,
+            cfg_scale=args.cfg_scale,
+            steps=args.steps,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            device=args.device,
+            eval_name=args.eval_name,
+            seed=args.seed,
+            store_predictions=args.store_predictions,
+            rotate_deg=args.rotate_deg,
+            cond_method=args.cond_method,
+            frame_avg_angles=frame_avg_angles,
+            cond_autocast=args.cond_autocast,
+            allow_partial_load=args.allow_partial_load,
+            expect_ckpt_sha256=args.expect_ckpt_sha256,
+        )
+    except CheckpointDigestMismatch as err:
+        # A clear one-line refusal, not a traceback: the launcher reads this.
+        raise SystemExit(f"eval_FLAC: REFUSED --expect-ckpt-sha256 check: {err}")
