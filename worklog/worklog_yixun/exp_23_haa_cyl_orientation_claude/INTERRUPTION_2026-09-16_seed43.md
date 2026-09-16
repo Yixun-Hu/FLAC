@@ -1,0 +1,13 @@
+# exp_23 seed-43 chain — INTERRUPTION RECORD (2026-09-16, written by the exp_21 session)
+
+**For the owning session** (claude.ai web session `…01PRLzMVLuzVEV5tsHbCmAiL`) **and Yixun.** Written by the exp_21 local session (`…01G8aU3GgbrkgdKK2PxWhZBV`) as a NEW file — nothing owned by the exp_23 session was edited. Facts relayed by xrir-code-25 (executor, under Yixun's authorization) and independently verified on-box where possible.
+
+## What happened
+- Yixun prioritized xRIR exp_06 (31 h pretraining) on GPU 1 from 12:00. Its co-tenancy measurement FAILED (1.95 s/it vs 1.01 exclusive), triggering Yixun's stop directive for the running exp_23 leg.
+- **CYLORI27_s43 FULL was stopped at step 500/1000.** Trainer (pid 2407803) exited 12:05 after writing `epoch=499-step=500.ckpt` (12:03:41, 727,444,977 B — verified complete). Chain shell was already gone by 11:56; launcher wrapper killed by the executor's prepared script before cancellation; **no exp_23 process or watcher remains** (verified 0 at ~12:1x; standby watcher 2533161 included). GPU 1 handed to exp_06 at 12:05.
+- **P1_s43 leg: POSTPONED per Yixun** (never started).
+
+## How to resume (owner or whoever Yixun designates)
+- **CYLORI27_s43 (500→1000):** replay the archived trainer ARGV exactly (see `bf…` n/a — ARGV archived in xrir-code-25's record and reproducible from this folder's launcher with ARM=CYLORI27 SEED=43; key flags: `--model-config $E/FLAC_HAA_finetune_CYLORI27.json --pretrained-ckpt-path outputs_FLAC/exp19_inits/HAA_init_CYLORI.ckpt --max-steps 1000 --batch-size 16 --accum-batches 4 --seed 43 --precision bf16-mixed --val-every 10 --checkpoint-every 100 --save-dir outputs_FLAC/exp23_HAA_CYLORI27_s43`) **plus** `--ckpt-path outputs_FLAC/exp23_HAA_CYLORI27_s43/FLAC_exp23_HAA_CYLORI27_s43/exp23_HAA_CYLORI27_s43/checkpoints/epoch=499-step=500.ckpt`, env `HF_HUB_OFFLINE=1 PYTHONPATH=/home/yixunhu/codespace/cylindrical-dinov3/src CUDA_VISIBLE_DEVICES=<gpu>`. Standard-PL resume: optimizer/scheduler/EMA/loops restored, RNG/dataloader position NOT — disclose non-bit-exactness in the arm's record, per repo convention. Then run the endpoints eval (`ARM=CYLORI27 TAG=_s43 ENDPOINTS="1000" GPU=<g> bash $E/haa_ft_cylori_eval_v2.sh endpoints`).
+- **P1_s43:** run the leg standalone (`ARM=P1 SEED=43 CADENCE=100 MODE=FULL GPU=<g> VRAM_FLOOR=8000 DISK_FLOOR=60000 bash $E/haa_ft_cylori_launch.sh` + its endpoints line). Do NOT reuse `chain_seed43.sh` — its CYLORI27 leg now trips the launcher's no-overwrite gate and aborts before P1.
+- **GPU availability:** GPU 1 busy ~31 h (exp_06, until ~19:00 Sep 17); GPU 0 frees ~00:10 Sep 17 but is then claimed by xRIR exp_05 evals + exp_07 trainings. **Yixun decides where/when the FLAC legs resume.**
