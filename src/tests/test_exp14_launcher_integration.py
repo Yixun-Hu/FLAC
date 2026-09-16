@@ -240,3 +240,54 @@ def test_e_pythonpath_must_be_the_verified_package(harness, tmp_path):
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert not harness.marker("verify")                  # refused before anything ran
     assert "CYL_SRC" in proc.stdout
+
+def test_c_an_evaluator_that_writes_no_metrics_json_fails_the_cell(harness):
+    """Finding H3: only the bundle was checked after an evaluator run, so a cell could be
+    recorded done without the metrics JSON the results table is built from."""
+    proc = harness.run(STUB_EVAL_NO_METRICS=1)
+
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "metrics" in proc.stdout
+    summary = harness.summary()
+    assert summary["cells_evaluated"] == 0
+    assert len(summary["failed_cells"]) == 20
+
+
+def test_c2_an_evaluator_that_writes_no_bundle_fails_the_cell(harness):
+    proc = harness.run(STUB_EVAL_NO_BUNDLE=1)
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert harness.summary()["cells_evaluated"] == 0
+
+
+def test_f_the_happy_path_trains_validates_and_completes_twenty_cells(harness):
+    proc = harness.run()
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    for arm in names.ARMS:
+        assert harness.marker(f"train_dc_{arm}_f{TAG}")
+    evaluated = open(harness.markers / "evaluated").read().split()
+    assert len(evaluated) == 20 and len(set(evaluated)) == 20
+    assert set(evaluated) == {names.eval_name(arm, TAG, k, seed)
+                              for arm in names.ARMS for k in names.K_VALUES
+                              for seed in names.SEEDS}
+    summary = harness.summary()
+    assert summary["status"] == "complete"
+    assert summary["cells_evaluated"] == 20 and summary["failed_cells"] == []
+    # every validated final was checked at step 40000, one per arm (B1 preflight)
+    assert len(open(harness.markers / "validate_final_cyl").read().split()) == 1
+    # M4: the per-cell record carries the eval config's sha computed at check time
+    done = [line for line in open(harness.markers / "bundlecheck").read().split() if line]
+    assert len(done) == 20
+    cells = harness.summary()["cells"]
+    assert len(cells) == 20 and all(CFG_SHA in entry for entry in cells)
+
+
+def test_g_a_second_invocation_skips_the_completed_cells(harness):
+    assert harness.run().returncode == 0
+    first = len(open(harness.markers / "evaluated").read().split())
+
+    again = harness.run()
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert len(open(harness.markers / "evaluated").read().split()) == first   # none re-run
+    assert again.stdout.count("SKIPPED") >= 20
+    assert harness.summary()["cells_skipped"] == 20
