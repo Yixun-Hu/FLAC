@@ -96,6 +96,7 @@ def test_dry_run_prints_exactly_the_helper_s_training_commands(tmp_path):
     env = _layout(tmp_path)
     proc = _run(env)
     assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stderr == "", proc.stderr   # a dry run touches nothing and warns about nothing
 
     printed = dict(_tagged(proc.stdout, "ARGV"))
     for arm in names.ARMS:
