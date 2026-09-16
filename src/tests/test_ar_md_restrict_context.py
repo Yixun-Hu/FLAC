@@ -413,3 +413,134 @@ def test_B3_empty_filtered_pool_raises_dataset_contract_error(tree, ar_md, allow
     assert "no in-split context" in str(excinfo.value)
     assert target in str(excinfo.value)
     assert isinstance(excinfo.value, RuntimeError)
+
+
+# ======================================================================================
+# B4 — get_custom_metadata: the flag, the cached split index, the missing-room contract
+# ======================================================================================
+def make_info(tree, room, src, rec, split_path, conditioning):
+    return {
+        "path": ir_path(tree, room, src, rec),
+        "relpath": os.path.join("single_channel_ir_1", SCENE, room, ir_basename(src, rec)),
+        "modalities": conditioning,
+        "json_file_path": split_path,
+    }
+
+
+def test_B4_split_room_index_maps_scene_room_to_basenames(tree, ar_md):
+    room = tree["rooms"][0]
+    split_path = write_split(tree, "two.json", {room: [ir_basename(1, 1), ir_basename(2, 1)]})
+
+    index = ar_md._split_room_index(os.path.realpath(split_path))
+
+    assert index == {(SCENE, room): frozenset({ir_basename(1, 1), ir_basename(2, 1)})}
+    assert isinstance(index[(SCENE, room)], frozenset)
+
+
+@pytest.mark.parametrize("restrict", [None, False])
+def test_B4_without_the_flag_the_index_is_never_touched(tree, ar_md, monkeypatch, restrict):
+    room = tree["rooms"][0]
+    split_path = write_split(tree, "full.json", full_split(tree))
+
+    def never(*args, **kwargs):
+        pytest.fail("the split index must not be consulted when restrict_to_split is off")
+
+    monkeypatch.setattr(ar_md, "_split_room_index", never)
+    monkeypatch.setattr(ar_md, "_load_split_room_index", never)
+
+    np.random.seed(0)
+    md = ar_md.get_custom_metadata(
+        make_info(tree, room, 1, 1, split_path, modalities(restrict=restrict)), None
+    )
+
+    assert md["context_audio"].shape == (8, 1, IR_LEN)
+    assert md["scene"] == SCENE
+    assert md["depth"].shape == (3, 256, 512)
+
+
+def test_B4_flag_restricts_the_drawn_contexts(tree, ar_md):
+    room = tree["rooms"][0]
+    # receiver 1 keeps sources 1 and 2 only; receiver 2 keeps everything.
+    split_path = write_split(tree, "part.json", {room: [
+        ir_basename(1, 1), ir_basename(2, 1),
+        ir_basename(1, 2), ir_basename(2, 2), ir_basename(3, 2),
+    ]})
+
+    np.random.seed(0)
+    md = ar_md.get_custom_metadata(
+        make_info(tree, room, 1, 1, split_path, modalities(restrict=True)), None
+    )
+
+    drawn = [tree["file_of_marker"][m] for m in drawn_markers(md["context_audio"])]
+    assert {b for _, b in drawn} == {ir_basename(2, 1)}  # 3 is out of split, 1 is the target
+
+
+def test_B4_index_is_loaded_once_per_path_relative_or_absolute(tree, ar_md, monkeypatch):
+    room = tree["rooms"][0]
+    split_path = write_split(tree, "full.json", full_split(tree))
+    loaded = []
+    original_loader = ar_md._load_split_room_index
+
+    def counting_loader(path):
+        loaded.append(path)
+        return original_loader(path)
+
+    monkeypatch.setattr(ar_md, "_load_split_room_index", counting_loader)
+    ar_md._split_room_index.cache_clear()
+
+    for _ in range(2):
+        np.random.seed(0)
+        ar_md.get_custom_metadata(
+            make_info(tree, room, 1, 1, split_path, modalities(restrict=True)), None
+        )
+
+    assert len(loaded) == 1, "lru_cache must keep the split JSON from being re-parsed"
+
+    # The production config carries a RELATIVE split path; it must share the cache entry.
+    monkeypatch.chdir(tree["root"])
+    relative = os.path.join("splits", "full.json")
+    assert not os.path.isabs(relative)
+    np.random.seed(0)
+    ar_md.get_custom_metadata(
+        make_info(tree, room, 1, 1, relative, modalities(restrict=True)), None
+    )
+
+    assert len(loaded) == 1, "relative and absolute spellings must canonicalize to one entry"
+    info = ar_md._split_room_index.cache_info()
+    assert (info.misses, info.hits) == (1, 2)
+
+
+def test_B4_room_missing_from_the_split_raises_dataset_contract_error(tree, ar_md):
+    room = tree["rooms"][0]
+    split_path = write_split(tree, "other_room.json", {"ToyScene_idx_99": [ir_basename(1, 1)]})
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md.get_custom_metadata(
+            make_info(tree, room, 1, 1, split_path, modalities(restrict=True)), None
+        )
+
+    message = str(excinfo.value)
+    assert "does not list room" in message
+    assert f"{SCENE}/{room}" in message
+    assert os.path.realpath(split_path) in message
+
+
+def test_B4_empty_pool_under_the_flag_is_fatal(tree, ar_md):
+    room = tree["rooms"][0]
+    split_path = write_split(tree, "one_source.json", {room: [ir_basename(1, 1)]})
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md.get_custom_metadata(
+            make_info(tree, room, 1, 1, split_path, modalities(restrict=True)), None
+        )
+
+    assert "no in-split context" in str(excinfo.value)
+
+
+def test_B4_flag_without_a_split_path_is_fatal(tree, ar_md):
+    """Fail closed rather than crashing inside realpath() and being resampled away."""
+    room = tree["rooms"][0]
+    info = make_info(tree, room, 1, 1, None, modalities(restrict=True))
+
+    with pytest.raises(DatasetContractError):
+        ar_md.get_custom_metadata(info, None)

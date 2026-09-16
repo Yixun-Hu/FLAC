@@ -1,3 +1,4 @@
+import functools
 import os
 import numpy as np
 import json
@@ -41,7 +42,10 @@ def get_custom_metadata(info, audio):
     # Load Acoustic Context
     if acoustic_context_config.get('load', False):
         max_len_cond = acoustic_context_config.get('max_len', 9600)
-        all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond)
+        allowed_basenames = None
+        if acoustic_context_config.get('restrict_to_split', False):
+            allowed_basenames = get_allowed_basenames(info.get('json_file_path', None), scene_name, scene_id)
+        all_ref_irs, all_ref_src_pos = get_ir_and_location_for_other_sources(full_audio_path, num_ref_sources=acoustic_context_config.get('max_context', 8), metadata_path=metadata_path, max_len=max_len_cond, allowed_basenames=allowed_basenames)
         md['context_poses'] = all_ref_src_pos # [N, 3]  
         md['context_poses_vit'] = all_ref_src_pos
         md['context_audio'] = all_ref_irs # [N, max_len_cond]
@@ -57,6 +61,33 @@ def get_custom_metadata(info, audio):
 
 
 ############# UTILS #############
+def _load_split_room_index(json_path_canonical):
+    """Parse a split JSON (scene -> room -> [basenames]) into {(scene, room): frozenset}."""
+    with open(json_path_canonical, "r") as fin:
+        split_dict = json.load(fin)
+    index = {}
+    for scene, rooms in split_dict.items():
+        if not isinstance(rooms, dict):
+            raise DatasetContractError(f"split {json_path_canonical} is not a scene/room split: scene {scene}")
+        for room, files in rooms.items():
+            index[(scene, room)] = frozenset(os.path.basename(fn) for fn in files)
+    return index
+
+@functools.lru_cache(maxsize=8)
+def _split_room_index(json_path_canonical):
+    """Cached {(scene, room): frozenset(basenames)} index of one split file (per process)."""
+    return _load_split_room_index(json_path_canonical)
+
+def get_allowed_basenames(json_file_path, scene_name, scene_id):
+    """In-split basenames of one room; every failure is fatal, never a resampled sample."""
+    if not json_file_path:
+        raise DatasetContractError("restrict_to_split is set but the dataset config has no json_file_path")
+    canonical = os.path.realpath(json_file_path)
+    try:
+        return _split_room_index(canonical)[(scene_name, scene_id)]
+    except KeyError:
+        raise DatasetContractError(f"split {canonical} does not list room {scene_name}/{scene_id}") from None
+
 def convert_equirect_to_camera_coord(depth_map, img_h, img_w): # 3D point cloud per pixel
     phi, theta = torch.meshgrid(torch.arange(img_h), torch.arange(img_w), indexing='ij')
     theta_map = (theta + 0.5) * 2.0 * np.pi / img_w - np.pi
