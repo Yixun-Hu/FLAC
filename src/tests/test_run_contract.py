@@ -126,9 +126,10 @@ def make_contract(launch_files, **overrides):
 # ======================================================================================
 def test_D11_canonical_digest_is_the_documented_sha256():
     """The definition is the contract (both sides of the check must compute it the same
-    way): sha256 of ``json.dumps(obj, sort_keys=True, separators=(',', ':'),
-    ensure_ascii=False)`` encoded as UTF-8."""
-    payload = json.dumps(MODEL_CONFIG, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    way): sha256 of the FROZEN literal ``json.dumps(obj, sort_keys=True,
+    separators=(',', ':'))`` -- stdlib defaults otherwise, ``ensure_ascii`` included -- 
+    encoded as UTF-8. Anything added to that call changes every digest ever computed."""
+    payload = json.dumps(MODEL_CONFIG, sort_keys=True, separators=(",", ":"))
     assert canonical_digest(MODEL_CONFIG) == hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -175,11 +176,37 @@ def test_D11_canonical_digest_detects_any_change(changed):
     assert canonical_digest(altered) != canonical_digest(MODEL_CONFIG)
 
 
-def test_D11_canonical_digest_keeps_non_ascii_verbatim():
-    """``ensure_ascii=False``: the payload is the UTF-8 text, not an escaped ASCII form."""
-    obj = {"note": "45° control"}
-    expected = hashlib.sha256('{"note":"45° control"}'.encode("utf-8")).hexdigest()
+def test_D11_canonical_digest_escapes_non_ascii():
+    """(codex NIT 4) The frozen literal keeps the stdlib default ``ensure_ascii=True``, so
+    a non-ASCII value is serialised as its ``\\uXXXX`` escape. Both real arm configs are
+    pure ASCII (pinned below), so this is a question of *which literal is frozen*, not of
+    any digest changing."""
+    obj = {"note": "45\u00b0 control"}
+    expected = hashlib.sha256(r'{"note":"45\u00b0 control"}'.encode("utf-8")).hexdigest()
     assert canonical_digest(obj) == expected
+
+
+KIT_CONFIG_DIR = (
+    "/home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/"
+    "exp_14_data_curve_claude/configs"
+)
+
+
+@pytest.mark.skipif(not os.path.isdir(KIT_CONFIG_DIR), reason="exp_14 kit configs live in the sibling cylindrical-dinov3 checkout")
+@pytest.mark.parametrize("config,expected_prefix", [
+    ("FLAC_AR_exp14_cylS.json", "83c9119e"),
+    ("FLAC_AR_exp14_vanS.json", "2023ccc6"),
+])
+def test_D11_canonical_digest_of_the_kit_configs_is_pinned(config, expected_prefix):
+    """Regression pin on the two configs the campaign will actually launch with: their
+    canonical digests are the values the round-D1 reviewer computed. Both files are pure
+    ASCII, so switching the literal to ``ensure_ascii``-default left them unchanged -- the
+    test proves it rather than asserting it."""
+    with open(os.path.join(KIT_CONFIG_DIR, config)) as fin:
+        parsed = json.load(fin)
+    digest = canonical_digest(parsed)
+    assert digest.startswith(expected_prefix)
+    assert json.dumps(parsed, sort_keys=True, separators=(",", ":")).isascii()
 
 
 def test_D11_file_sha256_is_the_bytes_of_the_file(tmp_path):

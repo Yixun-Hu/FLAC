@@ -38,11 +38,13 @@ class CheckpointContractError(ValueError):
 def canonical_digest(obj):
     """sha256 over the canonical JSON serialisation of ``obj``.
 
-    Canonical = sorted keys, no whitespace, UTF-8 text (``ensure_ascii=False``). Both
-    sides of a comparison must use exactly this definition, so it lives here and nowhere
-    else.
+    The serialisation is a **frozen literal** -- ``json.dumps(obj, sort_keys=True,
+    separators=(",", ":"))``, stdlib defaults for everything else (``ensure_ascii`` left
+    at True, so non-ASCII becomes a ``\\uXXXX`` escape) -- encoded as UTF-8. Any future
+    argument added to that call silently invalidates every digest ever recorded, so both
+    sides of a comparison use this one function and nothing re-implements it.
     """
-    payload = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    payload = json.dumps(obj, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
