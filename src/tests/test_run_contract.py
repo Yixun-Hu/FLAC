@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import types
 
@@ -51,6 +52,7 @@ from src.training.run_contract import (
     load_or_create_contract,
     validate_checkpoint,
 )
+from src.training.run_contract import main as run_contract_main
 
 CONTRACT_KEYS = {
     "run_id",
@@ -710,3 +712,115 @@ def test_D17_resumed_checkpoint_carries_the_original_contract(trained, tmp_path)
     with pytest.raises(CheckpointContractError) as excinfo:
         validate_checkpoint(resumed_ckpt, fresh, MODEL_CONFIG, expect_step=2, for_resume=True)
     assert "launched_at" in str(excinfo.value)
+
+
+# ======================================================================================
+# CLIs — what the round-D2 bash launcher calls (`python -m src.training.run_contract …`)
+# ======================================================================================
+def make_contract_argv(run_dir, launch_files, **overrides):
+    argv = {
+        "--run-dir": str(run_dir),
+        "--run-id": "dc_cyl_f025",
+        "--fraction": "0.25",
+        "--dataset-config": launch_files["dataset_config"],
+        "--split-json": launch_files["split"],
+        "--model-config": launch_files["model_config"],
+        "--seed": "42",
+        "--micro-batch": "32",
+        "--num-gpus": "2",
+        "--accum-batches": "1",
+        "--sync-batchnorm": "true",
+        "--flac-sha": "a" * 40,
+        "--package-sha": "b" * 40,
+        "--launched-at": "2026-09-16T18:00:00+00:00",
+    }
+    argv.update(overrides)
+    return ["make-contract"] + [token for pair in argv.items() for token in pair]
+
+
+def test_cli_make_contract_creates_the_sidecar_and_prints_its_path(tmp_path, launch_files, capsys):
+    run_dir = tmp_path / "dc_cyl_f025"
+
+    assert run_contract_main(make_contract_argv(run_dir, launch_files)) == 0
+
+    printed = capsys.readouterr().out.strip()
+    assert printed == str(run_dir / CONTRACT_FILENAME)     # stdout is the path, for $(...)
+    assert json.load(open(printed)) == make_contract(launch_files)
+
+
+def test_cli_make_contract_is_idempotent_and_never_rebuilds(tmp_path, launch_files, capsys):
+    """A resume re-runs the same launcher line: the persisted contract is returned verbatim,
+    even though the second invocation passes a different --launched-at."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    run_contract_main(make_contract_argv(run_dir, launch_files))
+    capsys.readouterr()
+
+    assert run_contract_main(make_contract_argv(
+        run_dir, launch_files, **{"--launched-at": "2026-09-18T02:00:00+00:00"})) == 0
+
+    assert capsys.readouterr().out.strip() == str(run_dir / CONTRACT_FILENAME)
+    assert json.load(open(run_dir / CONTRACT_FILENAME))["launched_at"] == "2026-09-16T18:00:00+00:00"
+
+
+def test_cli_make_contract_parses_sync_batchnorm_as_a_bool(tmp_path, launch_files):
+    run_dir = tmp_path / "dc_van_f025"
+    run_contract_main(make_contract_argv(run_dir, launch_files, **{"--sync-batchnorm": "false"}))
+    assert json.load(open(run_dir / CONTRACT_FILENAME))["sync_batchnorm"] is False
+
+
+def validate_argv(ckpt, contract_path, model_config_path, expect_step, for_resume=False):
+    argv = ["validate", "--ckpt", str(ckpt), "--contract", str(contract_path),
+            "--model-config", str(model_config_path), "--expect-step", str(expect_step)]
+    return argv + (["--for-resume"] if for_resume else [])
+
+
+@pytest.fixture
+def validate_inputs(trained, tmp_path):
+    return {
+        "ckpt": trained["ckpt"],
+        "contract": write_json(tmp_path / "run_contract.json", trained["contract"], indent=1),
+        "model_config": write_json(tmp_path / "model.json", MODEL_CONFIG, indent=4),
+    }
+
+
+def test_cli_validate_exits_zero_on_a_matching_checkpoint(validate_inputs, capsys):
+    code = run_contract_main(validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                           validate_inputs["model_config"], 1, for_resume=True))
+    assert code == 0
+    assert "dc_cyl_f025" in capsys.readouterr().out
+
+
+def test_cli_validate_exits_three_and_prints_the_failure(validate_inputs, capsys):
+    """Exit 3 is the launcher's "this checkpoint does not count" signal; the reason goes to
+    stderr so it lands in the teed log."""
+    code = run_contract_main(validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                           validate_inputs["model_config"], 40000))
+    assert code == 3
+    assert "global_step" in capsys.readouterr().err
+
+
+def test_cli_validate_exits_two_when_its_own_inputs_are_unreadable(validate_inputs, tmp_path, capsys):
+    """A missing contract sidecar is a launcher bug, not a checkpoint verdict: a distinct
+    non-zero exit code so the two are never confused."""
+    code = run_contract_main(validate_argv(validate_inputs["ckpt"], tmp_path / "absent.json",
+                                           validate_inputs["model_config"], 1))
+    assert code == 2
+    assert capsys.readouterr().err
+
+
+def test_cli_module_entry_point_runs(validate_inputs):
+    """`python -m src.training.run_contract` is the form the round-D2 bash launcher uses,
+    so the module-level __main__ wiring (exit codes included) is exercised for real."""
+    env = dict(os.environ, CUDA_VISIBLE_DEVICES="", PYTHONPATH=_REPO_ROOT)
+    base = [sys.executable, "-m", "src.training.run_contract"]
+
+    ok = subprocess.run(base + validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                             validate_inputs["model_config"], 1),
+                        cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stderr
+
+    bad = subprocess.run(base + validate_argv(validate_inputs["ckpt"], validate_inputs["contract"],
+                                              validate_inputs["model_config"], 2),
+                         cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
+    assert bad.returncode == 3
+    assert "global_step" in bad.stderr

@@ -15,11 +15,13 @@ Two hashes, two jobs, never interchanged (finding r3-2):
   from a dict on both sides -- at launch from the arm's JSON file and at validation from
   the embedded dict -- and must not change when the source file is reformatted.
 """
+import argparse
 import copy
 import datetime
 import hashlib
 import json
 import os
+import sys
 
 import pytorch_lightning as pl
 import torch
@@ -282,3 +284,106 @@ def append_resume_log(run_dir, entry):
     log.append(entry)
     _write_json_atomically(path, log)
     return log
+
+
+# ======================================================================================
+# CLIs used by the round-D2 bash launcher: `python -m src.training.run_contract …`
+# ======================================================================================
+EXIT_OK = 0
+EXIT_INPUT_ERROR = 2          # the CLI's own inputs are unreadable (a launcher bug)
+EXIT_CONTRACT_VIOLATION = 3   # the checkpoint does not match the contract (a verdict)
+
+
+def build_arg_parser():
+    parser = argparse.ArgumentParser(
+        prog="python -m src.training.run_contract",
+        description="Create a run's contract, or validate a checkpoint against one.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    make = sub.add_parser(
+        "make-contract",
+        help="create <run-dir>/run_contract.json if absent (else keep the persisted one) "
+             "and print its path",
+    )
+    make.add_argument("--run-dir", required=True)
+    make.add_argument("--run-id", required=True)
+    make.add_argument("--fraction", required=True, type=float)
+    make.add_argument("--dataset-config", required=True)
+    make.add_argument("--split-json", required=True)
+    make.add_argument("--model-config", required=True)
+    make.add_argument("--seed", required=True, type=int)
+    make.add_argument("--micro-batch", required=True, type=int)
+    make.add_argument("--num-gpus", required=True, type=int)
+    make.add_argument("--accum-batches", required=True, type=int)
+    make.add_argument("--sync-batchnorm", required=True, type=_as_bool)
+    make.add_argument("--flac-sha", required=True)
+    make.add_argument("--package-sha", required=True)
+    make.add_argument("--launched-at", default=None,
+                      help="ISO-8601 launch timestamp (default: now, UTC). Ignored when the "
+                           "contract already exists, which is what makes a resume safe.")
+
+    validate = sub.add_parser(
+        "validate", help="validate a checkpoint against a run contract (exit 3 if it fails)"
+    )
+    validate.add_argument("--ckpt", required=True)
+    validate.add_argument("--contract", required=True, help="the run's run_contract.json")
+    validate.add_argument("--model-config", required=True, help="the arm's model config JSON")
+    validate.add_argument("--expect-step", required=True, type=int)
+    validate.add_argument("--for-resume", action="store_true",
+                          help="also require optimizer and lr-scheduler state")
+    return parser
+
+
+def _cmd_make_contract(args):
+    """stdout is ONLY the path, so the launcher can capture it with $(...)."""
+    contract = load_or_create_contract(args.run_dir, lambda: build_contract(
+        run_id=args.run_id,
+        fraction=args.fraction,
+        dataset_config_path=args.dataset_config,
+        split_json_path=args.split_json,
+        model_config_path=args.model_config,
+        seed=args.seed,
+        micro_batch=args.micro_batch,
+        num_gpus=args.num_gpus,
+        accum_batches=args.accum_batches,
+        sync_batchnorm=args.sync_batchnorm,
+        flac_sha=args.flac_sha,
+        package_sha=args.package_sha,
+        launched_at=args.launched_at,
+    ))
+    print(f"run contract for {contract['run_id']} launched at {contract['launched_at']}",
+          file=sys.stderr)
+    print(os.path.join(args.run_dir, CONTRACT_FILENAME))
+    return EXIT_OK
+
+
+def _cmd_validate(args):
+    try:
+        with open(args.contract) as fin:
+            expected_contract = json.load(fin)
+        with open(args.model_config) as fin:
+            expected_model_config = json.load(fin)
+    except (OSError, ValueError) as err:
+        print(f"run_contract validate: cannot read its own inputs ({err})", file=sys.stderr)
+        return EXIT_INPUT_ERROR
+    try:
+        contract = validate_checkpoint(args.ckpt, expected_contract, expected_model_config,
+                                       args.expect_step, args.for_resume)
+    except CheckpointContractError as err:
+        print(f"CONTRACT VIOLATION: {err}", file=sys.stderr)
+        return EXIT_CONTRACT_VIOLATION
+    print(f"OK {args.ckpt}: run_id={contract.get('run_id')} step={args.expect_step}"
+          f"{' resumable' if args.for_resume else ''}")
+    return EXIT_OK
+
+
+def main(argv=None):
+    args = build_arg_parser().parse_args(argv)
+    if args.command == "make-contract":
+        return _cmd_make_contract(args)
+    return _cmd_validate(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
