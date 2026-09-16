@@ -39,12 +39,16 @@ import train
 from prefigure.prefigure import get_all_args
 from train import ModelConfigEmbedderCallback
 from src.training.run_contract import (
+    CONTRACT_FILENAME,
     CONTRACT_VERSION,
+    RESUME_LOG_FILENAME,
     CheckpointContractError,
     RunContractCallback,
+    append_resume_log,
     build_contract,
     canonical_digest,
     file_sha256,
+    load_or_create_contract,
     validate_checkpoint,
 )
 
@@ -618,3 +622,91 @@ def test_D13_revert_guard_train_py_wires_the_flag():
         r"callbacks=build_callbacks\(\s*args,\s*\[ckpt_callback,\s*exc_callback,\s*"
         r"save_model_config_callback\]", source
     ), "main() must pass its three callbacks through build_callbacks"
+
+
+# ======================================================================================
+# D17 — persistence and resume continuity
+# ======================================================================================
+def test_load_or_create_contract_creates_the_sidecar_once(tmp_path, launch_files):
+    """First launch: the contract is built, written to <run-dir>/run_contract.json and
+    returned. The run dir is created if the launcher has not made it yet."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    calls = []
+
+    def build_fn():
+        calls.append(1)
+        return make_contract(launch_files)
+
+    contract = load_or_create_contract(str(run_dir), build_fn)
+
+    assert calls == [1]
+    path = run_dir / CONTRACT_FILENAME
+    assert json.load(open(path)) == contract
+    assert open(path).read().startswith("{\n ")     # indent=1, readable in a worklog
+
+
+def test_D17_load_or_create_contract_returns_the_persisted_contract_verbatim(tmp_path, launch_files):
+    """Resume: the sidecar wins and the builder is never called. A freshly minted contract
+    carries a new launched_at, so a resumed run that rebuilt it would start embedding a
+    contract that no earlier checkpoint matches -- which is exactly what the rejection in
+    test_D17_resumed_checkpoint... demonstrates."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    original = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+
+    def must_not_be_called():
+        raise AssertionError("a resume must re-read the contract, never rebuild it")
+
+    assert load_or_create_contract(str(run_dir), must_not_be_called) == original
+
+
+def test_load_or_create_contract_returns_what_the_file_holds(tmp_path, launch_files):
+    """The returned dict is the JSON round trip of the file (not the in-memory build), so
+    the in-memory contract can never differ from the one a later launch re-reads."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    contract = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+    assert contract == json.load(open(run_dir / CONTRACT_FILENAME))
+
+
+def test_append_resume_log_records_resumes_outside_the_contract(tmp_path, launch_files):
+    """Each resume appends {timestamp, from_ckpt, from_sha} to a SEPARATE resume_log.json;
+    the contract itself never changes, or every resumed checkpoint would stop matching."""
+    run_dir = tmp_path / "dc_cyl_f025"
+    contract = load_or_create_contract(str(run_dir), lambda: make_contract(launch_files))
+
+    first = {"timestamp": "2026-09-18T02:00:00+00:00", "from_ckpt": "step=2500.ckpt", "from_sha": "d" * 64}
+    second = {"timestamp": "2026-09-19T02:00:00+00:00", "from_ckpt": "step=5000.ckpt", "from_sha": "e" * 64}
+    append_resume_log(str(run_dir), first)
+    append_resume_log(str(run_dir), second)
+
+    assert json.load(open(run_dir / RESUME_LOG_FILENAME)) == [first, second]
+    assert json.load(open(run_dir / CONTRACT_FILENAME)) == contract
+
+
+def test_append_resume_log_refuses_a_file_that_is_not_a_list(tmp_path):
+    run_dir = tmp_path / "dc_cyl_f025"
+    os.makedirs(run_dir)
+    write_json(run_dir / RESUME_LOG_FILENAME, {"timestamp": "2026-09-18T02:00:00+00:00"})
+    with pytest.raises(ValueError):
+        append_resume_log(str(run_dir), {"timestamp": "x"})
+
+
+def test_D17_resumed_checkpoint_carries_the_original_contract(trained, tmp_path):
+    """The continuity proof. A second Trainer resumes from the D12 checkpoint with the
+    contract RE-READ from the sidecar; the checkpoint it saves at step 2 validates against
+    the ORIGINAL contract, while a freshly minted one (new launched_at) is rejected -- so
+    the launcher must re-read, never rebuild."""
+    run_dir = trained["root"]
+    persisted = load_or_create_contract(str(run_dir), lambda: trained["contract"])
+    assert persisted == trained["contract"]
+
+    resumed_ckpt = run_training(run_dir / "checkpoints", persisted, MODEL_CONFIG,
+                                max_steps=2, resume_from=trained["ckpt"])
+
+    assert validate_checkpoint(resumed_ckpt, trained["contract"], MODEL_CONFIG,
+                               expect_step=2, for_resume=True) == trained["contract"]
+
+    fresh = make_contract(trained["files"], launched_at="2026-09-18T02:00:00+00:00")
+    assert fresh != trained["contract"]
+    with pytest.raises(CheckpointContractError) as excinfo:
+        validate_checkpoint(resumed_ckpt, fresh, MODEL_CONFIG, expect_step=2, for_resume=True)
+    assert "launched_at" in str(excinfo.value)

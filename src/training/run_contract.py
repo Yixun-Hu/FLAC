@@ -19,11 +19,14 @@ import copy
 import datetime
 import hashlib
 import json
+import os
 
 import pytorch_lightning as pl
 import torch
 
 CONTRACT_VERSION = 1
+CONTRACT_FILENAME = "run_contract.json"
+RESUME_LOG_FILENAME = "resume_log.json"
 
 
 class CheckpointContractError(ValueError):
@@ -230,3 +233,52 @@ def validate_checkpoint(path, expected_contract, expected_model_config, expect_s
                 "state, so the schedule would be rebuilt from the config"
             )
     return contract
+
+
+def _write_json_atomically(path, obj):
+    """Write ``obj`` as indent=1 JSON, replacing ``path`` atomically (never a half file)."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    temporary = path + ".tmp"
+    with open(temporary, "w") as fout:
+        json.dump(obj, fout, indent=1)
+        fout.write("\n")
+    os.replace(temporary, path)
+
+
+def load_or_create_contract(run_dir, build_fn):
+    """The contract of a run is created **once** and re-read verbatim ever after.
+
+    First launch: ``build_fn()`` is called, its result persisted as
+    ``<run_dir>/run_contract.json`` and returned. Every later launch of the same run (i.e.
+    every resume) finds the file and returns it **verbatim**, so checkpoints saved after a
+    resume carry the contract of the original launch -- a rebuilt contract would have a new
+    ``launched_at`` and would no longer match any earlier checkpoint.
+
+    The value returned on the creating launch is the JSON round trip of what was just
+    written, so the in-memory contract can never differ from the one a later launch
+    re-reads. Resumes are recorded by ``append_resume_log``, never inside the contract.
+    """
+    path = os.path.join(run_dir, CONTRACT_FILENAME)
+    if not os.path.exists(path):
+        _write_json_atomically(path, build_fn())
+    with open(path) as fin:
+        return json.load(fin)
+
+
+def append_resume_log(run_dir, entry):
+    """Append one ``{timestamp, from_ckpt, from_sha}`` record to ``<run_dir>/resume_log.json``.
+
+    Kept strictly outside the contract (the contract must stay bit-stable for the life of
+    the run). Returns the full log. A resume log that is not a JSON list is fail-closed:
+    silently replacing it would erase the run's resume history.
+    """
+    path = os.path.join(run_dir, RESUME_LOG_FILENAME)
+    log = []
+    if os.path.exists(path):
+        with open(path) as fin:
+            log = json.load(fin)
+        if not isinstance(log, list):
+            raise ValueError(f"{path} is not a JSON list of resume records")
+    log.append(entry)
+    _write_json_atomically(path, log)
+    return log
