@@ -4,6 +4,8 @@ import json
 import torch 
 import torchaudio
 
+from src.data.dataset import DatasetContractError
+
 
 def get_custom_metadata(info, audio): 
     md = {}
@@ -87,7 +89,13 @@ def get_receiver_source_location(ir_file_path, metadata_path):
     rec_loc = meta_info["rec_loc"]
     return src_loc, rec_loc
 
-def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600):
+def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadata_path, max_len=9600, allowed_basenames=None):
+    """Draw ``num_ref_sources`` reference IRs from the other sources at this receiver.
+
+    ``allowed_basenames`` (exp_14): when None the candidate list and the draws are the
+    pinned upstream ones; when a set/frozenset of split basenames, candidates outside the
+    training split are removed first, and an empty pool is a fatal contract violation.
+    """
     dir_name = os.path.dirname(ir_file_path)
     ir_file_name = ir_file_path.split("/")[-1]
     src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
@@ -100,6 +108,11 @@ def get_ir_and_location_for_other_sources(ir_file_path, num_ref_sources, metadat
         other_src_ir_path = os.path.join(dir_name, f"{src_n}_{rec_n}_hybrid_IR.wav")
         if os.path.exists(other_src_ir_path):
             valid_other_src_ir_paths.append(other_src_ir_path)
+    if allowed_basenames is not None:
+        valid_other_src_ir_paths = [p for p in valid_other_src_ir_paths
+                                    if os.path.basename(p) in allowed_basenames]
+        if len(valid_other_src_ir_paths) == 0:
+            raise DatasetContractError(f"no in-split context for {ir_file_path}")
     try:
         select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=False)
     except Exception as e:

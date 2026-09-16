@@ -198,3 +198,218 @@ def test_B5_plain_exception_still_resamples(tree, capsys):
     assert seen[0] == 0
     assert len(seen) > 1 and seen[-1] != 0, "the pre-existing resample fallback must survive"
     assert "Couldn't load file" in capsys.readouterr().out
+
+
+# ======================================================================================
+# The pinned implementation (commit 7bbd8aa), copied VERBATIM — B1's reference.
+# Only the sampler's name changes (`_pinned_reference`); the two helpers it calls are
+# copied verbatim too, so the reference is independent of any later edit to AR_md.py.
+# ======================================================================================
+def get_3d_point_camera_coord(source_pose, point_3d):
+    camera_matrix = None
+    lis_x, lis_y, lis_z = source_pose[0], source_pose[1], source_pose[2]
+    camera_matrix = np.array([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.], [0., 0., 0., 1.]])
+    camera_matrix[:3, 3] = np.array([-lis_x, -lis_y, -lis_z])
+    point_4d = np.append(point_3d, 1.0)
+    camera_coord_point = camera_matrix @ point_4d
+    return camera_coord_point[:3]
+
+def get_receiver_source_location(ir_file_path, metadata_path):
+    scene_name = ir_file_path.split("/")[-3]
+    scene_id = ir_file_path.split("/")[-2]
+    ir_file_name = ir_file_path.split("/")[-1]
+    src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
+    json_file_name = "S00" + str(src_node) + "_R00" + str(rec_node) + ".json"
+    metadata_file_path = os.path.join(metadata_path, scene_name, scene_id, json_file_name)
+    with open(metadata_file_path, "r") as fin:
+        meta_info = json.load(fin)
+    src_loc = meta_info["src_loc"]
+    rec_loc = meta_info["rec_loc"]
+    return src_loc, rec_loc
+
+def _pinned_reference(ir_file_path, num_ref_sources, metadata_path, max_len=9600):
+    dir_name = os.path.dirname(ir_file_path)
+    ir_file_name = ir_file_path.split("/")[-1]
+    src_node, rec_node = int(ir_file_name.split("_")[0][1:]), int(ir_file_name.split("_")[1][1:])
+    all_src_node = set([int(fn.split("_")[0][1:]) for fn in os.listdir(dir_name)])
+    remain_src_node = list(all_src_node.difference(set([src_node])))
+    valid_other_src_ir_paths = []
+    for node in remain_src_node:
+        rec_n = ir_file_name.split("_")[1]
+        src_n = f"S00{node}"
+        other_src_ir_path = os.path.join(dir_name, f"{src_n}_{rec_n}_hybrid_IR.wav")
+        if os.path.exists(other_src_ir_path):
+            valid_other_src_ir_paths.append(other_src_ir_path)
+    try:
+        select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=False)
+    except Exception as e:
+        select_other_src_ir_paths = np.random.choice(valid_other_src_ir_paths, num_ref_sources, replace=True)
+    all_ref_irs = []
+    all_ref_src_pos = []
+    
+    for fp in select_other_src_ir_paths:
+        ref_wav, rate = torchaudio.load(fp)
+        assert rate == 22050, "IR sampling rate must be 22050!"
+        if ref_wav.shape[1] < max_len:
+            ref_wav = torch.cat([ref_wav, torch.zeros(ref_wav.shape[0], max_len - ref_wav.shape[1])], dim=1)
+        else:
+            ref_wav = ref_wav[:, :max_len]
+        ref_wav = ref_wav.unsqueeze(0) # C=1
+        all_ref_irs.append(ref_wav)
+
+        src_loc, rec_loc = get_receiver_source_location(fp, metadata_path=metadata_path)
+        
+        proj_src_loc = get_3d_point_camera_coord(rec_loc, src_loc)
+        
+        all_ref_src_pos.append(torch.Tensor(proj_src_loc).float())
+    all_ref_irs = torch.cat(all_ref_irs, dim=0)
+    all_ref_src_pos = torch.vstack(all_ref_src_pos)
+    return all_ref_irs, all_ref_src_pos
+
+
+def drawn_markers(ref_irs):
+    """Impulse position of every drawn context IR (shape [N, 1, max_len]) -> its identity."""
+    assert ref_irs.dim() == 3 and ref_irs.shape[1] == 1
+    return [int(torch.argmax(row[0])) for row in ref_irs]
+
+
+# ======================================================================================
+# B1 — allowed_basenames=None is bitwise the pinned implementation, seed for seed
+# ======================================================================================
+# num_ref_sources=2 with 2 candidates -> replace=False branch;
+# num_ref_sources=8 with 2 candidates -> the ValueError is caught -> replace=True branch.
+@pytest.mark.parametrize("num_ref_sources", [2, 8])
+@pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.parametrize("receiver", [1, 2])
+def test_B1_default_path_is_bitwise_the_pinned_implementation(
+    tree, ar_md, num_ref_sources, seed, receiver
+):
+    target = ir_path(tree, tree["rooms"][0], 1, receiver)
+
+    np.random.seed(seed)
+    ref_irs, ref_pos = _pinned_reference(
+        target, num_ref_sources, metadata_dir(tree), max_len=IR_LEN
+    )
+
+    np.random.seed(seed)
+    new_irs, new_pos = ar_md.get_ir_and_location_for_other_sources(
+        target,
+        num_ref_sources=num_ref_sources,
+        metadata_path=metadata_dir(tree),
+        max_len=IR_LEN,
+        allowed_basenames=None,
+    )
+
+    assert torch.equal(new_irs, ref_irs)
+    assert torch.equal(new_pos, ref_pos)
+    assert new_irs.shape == (num_ref_sources, 1, IR_LEN)
+    assert new_pos.shape == (num_ref_sources, 3)
+    if num_ref_sources > 2:  # the replacement branch really was the one exercised
+        assert len(set(drawn_markers(new_irs))) < num_ref_sources
+
+
+def test_B1_default_path_is_the_default_argument(tree, ar_md):
+    """Existing call sites pass no allowed_basenames at all."""
+    target = ir_path(tree, tree["rooms"][0], 2, 1)
+
+    np.random.seed(7)
+    ref_irs, ref_pos = _pinned_reference(target, 8, metadata_dir(tree), max_len=IR_LEN)
+
+    np.random.seed(7)
+    new_irs, new_pos = ar_md.get_ir_and_location_for_other_sources(
+        target, num_ref_sources=8, metadata_path=metadata_dir(tree), max_len=IR_LEN
+    )
+
+    assert torch.equal(new_irs, ref_irs)
+    assert torch.equal(new_pos, ref_pos)
+
+
+# ======================================================================================
+# B2 — restricted pool: every draw is in-split, the target is never drawn
+# ======================================================================================
+def test_B2_restricted_pool_without_replacement(tree, ar_md):
+    room = tree["rooms"][0]
+    target = ir_path(tree, room, 1, 1)
+    allowed = frozenset({ir_basename(2, 1), ir_basename(3, 1)})  # 2 of 3 sources, no target
+
+    np.random.seed(0)
+    irs, pos = ar_md.get_ir_and_location_for_other_sources(
+        target,
+        num_ref_sources=2,
+        metadata_path=metadata_dir(tree),
+        max_len=IR_LEN,
+        allowed_basenames=allowed,
+    )
+
+    drawn = [tree["file_of_marker"][m] for m in drawn_markers(irs)]
+    assert {b for _, b in drawn} == set(allowed)
+    assert all(r == room for r, _ in drawn)
+    assert ir_basename(1, 1) not in {b for _, b in drawn}
+
+
+def test_B2_restricted_pool_smaller_than_k_uses_replacement(tree, ar_md):
+    room = tree["rooms"][0]
+    target = ir_path(tree, room, 1, 1)
+    # 2 of the room's 3 sources are in-split, but one of them IS the target -> pool of 1.
+    allowed = frozenset({ir_basename(1, 1), ir_basename(2, 1)})
+
+    np.random.seed(0)
+    irs, pos = ar_md.get_ir_and_location_for_other_sources(
+        target,
+        num_ref_sources=8,
+        metadata_path=metadata_dir(tree),
+        max_len=IR_LEN,
+        allowed_basenames=allowed,
+    )
+
+    assert irs.shape == (8, 1, IR_LEN)
+    drawn = [tree["file_of_marker"][m] for m in drawn_markers(irs)]
+    assert {b for _, b in drawn} == {ir_basename(2, 1)}  # replacement branch, all in-split
+    assert torch.equal(pos, torch.tensor([[2.0, 1.0, 0.0]]).repeat(8, 1))
+
+
+def test_B2_restriction_ignores_out_of_split_and_other_receivers(tree, ar_md):
+    """A plain `set` works too, and files of other receivers are never reachable anyway."""
+    room = tree["rooms"][0]
+    target = ir_path(tree, room, 3, 2)
+    allowed = {ir_basename(1, 2), ir_basename(1, 1), ir_basename(2, 1)}
+
+    np.random.seed(3)
+    irs, _ = ar_md.get_ir_and_location_for_other_sources(
+        target,
+        num_ref_sources=4,
+        metadata_path=metadata_dir(tree),
+        max_len=IR_LEN,
+        allowed_basenames=allowed,
+    )
+
+    drawn = [tree["file_of_marker"][m] for m in drawn_markers(irs)]
+    assert {b for _, b in drawn} == {ir_basename(1, 2)}  # only in-split file at receiver 2
+
+
+# ======================================================================================
+# B3 — an empty restricted pool is a fatal contract violation
+# ======================================================================================
+@pytest.mark.parametrize(
+    "allowed",
+    [
+        frozenset(),                              # nothing in split
+        frozenset({"S001_R001_hybrid_IR.wav"}),   # only the target itself
+        frozenset({"S002_R002_hybrid_IR.wav"}),   # only another receiver's file
+    ],
+)
+def test_B3_empty_filtered_pool_raises_dataset_contract_error(tree, ar_md, allowed):
+    target = ir_path(tree, tree["rooms"][0], 1, 1)
+
+    with pytest.raises(DatasetContractError) as excinfo:
+        ar_md.get_ir_and_location_for_other_sources(
+            target,
+            num_ref_sources=8,
+            metadata_path=metadata_dir(tree),
+            max_len=IR_LEN,
+            allowed_basenames=allowed,
+        )
+
+    assert "no in-split context" in str(excinfo.value)
+    assert target in str(excinfo.value)
+    assert isinstance(excinfo.value, RuntimeError)
