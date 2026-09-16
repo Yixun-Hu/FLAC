@@ -183,3 +183,209 @@ def test_git_head_passes_on_the_expected_sha():
 def test_git_head_fails_on_another_sha_and_outside_a_repo(tmp_path):
     assert not verify.check_git_head(REPO_ROOT, "0" * 40, "FLAC worktree").ok
     assert not verify.check_git_head(str(tmp_path), "0" * 40, "package").ok
+
+
+# ------------------------------------------------------- the committed split artifacts
+TOY_SPLIT = {
+    "Toy": {
+        "Toy_idx_0": [f"S{s:03d}_R{r:03d}_hybrid_IR.wav"
+                      for s in range(4) for r in range(4)],
+        "Toy_idx_1": [f"S{s:03d}_R{r:03d}_hybrid_IR.wav"
+                      for s in range(3) for r in range(5)],
+    },
+    "Toy2": {
+        "Toy2_idx_0": [f"S{s:03d}_R{r:03d}_hybrid_IR.wav"
+                       for s in range(2) for r in range(6)],
+    },
+}
+
+
+def _splits(tmp_path, split=None):
+    """A committed-artifact fixture built by the round-A tool itself."""
+    data_dir = tmp_path / "data" / "AR"
+    data_dir.mkdir(parents=True)
+    train_json = data_dir / "train.json"
+    train_json.write_text(json.dumps(TOY_SPLIT if split is None else split))
+    built, manifest = subsets.build_subsets(json.loads(train_json.read_text()),
+                                            [0.25, 0.5, 0.75], verify.SPLIT_SEED,
+                                            str(train_json))
+    subsets.write_outputs(str(data_dir), built, manifest, verify.SPLIT_SEED)
+    return str(data_dir)
+
+
+def test_split_checksums_pass_on_a_freshly_written_set(tmp_path):
+    results = verify.check_split_checksums(_splits(tmp_path))
+    assert all(r.ok for r in results), [r.line() for r in results]
+
+
+def test_split_checksums_fail_when_a_split_file_is_edited(tmp_path):
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train_frac050_s2026.json")
+    edited = json.loads(open(path).read())
+    edited["Toy"]["Toy_idx_0"] = edited["Toy"]["Toy_idx_0"][:-1]
+    open(path, "w").write(json.dumps(edited))
+    results = verify.check_split_checksums(data_dir)
+    assert not all(r.ok for r in results)
+    assert any("train_frac050" in r.detail or "train_frac050" in r.name
+               for r in results if not r.ok)
+
+
+def test_split_checksums_fail_when_the_manifest_itself_is_edited(tmp_path):
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train_frac_manifest_s2026.json")
+    manifest = json.loads(open(path).read())
+    manifest["fractions"]["0.25"]["final"] += 1
+    open(path, "w").write(json.dumps(manifest))
+    assert not all(r.ok for r in verify.check_split_checksums(data_dir))
+
+
+def test_split_contents_pass_on_a_freshly_written_set(tmp_path):
+    results = verify.check_split_contents(_splits(tmp_path))
+    assert all(r.ok for r in results), [r.line() for r in results]
+    names = {r.name for r in results}
+    assert {"splits are nested", "no starved targets", "split sizes match the manifest",
+            "eligible-context histograms match the manifest"} <= names
+
+
+def test_split_contents_fail_on_broken_nesting(tmp_path):
+    data_dir = _splits(tmp_path)
+    smaller = json.loads(open(os.path.join(data_dir, "train_frac025_s2026.json")).read())
+    inherited = smaller["Toy"]["Toy_idx_0"][0]
+    path = os.path.join(data_dir, "train_frac050_s2026.json")
+    broken = json.loads(open(path).read())
+    broken["Toy"]["Toy_idx_0"] = [f for f in broken["Toy"]["Toy_idx_0"] if f != inherited]
+    open(path, "w").write(json.dumps(broken))
+    results = verify.check_split_contents(data_dir)
+    nested_ok, nested = _ok(results, "splits are nested")
+    assert not nested_ok, [r.line() for r in results]
+    assert inherited in nested[0].detail
+    assert not _ok(results, "split sizes match the manifest")[0]
+
+
+def test_split_contents_fail_on_a_starved_target(tmp_path):
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train_frac025_s2026.json")
+    broken = json.loads(open(path).read())
+    # keep exactly one source at one receiver -> that target has an empty context pool
+    broken["Toy2"]["Toy2_idx_0"] = ["S000_R000_hybrid_IR.wav"]
+    open(path, "w").write(json.dumps(broken))
+    results = verify.check_split_contents(data_dir)
+    ok, starved = _ok(results, "no starved targets")
+    assert not ok, [r.line() for r in results]
+    assert "1" in starved[0].detail
+
+
+def test_split_contents_fail_when_a_split_leaves_train_json(tmp_path):
+    data_dir = _splits(tmp_path)
+    path = os.path.join(data_dir, "train_frac075_s2026.json")
+    broken = json.loads(open(path).read())
+    broken["Toy"]["Toy_idx_0"].append("S099_R099_hybrid_IR.wav")
+    open(path, "w").write(json.dumps(broken))
+    ok, _ = _ok(verify.check_split_contents(data_dir), "splits are subsets of train.json")
+    assert not ok
+
+
+# ------------------------------------------------------------- the anchor audit (D3)
+def _dataset_root(tmp_path, listed, on_disk):
+    root = tmp_path / "AR"
+    for scene, rooms in on_disk.items():
+        for room, files in rooms.items():
+            room_dir = root / "single_channel_ir_1" / scene / room
+            room_dir.mkdir(parents=True)
+            for fname in files:
+                (room_dir / fname).write_bytes(b"")
+    train_json = tmp_path / "train_listed.json"
+    train_json.write_text(json.dumps(listed))
+    return str(root), str(train_json)
+
+
+def test_anchor_audit_passes_when_extra_files_sit_at_unlisted_receivers(tmp_path):
+    listed = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav", "S001_R000_hybrid_IR.wav"]}}
+    on_disk = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav", "S001_R000_hybrid_IR.wav",
+                                     "S000_R777_hybrid_IR.wav", "S001_R777_hybrid_IR.wav"]}}
+    root, train_json = _dataset_root(tmp_path, listed, on_disk)
+    result = verify.check_anchor_audit(root, train_json)
+    assert result.ok, result.line()
+    assert "2" in result.detail            # two extra files, zero violations
+
+
+def test_anchor_audit_fails_on_an_extra_file_at_a_training_receiver(tmp_path):
+    listed = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav", "S001_R000_hybrid_IR.wav"]}}
+    on_disk = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav", "S001_R000_hybrid_IR.wav",
+                                     "S002_R000_hybrid_IR.wav"]}}
+    root, train_json = _dataset_root(tmp_path, listed, on_disk)
+    result = verify.check_anchor_audit(root, train_json)
+    assert not result.ok
+    assert "S002_R000_hybrid_IR.wav" in result.detail
+
+
+def test_anchor_audit_fails_when_a_room_is_missing_on_disk(tmp_path):
+    listed = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav"]},
+              "Gone": {"Gone_idx_0": ["S000_R000_hybrid_IR.wav"]}}
+    on_disk = {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav"]}}
+    root, train_json = _dataset_root(tmp_path, listed, on_disk)
+    assert not verify.check_anchor_audit(root, train_json).ok
+
+
+# ------------------------------------------------------------------ report and CLI
+def test_run_all_reports_every_check_and_summarises(tmp_path, capsys):
+    kit, shas = _kit(tmp_path)
+    results = verify.run_all(
+        flac_wt=REPO_ROOT, kit_dir=kit, pkg_dir=REPO_ROOT,
+        expect_flac_sha=_head(REPO_ROOT), expect_pkg_sha="0" * 40,
+        data_dir=_splits(tmp_path), dataset_root=None, expected_arm_shas=shas,
+    )
+    failed = [r for r in results if not r.ok]
+    assert [r.name for r in failed] == ["package HEAD"], [r.line() for r in results]
+    assert verify.report(results) == verify.EXIT_FAILED
+    out = capsys.readouterr().out
+    assert out.count("PASS ") == len(results) - 1
+    assert "FAIL package HEAD" in out
+
+
+def test_run_all_skips_the_anchor_audit_only_when_no_root_is_given(tmp_path):
+    kit, shas = _kit(tmp_path)
+    common = dict(flac_wt=REPO_ROOT, kit_dir=kit, pkg_dir=REPO_ROOT,
+                  expect_flac_sha=_head(REPO_ROOT), expect_pkg_sha=_head(REPO_ROOT),
+                  data_dir=_splits(tmp_path), expected_arm_shas=shas)
+    without = verify.run_all(dataset_root=None, **common)
+    assert all(r.ok for r in without), [r.line() for r in without]
+    assert not any("anchor" in r.name for r in without)
+
+    root, train_json = _dataset_root(
+        tmp_path, {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav"]}},
+        {"Toy": {"Toy_idx_0": ["S000_R000_hybrid_IR.wav", "S001_R000_hybrid_IR.wav"]}})
+    with_root = verify.run_all(dataset_root=root, train_json=train_json, **common)
+    anchor = [r for r in with_root if "anchor" in r.name]
+    assert len(anchor) == 1 and not anchor[0].ok      # S001 sits at a listed receiver
+
+
+def test_cli_exits_3_when_a_check_fails(tmp_path):
+    kit, _ = _kit(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, "-m", "src.tools.data_curve.verify",
+         "--expect-flac-sha", "0" * 40, "--expect-pkg-sha", "0" * 40,
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit, "--flac-wt", REPO_ROOT,
+         "--data-dir", _splits(tmp_path), "--skip-anchor-audit"],
+        cwd=REPO_ROOT, capture_output=True, text=True)
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "FAIL FLAC worktree HEAD" in proc.stdout
+
+
+def test_cli_exits_0_on_the_real_launch_contract():
+    """The full contract, as the launcher runs it, against this worktree and the kit."""
+    kit = os.path.join(os.path.dirname(REPO_ROOT), "cylindrical-dinov3", "worklog",
+                       "worklog_yixun", "exp_14_data_curve_claude")
+    dataset_root = os.path.join(REPO_ROOT, "AcousticRooms")
+    if not os.path.isdir(os.path.join(kit, "configs")):
+        pytest.skip("kit not available")
+    if not os.path.isdir(os.path.join(dataset_root, "single_channel_ir_1")):
+        pytest.skip("AcousticRooms not available")
+    head = _head(REPO_ROOT)
+    proc = subprocess.run(
+        [sys.executable, "-m", "src.tools.data_curve.verify",
+         "--expect-flac-sha", head, "--expect-pkg-sha", head,
+         "--pkg-dir", REPO_ROOT, "--kit-dir", kit],
+        cwd=REPO_ROOT, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "FAIL" not in proc.stdout
