@@ -1,0 +1,69 @@
+=== rung5 cyl start 2026-09-16T15:48:41-04:00 FLAC=e86aed1 cfg=8df8a8117449ced6
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+You are using a model of type dinov3_vit to instantiate a model of type cylindrical_dinov3_vit. This is not supported for all configurations of models and can yield errors.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/logger_connector/logger_connector.py:67: Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `pytorch_lightning` package, due to potential conflicts with other packages in the ML ecosystem. For this reason, `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard` or `tensorboardX` packages are found. Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+You are using a model of type dinov3_vit to instantiate a model of type cylindrical_dinov3_vit. This is not supported for all configurations of models and can yield errors.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+Missing logger folder: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5_cyl/lightning_logs
+Missing logger folder: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5_cyl/lightning_logs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/callbacks/model_checkpoint.py:630: Checkpoint directory /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/smoke/smoke5_cyl exists and is not empty.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 73473 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading cylindrical_dinov3 ViT from facebook/dinov3-vits16-pretrain-lvd1689m (gauge=cylindrical_xyz, azimuth_mode=full, prefix_mode=strip, attn=eager)...
+21.59M/21.60M parameters are trainable
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 73473 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading cylindrical_dinov3 ViT from facebook/dinov3-vits16-pretrain-lvd1689m (gauge=cylindrical_xyz, azimuth_mode=full, prefix_mode=strip, attn=eager)...
+21.59M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/18368 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/18368 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/18368 [00:02<13:39:01,  0.37it/s]Epoch 0:   0%|          | 1/18368 [00:02<13:39:18,  0.37it/s, v_num=0, train/loss=2.190, train/std_data=1.130, train/lr=5e-7, train/mse_loss=2.190]Epoch 0:   0%|          | 2/18368 [00:03<9:34:17,  0.53it/s, v_num=0, train/loss=2.190, train/std_data=1.130, train/lr=5e-7, train/mse_loss=2.190] Epoch 0:   0%|          | 2/18368 [00:03<9:34:41,  0.53it/s, v_num=0, train/loss=2.300, train/std_data=1.100, train/lr=9.95e-7, train/mse_loss=2.300]Epoch 0:   0%|          | 3/18368 [00:04<8:13:23,  0.62it/s, v_num=0, train/loss=2.300, train/std_data=1.100, train/lr=9.95e-7, train/mse_loss=2.300]Epoch 0:   0%|          | 3/18368 [00:04<8:13:26,  0.62it/s, v_num=0, train/loss=2.040, train/std_data=1.070, train/lr=1.49e-6, train/mse_loss=2.040]Epoch 0:   0%|          | 3/18368 [00:04<8:13:30,  0.62it/s, v_num=0, train/loss=2.040, train/std_data=1.070, train/lr=1.49e-6, train/mse_loss=2.040]`Trainer.fit` stopped: `max_steps=3` reached.
+Epoch 0:   0%|          | 3/18368 [00:04<8:13:37,  0.62it/s, v_num=0, train/loss=2.040, train/std_data=1.070, train/lr=1.49e-6, train/mse_loss=2.040]
+[rank0]:[W916 15:49:06.537356228 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+=== rung5 cyl rc=0 end 2026-09-16T15:49:07-04:00
