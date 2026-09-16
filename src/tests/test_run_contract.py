@@ -27,11 +27,16 @@ import glob
 import hashlib
 import json
 import os
+import re
+import sys
+import types
 
 import pytest
 import pytorch_lightning as pl
 import torch
 
+import train
+from prefigure.prefigure import get_all_args
 from train import ModelConfigEmbedderCallback
 from src.training.run_contract import (
     CONTRACT_VERSION,
@@ -500,3 +505,116 @@ def test_D16_the_same_checkpoint_is_valid_when_not_resuming(trained, tmp_path):
                                   lambda ckpt: ckpt["optimizer_states"][0].__setitem__("state", {}))
     assert validate_checkpoint(stripped, trained["contract"], MODEL_CONFIG, expect_step=1,
                                for_resume=False) == trained["contract"]
+
+
+# ======================================================================================
+# D13 — the --run-contract-json flag: default off is byte-identical to before
+# ======================================================================================
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DEFAULTS_INI = os.path.join(_REPO_ROOT, "defaults.ini")
+_TRAIN_PY = os.path.join(_REPO_ROOT, "train.py")
+
+BASE_TRAINER_KWARGS = {
+    "devices", "accelerator", "num_nodes", "strategy", "precision",
+    "accumulate_grad_batches", "callbacks", "logger", "log_every_n_steps",
+    "max_steps", "default_root_dir", "gradient_clip_val",
+    "reload_dataloaders_every_n_epochs", "num_sanity_val_steps",
+}
+
+
+def stub_args(**overrides):
+    base = dict(
+        num_gpus=1, num_nodes=1, precision="bf16-mixed", accum_batches=1,
+        max_steps=1_000_000, gradient_clip_val=0.0, sync_batchnorm="false",
+        run_contract_json="",
+    )
+    base.update(overrides)
+    return types.SimpleNamespace(**base)
+
+
+def test_D13_defaults_ini_declares_run_contract_json_empty():
+    with open(_DEFAULTS_INI) as fin:
+        ini = fin.read()
+    assert re.search(r"(?m)^\s*run_contract_json\s*=\s*''\s*$", ini), (
+        "defaults.ini must declare `run_contract_json = ''` (default off)"
+    )
+
+
+def test_D13_prefigure_default_is_empty(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["train.py"])
+    args = get_all_args(defaults_file=_DEFAULTS_INI)
+    assert hasattr(args, "run_contract_json")
+    assert args.run_contract_json == ""
+
+
+def test_D13_cli_flag_overrides_the_path(monkeypatch):
+    """Prefigure maps the ini key to ``--run-contract-json`` (``_`` -> ``-``)."""
+    monkeypatch.setattr(sys, "argv", ["train.py", "--run-contract-json", "/nas/run_contract.json"])
+    args = get_all_args(defaults_file=_DEFAULTS_INI)
+    assert args.run_contract_json == "/nas/run_contract.json"
+
+
+def test_D13_default_leaves_the_callbacks_list_identical():
+    """Default off => the callbacks list is exactly the three objects main() built, in
+    order: every existing recipe behaves as before round D."""
+    base = [object(), object(), object()]
+    callbacks = train.build_callbacks(stub_args(), base)
+    assert callbacks == base
+    assert [id(cb) for cb in callbacks] == [id(cb) for cb in base]
+    assert callbacks is not base       # a copy, so the caller's list is never mutated
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_D13_default_leaves_the_trainer_kwargs_identical(missing):
+    """The flag never becomes a Trainer kwarg; with it empty (or absent from args
+    entirely, e.g. an older recipe) the kwargs dict is the pre-change dict."""
+    args = stub_args()
+    if missing:
+        del args.run_contract_json
+    base = [object(), object(), object()]
+    kwargs = train.build_trainer_kwargs(
+        args, strategy="auto", callbacks=train.build_callbacks(args, base), logger=None,
+        checkpoint_dir=None, val_args={},
+    )
+    assert set(kwargs) == BASE_TRAINER_KWARGS
+    assert kwargs["callbacks"] == base
+
+
+def test_D13_flag_appends_the_contract_callback_after_the_existing_three(tmp_path, launch_files):
+    """Enabled => exactly one extra callback, appended LAST, carrying the parsed contract."""
+    contract = make_contract(launch_files)
+    path = write_json(tmp_path / "run_contract.json", contract, indent=1)
+    base = [object(), object(), object()]
+
+    callbacks = train.build_callbacks(stub_args(run_contract_json=path), base)
+
+    assert len(callbacks) == 4
+    assert [id(cb) for cb in callbacks[:3]] == [id(cb) for cb in base]
+    assert isinstance(callbacks[3], RunContractCallback)
+    assert callbacks[3].contract == contract
+    assert base == [base[0], base[1], base[2]] and len(base) == 3   # caller's list untouched
+
+
+def test_D13_missing_contract_file_is_fail_closed(tmp_path):
+    """A run launched with a contract path that does not exist must not train contract-less."""
+    with pytest.raises(OSError):
+        train.build_callbacks(stub_args(run_contract_json=str(tmp_path / "absent.json")), [])
+
+
+def test_D13_contract_json_that_is_not_an_object_is_fail_closed(tmp_path):
+    path = write_json(tmp_path / "list.json", ["dc_cyl_f025"])
+    with pytest.raises(TypeError):
+        train.build_callbacks(stub_args(run_contract_json=path), [])
+
+
+def test_D13_revert_guard_train_py_wires_the_flag():
+    """Cheap source-level revert guard: main() must route its three callbacks through
+    build_callbacks, and build_callbacks must construct a RunContractCallback."""
+    with open(_TRAIN_PY) as fin:
+        source = fin.read()
+    assert "RunContractCallback" in source
+    assert "run_contract_json" in source
+    assert re.search(
+        r"callbacks=build_callbacks\(\s*args,\s*\[ckpt_callback,\s*exc_callback,\s*"
+        r"save_model_config_callback\]", source
+    ), "main() must pass its three callbacks through build_callbacks"

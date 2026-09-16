@@ -8,6 +8,7 @@ from src.data.dataset import create_dataloader_from_config
 from src.models import create_model_from_config
 from src.models.utils import load_ckpt_state_dict, remove_weight_norm_from_model
 from src.training import create_training_wrapper_from_config
+from src.training.run_contract import RunContractCallback
 
 class ExceptionCallback(pl.Callback):
     def on_exception(self, trainer, module, err):
@@ -38,6 +39,25 @@ def _as_bool(value):
             return False
         raise ValueError(f"cannot interpret sync_batchnorm={value!r} as a boolean")
     raise TypeError(f"sync_batchnorm must be bool or str, got {type(value).__name__}")
+
+def build_callbacks(args, base_callbacks):
+    """Assemble the Trainer's callback list (side-effect free apart from reading the file).
+
+    ``--run-contract-json`` (ini key ``run_contract_json``, default empty) points at the
+    run's persisted ``run_contract.json``; when set, the parsed contract is embedded in
+    every checkpoint by RunContractCallback, appended AFTER the existing three callbacks
+    (exp_14 round D, finding r2-2). Default empty => the returned list is exactly
+    ``base_callbacks``, in order, so the callbacks list and every Trainer kwarg are
+    byte-identical to the pre-flag behaviour. A path that cannot be read, or that does not
+    hold a JSON object, is fail-closed (OSError / TypeError): a run must never train
+    contract-less because its contract path was mistyped.
+    """
+    callbacks = list(base_callbacks)
+    contract_json = getattr(args, "run_contract_json", "") or ""
+    if contract_json:
+        with open(contract_json) as f:
+            callbacks.append(RunContractCallback(json.load(f)))
+    return callbacks
 
 def build_trainer_kwargs(args, strategy, callbacks, logger, checkpoint_dir, val_args):
     """Assemble the pl.Trainer keyword arguments (side-effect free; unit-testable).
@@ -221,7 +241,7 @@ def main():
     trainer = construct_trainer(
         args,
         strategy=strategy,
-        callbacks=[ckpt_callback, exc_callback, save_model_config_callback],
+        callbacks=build_callbacks(args, [ckpt_callback, exc_callback, save_model_config_callback]),
         logger=logger,
         checkpoint_dir=checkpoint_dir,
         val_args=val_args,
