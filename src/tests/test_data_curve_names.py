@@ -152,6 +152,8 @@ NAS = "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve"
 
 
 def test_train_argv_is_the_frozen_exp13_recipe_token_by_token():
+    """Numerically the exp_13 tier-B / exp_07 P1 recipe; `--logger none` is the one
+    deliberate difference (exp_13 used wandb), pinned here so it stays deliberate."""
     argv = names.train_argv(
         "cyl", "025", KIT_CYL,
         "src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json",

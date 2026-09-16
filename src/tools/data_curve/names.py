@@ -58,7 +58,9 @@ TRAIN_DATASET_CONFIGS = {
 #: fraction tag -> the split file itself (the run contract's ``split_sha256`` input).
 SPLIT_FILES = {tag: f"data/AR/train_frac{tag}_s2026.json" for tag in FRACTIONS}
 
-# The frozen recipe (plan §2): identical to exp_13 tier B / exp_07 P1.
+# The frozen recipe (plan §2). Every NUMERIC value is identical to exp_13 tier B / exp_07
+# P1; the one deliberate difference is `LOGGER = "none"` (exp_13's chain_exp13.sh used
+# wandb), which matches the P1 recipe and changes nothing a gradient sees.
 PRETRANSFORM_CKPT = "weights/FLAC/VAE.safetensors"
 MAX_STEPS = 40000
 MICRO_BATCH = 32
@@ -222,7 +224,12 @@ def _check_run_dir(run, run_dir, what):
 
 def train_argv(arm, tag, model_config, dataset_config, save_dir, run_contract_json,
                ckpt_path=None):
-    """The frozen training command of one run (plan §2; == exp_13 tier B == exp_07 P1).
+    """The frozen training command of one run (plan §2).
+
+    Numerically identical to exp_13 tier B / exp_07 P1, token for token, with one
+    deliberate difference: `--logger none` where exp_13 logged to wandb. That matches the
+    P1 recipe and has no training-numeric effect -- it is stated here rather than calling
+    the recipe "verbatim", which it is not (codex full-r2 NIT 5).
 
     Every value is fixed by the recipe; the four paths are inputs because they differ
     between the kit, the worktree and the NAS. Three substitutions are fail-closed,
