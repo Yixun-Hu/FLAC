@@ -198,9 +198,15 @@ ANCHOR_REFERENCE_KEYS = {"van": "P1_vanilla_S", "cyl": "CylDINO_core_S"}
 #: tier_S_reference.json states its own n (five eval seeds) in ``_provenance``; it holds
 #: no per-seed values, so a marginal anchor's n is *declared*, never recounted here.
 ANCHOR_DECLARED_SEEDS = 5
-#: Placed-by-hand anchor cells live beside the raw JSONs in this file (D10: P1's seed-42
-#: K=8 anchor is the screen cell, whose basename names neither K nor seed).
+#: The raw anchor cells are pinned beside them in this file: one entry per JSON, each
+#: carrying ``sha256`` and (optionally, when the basename does not say) ``K``/``seed``.
+#: D10's P1 seed-42 K=8 anchor is the screen cell, whose basename names neither.
 ANCHOR_MANIFEST_BASENAME = "anchor_cells.json"
+#: The sha256 of that screen cell in the FLAC checkout, quoted by plan D10 and by the
+#: codex D3 review. Recorded here so the pin can be checked without opening the plan;
+#: the assembler never hard-codes which FILE an anchor is, only what its bytes must be.
+P1_SCREEN_K8_S42_SHA256 = \
+    "8bd130a70442fff9f247677a046efaee9c8bfd983a2630ca8380a33cb0276f04"
 _ANCHOR_CELL_RE = re.compile(r"_K(\d+)_s(\d+)(?=[_.])")
 
 
@@ -426,53 +432,83 @@ def load_anchor_reference(path, arms=names.ARMS, ks=names.K_VALUES):
 def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES):
     """``({K: {seed: cell}}, violations)`` for the raw 100 % anchor JSONs of one arm.
 
-    Placing a cell is the whole difficulty. Most anchor basenames carry ``_K<k>_s<seed>``,
-    but D10's seed-42 K=8 P1 anchor is the screen cell ``..._exp07_P1_screen_S40000_ema``,
-    whose name says neither -- so an ``anchor_cells.json`` beside the JSONs pins those by
-    hand and a cell that is neither parseable nor pinned is refused, never guessed. Two
-    cells claiming one slot is likewise a refusal: "the newest wins" is how an anchor
-    quietly becomes a different measurement.
+    Two things have to be true of a cell before it may move the fixed end of this curve
+    (codex D3 finding 5). It must be PLACED: most basenames carry ``_K<k>_s<seed>``, but
+    D10's seed-42 K=8 P1 anchor is the screen cell ``..._exp07_P1_screen_S40000_ema``,
+    whose name says neither -- so ``anchor_cells.json`` places those by hand, and anything
+    neither parseable nor placed is refused rather than guessed. And it must be PINNED: the
+    same manifest carries a ``sha256`` per file, checked against the bytes on disk, because
+    a protocol-compatible cell from another step renamed into a slot would otherwise change
+    B_100, the data-equivalence scan and possibly the verdict, and nothing would say so.
+
+    No manifest at all means no pins, which means no paired anchors -- not "fall back to
+    names".
     """
     violations = []
     cells = {K: {} for K in ks}
-    manifest = {}
     manifest_path = os.path.join(directory, ANCHOR_MANIFEST_BASENAME)
-    if os.path.exists(manifest_path):
-        with open(manifest_path) as fin:
-            manifest = json.load(fin)
+    manifest, unreadable = (_load_json(manifest_path) if os.path.exists(manifest_path)
+                            else (None, [f"{manifest_path} does not exist"]))
+    if not isinstance(manifest, dict):
+        return cells, [f"{directory}: no usable {ANCHOR_MANIFEST_BASENAME} "
+                       f"({'; '.join(unreadable) or 'not an object'}), so no anchor cell is "
+                       "pinned by sha256 and the paired 100 % form is unavailable"]
     claims = {}
     for path in sorted(glob.glob(os.path.join(glob.escape(directory), "*.json"))):
         base = os.path.basename(path)
         if base == ANCHOR_MANIFEST_BASENAME:
             continue
+        entry = manifest.get(base)
+        if not isinstance(entry, dict):
+            violations.append(f"{base}: has no entry in {ANCHOR_MANIFEST_BASENAME}, so its "
+                              "bytes are not pinned and it cannot serve as an anchor")
+            continue
         slot = None
-        if base in manifest:
-            slot = (int(manifest[base]["K"]), int(manifest[base]["seed"]))
+        if "K" in entry and "seed" in entry:
+            slot = (int(entry["K"]), int(entry["seed"]))
         else:
             hit = _ANCHOR_CELL_RE.search(base)
             if hit:
                 slot = (int(hit.group(1)), int(hit.group(2)))
         if slot is None or slot[0] not in ks or slot[1] not in seeds:
             violations.append(
-                f"{base}: names no K/seed this experiment evaluates and is not placed by "
-                f"{ANCHOR_MANIFEST_BASENAME} -- the 100 % anchors are pinned, never guessed")
+                f"{base}: names no K/seed this experiment evaluates and its "
+                f"{ANCHOR_MANIFEST_BASENAME} entry does not place it -- the 100 % anchors "
+                "are pinned, never guessed")
             continue
-        claims.setdefault(slot, []).append(path)
-    for (K, seed), paths in sorted(claims.items()):
-        if len(paths) > 1:
+        claims.setdefault(slot, []).append((path, entry))
+    for (K, seed), found in sorted(claims.items()):
+        if len(found) > 1:
             violations.append(f"K{K} s{seed}: more than one cell claims this anchor slot ("
-                              + ", ".join(os.path.basename(p) for p in paths) + ")")
+                              + ", ".join(os.path.basename(p) for p, _ in found) + ")")
             continue
-        metrics, _, bad = _read_cell(paths[0], arm)
+        path, entry = found[0]
+        base = os.path.basename(path)
+        pinned = entry.get("sha256")
+        if not isinstance(pinned, str) or len(pinned) != 64:
+            violations.append(f"{base}: its {ANCHOR_MANIFEST_BASENAME} entry carries no "
+                              f"sha256 ({pinned!r}); an unpinned anchor is not an anchor")
+            continue
+        try:
+            digest = names.file_sha256(path)
+        except OSError as err:
+            violations.append(f"{base}: cannot be hashed, so its sha256 pin cannot be "
+                              f"checked ({err})")
+            continue
+        if digest != pinned:
+            violations.append(f"{base}: hashes to sha256 {digest}, not the pinned {pinned} "
+                              "-- these are not the bytes the anchor was measured from")
+            continue
+        metrics, _, bad = _read_cell(path, arm)
         if metrics is None:
-            violations += [f"K{K} s{seed} ({os.path.basename(paths[0])}): {b}" for b in bad]
+            violations += [f"K{K} s{seed} ({base}): {line}" for line in bad]
             continue
-        cells[K][seed] = {"path": paths[0], "metrics": metrics}
+        cells[K][seed] = {"path": path, "sha256": digest, "metrics": metrics}
     for K in ks:
         for seed in seeds:
             if seed not in cells[K]:
-                violations.append(f"K{K} s{seed}: no anchor cell for the {arm} arm in "
-                                  f"{directory}; the paired 100 % form needs all of them")
+                violations.append(f"K{K} s{seed}: no pinned anchor cell for the {arm} arm "
+                                  f"in {directory}; the paired 100 % form needs all of them")
     return cells, violations
 
 
@@ -583,19 +619,22 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
 
     reference = load_anchor_reference(anchors_path, ks=ks)
     anchor_cells, anchor_form = {}, "marginal"
+    anchor_reason = "no raw per-seed anchor cells were supplied for both arms (plan D10)"
     if anchor_cell_dirs:
-        clean = True
+        refusals = []
         for arm in names.ARMS:
             directory = anchor_cell_dirs.get(arm)
             if not directory:
-                violations.append(f"anchor cells: no directory for the {arm} arm, so the "
-                                  "paired 100 % form is not available")
-                clean = False
+                refusals.append(f"{arm}: no directory given")
                 continue
             anchor_cells[arm], bad = load_anchor_cells(directory, arm, seeds, ks)
-            violations += [f"anchor {arm}: {b}" for b in bad]
-            clean = clean and not bad
-        anchor_form = "paired" if clean else "marginal"
+            refusals += [f"{arm}: {b}" for b in bad]
+        violations += [f"anchor {line}" for line in refusals]
+        anchor_form = "paired" if not refusals else "marginal"
+        anchor_reason = ("every raw anchor cell verified against its pinned sha256"
+                         if not refusals else
+                         "the raw anchor cells did not verify -- " + "; ".join(refusals[:3])
+                         + (f" (+{len(refusals) - 3} more)" if len(refusals) > 3 else ""))
 
     epochs = {}
     if split_manifest_path:
@@ -664,10 +703,8 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
         "so B_100 carries a per-seed sd like every other fraction."
         if anchor_form == "paired" else
         "The 100 % point is reported in the MARGINAL form (`anchor_form: marginal`; "
-        "mean +- sd per arm, B_100 = "
-        "difference of means, no paired sd): the raw per-seed anchor cells were not "
-        "supplied for both arms (plan D10). The verdict rule uses B only, so it still "
-        "evaluates.")
+        "mean +- sd per arm, B_100 = difference of means, no paired sd), because "
+        + anchor_reason + ". The verdict rule uses B only, so it still evaluates.")
 
     document = {
         "schema": "exp_14_data_curve/1",
@@ -676,6 +713,7 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
                     "split_manifest": split_manifest_path,
                     "anchor_cell_dirs": dict(anchor_cell_dirs or {})},
         "anchor_form": anchor_form,
+        "anchor_form_reason": anchor_reason,
         "fractions_pct": pcts,
         "effective_epochs": epochs,
         "curve": curve,
