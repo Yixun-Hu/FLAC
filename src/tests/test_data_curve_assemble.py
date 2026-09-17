@@ -926,3 +926,46 @@ def test_an_incomplete_readout_says_so_in_the_markdown(tmp_path):
     md = assemble.render_markdown(
         build(tmp_path, nas_root=fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)])))
     assert "pending" in md
+
+
+# ===================================================================================
+# Diagnostics: five finite values, the evaluator's own key names, or an explicit gap
+# ===================================================================================
+def test_the_diagnostic_labels_are_the_evaluators_own_metric_keys():
+    assert tuple(assemble.DIAGNOSTIC_KEYS) == (
+        "FD", "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
+
+
+def _metrics_without(key, arm, tag, K, seed):
+    metrics = dict(BASE_METRICS)
+    for metric, value in run_cell_values(arm, tag, K, seed).items():
+        metrics[assemble.METRIC_KEYS[metric]] = value
+    metrics.pop(key)
+    return metrics
+
+
+def test_one_seed_missing_a_diagnostic_makes_a_gap_not_a_four_seed_mean(tmp_path):
+    # The scored endpoints are all five here; only FD is short. Averaging the four that
+    # remain and printing it beside the five-seed rows is the silent failure.
+    patch = {("cyl", "025", 8, 42): {"metrics": _metrics_without("FD", "cyl", "025", 8, 42)}}
+    doc = build(tmp_path, nas_root=fixture_nas(tmp_path, patch=patch))
+    cell = doc["diagnostics"]["K8"]["FD"]["25"]["cyl"]
+    assert cell["mean"] is None
+    assert cell["n"] == 4 and cell["complete"] is False
+    assert any("FD" in v for v in doc["violations"])
+    assert doc["complete"] is False
+
+
+def test_a_diagnostic_gap_leaves_the_primary_verdict_alone(tmp_path):
+    patch = {("cyl", "025", 8, 42): {"metrics": _metrics_without("FD", "cyl", "025", 8, 42)}}
+    doc = build(tmp_path, nas_root=fixture_nas(tmp_path, patch=patch))
+    assert doc["verdict"]["verdict"] == "SUPPORTED"
+    assert doc["curve"]["K8"]["T60"]["25"]["complete"] is True
+
+
+def test_the_markdown_shows_a_diagnostic_gap_with_its_count(tmp_path):
+    patch = {("cyl", "025", 8, 42): {"metrics": _metrics_without("FD", "cyl", "025", 8, 42)}}
+    md = assemble.render_markdown(build(tmp_path, nas_root=fixture_nas(tmp_path,
+                                                                      patch=patch)))
+    assert "-- (n=4/5)" in md
+    assert "RIR_to_geom_R@10" in md
