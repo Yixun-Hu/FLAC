@@ -103,12 +103,47 @@ def _file_identity(path):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
 
 
-def _sha256(path):
+def _fd_identity(fileobj):
+    """The identity of the OPEN file -- not of whatever the pathname points at now."""
+    info = os.fstat(fileobj.fileno())
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
+def _digest_of(fileobj):
+    """sha256 of an open descriptor, read from its current position in 1 MiB chunks."""
     digest = hashlib.sha256()
-    with open(path, "rb") as fin:
-        for chunk in iter(lambda: fin.read(1 << 20), b""):
-            digest.update(chunk)
+    for chunk in iter(lambda: fileobj.read(1 << 20), b""):
+        digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256(path):
+    """sha256 of a whole file by pathname -- for the cells and their staged copies, whose
+    identity is their content and nothing more."""
+    with open(path, "rb") as fin:
+        return _digest_of(fin)
+
+
+def _hash_and_identify(path):
+    """``(sha256, identity, violations)`` -- a digest and an identity of the SAME bytes.
+
+    Hashing a pathname and then stat-ing it are two questions about two files as soon as
+    anything replaces the file in between: ``hash(A) -> stat(B) -> stat(B)`` used to publish
+    ten cells with no violation at all (codex D3-fix2 finding 2). So the descriptor is
+    opened once, ``fstat``-ed, hashed, and ``fstat``-ed again before it is closed.
+
+    That catches an in-place rewrite. A *replacement* leaves the descriptor on the old
+    inode, so ``import_run`` closes that half by comparing this identity against
+    ``_file_identity(path)`` once the ten cells have been validated. Still ONE full read.
+    """
+    with open(path, "rb") as fin:
+        identity = _fd_identity(fin)
+        digest = _digest_of(fin)
+        after = _fd_identity(fin)
+    if after != identity:
+        return None, None, [f"{path} was rewritten while it was being hashed ({identity} "
+                            f"-> {after}), so the digest describes no file that exists"]
+    return digest, identity, []
 
 
 def validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds=names.SEEDS,
@@ -265,11 +300,13 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
             f"{run}: --ckpt-path {ckpt} is not this run's final checkpoint {discovered}; "
             f"only the single step-{names.MAX_STEPS} file may be published"]
     ckpt = result["ckpt"] = discovered
-    on_disk = _sha256(ckpt) if os.path.exists(ckpt) else None
+    on_disk, identity, bad = (_hash_and_identify(ckpt) if os.path.exists(ckpt)
+                              else (None, None, []))
+    if bad:
+        return result, [f"{run}: {bad[0]}; nothing was published"]
     if on_disk != expect_ckpt_sha256:
         return result, [f"{run}: {ckpt} hashes to {on_disk}, not the ckpt_sha256 "
                         f"{expect_ckpt_sha256} the launcher validated"]
-    identity = _file_identity(ckpt)
     files, violations = validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds, ks,
                                        expect_n)
     if violations:

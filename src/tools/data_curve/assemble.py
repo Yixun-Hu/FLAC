@@ -26,6 +26,7 @@ then mean +- sd over seeds 42-46. Never per-scene (plan §1, §11).
 import argparse
 import datetime
 import glob
+import hashlib
 import json
 import math
 import os
@@ -340,6 +341,43 @@ def _file_identity(path):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
 
 
+def _fd_identity(fileobj):
+    """The identity of the OPEN file -- not of whatever the pathname points at now."""
+    info = os.fstat(fileobj.fileno())
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
+def _digest_of(fileobj):
+    """sha256 of an open descriptor, read from its current position in 1 MiB chunks."""
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: fileobj.read(1 << 20), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _hash_and_identify(path):
+    """``(sha256, identity, violations)`` -- a digest and an identity of the SAME bytes.
+
+    Hashing a pathname and then stat-ing it are two questions about two files as soon as
+    anything replaces the file in between: ``hash(A) -> stat(B) -> stat(B)`` used to pass
+    with no violation at all, which is codex D3-fix2 finding 2. So the descriptor is opened
+    once, ``fstat``-ed, hashed, and ``fstat``-ed again before it is closed; the identity
+    returned is provably the identity of the bytes the digest was computed from.
+
+    That catches an in-place rewrite by itself. A *replacement* leaves the descriptor on
+    the old inode, so it is invisible here -- the caller closes that half by comparing this
+    identity against ``_file_identity(path)`` at the end of its read. Still ONE full read.
+    """
+    with open(path, "rb") as fin:
+        identity = _fd_identity(fin)
+        digest = _digest_of(fin)
+        after = _fd_identity(fin)
+    if after != identity:
+        return None, None, [f"{path} was rewritten while it was being hashed ({identity} "
+                            f"-> {after}), so the digest describes no file that exists"]
+    return digest, identity, []
+
+
 def _load_json(path):
     try:
         with open(path) as fin:
@@ -397,10 +435,12 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
            "cells": {K: {} for K in ks}, "violations": []}
     try:
         out["ckpt"] = final_checkpoint(run_dir)
-        out["ckpt_sha256"] = names.file_sha256(out["ckpt"])
-        identity = _file_identity(out["ckpt"])
+        out["ckpt_sha256"], identity, bad = _hash_and_identify(out["ckpt"])
     except (DataCurveError, OSError) as err:
         out["violations"].append(f"{run}: {err}")
+        return out
+    if bad:
+        out["violations"].append(f"{run}: {bad[0]}")
         return out
     for K in ks:
         for seed in seeds:
