@@ -19,10 +19,12 @@ applies is pre-registered in the plan and pinned here rather than argued about a
 CPU-only and filesystem-free except the loader cases, which write small JSONs in
 ``tmp_path``. No GPU, no NAS, no network.
 """
+import hashlib
 import json
 import os
 
 import pytest
+import torch
 
 from src.tools.data_curve import assemble, names
 
@@ -197,7 +199,13 @@ BASE_METRICS = {
     "RIR_to_GT_RIR_R@1": 5.0, "RIR_to_GT_RIR_R@5": 15.0, "RIR_to_GT_RIR_R@10": 23.0,
     "RIR_to_geom_R@1": 3.8, "RIR_to_geom_R@5": 13.0, "RIR_to_geom_R@10": 20.0,
 }
-CKPT_SHA = "a" * 64
+#: The fake checkpoint every fixture run is scored from. Its digest is the REAL sha256 of
+#: those bytes, because the assembler now hashes the discovered final checkpoint itself and
+#: compares -- an invented constant would be rejected, as it should be.
+CKPT_BYTES = b"not a real checkpoint"
+CKPT_SHA = hashlib.sha256(CKPT_BYTES).hexdigest()
+#: Fixture bundles are (2, 1, 10240) instead of the real (6337, 1, 10240) = 260 MB.
+FIXTURE_N = 2
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "data_curve")
 
 
@@ -219,23 +227,44 @@ def cell_record(arm, ckpt, values=None, ckpt_sha256=CKPT_SHA, **overrides):
     return record
 
 
-def write_run(nas_root, arm, tag, cells=None, epoch=8, step=names.MAX_STEPS, **kwargs):
-    """A finished run directory on a fake NAS: one final checkpoint plus its metric JSONs.
+def write_bundle(ckpt, arm, tag, K, seed, ckpt_sha256=CKPT_SHA, **overrides):
+    """The sibling prediction bundle -- the only artifact that proves the split and seed."""
+    meta = {"dataset_config": names.EVAL_DATASET_CONFIGS[K], "seed": seed,
+            "n_samples": FIXTURE_N, "n_items": FIXTURE_N, "batch_size": 8,
+            "cond_method": names.ARM_COND_METHOD[arm],
+            "frame_avg_angles": [0.0] if arm == "cyl" else None,
+            "rotate_deg": names.ROTATE_DEG, "cond_autocast": names.COND_AUTOCAST,
+            "ckpt_path": ckpt, "ckpt_sha256": ckpt_sha256,
+            "eval_name": names.eval_name(arm, tag, K, seed), "steps": names.EVAL_STEPS,
+            "cfg_scale": names.EVAL_CFG_SCALE, "stored_after_clamp_pad": True,
+            "artifact_contract": names.PREDICTIONS_ARTIFACT_CONTRACT}
+    meta.update(overrides)
+    torch.save({"predictions": torch.zeros(FIXTURE_N, 1, names.SAMPLE_LEN), "meta": meta},
+               names.predictions_pt_path(ckpt, arm, tag, K, seed))
+
+
+def write_run(nas_root, arm, tag, cells=None, epoch=8, step=names.MAX_STEPS,
+              record_patch=None, bundle_patch=None, **kwargs):
+    """A finished run directory on a fake NAS: the final checkpoint, its cells and bundles.
 
     ``cells`` maps ``(K, seed)`` to either a ``{metric: value}`` dict or a whole record
     override; omitted cells are simply absent, which is how an unfinished arm looks.
+    ``record_patch`` / ``bundle_patch`` override fields of one cell's JSON / bundle meta.
     """
     run_dir = os.path.join(str(nas_root), names.run_id(arm, tag))
     os.makedirs(run_dir, exist_ok=True)
     ckpt = os.path.join(run_dir, f"epoch={epoch}-step={step}.ckpt")
     with open(ckpt, "wb") as fout:
-        fout.write(b"not a real checkpoint")
+        fout.write(CKPT_BYTES)
     if cells is None:
         cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
     for (K, seed), spec in cells.items():
-        record = spec if "metrics" in spec else cell_record(arm, ckpt, spec, **kwargs)
+        patch = (record_patch or {}).get((K, seed), {})
+        record = spec if "metrics" in spec else cell_record(arm, ckpt, spec,
+                                                            **dict(kwargs, **patch))
         with open(names.metrics_json_path(ckpt, arm, tag, K, seed), "w") as fout:
             json.dump(record, fout)
+        write_bundle(ckpt, arm, tag, K, seed, **(bundle_patch or {}).get((K, seed), {}))
     return ckpt
 
 
@@ -299,15 +328,31 @@ def test_load_run_refuses_a_cell_scored_under_another_protocol(tmp_path, field, 
     assert any(field in v for v in run["violations"])
 
 
-def test_load_run_refuses_cells_that_disagree_about_the_checkpoint_digest(tmp_path):
-    cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
-    run_dir = tmp_path / "dc_van_f025"
-    run_dir.mkdir()
-    ckpt = str(run_dir / f"epoch=8-step={names.MAX_STEPS}.ckpt")
-    cells[(1, 43)] = cell_record("van", ckpt, ckpt_sha256="b" * 64)
-    write_run(tmp_path, "van", "025", cells=cells)
+@pytest.mark.parametrize("patch, needle", [
+    ({"ckpt_sha256": None}, "ckpt_sha256"),
+    ({"ckpt_sha256": "b" * 64}, "ckpt_sha256"),
+    ({"ckpt_path": "/elsewhere/epoch=9-step=40000.ckpt"}, "ckpt_path"),
+])
+def test_a_cell_not_bound_to_the_discovered_checkpoint_is_dropped(tmp_path, patch, needle):
+    write_run(tmp_path, "van", "025", record_patch={(1, 43): patch})
     run = assemble.load_run(str(tmp_path), "van", "025")
-    assert any("ckpt_sha256" in v for v in run["violations"])
+    assert 43 not in run["cells"][1]                 # dropped, not inserted with a note
+    assert any(needle in v for v in run["violations"])
+
+
+def test_a_cell_whose_bundle_is_missing_is_not_a_complete_cell(tmp_path):
+    ckpt = write_run(tmp_path, "van", "025")
+    os.remove(names.predictions_pt_path(ckpt, "van", "025", 8, 46))
+    run = assemble.load_run(str(tmp_path), "van", "025")
+    assert 46 not in run["cells"][8]
+    assert any("bundle" in v for v in run["violations"])
+
+
+def test_a_cell_whose_bundle_claims_another_seed_is_dropped(tmp_path):
+    write_run(tmp_path, "cyl", "075", bundle_patch={(8, 44): {"seed": 45}})
+    run = assemble.load_run(str(tmp_path), "cyl", "075")
+    assert 44 not in run["cells"][8]
+    assert any("seed" in v for v in run["violations"])
 
 
 # --------------------------------------------------------- aggregation and paired benefit
@@ -482,8 +527,12 @@ def run_cell_values(arm, tag, K, seed):
     return values
 
 
-def fixture_nas(tmp_path, drop=()):
-    """A NAS root holding all six finished runs; ``drop`` removes ``(arm, tag, K, seed)``."""
+def fixture_nas(tmp_path, drop=(), patch=None):
+    """A NAS root holding all six finished runs.
+
+    ``drop`` removes ``(arm, tag, K, seed)`` cells; ``patch`` maps the same key to record
+    overrides, which is how a cell that is not bound to its run's checkpoint is built.
+    """
     nas = tmp_path / "nas"
     nas.mkdir(exist_ok=True)
     for tag in sorted(names.FRACTIONS):
@@ -491,7 +540,9 @@ def fixture_nas(tmp_path, drop=()):
             cells = {(K, seed): run_cell_values(arm, tag, K, seed)
                      for K in names.K_VALUES for seed in names.SEEDS
                      if (arm, tag, K, seed) not in drop}
-            write_run(nas, arm, tag, cells=cells)
+            patches = {(K, seed): fields for (a, t, K, seed), fields in (patch or {}).items()
+                       if (a, t) == (arm, tag)}
+            write_run(nas, arm, tag, cells=cells, record_patch=patches)
     return str(nas)
 
 
@@ -561,6 +612,30 @@ def test_an_incomplete_anchor_directory_falls_back_to_the_marginal_form(tmp_path
     doc = build(tmp_path, anchor_cell_dirs=dirs)
     assert doc["anchor_form"] == "marginal"
     assert any("s46" in v for v in doc["violations"])
+
+
+@pytest.mark.parametrize("patch", [
+    {"ckpt_sha256": None},                                   # evaluator stamped nothing in
+    {"ckpt_sha256": "b" * 64},                               # a digest nobody validated
+    {"ckpt_path": "/elsewhere/epoch=9-step=40000.ckpt"},     # scored from another file
+])
+def test_an_unbound_primary_cell_pends_the_verdict_it_does_not_just_warn(tmp_path, patch):
+    nas = fixture_nas(tmp_path, patch={("cyl", "050", 8, 44): patch})
+    doc = build(tmp_path, nas_root=nas)
+    assert doc["curve"]["K8"]["T60"]["50"]["cyl"]["n"] == 4      # the cell is GONE
+    assert doc["curve"]["K8"]["T60"]["50"]["complete"] is False
+    assert doc["verdict"]["verdict"] == "PENDING"
+    assert doc["complete"] is False
+
+
+def test_a_run_whose_every_cell_carries_the_wrong_digest_yields_no_cells(tmp_path):
+    # Uniform is not the same as correct: all ten agree with each other and none of them
+    # agrees with the bytes on disk, which is exactly the case the old check missed.
+    patch = {("van", "025", K, seed): {"ckpt_sha256": "b" * 64}
+             for K in names.K_VALUES for seed in names.SEEDS}
+    doc = build(tmp_path, nas_root=fixture_nas(tmp_path, patch=patch))
+    assert doc["curve"]["K8"]["T60"]["25"]["van"]["n"] == 0
+    assert doc["verdict"]["verdict"] == "PENDING"
 
 
 def test_a_row_short_of_five_seeds_makes_the_verdict_pending(tmp_path):
