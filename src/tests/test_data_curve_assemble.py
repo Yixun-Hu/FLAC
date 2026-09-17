@@ -858,3 +858,43 @@ def test_every_T60_benefit_row_quotes_the_step_band(tmp_path):
     t60_rows = [line for line in md.splitlines()
                 if line.startswith("| 25 %") or line.startswith("| 100 %")]
     assert any(band in line for line in t60_rows)
+
+
+# ===================================================================================
+# The checkpoint is hashed once per run, and watched for the rest of it
+# ===================================================================================
+def count_ckpt_hashes(monkeypatch, target):
+    """Count ``names.file_sha256`` calls against one path, leaving its behaviour intact."""
+    calls = []
+    real = names.file_sha256
+
+    def counting(path):
+        if os.path.normpath(path) == os.path.normpath(target):
+            calls.append(path)
+        return real(path)
+
+    monkeypatch.setattr(names, "file_sha256", counting)
+    return calls
+
+
+def test_a_run_hashes_its_checkpoint_exactly_once(tmp_path, monkeypatch):
+    # It used to be eleven times: once here and once inside each of the ten check_bundle
+    # calls -- ~40 GiB of redundant NAS reads across a full six-run assembly.
+    ckpt = write_run(tmp_path, "cyl", "025")
+    hashes = count_ckpt_hashes(monkeypatch, ckpt)
+    run = assemble.load_run(str(tmp_path), "cyl", "025", expect_n=FIXTURE_N)
+    assert run["violations"] == []
+    assert len(run["cells"][8]) == 5
+    assert len(hashes) == 1
+
+
+def test_a_checkpoint_that_changes_while_the_run_is_read_drops_every_cell(tmp_path,
+                                                                         monkeypatch):
+    # The single hash is only worth anything if the file is still the one that was hashed
+    # when the last bundle is checked; the identity is re-read once, at the end.
+    ckpt = write_run(tmp_path, "van", "050")
+    identities = iter([(1, 2, 3, 4), (1, 2, 3, 5)])
+    monkeypatch.setattr(assemble, "_file_identity", lambda path: next(identities))
+    run = assemble.load_run(str(tmp_path), "van", "050", expect_n=FIXTURE_N)
+    assert run["cells"][1] == {} and run["cells"][8] == {}
+    assert any("changed while" in v for v in run["violations"])

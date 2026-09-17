@@ -342,3 +342,35 @@ def test_the_row_specs_parse_as_the_generators_own_four_tuples():
     assert (protocol, K) == ("fa eval", 8)
     assert isinstance(label, str) and isinstance(patterns, list)
     assert patterns == ["outputs_FLAC/data_curve_import/dc_cyl_f050/*_K8_s4[2-6]*.json"]
+
+
+def test_an_import_hashes_the_checkpoint_exactly_once(tmp_path, monkeypatch):
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    calls = []
+    real = import_cells._sha256
+
+    def counting(path):
+        if os.path.normpath(path) == os.path.normpath(ckpt):
+            calls.append(path)
+        return real(path)
+
+    monkeypatch.setattr(import_cells, "_sha256", counting)
+    monkeypatch.setattr(names, "file_sha256", counting)
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == [] and len(result["files"]) == 10
+    assert len(calls) == 1
+
+
+def test_a_checkpoint_swapped_mid_import_publishes_nothing(tmp_path, monkeypatch):
+    nas, _, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    identities = iter([(1, 2, 3, 4), (1, 2, 3, 5)])
+    monkeypatch.setattr(import_cells, "_file_identity", lambda path: next(identities))
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert any("changed while" in v for v in violations)
+    _nothing_was_copied(result, str(checkout))
