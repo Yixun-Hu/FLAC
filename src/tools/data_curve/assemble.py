@@ -29,7 +29,6 @@ import glob
 import json
 import math
 import os
-import re
 import statistics
 import sys
 
@@ -241,12 +240,16 @@ ANCHOR_DECLARED_SEEDS = 5
 #: carrying ``sha256`` and (optionally, when the basename does not say) ``K``/``seed``.
 #: D10's P1 seed-42 K=8 anchor is the screen cell, whose basename names neither.
 ANCHOR_MANIFEST_BASENAME = "anchor_cells.json"
+#: The TRUSTED manifest: which files are each arm's 100 % anchors and what their bytes must
+#: be. Shipped in the repository, under git and under review, because the manifest that may
+#: sit beside the cells is mutable and would otherwise authenticate itself (D3-fix 1).
+TRUSTED_ANCHOR_MANIFEST = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "anchor_cells_tierS.json")
 #: The sha256 of that screen cell in the FLAC checkout, quoted by plan D10 and by the
 #: codex D3 review. Recorded here so the pin can be checked without opening the plan;
 #: the assembler never hard-codes which FILE an anchor is, only what its bytes must be.
 P1_SCREEN_K8_S42_SHA256 = \
     "8bd130a70442fff9f247677a046efaee9c8bfd983a2630ca8380a33cb0276f04"
-_ANCHOR_CELL_RE = re.compile(r"_K(\d+)_s(\d+)(?=[_.])")
 
 
 class DataCurveError(RuntimeError):
@@ -505,87 +508,141 @@ def load_anchor_reference(path, arms=names.ARMS, ks=names.K_VALUES):
     return out
 
 
-def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES):
-    """``({K: {seed: cell}}, violations)`` for the raw 100 % anchor JSONs of one arm.
+def load_trusted_anchor_manifest(path=None):
+    """``{arm: {basename: {"K", "seed", "sha256"}}}`` -- the pins shipped in the repository."""
+    with open(path or TRUSTED_ANCHOR_MANIFEST) as fin:
+        document = json.load(fin)
+    return {arm: document[arm] for arm in names.ARMS}
 
-    Two things have to be true of a cell before it may move the fixed end of this curve
-    (codex D3 finding 5). It must be PLACED: most basenames carry ``_K<k>_s<seed>``, but
-    D10's seed-42 K=8 P1 anchor is the screen cell ``..._exp07_P1_screen_S40000_ema``,
-    whose name says neither -- so ``anchor_cells.json`` places those by hand, and anything
-    neither parseable nor placed is refused rather than guessed. And it must be PINNED: the
-    same manifest carries a ``sha256`` per file, checked against the bytes on disk, because
-    a protocol-compatible cell from another step renamed into a slot would otherwise change
-    B_100, the data-equivalence scan and possibly the verdict, and nothing would say so.
 
-    No manifest at all means no pins, which means no paired anchors -- not "fall back to
-    names".
+def _check_trusted_entry(basename, entry, seeds, ks):
+    """Violations of one manifest entry's SHAPE. Never raises: a hand-edited manifest is
+    data like any other, and ``int('eight')`` is not a verdict about an anchor."""
+    if not isinstance(entry, dict):
+        return [f"{basename}: its manifest entry is a {type(entry).__name__}, not an object"]
+    bad = []
+    K, seed, digest = entry.get("K"), entry.get("seed"), entry.get("sha256")
+    if isinstance(K, bool) or not isinstance(K, int) or K not in ks:
+        bad.append(f"{basename}: manifest K is {K!r}, expected one of {list(ks)}")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed not in seeds:
+        bad.append(f"{basename}: manifest seed is {seed!r}, expected one of {list(seeds)}")
+    if digest is not None and (not isinstance(digest, str) or len(digest) != 64
+                               or any(c not in "0123456789abcdef" for c in digest)):
+        bad.append(f"{basename}: manifest sha256 is {digest!r}, expected 64 lowercase hex "
+                   "characters or null (unpinned)")
+    return bad
+
+
+def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES, trusted=None):
+    """``({K: {seed: cell}}, violations)`` for the raw 100 % anchor cells of one arm.
+
+    The authority is ``trusted`` -- by default the manifest COMMITTED in this repository --
+    which says exactly which ten basenames are this arm's anchors, which slot each fills,
+    and what its bytes must be. That is the whole fix for codex D3-fix finding 1: the
+    previous manifest sat in the same directory as the cells, so replacing a cell and
+    updating the manifest beside it passed, and the P1 screen pin the module declared was
+    never consulted.
+
+    The mutable ``anchor_cells.json`` beside the cells keeps exactly one power: it may
+    supply a sha256 for an entry the committed manifest leaves ``null`` (that is how the
+    ten remote cylNoSSL cells of D10 get pinned once someone copies them here). It may
+    never contradict a non-null pin, and it may neither add nor remove files -- the set is
+    exact, which is what keeps the ``exp10_P140fae_*`` cells out of the van anchors: same
+    checkpoint, same directory, different eval protocol.
+
+    Anything unpinned, mismatched, extra, missing or malformed is a violation, and the
+    caller drops back to the marginal 100 % form.
     """
     violations = []
     cells = {K: {} for K in ks}
-    manifest_path = os.path.join(directory, ANCHOR_MANIFEST_BASENAME)
-    manifest, unreadable = (_load_json(manifest_path) if os.path.exists(manifest_path)
-                            else (None, [f"{manifest_path} does not exist"]))
-    if not isinstance(manifest, dict):
-        return cells, [f"{directory}: no usable {ANCHOR_MANIFEST_BASENAME} "
-                       f"({'; '.join(unreadable) or 'not an object'}), so no anchor cell is "
-                       "pinned by sha256 and the paired 100 % form is unavailable"]
-    claims = {}
-    for path in sorted(glob.glob(os.path.join(glob.escape(directory), "*.json"))):
-        base = os.path.basename(path)
-        if base == ANCHOR_MANIFEST_BASENAME:
-            continue
-        entry = manifest.get(base)
-        if not isinstance(entry, dict):
-            violations.append(f"{base}: has no entry in {ANCHOR_MANIFEST_BASENAME}, so its "
-                              "bytes are not pinned and it cannot serve as an anchor")
-            continue
-        slot = None
-        if "K" in entry and "seed" in entry:
-            slot = (int(entry["K"]), int(entry["seed"]))
+    if trusted is None:
+        try:
+            trusted = load_trusted_anchor_manifest()[arm]
+        except (OSError, ValueError, KeyError) as err:
+            return cells, [f"the trusted anchor manifest cannot be read "
+                           f"({type(err).__name__}: {err}), so no 100 % cell is pinned"]
+    schema = [line for base, entry in sorted(trusted.items())
+              for line in _check_trusted_entry(base, entry, seeds, ks)]
+    if schema:
+        return cells, schema + ["the trusted anchor manifest is malformed, so the paired "
+                                "100 % form is unavailable"]
+
+    slots = {}
+    for base, entry in sorted(trusted.items()):
+        slots.setdefault((entry["K"], entry["seed"]), []).append(base)
+    duplicates = [f"K{K} s{seed}: more than one cell claims this anchor slot ("
+                  + ", ".join(found) + ")"
+                  for (K, seed), found in sorted(slots.items()) if len(found) > 1]
+    if duplicates:
+        return cells, duplicates
+    for K in ks:
+        for seed in seeds:
+            if (K, seed) not in slots:
+                violations.append(f"K{K} s{seed}: the trusted anchor manifest names no cell "
+                                  f"for this slot of the {arm} arm")
+
+    on_disk = {os.path.basename(path)
+               for path in glob.glob(os.path.join(glob.escape(directory), "*.json"))}
+    on_disk.discard(ANCHOR_MANIFEST_BASENAME)
+    for extra in sorted(on_disk - set(trusted)):
+        violations.append(f"{extra}: is in {directory} but is not one of the {arm} arm's "
+                          "trusted anchor cells; the set is exact")
+
+    external = {}
+    external_path = os.path.join(directory, ANCHOR_MANIFEST_BASENAME)
+    if os.path.exists(external_path):
+        loaded, unreadable = _load_json(external_path)
+        if isinstance(loaded, dict):
+            external = loaded
         else:
-            hit = _ANCHOR_CELL_RE.search(base)
-            if hit:
-                slot = (int(hit.group(1)), int(hit.group(2)))
-        if slot is None or slot[0] not in ks or slot[1] not in seeds:
+            violations.append(f"{ANCHOR_MANIFEST_BASENAME}: "
+                              f"{'; '.join(unreadable) or 'is not an object'}")
+
+    for (K, seed), found in sorted(slots.items()):
+        base = found[0]
+        where = f"K{K} s{seed} ({base})"
+        if base not in on_disk:
+            violations.append(f"K{K} s{seed}: {base} is not in {directory}")
+            continue
+        pinned = trusted[base]["sha256"]
+        entry = external.get(base)
+        claimed = entry.get("sha256") if isinstance(entry, dict) else None
+        if pinned is None:
+            if claimed is None:
+                violations.append(
+                    f"{where}: unpinned -- the trusted manifest records no sha256 and no "
+                    f"{ANCHOR_MANIFEST_BASENAME} supplies one, so the paired 100 % form is "
+                    "unavailable until this cell is pinned")
+                continue
+            if not isinstance(claimed, str) or len(claimed) != 64 \
+                    or any(c not in "0123456789abcdef" for c in claimed):
+                violations.append(f"{where}: {ANCHOR_MANIFEST_BASENAME} offers sha256 "
+                                  f"{claimed!r}, which is not a digest")
+                continue
+            pinned = claimed
+        elif claimed is not None and claimed != pinned:
             violations.append(
-                f"{base}: names no K/seed this experiment evaluates and its "
-                f"{ANCHOR_MANIFEST_BASENAME} entry does not place it -- the 100 % anchors "
-                "are pinned, never guessed")
+                f"{where}: {ANCHOR_MANIFEST_BASENAME} claims sha256 {claimed}, but this cell "
+                f"is pinned in the repository to {pinned}; an adjacent manifest may fill a "
+                "pin, never contradict one")
             continue
-        claims.setdefault(slot, []).append((path, entry))
-    for (K, seed), found in sorted(claims.items()):
-        if len(found) > 1:
-            violations.append(f"K{K} s{seed}: more than one cell claims this anchor slot ("
-                              + ", ".join(os.path.basename(p) for p, _ in found) + ")")
-            continue
-        path, entry = found[0]
-        base = os.path.basename(path)
-        pinned = entry.get("sha256")
-        if not isinstance(pinned, str) or len(pinned) != 64:
-            violations.append(f"{base}: its {ANCHOR_MANIFEST_BASENAME} entry carries no "
-                              f"sha256 ({pinned!r}); an unpinned anchor is not an anchor")
-            continue
+        path = os.path.join(directory, base)
         try:
             digest = names.file_sha256(path)
         except OSError as err:
-            violations.append(f"{base}: cannot be hashed, so its sha256 pin cannot be "
-                              f"checked ({err})")
+            violations.append(f"{where}: cannot be hashed, so its pin cannot be checked "
+                              f"({err})")
             continue
         if digest != pinned:
-            violations.append(f"{base}: hashes to sha256 {digest}, not the pinned {pinned} "
+            violations.append(f"{where}: hashes to sha256 {digest}, not the pinned {pinned} "
                               "-- these are not the bytes the anchor was measured from")
             continue
         metrics, record, bad = _read_cell(path, arm)
         if metrics is None:
-            violations += [f"K{K} s{seed} ({base}): {line}" for line in bad]
+            violations += [f"{where}: {line}" for line in bad]
             continue
         cells[K][seed] = {"path": path, "sha256": digest, "metrics": metrics,
                           "diagnostics": _diagnostics(record)}
-    for K in ks:
-        for seed in seeds:
-            if seed not in cells[K]:
-                violations.append(f"K{K} s{seed}: no pinned anchor cell for the {arm} arm "
-                                  f"in {directory}; the paired 100 % form needs all of them")
     return cells, violations
 
 
@@ -712,7 +769,7 @@ def _row(metric, pct, cyl_by_seed, van_by_seed, seeds, source):
 
 def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_dirs=None,
                 fraction_tags=None, ks=names.K_VALUES, seeds=names.SEEDS, metrics=METRICS,
-                generated_at=None, expect_n=None):
+                generated_at=None, expect_n=None, anchor_trusted=None):
     """The whole data-curve document: six runs, two anchors, one verdict, one provenance.
 
     The 100 % point is *paired* only when raw per-seed anchor cells are supplied for both
@@ -740,7 +797,8 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
             if not directory:
                 refusals.append(f"{arm}: no directory given")
                 continue
-            anchor_cells[arm], bad = load_anchor_cells(directory, arm, seeds, ks)
+            anchor_cells[arm], bad = load_anchor_cells(
+                directory, arm, seeds, ks, trusted=(anchor_trusted or {}).get(arm))
             refusals += [f"{arm}: {b}" for b in bad]
         violations += [f"anchor {line}" for line in refusals]
         anchor_form = "paired" if not refusals else "marginal"
@@ -881,8 +939,11 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
                 "cells": {f"K{K}": {seed: cell["path"] for seed, cell
                                     in sorted(run["cells"][K].items())} for K in ks},
             } for run in runs.values()},
-            "anchor_cells": {arm: {f"K{K}": {seed: cell["path"] for seed, cell
-                                             in sorted(cells[K].items())} for K in ks}
+            # Every anchor's digest is kept, not just its path: the pin is the claim.
+            "anchor_cells": {arm: {f"K{K}": {seed: {"path": cell["path"],
+                                                    "sha256": cell["sha256"]}
+                                             for seed, cell in sorted(cells[K].items())}
+                                   for K in ks}
                              for arm, cells in anchor_cells.items()},
         },
         "disclosures": disclosures,
@@ -1017,7 +1078,8 @@ def render_markdown(doc):
         out.append("")
     for arm, cells in sorted(doc["provenance"].get("anchor_cells", {}).items()):
         out += [f"### 100 % anchor cells ({arm} arm)", ""]
-        out += [f"  - `{path}`" for K in sorted(cells) for _, path in sorted(cells[K].items())]
+        out += [f"  - `{cell['path']}` sha256 `{cell['sha256']}`"
+                for K in sorted(cells) for _, cell in sorted(cells[K].items())]
         out.append("")
     if doc["violations"]:
         out += ["## Open violations (this table is NOT complete)", ""]
