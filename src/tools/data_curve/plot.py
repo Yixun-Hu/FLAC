@@ -52,20 +52,25 @@ close = plt.close                            # re-exported so callers need no py
 
 
 def series_points(doc, K, metric, arm):
-    """``(xs, ys, errs, gaps)`` for one arm of one panel; incomplete rows become ``nan``.
+    """``(xs, ys, errs, gaps)`` for one arm of one panel; incomplete cells become ``nan``.
 
-    A row whose mean is ``None`` -- an unfinished run, or one the assembler refused -- keeps
-    its x position with a ``nan`` y, which matplotlib draws as neither a marker nor a
-    segment: the line BREAKS there. Dropping the x instead would have joined its two
-    neighbours with a straight segment, drawing a value nobody measured. ``gaps`` names the
-    fractions that broke, for the footnote.
+    A cell the assembler did not mark ``complete`` keeps its x position with a ``nan`` y,
+    which matplotlib draws as neither a marker nor a segment: the line BREAKS there.
+    Dropping the x instead would have joined its two neighbours with a straight segment,
+    drawing a value nobody measured.
+
+    The gate is ``complete``, not ``mean is None`` (codex D3 finding 2): a four-seed
+    aggregate has a perfectly numeric mean and is *not* the five-seed quantity the anchors
+    were measured as, so plotting it would be the same lie with a number attached. An
+    explicit ``complete: True`` is required -- a cell that has forgotten to say so is a gap.
+    ``gaps`` names the fractions that broke, for the footnote.
     """
     rows = doc["curve"][f"K{K}"][metric]
     xs, ys, errs, gaps = [], [], [], []
     for pct in doc["fractions_pct"]:
         cell = rows[str(pct)].get(arm) or {}
         xs.append(float(pct))
-        if cell.get("mean") is None:
+        if cell.get("mean") is None or cell.get("complete") is not True:
             gaps.append(int(pct))
             ys.append(float("nan"))
             errs.append(0.0)
