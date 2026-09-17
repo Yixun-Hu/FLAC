@@ -796,3 +796,65 @@ def test_cli_strict_exits_non_zero_on_a_missing_seed(tmp_path, monkeypatch):
             str(tmp_path / "curve.json")]
     assert assemble.main(argv) == 0                       # marked, but rendered
     assert assemble.main(argv + ["--strict"]) != 0        # and fatal when it must be
+
+
+# ===================================================================================
+# Reported but never scored: plan §1's diagnostics, C50 trend line and T60 step band
+# ===================================================================================
+def test_the_diagnostics_block_reports_fd_and_the_geometry_recalls(tmp_path):
+    doc = build(tmp_path)
+    assert sorted(doc["diagnostics"]["K8"]) == sorted(assemble.DIAGNOSTIC_KEYS)
+    cell = doc["diagnostics"]["K8"]["FD"]["25"]["cyl"]
+    assert cell["mean"] == pytest.approx(BASE_METRICS["FD"])
+    assert cell["n"] == 5
+    assert doc["diagnostics"]["K1"]["geom R@10"]["75"]["van"]["mean"] == pytest.approx(20.0)
+
+
+def test_the_diagnostics_stay_out_of_the_curve_and_out_of_the_verdict(tmp_path):
+    doc = build(tmp_path)
+    assert set(doc["curve"]["K8"]) == set(assemble.METRICS)
+    assert "FD" not in doc["curve"]["K8"]
+    assert sorted(doc["verdict"]["benefits"]) == ["EDT", "T60"]
+
+
+def test_the_anchor_row_has_no_diagnostics_because_the_reference_carries_none(tmp_path):
+    # tier_S_reference.json holds the six scored endpoints only; inventing an FD there
+    # would be inventing a measurement.
+    doc = build(tmp_path)
+    assert doc["diagnostics"]["K8"]["FD"]["100"]["cyl"]["mean"] is None
+
+
+@pytest.mark.parametrize("b_low, b_high, trend", [
+    (-0.05, -0.10, "shrinks"),      # less of a deficit at 25 % than at 100 %
+    (-0.10, -0.10, "holds"),
+    (-0.20, -0.10, "grows"),
+])
+def test_the_c50_trend_names_what_the_deficit_does(b_low, b_high, trend):
+    out = assemble.c50_trend(b_low, b_high)
+    assert out["trend"] == trend
+    assert trend in out["line"] and "C50" in out["line"]
+
+
+def test_the_c50_trend_is_recorded_per_K(tmp_path):
+    doc = build(tmp_path)
+    # In this fixture CylDINO is worse on C50 by exactly 0.1 everywhere, anchors included.
+    assert doc["c50_trend"]["K8"]["trend"] == "holds"
+    assert doc["c50_trend"]["K1"]["trend"] == "holds"
+
+
+def test_the_markdown_carries_the_diagnostics_and_the_c50_line(tmp_path):
+    md = assemble.render_markdown(build(tmp_path))
+    assert "Diagnostics" in md
+    for label in assemble.DIAGNOSTIC_KEYS:
+        assert label in md
+    assert "C50 deficit holds" in md
+
+
+def test_every_T60_benefit_row_quotes_the_step_band(tmp_path):
+    md = assemble.render_markdown(build(tmp_path))
+    band = assemble.T60_STEP_BAND_NOTE
+    # one per fraction per K, quoted in the row itself rather than once at the top
+    assert md.count(band) >= len(assemble.FRACTION_PCTS) * len(names.K_VALUES)
+    t60_rows = [line for line in md.splitlines()
+                if line.startswith("| 25 %") or line.startswith("| 100 %")]
+    assert any(band in line for line in t60_rows)
