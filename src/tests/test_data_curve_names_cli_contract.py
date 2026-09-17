@@ -3,8 +3,8 @@
 ``scripts/exp14_launch.sh`` shells out to ``python -m src.tools.data_curve.names
 check-bundle`` and ``check-metrics`` for all twenty cells of a pair, from THIS worktree,
 during the eval phase of a run that is already training. Anything the analysis tooling
-wants from that module therefore has to be additive: same argv, same exit code, same
-printed line, same number of checkpoint hashes.
+wants from that module therefore has to be additive: same argv, same exit code, the same
+bytes on stdout and stderr, same number of checkpoint hashes.
 
 This file is that contract, written down. It pins the CLI's observable behaviour on
 fixtures, proves the CLI passes exactly the nine arguments it always passed (so the new
@@ -26,6 +26,8 @@ from src.tools.data_curve import names
 
 N_ITEMS = 2
 CKPT_BYTES = b"a checkpoint, for the purposes of argument"
+#: What someone swaps in at the same pathname after the launcher validated the original.
+REPLACEMENT_BYTES = b"different bytes at the same pathname"
 #: check_bundle's parameters as the launcher has always called them, in order.
 FROZEN_CHECK_BUNDLE_PARAMS = [
     ("path", inspect.Parameter.empty), ("expect_n", inspect.Parameter.empty),
@@ -87,15 +89,61 @@ def bundle_argv(bundle, ckpt, digest, arm="cyl", tag="025", K=8, seed=42):
             "--expect-ckpt", ckpt, "--expect-ckpt-sha256", digest]
 
 
+def captured(capsys, tmp_path):
+    """``(stdout, stderr)`` with the one varying substring -- the tmp directory -- named.
+
+    Both streams, in full, for every frozen case (codex D3-fix2 finding 4). A
+    ``startswith`` or ``in`` check waves through an extra line, a changed suffix and
+    altered provenance text alike, and a launcher parsing this output survives none of
+    those.
+    """
+    out = capsys.readouterr()
+    return out.out.replace(str(tmp_path), "<tmp>"), out.err.replace(str(tmp_path), "<tmp>")
+
+
+# ------------------------------------------------- the frozen bytes, spelled out in full
+#: Literals, deliberately: deriving them from ``names`` would ask the module under contract
+#: what its own contract is. ``test_the_frozen_strings_are_what_the_fixtures_hold`` below
+#: says where each one comes from, so a legitimate change fails there by name as well.
+CKPT_SHA256 = "a7ef7cb1d3dfdc756c4da6dd8167b1c9f152858e8b3c18f667ea6b5929fec05c"
+REPLACEMENT_SHA256 = "2a8c5ea6f994bbaa5cd3cf19cc86e80d9c1551d76eba3c1d5bb3945f067a0db9"
+K8_CONFIG = "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"
+K8_CONFIG_SHA256 = "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55"
+CKPT = "<tmp>/dc_cyl_f025/epoch=8-step=40000.ckpt"
+BUNDLE = ("<tmp>/dc_cyl_f025/"
+          "epoch=8-step=40000_predictions_1_1.0_dc_cyl_f025_K8_s42_fa_invariant_a1.pt")
+METRICS = ("<tmp>/dc_cyl_f025/"
+           "epoch=8-step=40000_metrics_1_1.0_dc_cyl_f025_K8_s42_fa_invariant_a1.json")
+VAN_METRICS = ("<tmp>/other/dc_van_f025/"
+               "epoch=8-step=40000_metrics_1_1.0_dc_van_f025_K8_s42.json")
+EXPECT_BUNDLE_PASS = (
+    f"PASS {BUNDLE}: n=2 seed=42 K=8 arm=cyl (fa_invariant, autocast bf16, rotate 0) "
+    f"dataset_config={K8_CONFIG} dataset_config_sha256={K8_CONFIG_SHA256} "
+    f"ckpt={CKPT} ckpt_sha256={CKPT_SHA256}\n")
+EXPECT_BUNDLE_REPLACED = (
+    f"FAIL {BUNDLE}: the checkpoint '{CKPT}' now hashes to {REPLACEMENT_SHA256}, not the "
+    f"{CKPT_SHA256} the launcher validated: it was replaced after validation\n")
+EXPECT_METRICS_PASS = (
+    f"PASS {METRICS}: cond_method=fa_invariant angles=0 rotate=0.0 autocast=bf16 "
+    f"ckpt={CKPT} ckpt_sha256={CKPT_SHA256}\n")
+EXPECT_METRICS_FAIL = (
+    f"FAIL {VAN_METRICS}: cond_method is 'fa_invariant', expected 'vanilla'\n")
+
+
+def test_the_frozen_strings_are_what_the_fixtures_hold():
+    assert CKPT_SHA256 == hashlib.sha256(CKPT_BYTES).hexdigest()
+    assert REPLACEMENT_SHA256 == hashlib.sha256(REPLACEMENT_BYTES).hexdigest()
+    assert K8_CONFIG == names.EVAL_DATASET_CONFIGS[8]
+    assert K8_CONFIG_SHA256 == names.eval_dataset_config_sha256(8)
+
+
 # ------------------------------------------------------ the CLI, exactly as it was
 def test_check_bundle_cli_passes_a_good_cell_and_hashes_the_checkpoint_once(
         tmp_path, capsys, monkeypatch):
     ckpt, digest, bundle, _ = make_cell(tmp_path)
     hashes = count_hashes_of(monkeypatch, ckpt)
     assert names.main(bundle_argv(bundle, ckpt, digest)) == names.EXIT_OK
-    out = capsys.readouterr().out
-    assert out.startswith(f"PASS {bundle}: n=2 seed=42 K=8 arm=cyl (fa_invariant, ")
-    assert f"ckpt={ckpt} ckpt_sha256={digest}" in out
+    assert captured(capsys, tmp_path) == (EXPECT_BUNDLE_PASS, "")
     assert len(hashes) == 1                    # the CLI still hashes, exactly once
 
 
@@ -103,10 +151,10 @@ def test_check_bundle_cli_still_catches_a_checkpoint_replaced_after_validation(
         tmp_path, capsys, monkeypatch):
     ckpt, digest, bundle, _ = make_cell(tmp_path)
     with open(ckpt, "wb") as fout:
-        fout.write(b"different bytes at the same pathname")
+        fout.write(REPLACEMENT_BYTES)
     hashes = count_hashes_of(monkeypatch, ckpt)
     assert names.main(bundle_argv(bundle, ckpt, digest)) == names.EXIT_BUNDLE_VIOLATION
-    assert "it was replaced after validation" in capsys.readouterr().out
+    assert captured(capsys, tmp_path) == (EXPECT_BUNDLE_REPLACED, "")
     assert len(hashes) == 1
 
 
@@ -116,7 +164,7 @@ def test_check_metrics_cli_is_unchanged(tmp_path, capsys):
             "--expect-ckpt-sha256", digest, "--expect-cond-method", "fa_invariant",
             "--expect-angles", "0", "--expect-rotate", "0", "--expect-autocast", "bf16"]
     assert names.main(argv) == names.EXIT_OK
-    assert capsys.readouterr().out.startswith(f"PASS {metrics}:")
+    assert captured(capsys, tmp_path) == (EXPECT_METRICS_PASS, "")
     ckpt2, digest2, _, metrics2 = make_cell(tmp_path / "other", arm="van",
                                             record_patch={"cond_method": "fa_invariant"})
     argv[argv.index("--json") + 1] = metrics2
@@ -124,7 +172,7 @@ def test_check_metrics_cli_is_unchanged(tmp_path, capsys):
     argv[argv.index("--expect-ckpt-sha256") + 1] = digest2
     argv[argv.index("--expect-cond-method") + 1] = "vanilla"
     assert names.main(argv) == names.EXIT_BUNDLE_VIOLATION
-    assert "cond_method" in capsys.readouterr().out
+    assert captured(capsys, tmp_path) == (EXPECT_METRICS_FAIL, "")
 
 
 def test_the_cli_calls_check_bundle_with_the_nine_arguments_it_always_did(
