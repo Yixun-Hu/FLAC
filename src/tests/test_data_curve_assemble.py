@@ -941,16 +941,26 @@ def test_every_T60_benefit_row_quotes_the_step_band(tmp_path):
 # The checkpoint is hashed once per run, and watched for the rest of it
 # ===================================================================================
 def count_ckpt_hashes(monkeypatch, target):
-    """Count ``names.file_sha256`` calls against one path, leaving its behaviour intact."""
+    """Count every full read of one path, by pathname OR by open descriptor.
+
+    The checkpoint is now hashed from a descriptor the assembler opens itself, so counting
+    ``names.file_sha256`` alone would report zero and call the budget kept (D3-fix3).
+    """
     calls = []
-    real = names.file_sha256
+    by_path, by_fd = names.file_sha256, assemble._digest_of
 
     def counting(path):
         if os.path.normpath(path) == os.path.normpath(target):
             calls.append(path)
-        return real(path)
+        return by_path(path)
+
+    def counting_fd(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(target):
+            calls.append(fileobj.name)
+        return by_fd(fileobj)
 
     monkeypatch.setattr(names, "file_sha256", counting)
+    monkeypatch.setattr(assemble, "_digest_of", counting_fd)
     return calls
 
 
@@ -968,13 +978,54 @@ def test_a_run_hashes_its_checkpoint_exactly_once(tmp_path, monkeypatch):
 def test_a_checkpoint_that_changes_while_the_run_is_read_drops_every_cell(tmp_path,
                                                                          monkeypatch):
     # The single hash is only worth anything if the file is still the one that was hashed
-    # when the last bundle is checked; the identity is re-read once, at the end.
+    # when the last bundle is checked; the pathname's identity is re-read once, at the end,
+    # and compared against the identity the hashing descriptor reported.
     ckpt = write_run(tmp_path, "van", "050")
-    identities = iter([(1, 2, 3, 4), (1, 2, 3, 5)])
-    monkeypatch.setattr(assemble, "_file_identity", lambda path: next(identities))
+    monkeypatch.setattr(assemble, "_file_identity", lambda path: (1, 2, 3, 5))
     run = assemble.load_run(str(tmp_path), "van", "050", expect_n=FIXTURE_N)
     assert run["cells"][1] == {} and run["cells"][8] == {}
     assert any("changed while" in v for v in run["violations"])
+
+
+def test_a_checkpoint_replaced_between_the_stat_and_the_hash_drops_every_cell(
+        tmp_path, monkeypatch):
+    # codex D3-fix2 finding 2: the assembler hashed the pathname and stat-ed it AFTERWARDS,
+    # so a replacement in between gave hash(A) -> stat(B) -> stat(B) and no violation at
+    # all. The identity now comes from the descriptor the digest was read through, which
+    # keeps the old inode while the pathname gets a new one.
+    ckpt = write_run(tmp_path, "cyl", "075")
+    real = assemble._digest_of
+
+    def swap_then_hash(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(ckpt):
+            os.remove(ckpt)
+            with open(ckpt, "wb") as fout:
+                fout.write(b"a different checkpoint entirely")
+        return real(fileobj)
+
+    monkeypatch.setattr(assemble, "_digest_of", swap_then_hash)
+    run = assemble.load_run(str(tmp_path), "cyl", "075", expect_n=FIXTURE_N)
+    assert run["cells"][1] == {} and run["cells"][8] == {}
+    assert any("changed while" in v for v in run["violations"])
+
+
+def test_a_checkpoint_rewritten_under_the_hash_yields_no_cells(tmp_path, monkeypatch):
+    # The same window, closed from the other side: an in-place rewrite keeps the inode, so
+    # only the fstat taken immediately after the read catches it.
+    ckpt = write_run(tmp_path, "van", "075")
+    real = assemble._digest_of
+
+    def rewrite_then_hash(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(ckpt):
+            with open(ckpt, "r+b") as fout:
+                fout.write(b"XX")
+                fout.truncate(7)
+        return real(fileobj)
+
+    monkeypatch.setattr(assemble, "_digest_of", rewrite_then_hash)
+    run = assemble.load_run(str(tmp_path), "van", "075", expect_n=FIXTURE_N)
+    assert run["cells"][1] == {} and run["cells"][8] == {}
+    assert any("rewritten while it was being hashed" in v for v in run["violations"])
 
 
 # ===================================================================================

@@ -349,14 +349,20 @@ def test_an_import_hashes_the_checkpoint_exactly_once(tmp_path, monkeypatch):
     checkout = tmp_path / "flac"
     checkout.mkdir()
     calls = []
-    real = import_cells._sha256
+    by_path, by_fd = import_cells._sha256, import_cells._digest_of
 
     def counting(path):
         if os.path.normpath(path) == os.path.normpath(ckpt):
             calls.append(path)
-        return real(path)
+        return by_path(path)
+
+    def counting_fd(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(ckpt):
+            calls.append(fileobj.name)
+        return by_fd(fileobj)
 
     monkeypatch.setattr(import_cells, "_sha256", counting)
+    monkeypatch.setattr(import_cells, "_digest_of", counting_fd)
     monkeypatch.setattr(names, "file_sha256", counting)
     result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
                                                  expect_n=N_ITEMS)
@@ -368,9 +374,53 @@ def test_a_checkpoint_swapped_mid_import_publishes_nothing(tmp_path, monkeypatch
     nas, _, digest = make_run(tmp_path)
     checkout = tmp_path / "flac"
     checkout.mkdir()
-    identities = iter([(1, 2, 3, 4), (1, 2, 3, 5)])
-    monkeypatch.setattr(import_cells, "_file_identity", lambda path: next(identities))
+    monkeypatch.setattr(import_cells, "_file_identity", lambda path: (1, 2, 3, 5))
     result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
                                                  expect_n=N_ITEMS)
     assert any("changed while" in v for v in violations)
+    _nothing_was_copied(result, str(checkout))
+
+
+def test_a_checkpoint_replaced_between_the_stat_and_the_hash_publishes_nothing(
+        tmp_path, monkeypatch):
+    # codex D3-fix2 finding 2, the importer's half: it hashed the pathname and stat-ed it
+    # afterwards, so hash(A) -> stat(B) -> stat(B) published ten cells scored from a
+    # checkpoint that is no longer there. The identity now comes from the descriptor the
+    # digest was read through.
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    real = import_cells._digest_of
+
+    def swap_then_hash(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(ckpt):
+            os.remove(ckpt)
+            with open(ckpt, "wb") as fout:
+                fout.write(b"a different checkpoint entirely")
+        return real(fileobj)
+
+    monkeypatch.setattr(import_cells, "_digest_of", swap_then_hash)
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert any("changed while" in v for v in violations)
+    _nothing_was_copied(result, str(checkout))
+
+
+def test_a_checkpoint_rewritten_under_the_hash_publishes_nothing(tmp_path, monkeypatch):
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    real = import_cells._digest_of
+
+    def rewrite_then_hash(fileobj):
+        if os.path.normpath(getattr(fileobj, "name", "")) == os.path.normpath(ckpt):
+            with open(ckpt, "r+b") as fout:
+                fout.write(b"XX")
+                fout.truncate(7)
+        return real(fileobj)
+
+    monkeypatch.setattr(import_cells, "_digest_of", rewrite_then_hash)
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert any("rewritten while it was being hashed" in v for v in violations)
     _nothing_was_copied(result, str(checkout))
