@@ -48,6 +48,15 @@ METRIC_KEYS = {
 METRICS = tuple(METRIC_KEYS)
 #: The error metrics: smaller is better, so the benefit is ``van - cyl``.
 LOWER_IS_BETTER = ("T60", "C50", "EDT")
+#: Reported, NEVER scored (plan §1). These are printed beside the curve so a reader can see
+#: them move, and they enter no benefit, no verdict and no data-equivalence scan.
+DIAGNOSTIC_KEYS = {"FD": "FD", "geom R@1": "RIR_to_geom_R@1",
+                   "geom R@5": "RIR_to_geom_R@5", "geom R@10": "RIR_to_geom_R@10"}
+#: The known step-to-step wobble of this stack (FLAC HANDOFF), quoted next to every T60
+#: benefit rather than once at the top: a caveat that is not beside the number it qualifies
+#: is a caveat nobody applies.
+T60_STEP_BAND = 0.5
+T60_STEP_BAND_NOTE = f"step band ~ +-{T60_STEP_BAND} T60"
 
 #: The pre-registered primary endpoints of the verdict (plan §1). Everything else --
 #: K=1, C50, R@k -- is reported with the same machinery and never overrides this.
@@ -86,6 +95,13 @@ def mean_sd(values):
     if not vals:
         raise ValueError("cannot aggregate an empty list of seed values")
     return statistics.mean(vals), (statistics.stdev(vals) if len(vals) > 1 else 0.0)
+
+
+def _number(value):
+    """A finite float, or ``None`` -- for diagnostics, which are reported, never scored."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if math.isfinite(float(value)) else None
 
 
 def _round(value):
@@ -146,6 +162,26 @@ def verdict(benefit_means, primary_metrics=PRIMARY_METRICS, fractions=FRACTION_P
         "annotations": annotations,
         "benefits": {m: {f: benefit_means[m][f] for f in fractions} for m in primary_metrics},
     }
+
+
+def c50_trend(benefit_low, benefit_high, low_pct=FRACTION_PCTS[0], high_pct=ANCHOR_PCT):
+    """The registered descriptive C50 line (plan §1): does the deficit shrink, hold or grow?
+
+    CylDINO is *worse* on C50 at 100 %, so its benefit is negative and the interesting
+    question is what happens to that deficit as the data shrinks. Compared at the reporting
+    precision, and descriptive only -- C50 is a secondary metric and never overrides the
+    primary verdict.
+    """
+    if benefit_low is None or benefit_high is None:
+        return {"trend": "pending", "b_low": None, "b_high": None,
+                "line": "C50 deficit: pending (a C50 benefit is missing)"}
+    low, high = _round(benefit_low), _round(benefit_high)
+    trend = "shrinks" if low > high else ("grows" if low < high else "holds")
+    return {"trend": trend, "b_low": low, "b_high": high,
+            "line": f"C50 deficit {trend} from {high_pct} % to {low_pct} % of the data "
+                    f"(B_{high_pct} = {high:+.{REPORT_DP}f}, B_{low_pct} = "
+                    f"{low:+.{REPORT_DP}f}; negative = CylDINO worse). Descriptive only: "
+                    "C50 never enters the primary verdict."}
 
 
 def data_equivalence(g_by_fraction, fractions=FRACTION_PCTS):
@@ -305,6 +341,13 @@ def _read_cell(path, arm):
             record, [])
 
 
+def _diagnostics(record):
+    """The reported-but-unscored numbers of one record; a missing one is ``None``."""
+    metrics = record.get("metrics") if isinstance(record, dict) else {}
+    return {label: _number((metrics or {}).get(key))
+            for label, key in DIAGNOSTIC_KEYS.items()}
+
+
 def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=None):
     """Every cell of one training run, bound to the checkpoint the run directory holds.
 
@@ -361,7 +404,8 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
                 continue
             out["cells"][K][seed] = {
                 "path": path, "bundle": bundle, "ckpt_sha256": out["ckpt_sha256"],
-                "metrics": {m: float(record["metrics"][k]) for m, k in METRIC_KEYS.items()}}
+                "metrics": {m: float(record["metrics"][k]) for m, k in METRIC_KEYS.items()},
+                "diagnostics": _diagnostics(record)}
     return out
 
 
@@ -499,11 +543,12 @@ def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES):
             violations.append(f"{base}: hashes to sha256 {digest}, not the pinned {pinned} "
                               "-- these are not the bytes the anchor was measured from")
             continue
-        metrics, _, bad = _read_cell(path, arm)
+        metrics, record, bad = _read_cell(path, arm)
         if metrics is None:
             violations += [f"K{K} s{seed} ({base}): {line}" for line in bad]
             continue
-        cells[K][seed] = {"path": path, "sha256": digest, "metrics": metrics}
+        cells[K][seed] = {"path": path, "sha256": digest, "metrics": metrics,
+                          "diagnostics": _diagnostics(record)}
     for K in ks:
         for seed in seeds:
             if seed not in cells[K]:
@@ -580,6 +625,12 @@ def _stringify(obj):
     if isinstance(obj, (list, tuple)):
         return [_stringify(value) for value in obj]
     return obj
+
+
+def _diag_by_seed(cells_by_seed, label):
+    """``{seed: value}`` for one diagnostic, skipping cells whose record did not carry it."""
+    return {seed: cell["diagnostics"][label] for seed, cell in cells_by_seed.items()
+            if (cell.get("diagnostics") or {}).get(label) is not None}
 
 
 def _row(metric, pct, cyl_by_seed, van_by_seed, seeds, source):
@@ -668,6 +719,26 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
                     "source": os.path.basename(anchors_path)}
             curve[f"K{K}"][metric] = rows
 
+    diagnostics = {}
+    for K in ks:
+        diagnostics[f"K{K}"] = {}
+        for label in DIAGNOSTIC_KEYS:
+            rows = {}
+            for tag, pct in zip(tags, pcts):
+                rows[str(pct)] = {arm: aggregate(_diag_by_seed(runs[(arm, tag)]["cells"][K],
+                                                               label), seeds)
+                                  for arm in names.ARMS}
+            rows[str(ANCHOR_PCT)] = {
+                arm: aggregate(_diag_by_seed(anchor_cells.get(arm, {}).get(K, {}), label)
+                               if anchor_form == "paired" else {}, seeds)
+                for arm in names.ARMS}
+            diagnostics[f"K{K}"][label] = rows
+
+    c50 = {f"K{K}": c50_trend(
+        (curve[f"K{K}"]["C50"][str(pcts[0])]["benefit"] or {}).get("mean"),
+        (curve[f"K{K}"]["C50"][str(ANCHOR_PCT)]["benefit"] or {}).get("mean"),
+        pcts[0], ANCHOR_PCT) for K in ks}
+
     primary = curve[f"K{PRIMARY_K}"]
     pending = [f"{m} @ {pct} %" for m in PRIMARY_METRICS for pct in pcts
                if not primary[m][str(pct)]["complete"]
@@ -717,6 +788,8 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
         "fractions_pct": pcts,
         "effective_epochs": epochs,
         "curve": curve,
+        "diagnostics": diagnostics,
+        "c50_trend": c50,
         "verdict": verdict_block,
         "data_equivalence": equivalence,
         "provenance": {
