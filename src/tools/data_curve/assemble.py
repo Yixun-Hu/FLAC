@@ -543,12 +543,17 @@ def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES, trus
     updating the manifest beside it passed, and the P1 screen pin the module declared was
     never consulted.
 
-    The mutable ``anchor_cells.json`` beside the cells keeps exactly one power: it may
-    supply a sha256 for an entry the committed manifest leaves ``null`` (that is how the
-    ten remote cylNoSSL cells of D10 get pinned once someone copies them here). It may
-    never contradict a non-null pin, and it may neither add nor remove files -- the set is
-    exact, which is what keeps the ``exp10_P140fae_*`` cells out of the van anchors: same
-    checkpoint, same directory, different eval protocol.
+    A ``null`` sha256 in that manifest means UNAVAILABLE, and the only thing that can
+    change it is adding the digest to ``anchor_cells_tierS.json`` in a reviewed commit. It
+    used to mean "unpinned, unless the ``anchor_cells.json`` beside the cells offers one",
+    which left every null slot self-authenticating -- the defect the committed manifest was
+    introduced to close, surviving in the promotion path (codex D3-fix2 finding 1).
+
+    The mutable ``anchor_cells.json`` therefore admits nothing. It is kept as a tripwire:
+    a digest there that CONTRADICTS a non-null pin is a violation, which is how an operator
+    who updated the directory's manifest and nothing else finds out. It may neither add nor
+    remove files either -- the set is exact, which is what keeps the ``exp10_P140fae_*``
+    cells out of the van anchors: same checkpoint, same directory, different eval protocol.
 
     Anything unpinned, mismatched, extra, missing or malformed is a violation, and the
     caller drops back to the marginal 100 % form.
@@ -608,19 +613,14 @@ def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES, trus
         entry = external.get(base)
         claimed = entry.get("sha256") if isinstance(entry, dict) else None
         if pinned is None:
-            if claimed is None:
-                violations.append(
-                    f"{where}: unpinned -- the trusted manifest records no sha256 and no "
-                    f"{ANCHOR_MANIFEST_BASENAME} supplies one, so the paired 100 % form is "
-                    "unavailable until this cell is pinned")
-                continue
-            if not isinstance(claimed, str) or len(claimed) != 64 \
-                    or any(c not in "0123456789abcdef" for c in claimed):
-                violations.append(f"{where}: {ANCHOR_MANIFEST_BASENAME} offers sha256 "
-                                  f"{claimed!r}, which is not a digest")
-                continue
-            pinned = claimed
-        elif claimed is not None and claimed != pinned:
+            violations.append(
+                f"{where}: {arm} anchors unpinned in the repository (D10 pending) -- "
+                f"{os.path.basename(TRUSTED_ANCHOR_MANIFEST)} records no sha256 for this "
+                f"cell, and a {ANCHOR_MANIFEST_BASENAME} beside the cells may not supply "
+                "one; the paired 100 % form stays unavailable until the digest is added to "
+                "the committed manifest in a reviewed commit")
+            continue
+        if claimed is not None and claimed != pinned:
             violations.append(
                 f"{where}: {ANCHOR_MANIFEST_BASENAME} claims sha256 {claimed}, but this cell "
                 f"is pinned in the repository to {pinned}; an adjacent manifest may fill a "
