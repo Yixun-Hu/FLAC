@@ -323,6 +323,19 @@ def check_cell_protocol(record, arm):
     return bad
 
 
+def _file_identity(path):
+    """``(device, inode, size, mtime_ns)`` -- cheap proof a file is still the one we hashed.
+
+    The alternative to a second full hash at the end of the run. It catches the two ways a
+    checkpoint stops being the bytes we measured: replaced at the same pathname (a new
+    inode) and rewritten in place (size or mtime). It does not catch an in-place rewrite
+    that restores both -- an adversary with that much control also controls the manifests
+    this tool reads, so the extra 0.7 GB read would buy nothing.
+    """
+    info = os.stat(path)
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
 def _load_json(path):
     try:
         with open(path) as fin:
@@ -365,8 +378,13 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
     disagreement among them was checked; now the comparison is against the bytes on disk.
 
     ``expect_n`` is for fixtures only -- production leaves it ``None`` so the split size is
-    ``names.N_ITEMS_UNSEEN``. Checking the bundles costs one torch.load per cell (~260 MB
-    each in production); that is the price of knowing the numbers are the ones scored.
+    ``names.N_ITEMS_UNSEEN``.
+
+    **NAS read budget, per run:** the checkpoint is hashed ONCE (~0.7 GB) and its identity
+    re-read at the end; the ten bundles are loaded once each (~260 MB apiece, ~2.6 GB), and
+    that is the price of knowing the numbers are the ones that were scored. A six-run
+    assembly therefore reads ~20 GB, not the ~59 GiB it read before the digest was passed
+    down to ``names.check_bundle`` (codex D3-fix finding 4).
     """
     n_items = names.N_ITEMS_UNSEEN if expect_n is None else expect_n
     run = names.run_id(arm, tag)
@@ -377,6 +395,7 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
     try:
         out["ckpt"] = final_checkpoint(run_dir)
         out["ckpt_sha256"] = names.file_sha256(out["ckpt"])
+        identity = _file_identity(out["ckpt"])
     except (DataCurveError, OSError) as err:
         out["violations"].append(f"{run}: {err}")
         return out
@@ -400,7 +419,8 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
                 bad += names.check_bundle(
                     bundle, n_items, seed, K, arm,
                     expect_eval_name=names.eval_name(arm, tag, K, seed),
-                    expect_ckpt=out["ckpt"], expect_ckpt_sha256=out["ckpt_sha256"])
+                    expect_ckpt=out["ckpt"], expect_ckpt_sha256=out["ckpt_sha256"],
+                    precomputed_ckpt_sha256=out["ckpt_sha256"])
             if bad:
                 out["violations"] += [f"{where}: {line}" for line in bad]
                 continue
@@ -408,6 +428,16 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=
                 "path": path, "bundle": bundle, "ckpt_sha256": out["ckpt_sha256"],
                 "metrics": {m: float(record["metrics"][k]) for m, k in METRIC_KEYS.items()},
                 "diagnostics": _diagnostics(record)}
+    try:
+        still = _file_identity(out["ckpt"])
+    except OSError as err:
+        still = ("gone", err)
+    if still != identity:
+        out["violations"].append(
+            f"{run}: {out['ckpt']} changed while this run was being read ({identity} -> "
+            f"{still}); the digest every cell was bound to is no longer the file's, so "
+            "every cell is dropped")
+        out["cells"] = {K: {} for K in ks}
     return out
 
 
