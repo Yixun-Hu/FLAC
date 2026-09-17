@@ -898,3 +898,31 @@ def test_a_checkpoint_that_changes_while_the_run_is_read_drops_every_cell(tmp_pa
     run = assemble.load_run(str(tmp_path), "van", "050", expect_n=FIXTURE_N)
     assert run["cells"][1] == {} and run["cells"][8] == {}
     assert any("changed while" in v for v in run["violations"])
+
+
+# ===================================================================================
+# An incomplete row pends the readouts it feeds, it does not quietly shorten them
+# ===================================================================================
+def test_data_equivalence_pends_when_any_contributing_row_is_incomplete(tmp_path):
+    # The verdict already went PENDING for this document; the equivalence scan used to
+    # keep reporting a crossing from the rows that happened to be whole.
+    doc = build(tmp_path, nas_root=fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)]))
+    assert doc["verdict"]["verdict"] == "PENDING"
+    block = doc["data_equivalence"]["K8"]["T60"]
+    assert block["kind"] == "pending"
+    assert "50 %" in block["outcome"]
+    assert block["f_star"] is None
+
+
+def test_the_c50_line_pends_when_any_contributing_row_is_incomplete(tmp_path):
+    doc = build(tmp_path, nas_root=fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)]))
+    assert doc["c50_trend"]["K8"]["trend"] == "pending"
+    assert "50 %" in doc["c50_trend"]["K8"]["line"]
+    # K=1 is untouched by a K=8 gap and still reports.
+    assert doc["c50_trend"]["K1"]["trend"] == "holds"
+
+
+def test_an_incomplete_readout_says_so_in_the_markdown(tmp_path):
+    md = assemble.render_markdown(
+        build(tmp_path, nas_root=fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)])))
+    assert "pending" in md
