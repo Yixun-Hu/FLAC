@@ -1099,6 +1099,40 @@ def test_the_markdown_shows_a_diagnostic_gap_with_its_count(tmp_path):
     assert "RIR_to_geom_R@10" in md
 
 
+def test_a_paired_anchor_missing_a_diagnostic_is_a_violation_not_just_a_gap(tmp_path):
+    # codex D3-fix2 finding 3: a new run's incomplete diagnostic recorded a violation, the
+    # paired 100 % row only rendered the gap. So five endpoint-valid anchor cells with one
+    # missing FD left the document COMPLETE while printing "-- (n=4/5)" for it -- the same
+    # silent shortfall the rule was written against, at the one row everything is measured
+    # against. A paired anchor is five real cells; it answers to the same rule.
+    dirs, trusted = fixture_anchor_dirs(tmp_path)
+    base = anchor_basename("cyl", 8, 42)
+    path = os.path.join(dirs["cyl"], base)
+    with open(path) as fin:
+        record = json.load(fin)
+    record["metrics"].pop("FD")
+    with open(path, "w") as fout:
+        json.dump(record, fout)
+    trusted["cyl"][base]["sha256"] = sha256_of(path)
+    doc = build(tmp_path, anchor_cell_dirs=dirs, anchor_trusted=trusted)
+    assert doc["anchor_form"] == "paired"                  # the scored endpoints are there
+    assert doc["curve"]["K8"]["T60"]["100"]["complete"] is True
+    cell = doc["diagnostics"]["K8"]["FD"]["100"]["cyl"]
+    assert cell["mean"] is None and cell["n"] == 4 and cell["complete"] is False
+    assert any("FD" in v and "100 % anchor" in v for v in doc["violations"])
+    assert doc["complete"] is False
+    assert "-- (n=4/5)" in assemble.render_markdown(doc)
+
+
+def test_a_marginal_anchor_row_is_a_gap_without_a_violation(tmp_path):
+    # The fallback row carries no per-seed cells at all, so its empty diagnostics are the
+    # documented absence of the reference -- not five cells that came up four.
+    doc = build(tmp_path)
+    assert doc["anchor_form"] == "marginal"
+    assert doc["diagnostics"]["K8"]["FD"]["100"]["cyl"]["n"] == 0
+    assert doc["violations"] == [] and doc["complete"] is True
+
+
 # ===================================================================================
 # --strict promises only what it does; --require-paired is the flag that wanted saying
 # ===================================================================================
