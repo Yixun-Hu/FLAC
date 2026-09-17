@@ -969,3 +969,45 @@ def test_the_markdown_shows_a_diagnostic_gap_with_its_count(tmp_path):
                                                                       patch=patch)))
     assert "-- (n=4/5)" in md
     assert "RIR_to_geom_R@10" in md
+
+
+# ===================================================================================
+# --strict promises only what it does; --require-paired is the flag that wanted saying
+# ===================================================================================
+def _cli(tmp_path, *extra, nas_root=None, dirs=None):
+    argv = ["--nas-root", nas_root or fixture_nas(tmp_path), "--anchors", ANCHORS_JSON,
+            "--split-manifest", os.path.join(FIXTURES, "split_manifest.json"),
+            "--out-json", str(tmp_path / "curve.json")]
+    if dirs:
+        argv += ["--anchor-cells-p1", dirs["van"], "--anchor-cells-cyl", dirs["cyl"]]
+    return assemble.main(argv + list(extra))
+
+
+def test_the_strict_help_promises_only_what_strict_does():
+    actions = {action.dest: action for action in assemble._build_arg_parser()._actions}
+    assert "unpaired" not in actions["strict"].help
+    assert "violation" in actions["strict"].help and "incomplete" in actions["strict"].help
+    assert "paired" in actions["require_paired"].help
+
+
+def test_strict_passes_a_clean_marginal_document(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
+    assert _cli(tmp_path, "--strict") == assemble.EXIT_OK
+
+
+def test_strict_fails_an_incomplete_document_even_without_violations(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
+    nas = fixture_nas(tmp_path, drop=[("cyl", "050", 8, 44)])
+    assert _cli(tmp_path, "--strict", nas_root=nas) == assemble.EXIT_INCOMPLETE
+
+
+def test_require_paired_refuses_the_marginal_fallback(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
+    assert _cli(tmp_path, "--require-paired") == assemble.EXIT_UNPAIRED
+    assert "marginal" in capsys.readouterr().err
+
+
+def test_require_paired_accepts_verified_raw_anchor_cells(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
+    assert _cli(tmp_path, "--require-paired",
+                dirs=fixture_anchor_dirs(tmp_path)) == assemble.EXIT_OK
