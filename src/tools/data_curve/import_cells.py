@@ -93,6 +93,16 @@ def _final_checkpoint(run_dir, step=names.MAX_STEPS):
                   "the cells beside them is not decidable here")
 
 
+def _file_identity(path):
+    """``(device, inode, size, mtime_ns)`` -- proof the checkpoint is still the one we hashed.
+
+    Cheaper than a second full hash and enough for the two ways a checkpoint stops being
+    the bytes we measured: replaced at the same pathname, or rewritten in place.
+    """
+    info = os.stat(path)
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+
 def _sha256(path):
     digest = hashlib.sha256()
     with open(path, "rb") as fin:
@@ -107,6 +117,11 @@ def validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds=names.SEEDS,
 
     ``expect_n`` overrides the 6,337-item contract for fixtures only; production callers
     leave it ``None`` so the split size comes from ``names.N_ITEMS_UNSEEN``.
+
+    **NAS read budget:** the caller hashes the checkpoint once (~0.7 GB) and hands the
+    digest in here, so the ten bundles (~260 MB each) are the only other reads -- about
+    3.3 GB per arm rather than the ~10 GB it was when every bundle re-hashed the
+    checkpoint (codex D3-fix finding 4).
     """
     n_items = names.N_ITEMS_UNSEEN if expect_n is None else expect_n
     cond_method = names.ARM_COND_METHOD[arm]
@@ -129,7 +144,8 @@ def validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds=names.SEEDS,
                 bad += names.check_bundle(bundle_path, n_items, seed, K, arm,
                                           expect_eval_name=names.eval_name(arm, tag, K, seed),
                                           expect_ckpt=ckpt,
-                                          expect_ckpt_sha256=expect_ckpt_sha256)
+                                          expect_ckpt_sha256=expect_ckpt_sha256,
+                                          precomputed_ckpt_sha256=expect_ckpt_sha256)
             if bad:
                 violations += [f"{where}: {line}" for line in bad]
                 continue
@@ -253,10 +269,19 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     if on_disk != expect_ckpt_sha256:
         return result, [f"{run}: {ckpt} hashes to {on_disk}, not the ckpt_sha256 "
                         f"{expect_ckpt_sha256} the launcher validated"]
+    identity = _file_identity(ckpt)
     files, violations = validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds, ks,
                                        expect_n)
     if violations:
         return result, violations
+    # The one hash above is only worth something if the file is still the one it read.
+    try:
+        still = _file_identity(ckpt)
+    except OSError as err:
+        still = ("gone", err)
+    if still != identity:
+        return result, [f"{run}: {ckpt} changed while this import was reading it "
+                        f"({identity} -> {still}); nothing was published"]
     try:
         violations, installed = _stage_and_install(files, dest_dir, flac_checkout, run,
                                                    ckpt, expect_ckpt_sha256)
