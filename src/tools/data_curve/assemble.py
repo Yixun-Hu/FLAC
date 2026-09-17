@@ -625,6 +625,9 @@ def effective_epochs(manifest, max_steps=names.MAX_STEPS, global_batch=GLOBAL_BA
 #: Exit codes. 4 is "the artifacts on disk do not yet support the table that was asked
 #: for" -- a state the launcher and the analyst both need to be able to branch on.
 EXIT_OK, EXIT_INPUT_ERROR, EXIT_INCOMPLETE = 0, 2, 4
+#: ``--require-paired`` got its own code: "the 100 % anchors are not pinned raw cells" is a
+#: different thing to act on than "the curve has a hole in it".
+EXIT_UNPAIRED = 5
 #: Round A's manifest, next to the split files it describes.
 DEFAULT_SPLIT_MANIFEST = os.path.join(names.REPO_ROOT, "data", "AR",
                                       "train_frac_manifest_s2026.json")
@@ -1022,8 +1025,7 @@ def render_markdown(doc):
     return "\n".join(out) + "\n"
 
 
-def main(argv=None):
-    """CLI: assemble ``data_curve.json`` + ``data_curve.md`` from the NAS run dirs."""
+def _build_arg_parser():
     parser = argparse.ArgumentParser(
         prog="python -m src.tools.data_curve.assemble",
         description="Assemble exp_14's data-efficiency curve from the cells on the NAS.")
@@ -1041,8 +1043,16 @@ def main(argv=None):
     parser.add_argument("--out-json", default=None)
     parser.add_argument("--out-md", default=None)
     parser.add_argument("--strict", action="store_true",
-                        help="exit non-zero if anything is missing, mismatched or unpaired")
-    args = parser.parse_args(argv)
+                        help="exit non-zero on any violation, or on an incomplete document")
+    parser.add_argument("--require-paired", action="store_true",
+                        help="additionally exit non-zero unless the 100 %% anchors are the "
+                             "paired form (raw per-seed cells, verified against their pins)")
+    return parser
+
+
+def main(argv=None):
+    """CLI: assemble ``data_curve.json`` + ``data_curve.md`` from the NAS run dirs."""
+    args = _build_arg_parser().parse_args(argv)
 
     dirs = {arm: path for arm, path in (("van", args.anchor_cells_p1),
                                         ("cyl", args.anchor_cells_cyl)) if path}
@@ -1063,8 +1073,12 @@ def main(argv=None):
           f"complete: {doc['complete']} | violations: {len(doc['violations'])}")
     for line in doc["violations"]:
         print(f"  ! {line}", file=sys.stderr)
-    if args.strict and doc["violations"]:
+    if args.strict and (doc["violations"] or not doc["complete"]):
         return EXIT_INCOMPLETE
+    if args.require_paired and doc["anchor_form"] != "paired":
+        print(f"--require-paired: the 100 % anchors are {doc['anchor_form']} -- "
+              f"{doc['anchor_form_reason']}", file=sys.stderr)
+        return EXIT_UNPAIRED
     return EXIT_OK
 
 
