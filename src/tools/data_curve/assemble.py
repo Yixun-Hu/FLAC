@@ -659,6 +659,17 @@ def _stringify(obj):
     return obj
 
 
+def incomplete_fractions(rows, pcts):
+    """The fractions whose row is not fully complete -- both arms, five seeds each.
+
+    Every descriptive readout downstream of the table (data equivalence, the C50 line) is a
+    statement about the whole curve, so a hole anywhere in it pends the readout. Reporting
+    "crossing at 62.5 %" from the three fractions that happened to be whole, beside a
+    verdict that already says PENDING, is the failure this closes (codex D3-fix finding 2).
+    """
+    return [pct for pct in pcts if rows[str(pct)].get("complete") is not True]
+
+
 def _diag_by_seed(cells_by_seed, label):
     """``{seed: value}`` for one diagnostic, skipping cells whose record did not carry it."""
     return {seed: cell["diagnostics"][label] for seed, cell in cells_by_seed.items()
@@ -766,10 +777,17 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
                 for arm in names.ARMS}
             diagnostics[f"K{K}"][label] = rows
 
-    c50 = {f"K{K}": c50_trend(
-        (curve[f"K{K}"]["C50"][str(pcts[0])]["benefit"] or {}).get("mean"),
-        (curve[f"K{K}"]["C50"][str(ANCHOR_PCT)]["benefit"] or {}).get("mean"),
-        pcts[0], ANCHOR_PCT) for K in ks}
+    c50 = {}
+    for K in ks:
+        rows = curve[f"K{K}"]["C50"]
+        holes = incomplete_fractions(rows, pcts)
+        c50[f"K{K}"] = ({"trend": "pending", "b_low": None, "b_high": None,
+                         "line": "C50 deficit: pending -- the C50 row is incomplete at "
+                                 + ", ".join(f"{pct} %" for pct in holes)}
+                        if holes else
+                        c50_trend((rows[str(pcts[0])]["benefit"] or {}).get("mean"),
+                                  (rows[str(ANCHOR_PCT)]["benefit"] or {}).get("mean"),
+                                  pcts[0], ANCHOR_PCT))
 
     primary = curve[f"K{PRIMARY_K}"]
     pending = [f"{m} @ {pct} %" for m in PRIMARY_METRICS for pct in pcts
@@ -793,9 +811,12 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
             g = {pct: oriented_benefit(metric, van_100, rows[str(pct)]["cyl"]["mean"])
                  for pct in pcts
                  if van_100 is not None and rows[str(pct)]["cyl"]["mean"] is not None}
-            if len(g) != len(pcts):
+            holes = incomplete_fractions(rows, pcts)
+            if holes or len(g) != len(pcts):
+                reason = (("rows incomplete at " + ", ".join(f"{pct} %" for pct in holes))
+                          if holes else "missing cells")
                 equivalence[f"K{K}"][metric] = {
-                    "kind": "pending", "outcome": "pending (missing cells)", "g": g,
+                    "kind": "pending", "outcome": f"pending ({reason})", "g": g,
                     "f_star": None, "bracket": None, "fractions": list(pcts)}
             else:
                 equivalence[f"K{K}"][metric] = data_equivalence(g, fractions=tuple(pcts))
