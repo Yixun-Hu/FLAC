@@ -409,8 +409,34 @@ def _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256):
     return violations
 
 
+def _check_bundle_ckpt_precomputed(meta, expect_ckpt, expect_ckpt_sha256, precomputed):
+    """``_check_bundle_ckpt`` for a caller that has ALREADY hashed this checkpoint.
+
+    Same three agreements, same messages; the only difference is where the third digest
+    comes from. The assembler and the importer hash the run's one final checkpoint once and
+    then check ten bundles against it, so re-opening and re-hashing ~0.7 GB per bundle
+    bought nothing but ~40 GiB of redundant NAS reads per full assembly (codex D3-fix 4).
+
+    Deliberately a separate function: ``_check_bundle_ckpt`` is what the launcher's CLI
+    runs while a pair is live, and it is not touched.
+    """
+    want = os.path.normpath(str(expect_ckpt))
+    got = os.path.normpath(str(meta.get("ckpt_path")))
+    if got != want:
+        return [f"meta.ckpt_path is {got!r}, expected the validated final checkpoint {want!r}"]
+    if expect_ckpt_sha256 is None:
+        return []
+    violations = _check_embedded_digest("meta", meta.get("ckpt_sha256"), expect_ckpt_sha256)
+    if precomputed != expect_ckpt_sha256:
+        violations.append(
+            f"the checkpoint {want!r} now hashes to {precomputed}, not the "
+            f"{expect_ckpt_sha256} the launcher validated: it was replaced after validation")
+    return violations
+
+
 def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_name=None,
-                 config_root=None, expect_ckpt=None, expect_ckpt_sha256=None):
+                 config_root=None, expect_ckpt=None, expect_ckpt_sha256=None,
+                 precomputed_ckpt_sha256=None):
     """Return the list of violations (empty == the bundle is this cell's, exactly as scored).
 
     Loads on CPU with ``weights_only=False`` (the bundle is a dict of a tensor and a meta
@@ -426,6 +452,12 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     checkpoint file, so a checkpoint replaced *after* the launcher validated it is caught
     too. Both are optional here for library callers; the CLI requires them, because the
     launcher is the only production caller and it must never count an unbound artifact.
+
+    ``precomputed_ckpt_sha256`` is that checkpoint's digest as the CALLER already computed
+    it, used in place of re-hashing the file. It exists for the analysis tooling, which
+    validates ten bundles against one checkpoint and would otherwise read ~0.7 GB per bundle
+    to learn the same thing eleven times. The CLI never passes it, so the launcher's path
+    is byte-for-byte the one it has always run.
     """
     import torch  # deferred: the name/argv helpers must stay importable without torch
 
@@ -496,7 +528,11 @@ def check_bundle(path, expect_n, expect_seed, expect_K, expect_arm, expect_eval_
     if expect_eval_name is not None:
         expect("eval_name", meta.get("eval_name"), expect_eval_name)
     if expect_ckpt is not None:
-        violations += _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256)
+        violations += (
+            _check_bundle_ckpt(meta, expect_ckpt, expect_ckpt_sha256)
+            if precomputed_ckpt_sha256 is None else
+            _check_bundle_ckpt_precomputed(meta, expect_ckpt, expect_ckpt_sha256,
+                                           precomputed_ckpt_sha256))
 
     predictions = bundle["predictions"]
     if not torch.is_tensor(predictions):
