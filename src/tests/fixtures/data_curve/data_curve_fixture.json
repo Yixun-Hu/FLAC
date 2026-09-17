@@ -1,6 +1,21 @@
 {
- "_fixture": "FIXTURE, not a measurement. Produced by src.tools.data_curve.assemble.build_curve itself over synthetic cells, so the plot tests exercise the real document schema. Recipe: van sits exactly on its anchors_tier_S.json mean at every fraction; cyl beats it by BENEFIT = {25%: 0.9, 50%: 0.7, 75%: 0.6} on T60, 2x that on EDT, +0.1 on C50 (worse, as at 100 %) and +BENEFIT on the recalls; each seed carries a small fixed jitter; ckpt_sha256 is 64 'a' characters; anchors are the MARGINAL form. No number here came from a trained model.",
+ "_fixture": "FIXTURE, not a measurement. Produced by src.tools.data_curve.assemble.build_curve itself over synthetic cells (metrics JSONs plus their prediction bundles), so the plot tests exercise the real document schema. Recipe: van sits exactly on its anchors_tier_S.json mean at every fraction; cyl beats it by BENEFIT = {25%: 0.9, 50%: 0.7, 75%: 0.6} on T60, 2x that on EDT, +0.1 on C50 (worse, as at 100 %) and +BENEFIT on the recalls; each seed carries a small fixed jitter; the checkpoint digest is the real sha256 of the fixture checkpoint bytes b'fixture'; bundles are 2-item stand-ins for the 6,337-item split; anchors are the MARGINAL form. No number here came from a trained model.",
  "anchor_form": "marginal",
+ "anchor_form_reason": "no raw per-seed anchor cells were supplied for both arms (plan D10)",
+ "c50_trend": {
+  "K1": {
+   "b_high": -0.1,
+   "b_low": -0.1,
+   "line": "C50 deficit holds from 100 % to 25 % of the data (B_100 = -0.1000, B_25 = -0.1000; negative = CylDINO worse). Descriptive only: C50 never enters the primary verdict.",
+   "trend": "holds"
+  },
+  "K8": {
+   "b_high": -0.1,
+   "b_low": -0.1,
+   "line": "C50 deficit holds from 100 % to 25 % of the data (B_100 = -0.1000, B_25 = -0.1000; negative = CylDINO worse). Descriptive only: C50 never enters the primary verdict.",
+   "trend": "holds"
+  }
+ },
  "complete": true,
  "curve": {
   "K1": {
@@ -2426,13 +2441,835 @@
    }
   }
  },
+ "diagnostics": {
+  "K1": {
+   "FD": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@1": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@10": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@5": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   }
+  },
+  "K8": {
+   "FD": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 0.32,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@1": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 3.8,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@10": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 20.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   },
+   "geom R@5": {
+    "100": {
+     "cyl": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     },
+     "van": {
+      "complete": false,
+      "mean": null,
+      "n": 0,
+      "sd": null,
+      "seeds": []
+     }
+    },
+    "25": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "50": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    },
+    "75": {
+     "cyl": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     },
+     "van": {
+      "complete": true,
+      "mean": 13.0,
+      "n": 5,
+      "sd": 0.0,
+      "seeds": [
+       42,
+       43,
+       44,
+       45,
+       46
+      ]
+     }
+    }
+   }
+  }
+ },
  "disclosures": [
   "Fixed-compute estimand -- a fixed-compute efficiency curve under jointly reduced target and context diversity: every run is 40,000 optimizer steps x a global batch of 64 = 2,560,000 target draws, so the 25 % arm revisits each RIR ~4x more often than the 100 % arm (effective epochs per fraction are tabulated below). This is NOT a fixed-epoch learning curve.",
   "Aggregation is the pinned evaluator's AR convention: one item-weighted value over the whole 6,337-item unseen split per eval seed, then mean +- sd over seeds 42-46. No per-scene averaging anywhere in this experiment.",
   "One training seed per cell: sd(d_s) is EVAL-seed noise, not training-run uncertainty (exp_12 Amendment 2), so the verdict is descriptive. The known step-to-step band on this stack is ~ +-0.5 T60.",
   "Nested subsets with jointly reduced target AND context diversity; both arms are scored under their own conditioning protocol with all four flags explicit (announcement 05).",
   "Frame-average chunking is N/A on this pin (announcement 06): the cyl arm trains and scores with frame_avg_angles = [0], orbit size 1.",
-  "The 100 % point is reported in the MARGINAL form (`anchor_form: marginal`; mean +- sd per arm, B_100 = difference of means, no paired sd): the raw per-seed anchor cells were not supplied for both arms (plan D10). The verdict rule uses B only, so it still evaluates."
+  "The 100 % point is reported in the MARGINAL form (`anchor_form: marginal`; mean +- sd per arm, B_100 = difference of means, no paired sd), because no raw per-seed anchor cells were supplied for both arms (plan D10). The verdict rule uses B only, so it still evaluates."
  ],
  "effective_epochs": {
   "100": 2560.0,
@@ -2469,7 +3306,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_cyl_f025/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "025",
     "protocol": {
      "cond_autocast": "bf16",
@@ -2500,7 +3337,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_cyl_f050/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "050",
     "protocol": {
      "cond_autocast": "bf16",
@@ -2531,7 +3368,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_cyl_f075/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "075",
     "protocol": {
      "cond_autocast": "bf16",
@@ -2562,7 +3399,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_van_f025/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "025",
     "protocol": {
      "cond_autocast": "bf16",
@@ -2591,7 +3428,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_van_f050/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "050",
     "protocol": {
      "cond_autocast": "bf16",
@@ -2620,7 +3457,7 @@
      }
     },
     "ckpt": "/FIXTURE/nas/dc_van_f075/epoch=8-step=40000.ckpt",
-    "ckpt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ckpt_sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
     "fraction_tag": "075",
     "protocol": {
      "cond_autocast": "bf16",
