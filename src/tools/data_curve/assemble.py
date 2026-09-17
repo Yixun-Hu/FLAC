@@ -663,8 +663,8 @@ def load_anchor_cells(directory, arm, seeds=names.SEEDS, ks=names.K_VALUES, trus
         if claimed is not None and claimed != pinned:
             violations.append(
                 f"{where}: {ANCHOR_MANIFEST_BASENAME} claims sha256 {claimed}, but this cell "
-                f"is pinned in the repository to {pinned}; an adjacent manifest may fill a "
-                "pin, never contradict one")
+                f"is pinned in the repository to {pinned}; an adjacent manifest may neither "
+                "fill a pin nor contradict one")
             continue
         path = os.path.join(directory, base)
         try:
