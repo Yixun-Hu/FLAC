@@ -128,6 +128,25 @@ def test_a_row_without_a_mean_breaks_the_line_instead_of_bridging_it():
         plot.close(figure)
 
 
+def test_a_four_seed_mean_is_a_gap_too_even_though_it_is_a_number(tmp_path):
+    # The assembler gives a four-seed aggregate a perfectly numeric mean and sets
+    # complete=False. Gating on "mean is None" plots it and keeps the line connected, which
+    # is the same lie as interpolating -- so the gate is `complete`, and the footnote fires.
+    doc = load_fixture()
+    doc["curve"]["K8"]["EDT"]["50"]["cyl"] = {"mean": 38.6, "sd": 0.02, "n": 4,
+                                              "seeds": [42, 43, 44, 45], "complete": False}
+    doc["curve"]["K8"]["EDT"]["50"]["complete"] = False
+    figure, axes = plot.build_figure(doc, 8)
+    try:
+        line = plot.arm_line(axes[2], "cyl")             # panel 3 is EDT
+        xs, ys = list(line.get_xdata()), list(line.get_ydata())
+        assert math.isnan(ys[xs.index(50.0)])
+        assert [x for x, y in zip(xs, ys) if y == y] == [25.0, 75.0, 100.0]
+        assert any("50 %" in text.get_text() for text in figure.texts)
+    finally:
+        plot.close(figure)
+
+
 def test_a_legend_names_both_arms():
     figure, axes = plot.build_figure(load_fixture(), 8)
     try:
