@@ -50,8 +50,9 @@ METRICS = tuple(METRIC_KEYS)
 LOWER_IS_BETTER = ("T60", "C50", "EDT")
 #: Reported, NEVER scored (plan §1). These are printed beside the curve so a reader can see
 #: them move, and they enter no benefit, no verdict and no data-equivalence scan.
-DIAGNOSTIC_KEYS = {"FD": "FD", "geom R@1": "RIR_to_geom_R@1",
-                   "geom R@5": "RIR_to_geom_R@5", "geom R@10": "RIR_to_geom_R@10"}
+#: The evaluator's own key names, not prettified ones: a reader who greps a metrics JSON
+#: for what the table shows has to find it (codex D3-fix finding 3).
+DIAGNOSTIC_KEYS = ("FD", "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 #: The known step-to-step wobble of this stack (FLAC HANDOFF), quoted next to every T60
 #: benefit rather than once at the top: a caveat that is not beside the number it qualifies
 #: is a caveat nobody applies.
@@ -359,8 +360,7 @@ def _read_cell(path, arm):
 def _diagnostics(record):
     """The reported-but-unscored numbers of one record; a missing one is ``None``."""
     metrics = record.get("metrics") if isinstance(record, dict) else {}
-    return {label: _number((metrics or {}).get(key))
-            for label, key in DIAGNOSTIC_KEYS.items()}
+    return {key: _number((metrics or {}).get(key)) for key in DIAGNOSTIC_KEYS}
 
 
 def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=None):
@@ -671,9 +671,25 @@ def incomplete_fractions(rows, pcts):
 
 
 def _diag_by_seed(cells_by_seed, label):
-    """``{seed: value}`` for one diagnostic, skipping cells whose record did not carry it."""
-    return {seed: cell["diagnostics"][label] for seed, cell in cells_by_seed.items()
-            if (cell.get("diagnostics") or {}).get(label) is not None}
+    """``{seed: value or None}`` for one diagnostic -- a missing value is KEPT as None."""
+    return {seed: (cell.get("diagnostics") or {}).get(label)
+            for seed, cell in cells_by_seed.items()}
+
+
+def aggregate_diagnostic(values_by_seed, expect_seeds=names.SEEDS):
+    """mean +- sd over the seeds, or an explicit gap carrying the count that was found.
+
+    Unlike a scored endpoint, a diagnostic can be absent from a record without the cell
+    being wrong -- but four FDs averaged and printed where five belong is a number nobody
+    measured. So the aggregate is published only when every expected seed carried a finite
+    value; otherwise the mean is withheld and ``n`` says how many there were.
+    """
+    finite = {seed: value for seed, value in values_by_seed.items() if value is not None}
+    out = aggregate(finite, expect_seeds)
+    if out["complete"]:
+        return out
+    return {"mean": None, "sd": None, "n": out["n"], "seeds": out["seeds"],
+            "complete": False}
 
 
 def _row(metric, pct, cyl_by_seed, van_by_seed, seeds, source):
@@ -768,12 +784,21 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
         for label in DIAGNOSTIC_KEYS:
             rows = {}
             for tag, pct in zip(tags, pcts):
-                rows[str(pct)] = {arm: aggregate(_diag_by_seed(runs[(arm, tag)]["cells"][K],
-                                                               label), seeds)
-                                  for arm in names.ARMS}
+                for arm in names.ARMS:
+                    cells = runs[(arm, tag)]["cells"][K]
+                    agg = aggregate_diagnostic(_diag_by_seed(cells, label), seeds)
+                    rows.setdefault(str(pct), {})[arm] = agg
+                    # Only worth saying when the cells themselves are all there: a run that
+                    # is simply unfinished already reports every missing cell by name.
+                    if len(cells) == len(seeds) and not agg["complete"]:
+                        violations.append(
+                            f"{runs[(arm, tag)]['run_id']} K{K} {label}: only {agg['n']}/"
+                            f"{len(seeds)} seeds carry a finite value, so this diagnostic "
+                            "is reported as a gap")
             rows[str(ANCHOR_PCT)] = {
-                arm: aggregate(_diag_by_seed(anchor_cells.get(arm, {}).get(K, {}), label)
-                               if anchor_form == "paired" else {}, seeds)
+                arm: (aggregate_diagnostic(
+                    _diag_by_seed(anchor_cells.get(arm, {}).get(K, {}), label), seeds)
+                    if anchor_form == "paired" else aggregate_diagnostic({}, seeds))
                 for arm in names.ARMS}
             diagnostics[f"K{K}"][label] = rows
 
@@ -877,6 +902,13 @@ def _benefit_header(metric):
     return ("B_f = van - cyl" if metric in LOWER_IS_BETTER else "B_f = cyl - van")
 
 
+def _fmt_diagnostic(cell):
+    """Like ``_fmt``, but a withheld diagnostic shows how many seeds were actually there."""
+    if cell and cell.get("mean") is not None:
+        return _fmt(cell)
+    return f"-- (n={(cell or {}).get('n', 0)}/{len(names.SEEDS)})"
+
+
 def _diagnostics_table(doc, key):
     """The reported-but-unscored numbers for one K, rows = (diagnostic, arm)."""
     block = (doc.get("diagnostics") or {}).get(key)
@@ -889,7 +921,8 @@ def _diagnostics_table(doc, key):
     for label in DIAGNOSTIC_KEYS:
         for arm in ("cyl", "van"):
             out.append(f"| {label} | {ARM_LABELS[arm]} | " + " | ".join(
-                _fmt(block[label][str(pct)][arm]) for pct in doc["fractions_pct"]) + " |")
+                _fmt_diagnostic(block[label][str(pct)][arm]) for pct in doc["fractions_pct"])
+                + " |")
     return out + [""]
 
 

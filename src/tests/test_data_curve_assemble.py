@@ -807,7 +807,7 @@ def test_the_diagnostics_block_reports_fd_and_the_geometry_recalls(tmp_path):
     cell = doc["diagnostics"]["K8"]["FD"]["25"]["cyl"]
     assert cell["mean"] == pytest.approx(BASE_METRICS["FD"])
     assert cell["n"] == 5
-    assert doc["diagnostics"]["K1"]["geom R@10"]["75"]["van"]["mean"] == pytest.approx(20.0)
+    assert doc["diagnostics"]["K1"]["RIR_to_geom_R@10"]["75"]["van"]["mean"] == pytest.approx(20.0)
 
 
 def test_the_diagnostics_stay_out_of_the_curve_and_out_of_the_verdict(tmp_path):
