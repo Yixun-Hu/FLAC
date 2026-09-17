@@ -20,6 +20,7 @@ them, because a half-published arm is exactly what a glob would average without 
 
 CPU-only; the fixtures store 2-item prediction tensors instead of 6,337-item ones.
 """
+import ast
 import hashlib
 import json
 import os
@@ -47,12 +48,16 @@ def sha256_of(path):
 
 
 def make_run(tmp_path, arm="cyl", tag="025", drop=(), metrics_patch=None,
-             bundle_patch=None, ckpt_bytes=b"checkpoint bytes"):
-    """A finished run on a fake NAS: one checkpoint, ten metric JSONs, ten bundles."""
+             bundle_patch=None, ckpt_bytes=b"checkpoint bytes", step=names.MAX_STEPS):
+    """A run on a fake NAS: one checkpoint, ten metric JSONs, ten bundles.
+
+    ``step`` builds the same internally consistent artifacts around a checkpoint that is
+    NOT the final one -- the case a ``--ckpt-path`` override used to let through.
+    """
     nas = tmp_path / "nas"
     run_dir = nas / names.run_id(arm, tag)
     run_dir.mkdir(parents=True, exist_ok=True)
-    ckpt = str(run_dir / f"epoch=8-step={names.MAX_STEPS}.ckpt")
+    ckpt = str(run_dir / f"epoch=8-step={step}.ckpt")
     with open(ckpt, "wb") as fout:
         fout.write(ckpt_bytes)
     digest = sha256_of(ckpt)
@@ -238,3 +243,102 @@ def test_cli_refuses_and_exits_non_zero(tmp_path, monkeypatch):
                             "--flac-checkout", str(checkout),
                             "--expect-ckpt-sha256", digest])
     assert rc != 0
+
+
+# ------------------------------------------------- the override cannot dodge "final"
+def test_a_checkpoint_that_is_not_the_final_one_is_refused(tmp_path):
+    # Internally consistent in every way -- the artifacts hang off it, the digest matches,
+    # the protocol is right -- and still not the 40,000-step checkpoint this arm reports.
+    nas, ckpt, digest = make_run(tmp_path, step=2500)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS, ckpt=ckpt)
+    assert any(str(names.MAX_STEPS) in v for v in violations)
+    _nothing_was_copied(result, str(checkout))
+
+
+def test_an_override_that_is_not_the_discovered_final_checkpoint_is_refused(tmp_path):
+    nas, ckpt, digest = make_run(tmp_path, step=2500)
+    final = os.path.join(os.path.dirname(ckpt), f"epoch=8-step={names.MAX_STEPS}.ckpt")
+    with open(final, "wb") as fout:
+        fout.write(b"the real final checkpoint")
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS, ckpt=ckpt)
+    assert any("final" in v for v in violations)
+    _nothing_was_copied(result, str(checkout))
+
+
+# --------------------------------------------- installation is one directory rename
+def test_the_destination_appears_whole_manifest_included(tmp_path):
+    result, violations, checkout, _ = run_import(tmp_path)
+    assert violations == []
+    assert result["installed"] == "new"
+    assert sorted(os.listdir(result["dest_dir"])) == sorted(
+        [os.path.basename(e["dest"]) for e in result["files"]]
+        + [import_cells.MANIFEST_BASENAME])
+    # no staging directory survives anywhere under the import root
+    root = os.path.join(checkout, "outputs_FLAC", "data_curve_import")
+    assert [name for name in os.listdir(root) if name.startswith(".")] == []
+
+
+@pytest.mark.parametrize("victim", ["os.rename", "manifest"])
+def test_an_install_that_fails_half_way_leaves_no_destination(tmp_path, monkeypatch, victim):
+    nas, _, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    boom = lambda *a, **k: (_ for _ in ()).throw(OSError("disk went away"))
+    if victim == "os.rename":
+        monkeypatch.setattr(import_cells.os, "rename", boom)
+    else:
+        monkeypatch.setattr(import_cells, "_write_manifest", boom)
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert violations
+    assert not os.path.exists(result["dest_dir"])
+    root = os.path.join(str(checkout), "outputs_FLAC", "data_curve_import")
+    assert not os.path.exists(root) or os.listdir(root) == []
+
+
+def test_a_destination_holding_a_stale_file_is_refused(tmp_path):
+    nas, _, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    dest = checkout / "outputs_FLAC" / "data_curve_import" / "dc_cyl_f025"
+    dest.mkdir(parents=True)
+    stale = dest / "epoch=7-step=40000_metrics_1_1.0_dc_cyl_f025_K8_s42_fa_invariant_a1.json"
+    stale.write_text("{}")
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert any("already exists" in v for v in violations)
+    assert stale.read_text() == "{}"          # nothing of theirs was touched
+
+
+def test_an_identical_rerun_is_idempotent(tmp_path):
+    nas, _, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    first, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                expect_n=N_ITEMS)
+    assert violations == [] and first["installed"] == "new"
+    before = sorted((name, sha256_of(os.path.join(first["dest_dir"], name)))
+                    for name in os.listdir(first["dest_dir"]))
+    second, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == []
+    assert second["installed"] == "identical"
+    assert sorted((name, sha256_of(os.path.join(second["dest_dir"], name)))
+                  for name in os.listdir(second["dest_dir"])) == before
+
+
+def test_the_row_specs_parse_as_the_generators_own_four_tuples():
+    # Plan §9 D9 also asks for an end-to-end test that RUNS gen_model_comparison.py over a
+    # fixture import dir; that one belongs to the localization-exp checkout (see the
+    # import_cells module docstring). This one imports nothing from the generator and only
+    # proves the emitted text is a well-formed ROWS entry.
+    row = import_cells.row_spec("cyl", "050", 8)
+    label, protocol, K, patterns = ast.literal_eval(row.rstrip(","))
+    assert (protocol, K) == ("fa eval", 8)
+    assert isinstance(label, str) and isinstance(patterns, list)
+    assert patterns == ["outputs_FLAC/data_curve_import/dc_cyl_f050/*_K8_s4[2-6]*.json"]
