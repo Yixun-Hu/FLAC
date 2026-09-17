@@ -405,16 +405,31 @@ def test_anchor_reference_maps_each_arm_to_its_tier_s_block():
     assert anchors["van"][8]["T60"]["form"] == "marginal"
 
 
-def write_anchor_cells(directory, arm, names_by_cell, manifest=None):
+def sha256_of(path):
+    with open(path, "rb") as fin:
+        return hashlib.sha256(fin.read()).hexdigest()
+
+
+def write_anchor_cells(directory, arm, names_by_cell, pin=True, manifest_patch=None):
+    """Raw 100 % anchor cells plus the ``anchor_cells.json`` that pins each file's bytes.
+
+    ``manifest_patch`` replaces (or, with ``None``, removes) a generated entry, which is how
+    an unpinned, mis-pinned or unplaceable anchor is built. ``pin=False`` omits the manifest.
+    """
     os.makedirs(directory, exist_ok=True)
+    entries = {}
     for (K, seed), basename in names_by_cell.items():
         record = cell_record(arm, "anchor.ckpt", {"T60": 10.0 + seed - 42 + K / 100.0})
         record.pop("ckpt_sha256")          # the historical anchors predate the digest
-        with open(os.path.join(directory, basename), "w") as fout:
+        path = os.path.join(directory, basename)
+        with open(path, "w") as fout:
             json.dump(record, fout)
-    if manifest is not None:
-        with open(os.path.join(directory, "anchor_cells.json"), "w") as fout:
-            json.dump(manifest, fout)
+        entries[basename] = {"K": K, "seed": seed, "sha256": sha256_of(path)}
+    entries.update(manifest_patch or {})
+    entries = {name: entry for name, entry in entries.items() if entry is not None}
+    if pin:
+        with open(os.path.join(directory, assemble.ANCHOR_MANIFEST_BASENAME), "w") as fout:
+            json.dump(entries, fout)
     return directory
 
 
@@ -437,20 +452,57 @@ def test_a_cell_whose_name_carries_no_K_or_seed_is_placed_by_the_pinned_manifest
     basenames = _anchor_basenames()
     screen = "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json"
     basenames[(8, 42)] = screen
-    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames,
-                                   manifest={screen: {"K": 8, "seed": 42}})
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames)
     cells, violations = assemble.load_anchor_cells(directory, "van")
     assert violations == []
     assert os.path.basename(cells[8][42]["path"]) == screen
 
 
 def test_an_unplaceable_anchor_cell_is_refused_not_guessed(tmp_path):
+    screen = "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json"
     basenames = _anchor_basenames()
-    basenames[(8, 42)] = "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json"
-    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames)
+    basenames[(8, 42)] = screen
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames,
+                                   manifest_patch={screen: {"sha256": "c" * 64}})
     cells, violations = assemble.load_anchor_cells(directory, "van")
     assert cells[8].get(42) is None
     assert any("screen" in v for v in violations)
+
+
+def test_the_screen_cell_pin_is_the_digest_the_plan_records():
+    # D10 pins P1's seed-42 K=8 anchor by bytes, not by name; the plan and codex D3 both
+    # quote this digest, and it is the sha256 of the file in the FLAC checkout.
+    assert assemble.P1_SCREEN_K8_S42_SHA256 == \
+        "8bd130a70442fff9f247677a046efaee9c8bfd983a2630ca8380a33cb0276f04"
+
+
+def test_an_anchor_directory_with_no_pin_manifest_is_refused(tmp_path):
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", _anchor_basenames(),
+                                   pin=False)
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert cells[8] == {}
+    assert any(assemble.ANCHOR_MANIFEST_BASENAME in v for v in violations)
+
+
+def test_an_anchor_cell_without_a_pinned_sha_is_refused(tmp_path):
+    basenames = _anchor_basenames()
+    target = basenames[(1, 44)]
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames,
+                                   manifest_patch={target: {"K": 1, "seed": 44}})
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert cells[1].get(44) is None
+    assert any("sha256" in v and target in v for v in violations)
+
+
+def test_an_anchor_cell_whose_bytes_changed_is_refused(tmp_path):
+    basenames = _anchor_basenames()
+    target = basenames[(8, 45)]
+    directory = write_anchor_cells(str(tmp_path / "p1"), "van", basenames)
+    with open(os.path.join(directory, target), "a") as fout:
+        fout.write(" ")                       # a protocol-compatible edit, invisible to JSON
+    cells, violations = assemble.load_anchor_cells(directory, "van")
+    assert cells[8].get(45) is None
+    assert any("sha256" in v for v in violations)
 
 
 def test_a_missing_anchor_seed_refuses_the_paired_form(tmp_path):
@@ -467,6 +519,13 @@ def test_two_cells_claiming_one_anchor_slot_are_refused(tmp_path):
     duplicate = os.path.join(directory, "epoch=8-step=40000_metrics_1_1.0_dup_K8_s42.json")
     with open(duplicate, "w") as fout:
         json.dump(cell_record("cyl", "anchor.ckpt"), fout)
+    manifest_path = os.path.join(directory, assemble.ANCHOR_MANIFEST_BASENAME)
+    with open(manifest_path) as fin:
+        entries = json.load(fin)
+    entries[os.path.basename(duplicate)] = {"K": 8, "seed": 42,
+                                            "sha256": sha256_of(duplicate)}
+    with open(manifest_path, "w") as fout:
+        json.dump(entries, fout)
     _, violations = assemble.load_anchor_cells(directory, "cyl")
     assert any("more than one" in v for v in violations)
 
@@ -552,6 +611,7 @@ def fixture_anchor_dirs(tmp_path):
     for arm in names.ARMS:
         directory = str(tmp_path / f"anchor_{arm}")
         os.makedirs(directory, exist_ok=True)
+        entries = {}
         for K in names.K_VALUES:
             base = _anchor_means(arm, K)
             for seed in names.SEEDS:
@@ -561,6 +621,10 @@ def fixture_anchor_dirs(tmp_path):
                 path = os.path.join(directory, f"anchor_ref_K{K}_s{seed}.json")
                 with open(path, "w") as fout:
                     json.dump(record, fout)
+                entries[os.path.basename(path)] = {"K": K, "seed": seed,
+                                                   "sha256": sha256_of(path)}
+        with open(os.path.join(directory, assemble.ANCHOR_MANIFEST_BASENAME), "w") as fout:
+            json.dump(entries, fout)
         out[arm] = directory
     return out
 
@@ -604,6 +668,17 @@ def test_raw_anchor_cells_promote_the_hundred_percent_point_to_the_paired_form(t
     assert row["benefit"]["form"] == "paired"
     assert row["benefit"]["mean"] == pytest.approx(0.5)
     assert row["benefit"]["sd"] == pytest.approx(0.0)
+
+
+def test_a_mis_pinned_anchor_falls_back_to_the_marginal_form_with_a_reason(tmp_path):
+    dirs = fixture_anchor_dirs(tmp_path)
+    target = os.path.join(dirs["cyl"], "anchor_ref_K8_s43.json")
+    with open(target, "a") as fout:
+        fout.write(" ")
+    doc = build(tmp_path, anchor_cell_dirs=dirs)
+    assert doc["anchor_form"] == "marginal"
+    assert "sha256" in doc["anchor_form_reason"]
+    assert any("sha256" in v for v in doc["violations"])
 
 
 def test_an_incomplete_anchor_directory_falls_back_to_the_marginal_form(tmp_path):
