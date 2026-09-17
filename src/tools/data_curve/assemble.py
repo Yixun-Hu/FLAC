@@ -896,11 +896,23 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
                             f"{runs[(arm, tag)]['run_id']} K{K} {label}: only {agg['n']}/"
                             f"{len(seeds)} seeds carry a finite value, so this diagnostic "
                             "is reported as a gap")
-            rows[str(ANCHOR_PCT)] = {
-                arm: (aggregate_diagnostic(
-                    _diag_by_seed(anchor_cells.get(arm, {}).get(K, {}), label), seeds)
-                    if anchor_form == "paired" else aggregate_diagnostic({}, seeds))
-                for arm in names.ARMS}
+            anchor_row = {}
+            for arm in names.ARMS:
+                # The marginal fallback has no per-seed cells at all; its empty row is the
+                # documented absence of the reference, not a shortfall to report.
+                cells = (anchor_cells.get(arm, {}).get(K, {})
+                         if anchor_form == "paired" else {})
+                agg = aggregate_diagnostic(_diag_by_seed(cells, label), seeds)
+                anchor_row[arm] = agg
+                # A paired anchor is five real cells like any other row, so it answers to
+                # the same five-finite-seeds rule (codex D3-fix2 finding 3): the document
+                # is not complete while its own baseline column is short.
+                if len(cells) == len(seeds) and not agg["complete"]:
+                    violations.append(
+                        f"raw 100 % anchor {arm} K{K} {label}: only {agg['n']}/"
+                        f"{len(seeds)} seeds carry a finite value, so this diagnostic "
+                        "is reported as a gap")
+            rows[str(ANCHOR_PCT)] = anchor_row
             diagnostics[f"K{K}"][label] = rows
 
     c50 = {}
