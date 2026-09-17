@@ -195,11 +195,18 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
               "dest_dir": dest_dir, "ckpt": ckpt, "ckpt_sha256": expect_ckpt_sha256,
               "files": [], "manifest": None,
               "row_specs": [row_spec(arm, tag, K, run) for K in ks]}
-    if ckpt is None:
-        ckpt, why = _final_checkpoint(run_dir)
-        if ckpt is None:
-            return result, [f"{run}: {why}"]
-        result["ckpt"] = ckpt
+    # Discovery is unconditional (codex D3 finding 4). An override used to SKIP it, so an
+    # internally consistent step-2500 checkpoint -- its own artifacts, its own digest, the
+    # right protocol -- could be published as this arm's @40k result. The flag is now only
+    # a cross-check: it must name the file discovery already found.
+    discovered, why = _final_checkpoint(run_dir)
+    if discovered is None:
+        return result, [f"{run}: {why}"]
+    if ckpt is not None and os.path.realpath(ckpt) != os.path.realpath(discovered):
+        return result, [
+            f"{run}: --ckpt-path {ckpt} is not this run's final checkpoint {discovered}; "
+            f"only the single step-{names.MAX_STEPS} file may be published"]
+    ckpt = result["ckpt"] = discovered
     on_disk = _sha256(ckpt) if os.path.exists(ckpt) else None
     if on_disk != expect_ckpt_sha256:
         return result, [f"{run}: {ckpt} hashes to {on_disk}, not the ckpt_sha256 "
@@ -234,7 +241,8 @@ def main(argv=None):
     parser.add_argument("--expect-ckpt-sha256", required=True,
                         help="the launch summary's final_ckpt_sha256 for this arm")
     parser.add_argument("--ckpt-path", default=None,
-                        help="override the discovered step-40000 checkpoint (rarely needed)")
+                        help="cross-check: must name the run's discovered step-40000 "
+                             "checkpoint, which is published either way")
     args = parser.parse_args(argv)
     try:
         result, violations = import_run(args.nas_root, args.arm, args.tag,
