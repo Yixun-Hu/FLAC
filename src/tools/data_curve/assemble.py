@@ -57,6 +57,8 @@ DIAGNOSTIC_KEYS = {"FD": "FD", "geom R@1": "RIR_to_geom_R@1",
 #: is a caveat nobody applies.
 T60_STEP_BAND = 0.5
 T60_STEP_BAND_NOTE = f"step band ~ +-{T60_STEP_BAND} T60"
+#: How the two arms are named in prose; mirrors ``plot.SERIES_LABELS``.
+ARM_LABELS = {"cyl": "CylDINO core S", "van": "stock DINOv3 S"}
 
 #: The pre-registered primary endpoints of the verdict (plan §1). Everything else --
 #: K=1, C50, R@k -- is reported with the same machinery and never overrides this.
@@ -824,6 +826,22 @@ def _benefit_header(metric):
     return ("B_f = van - cyl" if metric in LOWER_IS_BETTER else "B_f = cyl - van")
 
 
+def _diagnostics_table(doc, key):
+    """The reported-but-unscored numbers for one K, rows = (diagnostic, arm)."""
+    block = (doc.get("diagnostics") or {}).get(key)
+    if not block:
+        return []
+    out = ["### Diagnostics (reported, never scored -- they enter no benefit or verdict)",
+           "",
+           "| diagnostic | arm | " + " | ".join(f"{pct} %" for pct in doc["fractions_pct"])
+           + " |", "|---" * (len(doc["fractions_pct"]) + 2) + "|"]
+    for label in DIAGNOSTIC_KEYS:
+        for arm in ("cyl", "van"):
+            out.append(f"| {label} | {ARM_LABELS[arm]} | " + " | ".join(
+                _fmt(block[label][str(pct)][arm]) for pct in doc["fractions_pct"]) + " |")
+    return out + [""]
+
+
 def render_markdown(doc):
     """The human-readable twin of ``data_curve.json`` -- same numbers, same caveats.
 
@@ -856,13 +874,19 @@ def render_markdown(doc):
             for pct in doc["fractions_pct"]:
                 row = block[metric][str(pct)]
                 benefit = row["benefit"] or {}
+                benefit_text = _fmt(benefit)
+                if metric == "T60" and benefit.get("mean") is not None:
+                    # Beside the number, not once at the top: a step-to-step wobble of this
+                    # size is the scale any single T60 benefit has to be read against.
+                    benefit_text += f" [{T60_STEP_BAND_NOTE}]"
                 out.append(
                     f"| {pct} % | "
                     + (f"{epochs[str(pct)]:.2f}" if str(pct) in epochs else "--")
-                    + f" | {_fmt(row['cyl'])} | {_fmt(row['van'])} | {_fmt(benefit)} | "
+                    + f" | {_fmt(row['cyl'])} | {_fmt(row['van'])} | {benefit_text} | "
                     + f"{benefit.get('form', '--')} | {row['cyl'].get('n', 0)} | "
                     + ("yes" if row["complete"] else "**NO**") + " |")
             out.append("")
+        out += _diagnostics_table(doc, key)
     v = doc["verdict"]
     out += ["## Verdict (pre-registered, plan §1)", "",
             f"**{v['verdict']}** -- rule {v.get('rule') or v.get('reason', '')}", ""]
@@ -878,7 +902,11 @@ def render_markdown(doc):
                 for pct in doc["fractions_pct"])
                 + " | " + (", ".join(f"{p} %" for p in v["non_positive"][metric]) or "--") + " |")
         out.append("")
-    out += ["## Data equivalence -- how little data CylDINO needs to match stock @100 %", "",
+    out += ["## Secondary, descriptive (never overrides the verdict)", ""]
+    out += [f"- K = {key[1:]}: {block['line']}"
+            for key, block in sorted(doc.get("c50_trend", {}).items())]
+    out += ["",
+            "## Data equivalence -- how little data CylDINO needs to match stock @100 %", "",
             "g(f) = cyl(f) vs stock@100 %, oriented so g >= 0 means \"at least as good\"; "
             "upward scan, first match.", "",
             "| K | metric | " + " | ".join(f"g({pct})" for pct in doc["fractions_pct"])
