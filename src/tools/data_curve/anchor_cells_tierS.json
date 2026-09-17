@@ -1,0 +1,109 @@
+{
+ "_provenance": "The TRUSTED anchor manifest of exp_14: which files are the 100 % (tier-S) anchors of each arm, and what their bytes must be. It lives in the repository, under review and under git, precisely because the anchor_cells.json that may sit beside the cells themselves is mutable and would otherwise authenticate itself (codex D3-fix finding 1). An external manifest may FILL a null sha256 here; it may never contradict a non-null one, and it may neither add nor remove files.",
+ "_van_provenance": "The ten P1@40k cells of exp_07, hashed 2026-09-16 from ~/codespace/FLAC/outputs_FLAC/exp07_P1/FLAC_exp07_P1/exp07_P1/checkpoints/. Nine are exp07_P140_* (K1 s42-46, K8 s43-46); the tenth is plan D10's seed-42 K=8 SCREEN cell, whose basename names neither K nor seed and whose digest 8bd130a7... is quoted independently in plan_data_curve.md \u00a710 and in the codex D3 review. NOTE the exp10_P140fae_* cells in the same directory are the SAME checkpoint under the fa protocol and are deliberately absent.",
+ "_cyl_provenance": "The ten cylNoSSL@40k (SWEEP_S40000) cells are UNPINNED (sha256: null) and their basenames below are the expected form, unverified: those cells live on the origin machine's exp-09-cyl-dinov3-no-ssl checkout (plan D10) and no copy exists on this box or the NAS. Unpinned means the paired 100 % form is unavailable for the cyl arm; whoever copies them here records the real basenames AND their sha256 in this file, in a reviewed commit.",
+ "van": {
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K1_s42.json": {
+   "K": 1,
+   "seed": 42,
+   "sha256": "1254a8d00555083e56e654fc22923e0f9b1221f64c2c965af481f0c7180dc54c"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K1_s43.json": {
+   "K": 1,
+   "seed": 43,
+   "sha256": "20d5311615c694d129357013d5c9f809384d638bd17635df9280d334d673e1ce"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K1_s44.json": {
+   "K": 1,
+   "seed": 44,
+   "sha256": "4927ce5ebca51fc4ff439bae9ddd51a879b6c4de163f5ea6f49af74e254f1668"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K1_s45.json": {
+   "K": 1,
+   "seed": 45,
+   "sha256": "500730c47405ca0115811cd1a7904dcef48c9600b0a8adbd94dcad77d2d71e11"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K1_s46.json": {
+   "K": 1,
+   "seed": 46,
+   "sha256": "6a86cec2eb06a1dd4e3342043edc5b74501b56d1727c3b8ed05b650dd4b60a6d"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K8_s43.json": {
+   "K": 8,
+   "seed": 43,
+   "sha256": "80f3746b18f83dd171dff097477ba7a428cbed5a83f2cf8fb8edcccff075e4ab"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K8_s44.json": {
+   "K": 8,
+   "seed": 44,
+   "sha256": "0ebf0fa237be0307340c78606ab630fc62c38dd2639e3646f2f1abd326499a2d"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K8_s45.json": {
+   "K": 8,
+   "seed": 45,
+   "sha256": "5a39a788438e0f8f2f6b79f7b2a5acd884b7f6dc4fdfc3286deb16e8091648aa"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P140_K8_s46.json": {
+   "K": 8,
+   "seed": 46,
+   "sha256": "5b298db7195ed12901023b4e127716f85f4068dfd0aa8b28fa63fc54df06788b"
+  },
+  "epoch=8-step=40000_metrics_1_1.0_exp07_P1_screen_S40000_ema.json": {
+   "K": 8,
+   "seed": 42,
+   "sha256": "8bd130a70442fff9f247677a046efaee9c8bfd983a2630ca8380a33cb0276f04"
+  }
+ },
+ "cyl": {
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K1_s42_fa_invariant_a1.json": {
+   "K": 1,
+   "seed": 42,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K1_s43_fa_invariant_a1.json": {
+   "K": 1,
+   "seed": 43,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K1_s44_fa_invariant_a1.json": {
+   "K": 1,
+   "seed": 44,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K1_s45_fa_invariant_a1.json": {
+   "K": 1,
+   "seed": 45,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K1_s46_fa_invariant_a1.json": {
+   "K": 1,
+   "seed": 46,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K8_s42_fa_invariant_a1.json": {
+   "K": 8,
+   "seed": 42,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K8_s43_fa_invariant_a1.json": {
+   "K": 8,
+   "seed": 43,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K8_s44_fa_invariant_a1.json": {
+   "K": 8,
+   "seed": 44,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K8_s45_fa_invariant_a1.json": {
+   "K": 8,
+   "seed": 45,
+   "sha256": null
+  },
+  "epoch=8-step=40000_metrics_1_1.0_SWEEP_S40000_K8_s46_fa_invariant_a1.json": {
+   "K": 8,
+   "seed": 46,
+   "sha256": null
+  }
+ }
+}
