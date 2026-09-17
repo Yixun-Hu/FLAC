@@ -27,6 +27,10 @@ row list or config on its CLI -- so these tests monkeypatch ``G.ROWS`` with the
 importer-style specs. The tracked default table is therefore never edited, and an autouse
 guard asserts the committed ``model_comparison.md`` is byte-unchanged by every test in this
 module (this is a shared checkout).
+
+The five "documented trap" tests at the end record generator behaviour that is NOT what a
+reader would assume; each names the importer contract that is the only thing protecting the
+published row from it.
 """
 import glob as globmod
 import hashlib
@@ -401,3 +405,150 @@ def test_an_incomplete_cell_renders_pending_not_a_number(tmp_path, monkeypatch):
     assert find_row(text, _label("cyl"), 1)[4:10] == EXPECTED_CELLS[("cyl", 1)]  # unaffected
 
 
+# --------------------------------------------------------------------------- #
+# 4. the routing claim, proved directly
+# --------------------------------------------------------------------------- #
+def test_no_experiment_specific_validator_is_ever_invoked(tmp_path, monkeypatch):
+    """A round with nothing BLOCKED is only indirect evidence of correct routing.
+
+    A gate could also have been entered and passed for reasons that say nothing about a
+    data-curve cell. So the three per-experiment cell gates are replaced by sentinels that
+    raise: a complete two-arm round that still renders its numbers cannot have touched any
+    of them, which is what "the default ``table`` contract" has to mean."""
+    root = build_fixture_root(tmp_path, exp10_evidence=True)
+
+    def forbidden(name):
+        def _raise(*args, **kwargs):
+            raise AssertionError(f"{name} was invoked for a data-curve row")
+        return _raise
+
+    for gate in ("validate_exp11_cell", "validate_exp14_cell", "validate_exp15_cell"):
+        monkeypatch.setattr(G, gate, forbidden(gate))
+    monkeypatch.setattr(G, "ROWS", list(IMPORTER_ROW_SPECS))
+    assert G.main(["--repo-root", str(root)]) == 0
+    text = written_table(root)
+    assert_no_refusals(text)
+    for arm in ARMS:
+        for k in KS:
+            assert find_row(text, _label(arm), k)[4:10] == EXPECTED_CELLS[(arm, k)]
+
+
+# --------------------------------------------------------------------------- #
+# 5. documented traps: behaviour a reader would not assume
+# --------------------------------------------------------------------------- #
+def test_trap_exp14_in_a_row_glob_is_claimed_by_the_yaw_campaign():
+    """The trap the importer's ``assert_no_forbidden_substring`` exists for.
+
+    ``is_exp14_row`` is a substring test over the row's GLOB, so an import directory named
+    ``exp14_*`` -- the announcement-07 form the NAS path uses -- would hand a data-curve row
+    to the yaw campaign's label and validator."""
+    assert G.is_exp14_row(["outputs_FLAC/exp14_data_curve/dc_cyl_f025/*_K8_s4[2-6]*.json"])
+    assert G.is_batched_orbit_row(["outputs_FLAC/exp14_data_curve/*_K8_s4[2-6]*.json"])
+    assert G.is_exp11_row(["outputs_FLAC/exp11_C8/**/*exp11_C8_conf_S40000*.json"])
+
+
+def test_trap_exp14_in_a_glob_publishes_a_false_batched_label(tmp_path, monkeypatch):
+    """...and it does so SILENTLY, with numbers.
+
+    main() derives the protocol label from the PATTERN (``is_batched_orbit_row(pats)``) but
+    routes the validator on the BASENAMES. A row whose glob says ``exp14_`` while its files
+    do not therefore renders a numeric, unblocked line claiming ``fa eval (batched)`` -- a
+    provenance the data-curve evidence does not have and cannot get, since its evaluator
+    predates the batched orbit. Nothing in the generator catches this; the only guard is the
+    kit refusing to emit such a pattern."""
+    root = build_fixture_root(tmp_path, exp10_evidence=True)
+    renamed = os.path.join(str(root), "outputs_FLAC", "data_curve_import", "exp14_dc_cyl")
+    os.rename(_import_dir(root, "cyl"), renamed)
+    monkeypatch.setattr(G, "ROWS", [
+        (_label("cyl"), "fa eval", 8,
+         ["outputs_FLAC/data_curve_import/exp14_dc_cyl/*_K8_s4[2-6]*.json"])])
+    assert G.main(["--repo-root", str(root)]) == 0
+    cells = find_row(written_table(root), _label("cyl"), 8)
+    assert cells[1] == "fa eval (batched)", cells          # the false claim
+    assert cells[3] == "5" and cells[4:10] == EXPECTED_CELLS[("cyl", 8)]
+
+
+def test_trap_exp14_in_a_basename_routes_the_row_to_the_yaw_validator(tmp_path):
+    """The other half of the same trap: render_row's exp_14 branch reads the BASENAMES.
+
+    A cell file whose name carries ``exp14_`` is handed to ``exp14_validate_cell``, which
+    was written for eval names like ``exp14_C8_zref_S40000_s42_K8`` and cannot speak for a
+    data-curve cell -- so the row renders BLOCKED, i.e. refused for the wrong reason."""
+    root = build_fixture_root(tmp_path, exp10_evidence=True)
+    target = _import_dir(root, "cyl")
+    files = []
+    for seed in SEEDS:
+        source = os.path.join(target, metrics_basename("cyl", 8, seed))
+        renamed = source.replace("dc_cyl_f025_K8", "exp14_dc_cyl_K8")
+        os.rename(source, renamed)
+        files.append(renamed)
+    line, blocked = G.render_row(_label("cyl"), "fa eval", 8, sorted(files),
+                                 repo_root=str(root))
+    assert blocked is True
+    assert "BLOCKED — row validation failed:" in line
+    assert " ± " not in line
+
+
+def test_trap_a_stray_json_without_metrics_aborts_the_whole_regeneration(tmp_path,
+                                                                        monkeypatch):
+    """A ``.json`` sidecar in the import directory does not block one row -- it raises.
+
+    ``agg_files`` raises ``ValueError`` for a payload it cannot print, and ``render_row``
+    does NOT catch it (its docstring says otherwise), so main() dies with a traceback and
+    writes nothing. Fail-closed, but the operator sees a crash rather than a BLOCKED row.
+    The importer installs no ``.json`` beside the cells, and must not start."""
+    root = build_fixture_root(tmp_path, exp10_evidence=True)
+    sidecar = os.path.join(_import_dir(root, "cyl"),
+                           metrics_basename("cyl", 8, 42) + ".screenmeta.json")
+    with open(sidecar, "w") as fh:
+        json.dump({"commit": "z" * 40}, fh)
+    monkeypatch.setattr(G, "ROWS", list(IMPORTER_ROW_SPECS))
+    with pytest.raises(ValueError, match="no metrics object to aggregate"):
+        G.main(["--repo-root", str(root)])
+    assert not os.path.isfile(os.path.join(str(root), "worklog", "worklog_yixun",
+                                           "model_comparison.md"))
+
+
+def test_trap_a_second_json_payload_is_averaged_into_the_cell(tmp_path, monkeypatch):
+    """And a stray ``.json`` that DOES carry metrics is worse: it publishes.
+
+    Six files render a six-file mean under a five-seed row's label, with ``n`` the only
+    tell. Nothing downstream counts seeds for a ``table``-contract row (the exp_11, exp_14
+    and exp_15 contracts each do, but no data-curve row reaches them), so the import
+    directory holding exactly the ten cells is the whole guarantee."""
+    root = build_fixture_root(tmp_path, exp10_evidence=True)
+    duplicate = os.path.join(_import_dir(root, "cyl"),
+                             metrics_basename("cyl", 8, 42).replace(".json", "_copy.json"))
+    with open(duplicate, "w") as fh:
+        json.dump(metrics_record("cyl", 8, 0), fh)
+    monkeypatch.setattr(G, "ROWS", list(IMPORTER_ROW_SPECS))
+    assert G.main(["--repo-root", str(root)]) == 0
+    cells = find_row(written_table(root), _label("cyl"), 8)
+    assert cells[3] == "6", cells
+    assert cells[4:10] != EXPECTED_CELLS[("cyl", 8)]       # a six-file mean, not the cell's
+    assert " ± " in cells[4]                               # ...and it published anyway
+
+
+# --------------------------------------------------------------------------- #
+# 6. smoke: the tracked row table is unchanged and still renders
+# --------------------------------------------------------------------------- #
+def test_the_default_row_table_still_renders(tmp_path):
+    """Nothing about the existing rows changes: the committed ``ROWS`` renders end to end.
+
+    Run against an empty fixture root, every registered row is evidence-free, so this pins
+    the row COUNT and that no spec raises -- the two things a new row family could break."""
+    root = tmp_path / "maintree"
+    (root / "worklog" / "worklog_yixun").mkdir(parents=True)
+    assert G.ROWS == DEFAULT_ROWS, "a previous test leaked its row patch"
+    assert G.main(["--repo-root", str(root)]) == 0
+    text = written_table(root)
+    rows = data_rows(text)
+    assert len(rows) == len(DEFAULT_ROWS), (len(rows), len(DEFAULT_ROWS))
+    present = {(cells[0], cells[1], cells[2]) for cells in rows}
+    for spec in DEFAULT_ROWS:
+        label, proto, k, pats = spec[:4]
+        proto = G.protocol_label(proto, G.is_batched_orbit_row(pats),
+                                 G.exp10_evidence_present(str(root)))
+        assert (label, proto, str(k)) in present, spec[0]
+    for arm in ARMS:
+        assert _label(arm) not in text, "a data-curve row leaked into the tracked table"
