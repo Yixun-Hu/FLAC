@@ -493,15 +493,35 @@ def test_a_cell_the_manifest_leaves_unpinned_is_refused(tmp_path):
     assert any("unpinned" in v for v in violations)
 
 
-def test_an_external_manifest_may_supply_a_sha_the_shipped_one_leaves_null(tmp_path):
+def test_an_external_manifest_may_not_supply_a_sha_the_shipped_one_leaves_null(tmp_path):
+    # INVERTED in D3-fix3 (codex D3-fix2 finding 1). Letting the adjacent manifest FILL a
+    # null pin left every null slot self-authenticating: put a protocol-compatible file
+    # under the expected basename, write its own digest beside it, and the anchors
+    # promoted to paired without the reviewed commit the null was there to wait for.
     directory, trusted = write_anchor_cells(str(tmp_path / "cyl"), "cyl", pins=False)
     external = {name: {"sha256": sha256_of(os.path.join(directory, name))}
                 for name in trusted}
     with open(os.path.join(directory, assemble.ANCHOR_MANIFEST_BASENAME), "w") as fout:
         json.dump(external, fout)
     cells, violations = assemble.load_anchor_cells(directory, "cyl", trusted=trusted)
-    assert violations == []
-    assert sorted(cells[1]) == list(names.SEEDS)
+    assert cells[1] == {} and cells[8] == {}
+    assert len(violations) == len(ANCHOR_SLOTS)
+    assert all("unpinned in the repository" in v and "D10" in v for v in violations)
+
+
+def test_a_wrong_cell_with_a_matching_adjacent_digest_still_cannot_fill_a_null(tmp_path):
+    # The coupled attack the promotion path allowed: not the anchor at all, renamed into
+    # the expected basename, with an adjacent manifest that agrees about its bytes.
+    directory, trusted = write_anchor_cells(str(tmp_path / "cyl"), "cyl", pins=False)
+    target = anchor_basename("cyl", 8, 42)
+    with open(os.path.join(directory, target), "w") as fout:
+        json.dump(cell_record("cyl", "anchor.ckpt", {"T60": 0.0001}), fout)
+    with open(os.path.join(directory, assemble.ANCHOR_MANIFEST_BASENAME), "w") as fout:
+        json.dump({target: {"K": 8, "seed": 42,
+                            "sha256": sha256_of(os.path.join(directory, target))}}, fout)
+    cells, violations = assemble.load_anchor_cells(directory, "cyl", trusted=trusted)
+    assert cells[8].get(42) is None
+    assert any(target in v and "unpinned in the repository" in v for v in violations)
 
 
 def test_an_external_manifest_cannot_contradict_a_committed_pin(tmp_path):
@@ -724,6 +744,23 @@ def test_an_incomplete_anchor_directory_falls_back_to_the_marginal_form(tmp_path
     doc = build(tmp_path, anchor_cell_dirs=dirs, anchor_trusted=trusted)
     assert doc["anchor_form"] == "marginal"
     assert any("s46" in v for v in doc["violations"])
+
+
+def test_an_arm_the_repository_leaves_unpinned_keeps_the_anchors_marginal(tmp_path):
+    # The state the ten cylNoSSL cells ship in today: null pins, and a directory that
+    # would happily vouch for itself. Only a reviewed edit to the committed manifest can
+    # promote them, so the whole 100 % point stays marginal and says why.
+    dirs, trusted = fixture_anchor_dirs(tmp_path)
+    for entry in trusted["cyl"].values():
+        entry["sha256"] = None
+    with open(os.path.join(dirs["cyl"], assemble.ANCHOR_MANIFEST_BASENAME), "w") as fout:
+        json.dump({base: {"sha256": sha256_of(os.path.join(dirs["cyl"], base))}
+                   for base in trusted["cyl"]}, fout)
+    doc = build(tmp_path, anchor_cell_dirs=dirs, anchor_trusted=trusted)
+    assert doc["anchor_form"] == "marginal"
+    assert "cyl anchors unpinned in the repository (D10 pending)" in \
+        doc["anchor_form_reason"]
+    assert doc["curve"]["K8"]["T60"]["100"]["benefit"]["form"] == "marginal"
 
 
 @pytest.mark.parametrize("patch", [
