@@ -227,18 +227,18 @@ def cell_record(arm, ckpt, values=None, ckpt_sha256=CKPT_SHA, **overrides):
     return record
 
 
-def write_bundle(ckpt, arm, tag, K, seed, ckpt_sha256=CKPT_SHA, **overrides):
+def write_bundle(ckpt, arm, tag, K, seed, meta_patch=None):
     """The sibling prediction bundle -- the only artifact that proves the split and seed."""
     meta = {"dataset_config": names.EVAL_DATASET_CONFIGS[K], "seed": seed,
             "n_samples": FIXTURE_N, "n_items": FIXTURE_N, "batch_size": 8,
             "cond_method": names.ARM_COND_METHOD[arm],
             "frame_avg_angles": [0.0] if arm == "cyl" else None,
             "rotate_deg": names.ROTATE_DEG, "cond_autocast": names.COND_AUTOCAST,
-            "ckpt_path": ckpt, "ckpt_sha256": ckpt_sha256,
+            "ckpt_path": ckpt, "ckpt_sha256": CKPT_SHA,
             "eval_name": names.eval_name(arm, tag, K, seed), "steps": names.EVAL_STEPS,
             "cfg_scale": names.EVAL_CFG_SCALE, "stored_after_clamp_pad": True,
             "artifact_contract": names.PREDICTIONS_ARTIFACT_CONTRACT}
-    meta.update(overrides)
+    meta.update(meta_patch or {})
     torch.save({"predictions": torch.zeros(FIXTURE_N, 1, names.SAMPLE_LEN), "meta": meta},
                names.predictions_pt_path(ckpt, arm, tag, K, seed))
 
@@ -264,7 +264,7 @@ def write_run(nas_root, arm, tag, cells=None, epoch=8, step=names.MAX_STEPS,
                                                             **dict(kwargs, **patch))
         with open(names.metrics_json_path(ckpt, arm, tag, K, seed), "w") as fout:
             json.dump(record, fout)
-        write_bundle(ckpt, arm, tag, K, seed, **(bundle_patch or {}).get((K, seed), {}))
+        write_bundle(ckpt, arm, tag, K, seed, (bundle_patch or {}).get((K, seed)))
     return ckpt
 
 
@@ -293,7 +293,7 @@ def test_final_checkpoint_refuses_two_candidates(tmp_path):
 
 def test_load_run_reads_all_ten_cells(tmp_path):
     write_run(tmp_path, "cyl", "025")
-    run = assemble.load_run(str(tmp_path), "cyl", "025")
+    run = assemble.load_run(str(tmp_path), "cyl", "025", expect_n=FIXTURE_N)
     assert run["violations"] == []
     assert run["run_id"] == "dc_cyl_f025"
     assert run["ckpt_sha256"] == CKPT_SHA
@@ -305,7 +305,7 @@ def test_load_run_marks_a_missing_seed_instead_of_averaging_four(tmp_path):
     cells = {(K, seed): {} for K in names.K_VALUES for seed in names.SEEDS}
     del cells[(8, 45)]
     write_run(tmp_path, "van", "050", cells=cells)
-    run = assemble.load_run(str(tmp_path), "van", "050")
+    run = assemble.load_run(str(tmp_path), "van", "050", expect_n=FIXTURE_N)
     assert 45 not in run["cells"][8]
     assert any("s45" in v and "K8" in v for v in run["violations"])
 
@@ -323,7 +323,7 @@ def test_load_run_refuses_a_cell_scored_under_another_protocol(tmp_path, field, 
     ckpt = str(run_dir / f"epoch=8-step={names.MAX_STEPS}.ckpt")
     cells[(8, 44)] = cell_record("cyl", ckpt, **{field: value})
     write_run(tmp_path, "cyl", "075", cells=cells)
-    run = assemble.load_run(str(tmp_path), "cyl", "075")
+    run = assemble.load_run(str(tmp_path), "cyl", "075", expect_n=FIXTURE_N)
     assert 44 not in run["cells"][8]
     assert any(field in v for v in run["violations"])
 
@@ -335,7 +335,7 @@ def test_load_run_refuses_a_cell_scored_under_another_protocol(tmp_path, field, 
 ])
 def test_a_cell_not_bound_to_the_discovered_checkpoint_is_dropped(tmp_path, patch, needle):
     write_run(tmp_path, "van", "025", record_patch={(1, 43): patch})
-    run = assemble.load_run(str(tmp_path), "van", "025")
+    run = assemble.load_run(str(tmp_path), "van", "025", expect_n=FIXTURE_N)
     assert 43 not in run["cells"][1]                 # dropped, not inserted with a note
     assert any(needle in v for v in run["violations"])
 
@@ -343,14 +343,14 @@ def test_a_cell_not_bound_to_the_discovered_checkpoint_is_dropped(tmp_path, patc
 def test_a_cell_whose_bundle_is_missing_is_not_a_complete_cell(tmp_path):
     ckpt = write_run(tmp_path, "van", "025")
     os.remove(names.predictions_pt_path(ckpt, "van", "025", 8, 46))
-    run = assemble.load_run(str(tmp_path), "van", "025")
+    run = assemble.load_run(str(tmp_path), "van", "025", expect_n=FIXTURE_N)
     assert 46 not in run["cells"][8]
     assert any("bundle" in v for v in run["violations"])
 
 
 def test_a_cell_whose_bundle_claims_another_seed_is_dropped(tmp_path):
     write_run(tmp_path, "cyl", "075", bundle_patch={(8, 44): {"seed": 45}})
-    run = assemble.load_run(str(tmp_path), "cyl", "075")
+    run = assemble.load_run(str(tmp_path), "cyl", "075", expect_n=FIXTURE_N)
     assert 44 not in run["cells"][8]
     assert any("seed" in v for v in run["violations"])
 
@@ -570,7 +570,7 @@ def build(tmp_path, **kwargs):
         kwargs.pop("nas_root", None) or fixture_nas(tmp_path),
         ANCHORS_JSON,
         split_manifest_path=os.path.join(FIXTURES, "split_manifest.json"),
-        **kwargs)
+        expect_n=FIXTURE_N, **kwargs)
 
 
 def test_a_complete_curve_reaches_the_pre_registered_verdict(tmp_path):
@@ -688,7 +688,8 @@ def test_the_markdown_states_the_fixed_compute_estimand(tmp_path):
 
 
 # ------------------------------------------------------------------------------- CLI
-def test_cli_writes_both_artifacts_and_exits_zero(tmp_path):
+def test_cli_writes_both_artifacts_and_exits_zero(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
     out_json, out_md = tmp_path / "curve.json", tmp_path / "curve.md"
     rc = assemble.main(["--nas-root", fixture_nas(tmp_path), "--anchors", ANCHORS_JSON,
                         "--split-manifest", os.path.join(FIXTURES, "split_manifest.json"),
@@ -699,7 +700,8 @@ def test_cli_writes_both_artifacts_and_exits_zero(tmp_path):
     assert "SUPPORTED" in out_md.read_text()
 
 
-def test_cli_accepts_the_two_anchor_cell_directories(tmp_path):
+def test_cli_accepts_the_two_anchor_cell_directories(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
     dirs = fixture_anchor_dirs(tmp_path)
     out_json = tmp_path / "curve.json"
     rc = assemble.main(["--nas-root", fixture_nas(tmp_path), "--anchors", ANCHORS_JSON,
@@ -711,7 +713,8 @@ def test_cli_accepts_the_two_anchor_cell_directories(tmp_path):
         assert json.load(fin)["anchor_form"] == "paired"
 
 
-def test_cli_strict_exits_non_zero_on_a_missing_seed(tmp_path):
+def test_cli_strict_exits_non_zero_on_a_missing_seed(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", FIXTURE_N)
     nas = fixture_nas(tmp_path, drop=[("van", "075", 1, 42)])
     argv = ["--nas-root", nas, "--anchors", ANCHORS_JSON, "--split-manifest",
             os.path.join(FIXTURES, "split_manifest.json"), "--out-json",

@@ -233,27 +233,31 @@ def cell_protocol(arm):
             "cond_autocast": names.COND_AUTOCAST}
 
 
-def check_cell_protocol(record, arm):
-    """Violations of one metrics JSON against its arm's protocol and this experiment's keys.
+def check_cell_endpoints(record):
+    """Violations about the six scored endpoints of one metrics record."""
+    metrics = record.get("metrics") if isinstance(record, dict) else None
+    if not isinstance(metrics, dict) or not metrics:
+        return [f"metrics is {metrics!r}, expected a non-empty object"]
+    bad = []
+    for key in METRIC_KEYS.values():
+        value = metrics.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not math.isfinite(float(value)):
+            bad.append(f"metrics.{key} is {value!r}, expected a finite number")
+    return bad
 
-    Deliberately not ``names.check_metrics``: that one binds a cell to a checkpoint digest
-    the *launcher* holds, which the assembler does not have. What is checkable from the
-    record alone is checked here -- and a cell scored under the other arm's conditioning is
-    the failure that produced exp_09's retracted conclusion, so it is refused, not noted.
+
+def check_cell_protocol(record, arm):
+    """Violations of one record against its arm's protocol and this experiment's endpoints.
+
+    Used for the 100 % ANCHOR cells, which were scored years-of-commits ago from another
+    checkpoint entirely; the new cells go through ``names.check_metrics`` instead, which
+    additionally binds them to a specific checkpoint and digest.
     """
     if not isinstance(record, dict):
         return [f"is a {type(record).__name__}, not a metrics record"]
     want = cell_protocol(arm)
-    bad = []
-    metrics = record.get("metrics")
-    if not isinstance(metrics, dict) or not metrics:
-        bad.append(f"metrics is {metrics!r}, expected a non-empty object")
-    else:
-        for key in METRIC_KEYS.values():
-            value = metrics.get(key)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) \
-                    or not math.isfinite(float(value)):
-                bad.append(f"metrics.{key} is {value!r}, expected a finite number")
+    bad = check_cell_endpoints(record)
     if record.get("cond_method") != want["cond_method"]:
         bad.append(f"cond_method is {record.get('cond_method')!r}, "
                    f"expected {want['cond_method']!r} for the {arm} arm")
@@ -275,13 +279,19 @@ def check_cell_protocol(record, arm):
     return bad
 
 
-def _read_cell(path, arm):
-    """``(metrics, record, violations)`` for one metrics JSON; metrics is None if refused."""
+def _load_json(path):
     try:
         with open(path) as fin:
-            record = json.load(fin)
+            return json.load(fin), []
     except (OSError, ValueError) as err:
-        return None, None, [f"cannot be read as JSON ({type(err).__name__}: {err})"]
+        return None, [f"cannot be read as JSON ({type(err).__name__}: {err})"]
+
+
+def _read_cell(path, arm):
+    """``(metrics, record, violations)`` for one ANCHOR cell; metrics is None if refused."""
+    record, bad = _load_json(path)
+    if record is None:
+        return None, None, bad
     bad = check_cell_protocol(record, arm)
     if bad:
         return None, record, bad
@@ -289,13 +299,25 @@ def _read_cell(path, arm):
             record, [])
 
 
-def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES):
-    """Every cell of one training run, off the NAS, with the reasons any of them is absent.
+def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES, expect_n=None):
+    """Every cell of one training run, bound to the checkpoint the run directory holds.
 
-    A run whose cells disagree about ``ckpt_sha256`` is emptied, not patched: the digest is
-    the evaluator's own record of which bytes it scored, so two of them in one run means
-    the directory cannot say what these ten numbers are, and no subset of them is safe.
+    The binding is the point (codex D3 finding 1). The final checkpoint is discovered and
+    hashed ONCE, and every cell is then required to name that file, to carry the digest the
+    evaluator stamped in when it loaded it, and to come with a sibling prediction bundle
+    that agrees about seed, K, split and protocol -- plan §2's completion contract, verbatim.
+    A cell that fails any of those is DROPPED, not inserted with a note beside it: a row
+    that keeps five numbers is a row that can still produce a verdict, and a verdict over
+    numbers of unknown provenance is the failure this whole gate exists to prevent.
+
+    Ten cells that uniformly carry the *wrong* digest used to pass, because only
+    disagreement among them was checked; now the comparison is against the bytes on disk.
+
+    ``expect_n`` is for fixtures only -- production leaves it ``None`` so the split size is
+    ``names.N_ITEMS_UNSEEN``. Checking the bundles costs one torch.load per cell (~260 MB
+    each in production); that is the price of knowing the numbers are the ones scored.
     """
+    n_items = names.N_ITEMS_UNSEEN if expect_n is None else expect_n
     run = names.run_id(arm, tag)
     run_dir = os.path.join(nas_root, run)
     out = {"run_id": run, "arm": arm, "fraction_tag": tag, "run_dir": run_dir, "ckpt": None,
@@ -303,37 +325,37 @@ def load_run(nas_root, arm, tag, seeds=names.SEEDS, ks=names.K_VALUES):
            "cells": {K: {} for K in ks}, "violations": []}
     try:
         out["ckpt"] = final_checkpoint(run_dir)
-    except DataCurveError as err:
+        out["ckpt_sha256"] = names.file_sha256(out["ckpt"])
+    except (DataCurveError, OSError) as err:
         out["violations"].append(f"{run}: {err}")
         return out
-    digests = {}
     for K in ks:
         for seed in seeds:
             where = f"{run} K{K} s{seed}"
             path = names.metrics_json_path(out["ckpt"], arm, tag, K, seed)
+            bundle = names.predictions_pt_path(out["ckpt"], arm, tag, K, seed)
             if not os.path.exists(path):
                 out["violations"].append(f"{where}: no metrics JSON at {path}")
                 continue
-            metrics, record, bad = _read_cell(path, arm)
-            if metrics is None:
-                out["violations"] += [f"{where}: {b}" for b in bad]
-                continue
-            digest = record.get("ckpt_sha256")
-            if digest is None:
-                out["violations"].append(
-                    f"{where}: the record carries no ckpt_sha256, so it cannot be bound to "
-                    "the checkpoint bytes the launcher validated")
+            bad = names.check_metrics(path, out["ckpt"], out["ckpt_sha256"],
+                                      names.ARM_COND_METHOD[arm], names.FRAME_AVG_ANGLES,
+                                      names.ROTATE_DEG, names.COND_AUTOCAST)
+            record, unreadable = _load_json(path)
+            bad += unreadable or check_cell_endpoints(record)
+            if not os.path.exists(bundle):
+                bad.append(f"no prediction bundle at {bundle}: plan §2 counts a cell only "
+                           "when its metrics JSON and a loadable bundle both exist")
             else:
-                digests.setdefault(str(digest), []).append(f"K{K} s{seed}")
-            out["cells"][K][seed] = {"path": path, "metrics": metrics, "ckpt_sha256": digest}
-    if len(digests) > 1:
-        out["violations"].append(
-            f"{run}: its cells name {len(digests)} different ckpt_sha256 values (" + "; ".join(
-                f"{d[:12]}...: {', '.join(c)}" for d, c in sorted(digests.items()))
-            + ") -- this run's numbers do not come from one checkpoint and are all dropped")
-        out["cells"] = {K: {} for K in ks}
-    elif digests:
-        out["ckpt_sha256"] = next(iter(digests))
+                bad += names.check_bundle(
+                    bundle, n_items, seed, K, arm,
+                    expect_eval_name=names.eval_name(arm, tag, K, seed),
+                    expect_ckpt=out["ckpt"], expect_ckpt_sha256=out["ckpt_sha256"])
+            if bad:
+                out["violations"] += [f"{where}: {line}" for line in bad]
+                continue
+            out["cells"][K][seed] = {
+                "path": path, "bundle": bundle, "ckpt_sha256": out["ckpt_sha256"],
+                "metrics": {m: float(record["metrics"][k]) for m, k in METRIC_KEYS.items()}}
     return out
 
 
@@ -541,7 +563,7 @@ def _row(metric, pct, cyl_by_seed, van_by_seed, seeds, source):
 
 def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_dirs=None,
                 fraction_tags=None, ks=names.K_VALUES, seeds=names.SEEDS, metrics=METRICS,
-                generated_at=None):
+                generated_at=None, expect_n=None):
     """The whole data-curve document: six runs, two anchors, one verdict, one provenance.
 
     The 100 % point is *paired* only when raw per-seed anchor cells are supplied for both
@@ -556,7 +578,7 @@ def build_curve(nas_root, anchors_path, split_manifest_path=None, anchor_cell_di
     runs = {}
     for arm in names.ARMS:
         for tag in tags:
-            runs[(arm, tag)] = load_run(nas_root, arm, tag, seeds, ks)
+            runs[(arm, tag)] = load_run(nas_root, arm, tag, seeds, ks, expect_n)
             violations += runs[(arm, tag)]["violations"]
 
     reference = load_anchor_reference(anchors_path, ks=ks)
