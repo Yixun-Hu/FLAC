@@ -24,6 +24,15 @@ fails quietly, which is what this module is for:
 
 No GPU, no network, and nothing in the destination checkout is committed or force-added
 here: this module copies and prints, the analyst commits.
+
+**Deferred, on purpose (plan §9 D9, codex D3 finding 7).** The plan also requires the
+authoritative ``gen_model_comparison.py`` to be RUN end-to-end over a fixture import
+directory, asserting five files per K, a numerically rendered row and the final protocol
+label. That test belongs to the checkout that owns the generator (branch
+``localization-exp``), not here, and the Planner schedules it before the first arm is
+published. What this repository can prove -- and does, in
+``src/tests/test_data_curve_import_cells.py`` -- is that the emitted string literal-parses
+as one of the generator's own four-field ROWS entries and carries no forbidden substring.
 """
 import argparse
 import glob
@@ -129,38 +138,30 @@ def validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds=names.SEEDS,
     return files, violations
 
 
-def _copy_verified(files, dest_dir):
-    """Copy into a staging dir, re-hash every byte, then move into place. Or copy nothing."""
-    staging = os.path.join(dest_dir, f".incoming-{os.getpid()}")
-    os.makedirs(staging, exist_ok=True)
-    violations = []
-    try:
-        for entry in files:
-            basename = names.assert_no_forbidden_substring(os.path.basename(entry["source"]))
-            staged = os.path.join(staging, basename)
-            shutil.copy2(entry["source"], staged)
-            digest = _sha256(staged)
-            if digest != entry["sha256"]:
-                violations.append(
-                    f"{basename}: the copy hashes to {digest}, not the source's "
-                    f"{entry['sha256']} -- nothing was imported")
-                return violations
-            entry["dest"] = os.path.join(dest_dir, basename)
-        for entry in files:
-            os.replace(os.path.join(staging, os.path.basename(entry["dest"])), entry["dest"])
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
-    return violations
+def _identical(staging, dest_dir):
+    """``(same, why)`` -- is what we would publish byte-for-byte what is already there?"""
+    staged, published = sorted(os.listdir(staging)), sorted(os.listdir(dest_dir))
+    if staged != published:
+        differing = sorted(set(staged) ^ set(published))
+        return False, f"its file list differs ({', '.join(differing)})"
+    for basename in staged:
+        if _sha256(os.path.join(staging, basename)) != \
+                _sha256(os.path.join(dest_dir, basename)):
+            return False, f"{basename} differs"
+    return True, ""
 
 
-def _write_manifest(dest_dir, checkout, run, ckpt, ckpt_sha256, files):
+def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files):
     """``MANIFEST.sha256``: the sources above, the imported copies below.
 
-    The lower half is a plain ``sha256sum -c`` list rooted at the FLAC checkout; the upper
-    half is commented out (``sha256sum`` skips ``#`` lines) and names the NAS path each
-    copy came from, which is the half a reader needs and ``sha256sum`` has no room for.
+    Written INTO the staging directory, so it travels with the files it describes and the
+    destination never exists without it. The lower half is a plain ``sha256sum -c`` list
+    rooted at the FLAC checkout; the upper half is commented out (``sha256sum`` skips ``#``
+    lines) and names the NAS path each copy came from, which is the half a reader needs and
+    ``sha256sum`` has no room for. Nothing in it is time-dependent, so an identical rerun
+    produces identical bytes -- which is what makes the idempotent path checkable.
     """
-    path = os.path.join(dest_dir, MANIFEST_BASENAME)
+    path = os.path.join(staging, MANIFEST_BASENAME)
     lines = [f"# exp_14 data-curve import -- {run}",
              "# written by src.tools.data_curve.import_cells (announcement 04, plan §9 D9)",
              f"# final checkpoint:        {ckpt}",
@@ -173,6 +174,47 @@ def _write_manifest(dest_dir, checkout, run, ckpt, ckpt_sha256, files):
     with open(path, "w") as fout:
         fout.write("\n".join(lines) + "\n")
     return path
+
+
+def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256):
+    """``(violations, "new"|"identical")`` -- build the whole directory, then move it once.
+
+    Installation is all-or-nothing, not just validation (codex D3 finding 3). The complete
+    published directory -- ten cells AND their manifest -- is assembled in a sibling staging
+    directory, every copied byte re-hashed there, and only then moved into place with a
+    single ``os.rename``. A failure at any point therefore leaves no destination at all,
+    rather than a partial one that the generator's glob would average without noticing.
+
+    An existing destination is never merged into: byte-identical means the import already
+    happened and this is an idempotent rerun; anything else is a refusal, because a stale
+    file from an epoch-renamed earlier run matches the same glob as a fresh one.
+    """
+    parent = os.path.dirname(dest_dir)
+    os.makedirs(parent, exist_ok=True)
+    staging = os.path.join(parent, f".incoming-{os.path.basename(dest_dir)}-{os.getpid()}")
+    shutil.rmtree(staging, ignore_errors=True)
+    try:
+        os.makedirs(staging)
+        for entry in files:
+            basename = names.assert_no_forbidden_substring(os.path.basename(entry["source"]))
+            staged = os.path.join(staging, basename)
+            shutil.copy2(entry["source"], staged)
+            digest = _sha256(staged)
+            if digest != entry["sha256"]:
+                return [f"{basename}: the copy hashes to {digest}, not the source's "
+                        f"{entry['sha256']} -- nothing was imported"], None
+            entry["dest"] = os.path.join(dest_dir, basename)
+        _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files)
+        if os.path.exists(dest_dir):
+            same, why = _identical(staging, dest_dir)
+            if same:
+                return [], "identical"
+            return [f"{dest_dir} already exists and is not what this import would "
+                    f"publish: {why}. Nothing was touched -- remove or move it by hand."], None
+        os.rename(staging, dest_dir)
+        return [], "new"
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=names.SEEDS,
@@ -193,7 +235,7 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     names.assert_no_forbidden_substring(os.path.join(IMPORT_SUBDIR, run))
     result = {"run_id": run, "arm": arm, "fraction_tag": tag, "run_dir": run_dir,
               "dest_dir": dest_dir, "ckpt": ckpt, "ckpt_sha256": expect_ckpt_sha256,
-              "files": [], "manifest": None,
+              "files": [], "manifest": None, "installed": None,
               "row_specs": [row_spec(arm, tag, K, run) for K in ks]}
     # Discovery is unconditional (codex D3 finding 4). An override used to SKIP it, so an
     # internally consistent step-2500 checkpoint -- its own artifacts, its own digest, the
@@ -215,13 +257,17 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
                                        expect_n)
     if violations:
         return result, violations
-    os.makedirs(dest_dir, exist_ok=True)
-    violations = _copy_verified(files, dest_dir)
+    try:
+        violations, installed = _stage_and_install(files, dest_dir, flac_checkout, run,
+                                                   ckpt, expect_ckpt_sha256)
+    except OSError as err:
+        return result, [f"{run}: the install failed and nothing was published "
+                        f"({type(err).__name__}: {err})"]
     if violations:
         return result, violations
     result["files"] = files
-    result["manifest"] = _write_manifest(dest_dir, flac_checkout, run, ckpt,
-                                         expect_ckpt_sha256, files)
+    result["installed"] = installed
+    result["manifest"] = os.path.join(dest_dir, MANIFEST_BASENAME)
     return result, []
 
 
@@ -259,7 +305,8 @@ def main(argv=None):
         return EXIT_REFUSED
     print(f"imported {len(result['files'])} cells of {result['run_id']} -> "
           f"{result['dest_dir']}")
-    print(f"manifest: {result['manifest']} ({MANIFEST_BASENAME} verified after copy)")
+    print(f"manifest: {result['manifest']} (staged, verified, installed in one move; "
+          f"{result['installed']})")
     print("add these rows to worklog/worklog_yixun/gen_model_comparison.py::ROWS, "
           "force-add the JSONs + manifest, regenerate, commit and push:")
     for row in result["row_specs"]:
