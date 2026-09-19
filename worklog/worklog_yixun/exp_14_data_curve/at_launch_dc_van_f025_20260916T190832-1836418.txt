@@ -17,3 +17,5 @@ state: fresh
 resume_from: none (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
 argv: python train.py --model-config /home/yixunhu/codespace/cylindrical-dinov3/worklog/worklog_yixun/exp_14_data_curve_claude/configs/FLAC_AR_exp14_vanS.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train_frac025.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 40000 --batch-size 32 --accum-batches 1 --num-workers 6 --seed 42 --num-gpus 2 --strategy ddp_find_unused_parameters_true --sync-batchnorm true --logger none --checkpoint-every 2500 --name dc_van_f025 --experiment-name dc_van_f025 --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025 --run-contract-json /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/run_contract.json
 pid: 1836892
+final_ckpt: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+final_ckpt_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
