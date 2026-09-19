@@ -1,8 +1,14 @@
 # HANDOFF.md — working-memory contract for the next session
 
-**Last updated:** 2026-09-16 23:02 EDT (Fable 5.1 seat, this box, FLAC checkout on `localization-exp`; the experiment runs from the SIBLING worktree `~/codespace/exp-14-data-curve`, branch `exp-14-data-curve`).
+**Last updated:** 2026-09-18 23:45 EDT (Fable 5.1 seat, this box, FLAC checkout on `localization-exp`; the experiment runs from the SIBLING worktree `~/codespace/exp-14-data-curve`, branch `exp-14-data-curve`).
 
-## ⚡ LIVE: exp_14 data_curve — pair 1 (25 %) training, launched 2026-09-16 19:08:56 EDT
+## ⚡ LIVE: exp_14 data_curve — pair 2 (50 %) training, launched 2026-09-18 23:39:57 EDT (pair 1 COMPLETE)
+- **Pair 1 (25 %) COMPLETE 2026-09-18 23:32 EDT:** 20/20 cells validated (summary `data_curve_launch_summary_f025_20260916T190832-1836418.json`); first look K=8: T60 cyl 9.013 vs van 10.253 (B +1.24, vs +0.68 at 100 %), C50 +0.004 (deficit gone), EDT +1.30, R@1 +0.62 — see `exp_14_data_curve_claude/data_curve_results.md`. Verdict PENDING until 50/75 %.
+- **Pair 2 processes (ours):** launcher pid 3006730; `dc_cyl_f050` pid 3007104, `dc_van_f050` pid 3007135 (2 ranks each). Records `launch_f050.log`, `train_dc_{cyl,van}_f050.log`, `at_launch_*_f050_*.txt`; NAS run dirs `dc_{cyl,van}_f050/`. Pins: FLAC `f609976…`, kit `d708275…`, pkg `79c5b87`, launcher `00423f45…`. ETD: van ≈ Sep 20 17:00, cyl ≈ Sep 21 morning, eval +1.5 h ⇒ verdict ≈ Sep 21 morning. Then pair 3 (`TAG=075`) ≈ Sep 23–24.
+- **Publication of pair 1 to `model_comparison.md` is GATED on:** Yixun's D1 answer (row label / one-angle disclosure) → round U (generator `data_curve` contract etc., `localization-exp`) → round V (kit importer attestation + van label) → `import_cells` → row spec → regenerate → commit → push.
+
+### (previous live section, pair 1)
+## exp_14 data_curve — pair 1 (25 %) training, launched 2026-09-16 19:08:56 EDT — COMPLETE
 - **What:** CylDINO-core vs P1-vanilla FLAC on the 25 % AR subset (`data/AR/train_frac025_s2026.json`, 73,473 targets, contexts restricted), P1 recipe (2×A6000 DDP+SyncBN, 32×2×accum 1, seed 42, 40k steps, ckpt every 2500), both arms concurrent on GPUs 0,1.
 - **Processes (ours):** launcher `bash …/exp_14_data_curve_claude/scripts/exp14_launch.sh` (pid in `launch_f025.log`, started 19:08:32 from `~/codespace/exp-14-data-curve`); trainings `dc_cyl_f025` pid 1836861, `dc_van_f025` pid 1836892 (2 ranks each). Verify ownership with `readlink /proc/<pid>/cwd` == `/home/yixunhu/codespace/exp-14-data-curve`. **Never kill or edit; never edit the launcher script while it runs.**
 - **Logs/records:** `~/codespace/exp-14-data-curve/worklog/worklog_yixun/exp_14_data_curve/{launch_f025.log, launch_driver_f025_20260916T190832.out, train_dc_{cyl,van}_f025.log, at_launch_*.txt}`; NAS run dirs `/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_{cyl,van}_f025/` (checkpoints direct to NAS + `run_contract.json`).
