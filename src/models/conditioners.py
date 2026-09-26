@@ -486,13 +486,17 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                     # which are bit-identical to the legacy path; validated in-package).
                     azimuth_mode = vit_config.get('azimuth_mode', 'full')
                     prefix_mode = vit_config.get('prefix_mode', 'strip')
+                    # exp_24 CERPA ablation: readout knob (absent -> package default
+                    # "patch_mean", bit-identical to the legacy path). "cls" reads the
+                    # stock CLS token and is only valid when the prefix is kept.
+                    pooling = vit_config.get('pooling', 'patch_mean')
                     print(f"Loading cylindrical_dinov3 ViT from {model_name_or_path} "
                           f"(gauge={gauge}, azimuth_mode={azimuth_mode}, "
-                          f"prefix_mode={prefix_mode}, attn=eager)...")
+                          f"prefix_mode={prefix_mode}, pooling={pooling}, attn=eager)...")
                     vit_model = CylindricalDINOv3ViTModel.from_pretrained(
                         model_name_or_path, gauge=gauge,
                         azimuth_mode=azimuth_mode, prefix_mode=prefix_mode,
-                        attn_implementation="eager",
+                        pooling=pooling, attn_implementation="eager",
                     )
 
                     # exp-12 arm B: replace the official weights with an SSL-adapted
