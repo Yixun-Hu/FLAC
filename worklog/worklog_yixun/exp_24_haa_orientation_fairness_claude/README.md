@@ -52,3 +52,10 @@ augmentation removed?).
   `exp24_write_results.py` → `results_fairness.md` (tables, controlled comparisons, per-room, curves, pooled, LaTeX rows).
 
 ## Status
+- 2026-09-26 17:31 EDT: both FULL chains launched detached (`chain_arm.sh`): P1ORI27 on GPU 1 (co-tenant with the
+  stock-L training), YAWORI27 on GPU 0 (co-tenant with the CylDINO-L training). SMOKE (3 steps) passed for both with the
+  required banners (vanilla backbone; "orientation_field ENABLED (vanilla backbone): … 6 input channels (scale=27.0)";
+  no cylindrical backbone; YAWORI27 additionally "yaw_aug ENABLED img_w=512 seed=42"). CPU smoke: step-0 outputs
+  bit-identical to P1 / YAW. Observed footprint: **~20.5 GB per fine-tune** (the "~4 GiB" note inherited from the exp_23
+  launcher is wrong for this recipe; VRAM_FLOOR should be ≥ 22000 next time). Expected: FULL ≈ 5 h each (3.9 h solo in
+  exp_23, slower as a co-tenant), evals ≈ 45 min, results ≈ 23:45 (P1ORI27) / 00:30 Sep 27 (YAWORI27).
