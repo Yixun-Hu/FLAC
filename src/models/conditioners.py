@@ -235,6 +235,35 @@ def _checkpoint_vit_layers(vit: nn.Module) -> int:
     return len(layers)
 
 
+
+def _widen_hf_patch_conv(vit_model, extra_channels: int) -> int:
+    """exp_24 (HAA orientation-cue fairness control): append ``extra_channels`` ZERO-initialised input
+    channels to a stock HF DINOv3 patch-embedding conv. Local mirror of
+    ``cylindrical_dinov3.widen_input_channels`` so the vanilla arm never imports the cylindrical package.
+    The pretrained 3-channel weights are copied into channels [0:3], the bias is carried over, so the
+    widened model's output on ``[x, y, z, anything]`` is bit-identical to the original on ``[x, y, z]``
+    until the new weights are learned. ``config.num_channels`` is updated in place (this model's own
+    config object). Returns the new channel count."""
+    old = vit_model.embeddings.patch_embeddings
+    if not isinstance(old, nn.Conv2d):
+        raise TypeError(f"patch_embeddings is {type(old).__name__}, expected nn.Conv2d")
+    n_new = old.in_channels + int(extra_channels)
+    new = nn.Conv2d(n_new, old.out_channels, kernel_size=old.kernel_size, stride=old.stride,
+                    padding=old.padding, dilation=old.dilation, groups=old.groups,
+                    bias=old.bias is not None, padding_mode=old.padding_mode)
+    new = new.to(device=old.weight.device, dtype=old.weight.dtype)
+    with torch.no_grad():
+        new.weight.zero_()
+        new.weight[:, :old.in_channels].copy_(old.weight)
+        if old.bias is not None:
+            new.bias.copy_(old.bias)
+    new.weight.requires_grad_(old.weight.requires_grad)
+    if old.bias is not None:
+        new.bias.requires_grad_(old.bias.requires_grad)
+    vit_model.embeddings.patch_embeddings = new
+    vit_model.config.num_channels = n_new
+    return n_new
+
 class GeometryConditioner(Conditioner):
     def __init__(self, 
                  vit_model, 
@@ -460,6 +489,7 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
     vit_model = None
     _cyl_first_vit_block = None   # exp_19 CYL port: shared-backbone equality guard
     _cyl_orientation_field = False  # exp_23: orientation field agreement guard
+    _van_first_vit_seen = False     # exp_24: the vanilla path also carries the orientation-field agreement guard
     dist_embedder_proj = None
 
     for conditioner_info in config["configs"]:
@@ -582,7 +612,17 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
 
                     channels=vit_config.get('ch_dim', 3)
                     assert channels == 3, "Only 3 channels are supported"
-                    
+
+                    # exp_24 orientation cue on the STOCK backbone (fairness control for exp_23's field):
+                    # widen the patch conv by one zero-initialised XYZ triple so GeometryConditioner can
+                    # append the world-frame (un-gauged) facing field. Absent flag -> byte-identical to before.
+                    _cyl_orientation_field = bool(conditioner_config.get('orientation_field', False))
+                    _van_first_vit_seen = True
+                    if _cyl_orientation_field:
+                        n_ch = _widen_hf_patch_conv(vit_model, 3)
+                        print(f"orientation_field ENABLED (vanilla backbone): patch conv widened to {n_ch} input channels "
+                              f"(scale={float(conditioner_config.get('orientation_scale', 1.0))})")
+
                     n_trainable_params = sum(p.numel() for p in vit_model.parameters() if p.requires_grad)
                     n_total_params = sum(p.numel() for p in vit_model.parameters())
                     print(f"{n_trainable_params / 1e6:.2f}M/{n_total_params / 1e6:.2f}M parameters are trainable")
@@ -630,11 +670,11 @@ def create_multi_conditioner_from_conditioning_config(config: tp.Dict[str, tp.An
                         "cylindrical_dinov3: a second ViTCoordinates conditioner's ViT "
                         "block differs from the one that built the shared backbone -- "
                         "make them equal or remove the second one.")
-                if _cyl_first_vit_block is not None and \
+                if (_cyl_first_vit_block is not None or _van_first_vit_seen) and \
                         bool(conditioner_config.get('orientation_field', False)) != _cyl_orientation_field:
                     raise ValueError(
-                        "cylindrical_dinov3: 'orientation_field' must be set identically on every "
-                        "ViTCoordinates conditioner that shares the (possibly widened) backbone.")
+                        "'orientation_field' must be set identically on every ViTCoordinates conditioner "
+                        "that shares the (possibly widened) backbone (cylindrical_dinov3 or stock DINOv3).")
             conditioners[id] = GeometryConditioner(**conditioner_config, vit_model=vit_model, vit_proj=vit_proj, lin_proj=lin_proj, model_type=model_type)
 
         elif conditioner_type == "dist_embedder":

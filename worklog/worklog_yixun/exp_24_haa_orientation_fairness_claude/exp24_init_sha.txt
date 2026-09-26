@@ -1,0 +1,6 @@
+e338ed3beca7022ff8a4c0dcad86f05a2faf5cf24405b41786c7b3d5f05fd3ee  outputs_FLAC/exp19_inits/HAA_init_P1ORI.ckpt
+conditioner.conditioners.source_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0
+conditioner.conditioners.context_poses_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0
+51c6a6cb9b1542f81ea616c1ef69620565274b2dcd93485e8538b09adb992c65  outputs_FLAC/exp19_inits/HAA_init_YAWORI.ckpt
+conditioner.conditioners.source_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0
+conditioner.conditioners.context_poses_vit.vit.embeddings.patch_embeddings.weight (384, 6, 16, 16) nonzero extra: 0

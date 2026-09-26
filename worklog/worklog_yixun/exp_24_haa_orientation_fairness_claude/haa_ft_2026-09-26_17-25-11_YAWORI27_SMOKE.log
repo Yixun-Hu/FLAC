@@ -1,0 +1,75 @@
+=== exp_24 HAA finetune | ARM=YAWORI27 SEED=42 MODE=SMOKE GPU=0 cadence=100 | 2026-09-26_17-25-11 ===
+FLAC HEAD: 435407f42bdf5a2c3bde951d8d8f460eabc413f8 (exp17-yawaug-scratch) | dirty: 2 tracked-path changes
+51c6a6cb9b1542f81ea616c1ef69620565274b2dcd93485e8538b09adb992c65  outputs_FLAC/exp19_inits/HAA_init_YAWORI.ckpt
+ad86eacf91859ea17f76f18bf206caf87f990d7a628e051c50cb1c11bd4d20e1  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_YAWORI27.json
+f6b6e32ee19ae0b4206ac6d9eee15dea5a85bdca07f646da917cfe91c2743736  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_train_ori.json
+c6ed16866abbed6c8a0cdfd915354f1a7e9e881e90c14e854d20dfa34778028d  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_val_ori.json
+8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors
+ef59050f6182ec12fd69dc265d8d79f5ca51a54af3c0122df3a145b7bf92994c  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/HAA_md_ori.py
+27694cfe0e604159c59d45b43e6b946cacbbc301bf11c7af823c93f7b86756f7  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_speaker_facing.json
+e40af27e205dbf8f391ee83dac5d235143730e6f567e5fcdad6e8046f78c8d0c  src/models/conditioners.py
+d44d6bbb0b8ed1ba0ee5eae7450442919e112aa0ce38d3ffcbec5e79e1d48c1a  src/data/yaw_rotation.py
+21c22334410d549106994547b79e811671f10cb7cfa6677a0ff386185df1e018  src/training/diffusion.py
+bce1c94e648138459c056d82ac3e5f385e413b99f819b71bbbcd6d470d5f13ea  train.py
+GPU 0 free 24183 MiB (floor 8000; measured need of this recipe ~4 GiB)
+disk free 50740 MiB (floor 20000)
+--- co-tenancy at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 2368446, python, 24340 MiB
+GPU-684b9600-ff40-5a6c-8ac6-66b9657330b3, 2368445, python, 22756 MiB
+ARGV: /home/yixunhu/miniconda3/envs/flac/bin/python train.py --dataset-config worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_train_ori.json --val-dataset-config worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_val_ori.json --model-config worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_YAWORI27.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --pretrained-ckpt-path outputs_FLAC/exp19_inits/HAA_init_YAWORI.ckpt --max-steps 3 --batch-size 16 --accum-batches 4 --num-workers 8 --seed 42 --num-gpus 1 --precision bf16-mixed --val-every 1000000 --checkpoint-every 1000000 --logger wandb --name FLAC_exp24_HAA_YAWORI27_smoke --experiment-name exp24_HAA_YAWORI27_smoke --save-dir outputs_FLAC/exp24_HAA_YAWORI27_smoke
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: yh4742 (yh4742-princeton-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run q09qse5a
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in wandb/run-20260926_172524-q09qse5a
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp24_HAA_YAWORI27_smoke
+wandb: ⭐️ View project at https://wandb.ai/yh4742-princeton-university/FLAC_exp24_HAA_YAWORI27_smoke
+wandb: 🚀 View run at https://wandb.ai/yh4742-princeton-university/FLAC_exp24_HAA_YAWORI27_smoke/runs/q09qse5a
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.8 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.6 M    Trainable params
+30.9 M    Non-trainable params
+81.5 M    Total params
+326.072   Total estimated model params size (MB)
+Running json scandir...
+Found 48 files in 4 subfolders
+Running json scandir...
+Found 560 files in 4 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)
+21.89M/21.89M parameters are trainable
+Loading pretrained model...
+yaw_aug ENABLED img_w=512 seed=42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py:293: The number of training batches (3) is smaller than the logging interval Trainer(log_every_n_steps=100). Set a lower value for log_every_n_steps if you want to see logs for the training epoch.
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/3 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/3 [00:00<?, ?it/s] Epoch 0:  33%|███▎      | 1/3 [00:03<00:07,  0.25it/s]Epoch 0:  33%|███▎      | 1/3 [00:03<00:07,  0.25it/s, v_num=se5a, train/loss=1.090, train/std_data=1.130, train/lr=5e-8, train/mse_loss=1.090]Epoch 0:  67%|██████▋   | 2/3 [00:05<00:02,  0.35it/s, v_num=se5a, train/loss=1.090, train/std_data=1.130, train/lr=5e-8, train/mse_loss=1.090]Epoch 0:  67%|██████▋   | 2/3 [00:05<00:02,  0.35it/s, v_num=se5a, train/loss=1.310, train/std_data=1.160, train/lr=5e-8, train/mse_loss=1.310]Epoch 0: 100%|██████████| 3/3 [00:07<00:00,  0.40it/s, v_num=se5a, train/loss=1.310, train/std_data=1.160, train/lr=5e-8, train/mse_loss=1.310]Epoch 0: 100%|██████████| 3/3 [00:07<00:00,  0.39it/s, v_num=se5a, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 0: 100%|██████████| 3/3 [00:07<00:00,  0.39it/s, v_num=se5a, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 0:   0%|          | 0/3 [00:00<?, ?it/s, v_num=se5a, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]        Epoch 1:   0%|          | 0/3 [00:00<?, ?it/s, v_num=se5a, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 1:  33%|███▎      | 1/3 [00:02<00:04,  0.41it/s, v_num=se5a, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 1:  33%|███▎      | 1/3 [00:02<00:05,  0.40it/s, v_num=se5a, train/loss=1.220, train/std_data=1.160, train/lr=9.95e-8, train/mse_loss=1.220]Epoch 1:  67%|██████▋   | 2/3 [00:04<00:02,  0.47it/s, v_num=se5a, train/loss=1.220, train/std_data=1.160, train/lr=9.95e-8, train/mse_loss=1.220]Epoch 1:  67%|██████▋   | 2/3 [00:04<00:02,  0.47it/s, v_num=se5a, train/loss=1.290, train/std_data=1.050, train/lr=9.95e-8, train/mse_loss=1.290]Epoch 1: 100%|██████████| 3/3 [00:05<00:00,  0.52it/s, v_num=se5a, train/loss=1.290, train/std_data=1.050, train/lr=9.95e-8, train/mse_loss=1.290]Epoch 1: 100%|██████████| 3/3 [00:05<00:00,  0.52it/s, v_num=se5a, train/loss=1.350, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.350]Epoch 1: 100%|██████████| 3/3 [00:05<00:00,  0.52it/s, v_num=se5a, train/loss=1.350, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.350]Epoch 1:   0%|          | 0/3 [00:00<?, ?it/s, v_num=se5a, train/loss=1.350, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.350]        Epoch 2:   0%|          | 0/3 [00:00<?, ?it/s, v_num=se5a, train/loss=1.350, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.350]Epoch 2:  33%|███▎      | 1/3 [00:02<00:04,  0.42it/s, v_num=se5a, train/loss=1.350, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.350]Epoch 2:  33%|███▎      | 1/3 [00:02<00:04,  0.41it/s, v_num=se5a, train/loss=1.190, train/std_data=1.140, train/lr=1.49e-7, train/mse_loss=1.190]Epoch 2:  67%|██████▋   | 2/3 [00:04<00:02,  0.48it/s, v_num=se5a, train/loss=1.190, train/std_data=1.140, train/lr=1.49e-7, train/mse_loss=1.190]Epoch 2:  67%|██████▋   | 2/3 [00:04<00:02,  0.48it/s, v_num=se5a, train/loss=1.160, train/std_data=1.130, train/lr=1.49e-7, train/mse_loss=1.160]Epoch 2: 100%|██████████| 3/3 [00:05<00:00,  0.51it/s, v_num=se5a, train/loss=1.160, train/std_data=1.130, train/lr=1.49e-7, train/mse_loss=1.160]Epoch 2: 100%|██████████| 3/3 [00:05<00:00,  0.50it/s, v_num=se5a, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]Epoch 2: 100%|██████████| 3/3 [00:05<00:00,  0.50it/s, v_num=se5a, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]`Trainer.fit` stopped: `max_steps=3` reached.
+Epoch 2: 100%|██████████| 3/3 [00:05<00:00,  0.50it/s, v_num=se5a, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mexp24_HAA_YAWORI27_smoke[0m at: [34mhttps://wandb.ai/yh4742-princeton-university/FLAC_exp24_HAA_YAWORI27_smoke/runs/q09qse5a[0m
+=== exp_24 YAWORI27 SMOKE exit rc=0 after 38s at 2026-09-26 17:25:53 ===
+banner: vanilla DINOv3 backbone found
+banner: orientation cue (vanilla) found
+banner: no cylindrical backbone (as required)
+endpoint marker: found (max_steps=3)
+=== launcher done rc=0 ===

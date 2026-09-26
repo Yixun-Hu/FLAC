@@ -1,0 +1,21 @@
+  WeightNorm.apply(module, name, dim)
+facing [0.0, -1.0, 0.0]
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)
+21.89M/21.89M parameters are trainable
+P1ORI27 | base conv (384, 3, 16, 16) | cue conv (384, 6, 16, 16) | field True scale 27.0 | config.num_channels 6 | backbone DINOv3ViTModel
+   source_vit: max|diff| base vs cue(zero extra) = 0.0
+   context_poses_vit: max|diff| base vs cue(zero extra) = 0.0
+   non-zero extra weights: |diff| = 2.248; facing (0,-1,0) vs (1,0,0): |diff| = 1.02
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)
+21.89M/21.89M parameters are trainable
+YAWORI27 | base conv (384, 3, 16, 16) | cue conv (384, 6, 16, 16) | field True scale 27.0 | config.num_channels 6 | backbone DINOv3ViTModel
+   source_vit: max|diff| base vs cue(zero extra) = 0.0
+   context_poses_vit: max|diff| base vs cue(zero extra) = 0.0
+   non-zero extra weights: |diff| = 1.998; facing (0,-1,0) vs (1,0,0): |diff| = 1.432
+SMOKE OK (vanilla cue arms)
