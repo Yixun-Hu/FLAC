@@ -59,3 +59,26 @@ augmentation removed?).
   bit-identical to P1 / YAW. Observed footprint: **~20.5 GB per fine-tune** (the "~4 GiB" note inherited from the exp_23
   launcher is wrong for this recipe; VRAM_FLOOR should be ≥ 22000 next time). Expected: FULL ≈ 5 h each (3.9 h solo in
   exp_23, slower as a co-tenant), evals ≈ 45 min, results ≈ 23:45 (P1ORI27) / 00:30 Sep 27 (YAWORI27).
+- 2026-09-27 00:13 EDT: **both chains DONE** (P1ORI27 FULL 21:39, 19/19 cells rc=0 at 23:53; YAWORI27 FULL 21:51,
+  19/19 cells rc=0 at 00:12). Results: `results_fairness.md`. Headline (ckpt-1000, K=8, paper convention):
+
+  | arm | T60↓ | C50↓ | EDT↓ | R@1↑ | R@10↑ | hallway T60 |
+  |---|---|---|---|---|---|---|
+  | FLAC (P1) | 3.413 | 2.202 | 85.0 | 5.18 | 31.69 | 3.43 |
+  | FLAC + cue (P1ORI27) | 3.320 | **1.869** | 76.2 | 4.68 | 30.73 | 3.35 |
+  | Yaw-aug FLAC (YAW, aug ON) | 4.092 | 2.777 | 91.8 | 4.13 | 27.34 | 5.69 |
+  | Yaw-aug FLAC + cue (YAWORI27) | **3.301** | 1.930 | **73.0** | 4.91 | 30.76 | **3.29** |
+  | CylDINO (CYL) | 5.411 | 3.442 | 119.5 | 4.10 | 27.65 | 8.85 |
+  | CylDINO + cue (CYLORI27) | 3.533 | 2.158 | 85.8 | 4.96 | 31.45 | 4.02 |
+
+  **Key controlled comparison (CYLORI27 vs P1ORI27, information matched):** CylDINO + cue trails FLAC + cue on the decay
+  metrics — T60 +6.4 %, C50 +15.5 %, EDT +12.6 % (K=1: +5.5 / +15.8 / +13.6 %) — and leads slightly on retrieval
+  (R@1 +6.2 %, R@10 +2.3 %). So the exp_23 "parity with vanilla" headline was partly the cue helping in general: the cue
+  also improves vanilla FLAC (C50 −15 %, EDT −10 %, T60 −3 %), even though on the world-frame backbone the field is a
+  constant. Mechanism (per-room): P1's gains are in the classroom/complex/dampened C50–EDT, NOT in the hallway (3.43 →
+  3.35) — i.e. the zero-init channels × s=27 act as a fast-learning extra bias on the patch embedding (10× effective LR
+  under Adam), an optimisation/capacity effect; for CylDINO the same cue acts where the information was missing (hallway
+  8.85 → 4.02) and for yaw-aug FLAC it restores what augmentation removed (hallway 5.69 → 3.29, the best hallway of all
+  arms; YAWORI27 is the best arm overall on T60 and EDT). Retrieval: the cue costs vanilla FLAC R@1 (5.18 → 4.68) but
+  helps every invariant/augmented arm. Caveats: one training seed per arm; s=27 was tuned on CylDINO and copied to the
+  stock arms unchanged; the facing direction is the same vector in every room (dataset-supplied).

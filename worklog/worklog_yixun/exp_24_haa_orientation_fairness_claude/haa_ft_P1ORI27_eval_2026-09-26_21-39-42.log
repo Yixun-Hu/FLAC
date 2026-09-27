@@ -1,0 +1,46 @@
+=== exp_24 P1ORI27 eval all endpoints=1000 | 2026-09-26_21-39-42 | FLAC e3bee3e ===
+1711d59313f88bccaaf04eba43c6b993893c1edcdcf373b66c7d6f96e3372572  eval_FLAC.py
+5d96822802532a785e61ae5f94e56b2895d96322d4f5f27e49f2a53f7cd7fc37  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_P1ORI27.json
+cc3fd5baca14d88dd86f6bd572f9459ab4a51639b835ce1fcf34562a728b415a  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_test_ori.json
+a27e7dcf1e4ab9a1373c0adff4a58f1ce33b015ce05a57d9012781cde8cbf85e  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_test_1_ori.json
+ef59050f6182ec12fd69dc265d8d79f5ca51a54af3c0122df3a145b7bf92994c  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/HAA_md_ori.py
+cells to run: 19
+[21:39:42] start exp24_HAA_P1ORI27_S1000_K8_s42
+[21:39:42] start exp24_HAA_P1ORI27_S1000_K8_s43
+[21:48:23] end   exp24_HAA_P1ORI27_S1000_K8_s42 rc=0
+[21:48:27] end   exp24_HAA_P1ORI27_S1000_K8_s43 rc=0
+[21:48:27] start exp24_HAA_P1ORI27_S1000_K8_s44
+[21:48:27] start exp24_HAA_P1ORI27_S1000_K8_s45
+[21:58:51] end   exp24_HAA_P1ORI27_S1000_K8_s44 rc=0
+[21:58:54] end   exp24_HAA_P1ORI27_S1000_K8_s45 rc=0
+[21:58:54] start exp24_HAA_P1ORI27_S1000_K8_s46
+[21:58:54] start exp24_HAA_P1ORI27_S1000_K1_s42
+[22:10:17] end   exp24_HAA_P1ORI27_S1000_K1_s42 rc=0
+[22:10:49] end   exp24_HAA_P1ORI27_S1000_K8_s46 rc=0
+[22:10:49] start exp24_HAA_P1ORI27_S1000_K1_s43
+[22:10:49] start exp24_HAA_P1ORI27_S1000_K1_s44
+[22:22:24] end   exp24_HAA_P1ORI27_S1000_K1_s43 rc=0
+[22:22:26] end   exp24_HAA_P1ORI27_S1000_K1_s44 rc=0
+[22:22:26] start exp24_HAA_P1ORI27_S1000_K1_s46
+[22:22:26] start exp24_HAA_P1ORI27_S1000_K1_s45
+[22:33:57] end   exp24_HAA_P1ORI27_S1000_K1_s46 rc=0
+[22:34:00] end   exp24_HAA_P1ORI27_S1000_K1_s45 rc=0
+[22:34:00] start exp24_HAA_P1ORI27_S100_K8_s42
+[22:34:00] start exp24_HAA_P1ORI27_S200_K8_s42
+[22:48:17] end   exp24_HAA_P1ORI27_S200_K8_s42 rc=0
+[22:48:18] end   exp24_HAA_P1ORI27_S100_K8_s42 rc=0
+[22:48:18] start exp24_HAA_P1ORI27_S300_K8_s42
+[22:48:18] start exp24_HAA_P1ORI27_S400_K8_s42
+[23:03:48] end   exp24_HAA_P1ORI27_S300_K8_s42 rc=0
+[23:03:55] end   exp24_HAA_P1ORI27_S400_K8_s42 rc=0
+[23:03:55] start exp24_HAA_P1ORI27_S500_K8_s42
+[23:03:55] start exp24_HAA_P1ORI27_S600_K8_s42
+[23:23:23] end   exp24_HAA_P1ORI27_S500_K8_s42 rc=0
+[23:23:30] end   exp24_HAA_P1ORI27_S600_K8_s42 rc=0
+[23:23:30] start exp24_HAA_P1ORI27_S800_K8_s42
+[23:23:30] start exp24_HAA_P1ORI27_S700_K8_s42
+[23:40:10] end   exp24_HAA_P1ORI27_S800_K8_s42 rc=0
+[23:40:12] end   exp24_HAA_P1ORI27_S700_K8_s42 rc=0
+[23:40:12] start exp24_HAA_P1ORI27_S900_K8_s42
+[23:53:26] end   exp24_HAA_P1ORI27_S900_K8_s42 rc=0
+=== eval all done: failed=0 at 2026-09-26 23:53:26 ===

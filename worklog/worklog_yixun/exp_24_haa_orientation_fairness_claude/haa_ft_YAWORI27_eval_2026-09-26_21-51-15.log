@@ -1,0 +1,46 @@
+=== exp_24 YAWORI27 eval all endpoints=1000 | 2026-09-26_21-51-15 | FLAC e3bee3e ===
+1711d59313f88bccaaf04eba43c6b993893c1edcdcf373b66c7d6f96e3372572  eval_FLAC.py
+ad86eacf91859ea17f76f18bf206caf87f990d7a628e051c50cb1c11bd4d20e1  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_YAWORI27.json
+cc3fd5baca14d88dd86f6bd572f9459ab4a51639b835ce1fcf34562a728b415a  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_test_ori.json
+a27e7dcf1e4ab9a1373c0adff4a58f1ce33b015ce05a57d9012781cde8cbf85e  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/haa_test_1_ori.json
+ef59050f6182ec12fd69dc265d8d79f5ca51a54af3c0122df3a145b7bf92994c  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/HAA_md_ori.py
+cells to run: 19
+[21:51:15] start exp24_HAA_YAWORI27_S1000_K8_s42
+[21:51:15] start exp24_HAA_YAWORI27_S1000_K8_s43
+[22:03:28] end   exp24_HAA_YAWORI27_S1000_K8_s42 rc=0
+[22:03:33] end   exp24_HAA_YAWORI27_S1000_K8_s43 rc=0
+[22:03:33] start exp24_HAA_YAWORI27_S1000_K8_s44
+[22:03:33] start exp24_HAA_YAWORI27_S1000_K8_s45
+[22:15:11] end   exp24_HAA_YAWORI27_S1000_K8_s44 rc=0
+[22:15:13] end   exp24_HAA_YAWORI27_S1000_K8_s45 rc=0
+[22:15:13] start exp24_HAA_YAWORI27_S1000_K1_s42
+[22:15:13] start exp24_HAA_YAWORI27_S1000_K8_s46
+[22:27:25] end   exp24_HAA_YAWORI27_S1000_K1_s42 rc=0
+[22:27:59] end   exp24_HAA_YAWORI27_S1000_K8_s46 rc=0
+[22:27:59] start exp24_HAA_YAWORI27_S1000_K1_s43
+[22:27:59] start exp24_HAA_YAWORI27_S1000_K1_s44
+[22:41:01] end   exp24_HAA_YAWORI27_S1000_K1_s44 rc=0
+[22:41:12] end   exp24_HAA_YAWORI27_S1000_K1_s43 rc=0
+[22:41:12] start exp24_HAA_YAWORI27_S1000_K1_s45
+[22:41:12] start exp24_HAA_YAWORI27_S1000_K1_s46
+[22:56:25] end   exp24_HAA_YAWORI27_S1000_K1_s46 rc=0
+[22:56:32] end   exp24_HAA_YAWORI27_S1000_K1_s45 rc=0
+[22:56:32] start exp24_HAA_YAWORI27_S100_K8_s42
+[22:56:32] start exp24_HAA_YAWORI27_S200_K8_s42
+[23:15:17] end   exp24_HAA_YAWORI27_S100_K8_s42 rc=0
+[23:15:31] end   exp24_HAA_YAWORI27_S200_K8_s42 rc=0
+[23:15:31] start exp24_HAA_YAWORI27_S400_K8_s42
+[23:15:31] start exp24_HAA_YAWORI27_S300_K8_s42
+[23:34:15] end   exp24_HAA_YAWORI27_S400_K8_s42 rc=0
+[23:34:19] end   exp24_HAA_YAWORI27_S300_K8_s42 rc=0
+[23:34:19] start exp24_HAA_YAWORI27_S500_K8_s42
+[23:34:19] start exp24_HAA_YAWORI27_S600_K8_s42
+[23:49:48] end   exp24_HAA_YAWORI27_S500_K8_s42 rc=0
+[23:49:56] end   exp24_HAA_YAWORI27_S600_K8_s42 rc=0
+[23:49:56] start exp24_HAA_YAWORI27_S700_K8_s42
+[23:49:56] start exp24_HAA_YAWORI27_S800_K8_s42
+[00:02:49] end   exp24_HAA_YAWORI27_S800_K8_s42 rc=0
+[00:02:51] end   exp24_HAA_YAWORI27_S700_K8_s42 rc=0
+[00:02:51] start exp24_HAA_YAWORI27_S900_K8_s42
+[00:12:57] end   exp24_HAA_YAWORI27_S900_K8_s42 rc=0
+=== eval all done: failed=0 at 2026-09-27 00:12:57 ===

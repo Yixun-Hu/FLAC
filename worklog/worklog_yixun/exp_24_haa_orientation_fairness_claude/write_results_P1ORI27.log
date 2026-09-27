@@ -110,7 +110,7 @@ Arms with complete records: P1, P1ORI27, YAW, YAWORI27, YNA, CYL, CYLORI27
 | Vanilla FLAC (P1@40k→HAA) | 8.58 | 4.47 | 3.00 | — | 3.14 | 3.26 | 3.34 | 3.35 | 3.42 | 3.43 |
 | Vanilla FLAC + orientation cue s=27 (P1@40k→HAA) | 5.37 | 3.53 | 3.35 | 3.36 | 3.34 | 3.38 | 3.46 | 3.42 | 3.34 | 3.36 |
 | Yaw-Aug FLAC, aug ON in FT (exp17@40k→HAA) | 9.75 | 8.03 | 6.80 | — | 4.93 | 4.56 | 4.27 | 4.21 | 4.10 | 4.15 |
-| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 8.08 | 5.01 | 3.65 | 3.20 | 3.25 | 3.13 | 3.27 | 3.28 | 3.21 | 3.34 |
+| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 8.08 | 5.01 | 3.65 | 3.20 | 3.25 | 3.13 | — | — | — | 3.34 |
 | Yaw-Aug init, aug OFF in FT | — | — | — | — | — | — | — | — | — | 3.43 |
 | CylDINO no-SSL (AR-40k→HAA) | — | — | — | — | — | — | — | — | — | 5.43 |
 | CylDINO no-SSL + orientation field s=27 (AR-40k→HAA) | 8.56 | 6.42 | 4.70 | — | 3.55 | 3.50 | 3.62 | 3.63 | 3.65 | 3.55 |
@@ -122,7 +122,7 @@ Arms with complete records: P1, P1ORI27, YAW, YAWORI27, YNA, CYL, CYLORI27
 | Vanilla FLAC (P1@40k→HAA) | 4.25 | 3.26 | 2.30 | — | 2.13 | 2.15 | 2.22 | 2.16 | 2.26 | 2.20 |
 | Vanilla FLAC + orientation cue s=27 (P1@40k→HAA) | 2.78 | 2.15 | 2.13 | 2.01 | 1.96 | 2.01 | 2.01 | 1.92 | 1.88 | 1.87 |
 | Yaw-Aug FLAC, aug ON in FT (exp17@40k→HAA) | 4.49 | 4.21 | 3.78 | — | 3.02 | 2.88 | 2.82 | 2.82 | 2.83 | 2.78 |
-| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 3.85 | 2.73 | 2.20 | 2.08 | 2.07 | 2.02 | 2.02 | 1.91 | 1.84 | 1.93 |
+| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 3.85 | 2.73 | 2.20 | 2.08 | 2.07 | 2.02 | — | — | — | 1.93 |
 | Yaw-Aug init, aug OFF in FT | — | — | — | — | — | — | — | — | — | 2.09 |
 | CylDINO no-SSL (AR-40k→HAA) | — | — | — | — | — | — | — | — | — | 3.47 |
 | CylDINO no-SSL + orientation field s=27 (AR-40k→HAA) | 4.47 | 3.70 | 2.85 | — | 2.28 | 2.30 | 2.35 | 2.28 | 2.27 | 2.16 |
@@ -134,7 +134,7 @@ Arms with complete records: P1, P1ORI27, YAW, YAWORI27, YNA, CYL, CYLORI27
 | Vanilla FLAC (P1@40k→HAA) | 181.42 | 115.20 | 81.62 | — | 79.86 | 80.97 | 81.34 | 81.75 | 84.54 | 84.96 |
 | Vanilla FLAC + orientation cue s=27 (P1@40k→HAA) | 109.02 | 86.26 | 85.48 | 81.72 | 79.88 | 77.89 | 79.18 | 76.10 | 76.10 | 76.08 |
 | Yaw-Aug FLAC, aug ON in FT (exp17@40k→HAA) | 202.62 | 156.95 | 133.88 | — | 105.44 | 99.94 | 96.42 | 94.89 | 93.60 | 91.98 |
-| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 162.65 | 99.02 | 73.43 | 73.78 | 74.90 | 71.64 | 74.24 | 71.72 | 70.07 | 72.98 |
+| Yaw-Aug FLAC, aug ON in FT + orientation cue s=27 | 162.65 | 99.02 | 73.43 | 73.78 | 74.90 | 71.64 | — | — | — | 72.98 |
 | Yaw-Aug init, aug OFF in FT | — | — | — | — | — | — | — | — | — | 76.99 |
 | CylDINO no-SSL (AR-40k→HAA) | — | — | — | — | — | — | — | — | — | 120.38 |
 | CylDINO no-SSL + orientation field s=27 (AR-40k→HAA) | 199.83 | 137.27 | 102.12 | — | 86.21 | 86.55 | 89.34 | 87.99 | 87.62 | 85.92 |
@@ -182,3 +182,4 @@ Yaw-aug init, stock FT & 8 & $\ms{3.391}{0.032}$ & $\ms{2.0956}{0.0107}$ & $\ms{
 \CylDINO{} & 8 & $\ms{5.411}{0.023}$ & $\ms{3.4421}{0.0209}$ & $\ms{119.502}{0.720}$ & $\ms{4.100}{0.440}$ & $\ms{16.268}{0.238}$ & $\ms{27.652}{0.489}$ \\
 \CylDINO{} (+facing) & 8 & $\ms{3.533}{0.035}$ & $\ms{2.1580}{0.0196}$ & $\ms{85.824}{0.683}$ & $\ms{4.963}{0.253}$ & $\ms{18.769}{0.310}$ & $\ms{31.445}{0.229}$ \\
 ```
+
