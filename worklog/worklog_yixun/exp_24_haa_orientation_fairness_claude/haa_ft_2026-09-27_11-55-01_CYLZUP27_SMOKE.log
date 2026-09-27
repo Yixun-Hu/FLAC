@@ -1,0 +1,17 @@
+=== exp_24 HAA finetune | ARM=CYLZUP27 SEED=42 MODE=SMOKE GPU=0 cadence=100 | 2026-09-27_11-55-01 ===
+FLAC HEAD: 8796df060e57c2a800181cd251548ce0c1cad16a (exp17-yawaug-scratch) | dirty: 12 tracked-path changes
+ARM=CYLZUP27 backbone=cyl field=zup init=outputs_FLAC/exp19_inits/HAA_init_CYLORI.ckpt cfg=worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/FLAC_HAA_finetune_CYLORI27.json
+0c1c37e807b27c92961301994c6b3cdb4412e1e5dd12be91ce0d909cb52312b1  outputs_FLAC/exp19_inits/HAA_init_CYLORI.ckpt
+56f75721c5c72cab3487b4fe9de47d2858846c9aad2305835e0f0031f57d2411  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/FLAC_HAA_finetune_CYLORI27.json
+10e0da5de4a20aadf23dcbfbc813ab1be770b05a452b1281b567b5ecf7143820  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_train_zup.json
+e52b96a6d2c94204d935d231c55a028bbe82691cbc4194537acc8ef87aadcb39  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_val_zup.json
+8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors
+5432614008a87d20b062797e7211f9bff0d45e1460cb0ff30628f27787b5a9e8  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/HAA_md_zup.py
+efb8f29d619842a186539676832b3741cb87ff18e3b4bd254c2c85acc0f55da5  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_zup_field.json
+e40af27e205dbf8f391ee83dac5d235143730e6f567e5fcdad6e8046f78c8d0c  src/models/conditioners.py
+d44d6bbb0b8ed1ba0ee5eae7450442919e112aa0ce38d3ffcbec5e79e1d48c1a  src/data/yaw_rotation.py
+21c22334410d549106994547b79e811671f10cb7cfa6677a0ff386185df1e018  src/training/diffusion.py
+bce1c94e648138459c056d82ac3e5f385e413b99f819b71bbbcd6d470d5f13ea  train.py
+GPU 0 free 24183 MiB (floor 8000; measured need of this recipe ~4 GiB)
+disk free 18788 MiB (floor 20000)
+not enough disk - abort

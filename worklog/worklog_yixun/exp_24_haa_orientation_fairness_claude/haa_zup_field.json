@@ -1,0 +1,23 @@
+{
+ "_doc": "exp_24 zero-information control: the SAME constant XYZ triple in every room, pointing UP (world +z), so it carries no loudspeaker-orientation information on either backbone (z is invariant under the cylindrical gauge Rz). Consumed by HAA_md_zup.py as md['facing'] with the same scale (27) as the facing arms.",
+ "classroomBase": [
+  0.0,
+  0.0,
+  1.0
+ ],
+ "complexBase": [
+  0.0,
+  0.0,
+  1.0
+ ],
+ "dampenedBase": [
+  0.0,
+  0.0,
+  1.0
+ ],
+ "hallwayBase": [
+  0.0,
+  0.0,
+  1.0
+ ]
+}

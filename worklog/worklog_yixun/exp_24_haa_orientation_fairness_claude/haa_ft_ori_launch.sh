@@ -9,9 +9,18 @@
 set -uo pipefail
 cd /home/yixunhu/codespace/FLAC
 MODE="${MODE:-SMOKE}"; GPU="${GPU:-0}"; ARM="${ARM:-P1ORI27}"; FULL_CADENCE="${CADENCE:-100}"; SEED="${SEED:-42}"; DISK_FLOOR="${DISK_FLOOR:-20000}"; VRAM_FLOOR="${VRAM_FLOOR:-8000}"
-case "$ARM" in P1ORI27) INIT_ARM=P1ORI ;; YAWORI27) INIT_ARM=YAWORI ;; *) echo "ARM must be P1ORI27 or YAWORI27"; exit 2 ;; esac
-TAG=""; [ "$SEED" = "42" ] || TAG="_s${SEED}"
+# arm table: INIT_ARM (exp19_inits/HAA_init_<INIT_ARM>.ckpt), sha list, model config, dataset suffix (ori = facing, zup = constant up
+# vector = zero-information control), backbone (van = stock DINOv3, no cylindrical package on the path; cyl = cylindrical_dinov3)
 E=worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude; E23=worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude
+case "$ARM" in
+  P1ORI27)  INIT_ARM=P1ORI;  INIT_SHA_FILE=$E/exp24_init_sha.txt;   CFG=$E/FLAC_HAA_finetune_P1ORI27.json;    DSUF=ori; BACKBONE=van ;;
+  YAWORI27) INIT_ARM=YAWORI; INIT_SHA_FILE=$E/exp24_init_sha.txt;   CFG=$E/FLAC_HAA_finetune_YAWORI27.json;   DSUF=ori; BACKBONE=van ;;
+  P1ZUP27)  INIT_ARM=P1ORI;  INIT_SHA_FILE=$E/exp24_init_sha.txt;   CFG=$E/FLAC_HAA_finetune_P1ORI27.json;    DSUF=zup; BACKBONE=van ;;   # control: stock + widened conv, constant UP field
+  CYLZUP27) INIT_ARM=CYLORI; INIT_SHA_FILE=$E23/exp23_init_sha.txt; CFG=$E23/FLAC_HAA_finetune_CYLORI27.json; DSUF=zup; BACKBONE=cyl ;;   # control: CylDINO + widened conv, constant UP field
+  *) echo "ARM must be P1ORI27, YAWORI27, P1ZUP27 or CYLZUP27"; exit 2 ;;
+esac
+CYL_PKG=/home/yixunhu/codespace/cylindrical-dinov3/src; PYPATH=""; [ "$BACKBONE" = cyl ] && PYPATH="$CYL_PKG"
+TAG=""; [ "$SEED" = "42" ] || TAG="_s${SEED}"
 PY=/home/yixunhu/miniconda3/envs/flac/bin/python
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 case "$MODE" in
@@ -23,9 +32,11 @@ LOG="$E/haa_ft_${TS}_${ARM}${TAG}_${MODE}.log"; RUNLOG="$E/haa_ft_${TS}_${ARM}${
 exec > >(tee -a "$LOG") 2>&1
 echo "=== exp_24 HAA finetune | ARM=${ARM} SEED=${SEED} MODE=${MODE} GPU=${GPU} cadence=${FULL_CADENCE} | ${TS} ==="
 echo "FLAC HEAD: $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD)) | dirty: $(git status --porcelain -- src $E | wc -l) tracked-path changes"
-INIT=outputs_FLAC/exp19_inits/HAA_init_${INIT_ARM}.ckpt; INIT_SHA_FILE=$E/exp24_init_sha.txt
-CFG=$E/FLAC_HAA_finetune_${ARM}.json; DS=$E23/haa_train_ori.json; VDS=$E23/haa_val_ori.json; VAE=weights/FLAC/VAE.safetensors
-for f in "$INIT" "$CFG" "$DS" "$VDS" "$VAE" "$E23/HAA_md_ori.py" "$E23/haa_speaker_facing.json" src/models/conditioners.py src/data/yaw_rotation.py src/training/diffusion.py train.py; do
+INIT=outputs_FLAC/exp19_inits/HAA_init_${INIT_ARM}.ckpt; VAE=weights/FLAC/VAE.safetensors
+if [ "$DSUF" = ori ]; then DS=$E23/haa_train_ori.json; VDS=$E23/haa_val_ori.json; MDMOD=$E23/HAA_md_ori.py; FTAB=$E23/haa_speaker_facing.json
+else DS=$E/haa_train_zup.json; VDS=$E/haa_val_zup.json; MDMOD=$E/HAA_md_zup.py; FTAB=$E/haa_zup_field.json; fi
+echo "ARM=$ARM backbone=$BACKBONE field=$DSUF init=$INIT cfg=$CFG"
+for f in "$INIT" "$CFG" "$DS" "$VDS" "$VAE" "$MDMOD" "$FTAB" src/models/conditioners.py src/data/yaw_rotation.py src/training/diffusion.py train.py; do
   [ -f "$f" ] || { echo "missing $f - abort"; exit 2; }; sha256sum "$f"; done
 grep -q "^$(sha256sum "$INIT" | cut -c1-64)  " "$INIT_SHA_FILE" || { echo "INIT sha of $INIT not in $INIT_SHA_FILE - abort"; exit 2; }
 FREE=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$GPU"); echo "GPU ${GPU} free ${FREE} MiB (floor ${VRAM_FLOOR}; measured need of this recipe ~4 GiB)"
@@ -40,13 +51,19 @@ ARGV=("$PY" train.py --dataset-config "$DS" --val-dataset-config "$VDS" --model-
   --val-every "$VALEVERY" --checkpoint-every "$CADENCE" --logger wandb --name "$NAME" --experiment-name "$EXPNAME" --save-dir "$SAVEDIR")
 echo "ARGV: ${ARGV[*]}"
 START=$(date +%s)
-env HF_HUB_OFFLINE=1 PYTHONPATH="" CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}" 2>&1 | tee -a "$RUNLOG"
+env HF_HUB_OFFLINE=1 PYTHONPATH="$PYPATH" CUDA_VISIBLE_DEVICES="$GPU" "${ARGV[@]}" 2>&1 | tee -a "$RUNLOG"
 rc="${PIPESTATUS[0]}"
 echo "=== exp_24 ${ARM} ${MODE} exit rc=${rc} after $(( $(date +%s) - START ))s at $(date '+%F %T') ==="
 NORM="$(mktemp)"; tr '\r' '\n' < "$RUNLOG" > "$NORM"
-grep -q "Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m" "$NORM" && echo "banner: vanilla DINOv3 backbone found" || { echo "!! vanilla banner MISSING - run invalid"; rc=3; }
-grep -q "orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)" "$NORM" && echo "banner: orientation cue (vanilla) found" || { echo "!! orientation-cue banner MISSING - run invalid"; rc=3; }
-grep -q "Loading cylindrical_dinov3 ViT" "$NORM" && { echo "!! cylindrical banner present in a VANILLA run - run invalid"; rc=3; } || echo "banner: no cylindrical backbone (as required)"
+if [ "$BACKBONE" = van ]; then
+  grep -q "Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m" "$NORM" && echo "banner: vanilla DINOv3 backbone found" || { echo "!! vanilla banner MISSING - run invalid"; rc=3; }
+  grep -q "orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)" "$NORM" && echo "banner: orientation cue (vanilla) found" || { echo "!! orientation-cue banner MISSING - run invalid"; rc=3; }
+  grep -q "Loading cylindrical_dinov3 ViT" "$NORM" && { echo "!! cylindrical banner present in a VANILLA run - run invalid"; rc=3; } || echo "banner: no cylindrical backbone (as required)"
+else
+  grep -q "Loading cylindrical_dinov3 ViT" "$NORM" && echo "banner: cylindrical backbone found" || { echo "!! cylindrical banner MISSING - run invalid"; rc=3; }
+  grep -q "orientation_field ENABLED: patch conv widened to 6 input channels (scale=27.0)" "$NORM" && echo "banner: orientation field (cylindrical) found" || { echo "!! orientation-field banner MISSING - run invalid"; rc=3; }
+fi
+grep -q "$(basename "$MDMOD")" "$LOG" && echo "metadata module: $(basename "$MDMOD") ($DSUF field)"
 MARKER="\`Trainer.fit\` stopped: \`max_steps=${STEPS}\` reached."
 awk -v m="$MARKER" 'substr($0, length($0)-length(m)+1) == m { found=1 } END { exit found ? 0 : 1 }' "$NORM" && echo "endpoint marker: found (max_steps=${STEPS})" || { echo "!! endpoint marker NOT found"; rc=3; }
 rm -f "$NORM"

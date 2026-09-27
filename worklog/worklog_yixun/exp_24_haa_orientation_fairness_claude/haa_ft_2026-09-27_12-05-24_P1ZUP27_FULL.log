@@ -1,0 +1,280 @@
+=== exp_24 HAA finetune | ARM=P1ZUP27 SEED=42 MODE=FULL GPU=1 cadence=1000 | 2026-09-27_12-05-24 ===
+FLAC HEAD: 8796df060e57c2a800181cd251548ce0c1cad16a (exp17-yawaug-scratch) | dirty: 18 tracked-path changes
+ARM=P1ZUP27 backbone=van field=zup init=outputs_FLAC/exp19_inits/HAA_init_P1ORI.ckpt cfg=worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_P1ORI27.json
+e338ed3beca7022ff8a4c0dcad86f05a2faf5cf24405b41786c7b3d5f05fd3ee  outputs_FLAC/exp19_inits/HAA_init_P1ORI.ckpt
+5d96822802532a785e61ae5f94e56b2895d96322d4f5f27e49f2a53f7cd7fc37  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_P1ORI27.json
+10e0da5de4a20aadf23dcbfbc813ab1be770b05a452b1281b567b5ecf7143820  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_train_zup.json
+e52b96a6d2c94204d935d231c55a028bbe82691cbc4194537acc8ef87aadcb39  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_val_zup.json
+8d82159eec35210198246f449bec6561fc19b514922f340a17515050daf7f0b9  weights/FLAC/VAE.safetensors
+5432614008a87d20b062797e7211f9bff0d45e1460cb0ff30628f27787b5a9e8  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/HAA_md_zup.py
+efb8f29d619842a186539676832b3741cb87ff18e3b4bd254c2c85acc0f55da5  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_zup_field.json
+e40af27e205dbf8f391ee83dac5d235143730e6f567e5fcdad6e8046f78c8d0c  src/models/conditioners.py
+d44d6bbb0b8ed1ba0ee5eae7450442919e112aa0ce38d3ffcbec5e79e1d48c1a  src/data/yaw_rotation.py
+21c22334410d549106994547b79e811671f10cb7cfa6677a0ff386185df1e018  src/training/diffusion.py
+bce1c94e648138459c056d82ac3e5f385e413b99f819b71bbbcd6d470d5f13ea  train.py
+GPU 1 free 48475 MiB (floor 8000; measured need of this recipe ~4 GiB)
+disk free 26819 MiB (floor 20000)
+--- co-tenancy at launch ---
+GPU-9c72ac69-836a-c2ee-89b7-4b51b68317a8, 2368446, python, 24340 MiB
+ARGV: /home/yixunhu/miniconda3/envs/flac/bin/python train.py --dataset-config worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_train_zup.json --val-dataset-config worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_val_zup.json --model-config worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/FLAC_HAA_finetune_P1ORI27.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --pretrained-ckpt-path outputs_FLAC/exp19_inits/HAA_init_P1ORI.ckpt --max-steps 1000 --batch-size 16 --accum-batches 4 --num-workers 8 --seed 42 --num-gpus 1 --precision bf16-mixed --val-every 10 --checkpoint-every 1000 --logger wandb --name FLAC_exp24_HAA_P1ZUP27 --experiment-name exp24_HAA_P1ZUP27 --save-dir outputs_FLAC/exp24_HAA_P1ZUP27
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: yh4742 (yh4742-princeton-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run huple3l1
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in wandb/run-20260927_120537-huple3l1
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run exp24_HAA_P1ZUP27
+wandb: ⭐️ View project at https://wandb.ai/yh4742-princeton-university/FLAC_exp24_HAA_P1ZUP27
+wandb: 🚀 View run at https://wandb.ai/yh4742-princeton-university/FLAC_exp24_HAA_P1ZUP27/runs/huple3l1
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.8 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.6 M    Trainable params
+30.9 M    Non-trainable params
+81.5 M    Total params
+326.072   Total estimated model params size (MB)
+Running json scandir...
+Found 48 files in 4 subfolders
+Running json scandir...
+Found 560 files in 4 subfolders
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+orientation_field ENABLED (vanilla backbone): patch conv widened to 6 input channels (scale=27.0)
+21.89M/21.89M parameters are trainable
+Loading pretrained model...
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/loops/fit_loop.py:293: The number of training batches (3) is smaller than the logging interval Trainer(log_every_n_steps=100). Set a lower value for log_every_n_steps if you want to see logs for the training epoch.
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/3 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/3 [00:00<?, ?it/s] Epoch 0:  33%|███▎      | 1/3 [00:03<00:06,  0.31it/s]Epoch 0:  33%|███▎      | 1/3 [00:03<00:06,  0.31it/s, v_num=e3l1, train/loss=1.120, train/std_data=1.130, train/lr=5e-8, train/mse_loss=1.120]Epoch 0:  67%|██████▋   | 2/3 [00:03<00:01,  0.50it/s, v_num=e3l1, train/loss=1.120, train/std_data=1.130, train/lr=5e-8, train/mse_loss=1.120]Epoch 0:  67%|██████▋   | 2/3 [00:04<00:02,  0.50it/s, v_num=e3l1, train/loss=1.300, train/std_data=1.160, train/lr=5e-8, train/mse_loss=1.300]Epoch 0: 100%|██████████| 3/3 [00:04<00:00,  0.62it/s, v_num=e3l1, train/loss=1.300, train/std_data=1.160, train/lr=5e-8, train/mse_loss=1.300]Epoch 0: 100%|██████████| 3/3 [00:04<00:00,  0.62it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 0: 100%|██████████| 3/3 [00:04<00:00,  0.62it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 0:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]        Epoch 1:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 1:  33%|███▎      | 1/3 [00:01<00:03,  0.62it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.080, train/lr=5e-8, train/mse_loss=1.420]Epoch 1:  33%|███▎      | 1/3 [00:01<00:03,  0.62it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.160, train/lr=9.95e-8, train/mse_loss=1.230]Epoch 1:  67%|██████▋   | 2/3 [00:02<00:01,  0.84it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.160, train/lr=9.95e-8, train/mse_loss=1.230]Epoch 1:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.050, train/lr=9.95e-8, train/mse_loss=1.280]Epoch 1: 100%|██████████| 3/3 [00:03<00:00,  0.94it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.050, train/lr=9.95e-8, train/mse_loss=1.280]Epoch 1: 100%|██████████| 3/3 [00:03<00:00,  0.94it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.360]Epoch 1: 100%|██████████| 3/3 [00:03<00:00,  0.94it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.360]Epoch 1:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.360]        Epoch 2:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.360]Epoch 2:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.150, train/lr=9.95e-8, train/mse_loss=1.360]Epoch 2:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.140, train/lr=1.49e-7, train/mse_loss=1.170]Epoch 2:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.140, train/lr=1.49e-7, train/mse_loss=1.170]Epoch 2:  67%|██████▋   | 2/3 [00:02<00:01,  0.82it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.130, train/lr=1.49e-7, train/mse_loss=1.150]Epoch 2: 100%|██████████| 3/3 [00:03<00:00,  0.93it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.130, train/lr=1.49e-7, train/mse_loss=1.150]Epoch 2: 100%|██████████| 3/3 [00:03<00:00,  0.93it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]Epoch 2: 100%|██████████| 3/3 [00:03<00:00,  0.93it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]Epoch 2:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]        Epoch 3:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]Epoch 3:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.280, train/std_data=1.100, train/lr=1.49e-7, train/mse_loss=1.280]Epoch 3:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.320, train/std_data=1.160, train/lr=1.97e-7, train/mse_loss=1.320]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:22,  1.51it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:22,  1.48it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:19,  1.63it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:18,  1.71it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:16,  1.77it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:15,  1.81it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:15,  1.84it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:04<00:14,  1.86it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:13,  1.88it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:05<00:13,  1.89it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:12,  1.91it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:06<00:11,  1.92it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:11,  1.93it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:07<00:10,  1.94it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:10,  1.94it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:08<00:09,  1.95it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:09,  1.95it/s][A
+Validation DataLoader 0:  51%|█████▏    | 18/35 [00:09<00:08,  1.96it/s][A
+Validation DataLoader 0:  54%|█████▍    | 19/35 [00:09<00:08,  1.96it/s][A
+Validation DataLoader 0:  57%|█████▋    | 20/35 [00:10<00:07,  1.96it/s][A
+Validation DataLoader 0:  60%|██████    | 21/35 [00:10<00:07,  1.97it/s][A
+Validation DataLoader 0:  63%|██████▎   | 22/35 [00:11<00:06,  1.98it/s][A
+Validation DataLoader 0:  66%|██████▌   | 23/35 [00:11<00:06,  1.99it/s][A
+Validation DataLoader 0:  69%|██████▊   | 24/35 [00:12<00:05,  1.99it/s][A
+Validation DataLoader 0:  71%|███████▏  | 25/35 [00:12<00:05,  2.00it/s][A
+Validation DataLoader 0:  74%|███████▍  | 26/35 [00:12<00:04,  2.01it/s][A
+Validation DataLoader 0:  77%|███████▋  | 27/35 [00:13<00:03,  2.01it/s][A
+Validation DataLoader 0:  80%|████████  | 28/35 [00:13<00:03,  2.02it/s][A
+Validation DataLoader 0:  83%|████████▎ | 29/35 [00:14<00:02,  2.02it/s][A
+Validation DataLoader 0:  86%|████████▌ | 30/35 [00:14<00:02,  2.02it/s][A
+Validation DataLoader 0:  89%|████████▊ | 31/35 [00:15<00:01,  2.03it/s][A
+Validation DataLoader 0:  91%|█████████▏| 32/35 [00:15<00:01,  2.03it/s][A
+Validation DataLoader 0:  94%|█████████▍| 33/35 [00:16<00:00,  2.03it/s][A
+Validation DataLoader 0:  97%|█████████▋| 34/35 [00:16<00:00,  2.04it/s][A
+Validation DataLoader 0: 100%|██████████| 35/35 [00:17<00:00,  2.04it/s][A
+                                                                        [AEpoch 3:  33%|███▎      | 1/3 [00:20<00:40,  0.05it/s, v_num=e3l1, train/loss=1.320, train/std_data=1.160, train/lr=1.97e-7, train/mse_loss=1.320, val/avg_loss=1.040]Epoch 3:  67%|██████▋   | 2/3 [00:21<00:10,  0.09it/s, v_num=e3l1, train/loss=1.320, train/std_data=1.160, train/lr=1.97e-7, train/mse_loss=1.320, val/avg_loss=1.040]Epoch 3:  67%|██████▋   | 2/3 [00:21<00:10,  0.09it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.130, train/lr=1.97e-7, train/mse_loss=1.170, val/avg_loss=1.040]Epoch 3: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.130, train/lr=1.97e-7, train/mse_loss=1.170, val/avg_loss=1.040]Epoch 3: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.080, train/lr=1.97e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 3: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.080, train/lr=1.97e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 3:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.080, train/lr=1.97e-7, train/mse_loss=1.260, val/avg_loss=1.040]        Epoch 4:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.080, train/lr=1.97e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 4:  33%|███▎      | 1/3 [00:02<00:04,  0.50it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.080, train/lr=1.97e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 4:  33%|███▎      | 1/3 [00:02<00:04,  0.49it/s, v_num=e3l1, train/loss=1.570, train/std_data=1.090, train/lr=2.45e-7, train/mse_loss=1.570, val/avg_loss=1.040]Epoch 4:  67%|██████▋   | 2/3 [00:02<00:01,  0.71it/s, v_num=e3l1, train/loss=1.570, train/std_data=1.090, train/lr=2.45e-7, train/mse_loss=1.570, val/avg_loss=1.040]Epoch 4:  67%|██████▋   | 2/3 [00:02<00:01,  0.70it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.110, train/lr=2.45e-7, train/mse_loss=1.040, val/avg_loss=1.040]Epoch 4: 100%|██████████| 3/3 [00:03<00:00,  0.82it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.110, train/lr=2.45e-7, train/mse_loss=1.040, val/avg_loss=1.040]Epoch 4: 100%|██████████| 3/3 [00:03<00:00,  0.82it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.180, train/lr=2.45e-7, train/mse_loss=1.140, val/avg_loss=1.040]Epoch 4: 100%|██████████| 3/3 [00:03<00:00,  0.82it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.180, train/lr=2.45e-7, train/mse_loss=1.140, val/avg_loss=1.040]Epoch 4:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.180, train/lr=2.45e-7, train/mse_loss=1.140, val/avg_loss=1.040]        Epoch 5:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.180, train/lr=2.45e-7, train/mse_loss=1.140, val/avg_loss=1.040]Epoch 5:  33%|███▎      | 1/3 [00:02<00:05,  0.39it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.180, train/lr=2.45e-7, train/mse_loss=1.140, val/avg_loss=1.040]Epoch 5:  33%|███▎      | 1/3 [00:02<00:05,  0.39it/s, v_num=e3l1, train/loss=1.050, train/std_data=1.080, train/lr=2.93e-7, train/mse_loss=1.050, val/avg_loss=1.040]Epoch 5:  67%|██████▋   | 2/3 [00:03<00:01,  0.59it/s, v_num=e3l1, train/loss=1.050, train/std_data=1.080, train/lr=2.93e-7, train/mse_loss=1.050, val/avg_loss=1.040]Epoch 5:  67%|██████▋   | 2/3 [00:03<00:01,  0.59it/s, v_num=e3l1, train/loss=1.130, train/std_data=1.130, train/lr=2.93e-7, train/mse_loss=1.130, val/avg_loss=1.040]Epoch 5: 100%|██████████| 3/3 [00:04<00:00,  0.72it/s, v_num=e3l1, train/loss=1.130, train/std_data=1.130, train/lr=2.93e-7, train/mse_loss=1.130, val/avg_loss=1.040]Epoch 5: 100%|██████████| 3/3 [00:04<00:00,  0.71it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.170, train/lr=2.93e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 5: 100%|██████████| 3/3 [00:04<00:00,  0.71it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.170, train/lr=2.93e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 5:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.170, train/lr=2.93e-7, train/mse_loss=1.260, val/avg_loss=1.040]        Epoch 6:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.170, train/lr=2.93e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 6:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.170, train/lr=2.93e-7, train/mse_loss=1.260, val/avg_loss=1.040]Epoch 6:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.560, train/std_data=1.050, train/lr=3.4e-7, train/mse_loss=1.560, val/avg_loss=1.040] Epoch 6:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.560, train/std_data=1.050, train/lr=3.4e-7, train/mse_loss=1.560, val/avg_loss=1.040]Epoch 6:  67%|██████▋   | 2/3 [00:02<00:01,  0.82it/s, v_num=e3l1, train/loss=1.390, train/std_data=1.210, train/lr=3.4e-7, train/mse_loss=1.390, val/avg_loss=1.040]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:17,  1.92it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:17,  1.85it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:16,  1.89it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:16,  1.91it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:15,  1.93it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:14,  1.95it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:14,  1.95it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:04<00:13,  1.96it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:13,  1.97it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:05<00:12,  1.97it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:12,  1.98it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:06<00:11,  1.99it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:11,  2.00it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:06<00:10,  2.00it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:09,  2.00it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:07<00:09,  2.00it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:08,  2.01it/s][A
+Validation DataLoader 0:  51%|█████▏    | 18/35 [00:08<00:08,  2.01it/s][A
+Validation DataLoader 0:  54%|█████▍    | 19/35 [00:09<00:07,  2.01it/s][A
+Validation DataLoader 0:  57%|█████▋    | 20/35 [00:09<00:07,  2.01it/s][A
+Validation DataLoader 0:  60%|██████    | 21/35 [00:10<00:06,  2.01it/s][A
+Validation DataLoader 0:  63%|██████▎   | 22/35 [00:10<00:06,  2.02it/s][A
+Validation DataLoader 0:  66%|██████▌   | 23/35 [00:11<00:05,  2.02it/s][A
+Validation DataLoader 0:  69%|██████▊   | 24/35 [00:11<00:05,  2.02it/s][A
+Validation DataLoader 0:  71%|███████▏  | 25/35 [00:12<00:04,  2.03it/s][A
+Validation DataLoader 0:  74%|███████▍  | 26/35 [00:12<00:04,  2.03it/s][A
+Validation DataLoader 0:  77%|███████▋  | 27/35 [00:13<00:03,  2.03it/s][A
+Validation DataLoader 0:  80%|████████  | 28/35 [00:13<00:03,  2.03it/s][A
+Validation DataLoader 0:  83%|████████▎ | 29/35 [00:14<00:02,  2.03it/s][A
+Validation DataLoader 0:  86%|████████▌ | 30/35 [00:14<00:02,  2.04it/s][A
+Validation DataLoader 0:  89%|████████▊ | 31/35 [00:15<00:01,  2.04it/s][A
+Validation DataLoader 0:  91%|█████████▏| 32/35 [00:15<00:01,  2.04it/s][A
+Validation DataLoader 0:  94%|█████████▍| 33/35 [00:16<00:00,  2.05it/s][A
+Validation DataLoader 0:  97%|█████████▋| 34/35 [00:16<00:00,  2.05it/s][A
+Validation DataLoader 0: 100%|██████████| 35/35 [00:17<00:00,  2.05it/s][A
+                                                                        [AEpoch 6:  67%|██████▋   | 2/3 [00:20<00:10,  0.10it/s, v_num=e3l1, train/loss=1.390, train/std_data=1.210, train/lr=3.4e-7, train/mse_loss=1.390, val/avg_loss=1.140]Epoch 6: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.390, train/std_data=1.210, train/lr=3.4e-7, train/mse_loss=1.390, val/avg_loss=1.140]Epoch 6: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.110, train/lr=3.4e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 6: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.110, train/lr=3.4e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 6:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.110, train/lr=3.4e-7, train/mse_loss=1.070, val/avg_loss=1.140]        Epoch 7:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.110, train/lr=3.4e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 7:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.110, train/lr=3.4e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 7:  33%|███▎      | 1/3 [00:01<00:03,  0.60it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.190, val/avg_loss=1.140]Epoch 7:  67%|██████▋   | 2/3 [00:02<00:01,  0.82it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.190, val/avg_loss=1.140]Epoch 7:  67%|██████▋   | 2/3 [00:02<00:01,  0.82it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.100, train/lr=3.86e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 7: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.100, train/lr=3.86e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 7: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.230, val/avg_loss=1.140]Epoch 7: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.230, val/avg_loss=1.140]Epoch 7:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.230, val/avg_loss=1.140]        Epoch 8:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.230, val/avg_loss=1.140]Epoch 8:  33%|███▎      | 1/3 [00:01<00:03,  0.62it/s, v_num=e3l1, train/loss=1.230, train/std_data=1.140, train/lr=3.86e-7, train/mse_loss=1.230, val/avg_loss=1.140]Epoch 8:  33%|███▎      | 1/3 [00:01<00:03,  0.62it/s, v_num=e3l1, train/loss=1.120, train/std_data=1.170, train/lr=4.32e-7, train/mse_loss=1.120, val/avg_loss=1.140]Epoch 8:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.120, train/std_data=1.170, train/lr=4.32e-7, train/mse_loss=1.120, val/avg_loss=1.140]Epoch 8:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 8: 100%|██████████| 3/3 [00:03<00:00,  0.94it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 8: 100%|██████████| 3/3 [00:03<00:00,  0.93it/s, v_num=e3l1, train/loss=1.090, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.090, val/avg_loss=1.140]Epoch 8: 100%|██████████| 3/3 [00:03<00:00,  0.93it/s, v_num=e3l1, train/loss=1.090, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.090, val/avg_loss=1.140]Epoch 8:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.090, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.090, val/avg_loss=1.140]        Epoch 9:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.090, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.090, val/avg_loss=1.140]Epoch 9:  33%|███▎      | 1/3 [00:02<00:04,  0.43it/s, v_num=e3l1, train/loss=1.090, train/std_data=1.100, train/lr=4.32e-7, train/mse_loss=1.090, val/avg_loss=1.140]Epoch 9:  33%|███▎      | 1/3 [00:02<00:04,  0.43it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.090, train/lr=4.78e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 9:  67%|██████▋   | 2/3 [00:03<00:01,  0.64it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.090, train/lr=4.78e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 9:  67%|██████▋   | 2/3 [00:03<00:01,  0.63it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.100, train/lr=4.78e-7, train/mse_loss=1.110, val/avg_loss=1.140]Epoch 9: 100%|██████████| 3/3 [00:03<00:00,  0.76it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.100, train/lr=4.78e-7, train/mse_loss=1.110, val/avg_loss=1.140]Epoch 9: 100%|██████████| 3/3 [00:03<00:00,  0.76it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.140]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:18,  1.83it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:18,  1.82it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:17,  1.87it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:16,  1.92it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:15,  1.94it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:14,  1.97it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:14,  1.99it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:03<00:13,  2.00it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:12,  2.01it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:04<00:12,  2.01it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:11,  2.01it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:05<00:11,  2.02it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:10,  2.02it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:06<00:10,  2.03it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:09,  2.03it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:07<00:09,  2.04it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:08,  2.04it/s][A
+Validation DataLoader 0:  51%|█████▏    | 18/35 [00:08<00:08,  2.04it/s][A
+Validation DataLoader 0:  54%|█████▍    | 19/35 [00:09<00:07,  2.03it/s][A
+Validation DataLoader 0:  57%|█████▋    | 20/35 [00:09<00:07,  2.04it/s][A
+Validation DataLoader 0:  60%|██████    | 21/35 [00:10<00:06,  2.04it/s][A
+Validation DataLoader 0:  63%|██████▎   | 22/35 [00:10<00:06,  2.04it/s][A
+Validation DataLoader 0:  66%|██████▌   | 23/35 [00:11<00:05,  2.05it/s][A
+Validation DataLoader 0:  69%|██████▊   | 24/35 [00:11<00:05,  2.05it/s][A
+Validation DataLoader 0:  71%|███████▏  | 25/35 [00:12<00:04,  2.05it/s][A
+Validation DataLoader 0:  74%|███████▍  | 26/35 [00:12<00:04,  2.05it/s][A
+Validation DataLoader 0:  77%|███████▋  | 27/35 [00:13<00:03,  2.05it/s][A
+Validation DataLoader 0:  80%|████████  | 28/35 [00:13<00:03,  2.06it/s][A
+Validation DataLoader 0:  83%|████████▎ | 29/35 [00:14<00:02,  2.06it/s][A
+Validation DataLoader 0:  86%|████████▌ | 30/35 [00:14<00:02,  2.06it/s][A
+Validation DataLoader 0:  89%|████████▊ | 31/35 [00:15<00:01,  2.06it/s][A
+Validation DataLoader 0:  91%|█████████▏| 32/35 [00:15<00:01,  2.07it/s][A
+Validation DataLoader 0:  94%|█████████▍| 33/35 [00:15<00:00,  2.07it/s][A
+Validation DataLoader 0:  97%|█████████▋| 34/35 [00:16<00:00,  2.07it/s][A
+Validation DataLoader 0: 100%|██████████| 35/35 [00:16<00:00,  2.07it/s][A
+                                                                        [AEpoch 9: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.150]Epoch 9: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.150]Epoch 9:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.150]        Epoch 10:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.150]Epoch 10:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.170, train/lr=4.78e-7, train/mse_loss=1.330, val/avg_loss=1.150]Epoch 10:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.100, train/lr=5.23e-7, train/mse_loss=1.140, val/avg_loss=1.150]Epoch 10:  67%|██████▋   | 2/3 [00:02<00:01,  0.80it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.100, train/lr=5.23e-7, train/mse_loss=1.140, val/avg_loss=1.150]Epoch 10:  67%|██████▋   | 2/3 [00:02<00:01,  0.80it/s, v_num=e3l1, train/loss=1.340, train/std_data=1.150, train/lr=5.23e-7, train/mse_loss=1.340, val/avg_loss=1.150]Epoch 10: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.340, train/std_data=1.150, train/lr=5.23e-7, train/mse_loss=1.340, val/avg_loss=1.150]Epoch 10: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.110, train/lr=5.23e-7, train/mse_loss=1.360, val/avg_loss=1.150]Epoch 10: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.110, train/lr=5.23e-7, train/mse_loss=1.360, val/avg_loss=1.150]Epoch 10:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.110, train/lr=5.23e-7, train/mse_loss=1.360, val/avg_loss=1.150]        Epoch 11:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.110, train/lr=5.23e-7, train/mse_loss=1.360, val/avg_loss=1.150]Epoch 11:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.360, train/std_data=1.110, train/lr=5.23e-7, train/mse_loss=1.360, val/avg_loss=1.150]Epoch 11:  33%|███▎      | 1/3 [00:01<00:03,  0.58it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.140, train/lr=5.68e-7, train/mse_loss=1.240, val/avg_loss=1.150]Epoch 11:  67%|██████▋   | 2/3 [00:02<00:01,  0.81it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.140, train/lr=5.68e-7, train/mse_loss=1.240, val/avg_loss=1.150]Epoch 11:  67%|██████▋   | 2/3 [00:02<00:01,  0.80it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.150, train/lr=5.68e-7, train/mse_loss=1.260, val/avg_loss=1.150]Epoch 11: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.260, train/std_data=1.150, train/lr=5.68e-7, train/mse_loss=1.260, val/avg_loss=1.150]Epoch 11: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.080, train/lr=5.68e-7, train/mse_loss=1.210, val/avg_loss=1.150]Epoch 11: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.080, train/lr=5.68e-7, train/mse_loss=1.210, val/avg_loss=1.150]Epoch 11:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.080, train/lr=5.68e-7, train/mse_loss=1.210, val/avg_loss=1.150]        Epoch 12:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.080, train/lr=5.68e-7, train/mse_loss=1.210, val/avg_loss=1.150]Epoch 12:  33%|███▎      | 1/3 [00:01<00:03,  0.60it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.080, train/lr=5.68e-7, train/mse_loss=1.210, val/avg_loss=1.150]Epoch 12:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.440, train/std_data=1.100, train/lr=6.12e-7, train/mse_loss=1.440, val/avg_loss=1.150]Epoch 12:  67%|██████▋   | 2/3 [00:02<00:01,  0.72it/s, v_num=e3l1, train/loss=1.440, train/std_data=1.100, train/lr=6.12e-7, train/mse_loss=1.440, val/avg_loss=1.150]Epoch 12:  67%|██████▋   | 2/3 [00:02<00:01,  0.71it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.140, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 12: 100%|██████████| 3/3 [00:03<00:00,  0.84it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.140, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 12: 100%|██████████| 3/3 [00:03<00:00,  0.83it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.130, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 12: 100%|██████████| 3/3 [00:03<00:00,  0.83it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.130, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 12:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.130, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]        Epoch 13:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.130, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 13:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.160, train/std_data=1.130, train/lr=6.12e-7, train/mse_loss=1.160, val/avg_loss=1.150]Epoch 13:  33%|███▎      | 1/3 [00:01<00:03,  0.61it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.110, train/lr=6.56e-7, train/mse_loss=1.170, val/avg_loss=1.150]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:17,  1.94it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:17,  1.86it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:16,  1.91it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:16,  1.94it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:15,  1.96it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:14,  1.98it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:14,  1.99it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:03<00:13,  2.00it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:12,  2.01it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:04<00:12,  2.00it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:12,  1.99it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:06<00:11,  1.98it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:11,  1.97it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:07<00:10,  1.97it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:10,  1.97it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:08<00:09,  1.97it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:09,  1.97it/s][A
+Validation DataLoader 0:  51%|█████▏    | 18/35 [00:09<00:08,  1.98it/s][A
+Validation DataLoader 0:  54%|█████▍    | 19/35 [00:09<00:08,  1.98it/s][A
+Validation DataLoader 0:  57%|█████▋    | 20/35 [00:10<00:07,  1.98it/s][A
+Validation DataLoader 0:  60%|██████    | 21/35 [00:10<00:07,  1.99it/s][A
+Validation DataLoader 0:  63%|██████▎   | 22/35 [00:11<00:06,  1.99it/s][A
+Validation DataLoader 0:  66%|██████▌   | 23/35 [00:11<00:06,  2.00it/s][A
+Validation DataLoader 0:  69%|██████▊   | 24/35 [00:12<00:05,  2.00it/s][A
+Validation DataLoader 0:  71%|███████▏  | 25/35 [00:12<00:04,  2.00it/s][A
+Validation DataLoader 0:  74%|███████▍  | 26/35 [00:12<00:04,  2.01it/s][A
+Validation DataLoader 0:  77%|███████▋  | 27/35 [00:13<00:03,  2.01it/s][A
+Validation DataLoader 0:  80%|████████  | 28/35 [00:13<00:03,  2.01it/s][A
+Validation DataLoader 0:  83%|████████▎ | 29/35 [00:14<00:02,  2.02it/s][A
+Validation DataLoader 0:  86%|████████▌ | 30/35 [00:14<00:02,  2.02it/s][A
+Validation DataLoader 0:  89%|████████▊ | 31/35 [00:15<00:01,  2.02it/s][A
+Validation DataLoader 0:  91%|█████████▏| 32/35 [00:15<00:01,  2.02it/s][A
+Validation DataLoader 0:  94%|█████████▍| 33/35 [00:16<00:00,  2.02it/s][A
+Validation DataLoader 0:  97%|█████████▋| 34/35 [00:16<00:00,  2.02it/s][A
+Validation DataLoader 0: 100%|██████████| 35/35 [00:17<00:00,  2.02it/s][A
+                                                                        [AEpoch 13:  33%|███▎      | 1/3 [00:19<00:39,  0.05it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.110, train/lr=6.56e-7, train/mse_loss=1.170, val/avg_loss=1.160]Epoch 13:  67%|██████▋   | 2/3 [00:20<00:10,  0.10it/s, v_num=e3l1, train/loss=1.170, train/std_data=1.110, train/lr=6.56e-7, train/mse_loss=1.170, val/avg_loss=1.160]Epoch 13:  67%|██████▋   | 2/3 [00:20<00:10,  0.10it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.110, train/lr=6.56e-7, train/mse_loss=1.110, val/avg_loss=1.160]Epoch 13: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.110, train/lr=6.56e-7, train/mse_loss=1.110, val/avg_loss=1.160]Epoch 13: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.310, train/std_data=1.160, train/lr=6.56e-7, train/mse_loss=1.310, val/avg_loss=1.160]Epoch 13: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.310, train/std_data=1.160, train/lr=6.56e-7, train/mse_loss=1.310, val/avg_loss=1.160]Epoch 13:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.310, train/std_data=1.160, train/lr=6.56e-7, train/mse_loss=1.310, val/avg_loss=1.160]        Epoch 14:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.310, train/std_data=1.160, train/lr=6.56e-7, train/mse_loss=1.310, val/avg_loss=1.160]Epoch 14:  33%|███▎      | 1/3 [00:01<00:03,  0.51it/s, v_num=e3l1, train/loss=1.310, train/std_data=1.160, train/lr=6.56e-7, train/mse_loss=1.310, val/avg_loss=1.160]Epoch 14:  33%|███▎      | 1/3 [00:01<00:03,  0.51it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.140, train/lr=7e-7, train/mse_loss=1.210, val/avg_loss=1.160]   Epoch 14:  67%|██████▋   | 2/3 [00:02<00:01,  0.72it/s, v_num=e3l1, train/loss=1.210, train/std_data=1.140, train/lr=7e-7, train/mse_loss=1.210, val/avg_loss=1.160]Epoch 14:  67%|██████▋   | 2/3 [00:02<00:01,  0.72it/s, v_num=e3l1, train/loss=1.060, train/std_data=1.030, train/lr=7e-7, train/mse_loss=1.060, val/avg_loss=1.160]Epoch 14: 100%|██████████| 3/3 [00:03<00:00,  0.84it/s, v_num=e3l1, train/loss=1.060, train/std_data=1.030, train/lr=7e-7, train/mse_loss=1.060, val/avg_loss=1.160]Epoch 14: 100%|██████████| 3/3 [00:03<00:00,  0.84it/s, v_num=e3l1, train/loss=1.270, train/std_data=1.200, train/lr=7e-7, train/mse_loss=1.270, val/avg_loss=1.160]Epoch 14: 100%|██████████| 3/3 [00:03<00:00,  0.84it/s, v_num=e3l1, train/loss=1.270, train/std_data=1.200, train/lr=7e-7, train/mse_loss=1.270, val/avg_loss=1.160]Epoch 14:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.270, train/std_data=1.200, train/lr=7e-7, train/mse_loss=1.270, val/avg_loss=1.160]        Epoch 15:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.270, train/std_data=1.200, train/lr=7e-7, train/mse_loss=1.270, val/avg_loss=1.160]Epoch 15:  33%|███▎      | 1/3 [00:01<00:03,  0.64it/s, v_num=e3l1, train/loss=1.270, train/std_data=1.200, train/lr=7e-7, train/mse_loss=1.270, val/avg_loss=1.160]Epoch 15:  33%|███▎      | 1/3 [00:01<00:03,  0.63it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.060, train/lr=7.43e-7, train/mse_loss=1.040, val/avg_loss=1.160]Epoch 15:  67%|██████▋   | 2/3 [00:02<00:01,  0.84it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.060, train/lr=7.43e-7, train/mse_loss=1.040, val/avg_loss=1.160]Epoch 15:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.130, train/lr=7.43e-7, train/mse_loss=1.420, val/avg_loss=1.160]Epoch 15: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.420, train/std_data=1.130, train/lr=7.43e-7, train/mse_loss=1.420, val/avg_loss=1.160]Epoch 15: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.180, train/lr=7.43e-7, train/mse_loss=1.190, val/avg_loss=1.160]Epoch 15: 100%|██████████| 3/3 [00:03<00:00,  0.92it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.180, train/lr=7.43e-7, train/mse_loss=1.190, val/avg_loss=1.160]Epoch 15:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.180, train/lr=7.43e-7, train/mse_loss=1.190, val/avg_loss=1.160]        Epoch 16:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.180, train/lr=7.43e-7, train/mse_loss=1.190, val/avg_loss=1.160]Epoch 16:  33%|███▎      | 1/3 [00:01<00:03,  0.63it/s, v_num=e3l1, train/loss=1.190, train/std_data=1.180, train/lr=7.43e-7, train/mse_loss=1.190, val/avg_loss=1.160]Epoch 16:  33%|███▎      | 1/3 [00:01<00:03,  0.62it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.120, train/lr=7.85e-7, train/mse_loss=1.110, val/avg_loss=1.160]Epoch 16:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.120, train/lr=7.85e-7, train/mse_loss=1.110, val/avg_loss=1.160]Epoch 16:  67%|██████▋   | 2/3 [00:02<00:01,  0.83it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.150, train/lr=7.85e-7, train/mse_loss=1.070, val/avg_loss=1.160]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:17,  1.95it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:16,  1.97it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:16,  1.97it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:16,  1.91it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:15,  1.91it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:14,  1.93it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:14,  1.95it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:04<00:13,  1.96it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:13,  1.97it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:05<00:12,  1.98it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:12,  1.97it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:06<00:11,  1.98it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:11,  1.98it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:07<00:10,  1.98it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:10,  1.98it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:08<00:09,  1.99it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:09,  1.99it/s][A
+Validation DataLoader 0:  51%|█████▏    | 18/35 [00:09<00:08,  1.99it/s][A
+Validation DataLoader 0:  54%|█████▍    | 19/35 [00:09<00:08,  2.00it/s][A
+Validation DataLoader 0:  57%|█████▋    | 20/35 [00:09<00:07,  2.00it/s][A
+Validation DataLoader 0:  60%|██████    | 21/35 [00:10<00:06,  2.01it/s][A
+Validation DataLoader 0:  63%|██████▎   | 22/35 [00:10<00:06,  2.01it/s][A
+Validation DataLoader 0:  66%|██████▌   | 23/35 [00:11<00:05,  2.01it/s][A
+Validation DataLoader 0:  69%|██████▊   | 24/35 [00:11<00:05,  2.01it/s][A
+Validation DataLoader 0:  71%|███████▏  | 25/35 [00:12<00:04,  2.02it/s][A
+Validation DataLoader 0:  74%|███████▍  | 26/35 [00:12<00:04,  2.02it/s][A
+Validation DataLoader 0:  77%|███████▋  | 27/35 [00:13<00:03,  2.03it/s][A
+Validation DataLoader 0:  80%|████████  | 28/35 [00:13<00:03,  2.03it/s][A
+Validation DataLoader 0:  83%|████████▎ | 29/35 [00:14<00:02,  2.03it/s][A
+Validation DataLoader 0:  86%|████████▌ | 30/35 [00:14<00:02,  2.04it/s][A
+Validation DataLoader 0:  89%|████████▊ | 31/35 [00:15<00:01,  2.04it/s][A
+Validation DataLoader 0:  91%|█████████▏| 32/35 [00:15<00:01,  2.04it/s][A
+Validation DataLoader 0:  94%|█████████▍| 33/35 [00:16<00:00,  2.05it/s][A
+Validation DataLoader 0:  97%|█████████▋| 34/35 [00:16<00:00,  2.04it/s][A
+Validation DataLoader 0: 100%|██████████| 35/35 [00:17<00:00,  2.04it/s][A
+                                                                        [AEpoch 16:  67%|██████▋   | 2/3 [00:21<00:10,  0.09it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.150, train/lr=7.85e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 16: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.070, train/std_data=1.150, train/lr=7.85e-7, train/mse_loss=1.070, val/avg_loss=1.140]Epoch 16: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.400, train/std_data=1.100, train/lr=7.85e-7, train/mse_loss=1.400, val/avg_loss=1.140]Epoch 16: 100%|██████████| 3/3 [00:21<00:00,  0.14it/s, v_num=e3l1, train/loss=1.400, train/std_data=1.100, train/lr=7.85e-7, train/mse_loss=1.400, val/avg_loss=1.140]Epoch 16:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.400, train/std_data=1.100, train/lr=7.85e-7, train/mse_loss=1.400, val/avg_loss=1.140]        Epoch 17:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.400, train/std_data=1.100, train/lr=7.85e-7, train/mse_loss=1.400, val/avg_loss=1.140]Epoch 17:  33%|███▎      | 1/3 [00:01<00:02,  0.69it/s, v_num=e3l1, train/loss=1.400, train/std_data=1.100, train/lr=7.85e-7, train/mse_loss=1.400, val/avg_loss=1.140]Epoch 17:  33%|███▎      | 1/3 [00:01<00:02,  0.68it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.130, train/lr=8.27e-7, train/mse_loss=1.110, val/avg_loss=1.140]Epoch 17:  67%|██████▋   | 2/3 [00:02<00:01,  0.89it/s, v_num=e3l1, train/loss=1.110, train/std_data=1.130, train/lr=8.27e-7, train/mse_loss=1.110, val/avg_loss=1.140]Epoch 17:  67%|██████▋   | 2/3 [00:02<00:01,  0.89it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.050, train/lr=8.27e-7, train/mse_loss=1.040, val/avg_loss=1.140]Epoch 17: 100%|██████████| 3/3 [00:03<00:00,  0.98it/s, v_num=e3l1, train/loss=1.040, train/std_data=1.050, train/lr=8.27e-7, train/mse_loss=1.040, val/avg_loss=1.140]Epoch 17: 100%|██████████| 3/3 [00:03<00:00,  0.98it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.180, train/lr=8.27e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 17: 100%|██████████| 3/3 [00:03<00:00,  0.98it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.180, train/lr=8.27e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 17:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.180, train/lr=8.27e-7, train/mse_loss=1.240, val/avg_loss=1.140]        Epoch 18:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.180, train/lr=8.27e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 18:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.240, train/std_data=1.180, train/lr=8.27e-7, train/mse_loss=1.240, val/avg_loss=1.140]Epoch 18:  33%|███▎      | 1/3 [00:01<00:03,  0.59it/s, v_num=e3l1, train/loss=1.200, train/std_data=1.160, train/lr=8.69e-7, train/mse_loss=1.200, val/avg_loss=1.140]Epoch 18:  67%|██████▋   | 2/3 [00:02<00:01,  0.81it/s, v_num=e3l1, train/loss=1.200, train/std_data=1.160, train/lr=8.69e-7, train/mse_loss=1.200, val/avg_loss=1.140]Epoch 18:  67%|██████▋   | 2/3 [00:02<00:01,  0.80it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.170, train/lr=8.69e-7, train/mse_loss=1.140, val/avg_loss=1.140]Epoch 18: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.170, train/lr=8.69e-7, train/mse_loss=1.140, val/avg_loss=1.140]Epoch 18: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.040, train/lr=8.69e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 18: 100%|██████████| 3/3 [00:03<00:00,  0.91it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.040, train/lr=8.69e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 18:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.040, train/lr=8.69e-7, train/mse_loss=1.150, val/avg_loss=1.140]        Epoch 19:   0%|          | 0/3 [00:00<?, ?it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.040, train/lr=8.69e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 19:  33%|███▎      | 1/3 [00:01<00:03,  0.53it/s, v_num=e3l1, train/loss=1.150, train/std_data=1.040, train/lr=8.69e-7, train/mse_loss=1.150, val/avg_loss=1.140]Epoch 19:  33%|███▎      | 1/3 [00:01<00:03,  0.53it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.130, train/lr=9.1e-7, train/mse_loss=1.140, val/avg_loss=1.140] Epoch 19:  67%|██████▋   | 2/3 [00:02<00:01,  0.74it/s, v_num=e3l1, train/loss=1.140, train/std_data=1.130, train/lr=9.1e-7, train/mse_loss=1.140, val/avg_loss=1.140]Epoch 19:  67%|██████▋   | 2/3 [00:02<00:01,  0.74it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.140, train/lr=9.1e-7, train/mse_loss=1.330, val/avg_loss=1.140]Epoch 19: 100%|██████████| 3/3 [00:03<00:00,  0.85it/s, v_num=e3l1, train/loss=1.330, train/std_data=1.140, train/lr=9.1e-7, train/mse_loss=1.330, val/avg_loss=1.140]Epoch 19: 100%|██████████| 3/3 [00:03<00:00,  0.85it/s, v_num=e3l1, train/loss=1.000, train/std_data=1.110, train/lr=9.1e-7, train/mse_loss=1.000, val/avg_loss=1.140]
+Validation: |          | 0/? [00:00<?, ?it/s][A
+Validation:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   0%|          | 0/35 [00:00<?, ?it/s][A
+Validation DataLoader 0:   3%|▎         | 1/35 [00:00<00:18,  1.88it/s][A
+Validation DataLoader 0:   6%|▌         | 2/35 [00:01<00:18,  1.81it/s][A
+Validation DataLoader 0:   9%|▊         | 3/35 [00:01<00:17,  1.87it/s][A
+Validation DataLoader 0:  11%|█▏        | 4/35 [00:02<00:16,  1.88it/s][A
+Validation DataLoader 0:  14%|█▍        | 5/35 [00:02<00:15,  1.91it/s][A
+Validation DataLoader 0:  17%|█▋        | 6/35 [00:03<00:15,  1.93it/s][A
+Validation DataLoader 0:  20%|██        | 7/35 [00:03<00:14,  1.95it/s][A
+Validation DataLoader 0:  23%|██▎       | 8/35 [00:04<00:13,  1.96it/s][A
+Validation DataLoader 0:  26%|██▌       | 9/35 [00:04<00:13,  1.96it/s][A
+Validation DataLoader 0:  29%|██▊       | 10/35 [00:05<00:12,  1.97it/s][A
+Validation DataLoader 0:  31%|███▏      | 11/35 [00:05<00:12,  1.97it/s][A
+Validation DataLoader 0:  34%|███▍      | 12/35 [00:06<00:11,  1.98it/s][A
+Validation DataLoader 0:  37%|███▋      | 13/35 [00:06<00:11,  1.99it/s][A
+Validation DataLoader 0:  40%|████      | 14/35 [00:07<00:10,  1.99it/s][A
+Validation DataLoader 0:  43%|████▎     | 15/35 [00:07<00:10,  1.99it/s][A
+Validation DataLoader 0:  46%|████▌     | 16/35 [00:08<00:09,  1.99it/s][A
+Validation DataLoader 0:  49%|████▊     | 17/35 [00:08<00:09,  1.99it/s][A

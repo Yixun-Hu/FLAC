@@ -82,3 +82,14 @@ augmentation removed?).
   arms; YAWORI27 is the best arm overall on T60 and EDT). Retrieval: the cue costs vanilla FLAC R@1 (5.18 → 4.68) but
   helps every invariant/augmented arm. Caveats: one training seed per arm; s=27 was tuned on CylDINO and copied to the
   stock arms unchanged; the facing direction is the same vector in every room (dataset-supplied).
+- 2026-09-27 12:05 EDT: **zero-information control arms launched** (Yixun: "Run the zero-field control"). A literal zero
+  field is a no-op (the extra conv weights receive gradient ∝ the field, so they stay zero and the arm IS plain FLAC),
+  so the control is the same-scale constant field with no orientation content: the world UP vector (0,0,1)·27 in every
+  room (`haa_zup_field.json`, `HAA_md_zup.py` = HAA_md_ori.py with the table swapped, `haa_{train,val,test,test_1}_zup.json`).
+  z is invariant under the cylindrical gauge Rz, so the field is a constant on BOTH backbones. Arms: `P1ZUP27` (stock,
+  widened conv, P1ORI init, GPU 1) and `CYLZUP27` (cylindrical, widened conv, CYLORI init, GPU 0); recipe/eval identical
+  to the facing arms; ckpt cadence 1000 (endpoint only — disk was at 19 GB, see below), so no steps curve for the controls.
+  Reading rule: P1ORI27 ≈ P1ZUP27 ⇒ the vanilla-FLAC gain is the bias/extra-parameter effect; CYLORI27 ≪ CYLZUP27 ⇒ the
+  CylDINO gain is the orientation information. SMOKE passed for both (banners + `HAA_md_zup.py (zup field)`).
+  Disk note: the box hit 19 GB free at 11:49 (the exp_13 disk guard stopped the stock-L training); pip/uv caches purged
+  (→ 27 GB) before launching; nothing deleted from any run.

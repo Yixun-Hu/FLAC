@@ -1,6 +1,6 @@
 #!/bin/bash
 # exp_24 per-arm chain: FULL fine-tune -> all eval cells -> results table (idempotent writer). Detach with setsid nohup.
-#   GPU=<g> ARM=<P1ORI27|YAWORI27> bash chain_arm.sh
+#   GPU=<g> ARM=<P1ORI27|YAWORI27|P1ZUP27|CYLZUP27> bash chain_arm.sh
 set -uo pipefail
 cd /home/yixunhu/codespace/FLAC; E=worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude
 echo "[chain $ARM] start $(date -Is)" | tee -a $E/chain_$ARM.log

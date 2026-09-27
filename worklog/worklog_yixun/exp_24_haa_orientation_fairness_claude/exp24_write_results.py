@@ -9,8 +9,10 @@ X.ARMS.update({
  "P1ORI27":  ("outputs_FLAC/exp24_HAA_P1ORI27",  "exp24_HAA_P1ORI27",  "vanilla", "Vanilla FLAC + orientation cue s=27 (P1@40k→HAA)"),
  "YAW":      ("outputs_FLAC/exp19_HAA_YAW",      "exp19_HAA_YAW",      "vanilla", "Yaw-Aug FLAC, aug ON in FT (exp17@40k→HAA)"),
  "YAWORI27": ("outputs_FLAC/exp24_HAA_YAWORI27", "exp24_HAA_YAWORI27", "vanilla", "Yaw-Aug FLAC, aug ON in FT + orientation cue s=27"),
+ "P1ZUP27":  ("outputs_FLAC/exp24_HAA_P1ZUP27",  "exp24_HAA_P1ZUP27",  "vanilla",      "CONTROL: Vanilla FLAC + constant UP field s=27 (no orientation info)"),
+ "CYLZUP27": ("outputs_FLAC/exp24_HAA_CYLZUP27", "exp24_HAA_CYLZUP27", "fa_invariant", "CONTROL: CylDINO + constant UP field s=27 (no orientation info)"),
 })
-ORDER = ["P1", "P1ORI27", "YAW", "YAWORI27", "YNA", "CYL", "CYLORI27"]
+ORDER = ["P1", "P1ORI27", "P1ZUP27", "YAW", "YAWORI27", "YNA", "CYL", "CYLORI27", "CYLZUP27"]
 def have(arm, step=1000, K=8, seeds=(42,43,44,45,46)):
     try: X.records(arm, step, K, seeds); return True
     except SystemExit: return False
@@ -38,7 +40,11 @@ for a, b, why in (("CYLORI27", "P1ORI27", "KEY: CylDINO + cue vs FLAC + cue — 
                   ("P1ORI27", "P1", "does the cue alone help vanilla FLAC?"),
                   ("YAWORI27", "YAW", "does the cue restore what yaw augmentation removed?"),
                   ("CYLORI27", "P1", "CylDINO + cue vs plain FLAC (exp_23 headline)"),
-                  ("CYLORI27", "CYL", "the cue's effect on CylDINO")):
+                  ("CYLORI27", "CYL", "the cue's effect on CylDINO"),
+                  ("P1ZUP27", "P1", "CONTROL: does a constant NON-orientation field (same scale) give vanilla FLAC the same gains as the facing cue?"),
+                  ("P1ORI27", "P1ZUP27", "facing cue vs constant-up field on vanilla FLAC (information beyond the bias effect?)"),
+                  ("CYLZUP27", "CYL", "CONTROL: constant NON-orientation field on CylDINO (bias effect alone)"),
+                  ("CYLORI27", "CYLZUP27", "facing cue vs constant-up field on CylDINO (the orientation information itself)")):
     if a in arms and b in arms: md += [f"- **{a} vs {b}** ({why}): K=8 {rel(a,b)}; K=1 {rel(a,b,K=1)}"]
 md += ["", "## Per-room (K=8, ckpt-1000, 5 seeds)", ""]
 for a in arms:
@@ -62,7 +68,7 @@ for key, lab in (("T60","T60 (%) ↓"),("C50","C50 (dB) ↓"),("EDT","EDT (ms) �
     md.append("")
 md += table(1000, "pooled")
 LOWER = {"T60", "C50", "EDT", "FD"}; LK = [("T60", 3), ("C50", 4), ("EDT", 3), ("RIR_to_GT_RIR_R@1", 3), ("RIR_to_GT_RIR_R@5", 3), ("RIR_to_GT_RIR_R@10", 3)]
-LAB = {"P1": "\\FLAC{}", "P1ORI27": "\\FLAC{} (+facing)", "YAW": "Yaw-aug \\FLAC{}", "YAWORI27": "Yaw-aug \\FLAC{} (+facing)", "YNA": "Yaw-aug init, stock FT", "CYL": "\\CylDINO{}", "CYLORI27": "\\CylDINO{} (+facing)"}
+LAB = {"P1": "\\FLAC{}", "P1ORI27": "\\FLAC{} (+facing)", "P1ZUP27": "\\FLAC{} (+constant field)", "CYLZUP27": "\\CylDINO{} (+constant field)", "YAW": "Yaw-aug \\FLAC{}", "YAWORI27": "Yaw-aug \\FLAC{} (+facing)", "YNA": "Yaw-aug init, stock FT", "CYL": "\\CylDINO{}", "CYLORI27": "\\CylDINO{} (+facing)"}
 md += ["## LaTeX rows (\\bms = best in the K block over the listed arms)", "", "```latex"]
 for K in (1, 8):
     rows = {a: X.agg(a, 1000, K, "paper") for a in arms}; best = {k: (min if k in LOWER else max)({a: rows[a][k][0] for a in arms}, key=lambda a: rows[a][k][0]) for k, _ in LK}
