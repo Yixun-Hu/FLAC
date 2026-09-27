@@ -93,3 +93,27 @@ augmentation removed?).
   CylDINO gain is the orientation information. SMOKE passed for both (banners + `HAA_md_zup.py (zup field)`).
   Disk note: the box hit 19 GB free at 11:49 (the exp_13 disk guard stopped the stock-L training); pip/uv caches purged
   (→ 27 GB) before launching; nothing deleted from any run.
+- 2026-09-27 18:50 EDT: **control arms DONE** (P1ZUP27: FULL 15:55, 10/10 cells 16:30; CYLZUP27: FULL 18:07, 10/10 cells
+  18:50; all rc=0). `results_fairness.md` regenerated (9 arms). Verdict (ckpt-1000, K=8, paper convention):
+
+  | arm | T60↓ | C50↓ | EDT↓ | R@1↑ | R@10↑ | hallway T60 |
+  |---|---|---|---|---|---|---|
+  | FLAC | 3.413 | 2.202 | 85.0 | 5.18 | 31.69 | 3.43 |
+  | FLAC + facing cue | 3.320 | 1.869 | 76.2 | 4.68 | 30.73 | 3.35 |
+  | FLAC + constant field (control) | 3.334 | 1.864 | 75.6 | 4.66 | 30.81 | 3.32 |
+  | CylDINO | 5.411 | 3.442 | 119.5 | 4.10 | 27.65 | 8.85 |
+  | CylDINO + facing cue | 3.533 | 2.158 | 85.8 | 4.96 | 31.45 | 4.02 |
+  | CylDINO + constant field (control) | 5.673 | 3.551 | 124.1 | 3.79 | 26.21 | 9.45 |
+
+  - **Vanilla FLAC: facing ≈ constant** (P1ORI27 vs P1ZUP27: T60 −0.4 %, C50 +0.2 %, EDT +0.8 %, R@1 +0.3 %; K=1 the
+    same) ⇒ the whole vanilla gain from the cue (C50 −15 %, EDT −10 %) is the extra-parameter / fast-learning-bias
+    effect of the widened, s=27, zero-init conv channels, not orientation information (which the world-frame backbone
+    already has). It also costs vanilla retrieval either way (R@1 −10 %).
+  - **CylDINO: facing ≫ constant** (CYLORI27 vs CYLZUP27: T60 −38 %, C50 −39 %, EDT −31 %, R@1 +31 %, R@10 +20 %;
+    hallway T60 4.02 vs 9.45) ⇒ CylDINO's gain is the orientation information itself. The constant field alone is
+    slightly HARMFUL on CylDINO (CYLZUP27 vs CYL: T60 +4.8 %, C50 +3.2 %, EDT +3.9 %, R@1 −7.5 %), so the bias bonus
+    that vanilla FLAC enjoys does not transfer to the cylindrical backbone — the two backbones do not share the same
+    "free" capacity effect, which is worth stating next to the key comparison.
+  - Key controlled comparison stands: CylDINO + cue trails FLAC + cue (and FLAC + constant) by T60 +6 %, C50 +16 %,
+    EDT +13 % with retrieval +2–6 %; against plain FLAC it is at parity (exp_23). Caveats: one training seed per arm;
+    s=27 tuned on CylDINO; endpoint-only checkpoints for the controls (no steps curve).

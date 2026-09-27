@@ -1,0 +1,38 @@
+=== exp_24 CYLZUP27 eval all endpoints=1000 | 2026-09-27_18-07-05 | FLAC 3fbca6f ===
+1711d59313f88bccaaf04eba43c6b993893c1edcdcf373b66c7d6f96e3372572  eval_FLAC.py
+56f75721c5c72cab3487b4fe9de47d2858846c9aad2305835e0f0031f57d2411  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/FLAC_HAA_finetune_CYLORI27.json
+62302fa8087692bcc722d57824cb6d9742f98c295560f58fdd0bb72096fc324e  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_test_zup.json
+dd4a5fa46f30d27f1a9e43580fee0290c10cb1968f403f270e9e3f1e3c22893a  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/haa_test_1_zup.json
+ef59050f6182ec12fd69dc265d8d79f5ca51a54af3c0122df3a145b7bf92994c  worklog/worklog_yixun/exp_23_haa_cyl_orientation_claude/HAA_md_ori.py
+5432614008a87d20b062797e7211f9bff0d45e1460cb0ff30628f27787b5a9e8  worklog/worklog_yixun/exp_24_haa_orientation_fairness_claude/HAA_md_zup.py
+!! no ckpt for step 100
+!! no ckpt for step 200
+!! no ckpt for step 300
+!! no ckpt for step 400
+!! no ckpt for step 500
+!! no ckpt for step 600
+!! no ckpt for step 700
+!! no ckpt for step 800
+!! no ckpt for step 900
+cells to run: 10
+[18:07:05] start exp24_HAA_CYLZUP27_S1000_K8_s43
+[18:07:05] start exp24_HAA_CYLZUP27_S1000_K8_s42
+[18:18:44] end   exp24_HAA_CYLZUP27_S1000_K8_s43 rc=0
+[18:18:48] end   exp24_HAA_CYLZUP27_S1000_K8_s42 rc=0
+[18:18:48] start exp24_HAA_CYLZUP27_S1000_K8_s45
+[18:18:48] start exp24_HAA_CYLZUP27_S1000_K8_s44
+[18:28:57] end   exp24_HAA_CYLZUP27_S1000_K8_s44 rc=0
+[18:29:02] end   exp24_HAA_CYLZUP27_S1000_K8_s45 rc=0
+[18:29:02] start exp24_HAA_CYLZUP27_S1000_K1_s42
+[18:29:02] start exp24_HAA_CYLZUP27_S1000_K8_s46
+[18:35:57] end   exp24_HAA_CYLZUP27_S1000_K1_s42 rc=0
+[18:36:30] end   exp24_HAA_CYLZUP27_S1000_K8_s46 rc=0
+[18:36:30] start exp24_HAA_CYLZUP27_S1000_K1_s44
+[18:36:30] start exp24_HAA_CYLZUP27_S1000_K1_s43
+[18:43:21] end   exp24_HAA_CYLZUP27_S1000_K1_s43 rc=0
+[18:43:24] end   exp24_HAA_CYLZUP27_S1000_K1_s44 rc=0
+[18:43:24] start exp24_HAA_CYLZUP27_S1000_K1_s46
+[18:43:24] start exp24_HAA_CYLZUP27_S1000_K1_s45
+[18:50:19] end   exp24_HAA_CYLZUP27_S1000_K1_s46 rc=0
+[18:50:21] end   exp24_HAA_CYLZUP27_S1000_K1_s45 rc=0
+=== eval all done: failed=0 at 2026-09-27 18:50:21 ===
