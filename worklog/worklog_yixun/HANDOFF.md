@@ -1,7 +1,9 @@
 # HANDOFF.md — working-memory contract for the next session
 
-**Last updated:** 2026-09-26 17:45 EDT (Fable 5.1 seat, this box, FLAC checkout on `localization-exp`; the experiment runs from the SIBLING worktree `~/codespace/exp-14-data-curve`, branch `exp-14-data-curve`).
+**Last updated:** 2026-09-30 (Fable 5.1 seat, this box, FLAC checkout on `localization-exp`; the experiment runs from the SIBLING worktree `~/codespace/exp-14-data-curve`, branch `exp-14-data-curve`).
 
+## GPU state on mae-cab-lab-server: FREE since exp_24 finished (other session reported 18:05 EDT, chain verifier passed; verified by nvidia-smi 2026-09-30) — nothing scheduled by anyone; coordinate before taking both GPUs
+### (previous note, exp_24 hold 2026-09-26 → finish)
 ## GPU state on mae-cab-lab-server (2026-09-26 17:36 EDT →): held by the exp_13/exp_24 session — NOT ours
 - exp_24 (CERPA component ablation, Yixun's request 2026-09-26) runs three concurrent 2-GPU DDP trainings from `~/codespace/exp-24-cerpa-ablation` (~12.8 GiB each, ~38 GiB per GPU with all three up) for ≈3 days (ETD ≈ Sep 29), then ≈3 h of evals. Verified 17:39: the only GPU processes have that cwd; nothing of exp_14's runs. Records: `cylindrical-dinov3/worklog/worklog_yixun/exp_24_cerpa_ablation` (tracker row on kit `main` at `3ad4be8`), logs `~/codespace/exp-24-cerpa-ablation/exp24_records/`.
 - Rule agreed with that session (cross-session message 17:36, acknowledged 17:45): no fine-tunes or allocations ≳20 GiB per GPU without coordinating; single-GPU evals within the remaining ≈10 GiB are fine but ping first. Consequence for exp_14 follow-ups: the D11 replicate (2-GPU DDP, ≈12.5 GiB/GPU) must wait for exp_24 or be sequenced; a seen-room eval block (single-GPU `eval_FLAC.py` cells, ≈6–8 GiB) can run co-located after a heads-up.
