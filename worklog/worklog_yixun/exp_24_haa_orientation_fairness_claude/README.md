@@ -117,3 +117,69 @@ augmentation removed?).
   - Key controlled comparison stands: CylDINO + cue trails FLAC + cue (and FLAC + constant) by T60 +6 %, C50 +16 %,
     EDT +13 % with retrieval +2–6 %; against plain FLAC it is at parity (exp_23). Caveats: one training seed per arm;
     s=27 tuned on CylDINO; endpoint-only checkpoints for the controls (no steps curve).
+
+---
+
+## Why CylDINO + cue wins retrieval but loses T60 / C50 / EDT (Yixun 2026-10-03, finalised)
+
+**Question.** "CylDINO has better recall but the acoustic scores (C50, T60, EDT) are worse — why?"
+
+**Answer in one line.** The two families measure different things and the two arms differ in different places: *both land
+equally close to their own ground truth in the retrieval space* (AGREE cosine 0.5433 vs 0.5430), but CylDINO + cue carries
+a larger **shared calibration offset** of the energy-decay parameters — which the absolute metrics charge in full and the
+ranking metric almost entirely ignores — while being slightly **less confusable with neighbouring receivers**, which is
+the only thing the ranking metric rewards.
+
+Evidence, all recomputed from the arms' stored predictions with the evaluator's own code
+(`why_retrieval_vs_decay.py` → `.md/.json`, `agree_embedding_probe.py` → `.md/.json`; HAA test, ckpt-1000, K = 8, seed 42;
+the embedding pipeline reproduces the evaluator: per-room-averaged R@10 31.62 / 30.66 / 31.43 vs the 5-seed table
+31.693 / 30.734 / 31.445):
+
+1. **A third to two fifths of the decay gap is a single global offset.** Signed error e = pred − gt, pooled over the
+   1,282 test receivers:
+
+   | metric | arm | MAE | bias | scatter | MAE after removing that arm's own bias | Spearman ρ(pred, gt) |
+   |---|---|---|---|---|---|---|
+   | C50 (dB) | FLAC + cue | 1.730 | +0.976 | 2.250 | 1.643 | 0.938 |
+   | C50 (dB) | CylDINO + cue | 2.031 | +1.341 | 2.684 | 1.850 | 0.926 |
+   | EDT (ms) | FLAC + cue | 82.6 | −54.3 | 109.4 | 75.8 | 0.956 |
+   | EDT (ms) | CylDINO + cue | 95.0 | −69.9 | 116.2 | 83.2 | 0.951 |
+   | T60 (s) | FLAC + cue | 0.042 | +0.008 | 0.085 | 0.044 | 0.715 |
+   | T60 (s) | CylDINO + cue | 0.046 | +0.008 | 0.091 | 0.047 | 0.697 |
+
+   Both arms over-predict clarity and under-predict early decay time; CylDINO + cue does so by ~37 % / ~29 % more.
+   Removing each arm's own offset shrinks the C50 gap 0.301 → 0.207 dB (31 % of it was offset) and the EDT gap
+   12.4 → 7.4 ms (40 %). The rank correlation with the ground truth is essentially the same for both arms, i.e. CylDINO
+   + cue tracks receiver-to-receiver variation as well; it sits at the wrong overall level more often.
+
+2. **The ranking metric is ~95 % carried by the receiver-specific part.** In the AGREE embedding space a shared offset
+   accounts for 21 % of each arm's squared error, but removing it moves R@10 by only ~1.5 points out of ~31
+   (FLAC + cue 30.66 → 32.15; CylDINO + cue 31.43 → **33.19**, the best arm at every k once calibration is equalised).
+   Fidelity (cosine to one's own GT) is 0.5433 vs 0.5430 — a tie; the margin to the nearest *other* receiver is
+   −0.1676 vs −0.1711, i.e. CylDINO + cue is the less confusable one. R@1 ≈ 5 % and a negative mean margin show how
+   fine-grained the ranking task is: it is decided by receiver-specific detail, not by the global energy level.
+
+3. **Across rooms the two orderings are opposite.** CylDINO + cue has the worse early-decay error and the better
+   within-room retrieval in the classroom (EDT 111.5 vs 89.7 ms, R@10 27.3 vs 25.4) and the dampened room, and the
+   reverse in the complex room (EDT 79.7 vs 82.2 ms, R@10 44.2 vs 46.9); the hallway is inside seed noise. A trade-off
+   between calibration and distinctiveness, not one arm being better.
+
+4. **The deficit sits in the early part of the response, where the directivity lives.** Relative gaps: T60 +6.4 % (late
+   30 dB decay) < EDT +12.6 % (first 10 dB) ≈ C50 +15.5 % (energy before/after 50 ms). Those are exactly the quantities
+   set by the direct path and the first reflections, i.e. by the receiver's angle to the loudspeaker axis — the one thing
+   a yaw-invariant encoder cannot represent natively and must learn through the three zero-initialised facing channels
+   in a 1,000-step fine-tune at lr 5e-6. The step curves agree: CylDINO + cue's C50 is still descending at the endpoint
+   (2.27 @900 → 2.16 @1000) while FLAC + cue flattened by ~300 steps, and its R@1 overtakes at ~800 steps.
+
+5. **The split is a property of the representation, not of HAA.** On AcousticRooms, where sources are omnidirectional,
+   the yaw symmetry is exact and no cue exists, tier L shows the same signature at every evaluated checkpoint:
+   CylDINO-L's retrieval is better at **8 of 8** steps (R@10 +2.8 % to +15.1 %) and its EDT worse at **8 of 8**
+   (+1.7 % to +11.9 %). Likely architectural mechanism, verified in code: exact roll-invariance forces the conditioning
+   to be the **mean over the 512 patch tokens** (`modeling_cylindrical_dinov3.py`: `sequence_output.mean(dim=1)`),
+   whereas stock DINOv3 uses the **CLS token** (`pooled_output = sequence_output[:, 0, :]`). A uniform spatial mean is a
+   complete, robust signature of room-plus-pose geometry — good for telling receivers apart — but it cannot up-weight
+   the few surfaces and the on-axis direction that fix the absolute early-energy level.
+
+**Caveat on effect sizes.** The decay gap is large relative to seed noise (C50 +0.29 dB with per-seed sd ≈ 0.02), the
+retrieval edge is modest but consistent (R@10 +0.71 points, +2.3 % relative, per-seed sd 0.23–0.53). One training seed
+per arm.
