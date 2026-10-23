@@ -1528,6 +1528,72 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
                                 assignment_hash, stream_count, img_w)
 
 
+# exp_25: the scored-waveform dump of announcement 08 (plan v8 §2.2, §5).
+SCORED_DUMP_SCHEMA_VERSION = 1
+
+
+def scored_waveform_dir(dump_root, metrics_path):
+    """``<dump_root>/<metrics basename without .json>``: one cell's dump directory, named
+    after its metrics stem, so the filename injectivity carries over to the dumps."""
+    base = os.path.basename(metrics_path)
+    return os.path.join(dump_root, base[:-len('.json')] if base.endswith('.json') else base)
+
+
+class ScoredWaveformDump:
+    """The exactly-as-scored waveforms of one cell (announcement 08): every tensor
+    passed to ``metric_callback.update_metrics`` -- post-decode, post-clamp,
+    post-pad -- appended in stream order as CPU float32 ``[B, T]``, and published
+    atomically by :meth:`finalize`.
+
+    Fail-closed at construction (i.e. before any evaluation work): the dump root
+    (parent of ``final_dir``) must already exist -- it is never created, so an
+    unmounted NAS cannot silently become a local directory -- and ``final_dir``
+    must be absent or an empty directory. :meth:`finalize` builds the cell in the
+    same-filesystem sibling ``<final_dir>.staging-<pid>``: ``waveforms.npy``
+    (``[N, T]`` float32), ``waveforms.sha256``, ``manifest.json``; re-opens and
+    verifies them; writes ``COMPLETE`` last; only then renames the staging
+    directory onto ``final_dir``. A failure leaves the staging directory in place
+    for the driver to quarantine, and never a final directory.
+    """
+
+    def __init__(self, final_dir, expected_n):
+        if not isinstance(final_dir, str) or not final_dir:
+            raise ValueError(f"scored-waveform dump: final_dir must be a path, got {final_dir!r}")
+        if type(expected_n) is not int or expected_n < 0:
+            raise ValueError(f"scored-waveform dump: expected_n must be an int >= 0, got {expected_n!r}")
+        self.final_dir = os.path.abspath(final_dir)
+        if not os.path.isdir(os.path.dirname(self.final_dir)):
+            raise ValueError(f"scored-waveform dump: the dump root {os.path.dirname(self.final_dir)!r} "
+                             "does not exist (it is never created: a missing mount must not "
+                             "silently become a local directory)")
+        self._check_final_dir()
+        self.expected_n = expected_n
+        self.staging_dir = f"{self.final_dir}.staging-{os.getpid()}"
+        self._rows, self._t = [], None
+
+    def _check_final_dir(self):
+        if os.path.islink(self.final_dir) or (os.path.lexists(self.final_dir)
+                                              and not os.path.isdir(self.final_dir)):
+            raise ValueError(f"scored-waveform dump: {self.final_dir!r} is not a directory")
+        if os.path.isdir(self.final_dir) and os.listdir(self.final_dir):
+            raise ValueError(f"scored-waveform dump: {self.final_dir!r} exists and is not empty; "
+                             "refusing to overwrite a cell's dump")
+
+    def append(self, fakes_scored):
+        """Store one batch of the scored ``[B, 1, T]`` mono tensor; returns the stored rows."""
+        if not torch.is_tensor(fakes_scored) or fakes_scored.ndim != 3 or fakes_scored.shape[1] != 1:
+            raise ValueError("scored-waveform dump: expected the scored [B, 1, T] mono tensor, got "
+                             f"{getattr(fakes_scored, 'shape', type(fakes_scored).__name__)}")
+        if self._t is not None and fakes_scored.shape[2] != self._t:
+            raise ValueError(f"scored-waveform dump: scored length changed {self._t} -> "
+                             f"{fakes_scored.shape[2]}")
+        rows = fakes_scored.detach()[:, 0, :].to(device='cpu', dtype=torch.float32).clone(
+            memory_format=torch.contiguous_format)
+        self._t = int(fakes_scored.shape[2])
+        self._rows.append(rows)
+        return rows
+
+
 # Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
 # evaluate_model's 'diffusion.' strip: EMA copy/bookkeeping and loss-module buffers.
 # Verified against outputs_FLAC/ft_vanilla/epoch=0-step=2000.ckpt (1279 keys):

@@ -531,3 +531,47 @@ def test_build_canon_provenance():
         eval_FLAC.build_canon_provenance(applied, None, file_cfg, emb_cfg)
     with pytest.raises(ValueError, match="CanonStream"):
         eval_FLAC.build_canon_provenance(_resolve(False, ON, ON, allow=True), canon, file_cfg, emb_cfg)
+
+
+# --------------------------------------------------------------------------- #
+# 21. ScoredWaveformDump (announcement 08) + atomic cell completion (plan §5)
+# --------------------------------------------------------------------------- #
+
+
+def _scored(b, t=16, seed=0):
+    return torch.randn(b, 1, t, generator=torch.Generator().manual_seed(seed)).clamp(-1, 1)
+
+
+def test_append_stores_the_float32_cpu_copy_of_the_scored_tensor(tmp_path):
+    dump = eval_FLAC.ScoredWaveformDump(str(tmp_path / "cell"), 2)
+    fakes = _scored(2).double()
+    rows = dump.append(fakes)
+    assert rows.dtype == torch.float32 and rows.device.type == "cpu"
+    assert torch.equal(rows, fakes.float()[:, 0, :])
+    fakes.zero_()                                    # a later in-place change is not dumped
+    assert not torch.equal(rows, fakes.float()[:, 0, :])
+    for bad in (torch.zeros(2, 2, 16), torch.zeros(2, 16), [0.0], torch.zeros(2, 1, 8)):
+        with pytest.raises(ValueError, match="scored"):
+            dump.append(bad)
+
+
+@pytest.mark.parametrize("setup, needle", [
+    (lambda d: (d.mkdir(), (d / "waveforms.npy").write_text("x")), "not empty"),
+    (lambda d: d.write_text("x"), "not a directory"),
+    (lambda d: None, None)])
+def test_the_final_directory_is_checked_before_any_work(tmp_path, setup, needle):
+    final = tmp_path / "cell"
+    setup(final)
+    if needle:
+        with pytest.raises(ValueError, match=needle):
+            eval_FLAC.ScoredWaveformDump(str(final), 1)
+    with pytest.raises(ValueError, match="dump root"):
+        eval_FLAC.ScoredWaveformDump(str(tmp_path / "missing_root" / "cell"), 1)
+
+
+def test_dump_directory_names_are_derived_from_the_metrics_stem_and_injective():
+    names = {eval_FLAC.scored_waveform_dir("/nas/dumps", _combo_paths(*c)["metrics"]) for c in COMBOS}
+    assert len(names) == len(COMBOS)
+    p = _combo_paths(True, False, 0, "vanilla", None)["metrics"]
+    assert eval_FLAC.scored_waveform_dir("/nas/dumps", p) == \
+        "/nas/dumps/FLAC_EMA_metrics_1_1.0_cell_canon"
