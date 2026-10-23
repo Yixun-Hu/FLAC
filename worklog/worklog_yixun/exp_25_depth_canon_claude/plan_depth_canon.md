@@ -1,6 +1,6 @@
 # plan_depth_canon — exp_25: deepest-pixel yaw **canonicalization** as the preprocessing-invariance baseline for OrbitRIR (FA FLAC)
 
-**Planner:** Claude Fable 5.1 (main session, A6000 box `mae-cab-lab-server`) · **Date:** 2026-10-23 · **Status:** **v5** — Codex plan reviews r1 (REVISE), r2 (REVISE: 2 blocking / 3 high / 2 nit), r3 (REVISE, no blocking: 3 high / 2 nit) and r4 (`depth_canon_codex_plan_review_r4.md`, REVISE: 2 high wording/consistency / 3 nit) addressed in full (§13 changelog); Yixun's decisions D1–D6 received 2026-10-23 and recorded in §11. Codex r5 verification of v5 requested. **Implementation: TDD round 1 (operator only, fully determined by D1) started under "build and review now"; rounds 2–3 and every launch wait for Yixun's confirmation of the v2 deltas A1–A3 (§11).**
+**Planner:** Claude Fable 5.1 (main session, A6000 box `mae-cab-lab-server`) · **Date:** 2026-10-23 · **Status:** **v6** — plan APPROVED at Codex plan r5 (v5); **v6 amends §2.1 Step C after the round-1 CODE review** (`depth_canon_codex_code_r1_review.md`, BLOCKING: the pose-based keys C-2/C-3 are not exactly equivariant on float32 poses at column-centre / radius-threshold boundaries) — the tie-break is now the image key alone with fail-closed on any survivor, which is exactly equivariant and unreachable in registered runs under the rung-3 gate. Yixun's decisions D1–D6 recorded in §11. **Implementation: TDD round 1 (operator only, fully determined by D1) started under "build and review now"; rounds 2–3 and every launch wait for Yixun's confirmation of the v2 deltas A1–A3 (§11).**
 
 ---
 
@@ -49,26 +49,24 @@ Inputs: `depth` `[3, H, W]` float64 camera-frame point cloud (`convert_equirect_
 
 **Step C — equivariant tie-break (D1 = Option B, Yixun 2026-10-23; strengthened per review B1).** `|C| = 1` → `j* = C[0]`. Otherwise compare candidates by a lexicographic key that is a *rotation-invariant object read from the candidate anchor*, in this order:
 1. **the full rooted image** `(D[:, c], D[:, c+1 mod W], …, D[:, c+W−1 mod W])` (each column an H-vector, top to bottom; exact float comparison) — largest wins. Two candidates tie here only if the depth image is exactly periodic with period `(c₂ − c₁) mod W` (the column-max profile alone was not enough — review B1).
-2. **the relative azimuth of the target source** `((atan2(y_s, x_s) − θ_c) mod 2π)`, `θ_c = (c + 0.5)·2π/W − π` — smallest wins; skipped if `r_s < 1e-6` (azimuth undefined). The wrap is taken on the *difference* so a source at the ±π boundary is handled by the modulo, not by a comparison of raw angles (tested across all 512 rolls). A surviving tie here implies the source is azimuth-degenerate (a non-degenerate source distinguishes any two anchors in exact arithmetic).
-3. **the ordered, pair-preserving context key** (review r2 B1): for each context row `i` **in its original order** the full relative tuple `(r_i, z_i, ((atan2(y_i, x_i) − θ_c) mod 2π))` (degenerate rows: azimuth `+inf`), compared lexicographically over the row sequence — smallest wins. Row order is never permuted, so the pose↔`context_audio` association is preserved by construction; **no numerical equality of candidate outputs is inferred from this key** (review r4 — `*_vit` poses are schema-independent and rows with `0 < r < 1e-6` are treated as azimuth-degenerate). (A sorted multiset was rejected: it discards `(r, z)` and ignores the pairing with the untouched audio rows.)
-4. If still tied, the panorama is exactly periodic AND the source is azimuth-degenerate AND the ordered context tuples coincide. No identity of the canonical inputs is claimed for this case (review r3: the selector keys `source`/`context_poses` while `*_vit` poses are schema-independent, and `0 < r < 1e-6` is treated as degenerate although different candidates then give different XY), and `min(C)` is **not** an equivariant selector (candidates {0, 256} rolled by 300 become {300, 44} and `min` changes side — review r2). Policy (A2, resolved per the reviewer): **fail closed** — `canonicalize_scene_metadata` raises `StabilizedTieError` naming the sample; the §7 rung-3 pre-FULL gate requires **zero** image-key survivors over every panorama referenced by the train/unseen/seen splits, which makes this branch unreachable in the registered runs (a rolled non-periodic image is non-periodic, so eval rotations cannot create one). If the gate ever finds a survivor, the run does not launch and the case comes back to Yixun.
-`tie_class ∈ {none, same_column, cross_column_image, cross_column_source, cross_column_context}` is returned with `j*` (`same_column` = several pixels share the global maximum but all in the winning column, classified from the pixel-level tie set before the unique-candidate return — review r2 nit); a stabilized tie is an exception, never a class.
+2. If the rooted images of two candidates are identical the recovered panorama is exactly periodic. **Policy (v6, code review r1 BLOCKING): fail closed** — `canonicalize_scene_metadata` raises `StabilizedTieError` (carrying the candidate columns and, when the loader record provides them, the sample's `idx` / `path` / `relpath`). Pose-based tie keys (v3–v5's relative source azimuth and ordered context tuples) are **removed**: they were computed from float32 poses that are rotated and re-rounded by the group action, so at a column centre or at the `r = 1e-6` degeneracy threshold a one-column roll flips the selected anchor (`{0, 256}` → `257` instead of `1`, reviewer's counterexample) — the universal equivariance claim cannot be made on them, and no registered run needs them: the §7 rung-3 pre-FULL gate requires **zero** image-key survivors over every panorama of the three splits (a rolled non-periodic image is non-periodic, so eval rotations cannot create one).
+`tie_class ∈ {none, same_column, cross_column_image}` is returned with `j*` (`same_column` = several pixels share the global maximum but all in the winning column, classified from the pixel-level tie set; `cross_column_image` = several columns tied on the profile, resolved by the rooted-image key); a surviving tie is an exception, never a class.
 *Option A (literal argmax-first; rejected by Yixun, kept as the negative control test):* non-equivariant on the 3.75 % cross-column-tie panoramas (frame jumps 0.7°–80°) — an xfail-strict test documents it.
 
 **Step D — the shift.** `dj = (W − j*) mod W`, `α = dj·2π/W`, `md_canon = rotate_scene_metadata(md, α, W)` — the reviewed exp_02 operator (`torch.roll(depth, dj, dims=2)` puts column `j*` at column 0 — AR columns increase with azimuth, positive `α` rolls by `+dj` and applies `R_z(+α)` [verified by the reviewer]; depth vectors and all four pose fields rotated by `R_z(α)`; `context_audio`, `padding_mask`, `scene`, and the target RIR untouched — a rigid yaw leaves the RIR unchanged). **Post-condition asserted, fail-closed:** recomputing Steps A–C on `md_canon` yields `j* = 0` and the same `tie_class`.
 
 **Exactness statement.** For any integer roll `d`, `canon(rot_d(md))` and `canon(md)` have the *identical recovered-depth image* `D_canon` (bitwise; the hash of §5's Tier 1) and vector/pose values equal up to the composition `R(dj')·R(d)` vs `R(dj)` of float32 rotation matrices (≤ ~1e-6 relative). bf16 conditioning autocast then rounds most of that away; the residual is *measured* (`ε_cond`, Tier 2), never assumed. (A bitwise variant — rebuild the point cloud from `D` — is possible for `depth` but not for the poses and is NOT proposed.) Naming (review N10): in tie cases 2–3 this is a *joint geometry-plus-query canonicalizer*; the record carries the tie class so those items are identifiable. Cost (review N11): one `[3,256,512]` division/max/argmax + one roll/rotation per sample; measured latency is reported from the smoke run and the eval logs, not asserted as zero.
 
-Idempotence: a second application computes `dj = 0` and returns tensors `torch.equal` to its input. Selector equivariance `j*(roll_d(md)) = (j*(md) + d) mod W` with identical `tie_class` holds for every non-stabilized input (tested exhaustively over all rolls); for a stabilized input the operator raises for every roll (tested).
+Idempotence: a second application computes `dj = 0` and returns tensors `torch.equal` to its input. Selector equivariance `j*(roll_d(md)) = (j*(md) + d) mod W` with identical `tie_class` holds for **every** input on which the operator returns (the image key compares bitwise yaw-stable values only — no pose enters the selection; tested exhaustively over all rolls incl. poses at column centres and radii straddling 1e-6); for a periodic input the operator raises for every roll (tested).
 
 ### 2.2 Where it is applied
 
-- **Training wrapper** (`src/training/diffusion.py`): constructor kwargs `canonicalize_enabled: bool = False`, `canonicalize_img_w: int = 512`, validated on the RAW arguments exactly like `yaw_aug_*`. Applied as the **first** metadata transform in `training_step`, `validation_step` AND `test_step` via one method `_canonicalize_batch(metadata)`: (i) the same fail-closed schema checks as `_check_yaw_aug_metadata` plus §2.1's contract, prefix `canonicalize:`; (ii) `canonicalize_scene_metadata` per sample; (iii) accumulates `tie_class` counts (`self.canon_tie_counts`), logs `canon/cross_column_ties` cumulatively (rank-0, every `log_every_n_steps`) and prints the per-class totals at `on_fit_end`; a `StabilizedTieError` propagates and stops the run (fail-closed; unreachable after the rung-3 gate). **Mutual exclusion (construction + factory):** with `yaw_aug_enabled` → `ValueError`; with `cond_method == 'fa_invariant'` → `ValueError`. Rank-0 banner on `on_fit_start`: **`canonicalize ENABLED img_w=512 tiebreak=image+src+ctx`**.
+- **Training wrapper** (`src/training/diffusion.py`): constructor kwargs `canonicalize_enabled: bool = False`, `canonicalize_img_w: int = 512`, validated on the RAW arguments exactly like `yaw_aug_*`. **Device/dtype contract (code review r1):** Lightning's default `transfer_batch_to_device` moves tensors nested in the metadata dicts to the accelerator before the step; when canonicalization is enabled the wrapper overrides `transfer_batch_to_device` to move `reals` only and leave `metadata` on the CPU (the conditioner already moves what it needs with `.to(device)`), and `_canonicalize_batch` enforces `depth.device.type == "cpu"` and `depth.dtype == torch.float64` fail-closed, so the treatment path is the CPU-float64 path the operator tests cover (disabled path: hook not overridden — verbatim). Applied as the **first** metadata transform in `training_step`, `validation_step` AND `test_step` via one method `_canonicalize_batch(metadata)`: (i) the same fail-closed schema checks as `_check_yaw_aug_metadata` plus §2.1's contract, prefix `canonicalize:`; (ii) `canonicalize_scene_metadata` per sample; (iii) accumulates `tie_class` counts (`self.canon_tie_counts`), logs `canon/cross_column_ties` cumulatively (rank-0, every `log_every_n_steps`) and prints the per-class totals at `on_fit_end`; a `StabilizedTieError` propagates and stops the run (fail-closed; unreachable after the rung-3 gate). **Mutual exclusion (construction + factory):** with `yaw_aug_enabled` → `ValueError`; with `cond_method == 'fa_invariant'` → `ValueError`. Rank-0 banner on `on_fit_start`: **`canonicalize ENABLED img_w=512 tiebreak=image`**.
 - **Factory** (`src/training/factory.py`): `_parse_canonicalize_config(training_config)` mirroring `_parse_yaw_aug_config` (keys exactly `{enabled, img_w}`; absent block or `enabled: false` → `{}` ⇒ the disabled path is the pre-change call verbatim; exp_15's golden regression `test_yaw_aug_training.py` must stay green).
 - **Inference** (`eval_FLAC.py`):
   - `--canonicalize` (store_true), applied **after** `apply_rotation_plan` and **before** conditioning through a pure `prepare_eval_metadata(metadata, rotation_plan, generator, stream, canon_stream)`; `fa_invariant` + `--canonicalize` → `ValueError`.
   - **Protocol binding, fail-closed (review B2, r2 H1):** `resolve_canonicalize_protocol(flag, file_cfg, embedded_cfg, allow_mismatch)` runs BEFORE model construction, on every evaluation. Canonicalization is *in play* when **any** of: the checkpoint's embedded `training` block contains a `canonicalize` key (any value), the file config contains one, `--canonicalize` is given, or `--allow-canon-mismatch` is given — so a CANON checkpoint paired with a P1 config and no flags is caught (the embedded block is read first; a checkpoint without `model_config` is fatal whenever the file config or a flag puts canonicalization in play, and a checkpoint with an embedded `canonicalize` block is in play by itself). Then: the embedded and file `training.canonicalize` blocks are compared **type-strictly** (absent ≠ `{enabled:false}` ≠ `{enabled:true}`; `1` ≠ `true`); disagreement is fatal and is NOT what `--allow-canon-mismatch` authorizes — that flag only permits `trained ≠ applied` when embedded == file, and passing it when `trained == applied` is itself fatal (an unnecessary allow flag must not silently record an ordinary cell). Outside "in play" the function returns the legacy triple and the run is byte-identical to today. Record fields: `canonicalize_trained`, `canonicalize_applied`, `canonicalize_mismatch`, `canonicalize_img_w`, `canonicalize_tiebreak`, `canonicalize_tie_counts` (dict), `model_config_sha256_file`, `model_config_sha256_embedded`. Filenames: `_canon` when applied, `_canonmis` when a mismatch was authorized (so trained-but-not-applied cells are also distinguishable), placed after the method suffix and before the rotation token; absent flags ⇒ names and records **byte-identical** to today (tested on fixed inputs; injectivity tested across canonical/non-canonical × mismatch × fixed/random × vanilla/FA × ARE for both metrics and predictions names).
-  - **Canonical sidecar** `<metrics>.canon.json` (written whenever `--canonicalize`): per position `(i, target_id, dj, tie_class, canonical_depth_sha256)` where the hash is over `D_canon.contiguous().numpy().tobytes()` (float64, bitwise-stable ⇒ equal across rotations), plus `canon_hash` = sha256 of the ordered tuple list and `tie_counts`. The exp_14 `.stream.json` contract is untouched.
+  - **Canonical sidecar** `<metrics>.canon.json` (written whenever `--canonicalize`): per position `(i, target_id, dj, tie_class, canonical_depth_sha256)` where the hash is over `(D_canon + 0.0).contiguous().numpy().tobytes()` (float64; `+0.0` normalises signed zeros, which the rotation can flip at zero-depth pixels; bitwise-stable ⇒ equal across rotations), plus `canon_hash` = sha256 of the ordered tuple list and `tie_counts`. The exp_14 `.stream.json` contract is untouched.
   - **Scored-waveform dump (announcement 08; review B3):** `--dump-scored-waveforms <dir>` writes, per cell, one `.npy` `[N, 10240]` float32 of the **post-decode, post-clamp, post-pad** tensors — exactly the tensor passed to `metric_callback.update_metrics` (a test spies on the call) — in stream order, with `<stem>.sha256` and a manifest `{n, dtype, shape, sha256, stream input_hash}`. The existing `--store_predictions` (pre-clamp) is left unchanged.
 
 ### 2.3 Not changed
@@ -137,8 +135,9 @@ Fixtures (review H8): deterministic synthetic depth tensors (`torch.Generator` s
 `test_depth_canon.py` (operator):
 1. `recover_depth_proxy`: equals the synthetic scalar depth to 1e-14 on the real converter's output; bitwise invariant (`torch.equal`) under `rotate_scene_metadata` for offsets {1, 64, 128, 300, 511}; rejects shape ≠ `[3,H,W]`, odd H, non-finite, integer dtype.
 2. `column_profile`: `[W]`, equals `D.max(0)`.
-3. `canonical_column` tie classes: unique → column, class `none`; several max pixels in one column → `same_column`; cross-column with distinct rooted images → `cross_column_image`; periodic image + distinct source azimuths → `cross_column_source`; periodic image + degenerate source + distinct **ordered** context tuples (differing in `r`, in `z`, or in azimuth, each as its own case) → `cross_column_context`; periodic image + degenerate source + identical ordered context tuples → `StabilizedTieError`.
-4. **Exhaustive equivariance (non-stabilized):** for every non-stabilized fixture and **all 512 rolls**, `canonical_column(roll_d(md)) == (canonical_column(md) + d) mod W` and identical `tie_class`, including source azimuths placed at `±π − ε`, `±π`, `0`, and the degenerate source. **Stabilized fixture:** the operator raises `StabilizedTieError` for all 512 rolls — that is the whole requirement (review r3: no candidate-output-equality assertion, because no input identity is claimed).
+3. `canonical_column` tie classes: unique → column, class `none`; several max pixels in one column → `same_column`; cross-column with distinct rooted images → `cross_column_image`; exactly periodic image (period W/2, W/4) → `StabilizedTieError` **regardless of the poses** (cases: distinct source azimuths, degenerate source, source exactly at a candidate column centre, context radii at `1e-6 − ulp` and `1e-6 + ulp`).
+4. **Exhaustive equivariance:** for every non-periodic fixture and **all 512 rolls**, `canonical_column(roll_d(md)) == (canonical_column(md) + d) mod W` and identical `tie_class`, with poses placed at `±π − ε`, `±π` (signed zero), `0`, exactly at column centres, and the degenerate source (poses must not influence the result). **Periodic fixture:** the operator raises `StabilizedTieError` for all 512 rolls, and the error's candidate set co-rotates.
+4b. Input contract: every one of the four pose fields is **required** (one missing-key test per field); `context_poses` and `context_poses_vit` share `N ≥ 1`; `canonicalize_scene_metadata` takes no `pose_keys` argument (all of `POSE_KEYS` are always rotated — a partial rotation would silently desynchronise the frame).
 5. `canonical_shift`: `(W − j*) mod W`; 0 iff `j* == 0`.
 6. `canonicalize_scene_metadata`: returns `(md', dj, tie_class)`; equals `rotate_scene_metadata(md, dj·2π/W, W)` field by field (`torch.equal`); post-condition `j* == 0`; idempotent; input not mutated; dtype/device preserved; `context_audio`/`scene`/`padding_mask` pass through by identity; exact pose-shape contract enforced (`[3]`, `[1,3]`, `[N,3]`, `[N,3]`, finite, floating).
 7. Invariance: `canonicalize(rotate(md, d))` vs `canonicalize(md)` — recovered-depth image `torch.equal`, vectors/poses `allclose(rtol=1e-5, atol=1e-6)`, d ∈ {1, 64, 128, 255, 256, 384, 511}, on fixtures with planted cross-column ties.
@@ -182,8 +181,7 @@ Launcher guard suite (bash): DRY_RUN argv assertions (config, max-steps 40000, c
 
 **`src/data/yaw_rotation.py` — additions only (~170 lines)**
 ```python
-TIE_CLASSES = ("none", "same_column", "cross_column_image", "cross_column_source",
-               "cross_column_context")
+TIE_CLASSES = ("none", "same_column", "cross_column_image")
 class StabilizedTieError(RuntimeError): ...   # raised, never returned (plan §2.1 C-4)
 
 def recover_depth_proxy(depth: torch.Tensor) -> torch.Tensor:
@@ -202,7 +200,7 @@ def column_profile(D): return D.max(dim=0).values
 def _rel_azimuths(poses_xy, c, W):   # wrapped (phi - theta_c) mod 2pi, +inf for degenerate rows
     ...
 
-def canonical_column(D, source=None, context=None) -> Tuple[int, str]:
+def canonical_column(D) -> Tuple[int, str]:   # v6: poses are NOT selector inputs
     P = column_profile(D); W = P.shape[0]
     cands = torch.nonzero(P == P.max()).flatten().tolist()
     if len(cands) == 1:
@@ -212,32 +210,23 @@ def canonical_column(D, source=None, context=None) -> Tuple[int, str]:
     keys = [(rooted(c), c) for c in cands]
     best = _lex_max_images([k for k, _ in keys]); cands = [c for k, c in keys if torch.equal(k, best)]
     if len(cands) == 1: return cands[0], "cross_column_image"
-    if source is not None and float(torch.hypot(source[0], source[1])) >= 1e-6:
-        rel = [(_rel_azimuth_scalar(source, c, W), c) for c in cands]
-        m = min(r for r, _ in rel); cands = [c for r, c in rel if r == m]
-        if len(cands) == 1: return cands[0], "cross_column_source"
-    if context is not None and context.shape[0] > 0:
-        # ORDERED, pair-preserving key: per row (r_i, z_i, rel_az_i) in the original row order
-        keyed = [(_ordered_context_key(context, c, W), c) for c in cands]
-        m = min(k for k, _ in keyed); cands = [c for k, c in keyed if k == m]
-        if len(cands) == 1: return cands[0], "cross_column_context"
-    raise StabilizedTieError(cands)       # periodic image + degenerate source + identical ordered contexts: fail closed (plan §2.1 C-4)
+    raise StabilizedTieError(cands)       # exactly periodic recovered image: fail closed (plan §2.1 C-2, v6)
 
 def canonical_shift(j_star, img_w): return (int(img_w) - int(j_star)) % int(img_w)
 
-def canonicalize_scene_metadata(md, img_w, pose_keys=POSE_KEYS):
-    """-> (md_canon, dj, tie_class). One call to the reviewed rotate_scene_metadata."""
-    _check_canon_inputs(md, img_w)                        # exact pose shapes, finite, floating; depth width == img_w
+def canonicalize_scene_metadata(md, img_w):
+    """-> (md_canon, dj, tie_class). One call to the reviewed rotate_scene_metadata; ALL of POSE_KEYS rotated."""
+    _check_canon_inputs(md, img_w)                        # all four pose fields REQUIRED, exact shapes, finite, floating; depth width == img_w
     D = recover_depth_proxy(md["depth"])
-    j_star, tie_class = canonical_column(D, md.get("source"), md.get("context_poses"))
+    j_star, tie_class = canonical_column(D)               # may raise StabilizedTieError (enriched with idx/path/relpath when present)
     dj = canonical_shift(j_star, img_w)
-    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w, pose_keys)
-    j_check, tc_check = canonical_column(recover_depth_proxy(out["depth"]), out.get("source"), out.get("context_poses"))
+    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w)
+    j_check, tc_check = canonical_column(recover_depth_proxy(out["depth"]))
     if j_check != 0 or tc_check != tie_class:
         raise RuntimeError(f"canonicalization post-condition failed: j*={j_check} class={tc_check} after shift {dj}")
     return out, dj, tie_class
 
-def canonical_depth_sha256(depth_canon) -> str:           # sha256 of recover_depth_proxy(depth_canon) bytes (float64, C-contiguous)
+def canonical_depth_sha256(depth_canon) -> str:           # sha256 of (recover_depth_proxy(depth_canon) + 0.0) bytes (float64, C-contiguous; +0.0 normalises signed zeros)
     ...
 ```
 
@@ -260,7 +249,7 @@ def canonical_depth_sha256(depth_canon) -> str:           # sha256 of recover_de
 
 ## 10. Acceptance criteria (pre-launch, FULL)
 
-Worker reports the pinned HEAD and manifest hash; `canonicalize ENABLED img_w=512 tiebreak=image+src+ctx` whole-line; `All distributed processes registered. Starting with 2 processes`; `--batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true`; ≥ 1 optimizer step with finite loss; SMOKE on the same HEAD projected ≤ 60 h; NAS gate passed; endpoint marker `` `max_steps=40000` reached `` and exactly the 16 cadence checkpoints, all newer than the launch epoch, sha256 manifest written; no NaN/Inf anywhere in the log.
+Worker reports the pinned HEAD and manifest hash; `canonicalize ENABLED img_w=512 tiebreak=image` whole-line; `All distributed processes registered. Starting with 2 processes`; `--batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true`; ≥ 1 optimizer step with finite loss; SMOKE on the same HEAD projected ≤ 60 h; NAS gate passed; endpoint marker `` `max_steps=40000` reached `` and exactly the 16 cadence checkpoints, all newer than the launch epoch, sha256 manifest written; no NaN/Inf anywhere in the log.
 
 ## 11. Decisions
 
@@ -313,3 +302,8 @@ TDD r1 operator (now → 2026-10-24 morning) → Codex r1 code review → r2 wra
 - r4-H1: §6 test 21 sequence corrected to staging → verify → `COMPLETE` → atomic rename; quarantine covers marker-bearing but collector-invalid directories (§5).
 - r4-H2: C-3 no longer infers numerical equality of candidate outputs; only row-order/audio association is claimed.
 - r4 nits: B-F wording in §5/§9; A3 cell count 230 (110 endpoint); §1 lineage shorthand names both P1 leg commits.
+
+### v5 → v6 (Codex CODE review r1, `depth_canon_codex_code_r1_review.md`, BLOCKING + 3 HIGH + nits)
+- BLOCKING: C-2/C-3 pose keys removed; the image key alone selects, and any survivor fails closed (`StabilizedTieError`), which is exactly equivariant and unreachable in registered runs under the rung-3 gate. Tie classes reduced to {none, same_column, cross_column_image}; tests 3/4 rewritten (periodic images raise regardless of poses; boundary poses in the equivariance loops). Banner token `tiebreak=image`.
+- HIGH: all four pose fields required; `pose_keys` argument removed; round-2 device/dtype contract (metadata kept on CPU float64 via a `transfer_batch_to_device` override on the treatment path, enforced fail-closed).
+- NITs: docstrings/error text make no identity or impossibility claim; `StabilizedTieError` carries `idx`/`path`/`relpath` when present; hash definition records the `+0.0` signed-zero normalisation; planning probe gets cardinality/dtype assertions.
