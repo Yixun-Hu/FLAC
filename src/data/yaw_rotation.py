@@ -629,3 +629,65 @@ def yaw_transform_consistency(
         assert isinstance(rotated, torch.Tensor)
         report[float(deg)] = max_dev(rotated)
     return report
+
+
+# --------------------------------------------------------------------------- #
+# exp_25 depth_canon: deepest-pixel yaw canonicalization (plan_depth_canon.md
+# §2.1 / §8). Additions only -- nothing above this line is changed.
+# --------------------------------------------------------------------------- #
+def _check_depth_cloud(depth) -> None:
+    """Fail-closed contract of a metadata ``depth`` point cloud ``[3, H, W]``."""
+    if not isinstance(depth, torch.Tensor):
+        raise ValueError(f"depth must be a torch.Tensor, got {type(depth).__name__}")
+    if not depth.is_floating_point():
+        raise ValueError(f"depth must be a floating tensor, got {depth.dtype}")
+    if depth.ndim != 3 or depth.shape[0] != 3:
+        raise ValueError(f"depth must have shape [3, H, W], got {list(depth.shape)}")
+    H, W = int(depth.shape[1]), int(depth.shape[2])
+    if H == 0 or W == 0 or H % 2 != 0:
+        raise ValueError(
+            f"depth needs an even H > 0 and W > 0, got H={H}, W={W} (an odd H puts a "
+            "panorama row at phi = 0, where the depth proxy's denominator is zero)")
+    if not bool(torch.isfinite(depth).all()):
+        raise ValueError("depth contains non-finite values")
+
+
+def recover_depth_proxy(depth: torch.Tensor) -> torch.Tensor:
+    """
+    ``[3, H, W]`` camera-frame point cloud -> ``[H, W]`` recovered-depth PROXY.
+
+    ``D[h, w] = depth[2, h, w] / (-sin(phi_h))`` with
+    ``phi_h = (h + 0.5) * pi / H - pi / 2`` built exactly as
+    ``AR_md.convert_equirect_to_camera_coord`` builds its row angle
+    (``torch.arange`` -> float32 angle -> ``torch.sin``), cast to ``depth.dtype``
+    only at the division.
+
+    This is a **bitwise yaw-stable proxy**, NOT an exact inverse of the raw depth
+    map: AR_md stores ``z = -d * sin(phi)`` in float64, and dividing back agrees
+    with the raw ``.npy`` only to ~1e-15 (the planning probe found 8.9e-16 and 91 %
+    of pixels bitwise). What IS exact is its behaviour under
+    :func:`rotate_scene_metadata`: a yaw rotation leaves the z channel bitwise
+    unchanged (matrix row ``[0, 0, 1]``) and ``sin(phi_h)`` is a per-row constant,
+    so the proxy of a rotated map, un-rolled, equals the original proxy bitwise --
+    which the per-pixel L2 norm of the point cloud does not.
+
+    Raises ``ValueError`` unless ``depth`` is a finite floating ``[3, H, W]``
+    tensor with even ``H > 0`` and ``W > 0``, or if any row has ``sin(phi) == 0``.
+    """
+    _check_depth_cloud(depth)
+    H = int(depth.shape[1])
+    phi = (torch.arange(H) + 0.5) * math.pi / H - math.pi / 2  # float32, as in AR_md
+    s = torch.sin(phi)
+    if not bool(s.abs().min() > 0.0):
+        raise ValueError("a panorama row has sin(phi) == 0: the depth proxy is undefined")
+    return depth[2] / (-s.to(device=depth.device, dtype=depth.dtype))[:, None]
+
+
+def column_profile(D: torch.Tensor) -> torch.Tensor:
+    """Per-column maximum ``P[w] = max_h D[h, w]`` of an ``[H, W]`` depth proxy -> ``[W]``."""
+    if not isinstance(D, torch.Tensor) or not D.is_floating_point() or D.ndim != 2 \
+            or D.shape[0] == 0 or D.shape[1] == 0:
+        raise ValueError(
+            f"column_profile needs a non-empty floating [H, W] tensor, got "
+            f"{getattr(D, 'dtype', type(D).__name__)} {list(getattr(D, 'shape', []))}")
+    return D.max(dim=0).values
