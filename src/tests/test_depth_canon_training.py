@@ -316,9 +316,25 @@ def test_device_and_dtype_errors_name_the_contract(bad):
     _expect_schema_error(_with("depth", depth, i=0), "metadata[0]", needle)
 
 
-def test_operator_contract_errors_propagate():
-    with pytest.raises(ValueError, match="source_vit"):
-        _canon_wrapper()[0]._canonicalize_batch(_with("source_vit", torch.zeros(3)))
+def _nan_depth():
+    depth = _cloud(_scalar_depth(H, W, 0)).clone()
+    depth[0, 1, 2] = float("nan")
+    return depth
+
+
+@pytest.mark.parametrize("field, value, needle", [  # passes the schema, fails the operator
+    ("source_vit", torch.zeros(3), "source_vit"),
+    ("context_poses_vit", torch.zeros(3, 3), "same N"),
+    ("source", torch.tensor([0.0, float("inf"), 1.0]), "non-finite"),
+    ("source", torch.zeros(3, dtype=torch.int64), "floating"),
+    ("depth", _cloud(_scalar_depth(7, W, 0)), "even H"),
+    ("depth", _nan_depth(), "non-finite")])
+def test_operator_contract_errors_name_the_prefix_and_the_sample(field, value, needle):
+    with pytest.raises(ValueError) as excinfo:
+        _canon_wrapper()[0]._canonicalize_batch(_with(field, value))
+    assert str(excinfo.value).startswith("canonicalize: metadata[1]: ") and needle in str(
+        excinfo.value)
+    assert isinstance(excinfo.value.__cause__, ValueError)
 
 
 def test_batch_is_canonicalized_per_sample_without_mutating_the_input():
@@ -372,6 +388,10 @@ def test_a_periodic_panorama_fails_closed_and_counts_nothing():
                                      _canon_md(1, period=W // 2)])
     assert excinfo.value.sample == {"idx": 1, "path": "/fake/1.wav"}
     assert wrapper.canon_tie_counts == {c: 0 for c in TIE_CLASSES}
+    # never re-wrapped by the ValueError prefixing (it is a RuntimeError, not a ValueError)
+    assert type(excinfo.value) is yr.StabilizedTieError and excinfo.value.__cause__ is not None
+    assert not issubclass(yr.StabilizedTieError, ValueError)
+    assert not str(excinfo.value).startswith("canonicalize: metadata[")
 
 
 # --------------------------------------------------------------------------- #

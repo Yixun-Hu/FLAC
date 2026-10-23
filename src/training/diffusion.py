@@ -631,8 +631,12 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             metadata = metadata.metadata
         self._check_canon_metadata(metadata)
         out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
-        for md in metadata:
-            md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
+        for i, md in enumerate(metadata):
+            try:
+                md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
+            except ValueError as err:  # the operator's exact contract; StabilizedTieError
+                # is a RuntimeError, so it propagates untouched (never caught here)
+                raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err
             if tie_class not in batch_counts:
                 raise RuntimeError(f"canonicalize: unknown tie class {tie_class!r}")
             batch_counts[tie_class] += 1
