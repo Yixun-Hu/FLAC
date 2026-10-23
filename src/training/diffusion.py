@@ -142,6 +142,25 @@ def _yaw_aug_step_seed(seed: int, step: int, rank: int) -> int:
     return _fmix32(v ^ k_lo) ^ k_hi
 
 
+class _CpuMetadataCarrier:
+    """exp_25: carries one batch's metadata container, untouched and on the CPU, from
+    ``transfer_batch_to_device`` to ``_canonicalize_batch`` (plan_depth_canon.md v8
+    §2.2; code review r2 BLOCKING).
+
+    Deliberately OPAQUE: not a Tensor, list, tuple, dict, namedtuple or dataclass, and
+    with no ``.to``. Under DDP on CUDA the step runs through
+    ``DistributedDataParallel._pre_forward``, whose ``torch.distributed.utils._to_kwargs``
+    -> ``_recursive_to`` (torch 2.7) moves Tensors/PackedSequences and descends only
+    into namedtuples and non-empty tuples, lists and dicts, returning every other
+    object unchanged -- so metadata inside this carrier is not moved a second time.
+    """
+
+    __slots__ = ("metadata",)
+
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+
 class Profiler:
     def __init__(self):
         self.ticks = [[time(), None]]
@@ -605,8 +624,11 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         run. The batch's tie classes are added to ``canon_tie_counts`` only after
         every sample succeeded; on the training path (a Trainer attached and
         ``trainer.training``) the cumulative cross-/same-column counts are logged
-        on rank 0 per step. Consumes no RNG.
+        on rank 0 per step. Consumes no RNG. A :class:`_CpuMetadataCarrier` (what
+        ``transfer_batch_to_device`` hands on when enabled) is unwrapped first.
         """
+        if isinstance(metadata, _CpuMetadataCarrier):
+            metadata = metadata.metadata
         self._check_canon_metadata(metadata)
         out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
         for md in metadata:
@@ -636,16 +658,17 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         itself (the conditioners' ``.to(device)``, the padding-mask stack, the
         metric callback's AGREE image tower). So for the loader's ``[reals,
         metadata]`` pair (list or tuple, as ``collation_fn`` builds it) ``reals`` goes
-        through the parent implementation and the metadata container is returned
-        as the very same object. Disabled, or any other batch shape: the parent
-        implementation, unchanged.
+        through the parent implementation and the very same metadata container is
+        handed on inside a :class:`_CpuMetadataCarrier`, which DDP's forward-input
+        mover does not descend into (code review r2). Disabled, or any other batch
+        shape: the parent implementation, unchanged.
         """
         if not self.canonicalize_enabled:
             return super().transfer_batch_to_device(batch, device, dataloader_idx)
         if (type(batch) in (list, tuple) and len(batch) == 2 and torch.is_tensor(batch[0])
                 and isinstance(batch[1], (list, tuple))):
             reals = super().transfer_batch_to_device(batch[0], device, dataloader_idx)
-            return type(batch)((reals, batch[1]))
+            return type(batch)((reals, _CpuMetadataCarrier(batch[1])))
         return super().transfer_batch_to_device(batch, device, dataloader_idx)
 
     def _apply_yaw_aug(self, metadata):

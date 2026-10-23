@@ -10,6 +10,7 @@ config); metadata = synthetic depth through the REAL AR_md converter
 (``test_depth_canon``'s helpers), i.e. the loader's float64 point cloud. Test 15 (the
 golden disabled path) is ``test_yaw_aug_training.py::test_disabled_path_matches_golden``.
 """
+import dataclasses
 import random
 import types
 
@@ -18,6 +19,7 @@ import pytest
 import pytorch_lightning as pl
 import pytorch_lightning.core.hooks as pl_hooks
 import torch
+from torch.distributed.utils import _to_kwargs
 
 import src.models.transformer as _transformer
 import src.training.diffusion as tdiff
@@ -457,8 +459,10 @@ def test_enabled_transfer_moves_reals_only(monkeypatch, container):
     out = _build(canonicalize=dict(CANON_ON)).transfer_batch_to_device(
         container((reals, metadata)), META, 0)
     assert len(calls) == 1 and calls[0][0] is reals and calls[0][1] == META
-    assert type(out) is container and out[0].device == META and out[1] is metadata
-    for md, depth in zip(out[1], depths):
+    assert type(out) is container and out[0].device == META
+    assert getattr(out[1], "metadata", None) is metadata
+    assert type(out[1]) is tdiff._CpuMetadataCarrier
+    for md, depth in zip(out[1].metadata, depths):
         assert md["depth"] is depth and depth.device.type == "cpu" and depth.dtype == torch.float64
 
 
@@ -489,20 +493,78 @@ def _assert_same_transfer(a, b):
         assert a == b
 
 
+def _ddp_inputs(batch, device, side_stream):
+    """What ``DistributedDataParallel._pre_forward`` does to ``training_step``'s positional
+    inputs ``(batch, batch_idx)`` when ``device_ids`` is set (torch 2.7
+    ``nn/parallel/distributed.py:1536``), through the REAL ``_to_kwargs``."""
+    moved_inputs, moved_kwargs = _to_kwargs((batch, 0), {}, device, side_stream)
+    assert moved_kwargs == ({},) and moved_inputs[0][1] == 0
+    return moved_inputs[0]
+
+
+@pytest.mark.parametrize("side_stream", [True, False])  # True is DDP's default
+def test_enabled_metadata_survives_the_ddp_input_mover(monkeypatch, side_stream):
+    wrapper, events = _step_wrapper(monkeypatch)
+    reals, metadata = _step_batch()
+    depths = [md["depth"] for md in metadata]
+    hooked = wrapper.transfer_batch_to_device([reals, metadata], META, 0)
+    batch, _ = _ddp_inputs(hooked, META, side_stream)
+    carried = getattr(batch[1], "metadata", batch[1])
+    assert type(batch) is list and batch[0].device == META
+    assert all(md["depth"].device.type == "cpu" for md in carried), "DDP moved the metadata"
+    assert batch[1] is hooked[1] and type(batch[1]) is tdiff._CpuMetadataCarrier
+    assert carried is metadata and all(md["depth"] is d and d.dtype == torch.float64
+                                       for md, d in zip(carried, depths))
+    wrapper.training_step([reals, batch[1]], 0)  # the DDP-delivered carrier, CPU reals
+    assert [name for name, _ in events] == ["canon", "canon_out", "cond"]
+    assert events[0][1] is batch[1] and type(events[2][1]) is list
+    assert events[2][1] is events[1][1] and len(events[2][1]) == len(metadata)
+    for md in events[2][1]:
+        assert md["depth"].device.type == "cpu"
+        assert yr.canonical_column(yr.recover_depth_proxy(md["depth"]))[0] == 0
+
+
+def test_the_carrier_is_opaque_to_both_recursive_movers():
+    """Not a Tensor / list / tuple / dict / namedtuple / dataclass, no ``.to`` and no
+    ``__dict__``: Lightning's ``move_data_to_device`` and DDP's ``_to_kwargs`` both return
+    it, and the CPU float64 tensors inside it, unchanged."""
+    _, metadata = _step_batch()
+    carrier = tdiff._CpuMetadataCarrier(metadata)
+    assert not isinstance(carrier, (torch.Tensor, list, tuple, dict))
+    assert not dataclasses.is_dataclass(carrier) and not hasattr(carrier, "to")
+    assert not hasattr(carrier, "__dict__") and carrier.metadata is metadata
+    for moved in (pl_hooks.move_data_to_device([carrier], META)[0],
+                  _ddp_inputs([carrier], META, True)[0][0]):
+        assert moved is carrier and all(md["depth"].device.type == "cpu" for md in metadata)
+
+
+@pytest.mark.parametrize("source", ["disabled_wrapper", "bare_pair"])
+def test_without_the_carrier_the_ddp_mover_moves_every_metadata_tensor(source):
+    """Baseline: the disabled path's batch, and a bare [reals, metadata] list (the round-2
+    behaviour), lose their CPU metadata to DDP's mover."""
+    reals, metadata = _step_batch()
+    batch = (_build().transfer_batch_to_device([reals, metadata], META, 0)
+             if source == "disabled_wrapper" else [reals.to(META), metadata])
+    moved, _ = _ddp_inputs(batch, META, True)
+    assert moved[0].device == META
+    assert all(md[k].device == META for md in moved[1] for k in ("depth",) + yr.POSE_KEYS)
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a CUDA device")
 def test_transfer_on_a_real_cuda_device_with_tiny_tensors():
     dev = torch.device("cuda", torch.cuda.current_device())
     reals, metadata = _step_batch()  # a few KB in total
     wrapper = _build(canonicalize={"enabled": True, "img_w": W})
-    on = wrapper.transfer_batch_to_device([reals, metadata], dev, 0)
-    off = _build().transfer_batch_to_device([reals, metadata], dev, 0)
+    on = _ddp_inputs(wrapper.transfer_batch_to_device([reals, metadata], dev, 0), dev, True)[0]
+    off = _ddp_inputs(_build().transfer_batch_to_device([reals, metadata], dev, 0), dev, True)[0]
     try:
-        assert on[0].device.type == "cuda" and torch.equal(on[0].cpu(), reals) and on[1] is metadata
-        assert all(md["depth"].device.type == "cpu" for md in on[1])
-        wrapper._canonicalize_batch(on[1])
+        assert on[0].device.type == "cuda" and torch.equal(on[0].cpu(), reals)
+        carried = getattr(on[1], "metadata", on[1])
+        assert all(md["depth"].device.type == "cpu" for md in carried) and carried is metadata
+        assert type(wrapper._canonicalize_batch(on[1])) is list
         assert all(md["depth"].device.type == "cuda" for md in off[1])
         with pytest.raises(ValueError, match=r"metadata\[1\]"):
-            wrapper._canonicalize_batch([on[1][0], off[1][1]])
+            wrapper._canonicalize_batch([carried[0], off[1][1]])
     finally:
         del on, off
         torch.cuda.empty_cache()
@@ -536,8 +598,9 @@ def test_lightning_fit_transfers_then_canonicalizes_then_conditions(monkeypatch,
                                                      collate_fn=collation_fn))
     assert [name for name, _ in events] == ["transfer", "canon", "cond"]
     assert events[1][1] is events[0][1][1]
+    assert type(events[1][1]) is tdiff._CpuMetadataCarrier
     assert all(md["depth"].device.type == "cpu" and md["depth"].dtype == torch.float64
-               for md in events[1][1])
+               for md in events[1][1].metadata)
     lines = capsys.readouterr().out.splitlines()
     assert lines.count(f"canonicalize ENABLED img_w={W} tiebreak=image") == 1
     assert lines.count("canonicalize tie_counts rank0 none=0 same_column=1 "
