@@ -15,9 +15,13 @@ import types
 
 import numpy as np
 import pytest
+import pytorch_lightning as pl
+import pytorch_lightning.core.hooks as pl_hooks
 import torch
 
+import src.models.transformer as _transformer
 import src.training.diffusion as tdiff
+from src.data.dataset import collation_fn
 from src.data import yaw_rotation as yr
 from src.data.yaw_rotation import TIE_CLASSES
 from src.models.factory import create_model_from_config
@@ -26,6 +30,7 @@ from src.training.factory import (
 from test_cond_dispatch import _base_config, _neutralize_for_steps  # (pytest prepends src/tests)
 from test_depth_canon import _cloud, _scalar_depth  # synthetic depth via the real AR_md
 from test_yaw_aug_training import PRE_CHANGE_WRAPPER_KWARGS, _rng_digest
+from test_yaw_aug_training import _base_config as _forward_config  # real DiT forward
 
 CANON_ON = {"enabled": True, "img_w": 512}
 YAW_ON = {"enabled": True, "img_w": 512, "seed": 42}
@@ -352,6 +357,7 @@ def test_cumulative_counts_are_logged_on_the_training_path_only():
     kw = {"rank_zero_only": True, "on_step": True, "on_epoch": False}
     assert logged == [("canon/cross_column_ties", 1, kw), ("canon/same_column_ties", 1, kw),
                       ("canon/cross_column_ties", 2, kw), ("canon/same_column_ties", 1, kw)]
+    assert all(type(value) is float for _, value, _ in logged)
     wrapper.trainer.training = False  # validation / test inside a Trainer
     wrapper._canonicalize_batch([_canon_md(3, "same_column")])
     assert len(logged) == 4 and wrapper.canon_tie_counts["same_column"] == 2
@@ -423,3 +429,118 @@ def test_canonicalization_precedes_the_yaw_aug_hook(monkeypatch):
     wrapper.training_step(_step_batch(), 0)
     assert [name for name, _ in events] == ["canon", "canon_out", "yaw", "cond"]
     assert events[2][1] is events[1][1]
+
+
+# --------------------------------------------------------------------------- #
+# 12b. transfer_batch_to_device: enabled keeps metadata on the CPU; disabled = parent
+# (the "meta" device stands in for an accelerator on CPU: whatever moves, shows it)
+# --------------------------------------------------------------------------- #
+META = torch.device("meta")
+
+
+def _spy(monkeypatch, owner, name):
+    calls, real = [], getattr(owner, name)
+
+    def spy(*args):
+        calls.append(args)
+        return real(*args)
+
+    monkeypatch.setattr(owner, name, spy)
+    return calls
+
+
+@pytest.mark.parametrize("container", [list, tuple])
+def test_enabled_transfer_moves_reals_only(monkeypatch, container):
+    calls = _spy(monkeypatch, pl_hooks, "move_data_to_device")
+    reals, metadata = _step_batch()
+    depths = [md["depth"] for md in metadata]
+    out = _build(canonicalize=dict(CANON_ON)).transfer_batch_to_device(
+        container((reals, metadata)), META, 0)
+    assert len(calls) == 1 and calls[0][0] is reals and calls[0][1] == META
+    assert type(out) is container and out[0].device == META and out[1] is metadata
+    for md, depth in zip(out[1], depths):
+        assert md["depth"] is depth and depth.device.type == "cpu" and depth.dtype == torch.float64
+
+
+OTHER_SHAPES = [lambda r, md: {"reals": r, "md": md}, lambda r, md: [r, md, r],
+                lambda r, md: [md, r], lambda r, md: (r, r)]
+
+
+@pytest.mark.parametrize("enabled, make", [(True, m) for m in OTHER_SHAPES]
+                         + [(False, m) for m in [lambda r, md: [r, md]] + OTHER_SHAPES])
+def test_other_shapes_and_the_disabled_path_delegate_to_the_parent(monkeypatch, enabled, make):
+    calls = _spy(monkeypatch, pl_hooks.DataHooks, "transfer_batch_to_device")
+    batch = make(*_step_batch())
+    wrapper = _build(canonicalize=dict(CANON_ON)) if enabled else _build()
+    out = wrapper.transfer_batch_to_device(batch, META, 3)
+    assert len(calls) == 1 and calls[0][1:] == (batch, META, 3)
+    _assert_same_transfer(out, pl_hooks.move_data_to_device(batch, META))
+
+
+def _assert_same_transfer(a, b):
+    assert type(a) is type(b)
+    if torch.is_tensor(a):
+        assert (a.device, a.dtype, a.shape) == (b.device, b.dtype, b.shape)
+    elif isinstance(a, (list, tuple)):
+        assert len(a) == len(b) and all(_assert_same_transfer(x, y) is None for x, y in zip(a, b))
+    elif isinstance(a, dict):
+        assert a.keys() == b.keys() and all(_assert_same_transfer(a[k], b[k]) is None for k in a)
+    else:
+        assert a == b
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a CUDA device")
+def test_transfer_on_a_real_cuda_device_with_tiny_tensors():
+    dev = torch.device("cuda", torch.cuda.current_device())
+    reals, metadata = _step_batch()  # a few KB in total
+    wrapper = _build(canonicalize={"enabled": True, "img_w": W})
+    on = wrapper.transfer_batch_to_device([reals, metadata], dev, 0)
+    off = _build().transfer_batch_to_device([reals, metadata], dev, 0)
+    try:
+        assert on[0].device.type == "cuda" and torch.equal(on[0].cpu(), reals) and on[1] is metadata
+        assert all(md["depth"].device.type == "cpu" for md in on[1])
+        wrapper._canonicalize_batch(on[1])
+        assert all(md["depth"].device.type == "cuda" for md in off[1])
+        with pytest.raises(ValueError, match=r"metadata\[1\]"):
+            wrapper._canonicalize_batch([on[1][0], off[1][1]])
+    finally:
+        del on, off
+        torch.cuda.empty_cache()
+
+
+# --------------------------------------------------------------------------- #
+# 12c. order in a REAL Lightning fit: transfer -> canonicalize -> conditioning
+# --------------------------------------------------------------------------- #
+def test_lightning_fit_transfers_then_canonicalizes_then_conditions(monkeypatch, capsys,
+                                                                    tmp_path):
+    """One optimizer step of the toy model on CPU through pl.Trainer.fit, fed by the
+    loader's own collation_fn, with the three hooks spied in place."""
+    monkeypatch.setattr(_transformer, "flash_attn_func", None)  # CPU attention fallback
+    cfg = _forward_config()
+    cfg["training"]["canonicalize"] = {"enabled": True, "img_w": W}
+    wrapper = create_training_wrapper_from_config(cfg, create_model_from_config(cfg))
+    events = []
+    transfer, canon, cond = (wrapper.transfer_batch_to_device, wrapper._canonicalize_batch,
+                             wrapper._compute_conditioning)
+    wrapper.transfer_batch_to_device = lambda *a: events.append(("transfer", transfer(*a))) \
+        or events[-1][1]
+    wrapper._canonicalize_batch = lambda md: events.append(("canon", md)) or canon(md)
+    wrapper._compute_conditioning = lambda md: events.append(("cond", md)) or cond(md)
+    samples = [(torch.randn(4, 64), _canon_md(i, tie))
+               for i, tie in enumerate(("cross_column_image", "same_column"))]
+    trainer = pl.Trainer(accelerator="cpu", devices=1, max_steps=1, logger=False,
+                         enable_checkpointing=False, enable_progress_bar=False,
+                         enable_model_summary=False, num_sanity_val_steps=0,
+                         log_every_n_steps=1, default_root_dir=str(tmp_path))
+    trainer.fit(wrapper, torch.utils.data.DataLoader(samples, batch_size=2,
+                                                     collate_fn=collation_fn))
+    assert [name for name, _ in events] == ["transfer", "canon", "cond"]
+    assert events[1][1] is events[0][1][1]
+    assert all(md["depth"].device.type == "cpu" and md["depth"].dtype == torch.float64
+               for md in events[1][1])
+    lines = capsys.readouterr().out.splitlines()
+    assert lines.count(f"canonicalize ENABLED img_w={W} tiebreak=image") == 1
+    assert lines.count("canonicalize tie_counts rank0 none=0 same_column=1 "
+                       "cross_column_image=1") == 1
+    assert float(trainer.callback_metrics["canon/cross_column_ties"]) == 1.0
+    assert float(trainer.callback_metrics["canon/same_column_ties"]) == 1.0

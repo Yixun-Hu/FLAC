@@ -620,9 +620,33 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         if self._trainer is not None and self._trainer.training:
             for name, tie_class in (("canon/cross_column_ties", "cross_column_image"),
                                     ("canon/same_column_ties", "same_column")):
-                self.log(name, self.canon_tie_counts[tie_class], rank_zero_only=True,
+                # float: Lightning stores logged values as float32 (exact < 2**24).
+                self.log(name, float(self.canon_tie_counts[tie_class]), rank_zero_only=True,
                          on_step=True, on_epoch=False)
         return out
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        """exp_25: with canonicalization on, move ``reals`` only; leave the metadata on
+        the CPU (plan_depth_canon.md v7 §2.2, code review r1).
+
+        Lightning's default moves every tensor nested in the metadata dicts to the
+        accelerator before the step, but the treatment must run on the loader's
+        CPU float64 point cloud (``_check_canon_metadata`` refuses anything else).
+        Every consumer of the metadata on the three step paths moves what it needs
+        itself (the conditioners' ``.to(device)``, the padding-mask stack, the
+        metric callback's AGREE image tower). So for the loader's ``[reals,
+        metadata]`` pair (list or tuple, as ``collation_fn`` builds it) ``reals`` goes
+        through the parent implementation and the metadata container is returned
+        as the very same object. Disabled, or any other batch shape: the parent
+        implementation, unchanged.
+        """
+        if not self.canonicalize_enabled:
+            return super().transfer_batch_to_device(batch, device, dataloader_idx)
+        if (type(batch) in (list, tuple) and len(batch) == 2 and torch.is_tensor(batch[0])
+                and isinstance(batch[1], (list, tuple))):
+            reals = super().transfer_batch_to_device(batch[0], device, dataloader_idx)
+            return type(batch)((reals, batch[1]))
+        return super().transfer_batch_to_device(batch, device, dataloader_idx)
 
     def _apply_yaw_aug(self, metadata):
         """Rotate each sample's conditioning by its own freshly drawn yaw.
