@@ -522,6 +522,28 @@ def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg
                          copy_or_none(file_block), copy_or_none(emb_block))
 
 
+def build_canon_provenance(protocol, canon_stream, file_model_config, embedded_model_config):
+    """The ``canon_provenance`` dict for :func:`build_metrics_record` -- ``None`` when
+    canonicalization is not in play (legacy record). ``canon_stream`` must be given
+    exactly when the protocol applies canonicalization. The two digests are of the
+    WHOLE file config (as written) and the WHOLE embedded config."""
+    if not protocol.in_play:
+        return None
+    if protocol.applied != (canon_stream is not None):
+        raise ValueError("canon provenance: a CanonStream is required exactly when "
+                         f"canonicalization is applied (applied={protocol.applied})")
+    return {
+        "canonicalize_trained": protocol.trained,
+        "canonicalize_applied": protocol.applied,
+        "canonicalize_mismatch": protocol.mismatch,
+        "canonicalize_img_w": protocol.img_w,
+        "canonicalize_tiebreak": CANON_TIEBREAK if protocol.applied else None,
+        "canonicalize_tie_counts": canon_stream.tie_counts() if protocol.applied else None,
+        "model_config_sha256_file": model_config_sha256(file_model_config),
+        "model_config_sha256_embedded": model_config_sha256(embedded_model_config),
+    }
+
+
 def build_output_paths(
     ckpt_path,
     steps,

@@ -505,3 +505,29 @@ def test_prepare_argument_contract(kw, needle):
     with pytest.raises(ValueError, match=needle):
         eval_FLAC.prepare_eval_metadata(_batch(1), FIXED0, None, None, kw["canonicalize"],
                                         kw["img_w"], kw["canon_stream"])
+
+
+def test_build_canon_provenance():
+    file_cfg, emb_cfg = _model_cfg(ON), _model_cfg(ON)
+    emb_cfg["training"]["use_ema"] = True                 # the two digests are independent
+    _, _, canon = _prepare(_batch())
+    applied = _resolve(True, ON, ON)
+    prov = eval_FLAC.build_canon_provenance(applied, canon, file_cfg, emb_cfg)
+    assert prov == {"canonicalize_trained": True, "canonicalize_applied": True,
+                    "canonicalize_mismatch": False, "canonicalize_img_w": 512,
+                    "canonicalize_tiebreak": "image", "canonicalize_tie_counts": canon.tie_counts(),
+                    "model_config_sha256_file": eval_FLAC.model_config_sha256(file_cfg),
+                    "model_config_sha256_embedded": eval_FLAC.model_config_sha256(emb_cfg)}
+    assert prov["model_config_sha256_file"] != prov["model_config_sha256_embedded"]
+    eval_FLAC.build_metrics_record({}, CKPT, 0.0, "vanilla", None, canon_provenance=prov)
+    diag = eval_FLAC.build_canon_provenance(_resolve(False, ON, ON, allow=True), None,
+                                            file_cfg, file_cfg)
+    assert (diag["canonicalize_applied"], diag["canonicalize_mismatch"],
+            diag["canonicalize_tiebreak"], diag["canonicalize_tie_counts"]) == (False, True, None, None)
+    eval_FLAC.build_metrics_record({}, CKPT, 0.0, "vanilla", None, canon_provenance=diag)
+    assert eval_FLAC.build_canon_provenance(eval_FLAC.LEGACY_CANON_PROTOCOL, None, file_cfg,
+                                            None) is None
+    with pytest.raises(ValueError, match="CanonStream"):
+        eval_FLAC.build_canon_provenance(applied, None, file_cfg, emb_cfg)
+    with pytest.raises(ValueError, match="CanonStream"):
+        eval_FLAC.build_canon_provenance(_resolve(False, ON, ON, allow=True), canon, file_cfg, emb_cfg)
