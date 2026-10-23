@@ -13,13 +13,16 @@ golden disabled path) is ``test_yaw_aug_training.py::test_disabled_path_matches_
 import types
 
 import pytest
+import torch
 
 import src.training.diffusion as tdiff
+from src.data import yaw_rotation as yr
 from src.data.yaw_rotation import TIE_CLASSES
 from src.models.factory import create_model_from_config
 from src.training.factory import (
     CANON_KEYS, _parse_canonicalize_config, create_training_wrapper_from_config)
 from test_cond_dispatch import _base_config  # tiny CPU diffusion_cond (pytest prepends src/tests)
+from test_depth_canon import _cloud, _scalar_depth  # synthetic depth via the real AR_md
 from test_yaw_aug_training import PRE_CHANGE_WRAPPER_KWARGS
 
 CANON_ON = {"enabled": True, "img_w": 512}
@@ -227,3 +230,78 @@ def test_tie_totals_are_printed_per_class_at_fit_end(capsys):
     wrapper.on_fit_end()
     assert capsys.readouterr().out.splitlines() == [
         "canonicalize tie_counts rank0 none=7 same_column=2 cross_column_image=3"]
+
+
+# --------------------------------------------------------------------------- #
+# 13 / 12c. _canonicalize_batch: schema + CPU-float64 contract, operator, counters
+# --------------------------------------------------------------------------- #
+W, H = 16, 8
+TIES = {"none": {}, "same_column": {"peaks": [(1, 5), (6, 5)]},
+        "cross_column_image": {"peaks": [(2, 3), (2, 11)]}}
+
+
+def _canon_md(seed, tie="none", period=None, width=W):
+    g = torch.Generator().manual_seed(1000 + seed)
+    src, ctx = torch.randn(3, generator=g), torch.randn(2, 3, generator=g)
+    return {"depth": _cloud(_scalar_depth(H, width, seed, period=period, **TIES[tie])),
+            "source": src, "source_vit": src[None].clone(), "context_poses": ctx,
+            "context_poses_vit": ctx.clone(), "context_audio": torch.randn(2, 1, 32, generator=g),
+            "padding_mask": torch.ones(64), "scene": f"scene_{seed}", "idx": seed,
+            "path": f"/fake/{seed}.wav"}
+
+
+def _canon_wrapper(training=None):
+    wrapper = _build(canonicalize={"enabled": True, "img_w": W})
+    logged = []
+    wrapper.log = lambda name, value, **kw: logged.append((name, value, kw))
+    if training is not None:
+        wrapper.trainer = types.SimpleNamespace(training=training)
+    return wrapper, logged
+
+
+def _expect_schema_error(metadata, *needles):
+    with pytest.raises(ValueError) as excinfo:
+        _canon_wrapper()[0]._check_canon_metadata(metadata)
+    for needle in ("canonicalize:",) + needles:
+        assert needle in str(excinfo.value), f"{excinfo.value!s} does not name {needle!r}"
+
+
+def _with(field, value, i=1):
+    batch = [_canon_md(0), _canon_md(1)]
+    if value is _MISSING:
+        del batch[i][field]
+    else:
+        batch[i][field] = value
+    return batch
+
+
+@pytest.mark.parametrize("metadata", [None, {}, "metadata", []])
+def test_schema_rejects_a_non_list_or_empty_batch(metadata):
+    _expect_schema_error(metadata)
+
+
+@pytest.mark.parametrize("field, value, needle", [
+    ("depth", _MISSING, "depth"), ("depth", [[0.0] * W], "depth"),
+    ("depth", torch.zeros(3, W, dtype=torch.float64), "depth"),
+    ("depth", torch.zeros(1, H, W, dtype=torch.float64), "depth"),
+    ("depth", torch.zeros(3, H, W, 1, dtype=torch.float64), "depth"),
+    ("depth", _cloud(_scalar_depth(H, 8, 0)), "8 columns"),
+    ("depth", _cloud(_scalar_depth(H, W, 0)).to("meta"), "metadata[1]"),
+    ("depth", _cloud(_scalar_depth(H, W, 0)).float(), "metadata[1]"),
+    ("depth", _cloud(_scalar_depth(H, W, 0)).half(), "float64")]
+    + [(k, v, k) for k in yr.POSE_KEYS for v in (_MISSING, [0.0, 0.0, 0.0], torch.tensor(1.0),
+                                                 torch.zeros(1, 2))])
+def test_schema_rejects_a_malformed_sample(field, value, needle):
+    _expect_schema_error(_with(field, value), needle)
+
+
+def test_schema_rejects_a_sample_that_is_not_a_dict():
+    _expect_schema_error([_canon_md(0), "not-a-dict"], "metadata[1]")
+
+
+@pytest.mark.parametrize("bad", ["cpu_device", "float64"])
+def test_device_and_dtype_errors_name_the_contract(bad):
+    depth = _cloud(_scalar_depth(H, W, 0))
+    depth = depth.to("meta") if bad == "cpu_device" else depth.float()
+    needle = "cpu" if bad == "cpu_device" else "float64"
+    _expect_schema_error(_with("depth", depth, i=0), "metadata[0]", needle)

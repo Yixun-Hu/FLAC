@@ -532,6 +532,66 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                         f"dimension 3, got shape {list(pose.shape)}"
                     )
 
+    def _check_canon_metadata(self, metadata):
+        """exp_25: fail-closed schema validation of one batch before canonicalization.
+
+        The rules of :meth:`_check_yaw_aug_metadata` under the ``canonicalize:``
+        prefix (a non-empty list of dicts; ``depth`` a ``[3, H, W]`` tensor whose
+        width — read from the ACTUAL tensor — equals ``canonicalize_img_w``; all
+        four pose fields present as tensors with trailing dimension 3), plus the
+        round-2 device/dtype contract (plan v7 §2.2): ``depth`` must be the loader's
+        float64 point cloud still on the CPU, as :meth:`transfer_batch_to_device`
+        leaves it. That is the path the operator's bitwise yaw-stability is tested
+        on. The operator itself then enforces its exact pose shapes.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                "canonicalize: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}")
+        if len(metadata) == 0:
+            raise ValueError("canonicalize: metadata is empty; nothing to canonicalize")
+
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"canonicalize: metadata[{i}] must be a dict, got {type(md).__name__}")
+            if "depth" not in md:
+                raise ValueError(f"canonicalize: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}")
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] must have shape [3, H, W], "
+                    f"got {list(depth.shape)}")
+            if depth.shape[2] != self.canonicalize_img_w:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but canonicalize_img_w is {self.canonicalize_img_w}")
+            if depth.device.type != "cpu":
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is on {depth.device}; the "
+                    "treatment runs on the cpu (metadata must not be moved before it)")
+            if depth.dtype != torch.float64:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is {depth.dtype}; the "
+                    "treatment requires the loader's torch.float64 point cloud")
+            for key in POSE_KEYS:
+                if key not in md:
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}] has no {key!r} pose field")
+                pose = md[key]
+                if not torch.is_tensor(pose):
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}][{key!r}] must be a tensor, got "
+                        f"{type(pose).__name__}")
+                if pose.ndim < 1 or pose.shape[-1] != 3:
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}][{key!r}] must have trailing "
+                        f"dimension 3, got shape {list(pose.shape)}")
+
     def _apply_yaw_aug(self, metadata):
         """Rotate each sample's conditioning by its own freshly drawn yaw.
 
