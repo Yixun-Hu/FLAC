@@ -351,3 +351,52 @@
 - **Goal** — Gate round 2 (wrapper hooks, factory parser, transfer contract, arm config) through its review before round 3.
 - **Result** — Coder commits `a08254b`…`9350054` on top of `71670d9`: `src/training/diffusion.py` +177/−0, `src/training/factory.py` +69/−0 (additive incl. the hook insertions — the new kwargs sit before `are_lambda`; every call site passes keywords), new `test_depth_canon_training.py` (546 lines) and `test_depth_canon_arm_config.py`, `FLAC_AR_CANON.json` sha `aba94032…` = BVp1 (`733ca52b…`, unchanged) + the single `training.canonicalize` block. Planner re-run of the 8-file regression subset at `9350054`: **576 passed, 1 xfailed** (golden disabled-path test green). Coder's device-consumer verification: conditioners move poses/depth/audio themselves (`conditioners.py:330`, `274-275`, `163`), padding masks moved in `training_step` (`diffusion.py:788/790`), `test_step` depth-minus-source flows CPU → AGREE `.to(device)`; no consumer failed the check. Open items for the reviewer: tie counts include validation samples (logging training-only); training detection `self._trainer.training`; rank-0-local counts; container type preserved (`list` from the real collate); only `depth` device/dtype-checked; counters logged as float; the ordering test runs a 1-step CPU `pl.Trainer.fit` of the toy inside pytest.
 - **Next** — `depth_canon_codex_code_r2_review.md` → fixes → round 3 (gated on Yixun's A1/A3 for the eval drivers).
+
+## 2026-10-23T18:53:49-04:00 — r2 FIX ROUND F1 (code review r2 BLOCKING): DDP-opaque metadata carrier
+
+- **Goal** — Close `depth_canon_codex_code_r2_review.md` (REQUEST-CHANGES: 1 BLOCKING, 2 NIT) per plan v8 (`1adda49`) and the coordinator's fix list. Fix commits go on top of `1adda49` (child of `a7f8893`); no history rewritten.
+- **Hypothesis** — Under `--strategy ddp_find_unused_parameters_true` on CUDA, Lightning runs the steps through `DistributedDataParallel`, whose forward re-moves the nested metadata after our hook. An object that `_recursive_to` does not descend into survives.
+- **Command / Validation (read-only source + probe)** —
+  - Lightning 2.1: `Strategy.training_step` → `_forward_redirection(self.model, …, "training_step", …)` (`strategies/strategy.py:371ff`). `DDPStrategy.determine_ddp_device_ids` gives `[root_device.index]` on CUDA and `None` on CPU (`strategies/ddp.py:279`).
+  - torch 2.7.0+cu126: `DistributedDataParallel._pre_forward` calls `_to_kwargs(inputs, kwargs, torch.device(device_type, device_ids[0]), use_side_stream_for_tensor_copies)` when `device_ids` is set (`nn/parallel/distributed.py:1535-1540`). The side-stream default is `PYTORCH_DDP_USE_SIDE_STREAM=1` → True (`:812`).
+  - `_to_kwargs` signature: `(inputs: tuple, kwargs: Optional[dict], target_device: torch.device, use_side_stream_for_tensor_copies: bool)` (`distributed/utils.py:254`). It calls `_recursive_to` → `to_map`, which dispatches as:
+    - `torch.Tensor` / `PackedSequence` → `.to(target)` unless already there;
+    - namedtuple (`_is_namedtuple`: a tuple with `_asdict` + `_fields`) → descends;
+    - non-empty `tuple`, `list` → descends (by `isinstance`, so subclasses too);
+    - non-empty `dict` → descends (`type(obj)(...)` rebuilt);
+    - **anything else → `[obj]`, unchanged.** There is no dataclass branch in this version.
+  - Probe with the real `_to_kwargs` on `meta`: the hook's output `[reals, metadata]` comes out with `reals` on meta AND `metadata[0]['depth']` on meta (blocker reproduced). A `__slots__` carrier comes out as the same object, its depth still on the CPU.
+- **Change** — `src/training/diffusion.py`:
+  - Module-level `_CpuMetadataCarrier` (`__slots__ = ("metadata",)`; not a Tensor/list/tuple/dict/namedtuple/dataclass; no `.to`, no `__dict__`).
+  - The enabled pair branch of `transfer_batch_to_device` returns `type(batch)((reals, _CpuMetadataCarrier(batch[1])))`.
+  - `_canonicalize_batch` unwraps a carrier as its first action. Docstrings updated.
+  - Disabled path unchanged: no carrier, verbatim `super()` delegation. Direct-call steps with plain lists behave as before.
+- **Tests** (`src/tests/test_depth_canon_training.py`):
+  - (a) the hook's output through the REAL `_to_kwargs` on `meta`, side stream True and False. `reals` lands on meta; the metadata comes back as the same carrier object, holding the same list and depth objects, still CPU float64. `training_step` with that carrier (CPU reals, neutralised toy step) gives the spy sequence canon → cond; the conditioner receives an ordinary `list`, every sample CPU with `j* = 0`.
+  - The carrier is opaque to both recursive movers: `move_data_to_device([carrier], meta)` and `_to_kwargs` return the identical object.
+  - (c) baseline: the disabled wrapper's batch and a bare `[reals, metadata]` list (the round-2 behaviour) both have every depth/pose tensor moved to meta.
+  - (b) the one CUDA test now passes the hook output through `_to_kwargs` on `cuda:0`, side stream True (DDP default), with tiny tensors: reals on CUDA, carried metadata CPU, `_canonicalize_batch` returns a list; disabled: depth on CUDA; a CUDA depth at index 1 is refused.
+  - The direct-call hook test and the real-fit test now expect the carrier.
+- **Version Control** — `c7771ec` (parent `1adda49`); 100 insertions, 14 deletions (the deletions are this round's own lines: docstring, the return line, updated test expectations). `git diff 71670d9 -- src/training` still has 0 deleted lines.
+- **Result** — `passed`. **Red** (final test file against the parent's `diffusion.py`): 7 failed, 126 passed:
+  - `test_enabled_transfer_moves_reals_only[list|tuple]` (no carrier);
+  - `test_enabled_metadata_survives_the_ddp_input_mover[True|False]` ("DDP moved the metadata");
+  - `test_the_carrier_is_opaque_to_both_recursive_movers` (no class);
+  - the CUDA test (depth on CUDA after the mover);
+  - the real-fit test (no carrier).
+
+  **Green:** 133 passed (CUDA ran); regression subset 581 passed, 1 xfailed. GPUs unchanged after the run.
+- **Analysis** — Real bug (integration), not infrastructure. The round-2 device-consumer audit covered the consumers inside the step, not the DDP wrapper that sits between Lightning's hook and the step. The CPU tests and the CPU single-device `Trainer.fit` cannot see DDP's second move, because DDP has no `device_ids` on CPU. The `_to_kwargs` regression reproduces the exact pinned-torch call; the two-rank smoke must still confirm it under the real strategy + SyncBN (plan v8). Lightning's batch-size extraction treats the carrier as a non-iterable leaf and yields `None`; it is only used for `on_epoch` mean logs, which the step does not emit, and the real-fit test runs through it.
+
+## 2026-10-23T18:56:18-04:00 — r2 FIX ROUND F2 (NIT): operator errors carry the `canonicalize: metadata[i]:` prefix
+
+- **Change** — `_canonicalize_batch` wraps the per-sample `canonicalize_scene_metadata` call: `except ValueError as err: raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err`. `StabilizedTieError` is a `RuntimeError` and is never caught. The post-condition `RuntimeError` is likewise not caught.
+- **Tests** — The old `source_vit` propagation test was replaced by 6 operator-only violations at index 1, which pass the wrapper's schema check and fail the operator's exact contract: `source_vit [3]`, context N mismatch, non-finite source, int64 source, odd H, NaN depth. Each asserts the message starts with `canonicalize: metadata[1]: `, contains the operator's text, and has a `ValueError` as `__cause__`. The periodic-tie test now also pins `type(err) is StabilizedTieError`, a set `__cause__` (the operator's own re-raise), `not issubclass(StabilizedTieError, ValueError)`, and no prefix.
+- **Version Control** — `8f16dfb`; 29 insertions, 5 deletions.
+- **Result** — `passed`. **Red:** 6 failed, all on the `startswith('canonicalize: metadata[1]: ')` assertion; 132 passed (the StabilizedTieError guard already passed). **Green:** 138 passed; regression subset 586 passed, 1 xfailed.
+
+## 2026-10-23T18:58:24-04:00 — r2 FIX ROUND F3 (NIT) + records
+
+- **Change** — `commits_depth_canon.md` rebuilt: exactly one row per SHA, ordered by `git log --reverse 6eb2b5e^..HEAD`. The two `518e03a` rows were merged into one. Added `de6e774`, `9350054`, `a7f8893`, `1adda49`, `c7771ec`, `8f16dfb`. All 34 commits from `6eb2b5e` to `8f16dfb` have a row (script-checked: no missing, extra or duplicate SHA). This records commit cannot list itself; the next ledger update adds it.
+- **Command / Validation** — `cd ~/codespace/exp-25-depth-canon && /home/yixunhu/miniconda3/envs/flac/bin/python -m pytest src/tests/test_depth_canon_training.py src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon.py src/tests/test_yaw_aug_training.py src/tests/test_cond_dispatch.py src/tests/test_yaw_aug_arm_config.py src/tests/test_frame_avg_cap_config.py src/tests/test_are_lambda_config.py -q` → **586 passed, 1 xfailed** (the strict Option-A xfail; golden disabled path green). `py_compile` + `git diff --check` clean.
+- **Next** — Codex re-verification of the fix round (`c7771ec`, `8f16dfb`, this records commit). The two-rank DDP smoke (rung 5) remains the target-path confirmation of F1.
