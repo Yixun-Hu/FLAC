@@ -536,10 +536,41 @@ def test_build_canon_provenance():
 # --------------------------------------------------------------------------- #
 # 21. ScoredWaveformDump (announcement 08) + atomic cell completion (plan §5)
 # --------------------------------------------------------------------------- #
+FILES = ["COMPLETE", "manifest.json", "waveforms.npy", "waveforms.sha256"]
+HASH = "c" * 64
 
 
 def _scored(b, t=16, seed=0):
     return torch.randn(b, 1, t, generator=torch.Generator().manual_seed(seed)).clamp(-1, 1)
+
+
+def _filled(tmp_path, sizes=(3, 2), t=16):
+    dump = eval_FLAC.ScoredWaveformDump(str(tmp_path / "cell"), sum(sizes))
+    batches = [_scored(b, t, seed=i) for i, b in enumerate(sizes)]
+    for fakes in batches:
+        dump.append(fakes)
+    return dump, batches
+
+
+def test_the_dump_is_exactly_the_appended_tensors_in_stream_order(tmp_path):
+    import numpy as np
+    dump, batches = _filled(tmp_path)
+    manifest = dump.finalize(HASH, "ckpt_metrics_1_1.0_cell_canon", {"ckpt_path": "/o/x.ckpt"})
+    arr = np.load(tmp_path / "cell" / "waveforms.npy")
+    assert arr.dtype == np.float32 and arr.shape == (5, 16)
+    assert torch.equal(torch.from_numpy(arr), torch.cat([b[:, 0, :] for b in batches]))
+    assert sorted(p.name for p in (tmp_path / "cell").iterdir()) == FILES
+    assert not list(tmp_path.glob("cell.staging-*"))
+    sha = hashlib.sha256((tmp_path / "cell" / "waveforms.npy").read_bytes()).hexdigest()
+    assert (tmp_path / "cell" / "waveforms.sha256").read_text() == f"{sha}  waveforms.npy\n"
+    on_disk = json.loads((tmp_path / "cell" / "manifest.json").read_text())
+    assert on_disk == manifest
+    assert {k: on_disk[k] for k in ("schema_version", "n", "dtype", "shape", "sha256", "input_hash",
+                                    "metrics_stem", "ckpt_path")} == {
+        "schema_version": 1, "n": 5, "dtype": "float32", "shape": [5, 16], "sha256": sha,
+        "input_hash": HASH, "metrics_stem": "ckpt_metrics_1_1.0_cell_canon", "ckpt_path": "/o/x.ckpt"}
+    assert on_disk["source_sha"] == eval_FLAC.source_sha()
+    assert eval_FLAC.ScoredWaveformDump.is_complete(str(tmp_path / "cell"))
 
 
 def test_append_stores_the_float32_cpu_copy_of_the_scored_tensor(tmp_path):
@@ -567,6 +598,98 @@ def test_the_final_directory_is_checked_before_any_work(tmp_path, setup, needle)
             eval_FLAC.ScoredWaveformDump(str(final), 1)
     with pytest.raises(ValueError, match="dump root"):
         eval_FLAC.ScoredWaveformDump(str(tmp_path / "missing_root" / "cell"), 1)
+
+
+def test_an_empty_final_directory_is_replaced(tmp_path):
+    (tmp_path / "cell").mkdir()
+    dump, _ = _filled(tmp_path)
+    dump.finalize(HASH, "stem")
+    assert eval_FLAC.ScoredWaveformDump.is_complete(str(tmp_path / "cell"))
+
+
+@pytest.mark.parametrize("kw, needle", [
+    (dict(input_hash=None), "input_hash"), (dict(input_hash="C" * 64), "input_hash"),
+    (dict(metrics_stem=""), "metrics_stem"), (dict(extra_meta={"sha256": "x"}), "extra_meta")])
+def test_finalize_argument_contract(tmp_path, kw, needle):
+    dump, _ = _filled(tmp_path)
+    args = dict(input_hash=HASH, metrics_stem="stem", extra_meta=None)
+    args.update(kw)
+    with pytest.raises(ValueError, match=needle):
+        dump.finalize(**args)
+    assert not (tmp_path / "cell").exists() and not list(tmp_path.glob("cell.staging-*"))
+
+
+def test_finalize_refuses_a_short_dump_and_a_final_dir_that_filled_up(tmp_path):
+    dump = eval_FLAC.ScoredWaveformDump(str(tmp_path / "cell"), 6)
+    dump.append(_scored(5))
+    with pytest.raises(ValueError, match="expected 6"):
+        dump.finalize(HASH, "stem")
+    dump, _ = _filled(tmp_path)
+    (tmp_path / "cell").mkdir()
+    (tmp_path / "cell" / "other").write_text("x")
+    with pytest.raises(ValueError, match="not empty"):
+        dump.finalize(HASH, "stem")
+    assert not list(tmp_path.glob("cell.staging-*"))
+
+
+def test_a_crash_at_the_rename_leaves_a_marked_staging_dir_and_no_final_dir(tmp_path, monkeypatch):
+    dump, _ = _filled(tmp_path)
+
+    def crash(*a, **k):
+        raise OSError("simulated crash immediately before the rename")
+
+    monkeypatch.setattr(eval_FLAC.os, "rename", crash)
+    with pytest.raises(OSError, match="simulated"):
+        dump.finalize(HASH, "stem")
+    assert not (tmp_path / "cell").exists()
+    assert sorted(p.name for p in (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}").iterdir()) \
+        == FILES
+    assert not eval_FLAC.ScoredWaveformDump.is_complete(str(tmp_path / "cell"))
+
+
+def test_a_failed_marker_write_leaves_no_marker_and_no_final_dir(tmp_path, monkeypatch):
+    dump, _ = _filled(tmp_path)
+
+    def crash(staging, sha256):
+        raise OSError("simulated crash at the marker write")
+
+    monkeypatch.setattr(eval_FLAC, "_write_complete_marker", crash)
+    with pytest.raises(OSError, match="simulated"):
+        dump.finalize(HASH, "stem")
+    staging = tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}"
+    assert not (tmp_path / "cell").exists() and not (staging / "COMPLETE").exists()
+    assert sorted(p.name for p in staging.iterdir()) == FILES[1:]
+
+
+def test_verification_failure_writes_no_marker(tmp_path, monkeypatch):
+    dump, _ = _filled(tmp_path)
+    real_sha = eval_FLAC._file_sha256
+    calls = []
+
+    def lying_sha(path):                       # the re-hash disagrees with the first hash
+        calls.append(path)
+        return real_sha(path) if len(calls) == 1 else "0" * 64
+
+    monkeypatch.setattr(eval_FLAC, "_file_sha256", lying_sha)
+    with pytest.raises(RuntimeError, match="verif"):
+        dump.finalize(HASH, "stem")
+    assert len(calls) == 2 and not (tmp_path / "cell").exists()
+    assert not (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}" / "COMPLETE").exists()
+
+
+def test_is_complete_requires_the_marker_and_a_parseable_manifest(tmp_path):
+    is_complete = eval_FLAC.ScoredWaveformDump.is_complete
+    assert not is_complete(str(tmp_path / "absent"))
+    d = tmp_path / "d"
+    d.mkdir()
+    (d / "manifest.json").write_text("{}")
+    assert not is_complete(str(d))                       # no marker
+    (d / "COMPLETE").write_text("x")
+    assert is_complete(str(d))
+    (d / "manifest.json").write_text("{not json")
+    assert not is_complete(str(d))                       # marker, broken manifest
+    (d / "manifest.json").write_text("[]")
+    assert not is_complete(str(d))
 
 
 def test_dump_directory_names_are_derived_from_the_metrics_stem_and_injective():

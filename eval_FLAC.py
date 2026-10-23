@@ -8,6 +8,7 @@ import math
 import subprocess
 from typing import List, NamedTuple, Optional
 from tqdm import tqdm
+import numpy as np
 import torch
 import pytorch_lightning as pl
 
@@ -1530,6 +1531,7 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
 
 # exp_25: the scored-waveform dump of announcement 08 (plan v8 §2.2, §5).
 SCORED_DUMP_SCHEMA_VERSION = 1
+SCORED_DUMP_MARKER = "COMPLETE"
 
 
 def scored_waveform_dir(dump_root, metrics_path):
@@ -1537,6 +1539,20 @@ def scored_waveform_dir(dump_root, metrics_path):
     after its metrics stem, so the filename injectivity carries over to the dumps."""
     base = os.path.basename(metrics_path)
     return os.path.join(dump_root, base[:-len('.json')] if base.endswith('.json') else base)
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _write_complete_marker(staging, sha256):
+    """The LAST file written inside the staging directory (plan §5, review r3 H2)."""
+    with open(os.path.join(staging, SCORED_DUMP_MARKER), 'w') as f:
+        f.write(sha256 + '\n')
 
 
 class ScoredWaveformDump:
@@ -1592,6 +1608,59 @@ class ScoredWaveformDump:
         self._t = int(fakes_scored.shape[2])
         self._rows.append(rows)
         return rows
+
+    def finalize(self, input_hash, metrics_stem, extra_meta=None):
+        """Stage -> verify -> ``COMPLETE`` -> atomic rename. Returns the manifest."""
+        if not _is_sha256_hex(input_hash):
+            raise ValueError(f"scored-waveform dump: input_hash must be the stream's sha256 hex "
+                             f"digest, got {input_hash!r}")
+        if not isinstance(metrics_stem, str) or not metrics_stem:
+            raise ValueError(f"scored-waveform dump: metrics_stem must be non-empty, got {metrics_stem!r}")
+        n = sum(int(r.shape[0]) for r in self._rows)
+        manifest = {"schema_version": SCORED_DUMP_SCHEMA_VERSION, "n": n, "dtype": "float32",
+                    "shape": [n, self._t or 0], "sha256": None, "input_hash": input_hash,
+                    "metrics_stem": metrics_stem, "source_sha": source_sha()}
+        clash = sorted(set(extra_meta or {}) & set(manifest))
+        if clash:
+            raise ValueError(f"scored-waveform dump: extra_meta may not override {clash}")
+        if n != self.expected_n:
+            raise ValueError(f"scored-waveform dump: {n} rows appended, expected {self.expected_n}")
+        self._check_final_dir()
+        arr = (torch.cat(self._rows, 0) if self._rows else torch.zeros(0, 0)).numpy()
+        os.mkdir(self.staging_dir)
+        npy = os.path.join(self.staging_dir, "waveforms.npy")
+        np.save(npy, arr, allow_pickle=False)
+        manifest["sha256"] = sha = _file_sha256(npy)
+        manifest.update(extra_meta or {})
+        with open(os.path.join(self.staging_dir, "waveforms.sha256"), 'w') as f:
+            f.write(f"{sha}  waveforms.npy\n")
+        with open(os.path.join(self.staging_dir, "manifest.json"), 'w') as f:
+            json.dump(manifest, f, indent=2)
+        loaded = np.load(npy, allow_pickle=False)
+        with open(os.path.join(self.staging_dir, "manifest.json")) as f:
+            reread = json.load(f)
+        if (loaded.dtype != np.float32 or loaded.shape != (self.expected_n, self._t or 0)
+                or loaded.tobytes() != arr.tobytes() or _file_sha256(npy) != sha
+                or reread != manifest):
+            raise RuntimeError(f"scored-waveform dump: verification of {self.staging_dir!r} "
+                               "failed; no COMPLETE marker written")
+        _write_complete_marker(self.staging_dir, sha)
+        if os.path.isdir(self.final_dir):
+            os.rmdir(self.final_dir)  # empty (checked above): replaced by the complete cell
+        os.rename(self.staging_dir, self.final_dir)
+        return manifest
+
+    @staticmethod
+    def is_complete(final_dir):
+        """True iff ``final_dir`` carries the ``COMPLETE`` marker and a parseable
+        manifest object (the driver's resume predicate; the collector verifies more)."""
+        if not os.path.isfile(os.path.join(final_dir, SCORED_DUMP_MARKER)):
+            return False
+        try:
+            with open(os.path.join(final_dir, "manifest.json")) as f:
+                return isinstance(json.load(f), dict)
+        except (OSError, ValueError):
+            return False
 
 
 # Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
