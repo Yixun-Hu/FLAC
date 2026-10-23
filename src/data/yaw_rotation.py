@@ -812,7 +812,9 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     (relative azimuth ~0 vs ~2pi) may resolve differently after a rotation.
 
     ``source`` (``[3]``) and ``context`` (``[N, 3]``) are validated when given.
-    Every comparison is exact; there is no tolerance anywhere.
+    Every comparison is exact (no comparison tolerance anywhere); the ``1e-6``
+    radius is only the azimuth-degeneracy threshold of
+    :func:`cylindrical_pose_features`.
     """
     P = column_profile(D)
     if not bool(torch.isfinite(D).all()):
