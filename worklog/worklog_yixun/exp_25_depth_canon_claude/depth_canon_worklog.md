@@ -223,3 +223,125 @@
 - **Goal** — Close round 1 and open round 2.
 - **Result** — `depth_canon_codex_code_r1_reverify.md`: BLOCKING pose-key equivariance RESOLVED (proxy-only selection; reviewer's read-only probe: 3,072 returning roll/pose cases + 832 periodic raises incl. column centres, signed zeros at the seam, radii straddling 1e-6, cross-seam ties, odd/even H, all 512 rolls of the real map `Apartments/Apartments_idx_0/0.npy` — no counterexample); HIGH required poses / `pose_keys` RESOLVED; NITs RESOLVED; accepted deviations confirmed; F1/F2a red-by-design commits accepted under tests-first. Remaining REQUEST-CHANGES were plan-text only: round-2 test list lacked transfer-hook/device/dtype/order tests; stale v5 wording. **Plan v7** fixes both (tests 12b/12c; §2.1/§7/§8/§9/§11 wording). Round-1 code is final at `de6e774` (`src/data/yaw_rotation.py` +259/−0 vs `08ac314`).
 - **Next** — Round 2 (Coder, Claude Opus max effort): factory parser + wrapper kwargs/exclusions/banner/`_canonicalize_batch`/three hooks/`transfer_batch_to_device` override + `FLAC_AR_CANON.json` + tests 10–15, 12b/12c, 22. Codex code review r2 afterwards. Rounds 3 and launches still gated on Yixun's A1/A3 (round 3 only).
+
+## 2026-10-23T18:00:58-04:00 — r2 start: reading, device-consumer verification, baseline
+
+- **Goal** — TDD round 2 (Coder, Claude Opus max effort) per plan v7 §2.2 "Training wrapper" + "Factory", §3, §8, §6 tests 10–15, 12b, 12c, 22, in worktree `~/codespace/exp-25-depth-canon` (branch `exp-25-depth-canon`, HEAD at start `71670d9`). Env `flac` read-only, CPU tests plus one tiny optional CUDA test; nothing launched; nothing pushed. Clock note: `date` reads 18:00 EDT here, earlier than the Planner's approximate 19:05 entry above; the timestamps below are real `date`/commit times.
+- **Hypothesis** — Leaving the metadata on the CPU on the treatment path is safe: every consumer of metadata tensors on the three step paths moves them to the device itself.
+- **Command / Validation** — Read-only code inspection, PL 2.1.0 site-packages included. Consumers (file:line at round-2 HEAD):
+  - `src/models/conditioners.py:330` `DistEmbedderConditioner.forward`: `torch.stack(x_input).to(device)` (`source`, `context_poses`).
+  - `src/models/conditioners.py:274-275` `GeometryConditioner.forward`: `c['coord'].float().to(device)` and `c['depth'].float().to(device)` (`source_vit`, `context_poses_vit` and `depth`). The float64→float32 cast now runs on the CPU instead of the GPU; both are IEEE round-to-nearest-even, so the bits are identical.
+  - `src/models/conditioners.py:163` `RIRConditioner.forward`: `torch.stack(audios).to(device)` (`context_audio`). Not in the arm but also moving: `:412` pre-encoded keys `.to(device)` and `:129` `PretransformConditioner` `audio.to(device)`.
+  - `src/training/diffusion.py:788/790` `training_step` padding masks: `torch.stack(...).to(self.device)`.
+  - `src/training/diffusion.py:1072-1073` `test_step` metric geometry: `d[:3] - source[:, None, None]`. Both are CPU, so the subtraction runs on the CPU. The result goes to `update_metrics(..., depth=...)` → `metric_callback.py:324/344` `Retrieval.update` → `Retrieval.py:54` `AGREE.encode_image` → `AGREE/AGREE/hf_model.py:51` `HFImgEncoder.forward`: `x.to(self.model.device)`. The metric AGREE is always `get_model_config('dinoV3')` (`metric_callback.py:446`), i.e. the HF image tower, which `metric_callback.py:280` moves to the metric device. FD / T60 / C50 / EDT read `fakes` / `reals` only, and those are on the device.
+  - `validation_step` reads metadata only through `_compute_conditioning` (`:928`, covered above) and the ARE target. ARE (`src/data/are_anchor.py:663-669`) reads `source`/`time_shift` as Python floats and `line_of_sight(md["depth"], s)` with both on the same (CPU) device, so it is device-agnostic. ARE is not in the CANON arm, and canon + ARE is not excluded by the plan.
+  - `invariant_conditioning` (FA) is unreachable: canon + `fa_invariant` is refused at the factory and at construction.
+  - Lightning: `DataHooks.transfer_batch_to_device` is `move_data_to_device(batch, device)` (`core/hooks.py:583`); `LightningModule` does not override it (MRO: only `DataHooks` defines it). `is_overridden("transfer_batch_to_device")` matters only on IPUs (`configuration_validator.py:124`) and when a DataModule also overrides it (`data_connector.py:376`). `train.py:230` passes dataloaders, with no DataModule. `collation_fn` (`src/data/dataset.py:379`) returns a **list** `[Tensor, tuple(dicts)]`, so the override must accept a list pair.
+  - Baseline, `71670d9`: `pytest test_depth_canon.py test_yaw_aug_training.py test_cond_dispatch.py test_yaw_aug_arm_config.py test_frame_avg_cap_config.py test_are_lambda_config.py -q` → **439 passed, 1 xfailed** (62.6 s).
+- **Result** — `passed`: every consumer moves what it needs, so no STOP condition. GPUs at start: both A6000 ≈ 32.5 / 49.1 GiB used by another user's jobs (pids 294846, 3659396; not ours).
+- **Analysis** — The only consumer that does not call `.to(device)` at its own call site is the `test_step` geometry subtraction. Its two operands share a device on both paths, and its downstream consumer (the AGREE HF tower) moves its input itself.
+- **Next** — cycle 1.
+
+## 2026-10-23T18:07:36-04:00 — r2 cycle 1: `_parse_canonicalize_config` + factory splice (test 10)
+
+- **Goal** — Factory side of plan v7 §2.2.
+- **Change** — `src/training/factory.py` (+69/−0): `CANON_KEYS = ("enabled", "img_w")`; `_parse_canonicalize_config` mirrors `_parse_yaw_aug_config`:
+  - Non-dict block → ValueError. Unknown keys → ValueError, even when disabled.
+  - `enabled` must be a literal bool. Disabled → `{}`.
+  - Exclusions: enabled `yaw_aug` (decided by `_parse_yaw_aug_config` itself, the single definition) → ValueError; `cond_method == "fa_invariant"` → ValueError.
+  - `img_w` required, non-bool int > 0.
+  - Valid → `{"canonicalize_enabled": True, "canonicalize_img_w": int}`.
+  - `canon_kwargs` spliced as the last `**` into the `diffusion_cond` wrapper call; absent → `{}` → the call is unchanged.
+  - New `src/tests/test_depth_canon_training.py` (+130): test 10, including the factory capture (stubbed wrapper) showing absent/disabled ⇒ exactly `PRE_CHANGE_WRAPPER_KWARGS` (imported from the exp_15 test) and enabled ⇒ exactly the two new kwargs.
+- **Version Control** — `a08254b` (parent `71670d9`); 199 changed lines; not pushed.
+- **Result** — `passed`. **Red:** collection `ImportError: cannot import name 'CANON_KEYS' from 'src.training.factory'`. **Green:** 39 passed; regression subset 478 passed, 1 xfailed.
+- **Analysis** — A first draft was 223 lines. Before committing, the tests were compacted by merging parametrizations; no test case was dropped.
+
+## 2026-10-23T18:10:47-04:00 — r2 cycle 2: wrapper kwargs, raw validation, exclusions, banner, fit-end totals (tests 11, 13-print, 14)
+
+- **Change** — `src/training/diffusion.py` (+65/−0):
+  - Import `TIE_CLASSES`. Kwargs `canonicalize_enabled: bool = False` and `canonicalize_img_w: int = 512`, inserted after `yaw_aug_seed` and before `are_lambda`, so the signature diff is additions only. Every call site in the repo uses keywords (checked with grep).
+  - RAW validation after the yaw_aug block: bool must be bool; img_w must be a non-bool int > 0, validated even when disabled, like `yaw_aug_img_w`.
+  - Exclusions: enabled + `yaw_aug_enabled` → ValueError; enabled + `cond_method == "fa_invariant"` → ValueError.
+  - Attributes `canonicalize_enabled`, `canonicalize_img_w`, and `canon_tie_counts = {c: 0 for c in TIE_CLASSES}`.
+  - `@rank_zero_only _print_canonicalize_banner` prints `canonicalize ENABLED img_w=<w> tiebreak=image` with `flush=True`. It is called from `on_fit_start` after the unchanged yaw_aug banner call.
+  - New `on_fit_end` → `@rank_zero_only _print_canonicalize_tie_totals` prints `canonicalize tie_counts rank0 none=N same_column=N cross_column_image=N` (flushed), only when enabled.
+  - Tests (+86).
+- **Version Control** — `5d8b893`; 151 lines.
+- **Result** — `passed`. **Red:** 29 failed (27 × `TypeError: __init__() got an unexpected keyword argument 'canonicalize_enabled'`, 2 × `AttributeError`), 42 passed. **Green:** 71 passed; regression 510 passed, 1 xfailed (the golden `test_disabled_path_matches_golden` included).
+
+## 2026-10-23T18:16:56-04:00 — r2 cycle 3a-i: `_check_canon_metadata` (tests 13-schema, 12c-rejection)
+
+- **Change** — `diffusion.py` (+58/−0): `_check_canon_metadata` repeats every rule of `_check_yaw_aug_metadata` under the `canonicalize:` prefix: list/tuple, non-empty, dicts, `depth` tensor `[3,H,W]`, width read from the ACTUAL tensor and equal to `canonicalize_img_w`, the four `POSE_KEYS` present as tensors with ndim ≥ 1 and trailing dim 3. It adds `depth.device.type == "cpu"` and `depth.dtype == torch.float64`; each raises a ValueError naming `metadata[i]`. `_check_yaw_aug_metadata` is untouched. Tests (+80):
+  - Synthetic fixtures through the real AR_md converter (`test_depth_canon._cloud/_scalar_depth`, imported), `H=8, W=16`, all four poses with the exact operator shapes, tie fixtures `none` / `same_column` / `cross_column_image`.
+  - The non-CPU case uses `depth.to("meta")`, which gives a CPU-only test of device rejection.
+- **Version Control** — `c9ddb92`; 138 lines.
+- **Result** — `passed`. **Red** (tests against the committed `5d8b893` diffusion.py): 32 failed (`AttributeError: … '_check_canon_metadata'`), 71 passed. **Green:** 103 passed; regression 542 passed, 1 xfailed.
+- **Analysis** — Process deviation, disclosed: cycle 3a was first written as one red→green (red 37 failed with `AttributeError: '_canonicalize_batch'`; green 108 passed). At 230 changed lines it exceeded the limit, so it was split into 3a-i and 3a-ii before committing, each with its own genuine red run against its parent commit (round-1 precedent).
+
+## 2026-10-23T18:19:18-04:00 — r2 cycle 3a-ii: `_canonicalize_batch` (tests 13, 12c)
+
+- **Change** — `diffusion.py` (+31/−0):
+  - Import `canonicalize_scene_metadata`. `_canonicalize_batch(metadata)` runs the checks, then calls `canonicalize_scene_metadata(md, self.canonicalize_img_w)` per sample and returns a NEW list.
+  - Tie classes go to a per-batch counter and merge into `self.canon_tie_counts` only after every sample has succeeded. An unknown class raises an explicit `RuntimeError`. `StabilizedTieError` propagates.
+  - When `self._trainer is not None and self._trainer.training` (the training path), it calls `self.log("canon/cross_column_ties" | "canon/same_column_ties", <cumulative>, rank_zero_only=True, on_step=True, on_epoch=False)`.
+- **Tests** (+62/−2), all through `_canonicalize_batch`:
+  - The schema tests now run through it. The operator's exact-shape errors propagate (`source_vit [3]`).
+  - Per-sample output equals `canonicalize_scene_metadata(ref)` (`torch.equal`, depth and all four poses) with `j* == 0`. `context_audio` / `padding_mask` / `scene` / `idx` / `path` pass through by identity, and the input is not mutated. Output is a list even for tuple input.
+  - Counts accumulate across batches. The global python/NumPy/torch RNG digest is unchanged (exp_15 `_rng_digest`).
+  - Logging: cumulative values on the training path; nothing with no Trainer or with `trainer.training == False`, while counts still accumulate.
+  - A periodic panorama raises `StabilizedTieError` with `sample == {"idx": 1, "path": …}` and counts nothing.
+- **Version Control** — `4ccf54b`; 93 insertions, 2 deletions, both test-helper lines of this round.
+- **Result** — `passed`. **Red:** 37 failed (`AttributeError: … '_canonicalize_batch'`), 71 passed. **Green:** 108 passed; regression 547 passed, 1 xfailed.
+
+## 2026-10-23T18:21:50-04:00 — r2 cycle 3b: three-site hook (test 12)
+
+- **Change** — `diffusion.py` (+9/−0): `if self.canonicalize_enabled: metadata = self._canonicalize_batch(metadata)` is the first statement after `reals, metadata = batch` in `training_step` (before the exp_15 yaw_aug hook), `validation_step`, and `test_step`. Tests (+60/−1): a recording spy on `_canonicalize_batch` / `_compute_conditioning`, with DiT, sampler and metric sink neutralized via `test_cond_dispatch._neutralize_for_steps`.
+  - Per step, the call order is exactly `canon → cond`. The batch's own list goes in, and the conditioner receives exactly the returned list, every sample at `j* = 0`.
+  - Disabled → never called, and the conditioner receives the batch list itself.
+  - Order relative to the yaw_aug hook (flag flipped on the built object, a state unreachable through construction): `canon → yaw → cond`.
+- **Version Control** — `1b43d34`; 69 insertions, 1 deletion (an import line in the test).
+- **Result** — `passed`. **Red:** 4 failed (`['cond'] != ['canon','canon_out','cond']` ×3, yaw first ×1), 111 passed. **Green:** 115 passed; regression 554 passed, 1 xfailed (golden green).
+
+## 2026-10-23T18:29:12-04:00 — r2 cycle 4: `transfer_batch_to_device` override (tests 12b, 12c, CUDA optional)
+
+- **Change** — `diffusion.py` (+23/−1, the −1 is the cycle-3a-ii `self.log` line, now `float(...)`):
+  - `transfer_batch_to_device(self, batch, device, dataloader_idx)`: disabled → `return super().transfer_batch_to_device(batch, device, dataloader_idx)`.
+  - Enabled, and the batch is exactly a `list` or `tuple` of length 2 with a tensor first and a list/tuple second (the loader's `collation_fn` pair): `reals` goes through `super().transfer_batch_to_device(reals, …)`, and `type(batch)((reals_moved, batch[1]))` is returned. The metadata container is the same object and the container type is preserved, as `move_data_to_device` does.
+  - Any other shape → the parent.
+  - Counters are logged as `float`. A real fit showed Lightning warning that int values are converted to float32; counts are exact below 2^24.
+- **Tests** (+123):
+  - 12b on CPU with `torch.device("meta")` as the target, so a move is observable without an accelerator. A spy on `pytorch_lightning.core.hooks.move_data_to_device` shows the enabled pair calls it once, with `reals` only; the result's `[1] is metadata`, and the depth objects are identical, still CPU float64.
+  - A spy on `DataHooks.transfer_batch_to_device` shows that 4 other batch shapes (enabled) and all 5 shapes (disabled) delegate once with the full batch and index. The output matches `move_data_to_device(batch, meta)` structurally (types, devices, dtypes, shapes, non-tensor values).
+  - Optional CUDA test (skipif no CUDA; a few KB on `cuda:0`; `empty_cache` in `finally`): enabled → reals on CUDA, metadata CPU, `_canonicalize_batch` accepts it; disabled → depth on CUDA; a CUDA depth at index 1 → ValueError naming `metadata[1]`.
+  - 12c order: a real 1-step CPU `pl.Trainer.fit` of the forward-consistent toy model (`test_yaw_aug_training._base_config`, flash-attn neutralized), fed through the loader's `collation_fn`, with the three hooks spied. It checks:
+    - the sequence is exactly `transfer → canon → cond`;
+    - canon receives the very object transfer returned, CPU float64;
+    - the banner prints once and `canonicalize tie_counts rank0 none=0 same_column=1 cross_column_image=1` prints at fit end;
+    - `trainer.callback_metrics` holds both counters (1.0).
+- **Version Control** — `3a60e9c`; 146 insertions, 1 deletion.
+- **Result** — `passed`. **Red:** 3 failed (enabled transfer moved the whole batch: `move_data_to_device` called with the full list/tuple ×2; CUDA metadata moved ×1), 125 passed. **Green:** 128 passed (CUDA test ran); regression 567 passed, 1 xfailed. GPU usage unchanged after the run (32479 / 32650 MiB, other user's jobs).
+- **Analysis** — The real-fit order test already passed at the parent commit: a CPU→CPU transfer is the identity, so on CPU it cannot tell the override from the default. It guards the integration (real Lightning call order, `self.log` arguments accepted in a real `training_step`, banner, fit-end totals). The device split itself is red-proven by the `meta` and CUDA tests. The other-shape delegation tests also pass without the override; they guard against the override over-reaching. This test is a one-step toy CPU fit inside pytest (no data, no checkpoints, no logger), not a training launch.
+
+## 2026-10-23T18:33:09-04:00 — r2 cycle 5a/5b: arm config `FLAC_AR_CANON.json` (test 22)
+
+- **Change** — 5a `aab5164`: new `src/tests/test_depth_canon_arm_config.py` (+155), red by design. 5b `e72142c`: `worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json` (+200), built programmatically as the control's bytes (`FLAC_AR_BVp1.json`, sha `733ca52b…`, verified before and after, never written) + `b',\n        "canonicalize": {\n            "enabled": true,\n            "img_w": 512\n        }'` before the trailer `b'\n    }\n}'`. Arm sha256 `aba94032b1e33d05d8cf5d2d188f320f70e2915bde18b8f0be7813b6b9336626`, 6451 bytes; no trailing newline, like the control; gradient checkpointing true on both ViT conditioners; no `cond_method`, no `yaw_aug`.
+- **Test 22 checks** — Control sha pin. Forward-constructed byte equality. CRLF non-vacuity. Type-strict parsed equality including key order (`json.loads(arm)` == `json.loads(control)` + the block as the last `training` key), with a non-vacuity guard (int `0` vs float `0.0`). `cond_method` / `yaw_aug` absent, `use_ema` true, grad-ckpt true ×2 (ids `source_vit`, `context_poses_vit`). `img_w == 512 ==` both ViT `img_w`: one checker plus mutation guards from either side. `_parse_canonicalize_config(arm) ==` the enabled kwargs, control → `{}`, and the yaw_aug / frame-avg / ARE parsers → `{}` on the arm. The real factory with a stubbed wrapper passes exactly `PRE_CHANGE_WRAPPER_KWARGS ∪ {canonicalize_enabled, canonicalize_img_w}`, with `cond_method == "vanilla"`.
+- **Result** — `passed`. **Red (5a):** 6 errors (`arm config not found`), 3 passed. **Green (5b):** 9 passed. One-off mutation check (the arm file mutated in place and restored; sha re-verified `aba94032…`): grad-ckpt false → 3 failed; `canonicalize.img_w` 256 → 5 failed; CRLF → 1 failed; an extra `training` key → 2 failed. JSON parses.
+- **Analysis** — Process deviation, disclosed: first committed as one commit (`7b86e32`, 355 lines), then split, while still local and unpushed, into 5a (test, red by design) and 5b (config) to respect the per-commit rule. 5b is 200 lines because the file is a fixed-format byte copy (195 control lines + 5 inserted); its length is set by the contract.
+
+## 2026-10-23T18:40:00-04:00 — r2 round summary (Coder)
+
+- **Result** — `fix_ready` for Codex code review r2. Commits `a08254b` `5d8b893` `c9ddb92` `4ccf54b` `1b43d34` `3a60e9c` `aab5164` `e72142c` (+ this records commit). `git diff 71670d9 -- src/training`: +246 / **−0** (diffusion.py +177, factory.py +69). It touches only the import list, the signature (new kwargs before `are_lambda`), new constructor block / methods, two added lines in `on_fit_start`, the three hook insertions, and the `canon_kwargs` parse + splice. `py_compile` + `git diff --check` clean.
+- **Command / Validation** — `cd ~/codespace/exp-25-depth-canon && /home/yixunhu/miniconda3/envs/flac/bin/python -m pytest src/tests/test_depth_canon_training.py src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon.py src/tests/test_yaw_aug_training.py src/tests/test_cond_dispatch.py src/tests/test_yaw_aug_arm_config.py src/tests/test_frame_avg_cap_config.py src/tests/test_are_lambda_config.py -q` → **576 passed, 1 xfailed** (62 s; new files 128 + 9; golden disabled path green). Broader sweep `test_eval_paths.py test_yaw_random_eval.py test_yaw_symmetry.py test_finetune_cond.py test_invariant_conditioning.py test_train_max_steps.py test_train_sync_batchnorm.py` → 300 passed.
+- **Deviations / open questions for the reviewer** —
+  1. **`canon_tie_counts` counts every canonicalized sample on the rank, validation included.** The plan puts accumulation unconditionally in `_canonicalize_batch` and gates only the logging, so the logged "cumulative" counters and the fit-end totals include the samples of the per-epoch validation runs during fit. A per-stage split would change the attribute's shape, so it was not done without a decision.
+  2. **Training-path detection** is `self._trainer is not None and self._trainer.training`. This keeps the hook statement literal (`self._canonicalize_batch(metadata)`, no stage argument) and is False during Lightning's validation / test loops.
+  3. **Counters are rank 0's own counts** (`rank_zero_only=True`, not all-reduced), labelled `rank0` in the fit-end line.
+  4. **The transfer override returns `type(batch)(...)`**, preserving the container type: a list from `collation_fn`, where the plan wrote `(reals, metadata)`. Pair detection requires the exact `list` / `tuple` type, so namedtuples go to the parent.
+  5. **Only `depth` is checked for CPU / float64**, as specified. Poses travel with it through the same transfer path; they are not separately device-checked.
+  6. **PL `test_step` retrieval-to-geometry metric.** Under canonicalization it is computed against the canonical-frame depth, because the hook runs before the metric's `depth_list`. That matters only for `eval_pl.py`; the registered evaluator is `eval_FLAC.py` (round 3).
+  7. **Logged values are `float`**, to avoid Lightning's int→float32 warning.
+  8. **Process.** Two over-limit drafts were split before committing (3a → 3a-i/3a-ii) or while still unpushed (5 → 5a/5b). 5b is 200 lines of fixed-format config.
+  9. **Ledger gap.** `commits_depth_canon.md` has no rows for `de6e774`, `be7c1d0`, `71670d9` (round-1 records, plan v6, plan v7). They were left for the Planner.
+- **Next** — Codex code review r2 (`depth_canon_codex_code_r2_review.md`); round 3 stays gated on Yixun's A1/A3.

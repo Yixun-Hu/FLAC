@@ -22,3 +22,11 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `6cad8a6` | Coder r1 fix | F4: `StabilizedTieError` carries the loader sample identifier (`idx`/`path`/`relpath`), picklable |
 | `f734c67` | Coder r1 fix | F5: planning probe asserts map count + float64; read-only re-run reproduces every recorded number |
 | `054b986` | Coder r1 fix | F6: docstrings — hash formula names the `+ 0.0`; re-wrap a long line |
+| `a08254b` | Coder r2 | cycle 1: `_parse_canonicalize_config` (`CANON_KEYS`; fail-closed; yaw_aug / fa_invariant exclusions) + `**canon_kwargs` splice into the `diffusion_cond` wrapper call (test 10) |
+| `5d8b893` | Coder r2 | cycle 2: wrapper `canonicalize_enabled` / `canonicalize_img_w` raw validation + exclusions, `canon_tie_counts`, rank-0 banner `canonicalize ENABLED img_w=<w> tiebreak=image`, `on_fit_end` tie totals (tests 11, 13, 14) |
+| `c9ddb92` | Coder r2 | cycle 3a-i: `_check_canon_metadata` — yaw_aug schema rules under `canonicalize:` + depth CPU / float64 contract (tests 13, 12c) |
+| `4ccf54b` | Coder r2 | cycle 3a-ii: `_canonicalize_batch` — per-sample operator, atomic tie counters, training-path `self.log`, `StabilizedTieError` propagates (tests 13, 12c) |
+| `1b43d34` | Coder r2 | cycle 3b: canonicalization hook first in `training_step` / `validation_step` / `test_step` (test 12) |
+| `3a60e9c` | Coder r2 | cycle 4: `transfer_batch_to_device` override — metadata left on the CPU when enabled, parent otherwise; meta-device + CUDA + real-fit order tests (12b, 12c) |
+| `aab5164` | Coder r2 | cycle 5a (red by design): arm-config contract test 22 |
+| `e72142c` | Coder r2 | cycle 5b: `FLAC_AR_CANON.json` = `FLAC_AR_BVp1.json` bytes + `training.canonicalize {enabled: true, img_w: 512}` (sha `aba94032…`) |
