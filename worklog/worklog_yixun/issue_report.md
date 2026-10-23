@@ -13,6 +13,12 @@ Updated at every session handoff/compaction (CLAUDE.md protocol). Closed items m
 2. **~~Cross-machine metrics consolidation~~ → DELEGATED (Yixun 2026-08-10):** another agent on the cluster will commit/update the model JSONs. Once its raws land, `gen_model_comparison.py` regenerates cleanly on this box (the row-regression guard will stop objecting). No action needed here beyond re-running the generator afterwards.
 3. **~~exp_11 recipe decision~~ → CLOSED (Yixun 2026-08-10):** another agent finished exp_11. **This box does not track or drive cluster work.**
 
+## exp_25 depth_canon (2026-10-23) — awaiting Yixun / caveats
+- **A1** — YAW one-pin re-measurement (exp_17's raw five-seed JSONs no longer exist on this box or the NAS; only the branch's md tables) — Planner recommends yes (38 cells ≈ 4 h). **A3** — scored-waveform dumps for all 230 cells ≈ 60 GB on the NAS (announcement 08) vs endpoint-only ≈ 29 GB.
+- Caveat: `model_comparison.md`'s "yaw-aug vanilla YAWAUG @40k (exp_15)" row is the neuronic 8×L40 arm (10.067/8.503), NOT the paper's A6000 Yaw-Aug row (9.397/7.965) — never use it as the exp_25 comparator; the generator gets a YAW-pin row from the re-measurement.
+- Caveat: ≈ 3.75 % of AR depth panoramas have exact depth ties at the maximum in different columns (mirror pixels of a flat far wall, up to 80° apart) — the literal argmax-first canonicalization would not be rotation-invariant; the equivariant rule (plan §2.1) handles it; truly periodic panoramas would trip a fail-closed gate (expected none; audited before FULL).
+- Caveat: the recipe-valid SMOKE needs both GPUs (2-rank SyncBN); D2's "smoke on GPU 0 once seed 0 exits" is honoured as a one-GPU non-recipe import/forward pre-check only.
+
 ## Open issues / caveats (technical)
 
 
