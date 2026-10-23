@@ -128,8 +128,16 @@ def test_column_profile_rejects_non_proxy_input(bad):
 # --------------------------------------------------------------------------- #
 # fixtures for the selector: name -> (H, W, _scalar_depth kwargs, source, context, class)
 # --------------------------------------------------------------------------- #
+def _pol(r, az, z):
+    return (r * math.cos(az), r * math.sin(az), z)
+
+
 _SRC = (1.3, -0.7, 0.2)                          # generic target source
 _CTX = ((0.9, 1.1, -0.3), (-1.2, 0.4, 0.1))      # generic context rows
+_DEG_SRC = (0.0, 0.0, 0.4)                       # on the rotation (z) axis: azimuth undefined
+_DEG_CTX = ((0.0, 0.0, 0.5), (1e-8, 0.0, -0.2))  # every context row degenerate (r < 1e-6)
+_PHI = 0.7                                       # half-turn-symmetric context pairs: PHI, PHI + pi
+_EPS = 1e-3
 FIXTURES = {
     "unique": (256, 512, dict(seed=10, peaks=[(37, 100)]), _SRC, _CTX, "none"),
     "same_column": (256, 512, dict(seed=11, peaks=[(20, 300), (200, 300)]), _SRC, _CTX,
@@ -151,7 +159,55 @@ FIXTURES = {
                            "cross_column_image"),
     "small_row_tie_sep16": (16, 32, dict(seed=24, peaks=[(6, 20), (6, 4)]), _SRC, _CTX,
                             "cross_column_image"),
+    # exactly periodic images (period W/2 and W/4): the source key decides
+    "p256_src_generic": (256, 512, dict(seed=40, period=256, peaks=[(60, 30)]), _SRC, _CTX,
+                         "cross_column_source"),
+    "p128_src_plus_pi": (256, 512, dict(seed=41, period=128, peaks=[(61, 5)]),
+                         (-1.5, 0.0, 0.3), _CTX, "cross_column_source"),
+    "p128_src_minus_pi": (256, 512, dict(seed=42, period=128, peaks=[(62, 127)]),
+                          (-1.5, -0.0, 0.3), _CTX, "cross_column_source"),
+    "p256_src_pi_minus_eps": (256, 512, dict(seed=43, period=256, peaks=[(63, 255)]),
+                              _pol(1.5, math.pi - _EPS, 0.3), _CTX, "cross_column_source"),
+    "p256_src_minus_pi_plus_eps": (256, 512, dict(seed=44, period=256, peaks=[(64, 128)]),
+                                   _pol(1.5, -math.pi + _EPS, 0.3), _CTX, "cross_column_source"),
+    "p128_src_zero": (256, 512, dict(seed=45, period=128, peaks=[(65, 64)]), (1.5, 0.0, 0.3),
+                      _CTX, "cross_column_source"),
+    "small_p16_src_plus_pi": (16, 32, dict(seed=46, period=16, peaks=[(5, 2)]),
+                              (-1.5, 0.0, 0.3), _CTX, "cross_column_source"),
+    "small_p8_src_minus_pi": (16, 32, dict(seed=47, period=8, peaks=[(5, 7)]),
+                              (-1.5, -0.0, 0.3), _CTX, "cross_column_source"),
+    "small_p16_src_pi_minus_eps": (16, 32, dict(seed=48, period=16, peaks=[(6, 0)]),
+                                   _pol(1.5, math.pi - _EPS, 0.3), _CTX, "cross_column_source"),
+    "small_p8_src_zero": (16, 32, dict(seed=49, period=8, peaks=[(7, 3)]), (1.5, 0.0, 0.3),
+                          _CTX, "cross_column_source"),
+    # periodic image + degenerate source: the ORDERED context key decides
+    "p256_ctx_r_only": (256, 512, dict(seed=50, period=256, peaks=[(70, 100)]), _DEG_SRC,
+                        (_pol(1.0, _PHI, 0.3), _pol(2.0, _PHI + math.pi, 0.3)),
+                        "cross_column_context"),
+    "p256_ctx_z_only": (256, 512, dict(seed=51, period=256, peaks=[(71, 101)]), _DEG_SRC,
+                        (_pol(1.0, _PHI, 0.3), _pol(1.0, _PHI + math.pi, -0.4)),
+                        "cross_column_context"),
+    "p256_ctx_az_only": (256, 512, dict(seed=52, period=256, peaks=[(72, 102)]), _DEG_SRC,
+                         (_pol(1.0, _PHI, 0.3), _pol(1.0, _PHI + math.pi, 0.3)),
+                         "cross_column_context"),
+    "p128_ctx_first_row_degenerate": (256, 512, dict(seed=53, period=128, peaks=[(73, 64)]),
+                                      _DEG_SRC, ((0.0, 0.0, 0.5), _pol(1.2, -2.0, -0.1)),
+                                      "cross_column_context"),
+    "small_p8_ctx_generic": (16, 32, dict(seed=54, period=8, peaks=[(3, 1)]), _DEG_SRC, _CTX,
+                             "cross_column_context"),
+    "small_p16_ctx_az_only": (16, 32, dict(seed=55, period=16, peaks=[(4, 9)]), _DEG_SRC,
+                              (_pol(1.0, _PHI, 0.3), _pol(1.0, _PHI + math.pi, 0.3)),
+                              "cross_column_context"),
+    # periodic image + degenerate source + identical ordered contexts: fail closed (C-4)
+    "p256_stabilized": (256, 512, dict(seed=60, period=256, peaks=[(80, 200)]), _DEG_SRC,
+                        _DEG_CTX, "stabilized"),
+    "small_p8_stabilized": (16, 32, dict(seed=61, period=8, peaks=[(2, 6)]), _DEG_SRC,
+                            _DEG_CTX, "stabilized"),
 }
+
+
+def _names(*classes):
+    return [n for n, f in FIXTURES.items() if f[5] in classes]
 
 
 def _md(d, source=_SRC, context=_CTX):
@@ -242,7 +298,7 @@ def test_canonical_column_rejects_contract_violations(args):
 # --------------------------------------------------------------------------- #
 # 4. exhaustive selector equivariance (non-stabilized fixtures, ALL rolls)
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("name", list(FIXTURES))
+@pytest.mark.parametrize("name", [n for n in FIXTURES if FIXTURES[n][5] != "stabilized"])
 def test_selector_is_equivariant_for_every_roll(name):
     _, md, cls = _fixture(name)
     W = md["depth"].shape[-1]
@@ -278,3 +334,62 @@ def test_raw_and_proxy_agree_on_candidates_and_selection(name):
     D = yr.recover_depth_proxy(md["depth"])
     assert _max_columns(d) == _max_columns(D)
     assert _outcome(md, d) == _outcome(md, D)
+
+
+# --------------------------------------------------------------------------- #
+# 3./4. pose keys on exactly periodic images (C-2 source, C-3 ordered context, C-4)
+# --------------------------------------------------------------------------- #
+def _rel(p, c, W):
+    """Oracle relative azimuth (Python math); +inf for an azimuth-degenerate pose."""
+    x, y = float(p[0]), float(p[1])
+    if math.hypot(x, y) < 1e-6:
+        return math.inf
+    return (math.atan2(y, x) - ((c + 0.5) * 2.0 * math.pi / W - math.pi)) % (2.0 * math.pi)
+
+
+def _oracle_pose_winners(md, cands, W):
+    """C-2 then C-3 as one lexicographic tuple (a degenerate source is +inf everywhere)."""
+    def key(c):
+        ctx = tuple((math.hypot(float(p[0]), float(p[1])), float(p[2]), _rel(p, c, W))
+                    for p in md["context_poses"])
+        return _rel(md["source"], c, W), ctx
+    keys = {c: key(c) for c in cands}
+    return [c for c in cands if keys[c] == min(keys.values())]
+
+
+@pytest.mark.parametrize("name", _names("cross_column_source", "cross_column_context"))
+def test_canonical_column_pose_key_classes(name):
+    H, W, kw, _, _, cls = FIXTURES[name]
+    _, md, _ = _fixture(name)
+    D = yr.recover_depth_proxy(md["depth"])
+    cands = _max_columns(D)
+    assert len(cands) == W // kw["period"] and _oracle_image_winners(D, cands) == cands
+    # fixture validity: no deciding azimuth sits within round-off of a candidate centre
+    rels = [_rel(p, c, W) for p in [md["source"], *md["context_poses"]] for c in cands]
+    assert all(r == math.inf or 1e-4 < r < 2.0 * math.pi - 1e-4 for r in rels)
+    j, tie_class = _select(md)
+    assert tie_class == cls and [j] == _oracle_pose_winners(md, cands, W)
+
+
+@pytest.mark.parametrize("name", ["p256_ctx_r_only", "p256_ctx_z_only", "p256_ctx_az_only"])
+def test_ordered_context_key_separates_what_an_azimuth_multiset_cannot(name):
+    """Plan-review r2 B1: these context sets are half-turn symmetric in azimuth, so the
+    v2 sorted multiset of relative azimuths ties at both candidates; the ordered,
+    pair-preserving (r, z, azimuth) row key does not."""
+    _, md, _ = _fixture(name)
+    c0, c1 = _max_columns(yr.recover_depth_proxy(md["depth"]))
+    multisets = [sorted(_rel(p, c, 512) for p in md["context_poses"]) for c in (c0, c1)]
+    assert multisets[0] == pytest.approx(multisets[1], abs=1e-6)
+    assert _select(md)[1] == "cross_column_context"
+
+
+@pytest.mark.parametrize("name", _names("stabilized"))
+def test_stabilized_input_fails_closed_for_every_roll(name):
+    _, md, _ = _fixture(name)
+    W = md["depth"].shape[-1]
+    cands0 = _max_columns(yr.recover_depth_proxy(md["depth"]))
+    assert len(cands0) > 1
+    for d in range(W):
+        with pytest.raises(yr.StabilizedTieError) as info:
+            _select(_roll(md, d, W))
+        assert info.value.candidates == tuple(sorted((c + d) % W for c in cands0))

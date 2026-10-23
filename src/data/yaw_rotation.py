@@ -756,6 +756,30 @@ def _image_key_survivors(D: torch.Tensor, cands: List[int]) -> List[int]:
     return best
 
 
+# Radius below which a pose's azimuth is undefined (as in cylindrical_pose_features).
+_AZIMUTH_EPS: float = 1e-6
+
+
+def _relative_pose_keys(poses: torch.Tensor, c: int, W: int) -> List[Tuple[float, float, float]]:
+    """Per pose row, in ORIGINAL row order: ``(r, z, (atan2(y, x) - theta_c) mod 2pi)``
+    in float64 with ``theta_c = (c + 0.5) * 2pi / W - pi`` (column ``c``'s centre
+    azimuth); the azimuth is ``+inf`` when ``r < 1e-6``. The wrap is taken on the
+    DIFFERENCE, so atan2's +-pi branch cut never enters a comparison."""
+    p = poses.detach().to(device="cpu", dtype=torch.float64).reshape(-1, 3)
+    r = torch.hypot(p[:, 0], p[:, 1])
+    theta_c = (c + 0.5) * 2.0 * math.pi / W - math.pi
+    rel = torch.remainder(torch.atan2(p[:, 1], p[:, 0]) - theta_c, 2.0 * math.pi)
+    rel = torch.where(r < _AZIMUTH_EPS, torch.full_like(rel, math.inf), rel)
+    return list(zip(r.tolist(), p[:, 2].tolist(), rel.tolist()))
+
+
+def _min_key_survivors(cands: List[int], key) -> List[int]:
+    """The candidates whose ``key(c)`` is the (exact) minimum."""
+    keys = {c: key(c) for c in cands}
+    best = min(keys.values())
+    return [c for c in cands if keys[c] == best]
+
+
 def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, str]:
     """
     The canonical ("deepest") column ``j*`` of an ``[H, W]`` depth proxy, with its
@@ -768,8 +792,21 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     read from each candidate's anchor, so the choice co-rotates with the panorama:
 
     1. the full rooted image (largest wins) -> ``"cross_column_image"``;
+    2. the target source's relative azimuth ``(atan2(y, x) - theta_c) mod 2pi``,
+       ``theta_c = (c + 0.5) * 2pi / W - pi`` (smallest wins; skipped when the
+       source radius is ``< 1e-6``) -> ``"cross_column_source"``;
+    3. the ORDERED, pair-preserving context key: for each context row in its
+       original order the tuple ``(r_i, z_i, relative azimuth_i)`` (azimuth
+       ``+inf`` when ``r_i < 1e-6``), compared lexicographically over the rows
+       (smallest wins) -> ``"cross_column_context"``. Rows are never permuted,
+       so the pairing with the untouched ``context_audio`` rows is preserved;
 
-    and otherwise the selector fails closed with :class:`StabilizedTieError`.
+    and otherwise (exactly periodic proxy, degenerate source, identical ordered
+    contexts) the selector fails closed with :class:`StabilizedTieError`.
+    Keys 2-3 are reached only on an exactly periodic proxy. There the selector
+    has the measure-zero discontinuity every canonicalizer has: a deciding pose
+    within float32 rotation round-off (~1e-7 rad) of a candidate's column centre
+    (relative azimuth ~0 vs ~2pi) may resolve differently after a rotation.
 
     ``source`` (``[3]``) and ``context`` (``[N, 3]``) are validated when given.
     Every comparison is exact; there is no tolerance anywhere.
@@ -789,4 +826,14 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     cands = _image_key_survivors(D, cands)
     if len(cands) == 1:
         return int(cands[0]), "cross_column_image"
+    W = int(D.shape[1])
+    # source radius is anchor-independent: +inf at one anchor <=> degenerate source
+    if source is not None and _relative_pose_keys(source, 0, W)[0][2] < math.inf:
+        cands = _min_key_survivors(cands, lambda c: _relative_pose_keys(source, c, W)[0][2])
+        if len(cands) == 1:
+            return int(cands[0]), "cross_column_source"
+    if context is not None and int(context.shape[0]) > 0:
+        cands = _min_key_survivors(cands, lambda c: _relative_pose_keys(context, c, W))
+        if len(cands) == 1:
+            return int(cands[0]), "cross_column_context"
     raise StabilizedTieError(cands)
