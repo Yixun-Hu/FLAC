@@ -386,3 +386,122 @@ def test_canon_record_refuses_a_shift_outside_the_grid():
         eval_FLAC.build_canon_record(stream, 4)
     with pytest.raises(ValueError, match="img_w"):
         eval_FLAC.build_canon_record(stream, True)
+
+
+# --------------------------------------------------------------------------- #
+# 19. prepare_eval_metadata (rotation -> canonicalization) + build_canon_provenance
+# --------------------------------------------------------------------------- #
+FIXED0 = eval_FLAC.resolve_rotation_plan("fixed", 0.0, None)
+FIXED90 = eval_FLAC.resolve_rotation_plan("fixed", 90.0, None)   # 8 columns of 32
+RANDOM7 = eval_FLAC.resolve_rotation_plan("random", 0.0, 7)
+
+
+def _prepare(batch, plan=FIXED0, stream=None, canon_stream=None, canonicalize=True, seed=7):
+    gen = torch.Generator().manual_seed(seed) if plan.is_random else None
+    if plan.is_random and stream is None:
+        stream = eval_FLAC.RotationStream()
+    if canonicalize and canon_stream is None:
+        canon_stream = eval_FLAC.CanonStream()
+    out = eval_FLAC.prepare_eval_metadata(batch, plan, gen, stream, canonicalize, W16, canon_stream)
+    return out, stream, canon_stream
+
+
+@pytest.mark.parametrize("plan", [FIXED0, FIXED90, RANDOM7], ids=["z", "rot90", "random"])
+def test_rotation_runs_first_then_each_sample_is_canonicalized(plan, monkeypatch):
+    calls, rotated_out = [], []
+    real_rot, real_canon = eval_FLAC.apply_rotation_plan, eval_FLAC.canonicalize_scene_metadata
+
+    def rot_spy(*a, **k):
+        calls.append("rotate")
+        rotated_out.extend(real_rot(*a, **k))
+        return list(rotated_out)
+
+    def canon_spy(md, img_w):
+        calls.append("canon")
+        assert md is rotated_out[calls.count("canon") - 1] and img_w == W16
+        return real_canon(md, img_w)
+
+    monkeypatch.setattr(eval_FLAC, "apply_rotation_plan", rot_spy)
+    monkeypatch.setattr(eval_FLAC, "canonicalize_scene_metadata", canon_spy)
+    batch = _batch()
+    before = copy.deepcopy(batch)
+    out, _, canon = _prepare(batch, plan)
+    assert calls == ["rotate"] + ["canon"] * 5
+    for md_in, md_out, row in zip(rotated_out, out, canon.position_tuples()):
+        want, dj, tie_class = real_canon(md_in, W16)
+        assert row[2:4] == [dj, tie_class]
+        assert yr.canonical_column(yr.recover_depth_proxy(md_out["depth"]))[0] == 0
+        for key in want:
+            assert torch.equal(want[key], md_out[key]) if torch.is_tensor(want[key]) \
+                else want[key] == md_out[key]
+    for md, ref in zip(batch, before):                 # the loader's dicts are not mutated
+        assert all(torch.equal(md[k], ref[k]) if torch.is_tensor(ref[k]) else md[k] == ref[k]
+                   for k in ref)
+
+
+def test_disabled_is_the_rotation_alone():
+    batch = _batch()
+    out, _, canon = _prepare(batch, FIXED0, canonicalize=False)
+    assert out is batch and canon is None
+    out90, _, _ = _prepare(batch, FIXED90, canonicalize=False)
+    want = eval_FLAC.apply_rotation_plan(batch, FIXED90)
+    assert all(torch.equal(a["depth"], b["depth"]) for a, b in zip(out90, want))
+
+
+@pytest.mark.parametrize("plan", [FIXED90, RANDOM7], ids=["rot90", "random"])
+def test_canonical_depth_hashes_match_the_unrotated_cell(plan):
+    _, _, base = _prepare(_batch(), FIXED0)
+    _, rot_stream, rolled = _prepare(_batch(), plan, stream=eval_FLAC.RotationStream())
+    assert [r[4] for r in base.position_tuples()] == [r[4] for r in rolled.position_tuples()]
+    assert base.tie_counts() == rolled.tie_counts() == {"none": 2, "same_column": 1,
+                                                       "cross_column_image": 2}
+    offsets = rot_stream.offsets
+    assert [(b[2] - d) % W16 for b, d in zip(base.position_tuples(), offsets)] == \
+        [r[2] for r in rolled.position_tuples()]
+    assert rot_stream.target_ids == rolled.target_ids     # the two sidecars join by position
+
+
+def test_positions_run_on_across_batches():
+    canon = eval_FLAC.CanonStream()
+    _prepare(_batch(3), canon_stream=canon)
+    _prepare([_eval_md(i + 3, CLASSES[i + 3]) for i in range(2)], canon_stream=canon)
+    assert [r[0] for r in canon.position_tuples()] == [0, 1, 2, 3, 4]
+    assert canon.target_ids == [eval_FLAC.sample_target_id(md) for md in _batch()]
+
+
+@pytest.mark.parametrize("mutate, needle", [
+    (lambda md: md.update(depth=md["depth"].to("meta")), r"metadata\[1\]\['depth'\] is on meta"),
+    (lambda md: md.update(depth=md["depth"].float()), r"metadata\[1\]\['depth'\] is torch.float32"),
+    (lambda md: md.pop("source_vit"), r"^canonicalize: metadata\[1\]: .*source_vit"),
+    (lambda md: md.update(depth=md["depth"][:, :, :16]), r"^canonicalize: metadata\[1\]: depth width")])
+def test_contract_violations_are_refused_with_the_wrapper_prefix(mutate, needle):
+    batch = _batch(2)
+    mutate(batch[1])
+    with pytest.raises(ValueError, match=needle) as err:
+        _prepare(batch)
+    assert str(err.value).startswith("canonicalize: metadata[1]")
+
+
+def test_operator_errors_keep_their_cause_and_ties_propagate_untouched():
+    batch = _batch(2)
+    batch[1].pop("source")
+    with pytest.raises(ValueError) as err:
+        _prepare(batch)
+    assert isinstance(err.value.__cause__, ValueError)
+    periodic = [_eval_md(0), _eval_md(1, period=W16 // 2)]
+    with pytest.raises(yr.StabilizedTieError) as tie:
+        _prepare(periodic)
+    assert type(tie.value) is yr.StabilizedTieError and tie.value.sample["idx"] == 1
+
+
+@pytest.mark.parametrize("kw, needle", [
+    (dict(canonicalize=True, img_w=W16, canon_stream=None), "CanonStream"),
+    (dict(canonicalize=False, img_w=None, canon_stream="stream"), "without canonicalization"),
+    (dict(canonicalize=1, img_w=W16, canon_stream="stream"), "bool"),
+    (dict(canonicalize=True, img_w=32.0, canon_stream="stream"), "img_w")])
+def test_prepare_argument_contract(kw, needle):
+    if kw["canon_stream"] == "stream":
+        kw["canon_stream"] = eval_FLAC.CanonStream()
+    with pytest.raises(ValueError, match=needle):
+        eval_FLAC.prepare_eval_metadata(_batch(1), FIXED0, None, None, kw["canonicalize"],
+                                        kw["img_w"], kw["canon_stream"])

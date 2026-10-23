@@ -63,7 +63,8 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
                                    FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap,
-                                   TIE_CLASSES, canonical_depth_sha256)
+                                   TIE_CLASSES, canonical_depth_sha256,
+                                   canonicalize_scene_metadata)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 from src.training.factory import _parse_canonicalize_config
@@ -1138,6 +1139,50 @@ def apply_rotation_plan(metadata, plan, generator=None, stream=None):
     if plan.rotate_deg != 0.0:
         return [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
     return metadata
+
+
+def prepare_eval_metadata(metadata, rotation_plan, generator, stream, canonicalize,
+                          img_w, canon_stream):
+    """One batch's metadata as the conditioner must see it: the evaluation rotation
+    (:func:`apply_rotation_plan`, which records the PRE-rotation identity into
+    ``stream``), THEN -- with ``canonicalize`` -- per-sample deepest-column
+    canonicalization (exp_25, plan v8 §2.2), each position recorded into
+    ``canon_stream``. Pure with respect to globals; the loader's dicts are not mutated.
+
+    Disabled, it is exactly :func:`apply_rotation_plan` (and refuses a stray
+    ``canon_stream``). Enabled, the treatment runs on the loader's CPU float64
+    point cloud as in training (``_canonicalize_batch``): another device or dtype,
+    and the operator's own contract violations, raise ``ValueError`` prefixed
+    ``canonicalize: metadata[i]:``; a ``StabilizedTieError`` propagates untouched.
+    """
+    if type(canonicalize) is not bool:
+        raise ValueError(f"prepare_eval_metadata: canonicalize must be a bool, got {canonicalize!r}")
+    if not canonicalize:
+        if canon_stream is not None:
+            raise ValueError("prepare_eval_metadata: a CanonStream without canonicalization "
+                             "would record nothing")
+        return apply_rotation_plan(metadata, rotation_plan, generator, stream)
+    if not isinstance(canon_stream, CanonStream):
+        raise ValueError("prepare_eval_metadata: canonicalization needs a CanonStream to "
+                         "record every position")
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"prepare_eval_metadata: img_w must be a positive int, got {img_w!r}")
+    out = []
+    for i, md in enumerate(apply_rotation_plan(metadata, rotation_plan, generator, stream)):
+        depth = md.get("depth") if isinstance(md, dict) else None
+        if torch.is_tensor(depth) and depth.device.type != "cpu":
+            raise ValueError(f"canonicalize: metadata[{i}]['depth'] is on {depth.device}; the "
+                             "treatment runs on the cpu (metadata must not be moved before it)")
+        if torch.is_tensor(depth) and depth.dtype != torch.float64:
+            raise ValueError(f"canonicalize: metadata[{i}]['depth'] is {depth.dtype}; the "
+                             "treatment requires the loader's torch.float64 point cloud")
+        try:
+            md_canon, dj, tie_class = canonicalize_scene_metadata(md, img_w)
+        except ValueError as err:  # StabilizedTieError is a RuntimeError: never caught here
+            raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err
+        canon_stream.record(md, md_canon, dj, tie_class)
+        out.append(md_canon)
+    return out
 
 
 def resolve_weights_source(training_config, state_dict_keys):
