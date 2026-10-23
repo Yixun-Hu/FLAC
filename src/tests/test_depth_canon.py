@@ -393,3 +393,101 @@ def test_stabilized_input_fails_closed_for_every_roll(name):
         with pytest.raises(yr.StabilizedTieError) as info:
             _select(_roll(md, d, W))
         assert info.value.candidates == tuple(sorted((c + d) % W for c in cands0))
+
+
+# --------------------------------------------------------------------------- #
+# 5. canonical_shift
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("W", [32, 512])
+def test_canonical_shift_moves_j_star_to_column_zero(W):
+    for j in range(W):
+        dj = yr.canonical_shift(j, W)
+        assert dj == (W - j) % W and 0 <= dj < W and (j + dj) % W == 0
+        assert (dj == 0) == (j == 0)
+
+
+@pytest.mark.parametrize("args", [(-1, 8), (8, 8), (True, 8), (1.0, 8), (1, 0), (1, True), (0, -4)])
+def test_canonical_shift_rejects_out_of_contract_arguments(args):
+    with pytest.raises(ValueError):
+        yr.canonical_shift(*args)
+
+
+# --------------------------------------------------------------------------- #
+# 6. canonicalize_scene_metadata
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("name", ["unique", "same_column", "row_tie_sep64_wrap", "p128_src_minus_pi",
+                                  "p256_ctx_az_only", "small_row_tie_sep1_wrap"])
+def test_canonicalize_scene_metadata_contract(name):
+    _, md, cls = _fixture(name)
+    W = md["depth"].shape[-1]
+    ids = {k: id(v) for k, v in md.items()}
+    snapshot = {k: (v.clone() if torch.is_tensor(v) else v) for k, v in md.items()}
+    out, dj, tie_class = yr.canonicalize_scene_metadata(md, W)
+    j0, c0 = _select(md)
+    assert isinstance(dj, int) and (dj, tie_class) == (yr.canonical_shift(j0, W), c0) == (dj, cls)
+    ref = yr.rotate_scene_metadata(md, yr.offsets_to_radians([dj], W)[0], W)
+    assert out.keys() == md.keys() == ref.keys()
+    for k, v in md.items():
+        if torch.is_tensor(v):
+            assert torch.equal(out[k], ref[k]) and (out[k].dtype, out[k].device) == (v.dtype, v.device)
+    for k in ("context_audio", "scene", "padding_mask"):
+        assert out[k] is md[k]
+    assert _select(out) == (0, tie_class)                                  # post-condition
+    out2, dj2, tc2 = yr.canonicalize_scene_metadata(out, W)                # idempotent
+    assert (dj2, tc2) == (0, tie_class)
+    assert all(torch.equal(out2[k], v) for k, v in out.items() if torch.is_tensor(v))
+    assert {k: id(v) for k, v in md.items()} == ids                        # input untouched
+    assert all(torch.equal(v, snapshot[k]) if torch.is_tensor(v) else v == snapshot[k]
+               for k, v in md.items())
+
+
+@pytest.mark.parametrize("field,value", [
+    ("source", torch.zeros(1, 3)), ("source", torch.zeros(4)),
+    ("source", torch.zeros(3, dtype=torch.int64)), ("source", torch.tensor([float("nan"), 0.0, 0.0])),
+    ("source_vit", torch.zeros(3)), ("source_vit", torch.zeros(2, 3)),
+    ("context_poses", torch.zeros(2)), ("context_poses", torch.zeros(2, 2)),
+    ("context_poses", torch.zeros(0, 3)), ("context_poses", torch.zeros(2, 3, 1)),
+    ("context_poses", torch.tensor([[0.0, float("inf"), 0.0], [1.0, 1.0, 1.0]])),
+    ("context_poses_vit", torch.zeros(3, 3)), ("context_poses_vit", torch.zeros(2, 3, dtype=torch.int32)),
+    ("depth", None), ("depth", _cloud(_scalar_depth(16, 16, seed=1))),
+    ("depth", torch.zeros(3, 16, 32, dtype=torch.int64)),
+])
+def test_canonicalize_rejects_contract_violations(field, value):
+    md = dict(_fixture("small_unique")[1])
+    if value is None:
+        del md[field]
+    else:
+        md[field] = value
+    with pytest.raises(ValueError):
+        yr.canonicalize_scene_metadata(md, 32)
+
+
+@pytest.mark.parametrize("img_w", [0, -32, True, 32.0, "32"])
+def test_canonicalize_rejects_bad_img_w(img_w):
+    with pytest.raises(ValueError):
+        yr.canonicalize_scene_metadata(_fixture("small_unique")[1], img_w)
+    with pytest.raises(ValueError):
+        yr.canonicalize_scene_metadata([_fixture("small_unique")[1]], 32)
+
+
+@pytest.mark.parametrize("lie", [lambda j, c: (j + 1, c), lambda j, c: (j, "same_column")])
+def test_canonicalize_post_condition_fails_closed(monkeypatch, lie):
+    _, md, _ = _fixture("small_unique")
+    real, calls = yr.canonical_column, []
+
+    def fake(D, source=None, context=None):
+        calls.append(1)
+        j, c = real(D, source, context)
+        return (j, c) if len(calls) == 1 else lie(j, c)   # the re-check on the output lies
+    monkeypatch.setattr(yr, "canonical_column", fake)
+    with pytest.raises(RuntimeError, match="post-condition"):
+        yr.canonicalize_scene_metadata(md, 32)
+
+
+@pytest.mark.parametrize("name", _names("stabilized"))
+def test_canonicalize_propagates_stabilized_tie_for_every_roll(name):
+    _, md, _ = _fixture(name)
+    W = md["depth"].shape[-1]
+    for d in range(W):
+        with pytest.raises(yr.StabilizedTieError):
+            yr.canonicalize_scene_metadata(_roll(md, d, W), W)

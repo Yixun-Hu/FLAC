@@ -837,3 +837,79 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
         if len(cands) == 1:
             return int(cands[0]), "cross_column_context"
     raise StabilizedTieError(cands)
+
+
+def canonical_shift(j_star: int, img_w: int) -> int:
+    """The roll ``dj = (img_w - j*) mod img_w`` that moves column ``j*`` to column 0
+    (:func:`rotate_scene_metadata` rolls by ``+dj``). ``dj == 0`` iff ``j* == 0``."""
+    for name, v in (("j_star", j_star), ("img_w", img_w)):
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(f"{name} must be an int, got {v!r}")
+    if img_w <= 0 or not 0 <= j_star < img_w:
+        raise ValueError(f"need img_w > 0 and 0 <= j_star < img_w, got {j_star}, {img_w}")
+    return (img_w - j_star) % img_w
+
+
+# Exact pose shapes of the AR metadata contract (None = the context count N >= 1).
+_CANON_POSE_SHAPES: Dict[str, Tuple] = {"source": (3,), "source_vit": (1, 3),
+                                        "context_poses": (None, 3),
+                                        "context_poses_vit": (None, 3)}
+
+
+def _check_canon_inputs(md, img_w) -> None:
+    """Fail-closed input contract of :func:`canonicalize_scene_metadata`."""
+    if not isinstance(md, dict):
+        raise ValueError(f"metadata must be a dict, got {type(md).__name__}")
+    if isinstance(img_w, bool) or not isinstance(img_w, int) or img_w <= 0:
+        raise ValueError(f"img_w must be a positive int, got {img_w!r}")
+    if "depth" not in md:
+        raise ValueError("metadata has no 'depth' field to canonicalize")
+    _check_depth_cloud(md["depth"])
+    if int(md["depth"].shape[2]) != img_w:
+        raise ValueError(f"depth width {int(md['depth'].shape[2])} != img_w {img_w}")
+    counts = set()
+    for key, shape in _CANON_POSE_SHAPES.items():
+        if key in md:
+            _check_pose(key, md[key], shape)
+            if shape[0] is None:
+                counts.add(int(md[key].shape[0]))
+    if 0 in counts or len(counts) > 1:
+        raise ValueError(f"context_poses / context_poses_vit need the same N >= 1 rows, "
+                         f"got {sorted(counts)}")
+
+
+def canonicalize_scene_metadata(
+    md: Dict[str, object], img_w: int, pose_keys: Tuple[str, ...] = POSE_KEYS
+) -> Tuple[Dict[str, object], int, str]:
+    """
+    Deepest-pixel yaw canonicalization of ONE sample's metadata (plan §2.1 Step D).
+
+    ``j*`` comes from :func:`canonical_column` on the :func:`recover_depth_proxy` of
+    ``md['depth']`` (tie keys ``md['source']``, ``md['context_poses']``); the reviewed
+    yaw operator is then applied ONCE, ``rotate_scene_metadata(md, dj * 2pi / img_w,
+    img_w, pose_keys)`` with ``dj = canonical_shift(j*, img_w)``: column ``j*``
+    becomes column 0 and the depth vectors and pose fields rotate about z by the
+    same angle. ``context_audio``, ``scene``, ``padding_mask`` and every other field
+    pass through as the same objects; the input dict and its tensors are not mutated.
+
+    Fail-closed: ``ValueError`` on a contract violation (``depth`` a finite floating
+    ``[3, H, W]`` with even ``H`` and ``W == img_w``; when present ``source [3]``,
+    ``source_vit [1, 3]``, ``context_poses`` / ``context_poses_vit [N, 3]`` with one
+    ``N >= 1``, finite floating); :class:`StabilizedTieError` propagates (never
+    caught); ``RuntimeError`` when the post-condition -- the selector re-run on the
+    output gives ``j* == 0`` and the same tie class -- fails.
+
+    Returns ``(md_canon, dj, tie_class)``.
+    """
+    _check_canon_inputs(md, img_w)
+    j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]), md.get("source"),
+                                         md.get("context_poses"))
+    dj = canonical_shift(j_star, img_w)
+    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w, pose_keys)
+    j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]),
+                                            out.get("source"), out.get("context_poses"))
+    if j_check != 0 or class_check != tie_class:
+        raise RuntimeError(
+            f"canonicalization post-condition failed: shifting j*={j_star} ({tie_class}) "
+            f"by dj={dj} left the selector at j*={j_check} ({class_check}), expected 0")
+    return out, dj, tie_class
