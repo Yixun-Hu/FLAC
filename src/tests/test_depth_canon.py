@@ -573,3 +573,104 @@ def test_real_ar_depth_map_proxy_selection_and_invariance():
         out = yr.canonicalize_scene_metadata(_roll(md, k, 512), 512)[0]
         assert yr.canonical_depth_sha256(out["depth"]) == yr.canonical_depth_sha256(ref["depth"])
         assert all(torch.allclose(out[q], ref[q], rtol=1e-5, atol=1e-6) for q in yr.POSE_KEYS)
+
+
+# --------------------------------------------------------------------------- #
+# code-review r1 fix (BLOCKING): poses never select a column; any tie the rooted-
+# image key leaves (an exactly periodic proxy) fails closed, whatever the poses
+# --------------------------------------------------------------------------- #
+_R_BELOW = float(torch.nextafter(torch.tensor(1e-6), torch.tensor(0.0)))  # float32 1e-6 - ulp
+_R_ABOVE = float(torch.nextafter(torch.tensor(1e-6), torch.tensor(1.0)))  # float32 1e-6 + ulp
+
+
+def _centre(c, W, r=1.5, z=0.3):
+    """A pose (to float32) exactly at the centre azimuth of column ``c``."""
+    return _pol(r, (c + 0.5) * 2.0 * math.pi / W - math.pi, z)
+
+
+def _pose_variant(name, W, col):
+    """(source, context) on the boundaries the removed pose keys broke at."""
+    return {
+        "generic": (_SRC, _CTX),
+        "centre": (_centre(col, W), (_centre(col, W, 1.0, 0.2), _centre((col + 1) % W, W, 0.8, -0.1))),
+        "plus_pi": ((-1.5, 0.0, 0.3), ((-1.0, 0.0, 0.2), (1.0, 0.0, -0.1))),
+        "minus_pi": ((-1.5, -0.0, 0.3), ((-1.0, -0.0, 0.2), (1.0, -0.0, -0.1))),
+        "zero": ((1.5, 0.0, 0.3), ((1.0, 0.0, 0.2), (0.0, 0.0, -0.1))),
+        "degenerate": (_DEG_SRC, _DEG_CTX),
+        "ctx_r_below_eps": (_DEG_SRC, ((_R_BELOW, 0.0, 0.5), _centre(col, W, 1.0, 0.2))),
+        "ctx_r_above_eps": (_DEG_SRC, ((_R_ABOVE, 0.0, 0.5), _centre(col, W, 1.0, 0.2))),
+    }[name]
+
+
+POSE_VARIANTS = ("generic", "centre", "plus_pi", "minus_pi", "zero", "degenerate",
+                 "ctx_r_below_eps", "ctx_r_above_eps")
+PERIODIC = {  # exactly periodic proxies (period W/2 and W/4): C-1 leaves several candidates
+    "p256": (256, 512, dict(seed=60, period=256, peaks=[(80, 200)])),
+    "p128": (256, 512, dict(seed=62, period=128, peaks=[(81, 5)])),
+    "small_p16": (16, 32, dict(seed=61, period=16, peaks=[(2, 6)])),
+    "small_p8": (16, 32, dict(seed=63, period=8, peaks=[(3, 1)])),
+}
+IMAGE_LEVEL = [n for n in FIXTURES if FIXTURES[n][5] in ("none", "same_column", "cross_column_image")]
+
+
+def test_tie_classes_are_image_level_only():
+    assert yr.TIE_CLASSES == ("none", "same_column", "cross_column_image")
+
+
+def test_canonical_column_takes_the_proxy_only():
+    with pytest.raises(TypeError):
+        yr.canonical_column(torch.rand(4, 8, dtype=torch.float64), torch.zeros(3))
+
+
+def test_stabilized_tie_wording_claims_no_stabilizer_or_impossibility():
+    for text in (str(yr.StabilizedTieError([3, 19])), yr.StabilizedTieError.__doc__):
+        low = " ".join(text.lower().split())
+        assert "exactly periodic" in low and "fail" in low
+        assert "stabilizer" not in low and "no equivariant" not in low and "joint input" not in low
+
+
+@pytest.mark.parametrize("variant", ["generic", "centre", "degenerate", "ctx_r_below_eps",
+                                     "ctx_r_above_eps"])
+@pytest.mark.parametrize("name", list(PERIODIC))
+def test_periodic_image_fails_closed_for_every_roll_whatever_the_poses(name, variant):
+    H, W, kw = PERIODIC[name]
+    d = _scalar_depth(H, W, **kw)
+    md = _md(d, *_pose_variant(variant, W, kw["peaks"][0][1]))
+    cands0 = _max_columns(yr.recover_depth_proxy(md["depth"]))
+    assert len(cands0) == W // kw["period"] and _oracle_image_winners(d, cands0) == cands0
+    with pytest.raises(yr.StabilizedTieError) as raw:
+        yr.canonical_column(d)                                   # raw scalar depth agrees
+    assert raw.value.candidates == tuple(cands0)
+    for k in range(W):
+        rolled = _roll(md, k, W)
+        with pytest.raises(yr.StabilizedTieError) as sel:
+            yr.canonical_column(yr.recover_depth_proxy(rolled["depth"]))
+        with pytest.raises(yr.StabilizedTieError) as canon:
+            yr.canonicalize_scene_metadata(rolled, W)
+        expected = tuple(sorted((c + k) % W for c in cands0))  # the candidates co-rotate
+        assert sel.value.candidates == canon.value.candidates == expected, k
+
+
+@pytest.mark.parametrize("name", IMAGE_LEVEL)
+def test_selection_is_equivariant_for_every_roll_with_poses_on_the_column_centre(name):
+    H, W, kw, _, _, cls = FIXTURES[name]
+    d = _scalar_depth(H, W, **kw)
+    j0, c0 = yr.canonical_column(yr.recover_depth_proxy(_cloud(d)))
+    md = _md(d, *_pose_variant("centre", W, j0))               # poses exactly on j*'s centre
+    assert c0 == cls
+    for k in range(W):
+        rolled = _roll(md, k, W)
+        assert yr.canonical_column(yr.recover_depth_proxy(rolled["depth"])) == ((j0 + k) % W, c0)
+        assert yr.canonicalize_scene_metadata(rolled, W)[1:] == (yr.canonical_shift((j0 + k) % W, W), c0)
+
+
+@pytest.mark.parametrize("name", IMAGE_LEVEL)
+def test_poses_never_influence_the_selection(name):
+    H, W, kw, *_ = FIXTURES[name]
+    d = _scalar_depth(H, W, **kw)
+    j0, c0 = yr.canonical_column(yr.recover_depth_proxy(_cloud(d)))
+    for variant in POSE_VARIANTS:
+        md = _md(d, *_pose_variant(variant, W, j0))
+        for k in (range(W) if W <= 32 else (0, 1, 255, 256, 511)):
+            got = yr.canonicalize_scene_metadata(_roll(md, k, W), W)[1:]
+            assert got == (yr.canonical_shift((j0 + k) % W, W), c0), (variant, k)
