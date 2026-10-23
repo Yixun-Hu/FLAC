@@ -691,3 +691,68 @@ def column_profile(D: torch.Tensor) -> torch.Tensor:
             f"column_profile needs a non-empty floating [H, W] tensor, got "
             f"{getattr(D, 'dtype', type(D).__name__)} {list(getattr(D, 'shape', []))}")
     return D.max(dim=0).values
+
+
+TIE_CLASSES: Tuple[str, ...] = ("none", "same_column", "cross_column_image",
+                                "cross_column_source", "cross_column_context")
+
+
+class StabilizedTieError(RuntimeError):
+    """Plan §2.1 C-4: several candidate columns survive EVERY tie-break key.
+
+    Only an exactly periodic depth proxy with azimuth-degenerate source and context
+    poses gets here -- a joint input with a nontrivial cyclic stabilizer, on which no
+    deterministic selector is equivariant (``min`` of {0, 256} rolled by 300 is 44,
+    not 300). Canonicalization therefore FAILS CLOSED; this is an exception, never a
+    tie class. ``candidates`` holds the surviving columns in ascending order."""
+
+    def __init__(self, candidates):
+        self.candidates = tuple(int(c) for c in candidates)
+        super().__init__(
+            f"stabilized canonicalization tie: candidate columns {list(self.candidates)} "
+            "survive the rooted-image, source and context keys; no equivariant choice "
+            "exists, failing closed (plan_depth_canon.md §2.1 C-4)")
+
+    def __reduce__(self):  # picklable despite the non-message constructor argument
+        return (type(self), (self.candidates,))
+
+
+def _check_pose(name: str, pose, shape: Tuple) -> None:
+    """Exact-shape (``None`` = free size), floating, finite pose contract."""
+    if not isinstance(pose, torch.Tensor) or not pose.is_floating_point():
+        raise ValueError(f"{name} must be a floating torch.Tensor, got "
+                         f"{getattr(pose, 'dtype', type(pose).__name__)}")
+    if pose.ndim != len(shape) or any(s is not None and int(n) != s
+                                      for n, s in zip(pose.shape, shape)):
+        raise ValueError(f"{name} must have shape {list(shape)} (None = any), got "
+                         f"{list(pose.shape)}")
+    if not bool(torch.isfinite(pose).all()):
+        raise ValueError(f"{name} contains non-finite values")
+
+
+def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, str]:
+    """
+    The canonical ("deepest") column ``j*`` of an ``[H, W]`` depth proxy, with its
+    tie class (plan_depth_canon.md §2.1 Steps B-C).
+
+    Candidates are the columns whose maximum equals the global maximum (exact
+    equality). A single candidate is returned with class ``"same_column"`` when
+    several pixels of that column share the global maximum, else ``"none"``.
+    Several candidates: the selector fails closed with :class:`StabilizedTieError`.
+
+    ``source`` (``[3]``) and ``context`` (``[N, 3]``) are validated when given.
+    Every comparison is exact; there is no tolerance anywhere.
+    """
+    P = column_profile(D)
+    if not bool(torch.isfinite(D).all()):
+        raise ValueError("depth proxy contains non-finite values")
+    if source is not None:
+        _check_pose("source", source, (3,))
+    if context is not None:
+        _check_pose("context", context, (None, 3))
+    M = P.max()
+    cands = torch.nonzero(P == M).flatten().tolist()
+    if len(cands) == 1:
+        n_max = int((D[:, cands[0]] == M).sum())
+        return int(cands[0]), ("same_column" if n_max > 1 else "none")
+    raise StabilizedTieError(cands)

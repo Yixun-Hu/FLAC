@@ -123,3 +123,120 @@ def test_column_profile_is_the_per_column_max():
 def test_column_profile_rejects_non_proxy_input(bad):
     with pytest.raises(ValueError):
         yr.column_profile(bad)
+
+
+# --------------------------------------------------------------------------- #
+# fixtures for the selector: name -> (H, W, _scalar_depth kwargs, source, context, class)
+# --------------------------------------------------------------------------- #
+_SRC = (1.3, -0.7, 0.2)                          # generic target source
+_CTX = ((0.9, 1.1, -0.3), (-1.2, 0.4, 0.1))      # generic context rows
+FIXTURES = {
+    "unique": (256, 512, dict(seed=10, peaks=[(37, 100)]), _SRC, _CTX, "none"),
+    "same_column": (256, 512, dict(seed=11, peaks=[(20, 300), (200, 300)]), _SRC, _CTX,
+                    "same_column"),
+    "small_unique": (16, 32, dict(seed=20, peaks=[(3, 9)]), _SRC, _CTX, "none"),
+    "small_same_column": (16, 32, dict(seed=21, peaks=[(2, 5), (13, 5)]), _SRC, _CTX,
+                          "same_column"),
+}
+
+
+def _md(d, source=_SRC, context=_CTX):
+    """A metadata dict shaped like AR_md's (context_poses_vit IS context_poses there)."""
+    md = {"depth": _cloud(d), "scene": "synthetic_room", "padding_mask": torch.ones(8, dtype=torch.bool)}
+    if source is not None:
+        s = torch.tensor(source, dtype=torch.float32)
+        md["source"], md["source_vit"] = s, s[None]
+    if context is not None:
+        c = torch.tensor(context, dtype=torch.float32)
+        md["context_poses"] = md["context_poses_vit"] = c
+        md["context_audio"] = torch.arange(c.shape[0] * 8, dtype=torch.float32).reshape(-1, 1, 8)
+    return md
+
+
+def _fixture(name):
+    H, W, kw, source, context, cls = FIXTURES[name]
+    d = _scalar_depth(H, W, **kw)
+    return d, _md(d, source, context), cls
+
+
+def _select(md, D=None):
+    D = yr.recover_depth_proxy(md["depth"]) if D is None else D
+    return yr.canonical_column(D, md.get("source"), md.get("context_poses"))
+
+
+def _outcome(md, D=None):
+    """(j*, class), or ('stabilized', candidates) when the selector fails closed."""
+    try:
+        return _select(md, D)
+    except yr.StabilizedTieError as err:
+        return "stabilized", err.candidates
+
+
+def _max_columns(X):
+    P = yr.column_profile(X)
+    return torch.nonzero(P == P.max()).flatten().tolist()
+
+
+# --------------------------------------------------------------------------- #
+# 3. canonical_column -- image-level classes
+# --------------------------------------------------------------------------- #
+def test_tie_classes_constant():
+    assert yr.TIE_CLASSES == ("none", "same_column", "cross_column_image",
+                              "cross_column_source", "cross_column_context")
+
+
+@pytest.mark.parametrize("name", [n for n in FIXTURES if FIXTURES[n][5] in
+                                  ("none", "same_column", "cross_column_image")])
+def test_canonical_column_image_level_classes(name):
+    _, md, cls = _fixture(name)
+    D = yr.recover_depth_proxy(md["depth"])
+    j, tie_class = _select(md)
+    cands = _max_columns(D)
+    assert tie_class == cls and isinstance(j, int)
+    assert cands == sorted({w for _, w in FIXTURES[name][2]["peaks"]})
+    assert [j] == cands
+
+
+def test_periodic_image_without_any_pose_key_fails_closed():
+    W = 512
+    md = _md(_scalar_depth(256, W, seed=30, period=256, peaks=[(40, 70)]), None, None)
+    with pytest.raises(yr.StabilizedTieError) as info:
+        _select(md)
+    assert isinstance(info.value, RuntimeError) and info.value.candidates == (70, 326)
+    import pickle
+    assert pickle.loads(pickle.dumps(info.value)).candidates == (70, 326)
+
+
+@pytest.mark.parametrize("args", [
+    (torch.rand(1, 4, 8, dtype=torch.float64),), (torch.ones(4, 8, dtype=torch.int64),),
+    (torch.tensor([[1.0, float("nan")], [0.5, 0.5]]),), (torch.rand(4, 8), torch.zeros(1, 3)),
+    (torch.rand(4, 8), torch.zeros(3, dtype=torch.int64)), (torch.rand(4, 8), torch.tensor([1.0, float("inf"), 0.0])),
+    (torch.rand(4, 8), None, torch.zeros(3)), (torch.rand(4, 8), None, torch.zeros(2, 2)),
+], ids=["3d", "int", "nan", "src_1x3", "src_int", "src_inf", "ctx_1d", "ctx_nx2"])
+def test_canonical_column_rejects_contract_violations(args):
+    with pytest.raises(ValueError):
+        yr.canonical_column(*args)
+
+
+# --------------------------------------------------------------------------- #
+# 4. exhaustive selector equivariance (non-stabilized fixtures, ALL rolls)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("name", list(FIXTURES))
+def test_selector_is_equivariant_for_every_roll(name):
+    _, md, cls = _fixture(name)
+    W = md["depth"].shape[-1]
+    j0, c0 = _select(md)
+    assert c0 == cls
+    bad = [d for d in range(W) if _select(_roll(md, d, W)) != ((j0 + d) % W, c0)]
+    assert bad == []
+
+
+# --------------------------------------------------------------------------- #
+# 9. raw scalar depth vs proxy: same candidate set, same selection
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("name", list(FIXTURES))
+def test_raw_and_proxy_agree_on_candidates_and_selection(name):
+    d, md, _ = _fixture(name)
+    D = yr.recover_depth_proxy(md["depth"])
+    assert _max_columns(d) == _max_columns(D)
+    assert _outcome(md, d) == _outcome(md, D)
