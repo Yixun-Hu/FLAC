@@ -23,6 +23,7 @@ from ..data.yaw_rotation import (
     DEFAULT_FRAME_ANGLES,
     POSE_KEYS,
     TIE_CLASSES,
+    canonicalize_scene_metadata,
     draw_yaw_offsets,
     offsets_to_radians,
     rotate_scene_metadata,
@@ -591,6 +592,37 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                     raise ValueError(
                         f"canonicalize: metadata[{i}][{key!r}] must have trailing "
                         f"dimension 3, got shape {list(pose.shape)}")
+
+    def _canonicalize_batch(self, metadata):
+        """exp_25: canonicalize every sample of one batch (plan_depth_canon.md v7 §2.2).
+
+        :meth:`_check_canon_metadata`, then ``canonicalize_scene_metadata(md,
+        canonicalize_img_w)`` per sample — the deepest column moves to column 0,
+        depth vectors and all four pose fields co-rotate, every other field
+        (``context_audio``, ``padding_mask``, ``scene``, loader ids) passes through,
+        the input dicts are not mutated — and returns the new list. A
+        ``StabilizedTieError`` (exactly periodic panorama) propagates and stops the
+        run. The batch's tie classes are added to ``canon_tie_counts`` only after
+        every sample succeeded; on the training path (a Trainer attached and
+        ``trainer.training``) the cumulative cross-/same-column counts are logged
+        on rank 0 per step. Consumes no RNG.
+        """
+        self._check_canon_metadata(metadata)
+        out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
+        for md in metadata:
+            md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
+            if tie_class not in batch_counts:
+                raise RuntimeError(f"canonicalize: unknown tie class {tie_class!r}")
+            batch_counts[tie_class] += 1
+            out.append(md_canon)
+        for tie_class, n in batch_counts.items():
+            self.canon_tie_counts[tie_class] += n
+        if self._trainer is not None and self._trainer.training:
+            for name, tie_class in (("canon/cross_column_ties", "cross_column_image"),
+                                    ("canon/same_column_ties", "same_column")):
+                self.log(name, self.canon_tie_counts[tie_class], rank_zero_only=True,
+                         on_step=True, on_epoch=False)
+        return out
 
     def _apply_yaw_aug(self, metadata):
         """Rotate each sample's conditioning by its own freshly drawn yaw.

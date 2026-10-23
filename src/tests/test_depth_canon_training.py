@@ -10,8 +10,10 @@ config); metadata = synthetic depth through the REAL AR_md converter
 (``test_depth_canon``'s helpers), i.e. the loader's float64 point cloud. Test 15 (the
 golden disabled path) is ``test_yaw_aug_training.py::test_disabled_path_matches_golden``.
 """
+import random
 import types
 
+import numpy as np
 import pytest
 import torch
 
@@ -23,7 +25,7 @@ from src.training.factory import (
     CANON_KEYS, _parse_canonicalize_config, create_training_wrapper_from_config)
 from test_cond_dispatch import _base_config  # tiny CPU diffusion_cond (pytest prepends src/tests)
 from test_depth_canon import _cloud, _scalar_depth  # synthetic depth via the real AR_md
-from test_yaw_aug_training import PRE_CHANGE_WRAPPER_KWARGS
+from test_yaw_aug_training import PRE_CHANGE_WRAPPER_KWARGS, _rng_digest
 
 CANON_ON = {"enabled": True, "img_w": 512}
 YAW_ON = {"enabled": True, "img_w": 512, "seed": 42}
@@ -261,7 +263,7 @@ def _canon_wrapper(training=None):
 
 def _expect_schema_error(metadata, *needles):
     with pytest.raises(ValueError) as excinfo:
-        _canon_wrapper()[0]._check_canon_metadata(metadata)
+        _canon_wrapper()[0]._canonicalize_batch(metadata)
     for needle in ("canonicalize:",) + needles:
         assert needle in str(excinfo.value), f"{excinfo.value!s} does not name {needle!r}"
 
@@ -305,3 +307,60 @@ def test_device_and_dtype_errors_name_the_contract(bad):
     depth = depth.to("meta") if bad == "cpu_device" else depth.float()
     needle = "cpu" if bad == "cpu_device" else "float64"
     _expect_schema_error(_with("depth", depth, i=0), "metadata[0]", needle)
+
+
+def test_operator_contract_errors_propagate():
+    with pytest.raises(ValueError, match="source_vit"):
+        _canon_wrapper()[0]._canonicalize_batch(_with("source_vit", torch.zeros(3)))
+
+
+def test_batch_is_canonicalized_per_sample_without_mutating_the_input():
+    wrapper, _ = _canon_wrapper()
+    batch = tuple(_canon_md(i, tie) for i, tie in enumerate(TIE_CLASSES))
+    pristine = [{k: (v.clone() if torch.is_tensor(v) else v) for k, v in md.items()}
+                for md in batch]
+    out = wrapper._canonicalize_batch(batch)
+    assert isinstance(out, list) and len(out) == len(batch)
+    for md_in, md_out, ref in zip(batch, out, pristine):
+        expected, _, _ = yr.canonicalize_scene_metadata(ref, W)
+        assert md_out is not md_in
+        for key in ("depth",) + yr.POSE_KEYS:
+            assert torch.equal(md_out[key], expected[key]), key
+        assert yr.canonical_column(yr.recover_depth_proxy(md_out["depth"]))[0] == 0
+        for key in ("context_audio", "padding_mask", "scene", "idx", "path"):
+            assert md_out[key] is md_in[key], key
+        for key, value in ref.items():
+            if torch.is_tensor(value):
+                assert torch.equal(md_in[key], value), f"input {key} mutated"
+
+
+def test_tie_counts_accumulate_across_batches_and_touch_no_rng():
+    wrapper, logged = _canon_wrapper()
+    random.seed(3); np.random.seed(3); torch.manual_seed(3)
+    before = _rng_digest()
+    wrapper._canonicalize_batch([_canon_md(i, t) for i, t in enumerate(TIE_CLASSES + ("none",))])
+    wrapper._canonicalize_batch([_canon_md(9, "cross_column_image")])
+    assert _rng_digest() == before
+    assert wrapper.canon_tie_counts == {"none": 2, "same_column": 1, "cross_column_image": 2}
+    assert logged == []  # no Trainer attached -> nothing logged
+
+
+def test_cumulative_counts_are_logged_on_the_training_path_only():
+    wrapper, logged = _canon_wrapper(training=True)
+    wrapper._canonicalize_batch([_canon_md(0, "cross_column_image"), _canon_md(1, "same_column")])
+    wrapper._canonicalize_batch([_canon_md(2, "cross_column_image")])
+    kw = {"rank_zero_only": True, "on_step": True, "on_epoch": False}
+    assert logged == [("canon/cross_column_ties", 1, kw), ("canon/same_column_ties", 1, kw),
+                      ("canon/cross_column_ties", 2, kw), ("canon/same_column_ties", 1, kw)]
+    wrapper.trainer.training = False  # validation / test inside a Trainer
+    wrapper._canonicalize_batch([_canon_md(3, "same_column")])
+    assert len(logged) == 4 and wrapper.canon_tie_counts["same_column"] == 2
+
+
+def test_a_periodic_panorama_fails_closed_and_counts_nothing():
+    wrapper, _ = _canon_wrapper()
+    with pytest.raises(yr.StabilizedTieError) as excinfo:
+        wrapper._canonicalize_batch([_canon_md(0, "cross_column_image"),
+                                     _canon_md(1, period=W // 2)])
+    assert excinfo.value.sample == {"idx": 1, "path": "/fake/1.wav"}
+    assert wrapper.canon_tie_counts == {c: 0 for c in TIE_CLASSES}
