@@ -10,9 +10,13 @@ config); metadata = synthetic depth through the REAL AR_md converter
 (``test_depth_canon``'s helpers), i.e. the loader's float64 point cloud. Test 15 (the
 golden disabled path) is ``test_yaw_aug_training.py::test_disabled_path_matches_golden``.
 """
+import types
+
 import pytest
 
 import src.training.diffusion as tdiff
+from src.data.yaw_rotation import TIE_CLASSES
+from src.models.factory import create_model_from_config
 from src.training.factory import (
     CANON_KEYS, _parse_canonicalize_config, create_training_wrapper_from_config)
 from test_cond_dispatch import _base_config  # tiny CPU diffusion_cond (pytest prepends src/tests)
@@ -128,3 +132,98 @@ def test_factory_refuses_the_exclusions(extra, needle):
     cfg["training"].update({"canonicalize": dict(CANON_ON), **extra})
     with pytest.raises(ValueError, match=needle):
         create_training_wrapper_from_config(cfg, object())
+
+
+# --------------------------------------------------------------------------- #
+# 11. wrapper raw-argument validation and exclusions at construction
+# --------------------------------------------------------------------------- #
+def _build(**training_overrides):
+    cfg = _base_config()
+    cfg["training"].update(training_overrides)
+    return create_training_wrapper_from_config(cfg, create_model_from_config(cfg))
+
+
+def _construct_directly(**kwargs):
+    """Bypass the factory: the constructor must fail closed on its own (the checks run
+    before the model is touched, so a bare namespace stands in for it)."""
+    return tdiff.DiffusionCondTrainingWrapper(types.SimpleNamespace(), lr=5e-6, use_ema=False,
+                                              **kwargs)
+
+
+@pytest.mark.parametrize("enabled", ["true", "false", 1, 0, 1.0, None])
+def test_constructor_rejects_non_bool_enabled(enabled):
+    with pytest.raises(ValueError, match="canonicalize_enabled"):
+        _construct_directly(canonicalize_enabled=enabled)
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.parametrize("img_w", ["512", 512.0, True, False, None, 0, -1])
+def test_constructor_rejects_bad_img_w(enabled, img_w):
+    with pytest.raises(ValueError, match="canonicalize_img_w"):
+        _construct_directly(canonicalize_enabled=enabled, canonicalize_img_w=img_w)
+
+
+@pytest.mark.parametrize("extra, needle", [
+    ({"yaw_aug_enabled": True, "yaw_aug_img_w": 512, "yaw_aug_seed": 42}, "yaw_aug"),
+    ({"cond_method": "fa_invariant"}, "fa_invariant")])
+def test_constructor_refuses_the_exclusions(extra, needle):
+    with pytest.raises(ValueError, match=needle):
+        _construct_directly(canonicalize_enabled=True, canonicalize_img_w=512, **extra)
+
+
+def test_wrapper_defaults_have_canonicalization_off():
+    wrapper = _build()
+    assert wrapper.canonicalize_enabled is False and wrapper.canonicalize_img_w == 512
+    assert wrapper.canon_tie_counts == {c: 0 for c in TIE_CLASSES}
+    assert list(wrapper.canon_tie_counts) == list(TIE_CLASSES)
+
+
+def test_factory_flags_reach_the_wrapper_uncoerced():
+    wrapper = _build(canonicalize={"enabled": True, "img_w": 16})
+    assert wrapper.canonicalize_enabled is True
+    assert type(wrapper.canonicalize_img_w) is int and wrapper.canonicalize_img_w == 16
+    assert wrapper.canon_tie_counts == {c: 0 for c in TIE_CLASSES}
+
+
+def test_yaw_aug_arm_still_constructs_with_canonicalization_absent():
+    wrapper = _build(yaw_aug={"enabled": True, "img_w": 16, "seed": 42})
+    assert wrapper.yaw_aug_enabled is True and wrapper.canonicalize_enabled is False
+
+
+# --------------------------------------------------------------------------- #
+# 14. banner (exact, rank 0, flushed, only when enabled); 13. tie totals at fit end
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("img_w", [512, 16])
+def test_banner_is_the_exact_whole_line_once(capsys, img_w):
+    _build(canonicalize={"enabled": True, "img_w": img_w}).on_fit_start()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines.count(f"canonicalize ENABLED img_w={img_w} tiebreak=image") == 1
+    assert sum("canonicalize" in line for line in lines) == 1
+
+
+def test_banner_and_tie_totals_are_flushed(monkeypatch):
+    calls = []
+    monkeypatch.setattr("builtins.print", lambda *a, **kw: calls.append(kw))
+    wrapper = _build(canonicalize=dict(CANON_ON))
+    wrapper.on_fit_start()
+    wrapper.on_fit_end()
+    assert len(calls) == 2 and all(kw.get("flush") is True for kw in calls)
+
+
+@pytest.mark.parametrize("training", [{}, {"canonicalize": {"enabled": False}},
+                                      {"yaw_aug": {"enabled": True, "img_w": 16, "seed": 42}}])
+def test_nothing_canonicalize_is_printed_when_disabled(capsys, training):
+    wrapper = _build(**training)
+    wrapper.on_fit_start()
+    wrapper.on_fit_end()
+    out = capsys.readouterr().out
+    assert "canonicalize" not in out
+    assert ("yaw_aug ENABLED" in out) == ("yaw_aug" in training)
+
+
+def test_tie_totals_are_printed_per_class_at_fit_end(capsys):
+    wrapper = _build(canonicalize=dict(CANON_ON))
+    wrapper.canon_tie_counts.update({"none": 7, "same_column": 2, "cross_column_image": 3})
+    wrapper.on_fit_end()
+    assert capsys.readouterr().out.splitlines() == [
+        "canonicalize tie_counts rank0 none=7 same_column=2 cross_column_image=3"]

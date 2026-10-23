@@ -22,6 +22,7 @@ from ..data.yaw_rotation import (
     invariant_conditioning,
     DEFAULT_FRAME_ANGLES,
     POSE_KEYS,
+    TIE_CLASSES,
     draw_yaw_offsets,
     offsets_to_radians,
     rotate_scene_metadata,
@@ -182,6 +183,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             yaw_aug_enabled: bool = False,
             yaw_aug_img_w: int = 512,
             yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
             are_lambda: tp.Optional[float] = None,
             are_anchor: tp.Optional[dict] = None
     ):
@@ -246,6 +249,33 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.yaw_aug_enabled = yaw_aug_enabled
         self.yaw_aug_img_w = yaw_aug_img_w
         self.yaw_aug_seed = yaw_aug_seed
+
+        # exp_25: deepest-column yaw canonicalization of every step's metadata
+        # (plan_depth_canon.md v7 §2.2; _canonicalize_batch). Off by default. The
+        # RAW arguments are validated with the factory's rules — never coerced —
+        # and the factory's two exclusions are repeated here, so direct
+        # construction is as fail-closed as the config path (exp_15 precedent).
+        if not isinstance(canonicalize_enabled, bool):
+            raise ValueError(
+                f"canonicalize_enabled must be a bool, got {canonicalize_enabled!r}")
+        if isinstance(canonicalize_img_w, bool) or not isinstance(canonicalize_img_w, int):
+            raise ValueError(
+                f"canonicalize_img_w must be an int, got {canonicalize_img_w!r}")
+        if canonicalize_img_w <= 0:
+            raise ValueError(f"canonicalize_img_w must be > 0, got {canonicalize_img_w}")
+        if canonicalize_enabled and yaw_aug_enabled:
+            raise ValueError(
+                "canonicalize_enabled=True with yaw_aug_enabled=True: two yaw "
+                "treatments in one arm are out of scope for exp_25.")
+        if canonicalize_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "canonicalize_enabled=True with cond_method='fa_invariant' is out of "
+                "scope for exp_25 (frame averaging already symmetrises the yaw).")
+        self.canonicalize_enabled = canonicalize_enabled
+        self.canonicalize_img_w = canonicalize_img_w
+        # Cumulative per-class counts over every sample THIS rank canonicalized
+        # (training and validation steps alike); printed by on_fit_end.
+        self.canon_tie_counts = {c: 0 for c in TIE_CLASSES}
 
         # exp_16 (ARE): the target reparameterisation z -> z - lambda*A(p).
         # ``None`` means "not an ARE arm" and is NOT the same as 0.0: at None the
@@ -408,6 +438,19 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             flush=True,
         )
 
+    @rank_zero_only
+    def _print_canonicalize_banner(self):
+        # exp_25: flushed for the same FIFO reason; the launch gate requires this
+        # exact whole line (plan_depth_canon.md §10).
+        print(f"canonicalize ENABLED img_w={self.canonicalize_img_w} tiebreak=image",
+              flush=True)
+
+    @rank_zero_only
+    def _print_canonicalize_tie_totals(self):
+        # Rank 0's own counts (not all-reduced), one key=value per TIE_CLASSES entry.
+        counts = " ".join(f"{c}={self.canon_tie_counts[c]}" for c in TIE_CLASSES)
+        print(f"canonicalize tie_counts rank0 {counts}", flush=True)
+
     def on_fit_start(self):
         """Announce the treatment once, on rank 0, before step 0.
 
@@ -418,6 +461,15 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         """
         if self.yaw_aug_enabled:
             self._print_yaw_aug_banner()
+        # exp_25: same contract for the canonicalization arm.
+        if self.canonicalize_enabled:
+            self._print_canonicalize_banner()
+
+    def on_fit_end(self):
+        """exp_25: print rank 0's cumulative canonicalization tie counts once, at the
+        end of fit (only when canonicalization is enabled)."""
+        if self.canonicalize_enabled:
+            self._print_canonicalize_tie_totals()
 
     def _check_yaw_aug_metadata(self, metadata):
         """Fail-closed schema validation of one training batch (plan §3.1, F7).
