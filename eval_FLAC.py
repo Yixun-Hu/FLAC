@@ -63,7 +63,7 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
                                    FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap,
-                                   TIE_CLASSES)
+                                   TIE_CLASSES, canonical_depth_sha256)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 from src.training.factory import _parse_canonicalize_config
@@ -997,6 +997,78 @@ def verify_stream_count(stream, dataset_count, expected=None):
             "campaign declares (announcement 01 forbids new or subsampled eval "
             "configurations). Refusing to report metrics."
         )
+
+
+# Version of the .canon.json payload below (exp_25).
+CANON_SIDECAR_SCHEMA_VERSION = 1
+
+
+class CanonStream:
+    """exp_25's per-position canonicalization record (the ``.canon.json`` sidecar).
+
+    One row per evaluated item, in stream order: ``[i, target_id, dj, tie_class,
+    canonical_depth_sha256]``. ``target_id`` is :func:`sample_target_id`, the
+    identity :class:`RotationStream` records, so the two sidecars join by
+    position. ``dj`` is the canonicalizing roll applied AFTER any evaluation
+    rotation; the depth hash is :func:`canonical_depth_sha256` of the canonical
+    panorama -- equal across rotated copies of an item (plan §1 Tier 1), whereas
+    ``dj``, and therefore :meth:`canon_hash` (a digest of the whole cell), is not.
+    """
+
+    def __init__(self):
+        self.rows = []
+
+    def __len__(self):
+        return len(self.rows)
+
+    def record(self, md, md_canon, dj, tie_class):
+        """Append one position: ``md`` as canonicalized, ``md_canon`` the result."""
+        if type(dj) is not int or dj < 0:
+            raise ValueError(f"canon stream: dj must be a non-negative int, got {dj!r}")
+        if tie_class not in TIE_CLASSES:
+            raise ValueError(f"canon stream: unknown tie class {tie_class!r}")
+        row = [len(self.rows), sample_target_id(md), dj, tie_class,
+               canonical_depth_sha256(md_canon["depth"])]
+        self.rows.append(row)
+        return row
+
+    @property
+    def target_ids(self):
+        return [r[1] for r in self.rows]
+
+    def position_tuples(self):
+        return [list(r) for r in self.rows]
+
+    def tie_counts(self):
+        counts = {c: 0 for c in TIE_CLASSES}
+        for row in self.rows:
+            counts[row[3]] += 1
+        return counts
+
+    def canon_hash(self):
+        """:func:`canonical_stream_hash` of :meth:`position_tuples` (JSON, sort_keys,
+        compact, LF-joined) -- recomputable from the sidecar's ``positions``."""
+        return canonical_stream_hash(self.position_tuples())
+
+
+def canon_sidecar_path(metrics_path):
+    """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.canon.json``."""
+    base = metrics_path[:-len('.json')] if metrics_path.endswith('.json') else metrics_path
+    return base + '.canon.json'
+
+
+def build_canon_record(stream, img_w):
+    """The ``.canon.json`` payload, carrying its preimages (``positions``)."""
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"canon record: img_w must be a positive int, got {img_w!r}")
+    outside = [row for row in stream.rows if row[2] >= img_w]
+    if outside:
+        raise ValueError(f"canon record: position {outside[0][0]} has dj={outside[0][2]} "
+                         f"outside the img_w={img_w} column grid")
+    return {"schema_version": CANON_SIDECAR_SCHEMA_VERSION, "img_w": img_w,
+            "tiebreak": CANON_TIEBREAK, "stream_count": len(stream),
+            "tie_counts": stream.tie_counts(), "positions": stream.position_tuples(),
+            "canon_hash": stream.canon_hash()}
 
 
 def _batch_img_w(metadata):

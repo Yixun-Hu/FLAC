@@ -10,13 +10,17 @@ CPU only. Synthetic depth goes through the REAL AR_md converter
 fixture and ``test_eval_paths``'s exp_01 names, reused verbatim.
 """
 import copy
+import hashlib
 import itertools
 import json
 
 import pytest
+import torch
 
 import eval_FLAC
+from src.data import yaw_rotation as yr
 from src.data.yaw_rotation import TIE_CLASSES
+from test_depth_canon import _cloud, _scalar_depth  # synthetic depth via the real AR_md
 from test_exp14_fixed_mode_snapshot import MATRIX, META, _record_kwargs
 
 CKPT = "weights/FLAC/FLAC_EMA.ckpt"
@@ -218,7 +222,6 @@ def test_canon_vit_img_w(widths, want):
 
 
 def test_model_config_sha256_is_the_canonical_json_digest():
-    import hashlib
     cfg = {"b": [1, 2.0, True], "a": {"y": None, "x": "s"}}
     want = hashlib.sha256(json.dumps(cfg, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     assert eval_FLAC.model_config_sha256(cfg) == want
@@ -292,3 +295,94 @@ def test_protocol_blocks_are_copies():
                                                 file_model_cfg=_model_cfg(ON))
     file_t["canonicalize"]["img_w"] = emb_t["canonicalize"]["img_w"] = 1
     assert p.file_block == p.embedded_block == ON["canonicalize"]
+
+
+# --------------------------------------------------------------------------- #
+# 20. CanonStream + the .canon.json sidecar
+# --------------------------------------------------------------------------- #
+W16 = 32  # small panoramas (16 x 32) through the real AR_md converter
+PEAKS = {"none": [(3, 9)], "same_column": [(2, 5), (13, 5)],
+         "cross_column_image": [(4, 31), (4, 0)]}
+CLASSES = ["none", "cross_column_image", "same_column", "none", "cross_column_image"]
+
+
+def _eval_md(i, tie_class="none", period=None):
+    d = _scalar_depth(16, W16, seed=100 + i, period=period,
+                      peaks=[(h, (w + 3 * i) % W16) for h, w in PEAKS[tie_class]])
+    s = torch.tensor([1.3, -0.7 + 0.1 * i, 0.2])
+    ctx = torch.tensor([[0.9, 1.1, -0.3], [-1.2, 0.4 + 0.05 * i, 0.1]])
+    return {"depth": _cloud(d), "source": s, "source_vit": s[None], "context_poses": ctx,
+            "context_poses_vit": ctx, "context_audio": torch.zeros(2, 1, 8),
+            "padding_mask": torch.ones(8), "scene": "Toy/Toy_idx_0", "idx": i,
+            "relpath": f"Toy/Toy_idx_0/S00{i}_R001_hybrid_IR.wav"}
+
+
+def _batch(n=5):
+    return [_eval_md(i, CLASSES[i % len(CLASSES)]) for i in range(n)]
+
+
+def _canon_stream_of(batch, roll=0):
+    stream = eval_FLAC.CanonStream()
+    for md in batch:
+        md = yr.rotate_scene_metadata(md, yr.offsets_to_radians([roll], W16)[0], W16) if roll else md
+        md_canon, dj, tie_class = yr.canonicalize_scene_metadata(md, W16)
+        stream.record(md, md_canon, dj, tie_class)
+    return stream
+
+
+def test_canon_stream_rows_are_the_per_position_tuples():
+    batch = _batch()
+    stream = _canon_stream_of(batch)
+    assert len(stream) == 5
+    for i, (md, row) in enumerate(zip(batch, stream.position_tuples())):
+        md_canon, dj, tie_class = yr.canonicalize_scene_metadata(md, W16)
+        assert row == [i, eval_FLAC.sample_target_id(md), dj, tie_class,
+                       yr.canonical_depth_sha256(md_canon["depth"])]
+        assert tie_class == CLASSES[i]
+    assert stream.target_ids == [eval_FLAC.sample_target_id(md) for md in batch]
+    assert stream.tie_counts() == {"none": 2, "same_column": 1, "cross_column_image": 2}
+    assert list(stream.tie_counts()) == list(TIE_CLASSES)
+
+
+def test_canon_hash_is_recomputable_from_the_preimages():
+    stream = _canon_stream_of(_batch())
+    lines = "\n".join(json.dumps(t, sort_keys=True, separators=(",", ":"))
+                      for t in stream.position_tuples())
+    assert stream.canon_hash() == hashlib.sha256(lines.encode("utf-8")).hexdigest()
+    rec = json.loads(json.dumps(eval_FLAC.build_canon_record(stream, W16)))
+    assert rec == {"schema_version": 1, "img_w": W16, "tiebreak": "image", "stream_count": 5,
+                   "tie_counts": stream.tie_counts(), "positions": stream.position_tuples(),
+                   "canon_hash": stream.canon_hash()}
+    assert eval_FLAC.canonical_stream_hash(rec["positions"]) == rec["canon_hash"]
+
+
+@pytest.mark.parametrize("roll", [1, 8, 16, 31])
+def test_canonical_depth_hashes_are_equal_across_a_rolled_copy(roll):
+    base, rolled = _canon_stream_of(_batch()), _canon_stream_of(_batch(), roll)
+    for a, b in zip(base.position_tuples(), rolled.position_tuples()):
+        assert a[:2] == b[:2] and a[3:] == b[3:]       # position, target, class, depth sha
+        assert b[2] == (a[2] - roll) % W16             # the residual shift co-rotates
+    assert base.canon_hash() != rolled.canon_hash()    # dj is part of the cell digest
+
+
+def test_canon_sidecar_path():
+    m = "/o/epoch=8-step=40000_metrics_1_1.0_cell_canon.json"
+    assert eval_FLAC.canon_sidecar_path(m) == "/o/epoch=8-step=40000_metrics_1_1.0_cell_canon.canon.json"
+    assert eval_FLAC.canon_sidecar_path(m) != eval_FLAC.stream_sidecar_path(m)
+
+
+@pytest.mark.parametrize("dj, tie_class", [(-1, "none"), (True, "none"), (1.0, "none"),
+                                           (0, "stabilized"), (0, None)])
+def test_canon_stream_refuses_malformed_rows(dj, tie_class):
+    md = _eval_md(0)
+    md_canon, _, _ = yr.canonicalize_scene_metadata(md, W16)
+    with pytest.raises(ValueError, match="canon stream"):
+        eval_FLAC.CanonStream().record(md, md_canon, dj, tie_class)
+
+
+def test_canon_record_refuses_a_shift_outside_the_grid():
+    stream = _canon_stream_of(_batch(2))
+    with pytest.raises(ValueError, match="img_w"):
+        eval_FLAC.build_canon_record(stream, 4)
+    with pytest.raises(ValueError, match="img_w"):
+        eval_FLAC.build_canon_record(stream, True)
