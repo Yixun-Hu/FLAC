@@ -761,8 +761,10 @@ def _j_star(md):
 
 
 def test_canon_cell_end_to_end(monkeypatch, tmp_path, capsys):
+    import numpy as np
+    (tmp_path / "dumps").mkdir()
     cfg, ckpt, seen = _run(monkeypatch, tmp_path, ON32, canonicalize=True, record_stream=True,
-                           expected_stream_count=5)
+                           expected_stream_count=5, dump_scored_waveforms=str(tmp_path / "dumps"))
     assert "canonicalize: trained=True applied=True mismatch=False img_w=32" in capsys.readouterr().out
     stem = "toy_metrics_1_1.0_cell_canon"
     rec = json.loads((tmp_path / f"{stem}.json").read_text())
@@ -777,6 +779,16 @@ def test_canon_cell_end_to_end(monkeypatch, tmp_path, capsys):
     canon = json.loads((tmp_path / f"{stem}.canon.json").read_text())
     assert [p[1] for p in canon["positions"]] == [t[1] for t in stream["input_tuples"]]
     assert eval_FLAC.canonical_stream_hash(canon["positions"]) == canon["canon_hash"]
+    final = tmp_path / "dumps" / stem
+    assert eval_FLAC.ScoredWaveformDump.is_complete(str(final))
+    assert [a is s for a, s in zip(seen.appended, seen.scored)] == [True, True]
+    dumped = torch.from_numpy(np.load(final / "waveforms.npy"))
+    assert torch.equal(dumped, torch.cat([s[:, 0, :] for s in seen.scored]))
+    manifest = json.loads((final / "manifest.json").read_text())
+    assert manifest["input_hash"] == stream["input_hash"] and manifest["metrics_stem"] == stem
+    assert manifest["metrics_sha256"] == hashlib.sha256((tmp_path / f"{stem}.json").read_bytes()).hexdigest()
+    assert manifest["canon_sidecar_sha256"] == \
+        hashlib.sha256((tmp_path / f"{stem}.canon.json").read_bytes()).hexdigest()
 
 
 def test_legacy_cell_is_untouched(monkeypatch, tmp_path, capsys):
@@ -800,12 +812,24 @@ def test_trained_but_not_applied_diagnostic(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("training, kw, needle", [
     (ON32, {}, "TRAINED with canonicalize=True"),
-    ({}, dict(canonicalize=True), "TRAINED with canonicalize=False")])
+    ({}, dict(canonicalize=True), "TRAINED with canonicalize=False"),
+    (ON32, dict(canonicalize=True, record_stream=True, dump_scored_waveforms="TAKEN"), "not empty")])
 def test_protocol_and_dump_refusals_come_before_model_construction(
         monkeypatch, tmp_path, training, kw, needle):
+    if kw.get("dump_scored_waveforms") == "TAKEN":
+        (tmp_path / "dumps" / "toy_metrics_1_1.0_cell_canon").mkdir(parents=True)
+        (tmp_path / "dumps" / "toy_metrics_1_1.0_cell_canon" / "x").write_text("x")
+        kw["dump_scored_waveforms"] = str(tmp_path / "dumps")
     with pytest.raises(ValueError, match=needle):
         _run(monkeypatch, tmp_path, training, raise_at_model=True, **kw)
     assert not list(tmp_path.glob("toy_metrics_*"))
+
+
+def test_a_dump_without_a_stream_is_refused_before_any_file_work(tmp_path):
+    with pytest.raises(ValueError, match="stream"):
+        eval_FLAC.evaluate_model(str(tmp_path / "m.json"), str(tmp_path / "d.json"),
+                                 str(tmp_path / "c.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
+                                 dump_scored_waveforms=str(tmp_path))
 
 
 def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores():
@@ -813,4 +837,5 @@ def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores(
     src = inspect.getsource(eval_FLAC.evaluate_model)
     assert "apply_rotation_plan(" not in src and src.count("prepare_eval_metadata(") == 1
     assert src.index("resolve_canonicalize_protocol(") < src.index("create_model_from_config(")
+    assert src.index("waveform_dump.append(fakes)") < src.index("metric_callback.update_metrics(")
     assert src.count("build_output_paths(") == 1

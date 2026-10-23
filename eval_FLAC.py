@@ -1577,23 +1577,25 @@ class ScoredWaveformDump:
             raise ValueError(f"scored-waveform dump: final_dir must be a path, got {final_dir!r}")
         if type(expected_n) is not int or expected_n < 0:
             raise ValueError(f"scored-waveform dump: expected_n must be an int >= 0, got {expected_n!r}")
-        self.final_dir = os.path.abspath(final_dir)
-        if not os.path.isdir(os.path.dirname(self.final_dir)):
-            raise ValueError(f"scored-waveform dump: the dump root {os.path.dirname(self.final_dir)!r} "
-                             "does not exist (it is never created: a missing mount must not "
-                             "silently become a local directory)")
-        self._check_final_dir()
+        self.final_dir = self.check_target(final_dir)
         self.expected_n = expected_n
         self.staging_dir = f"{self.final_dir}.staging-{os.getpid()}"
         self._rows, self._t = [], None
 
-    def _check_final_dir(self):
-        if os.path.islink(self.final_dir) or (os.path.lexists(self.final_dir)
-                                              and not os.path.isdir(self.final_dir)):
-            raise ValueError(f"scored-waveform dump: {self.final_dir!r} is not a directory")
-        if os.path.isdir(self.final_dir) and os.listdir(self.final_dir):
-            raise ValueError(f"scored-waveform dump: {self.final_dir!r} exists and is not empty; "
+    @staticmethod
+    def check_target(final_dir):
+        """The construction-time refusals, callable before any work; returns the abspath."""
+        final_dir = os.path.abspath(final_dir)
+        if not os.path.isdir(os.path.dirname(final_dir)):
+            raise ValueError(f"scored-waveform dump: the dump root {os.path.dirname(final_dir)!r} "
+                             "does not exist (it is never created: a missing mount must not "
+                             "silently become a local directory)")
+        if os.path.islink(final_dir) or (os.path.lexists(final_dir) and not os.path.isdir(final_dir)):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} is not a directory")
+        if os.path.isdir(final_dir) and os.listdir(final_dir):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} exists and is not empty; "
                              "refusing to overwrite a cell's dump")
+        return final_dir
 
     def append(self, fakes_scored):
         """Store one batch of the scored ``[B, 1, T]`` mono tensor; returns the stored rows."""
@@ -1625,7 +1627,7 @@ class ScoredWaveformDump:
             raise ValueError(f"scored-waveform dump: extra_meta may not override {clash}")
         if n != self.expected_n:
             raise ValueError(f"scored-waveform dump: {n} rows appended, expected {self.expected_n}")
-        self._check_final_dir()
+        self.check_target(self.final_dir)
         arr = (torch.cat(self._rows, 0) if self._rows else torch.zeros(0, 0)).numpy()
         os.mkdir(self.staging_dir)
         npy = os.path.join(self.staging_dir, "waveforms.npy")
@@ -1723,6 +1725,7 @@ def evaluate_model(
     are_lambda=None,
     canonicalize=False,
     allow_canon_mismatch=False,
+    dump_scored_waveforms=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -1758,6 +1761,14 @@ def evaluate_model(
             "--record-stream. Passing it otherwise would record an expectation that "
             "was never verified."
         )
+    # exp_25: a scored-waveform dump is bound to its items through the stream's
+    # input_hash (announcement 08), so it needs an accumulated stream.
+    if dump_scored_waveforms is not None and not (
+            isinstance(dump_scored_waveforms, str) and dump_scored_waveforms and accumulate_stream):
+        raise ValueError(
+            "--dump-scored-waveforms needs a dump root directory AND an assignment stream "
+            "(--record-stream or --rotate-mode random): the manifest binds the waveforms "
+            "to their items through the stream's input_hash.")
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
@@ -1832,6 +1843,10 @@ def evaluate_model(
         are_lambda=are_lambda, canonicalize=canon_protocol.applied,
         canon_mismatch=canon_protocol.mismatch,
     )
+    waveform_dump_dir = None
+    if dump_scored_waveforms is not None:
+        waveform_dump_dir = ScoredWaveformDump.check_target(
+            scored_waveform_dir(dump_scored_waveforms, output_paths['metrics']))
 
     # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
@@ -1906,8 +1921,14 @@ def evaluate_model(
         print(f"Random yaw rotation: per-sample offsets, rotation seed "
               f"{rotation_plan.rotate_seed}")
 
-    # exp_25: per-position canonicalization record.
+    # exp_25: per-position canonicalization record, and the exactly-as-scored dump.
     canon_stream = CanonStream() if canon_protocol.applied else None
+    waveform_dump = None
+    if waveform_dump_dir is not None:
+        dataset = getattr(eval_dl, 'dataset', None)
+        if dataset is None:
+            raise RuntimeError("--dump-scored-waveforms: the dataset item count is unknown")
+        waveform_dump = ScoredWaveformDump(waveform_dump_dir, len(dataset))
 
     # Eval
     c=0
@@ -1989,6 +2010,8 @@ def evaluate_model(
             depth_list = [md["depth"] if 'depth' in md else None for md in metadata]
             query_list = [md["source"] if 'source' in md else None for md in metadata]
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
+            if waveform_dump is not None:
+                waveform_dump.append(fakes)  # exactly the tensor scored below (announcement 08)
             metric_callback.update_metrics("test", fakes, reals, scene_list, depth=depthMinusSource_list)
             c += reals.shape[0]
     
@@ -2064,6 +2087,7 @@ def evaluate_model(
         print(f"Assignment stream saved to {path2save_stream}")
 
     # exp_25 canonical sidecar: also written only after every check above passed.
+    path2save_canon = None
     if canon_stream is not None:
         path2save_canon = canon_sidecar_path(path2save)
         with open(path2save_canon, 'w') as f:
@@ -2083,6 +2107,21 @@ def evaluate_model(
         }
         torch.save(preds_bundle, path2save_preds)
         print(f"Decoded samples saved to {path2save_preds}")
+
+    # exp_25: the scored-waveform dump is published LAST, so its COMPLETE marker
+    # certifies every artifact of the cell; the manifest pins their digests.
+    if waveform_dump is not None:
+        stream_path = stream_sidecar_path(path2save) if record_stream else None
+        digest = lambda path: None if path is None else _file_sha256(path)  # noqa: E731
+        manifest = waveform_dump.finalize(
+            rot_stream.input_hash(), os.path.basename(waveform_dump_dir), extra_meta={
+                "ckpt_path": ckpt_path, "metrics_path": path2save,
+                "metrics_sha256": digest(path2save), "stream_sidecar_path": stream_path,
+                "stream_sidecar_sha256": digest(stream_path),
+                "canon_sidecar_path": path2save_canon,
+                "canon_sidecar_sha256": digest(path2save_canon)})
+        print(f"Scored waveforms saved to {waveform_dump_dir} (n={manifest['n']}, "
+              f"sha256 {manifest['sha256']})")
 
     print("Evaluation complete!")
     return
