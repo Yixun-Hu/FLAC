@@ -1721,6 +1721,8 @@ def evaluate_model(
     record_stream=False,
     record_per_scene=False,
     are_lambda=None,
+    canonicalize=False,
+    allow_canon_mismatch=False,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -1812,6 +1814,25 @@ def evaluate_model(
     are_lambda, are_lambda_source, are_anchor_cfg = resolve_are_from_checkpoint(
         ckpt.get('model_config'), file_model_config, are_lambda)
 
+    # exp_25 (plan v8 §2.2, review B2): bind --canonicalize to the ARTIFACT, also
+    # before any model is built -- canonicalization adds no weight, so only the
+    # embedded config proves how the checkpoint was trained.
+    embedded_model_config = ckpt.get('model_config')
+    canon_protocol = resolve_canonicalize_protocol(
+        canonicalize, file_model_config.get('training'),
+        embedded_model_config.get('training') if isinstance(embedded_model_config, dict) else None,
+        allow_canon_mismatch, cond_method, file_model_cfg=file_model_config)
+    if canon_protocol.in_play:
+        print(f"canonicalize: trained={canon_protocol.trained} applied={canon_protocol.applied} "
+              f"mismatch={canon_protocol.mismatch} img_w={canon_protocol.img_w}")
+    output_paths = build_output_paths(
+        ckpt_path, steps, cfg_scale, eval_name,
+        cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
+        rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
+        are_lambda=are_lambda, canonicalize=canon_protocol.applied,
+        canon_mismatch=canon_protocol.mismatch,
+    )
+
     # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
@@ -1885,6 +1906,9 @@ def evaluate_model(
         print(f"Random yaw rotation: per-sample offsets, rotation seed "
               f"{rotation_plan.rotate_seed}")
 
+    # exp_25: per-position canonicalization record.
+    canon_stream = CanonStream() if canon_protocol.applied else None
+
     # Eval
     c=0
     if store_predictions:
@@ -1899,8 +1923,10 @@ def evaluate_model(
             # panorama + source/context poses) while leaving context_audio and the
             # target RIR fixed. Fixed mode = one angle for the whole run; random
             # mode = an independent per-sample draw. See src/data/yaw_rotation.py.
-            metadata = apply_rotation_plan(metadata, rotation_plan, rot_generator,
-                                           rot_stream)
+            # exp_25: then, with --canonicalize, deepest-column canonicalization.
+            metadata = prepare_eval_metadata(metadata, rotation_plan, rot_generator, rot_stream,
+                                             canon_protocol.applied, canon_protocol.img_w,
+                                             canon_stream)
 
             with cond_autocast_ctx():
                 if cond_method == 'fa_invariant':
@@ -1977,6 +2003,11 @@ def evaluate_model(
         verify_stream_count(rot_stream, None if dataset is None else len(dataset),
                             expected_stream_count)
         verify_stream_positions(rot_stream)
+    if canon_stream is not None and (len(canon_stream) != c or (
+            rot_stream is not None and canon_stream.target_ids != rot_stream.target_ids)):
+        raise RuntimeError(
+            f"canonical stream ({len(canon_stream)} positions) does not match the {c} evaluated "
+            "items / the assignment stream position by position. Refusing to report metrics.")
     if rotation_plan.is_random:
         rotation_provenance = {
             "rotate_mode": rotation_plan.mode,
@@ -2004,13 +2035,7 @@ def evaluate_model(
             metric_name += ' (dB)'
         print('Test/' + metric_name, metric_value)
     
-    # Save metrics in a file
-    output_paths = build_output_paths(
-        ckpt_path, steps, cfg_scale, eval_name,
-        cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
-        rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
-        are_lambda=are_lambda,
-    )
+    # Save metrics in a file (output_paths was built before the model, above)
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
         metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
@@ -2021,6 +2046,8 @@ def evaluate_model(
         frame_avg_max_fwd_samples=frame_avg_max_fwd_samples,
         are_lambda=are_lambda, are_lambda_source=are_lambda_source,
         are_anchor=are_anchor_cfg, **rotation_provenance,
+        canon_provenance=build_canon_provenance(canon_protocol, canon_stream,
+                                                file_model_config, embedded_model_config),
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -2035,6 +2062,13 @@ def evaluate_model(
         with open(path2save_stream, 'w') as f:
             json.dump(build_stream_record(rotation_plan, rot_stream), f, indent=2)
         print(f"Assignment stream saved to {path2save_stream}")
+
+    # exp_25 canonical sidecar: also written only after every check above passed.
+    if canon_stream is not None:
+        path2save_canon = canon_sidecar_path(path2save)
+        with open(path2save_canon, 'w') as f:
+            json.dump(build_canon_record(canon_stream, canon_protocol.img_w), f, indent=2)
+        print(f"Canonicalization record saved to {path2save_canon}")
 
     if store_predictions:
         decoded_samples_all = torch.cat(decoded_samples, dim=0)

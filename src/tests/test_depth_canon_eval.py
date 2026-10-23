@@ -698,3 +698,119 @@ def test_dump_directory_names_are_derived_from_the_metrics_stem_and_injective():
     p = _combo_paths(True, False, 0, "vanilla", None)["metrics"]
     assert eval_FLAC.scored_waveform_dir("/nas/dumps", p) == \
         "/nas/dumps/FLAC_EMA_metrics_1_1.0_cell_canon"
+
+
+# --------------------------------------------------------------------------- #
+# 19 / 21. evaluate_model wiring: the REAL eval loop on a toy CPU stack
+# --------------------------------------------------------------------------- #
+ON32 = {"canonicalize": {"enabled": True, "img_w": W16}}
+
+
+class _Loader:
+    def __init__(self, batches):
+        self.batches, self.dataset = batches, [None] * sum(len(b[1]) for b in batches)
+
+    def __iter__(self):
+        return iter(self.batches)
+
+
+def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False, **eval_kw):
+    import types
+    import src.inference.sampling as sampling
+    cfg = _model_cfg(training, widths=(W16, W16))
+    cfg.update(model_type="diffusion_cond", sample_size=16, sample_rate=22050, audio_channels=1)
+    cfg["training"]["use_ema"] = False
+    (tmp_path / "model.json").write_text(json.dumps(cfg))
+    (tmp_path / "dataset.json").write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+    ckpt = {"state_dict": {}}
+    if embedded is not None:
+        ckpt["model_config"] = copy.deepcopy(cfg) if embedded == "same" else embedded
+    torch.save(ckpt, str(tmp_path / "toy.ckpt"))
+    batch = _batch()
+    loader = _Loader([(torch.zeros(3, 1, 16), batch[:3]), (torch.zeros(2, 1, 16), batch[3:])])
+    seen = types.SimpleNamespace(cond=[], scored=[], appended=[], loader=loader)
+
+    def model_factory(cfg):
+        if raise_at_model:
+            pytest.fail("evaluate_model reached model construction")
+        return types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], []))
+
+    module = types.SimpleNamespace(device="cpu", diffusion=types.SimpleNamespace(
+        model=types.SimpleNamespace(diffusion_objective="rectified_flow"), pretransform=None,
+        conditioner=lambda md, device: seen.cond.append(md) or {}, io_channels=1, dist_shift=None,
+        get_conditioning_inputs=lambda cond: {}))
+    module.eval = module.requires_grad_ = module.to = lambda *a: module
+    callback = types.SimpleNamespace(compute_metrics=lambda split: {"T60": 1.0},
+                                     update_metrics=lambda stage, pred, *a, **k: seen.scored.append(pred))
+    real_append = eval_FLAC.ScoredWaveformDump.append
+    monkeypatch.setattr(eval_FLAC.ScoredWaveformDump, "append",
+                        lambda self, t: seen.appended.append(t) or real_append(self, t))
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config", model_factory)
+    monkeypatch.setattr(eval_FLAC, "create_training_wrapper_from_config", lambda cfg, m: module)
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config", lambda *a, **k: loader)
+    monkeypatch.setattr(eval_FLAC, "create_metric_callback_from_config", lambda *a, **k: callback)
+    monkeypatch.setattr(sampling, "sample_discrete_euler", lambda model, noise, steps, **kw: noise)
+    eval_FLAC.evaluate_model(str(tmp_path / "model.json"), str(tmp_path / "dataset.json"),
+                             str(tmp_path / "toy.ckpt"), steps=1, cfg_scale=1.0, batch_size=3,
+                             device="cpu", eval_name="cell", seed=42, cond_autocast="off", **eval_kw)
+    return cfg, ckpt, seen
+
+
+def _j_star(md):
+    return yr.canonical_column(yr.recover_depth_proxy(md["depth"]))[0]
+
+
+def test_canon_cell_end_to_end(monkeypatch, tmp_path, capsys):
+    cfg, ckpt, seen = _run(monkeypatch, tmp_path, ON32, canonicalize=True, record_stream=True,
+                           expected_stream_count=5)
+    assert "canonicalize: trained=True applied=True mismatch=False img_w=32" in capsys.readouterr().out
+    stem = "toy_metrics_1_1.0_cell_canon"
+    rec = json.loads((tmp_path / f"{stem}.json").read_text())
+    assert list(rec)[-8:] == list(eval_FLAC.CANON_RECORD_KEYS)
+    assert (rec["canonicalize_trained"], rec["canonicalize_applied"], rec["canonicalize_mismatch"],
+            rec["canonicalize_img_w"], rec["canonicalize_tiebreak"]) == (True, True, False, 32, "image")
+    assert rec["canonicalize_tie_counts"] == {"none": 2, "same_column": 1, "cross_column_image": 2}
+    assert rec["model_config_sha256_file"] == eval_FLAC.model_config_sha256(cfg)
+    assert rec["model_config_sha256_embedded"] == eval_FLAC.model_config_sha256(ckpt["model_config"])
+    assert all(_j_star(md) == 0 for batch in seen.cond for md in batch)   # canonical BEFORE cond
+    stream = json.loads((tmp_path / f"{stem}.stream.json").read_text())
+    canon = json.loads((tmp_path / f"{stem}.canon.json").read_text())
+    assert [p[1] for p in canon["positions"]] == [t[1] for t in stream["input_tuples"]]
+    assert eval_FLAC.canonical_stream_hash(canon["positions"]) == canon["canon_hash"]
+
+
+def test_legacy_cell_is_untouched(monkeypatch, tmp_path, capsys):
+    _, _, seen = _run(monkeypatch, tmp_path, {})
+    assert "canonicalize:" not in capsys.readouterr().out
+    rec = json.loads((tmp_path / "toy_metrics_1_1.0_cell.json").read_text())
+    assert not [k for k in rec if k.startswith(("canonicalize", "model_config_sha256"))]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "dataset.json", "model.json", "toy.ckpt", "toy_metrics_1_1.0_cell.json"]
+    assert [seen.cond[0], seen.cond[1]] == [seen.loader.batches[0][1], seen.loader.batches[1][1]]
+
+
+def test_trained_but_not_applied_diagnostic(monkeypatch, tmp_path):
+    _, _, seen = _run(monkeypatch, tmp_path, ON32, allow_canon_mismatch=True)
+    rec = json.loads((tmp_path / "toy_metrics_1_1.0_cell_canonmis.json").read_text())
+    assert (rec["canonicalize_applied"], rec["canonicalize_mismatch"], rec["canonicalize_tiebreak"],
+            rec["canonicalize_tie_counts"]) == (False, True, None, None)
+    assert not list(tmp_path.glob("*.canon.json"))
+    assert any(_j_star(md) != 0 for batch in seen.cond for md in batch)
+
+
+@pytest.mark.parametrize("training, kw, needle", [
+    (ON32, {}, "TRAINED with canonicalize=True"),
+    ({}, dict(canonicalize=True), "TRAINED with canonicalize=False")])
+def test_protocol_and_dump_refusals_come_before_model_construction(
+        monkeypatch, tmp_path, training, kw, needle):
+    with pytest.raises(ValueError, match=needle):
+        _run(monkeypatch, tmp_path, training, raise_at_model=True, **kw)
+    assert not list(tmp_path.glob("toy_metrics_*"))
+
+
+def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores():
+    import inspect
+    src = inspect.getsource(eval_FLAC.evaluate_model)
+    assert "apply_rotation_plan(" not in src and src.count("prepare_eval_metadata(") == 1
+    assert src.index("resolve_canonicalize_protocol(") < src.index("create_model_from_config(")
+    assert src.count("build_output_paths(") == 1
