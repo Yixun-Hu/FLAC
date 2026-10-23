@@ -10,10 +10,12 @@ its division by ``-sin(phi)`` are exact, so a planted raw tie is a bitwise proxy
 on every row. The background lies in ``[0.5, 7.5)``, strictly below the peak.
 """
 import functools
+import hashlib
 import importlib.util
 import math
 import os
 
+import numpy as np
 import pytest
 import torch
 
@@ -491,3 +493,83 @@ def test_canonicalize_propagates_stabilized_tie_for_every_roll(name):
     for d in range(W):
         with pytest.raises(yr.StabilizedTieError):
             yr.canonicalize_scene_metadata(_roll(md, d, W), W)
+
+
+# --------------------------------------------------------------------------- #
+# 7. invariance of the canonical output + canonical_depth_sha256 (Tier-1 hash)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("name", ["row_tie_sep1", "row_tie_sep64_wrap", "row_tie_sep256",
+                                  "cross_row_tie", "p128_src_plus_pi", "p256_src_pi_minus_eps",
+                                  "p256_ctx_az_only", "p128_ctx_first_row_degenerate"])
+def test_canonical_output_is_invariant_under_rotation(name):
+    _, md, cls = _fixture(name)
+    ref, _, ref_class = yr.canonicalize_scene_metadata(md, 512)
+    ref_D, ref_hash = yr.recover_depth_proxy(ref["depth"]), yr.canonical_depth_sha256(ref["depth"])
+    assert ref_class == cls
+    for d in (1, 64, 128, 255, 256, 384, 511):
+        out, _, tie_class = yr.canonicalize_scene_metadata(_roll(md, d, 512), 512)
+        assert tie_class == cls
+        assert torch.equal(yr.recover_depth_proxy(out["depth"]), ref_D)
+        assert yr.canonical_depth_sha256(out["depth"]) == ref_hash
+        for k in ("depth",) + yr.POSE_KEYS:
+            assert torch.allclose(out[k], ref[k], rtol=1e-5, atol=1e-6), (d, k)
+
+
+def test_canonical_depth_sha256_hashes_the_proxy_bytes():
+    md = _fixture("small_unique")[1]
+    D = yr.recover_depth_proxy(md["depth"])
+    assert yr.canonical_depth_sha256(md["depth"]) == \
+        hashlib.sha256(D.contiguous().numpy().tobytes()).hexdigest()
+    assert yr.canonical_depth_sha256(md["depth"]) != \
+        yr.canonical_depth_sha256(_fixture("small_same_column")[1]["depth"])
+
+
+@pytest.mark.parametrize("bad", [torch.zeros(3, 4, 8), torch.zeros(3, 4, 8, dtype=torch.float16),
+                                 torch.zeros(3, 4, 8, dtype=torch.int64), "depth"])
+def test_canonical_depth_sha256_requires_float64(bad):
+    with pytest.raises(ValueError):
+        yr.canonical_depth_sha256(bad)
+
+
+def test_canonical_depth_sha256_ignores_the_sign_of_zero_depth():
+    """Equal proxies must hash equal. AR_md stores z = -0.0 at zero depth on one
+    hemisphere and a yaw rotation (z' = 0*x + 0*y + 1*z) writes +0.0 there: the
+    proxies compare equal but their BYTES differ, so the hash normalizes signed zeros."""
+    d = _scalar_depth(16, 32, seed=70, peaks=[(3, 9)])
+    d[12, 7] = d[2, 20] = d[9, 0] = 0.0          # zero depth on both hemispheres
+    md = _md(d)
+    raw = md["depth"]
+    assert bool(((raw[2] == 0) & torch.signbit(raw[2])).any())
+    same = yr.rotate_scene_metadata(md, 0.0, 32)["depth"]          # identity yaw
+    assert torch.equal(yr.recover_depth_proxy(same), yr.recover_depth_proxy(raw))
+    assert yr.canonical_depth_sha256(same) == yr.canonical_depth_sha256(raw)
+    ref = yr.canonical_depth_sha256(yr.canonicalize_scene_metadata(md, 32)[0]["depth"])
+    for dd in range(32):
+        out = yr.canonicalize_scene_metadata(_roll(md, dd, 32), 32)[0]
+        assert yr.canonical_depth_sha256(out["depth"]) == ref, dd
+
+
+# --------------------------------------------------------------------------- #
+# optional real-map check (NOT load-bearing; duplicates the synthetic tests above)
+# --------------------------------------------------------------------------- #
+_AR_DEPTH_ROOT = os.path.join(_REPO_ROOT, "AcousticRooms", "depth_map")
+
+
+@pytest.mark.skipif(not os.path.isdir(_AR_DEPTH_ROOT),
+                    reason="AcousticRooms/depth_map absent (optional duplicate of synthetic tests)")
+def test_real_ar_depth_map_proxy_selection_and_invariance():
+    path = _AR_DEPTH_ROOT                               # <scene>/<id>/<receiver>.npy, first of each
+    for _ in range(2):
+        path = os.path.join(path, sorted(e for e in os.listdir(path)
+                                         if os.path.isdir(os.path.join(path, e)))[0])
+    path = os.path.join(path, sorted(e for e in os.listdir(path) if e.endswith(".npy"))[0])
+    d = torch.from_numpy(np.load(path))
+    md = _md(d)
+    D = yr.recover_depth_proxy(md["depth"])
+    assert d.shape == (256, 512) and float((D - d).abs().max()) <= 1e-14
+    assert _max_columns(d) == _max_columns(D) and _outcome(md, d) == _outcome(md, D)
+    ref = yr.canonicalize_scene_metadata(md, 512)[0]
+    for k in (1, 128, 300):
+        out = yr.canonicalize_scene_metadata(_roll(md, k, 512), 512)[0]
+        assert yr.canonical_depth_sha256(out["depth"]) == yr.canonical_depth_sha256(ref["depth"])
+        assert all(torch.allclose(out[q], ref[q], rtol=1e-5, atol=1e-6) for q in yr.POSE_KEYS)

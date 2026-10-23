@@ -11,6 +11,7 @@ yaw-invariant and are intentionally left untouched.
 Used both by the standalone rotation-invariance diagnostic and by ``eval_FLAC.py``
 (via its optional ``--rotate-deg`` flag).
 """
+import hashlib
 import math
 from typing import Dict, List, Sequence, Tuple
 
@@ -669,7 +670,9 @@ def recover_depth_proxy(depth: torch.Tensor) -> torch.Tensor:
     :func:`rotate_scene_metadata`: a yaw rotation leaves the z channel bitwise
     unchanged (matrix row ``[0, 0, 1]``) and ``sin(phi_h)`` is a per-row constant,
     so the proxy of a rotated map, un-rolled, equals the original proxy bitwise --
-    which the per-pixel L2 norm of the point cloud does not.
+    which the per-pixel L2 norm of the point cloud does not. (The one exception is
+    the sign of zero at zero-depth pixels, which compares equal;
+    :func:`canonical_depth_sha256` normalizes it before hashing.)
 
     Raises ``ValueError`` unless ``depth`` is a finite floating ``[3, H, W]``
     tensor with even ``H > 0`` and ``W > 0``, or if any row has ``sin(phi) == 0``.
@@ -913,3 +916,19 @@ def canonicalize_scene_metadata(
             f"canonicalization post-condition failed: shifting j*={j_star} ({tie_class}) "
             f"by dj={dj} left the selector at j*={j_check} ({class_check}), expected 0")
     return out, dj, tie_class
+
+
+def canonical_depth_sha256(depth_canon: torch.Tensor) -> str:
+    """sha256 hex digest of ``recover_depth_proxy(depth_canon)`` as C-contiguous
+    float64 bytes -- the per-item Tier-1 hash of plan §5, bitwise comparable across
+    cells, so ``depth_canon`` must be float64 (``ValueError`` otherwise).
+
+    Signed zeros are normalized to ``+0.0`` first (``D + 0.0``; every other value is
+    unchanged), so equal proxies hash equal: AR_md stores ``z = -0.0`` at zero depth
+    on one hemisphere and a yaw rotation (``z' = 0*x + 0*y + 1*z``) writes ``+0.0``
+    there -- the proxies compare equal, their raw bytes do not."""
+    if not isinstance(depth_canon, torch.Tensor) or depth_canon.dtype != torch.float64:
+        raise ValueError(f"canonical_depth_sha256 needs a float64 depth tensor, got "
+                         f"{getattr(depth_canon, 'dtype', type(depth_canon).__name__)}")
+    D = recover_depth_proxy(depth_canon) + 0.0
+    return hashlib.sha256(D.contiguous().cpu().numpy().tobytes()).hexdigest()
