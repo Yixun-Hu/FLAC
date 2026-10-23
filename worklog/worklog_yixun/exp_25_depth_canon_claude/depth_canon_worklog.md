@@ -395,7 +395,7 @@
 - **Version Control** — `8f16dfb`; 29 insertions, 5 deletions.
 - **Result** — `passed`. **Red:** 6 failed, all on the `startswith('canonicalize: metadata[1]: ')` assertion; 132 passed (the StabilizedTieError guard already passed). **Green:** 138 passed; regression subset 586 passed, 1 xfailed.
 
-## 2026-10-23T18:58:24-04:00 — r2 FIX ROUND F3 (NIT) + records
+## 2026-10-23T18:57:13-04:00 — r2 FIX ROUND F3 (NIT) + records
 
 - **Change** — `commits_depth_canon.md` rebuilt: exactly one row per SHA, ordered by `git log --reverse 6eb2b5e^..HEAD`. The two `518e03a` rows were merged into one. Added `de6e774`, `9350054`, `a7f8893`, `1adda49`, `c7771ec`, `8f16dfb`. All 34 commits from `6eb2b5e` to `8f16dfb` have a row (script-checked: no missing, extra or duplicate SHA). This records commit cannot list itself; the next ledger update adds it.
 - **Command / Validation** — `cd ~/codespace/exp-25-depth-canon && /home/yixunhu/miniconda3/envs/flac/bin/python -m pytest src/tests/test_depth_canon_training.py src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon.py src/tests/test_yaw_aug_training.py src/tests/test_cond_dispatch.py src/tests/test_yaw_aug_arm_config.py src/tests/test_frame_avg_cap_config.py src/tests/test_are_lambda_config.py -q` → **586 passed, 1 xfailed** (the strict Option-A xfail; golden disabled path green). `py_compile` + `git diff --check` clean.
