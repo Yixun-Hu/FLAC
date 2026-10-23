@@ -226,3 +226,69 @@ def test_model_config_sha256_is_the_canonical_json_digest():
     assert eval_FLAC.model_config_sha256({"a": 1}) != eval_FLAC.model_config_sha256({"a": 1.0}) \
         != eval_FLAC.model_config_sha256({"a": True})
     assert eval_FLAC.model_config_sha256(None) is None
+
+
+@pytest.mark.parametrize("file_t, emb_t", [({}, {}), ({}, None), (None, None), ({"x": 1}, {})])
+def test_not_in_play_is_the_legacy_tuple(file_t, emb_t):
+    legacy = eval_FLAC.CanonProtocol(False, None, False, False, None, None, None)
+    assert _resolve(False, file_t, emb_t) == legacy == eval_FLAC.LEGACY_CANON_PROTOCOL
+
+
+@pytest.mark.parametrize("kw, want", [
+    (dict(flag=True, file_t=ON, emb_t=ON), (True, True, False)),           # the CANON table cell
+    (dict(file_t=OFF, emb_t=OFF), (False, False, False)),                   # in play, nothing applied
+    (dict(file_t=ON, emb_t=ON, allow=True), (True, False, True)),          # D-i: trained, not applied
+    (dict(flag=True, file_t={}, emb_t={}, allow=True), (False, True, True)),  # D-ii: P1 + canon
+    (dict(flag=True, file_t=OFF, emb_t=OFF, allow=True), (False, True, True))])
+def test_accepted_protocols(kw, want):
+    p = _resolve(**kw)
+    assert p.in_play is True and (p.trained, p.applied, p.mismatch) == want
+    assert p.img_w == 512 and type(p.img_w) is int
+    file_t, emb_t = kw["file_t"], kw["emb_t"]
+    assert p.file_block == file_t.get("canonicalize") and p.embedded_block == emb_t.get("canonicalize")
+
+
+@pytest.mark.parametrize("kw, needle", [
+    (dict(flag=True, file_t={}, emb_t={}), "TRAINED with canonicalize=False"),                      # flag without any config
+    (dict(file_t=ON, emb_t=ON), "TRAINED with canonicalize=True"),                                 # config without flag
+    (dict(flag=True, file_t=ON, emb_t=None), "no embedded model_config"),                   # missing embedded config
+    (dict(file_t=ON, emb_t=None), "no embedded model_config"),
+    (dict(flag=True, file_t={}, emb_t=None, allow=True), "no embedded model_config"),
+    (dict(file_t=OFF, emb_t={}), "present only in"),                                 # absent vs {enabled:false}
+    (dict(file_t={}, emb_t=ON), "present only in"),                                  # embedded-only, no flags
+    (dict(file_t={}, emb_t=OFF), "present only in"),
+    (dict(flag=True, file_t=ON, emb_t={"canonicalize": {"enabled": 1, "img_w": 512}}), "type int != bool"),
+    (dict(flag=True, file_t=ON, emb_t={"canonicalize": {"enabled": True, "img_w": 512.0}}), "type float != int"),
+    (dict(flag=True, file_t=ON, emb_t={"canonicalize": {"enabled": True}}), "key sets differ"),
+    (dict(file_t=OFF, emb_t=ON, allow=True), r"disagree \(type-strict\)"),                # disagree, allow given
+    (dict(flag=True, file_t=OFF, emb_t=ON, allow=True), r"disagree \(type-strict\)"),
+    (dict(flag=True, file_t=ON, emb_t=ON, allow=True), "unnecessary"),      # allow, trained == applied
+    (dict(file_t={}, emb_t={}, allow=True), "unnecessary"),
+    (dict(file_t=OFF, emb_t=OFF, allow=True), "unnecessary"),
+    (dict(flag=True, file_t=ON, emb_t=ON, cond="fa_invariant"), "fa_invariant"),
+    (dict(flag=True, file_t={}, emb_t={}, allow=True, cond="fa_invariant"), "fa_invariant"),
+    (dict(flag=True, file_t=ON, emb_t=ON, widths=(256, 256)), "!= the ViT img_w 256"),     # block vs ViT width
+    (dict(flag=True, file_t={}, emb_t={}, allow=True, widths=(512, 256)), "disagree on img_w"),
+    (dict(flag=True, file_t=ON, emb_t=ON, widths=()), "no ViT conditioner"),
+    (dict(flag=True, file_t={}, emb_t={}, allow=True, widths=(512.0, 512.0)), "ViT img_w must be a positive int"),
+    (dict(flag=True, file_t={"canonicalize": {"enabled": True, "img_w": 512, "seed": 1}},
+          emb_t={"canonicalize": {"enabled": True, "img_w": 512, "seed": 1}}), "unknown key"),
+    (dict(flag=1, file_t=ON, emb_t=ON), "--canonicalize must be a bool"),
+    (dict(file_t=ON, emb_t=ON, allow=0), "--allow-canon-mismatch must be a bool")])
+def test_refused_protocols(kw, needle):
+    with pytest.raises(ValueError, match=needle):
+        _resolve(**kw)
+
+
+def test_mismatch_message_names_both_sides():
+    with pytest.raises(ValueError) as err:
+        _resolve(file_t=ON, emb_t=ON)
+    assert "canonicalize=True" in str(err.value) and "canonicalize=False" in str(err.value)
+
+
+def test_protocol_blocks_are_copies():
+    file_t, emb_t = copy.deepcopy(ON), copy.deepcopy(ON)
+    p = eval_FLAC.resolve_canonicalize_protocol(True, file_t, emb_t, False, "vanilla",
+                                                file_model_cfg=_model_cfg(ON))
+    file_t["canonicalize"]["img_w"] = emb_t["canonicalize"]["img_w"] = 1
+    assert p.file_block == p.embedded_block == ON["canonicalize"]

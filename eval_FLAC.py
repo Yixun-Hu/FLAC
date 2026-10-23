@@ -66,6 +66,7 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    TIE_CLASSES)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+from src.training.factory import _parse_canonicalize_config
 
 
 def rot_suffix(rotate_deg):
@@ -436,6 +437,88 @@ def model_config_sha256(model_config):
         return None
     return hashlib.sha256(json.dumps(model_config, sort_keys=True,
                                      separators=(",", ":")).encode()).hexdigest()
+
+
+def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg,
+                                  allow_mismatch, cond_method, file_model_cfg=None):
+    """Bind ``--canonicalize`` to the CHECKPOINT, fail-closed (plan v8 §2.2, review B2 / r2 H1).
+
+    Canonicalization adds no parameter, so a CANON checkpoint loads cleanly under a
+    P1 config and vice versa; the embedded ``model_config`` is the only proof of
+    how the weights were trained (announcement 05). It is *in play* when the
+    embedded OR the file ``training`` block carries a ``canonicalize`` key (any
+    value) or either flag is given; otherwise :data:`LEGACY_CANON_PROTOCOL` is
+    returned and nothing else happens. In play, all fatal (``ValueError``):
+
+    * no embedded training config;
+    * embedded vs file ``canonicalize`` blocks not type-strictly equal (absent !=
+      ``{enabled: false}``; ``1`` != ``true``) -- whatever ``allow_mismatch`` says;
+    * an invalid block (the factory's own ``_parse_canonicalize_config``);
+    * ``--canonicalize`` with ``cond_method='fa_invariant'``;
+    * ``trained != applied`` without ``allow_mismatch``; ``allow_mismatch`` with
+      ``trained == applied`` (an unnecessary allow flag);
+    * no unanimous positive-int ViT ``img_w`` in ``file_model_cfg``, or a trained
+      block whose ``img_w`` differs from it.
+    """
+    for name, value in (("--canonicalize", flag), ("--allow-canon-mismatch", allow_mismatch)):
+        if type(value) is not bool:
+            raise ValueError(f"canonicalize protocol: {name} must be a bool, got {value!r}")
+    embedded_has = isinstance(embedded_training_cfg, dict) and CANON_KEY in embedded_training_cfg
+    file_has = isinstance(file_training_cfg, dict) and CANON_KEY in file_training_cfg
+    if not (embedded_has or file_has or flag or allow_mismatch):
+        return LEGACY_CANON_PROTOCOL
+    if not isinstance(embedded_training_cfg, dict):
+        raise ValueError(
+            "canonicalize protocol: canonicalization is in play but the checkpoint carries no "
+            "embedded model_config['training'], so how its weights were trained cannot be "
+            "proven (announcement 05). Refusing to evaluate.")
+    file_training_cfg = file_training_cfg if isinstance(file_training_cfg, dict) else {}
+    emb_block = embedded_training_cfg.get(CANON_KEY, _CANON_ABSENT)
+    file_block = file_training_cfg.get(CANON_KEY, _CANON_ABSENT)
+    if (emb_block is _CANON_ABSENT) != (file_block is _CANON_ABSENT):
+        where = "--model-config" if emb_block is _CANON_ABSENT else "the checkpoint's embedded config"
+        raise ValueError(
+            f"canonicalize protocol: training.canonicalize is present only in {where} and "
+            "absent from the other; the two must agree type-strictly (absent != "
+            "{enabled: false}). --allow-canon-mismatch does not authorise this.")
+    trained, block_img_w = False, None
+    if emb_block is not _CANON_ABSENT:
+        diff = _canon_strict_diff(emb_block, file_block, "training.canonicalize")
+        if diff is not None:
+            raise ValueError(
+                f"canonicalize protocol: the checkpoint's embedded and --model-config blocks "
+                f"disagree (type-strict): {diff}. --allow-canon-mismatch does not authorise "
+                "a config disagreement.")
+        try:
+            parsed = _parse_canonicalize_config(file_training_cfg)
+            _parse_canonicalize_config(embedded_training_cfg)
+        except ValueError as err:
+            raise ValueError(f"canonicalize protocol: {err}") from err
+        trained, block_img_w = bool(parsed), parsed.get("canonicalize_img_w")
+    applied = flag
+    if applied and cond_method == 'fa_invariant':
+        raise ValueError("canonicalize protocol: --canonicalize with --cond-method "
+                         "fa_invariant is out of scope (frame averaging already symmetrises)")
+    if trained != applied and not allow_mismatch:
+        raise ValueError(
+            f"canonicalize protocol mismatch: the checkpoint was TRAINED with canonicalize="
+            f"{trained} (embedded training.canonicalize = "
+            f"{None if emb_block is _CANON_ABSENT else emb_block!r}) but this evaluation "
+            f"APPLIES canonicalize={applied} (--canonicalize {'given' if flag else 'absent'}). "
+            "Announcement 05: the protocol must match the checkpoint; pass "
+            "--allow-canon-mismatch only for a labelled diagnostic cell.")
+    if allow_mismatch and trained == applied:
+        raise ValueError(
+            f"canonicalize protocol: --allow-canon-mismatch is unnecessary (trained == applied "
+            f"== {trained}); an unnecessary allow flag must not record an ordinary cell as a "
+            "diagnostic.")
+    img_w = canon_vit_img_w(file_model_cfg)
+    if trained and block_img_w != img_w:
+        raise ValueError(f"canonicalize protocol: training.canonicalize.img_w={block_img_w} "
+                         f"!= the ViT img_w {img_w}")
+    copy_or_none = lambda b: None if b is _CANON_ABSENT else copy.deepcopy(b)  # noqa: E731
+    return CanonProtocol(True, trained, applied, trained != applied, img_w,
+                         copy_or_none(file_block), copy_or_none(emb_block))
 
 
 def build_output_paths(
