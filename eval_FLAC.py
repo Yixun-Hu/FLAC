@@ -338,6 +338,28 @@ def apply_are_addback(latents, bank, are_lambda, metadata, device):
                                 are_lambda)
 
 
+# exp_25 depth_canon (plan_depth_canon.md v8 §2.2/§5): deepest-column yaw
+# canonicalization at evaluation. Additions only; with none of its flags given (and
+# no `training.canonicalize` block on either config) every name, record and sidecar
+# is byte-identical to the pre-exp_25 evaluator.
+CANON_KEY = 'canonicalize'
+CANON_TIEBREAK = 'image'
+
+
+def canon_suffix(applied=False, mismatch=False):
+    """``''`` / ``'_canon'`` / ``'_canonmis'`` / ``'_canon_canonmis'`` (applied first).
+
+    ``_canon`` = canonicalization APPLIED at evaluation; ``_canonmis`` = an
+    authorised trained != applied diagnostic (``--allow-canon-mismatch``), so a
+    trained-but-not-applied cell is distinguishable from a vanilla one by name.
+    Literal bools only: a truthy ``1`` must not silently pick a protocol token.
+    """
+    for name, value in (('applied', applied), ('mismatch', mismatch)):
+        if type(value) is not bool:
+            raise ValueError(f"canon_suffix: {name} must be a bool, got {value!r}")
+    return ('_canon' if applied else '') + ('_canonmis' if mismatch else '')
+
+
 def build_output_paths(
     ckpt_path,
     steps,
@@ -349,6 +371,8 @@ def build_output_paths(
     rotate_mode='fixed',
     rotate_seed=None,
     are_lambda=None,
+    canonicalize=False,
+    canon_mismatch=False,
 ):
     """Construct the metrics-JSON and predictions-.pt output paths for one run.
 
@@ -365,6 +389,9 @@ def build_output_paths(
     ``rotate_mode='random'`` (exp_14) replaces the angle suffix with
     ``_rotrand<rotate_seed>``; the fixed-mode names are unchanged down to the byte.
 
+    exp_25: :func:`canon_suffix` goes after the method suffix and before the
+    rotation token; both default to False, which leaves every name unchanged.
+
     Returns
     -------
     dict
@@ -374,7 +401,8 @@ def build_output_paths(
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
     rot = rotation_suffix(rotate_mode, rotate_deg, rotate_seed)
-    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot}{are_suffix(are_lambda)}'
+    canon = canon_suffix(canonicalize, canon_mismatch)
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{canon}{rot}{are_suffix(are_lambda)}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
