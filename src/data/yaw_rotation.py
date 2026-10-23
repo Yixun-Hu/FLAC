@@ -704,17 +704,21 @@ class StabilizedTieError(RuntimeError):
     columns, i.e. the recovered panorama is exactly periodic. Policy is to FAIL
     CLOSED rather than pick one (``min`` of {0, 256} rolled by 300 is 44, not the
     co-rotated 300); this is an exception, never a tie class. ``candidates`` holds
-    the tied columns in ascending order."""
+    the tied columns in ascending order; ``sample`` is the loader's identifier of the
+    item (``idx`` / ``path`` / ``relpath`` when present, see
+    :func:`canonicalize_scene_metadata`), or ``None``."""
 
-    def __init__(self, candidates):
+    def __init__(self, candidates, sample=None):
         self.candidates = tuple(int(c) for c in candidates)
+        self.sample = dict(sample) if sample else None
+        where = f" [sample {self.sample}]" if self.sample else ""
         super().__init__(
             f"canonicalization tie: candidate columns {list(self.candidates)} have "
             "identical rooted images (the recovered panorama is exactly periodic); "
-            "policy fails closed (plan_depth_canon.md §2.1 Step C-2)")
+            f"policy fails closed (plan_depth_canon.md §2.1 Step C-2){where}")
 
-    def __reduce__(self):  # picklable despite the non-message constructor argument
-        return (type(self), (self.candidates,))
+    def __reduce__(self):  # picklable despite the non-message constructor arguments
+        return (type(self), (self.candidates, self.sample))
 
 
 def _check_pose(name: str, pose, shape: Tuple) -> None:
@@ -846,14 +850,19 @@ def canonicalize_scene_metadata(
     Fail-closed: ``ValueError`` on a contract violation (``depth`` a finite floating
     ``[3, H, W]`` with even ``H`` and ``W == img_w``; REQUIRED ``source [3]``,
     ``source_vit [1, 3]``, ``context_poses`` / ``context_poses_vit [N, 3]`` with one
-    ``N >= 1``, finite floating); :class:`StabilizedTieError` propagates (never
-    caught); ``RuntimeError`` when the post-condition -- the selector re-run on the
+    ``N >= 1``, finite floating); :class:`StabilizedTieError` (re-raised with the
+    record's ``idx`` / ``path`` / ``relpath`` when present, never swallowed);
+    ``RuntimeError`` when the post-condition -- the selector re-run on the
     output gives ``j* == 0`` and the same tie class -- fails.
 
     Returns ``(md_canon, dj, tie_class)``.
     """
     _check_canon_inputs(md, img_w)
-    j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]))
+    try:
+        j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]))
+    except StabilizedTieError as err:  # re-raised naming the loader sample (dataset.py)
+        sample = {k: md[k] for k in ("idx", "path", "relpath") if k in md}
+        raise StabilizedTieError(err.candidates, sample) from err
     dj = canonical_shift(j_star, img_w)
     out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w)
     j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]))

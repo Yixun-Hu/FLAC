@@ -574,3 +574,26 @@ def test_canonicalize_takes_no_pose_keys_and_rotates_all_four_pose_fields():
     for k in yr.POSE_KEYS:
         assert torch.equal(out[k], torch.einsum("ij,...j->...i", R, md[k]))
         assert not torch.equal(out[k], md[k])
+
+
+# --------------------------------------------------------------------------- #
+# code-review r1 fix (NIT): the fail-closed error names the loader sample
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("ids,expected", [
+    ({"idx": 7, "path": "/data/S001_R002.wav", "relpath": "a/b/S001_R002.wav"},
+     {"idx": 7, "path": "/data/S001_R002.wav", "relpath": "a/b/S001_R002.wav"}),
+    ({"path": "/data/x.wav"}, {"path": "/data/x.wav"}),
+    ({}, None),
+])
+def test_stabilized_tie_error_carries_the_sample_identifier(ids, expected):
+    import pickle
+    H, W, kw = PERIODIC["small_p8"]
+    md = dict(_md(_scalar_depth(H, W, **kw)), **ids)
+    with pytest.raises(yr.StabilizedTieError) as info:
+        yr.canonicalize_scene_metadata(md, W)
+    err = info.value
+    assert err.sample == expected and err.candidates == (1, 9, 17, 25)
+    assert all(str(v) in str(err) for v in ids.values())
+    back = pickle.loads(pickle.dumps(err))
+    assert (back.candidates, back.sample, str(back)) == (err.candidates, err.sample, str(err))
+    assert yr.StabilizedTieError([3, 19]).sample is None
