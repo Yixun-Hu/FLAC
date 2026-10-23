@@ -696,25 +696,22 @@ def column_profile(D: torch.Tensor) -> torch.Tensor:
     return D.max(dim=0).values
 
 
-TIE_CLASSES: Tuple[str, ...] = ("none", "same_column", "cross_column_image",
-                                "cross_column_source", "cross_column_context")
+TIE_CLASSES: Tuple[str, ...] = ("none", "same_column", "cross_column_image")
 
 
 class StabilizedTieError(RuntimeError):
-    """Plan §2.1 C-4: several candidate columns survive EVERY tie-break key.
-
-    Only an exactly periodic depth proxy with azimuth-degenerate source and context
-    poses gets here -- a joint input with a nontrivial cyclic stabilizer, on which no
-    deterministic selector is equivariant (``min`` of {0, 256} rolled by 300 is 44,
-    not 300). Canonicalization therefore FAILS CLOSED; this is an exception, never a
-    tie class. ``candidates`` holds the surviving columns in ascending order."""
+    """Plan §2.1 Step C-2 (v6): the approved rooted-image key leaves several candidate
+    columns, i.e. the recovered panorama is exactly periodic. Policy is to FAIL
+    CLOSED rather than pick one (``min`` of {0, 256} rolled by 300 is 44, not the
+    co-rotated 300); this is an exception, never a tie class. ``candidates`` holds
+    the tied columns in ascending order."""
 
     def __init__(self, candidates):
         self.candidates = tuple(int(c) for c in candidates)
         super().__init__(
-            f"stabilized canonicalization tie: candidate columns {list(self.candidates)} "
-            "survive the rooted-image, source and context keys; no equivariant choice "
-            "exists, failing closed (plan_depth_canon.md §2.1 C-4)")
+            f"canonicalization tie: candidate columns {list(self.candidates)} have "
+            "identical rooted images (the recovered panorama is exactly periodic); "
+            "policy fails closed (plan_depth_canon.md §2.1 Step C-2)")
 
     def __reduce__(self):  # picklable despite the non-message constructor argument
         return (type(self), (self.candidates,))
@@ -759,31 +756,7 @@ def _image_key_survivors(D: torch.Tensor, cands: List[int]) -> List[int]:
     return best
 
 
-# Radius below which a pose's azimuth is undefined (as in cylindrical_pose_features).
-_AZIMUTH_EPS: float = 1e-6
-
-
-def _relative_pose_keys(poses: torch.Tensor, c: int, W: int) -> List[Tuple[float, float, float]]:
-    """Per pose row, in ORIGINAL row order: ``(r, z, (atan2(y, x) - theta_c) mod 2pi)``
-    in float64 with ``theta_c = (c + 0.5) * 2pi / W - pi`` (column ``c``'s centre
-    azimuth); the azimuth is ``+inf`` when ``r < 1e-6``. The wrap is taken on the
-    DIFFERENCE, so atan2's +-pi branch cut never enters a comparison."""
-    p = poses.detach().to(device="cpu", dtype=torch.float64).reshape(-1, 3)
-    r = torch.hypot(p[:, 0], p[:, 1])
-    theta_c = (c + 0.5) * 2.0 * math.pi / W - math.pi
-    rel = torch.remainder(torch.atan2(p[:, 1], p[:, 0]) - theta_c, 2.0 * math.pi)
-    rel = torch.where(r < _AZIMUTH_EPS, torch.full_like(rel, math.inf), rel)
-    return list(zip(r.tolist(), p[:, 2].tolist(), rel.tolist()))
-
-
-def _min_key_survivors(cands: List[int], key) -> List[int]:
-    """The candidates whose ``key(c)`` is the (exact) minimum."""
-    keys = {c: key(c) for c in cands}
-    best = min(keys.values())
-    return [c for c in cands if keys[c] == best]
-
-
-def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, str]:
+def canonical_column(D: torch.Tensor) -> Tuple[int, str]:
     """
     The canonical ("deepest") column ``j*`` of an ``[H, W]`` depth proxy, with its
     tie class (plan_depth_canon.md §2.1 Steps B-C).
@@ -791,38 +764,18 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     Candidates are the columns whose maximum equals the global maximum (exact
     equality). A single candidate is returned with class ``"same_column"`` when
     several pixels of that column share the global maximum, else ``"none"``.
-    Several candidates are resolved by keys that are rotation-invariant objects
-    read from each candidate's anchor, so the choice co-rotates with the panorama:
-
-    1. the full rooted image (largest wins) -> ``"cross_column_image"``;
-    2. the target source's relative azimuth ``(atan2(y, x) - theta_c) mod 2pi``,
-       ``theta_c = (c + 0.5) * 2pi / W - pi`` (smallest wins; skipped when the
-       source radius is ``< 1e-6``) -> ``"cross_column_source"``;
-    3. the ORDERED, pair-preserving context key: for each context row in its
-       original order the tuple ``(r_i, z_i, relative azimuth_i)`` (azimuth
-       ``+inf`` when ``r_i < 1e-6``), compared lexicographically over the rows
-       (smallest wins) -> ``"cross_column_context"``. Rows are never permuted,
-       so the pairing with the untouched ``context_audio`` rows is preserved;
-
-    and otherwise (exactly periodic proxy, degenerate source, identical ordered
-    contexts) the selector fails closed with :class:`StabilizedTieError`.
-    Keys 2-3 are reached only on an exactly periodic proxy. There the selector
-    has the measure-zero discontinuity every canonicalizer has: a deciding pose
-    within float32 rotation round-off (~1e-7 rad) of a candidate's column centre
-    (relative azimuth ~0 vs ~2pi) may resolve differently after a rotation.
-
-    ``source`` (``[3]``) and ``context`` (``[N, 3]``) are validated when given.
-    Every comparison is exact (no comparison tolerance anywhere); the ``1e-6``
-    radius is only the azimuth-degeneracy threshold of
-    :func:`cylindrical_pose_features`.
+    Several candidates are compared by their full rooted image -- columns
+    ``c, c+1, ...`` (mod W), each read top to bottom, a rotation-invariant object
+    read from the candidate anchor -- and the lexicographically largest wins
+    (``"cross_column_image"``). If several candidates still tie, the recovered
+    panorama is exactly periodic and the selector fails closed with
+    :class:`StabilizedTieError`. Poses are NOT selector inputs (plan v6: pose keys
+    computed from re-rounded float32 poses flip at column centres and at the
+    degeneracy radius). Every comparison is exact; there is no tolerance.
     """
     P = column_profile(D)
     if not bool(torch.isfinite(D).all()):
         raise ValueError("depth proxy contains non-finite values")
-    if source is not None:
-        _check_pose("source", source, (3,))
-    if context is not None:
-        _check_pose("context", context, (None, 3))
     M = P.max()
     cands = torch.nonzero(P == M).flatten().tolist()
     if len(cands) == 1:
@@ -831,16 +784,6 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     cands = _image_key_survivors(D, cands)
     if len(cands) == 1:
         return int(cands[0]), "cross_column_image"
-    W = int(D.shape[1])
-    # source radius is anchor-independent: +inf at one anchor <=> degenerate source
-    if source is not None and _relative_pose_keys(source, 0, W)[0][2] < math.inf:
-        cands = _min_key_survivors(cands, lambda c: _relative_pose_keys(source, c, W)[0][2])
-        if len(cands) == 1:
-            return int(cands[0]), "cross_column_source"
-    if context is not None and int(context.shape[0]) > 0:
-        cands = _min_key_survivors(cands, lambda c: _relative_pose_keys(context, c, W))
-        if len(cands) == 1:
-            return int(cands[0]), "cross_column_context"
     raise StabilizedTieError(cands)
 
 
@@ -890,7 +833,7 @@ def canonicalize_scene_metadata(
     Deepest-pixel yaw canonicalization of ONE sample's metadata (plan §2.1 Step D).
 
     ``j*`` comes from :func:`canonical_column` on the :func:`recover_depth_proxy` of
-    ``md['depth']`` (tie keys ``md['source']``, ``md['context_poses']``); the reviewed
+    ``md['depth']`` alone (poses never select); the reviewed
     yaw operator is then applied ONCE, ``rotate_scene_metadata(md, dj * 2pi / img_w,
     img_w, pose_keys)`` with ``dj = canonical_shift(j*, img_w)``: column ``j*``
     becomes column 0 and the depth vectors and pose fields rotate about z by the
@@ -907,12 +850,10 @@ def canonicalize_scene_metadata(
     Returns ``(md_canon, dj, tie_class)``.
     """
     _check_canon_inputs(md, img_w)
-    j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]), md.get("source"),
-                                         md.get("context_poses"))
+    j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]))
     dj = canonical_shift(j_star, img_w)
     out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w, pose_keys)
-    j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]),
-                                            out.get("source"), out.get("context_poses"))
+    j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]))
     if j_check != 0 or class_check != tie_class:
         raise RuntimeError(
             f"canonicalization post-condition failed: shifting j*={j_star} ({tie_class}) "

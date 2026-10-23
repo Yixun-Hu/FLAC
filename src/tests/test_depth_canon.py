@@ -352,9 +352,9 @@ def test_canonicalize_post_condition_fails_closed(monkeypatch, lie):
     _, md, _ = _fixture("small_unique")
     real, calls = yr.canonical_column, []
 
-    def fake(D, source=None, context=None):
+    def fake(D):
         calls.append(1)
-        j, c = real(D, source, context)
+        j, c = real(D)
         return (j, c) if len(calls) == 1 else lie(j, c)   # the re-check on the output lies
     monkeypatch.setattr(yr, "canonical_column", fake)
     with pytest.raises(RuntimeError, match="post-condition"):
