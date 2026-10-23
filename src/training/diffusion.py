@@ -732,6 +732,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         # exp_15: TRAINING-ONLY random yaw of the conditioning (plan §6.3).
         if self.yaw_aug_enabled:
@@ -888,6 +891,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         if reals.ndim == 4 and reals.shape[0] == 1:
             reals = reals[0]
@@ -983,6 +989,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         
     def test_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         B = reals.shape[0]
 

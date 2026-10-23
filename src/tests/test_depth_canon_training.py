@@ -23,7 +23,7 @@ from src.data.yaw_rotation import TIE_CLASSES
 from src.models.factory import create_model_from_config
 from src.training.factory import (
     CANON_KEYS, _parse_canonicalize_config, create_training_wrapper_from_config)
-from test_cond_dispatch import _base_config  # tiny CPU diffusion_cond (pytest prepends src/tests)
+from test_cond_dispatch import _base_config, _neutralize_for_steps  # (pytest prepends src/tests)
 from test_depth_canon import _cloud, _scalar_depth  # synthetic depth via the real AR_md
 from test_yaw_aug_training import PRE_CHANGE_WRAPPER_KWARGS, _rng_digest
 
@@ -364,3 +364,62 @@ def test_a_periodic_panorama_fails_closed_and_counts_nothing():
                                      _canon_md(1, period=W // 2)])
     assert excinfo.value.sample == {"idx": 1, "path": "/fake/1.wav"}
     assert wrapper.canon_tie_counts == {c: 0 for c in TIE_CLASSES}
+
+
+# --------------------------------------------------------------------------- #
+# 12. dispatch spy: canonicalization runs once per step, FIRST, at all three sites
+# --------------------------------------------------------------------------- #
+STEPS = ["training_step", "validation_step", "test_step"]
+
+
+def _step_wrapper(monkeypatch, enabled=True):
+    """A wrapper whose DiT / sampler / metric sink are neutralized (test_cond_dispatch)
+    and whose _canonicalize_batch and _compute_conditioning record (and delegate)."""
+    wrapper = _build(canonicalize={"enabled": True, "img_w": W}) if enabled else _build()
+    _neutralize_for_steps(wrapper, monkeypatch)
+    wrapper.trainer.training = True
+    wrapper.log = lambda *a, **k: None
+    events, canon, cond = [], wrapper._canonicalize_batch, wrapper._compute_conditioning
+
+    def _canon(metadata):
+        events.append(("canon", metadata))
+        events.append(("canon_out", canon(metadata)))
+        return events[-1][1]
+
+    wrapper._canonicalize_batch = _canon
+    wrapper._compute_conditioning = lambda md: events.append(("cond", md)) or cond(md)
+    return wrapper, events
+
+
+def _step_batch():
+    return torch.randn(2, 1, 64), [_canon_md(0, "cross_column_image"), _canon_md(1)]
+
+
+@pytest.mark.parametrize("step", STEPS)
+def test_canonicalization_runs_once_first_and_feeds_the_conditioner(monkeypatch, step):
+    wrapper, events = _step_wrapper(monkeypatch)
+    reals, metadata = _step_batch()
+    getattr(wrapper, step)((reals, metadata), 0)
+    assert [name for name, _ in events] == ["canon", "canon_out", "cond"]
+    assert events[0][1] is metadata and events[2][1] is events[1][1]
+    for md in events[2][1]:
+        assert yr.canonical_column(yr.recover_depth_proxy(md["depth"]))[0] == 0
+
+
+@pytest.mark.parametrize("step", STEPS)
+def test_disabled_steps_never_canonicalize(monkeypatch, step):
+    wrapper, events = _step_wrapper(monkeypatch, enabled=False)
+    reals, metadata = _step_batch()
+    getattr(wrapper, step)((reals, metadata), 0)
+    assert [name for name, _ in events] == ["cond"] and events[0][1] is metadata
+
+
+def test_canonicalization_precedes_the_yaw_aug_hook(monkeypatch):
+    """The two treatments are mutually exclusive by construction, so the flag is flipped
+    on the built object purely to pin the hook ORDER inside training_step."""
+    wrapper, events = _step_wrapper(monkeypatch)
+    wrapper.yaw_aug_enabled = True
+    wrapper._apply_yaw_aug = lambda md: events.append(("yaw", md)) or md
+    wrapper.training_step(_step_batch(), 0)
+    assert [name for name, _ in events] == ["canon", "canon_out", "yaw", "cond"]
+    assert events[2][1] is events[1][1]
