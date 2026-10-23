@@ -62,7 +62,8 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    draw_yaw_offsets, offsets_to_radians,
                                    yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
-                                   FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap)
+                                   FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap,
+                                   TIE_CLASSES)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
 
@@ -344,6 +345,13 @@ def apply_are_addback(latents, bank, are_lambda, metadata, device):
 # is byte-identical to the pre-exp_25 evaluator.
 CANON_KEY = 'canonicalize'
 CANON_TIEBREAK = 'image'
+# The eight record fields, appended in this order (and only) when canonicalization
+# is in play; see _canon_provenance.
+CANON_RECORD_KEYS = (
+    'canonicalize_trained', 'canonicalize_applied', 'canonicalize_mismatch',
+    'canonicalize_img_w', 'canonicalize_tiebreak', 'canonicalize_tie_counts',
+    'model_config_sha256_file', 'model_config_sha256_embedded',
+)
 
 
 def canon_suffix(applied=False, mismatch=False):
@@ -1064,6 +1072,55 @@ def _are_provenance(record, are_lambda, are_lambda_source, are_anchor):
     return record
 
 
+def _is_sha256_hex(value):
+    return (isinstance(value, str) and len(value) == 64
+            and all(ch in "0123456789abcdef" for ch in value))
+
+
+def _canon_provenance(record, prov):
+    """Append exp_25's eight protocol fields -- ONLY when canonicalization is in play.
+
+    ``prov is None`` (no ``canonicalize`` block anywhere, no flag) leaves the record
+    untouched, so every legacy row stays byte-identical. Otherwise ``prov`` must
+    carry exactly :data:`CANON_RECORD_KEYS`, and is refused (``ValueError``) unless
+    it is self-consistent: literal bools, ``mismatch == (trained != applied)``, a
+    positive int ``img_w``, tiebreak ``"image"`` and per-class int counts over
+    ``TIE_CLASSES`` exactly when applied (else both ``None``), two sha256 hex
+    digests. The fields are copied, so the record never aliases the caller's dict.
+    """
+    if prov is None:
+        return record
+    if not isinstance(prov, dict) or set(prov) != set(CANON_RECORD_KEYS):
+        raise ValueError(f"canon provenance must carry exactly {list(CANON_RECORD_KEYS)}, "
+                         f"got {sorted(prov) if isinstance(prov, dict) else prov!r}")
+    trained, applied, mismatch = (prov[k] for k in CANON_RECORD_KEYS[:3])
+    if any(type(v) is not bool for v in (trained, applied, mismatch)) \
+            or mismatch != (trained != applied):
+        raise ValueError(f"canon provenance: trained/applied/mismatch must be bools with "
+                         f"mismatch == (trained != applied), got {trained!r}/{applied!r}/{mismatch!r}")
+    img_w, counts = prov["canonicalize_img_w"], prov["canonicalize_tie_counts"]
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"canon provenance: img_w must be a positive int, got {img_w!r}")
+    if prov["canonicalize_tiebreak"] != (CANON_TIEBREAK if applied else None):
+        raise ValueError(f"canon provenance: tiebreak {prov['canonicalize_tiebreak']!r} "
+                         f"with applied={applied}")
+    if applied:
+        if not isinstance(counts, dict) or set(counts) != set(TIE_CLASSES) or any(
+                type(counts[c]) is not int or counts[c] < 0 for c in TIE_CLASSES):
+            raise ValueError(f"canon provenance: tie counts must be non-negative ints over "
+                             f"{list(TIE_CLASSES)}, got {counts!r}")
+        counts = {c: counts[c] for c in TIE_CLASSES}
+    elif counts is not None:
+        raise ValueError(f"canon provenance: tie counts without canonicalization: {counts!r}")
+    for key in CANON_RECORD_KEYS[6:]:
+        if not _is_sha256_hex(prov[key]):
+            raise ValueError(f"canon provenance: {key} must be a sha256 hex digest, "
+                             f"got {prov[key]!r}")
+    for key in CANON_RECORD_KEYS:
+        record[key] = counts if key == "canonicalize_tie_counts" else prov[key]
+    return record
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default', batch_size=None, n_samples=None,
                          dataset_config=None, seed=None, cfg_scale=None, steps=None,
@@ -1071,7 +1128,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
                          assignment_hash=None, stream_count=None, img_w=None,
                          by_scene=None, frame_avg_max_fwd_samples=None,
-                         are_lambda=None, are_lambda_source=None, are_anchor=None):
+                         are_lambda=None, are_lambda_source=None, are_anchor=None,
+                         canon_provenance=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -1091,6 +1149,9 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     ``frame_avg_max_fwd_samples`` is the cap this evaluation applied; ``None``
     records the module default, i.e. the value every row already in the record
     was produced under (exp_14 pins it to 64 explicitly on both arms).
+
+    exp_25: ``canon_provenance`` (``None`` unless canonicalization is in play)
+    appends :data:`CANON_RECORD_KEYS` last; see :func:`_canon_provenance`.
     """
     execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
     record = {
@@ -1122,7 +1183,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     record = _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
                                   assignment_hash, stream_count, img_w)
     record = _per_scene_provenance(record, by_scene)
-    return _are_provenance(record, are_lambda, are_lambda_source, are_anchor)
+    record = _are_provenance(record, are_lambda, are_lambda_source, are_anchor)
+    return _canon_provenance(record, canon_provenance)
 
 
 def resolve_cond_autocast(mode):

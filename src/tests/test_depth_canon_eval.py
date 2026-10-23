@@ -9,14 +9,18 @@ CPU only. Synthetic depth goes through the REAL AR_md converter
 (``test_depth_canon``'s helpers); the legacy byte pins are the exp_14 golden
 fixture and ``test_eval_paths``'s exp_01 names, reused verbatim.
 """
+import copy
 import itertools
+import json
 
 import pytest
 
 import eval_FLAC
-from test_exp14_fixed_mode_snapshot import MATRIX, META
+from src.data.yaw_rotation import TIE_CLASSES
+from test_exp14_fixed_mode_snapshot import MATRIX, META, _record_kwargs
 
 CKPT = "weights/FLAC/FLAC_EMA.ckpt"
+SHA_A, SHA_B = "a" * 64, "b" * 64
 
 
 # --------------------------------------------------------------------------- #
@@ -85,3 +89,72 @@ def test_names_are_injective_over_every_protocol_combination():
     for p in paths:  # metrics and predictions differ only by kind + extension
         assert p["metrics"][:-5].replace("_metrics_", "_") == \
             p["predictions"][:-3].replace("_predictions_", "_")
+
+
+# --------------------------------------------------------------------------- #
+# 17. build_metrics_record(..., canon_provenance=None)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("case", MATRIX, ids=lambda c: f'{c["cond_method"]}_{c["rotate_deg"]}')
+def test_record_without_provenance_is_the_golden_record(case, monkeypatch):
+    monkeypatch.setattr(eval_FLAC, "source_sha", lambda: META["source_sha_stub"])
+    args = (META["metrics"], META["ckpt_path"], case["rotate_deg"], case["cond_method"],
+            case["frame_avg_angles"])
+    explicit = eval_FLAC.build_metrics_record(*args, canon_provenance=None, **_record_kwargs(case))
+    default = eval_FLAC.build_metrics_record(*args, **_record_kwargs(case))
+    assert explicit == default and list(explicit) == list(default) == case["metrics_record_keys"]
+    assert json.dumps(explicit, indent=4) == case["metrics_record_json_indent4"]
+
+
+def _prov(applied=True, trained=True, **over):
+    prov = {"canonicalize_trained": trained, "canonicalize_applied": applied,
+            "canonicalize_mismatch": trained != applied, "canonicalize_img_w": 512,
+            "canonicalize_tiebreak": "image" if applied else None,
+            "canonicalize_tie_counts": ({"none": 6000, "same_column": 100,
+                                         "cross_column_image": 237} if applied else None),
+            "model_config_sha256_file": SHA_A, "model_config_sha256_embedded": SHA_B}
+    prov.update(over)
+    return prov
+
+
+@pytest.mark.parametrize("applied, trained", [(True, True), (False, True), (True, False),
+                                              (False, False)])
+def test_record_with_provenance_appends_the_eight_fields(applied, trained):
+    base = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None)
+    rec = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None,
+                                         canon_provenance=_prov(applied, trained))
+    assert list(rec) == list(base) + list(eval_FLAC.CANON_RECORD_KEYS)
+    assert len(eval_FLAC.CANON_RECORD_KEYS) == 8
+    assert {k: rec[k] for k in base} == base
+    for key in ("canonicalize_trained", "canonicalize_applied", "canonicalize_mismatch"):
+        assert type(rec[key]) is bool
+    assert rec["canonicalize_mismatch"] is (trained != applied)
+    assert type(rec["canonicalize_img_w"]) is int
+    if applied:
+        assert rec["canonicalize_tiebreak"] == "image"
+        assert list(rec["canonicalize_tie_counts"]) == list(TIE_CLASSES)
+    else:
+        assert rec["canonicalize_tiebreak"] is None and rec["canonicalize_tie_counts"] is None
+    assert rec["model_config_sha256_file"] == SHA_A
+    assert rec["model_config_sha256_embedded"] == SHA_B
+    json.loads(json.dumps(rec))
+
+
+@pytest.mark.parametrize("over", [
+    {"canonicalize_mismatch": True}, {"canonicalize_applied": 1}, {"canonicalize_img_w": True},
+    {"canonicalize_img_w": 0}, {"canonicalize_tiebreak": None}, {"canonicalize_tie_counts": None},
+    {"canonicalize_tie_counts": {"none": 1}}, {"canonicalize_tie_counts": {
+        "none": 1, "same_column": -1, "cross_column_image": 0}},
+    {"model_config_sha256_file": "A" * 64}, {"model_config_sha256_embedded": None},
+    {"extra_key": 1}])
+def test_malformed_provenance_is_refused(over):
+    with pytest.raises(ValueError, match="canon"):
+        eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None,
+                                       canon_provenance=_prov(**over))
+
+
+def test_record_does_not_alias_the_provenance_dict():
+    prov = _prov()
+    before = copy.deepcopy(prov)
+    rec = eval_FLAC.build_metrics_record({}, CKPT, 0.0, "vanilla", None, canon_provenance=prov)
+    rec["canonicalize_tie_counts"]["none"] += 1
+    assert prov == before
