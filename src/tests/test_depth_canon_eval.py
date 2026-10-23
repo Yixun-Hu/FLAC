@@ -158,3 +158,71 @@ def test_record_does_not_alias_the_provenance_dict():
     rec = eval_FLAC.build_metrics_record({}, CKPT, 0.0, "vanilla", None, canon_provenance=prov)
     rec["canonicalize_tie_counts"]["none"] += 1
     assert prov == before
+
+
+# --------------------------------------------------------------------------- #
+# 18. resolve_canonicalize_protocol (+ the two config hashes)
+# --------------------------------------------------------------------------- #
+ON, OFF = {"canonicalize": {"enabled": True, "img_w": 512}}, {"canonicalize": {"enabled": False}}
+
+
+def _model_cfg(training=None, widths=(512, 512)):
+    vits = [{"id": f"vit{i}", "type": "ViTCoordinates", "config": {"ViT": {"img_h": 256, "img_w": w}}}
+            for i, w in enumerate(widths)]
+    return {"model": {"conditioning": {"configs": [
+        {"id": "source", "type": "dist_embedder", "config": {}}] + vits}},
+            "training": copy.deepcopy(training) if training is not None else {}}
+
+
+def _resolve(flag=False, file_t=None, emb_t=None, allow=False, cond="vanilla", widths=(512, 512)):
+    return eval_FLAC.resolve_canonicalize_protocol(
+        flag, copy.deepcopy(file_t), copy.deepcopy(emb_t), allow, cond,
+        file_model_cfg=_model_cfg(file_t, widths))
+
+
+# --------------------------------------------------------------------------- #
+# 18 (helpers). CanonProtocol, type-strict diff, ViT width, config digest
+# --------------------------------------------------------------------------- #
+def test_legacy_protocol_constant():
+    assert eval_FLAC.CanonProtocol._fields == (
+        "in_play", "trained", "applied", "mismatch", "img_w", "file_block", "embedded_block")
+    assert eval_FLAC.LEGACY_CANON_PROTOCOL == (False, None, False, False, None, None, None)
+
+
+@pytest.mark.parametrize("a, b, needle", [
+    ({"enabled": True, "img_w": 512}, {"enabled": True, "img_w": 512}, None),
+    ({"enabled": 1}, {"enabled": True}, "x.enabled: type int != bool"),
+    ({"img_w": 512.0}, {"img_w": 512}, "x.img_w: type float != int"),
+    ({"enabled": True}, {"enabled": True, "img_w": 512}, "key sets differ (['img_w'])"),
+    ({"a": [1, 2]}, {"a": [1]}, "x.a: length 2 != 1"), ({"a": [1, {"b": 2}]}, {"a": [1, {"b": 3}]},
+                                                        "x.a[1].b: 2 != 3"),
+    ({"a": None}, {"a": False}, "type NoneType != bool")])
+def test_canon_strict_diff(a, b, needle):
+    got = eval_FLAC._canon_strict_diff(a, b, "x")
+    assert got is None if needle is None else needle in got
+
+
+@pytest.mark.parametrize("widths, want", [((512, 512), 512), ((32,), 32), ((512, 256), "disagree on img_w"),
+                                          ((), "no ViT conditioner"), ((512.0, 512.0), "positive int"),
+                                          ((True,), "positive int"), ((0,), "positive int")])
+def test_canon_vit_img_w(widths, want):
+    cfg = _model_cfg(None, widths)
+    if isinstance(want, int):
+        assert eval_FLAC.canon_vit_img_w(cfg) == want
+    else:
+        with pytest.raises(ValueError, match=want):
+            eval_FLAC.canon_vit_img_w(cfg)
+    for empty in (None, {}, {"model": {"conditioning": {"configs": [None, {"config": None}]}}}):
+        with pytest.raises(ValueError, match="no ViT conditioner"):
+            eval_FLAC.canon_vit_img_w(empty)
+
+
+def test_model_config_sha256_is_the_canonical_json_digest():
+    import hashlib
+    cfg = {"b": [1, 2.0, True], "a": {"y": None, "x": "s"}}
+    want = hashlib.sha256(json.dumps(cfg, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    assert eval_FLAC.model_config_sha256(cfg) == want
+    assert eval_FLAC.model_config_sha256({"a": {"x": "s", "y": None}, "b": [1, 2.0, True]}) == want
+    assert eval_FLAC.model_config_sha256({"a": 1}) != eval_FLAC.model_config_sha256({"a": 1.0}) \
+        != eval_FLAC.model_config_sha256({"a": True})
+    assert eval_FLAC.model_config_sha256(None) is None

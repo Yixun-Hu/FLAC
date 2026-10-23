@@ -368,6 +368,76 @@ def canon_suffix(applied=False, mismatch=False):
     return ('_canon' if applied else '') + ('_canonmis' if mismatch else '')
 
 
+class CanonProtocol(NamedTuple):
+    """How one evaluation stands to canonicalization (:func:`resolve_canonicalize_protocol`).
+
+    ``trained`` -- the checkpoint's embedded ``training.canonicalize`` is enabled
+    (``None`` when not in play); ``applied`` -- ``--canonicalize``; ``mismatch`` --
+    an authorised ``trained != applied`` diagnostic; ``img_w`` -- the panorama
+    width of the file config's ViT conditioners; the two blocks as found
+    (``None`` = absent).
+    """
+    in_play: bool
+    trained: Optional[bool]
+    applied: bool
+    mismatch: bool
+    img_w: Optional[int]
+    file_block: Optional[dict]
+    embedded_block: Optional[dict]
+
+
+LEGACY_CANON_PROTOCOL = CanonProtocol(False, None, False, False, None, None, None)
+_CANON_ABSENT = object()
+
+
+def _canon_strict_diff(a, b, path):
+    """First TYPE-STRICT difference of two parsed-JSON values (``type(a) is type(b)``
+    recursively, dict key sets equal), or ``None``: ``1`` is not ``True``."""
+    if type(a) is not type(b):
+        return f"{path}: type {type(a).__name__} != {type(b).__name__} ({a!r} vs {b!r})"
+    if isinstance(a, dict):
+        if set(a) != set(b):
+            return f"{path}: key sets differ ({sorted(set(a) ^ set(b))})"
+        return next((d for d in (_canon_strict_diff(a[k], b[k], f"{path}.{k}") for k in a)
+                     if d), None)
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return f"{path}: length {len(a)} != {len(b)}"
+        return next((d for d in (_canon_strict_diff(x, y, f"{path}[{i}]")
+                                 for i, (x, y) in enumerate(zip(a, b))) if d), None)
+    return None if a == b else f"{path}: {a!r} != {b!r}"
+
+
+def canon_vit_img_w(model_config):
+    """The panorama width of the config's ViT conditioners
+    (``model.conditioning.configs[*].config.ViT.img_w``): every one a positive int,
+    all equal, at least one -- else ``ValueError``."""
+    configs = (((model_config or {}).get('model') or {}).get('conditioning') or {}).get(
+        'configs') or []
+    widths = {}
+    for entry in configs:
+        vit = (entry.get('config') or {}).get('ViT') if isinstance(entry, dict) else None
+        if isinstance(vit, dict):
+            widths[str(entry.get('id'))] = vit.get('img_w', None)
+    if not widths:
+        raise ValueError("canonicalize protocol: the model config has no ViT conditioner, so "
+                         "there is no panorama width to canonicalize on")
+    bad = {k: w for k, w in widths.items() if type(w) is not int or w <= 0}
+    if bad:
+        raise ValueError(f"canonicalize protocol: ViT img_w must be a positive int, got {bad}")
+    if len(set(widths.values())) != 1:
+        raise ValueError(f"canonicalize protocol: the ViT conditioners disagree on img_w: {widths}")
+    return next(iter(widths.values()))
+
+
+def model_config_sha256(model_config):
+    """sha256 hex of ``json.dumps(cfg, sort_keys=True, separators=(",", ":"))``, or ``None``."""
+    if model_config is None:
+        return None
+    return hashlib.sha256(json.dumps(model_config, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
 def build_output_paths(
     ckpt_path,
     steps,
