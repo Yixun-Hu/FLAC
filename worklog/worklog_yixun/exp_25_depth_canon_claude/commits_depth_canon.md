@@ -30,3 +30,6 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `3a60e9c` | Coder r2 | cycle 4: `transfer_batch_to_device` override — metadata left on the CPU when enabled, parent otherwise; meta-device + CUDA + real-fit order tests (12b, 12c) |
 | `aab5164` | Coder r2 | cycle 5a (red by design): arm-config contract test 22 |
 | `e72142c` | Coder r2 | cycle 5b: `FLAC_AR_CANON.json` = `FLAC_AR_BVp1.json` bytes + `training.canonicalize {enabled: true, img_w: 512}` (sha `aba94032…`) |
+| `518e03a` | Planner | records: plan v3→v5 (Codex plan r2 REVISE → r3 → r4 → r5 APPROVE) + reviews r2–r5 + comparator ledger + training-path diff audit rev. 2 + worklog |
+| `be7c1d0` | Planner | plan v6 (image-only tie-break, fail-closed survivors, round-2 CPU-float64 contract) after Codex code review r1; worklog |
+| `71670d9` | Planner | plan v7 (stale v5 wording removed; round-2 transfer-hook tests 12b/12c) — round 1 closed after Codex re-verification; worklog |
