@@ -200,6 +200,71 @@ def _parse_are_config(model_config, training_config):
     return {ARE_LAMBDA_KEY: float(lam), ARE_ANCHOR_KEY: resolved}
 
 
+CANON_KEYS = ("enabled", "img_w")
+
+
+def _parse_canonicalize_config(training_config):
+    """Validate ``training.canonicalize`` and return the wrapper kwargs it implies.
+
+    exp_25's treatment (deepest-column yaw canonicalization, plan_depth_canon.md
+    §2.2/§3). Mirrors :func:`_parse_yaw_aug_config` and is fail-closed for the same
+    reason: one treatment against one historical control (P1). Returns ``{}`` unless
+    the block is present AND enabled, so the disabled path's construction call stays
+    literally the pre-change call. ``img_w`` is required and checked on the RAW
+    value; an enabled block is refused with an enabled ``yaw_aug`` or with
+    ``cond_method='fa_invariant'``.
+
+    Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md
+    v7 §2.2/§3/§6/§8.
+    """
+    if "canonicalize" not in training_config:
+        return {}
+
+    block = training_config["canonicalize"]
+    if not isinstance(block, dict):
+        raise ValueError(
+            f"training.canonicalize must be an object with keys {list(CANON_KEYS)}, "
+            f"got {type(block).__name__}")
+
+    unknown = [k for k in block if k not in CANON_KEYS]
+    if unknown:
+        raise ValueError(
+            f"training.canonicalize has unknown key(s) {sorted(unknown)}; allowed keys "
+            f"are {list(CANON_KEYS)}")
+
+    enabled = block.get("enabled", None)
+    if not isinstance(enabled, bool):
+        raise ValueError(
+            "training.canonicalize.enabled must be a literal boolean (true/false), got "
+            f"{enabled!r}")
+    if not enabled:
+        return {}
+
+    # _parse_yaw_aug_config is the single definition of "yaw_aug is enabled" (it
+    # also fails closed on a malformed yaw_aug block).
+    if _parse_yaw_aug_config(training_config):
+        raise ValueError(
+            "training.canonicalize.enabled=true with training.yaw_aug.enabled=true: "
+            "two yaw treatments in one arm are out of scope for exp_25")
+    if training_config.get("cond_method", "vanilla") == "fa_invariant":
+        raise ValueError(
+            "training.canonicalize.enabled=true with cond_method='fa_invariant' is out "
+            "of scope for exp_25: frame averaging already symmetrises over the yaw "
+            "subgroup")
+
+    if "img_w" not in block:
+        raise ValueError(
+            "training.canonicalize.enabled=true requires 'img_w' (no default is "
+            "assumed: the panorama width fixes the column shift)")
+    img_w = block["img_w"]
+    if isinstance(img_w, bool) or not isinstance(img_w, int):
+        raise ValueError(f"training.canonicalize.img_w must be an int, got {img_w!r}")
+    if img_w <= 0:
+        raise ValueError(f"training.canonicalize.img_w must be > 0, got {img_w}")
+
+    return {"canonicalize_enabled": True, "canonicalize_img_w": int(img_w)}
+
+
 def create_training_wrapper_from_config(model_config, model):
     model_type = model_config.get('model_type', None)
     assert model_type is not None, 'model_type must be specified in model config'
@@ -265,6 +330,9 @@ def create_training_wrapper_from_config(model_config, model):
         # exp_16: absent are_lambda -> {} -> likewise verbatim (P1, the lambda=0
         # control, was trained through exactly this call).
         are_kwargs = _parse_are_config(model_config, training_config)
+        # exp_25: absent/disabled training.canonicalize -> {} -> likewise verbatim
+        # (P1, the canonicalization arm's control, was trained through this call).
+        canon_kwargs = _parse_canonicalize_config(training_config)
 
         return DiffusionCondTrainingWrapper(
             model, 
@@ -285,6 +353,7 @@ def create_training_wrapper_from_config(model_config, model):
             **frame_avg_cap_kwargs,
             **yaw_aug_kwargs,
             **are_kwargs,
+            **canon_kwargs,
         )
     
     else:
