@@ -839,3 +839,28 @@ def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores(
     assert src.index("resolve_canonicalize_protocol(") < src.index("create_model_from_config(")
     assert src.index("waveform_dump.append(fakes)") < src.index("metric_callback.update_metrics(")
     assert src.count("build_output_paths(") == 1
+
+
+# --------------------------------------------------------------------------- #
+# CLI: each new flag parses AND reaches evaluate_model (behavioural, real script)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("flags, needle", [
+    (["--canonicalize"], "no embedded model_config"),
+    (["--allow-canon-mismatch"], "no embedded model_config"),
+    (["--dump-scored-waveforms", "/nonexistent_root"], "--dump-scored-waveforms needs")])
+def test_cli_flags_reach_evaluate_model(tmp_path, flags, needle):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    (tmp_path / "m.json").write_text(json.dumps({"model_type": "diffusion_cond",
+                                                 "training": {"use_ema": False}}))
+    torch.save({"state_dict": {}}, str(tmp_path / "c.ckpt"))      # no embedded model_config
+    proc = subprocess.run(
+        [sys.executable, "eval_FLAC.py", "--model-config", str(tmp_path / "m.json"),
+         "--dataset-config", str(tmp_path / "d.json"), "--ckpt-path", str(tmp_path / "c.ckpt"),
+         "--device", "cpu"] + flags,
+        capture_output=True, cwd=str(Path(eval_FLAC.__file__).resolve().parent),
+        env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+    assert proc.returncode == 1 and b"unrecognized arguments" not in proc.stderr
+    assert needle.encode() in proc.stderr, proc.stderr.decode()[-2000:]

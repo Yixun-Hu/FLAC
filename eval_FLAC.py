@@ -2151,6 +2151,9 @@ if __name__ == "__main__":
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
     parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
     parser.add_argument("--are-lambda", type=float, default=None, help="exp_16 ARE: weight of the analytic direct-sound anchor added back to the sampled latent before decoding. Omit to use the arm's OWN training.are_lambda from --model-config (None for every non-ARE arm, which leaves the run and its record byte-identical to today). Passing it OVERRIDES the config -- including 0.0, which is the AR3 eval-time sweep and is recorded as such. Requires the model config to declare training.are_anchor; the applied value and its source are written into the metrics record and into the output filename.")
+    parser.add_argument("--canonicalize", action='store_true', help="exp_25: deepest-column yaw canonicalization of the conditioning (depth panorama + all four pose fields) AFTER the evaluation rotation and BEFORE conditioning. Bound to the checkpoint: it must match the embedded training.canonicalize (announcement 05) unless --allow-canon-mismatch. Adds '_canon' to the output names, the canonicalize_* record fields and a <metrics-stem>.canon.json sidecar. Not with --cond-method fa_invariant.")
+    parser.add_argument("--allow-canon-mismatch", action='store_true', help="exp_25: permit a labelled trained != applied canonicalization diagnostic (adds '_canonmis'). Never authorises a disagreement between the embedded and --model-config training.canonicalize blocks, and is itself an error when trained == applied.")
+    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream or --rotate-mode random; refuses a non-empty cell directory.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -2182,4 +2185,7 @@ if __name__ == "__main__":
         record_stream=args.record_stream,
         record_per_scene=args.record_per_scene,
         are_lambda=args.are_lambda,
+        canonicalize=args.canonicalize,
+        allow_canon_mismatch=args.allow_canon_mismatch,
+        dump_scored_waveforms=args.dump_scored_waveforms,
     )
