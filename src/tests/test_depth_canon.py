@@ -551,3 +551,26 @@ def test_poses_never_influence_the_selection(name):
         for k in (range(W) if W <= 32 else (0, 1, 255, 256, 511)):
             got = yr.canonicalize_scene_metadata(_roll(md, k, W), W)[1:]
             assert got == (yr.canonical_shift((j0 + k) % W, W), c0), (variant, k)
+
+
+# --------------------------------------------------------------------------- #
+# code-review r1 fix (HIGH x2): every pose field is required and always rotated
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("field", yr.POSE_KEYS)
+def test_canonicalize_requires_every_pose_field(field):
+    md = dict(_fixture("small_unique")[1])
+    del md[field]
+    with pytest.raises(ValueError, match=f"'{field}'"):
+        yr.canonicalize_scene_metadata(md, 32)
+
+
+def test_canonicalize_takes_no_pose_keys_and_rotates_all_four_pose_fields():
+    _, md, _ = _fixture("small_unique")
+    with pytest.raises(TypeError):
+        yr.canonicalize_scene_metadata(md, 32, ("source",))
+    out, dj, _ = yr.canonicalize_scene_metadata(md, 32)
+    assert dj == 23                                       # j* = 9 -> a non-trivial rotation
+    R = yr.azimuth_rotation_matrix(yr.offsets_to_radians([dj], 32)[0])
+    for k in yr.POSE_KEYS:
+        assert torch.equal(out[k], torch.einsum("ij,...j->...i", R, md[k]))
+        assert not torch.equal(out[k], md[k])

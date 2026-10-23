@@ -799,6 +799,7 @@ def canonical_shift(j_star: int, img_w: int) -> int:
 
 
 # Exact pose shapes of the AR metadata contract (None = the context count N >= 1).
+# Every one of these fields is REQUIRED: a canonical frame must move all of them.
 _CANON_POSE_SHAPES: Dict[str, Tuple] = {"source": (3,), "source_vit": (1, 3),
                                         "context_poses": (None, 3),
                                         "context_poses_vit": (None, 3)}
@@ -817,17 +818,18 @@ def _check_canon_inputs(md, img_w) -> None:
         raise ValueError(f"depth width {int(md['depth'].shape[2])} != img_w {img_w}")
     counts = set()
     for key, shape in _CANON_POSE_SHAPES.items():
-        if key in md:
-            _check_pose(key, md[key], shape)
-            if shape[0] is None:
-                counts.add(int(md[key].shape[0]))
+        if key not in md:
+            raise ValueError(f"metadata lacks the required pose field {key!r}")
+        _check_pose(key, md[key], shape)
+        if shape[0] is None:
+            counts.add(int(md[key].shape[0]))
     if 0 in counts or len(counts) > 1:
         raise ValueError(f"context_poses / context_poses_vit need the same N >= 1 rows, "
                          f"got {sorted(counts)}")
 
 
 def canonicalize_scene_metadata(
-    md: Dict[str, object], img_w: int, pose_keys: Tuple[str, ...] = POSE_KEYS
+    md: Dict[str, object], img_w: int
 ) -> Tuple[Dict[str, object], int, str]:
     """
     Deepest-pixel yaw canonicalization of ONE sample's metadata (plan §2.1 Step D).
@@ -835,13 +837,14 @@ def canonicalize_scene_metadata(
     ``j*`` comes from :func:`canonical_column` on the :func:`recover_depth_proxy` of
     ``md['depth']`` alone (poses never select); the reviewed
     yaw operator is then applied ONCE, ``rotate_scene_metadata(md, dj * 2pi / img_w,
-    img_w, pose_keys)`` with ``dj = canonical_shift(j*, img_w)``: column ``j*``
-    becomes column 0 and the depth vectors and pose fields rotate about z by the
-    same angle. ``context_audio``, ``scene``, ``padding_mask`` and every other field
+    img_w)`` with ``dj = canonical_shift(j*, img_w)`` and its default pose keys:
+    column ``j*`` becomes column 0 and the depth vectors and ALL FOUR pose fields
+    of :data:`POSE_KEYS` rotate about z by the same angle (there is deliberately
+    no ``pose_keys`` argument -- a partial rotation would desynchronise the frame). ``context_audio``, ``scene``, ``padding_mask`` and every other field
     pass through as the same objects; the input dict and its tensors are not mutated.
 
     Fail-closed: ``ValueError`` on a contract violation (``depth`` a finite floating
-    ``[3, H, W]`` with even ``H`` and ``W == img_w``; when present ``source [3]``,
+    ``[3, H, W]`` with even ``H`` and ``W == img_w``; REQUIRED ``source [3]``,
     ``source_vit [1, 3]``, ``context_poses`` / ``context_poses_vit [N, 3]`` with one
     ``N >= 1``, finite floating); :class:`StabilizedTieError` propagates (never
     caught); ``RuntimeError`` when the post-condition -- the selector re-run on the
@@ -852,7 +855,7 @@ def canonicalize_scene_metadata(
     _check_canon_inputs(md, img_w)
     j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]))
     dj = canonical_shift(j_star, img_w)
-    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w, pose_keys)
+    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w)
     j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]))
     if j_check != 0 or class_check != tie_class:
         raise RuntimeError(
