@@ -730,6 +730,32 @@ def _check_pose(name: str, pose, shape: Tuple) -> None:
         raise ValueError(f"{name} contains non-finite values")
 
 
+def _lex_compare(a: torch.Tensor, b: torch.Tensor) -> int:
+    """Exact lexicographic order of two equal-length 1-D tensors: -1, 0 or +1."""
+    diff = torch.nonzero(a != b)
+    if diff.numel() == 0:
+        return 0
+    k = int(diff[0, 0])  # nonzero() returns indices in increasing order
+    return 1 if bool(a[k] > b[k]) else -1
+
+
+def _image_key_survivors(D: torch.Tensor, cands: List[int]) -> List[int]:
+    """Step C-1: the candidates whose ROOTED image -- columns c, c+1, ... (mod W),
+    each read top to bottom -- is lexicographically LARGEST (exact comparison).
+    The rooted image is read from the candidate anchor, so it co-rotates."""
+    H = int(D.shape[0])
+    flat = D.t().contiguous().view(-1)  # column-major: column w is flat[w*H:(w+1)*H]
+    best, best_img = [cands[0]], torch.roll(flat, shifts=-cands[0] * H)
+    for c in cands[1:]:
+        img = torch.roll(flat, shifts=-c * H)
+        order = _lex_compare(img, best_img)
+        if order > 0:
+            best, best_img = [c], img
+        elif order == 0:
+            best.append(c)
+    return best
+
+
 def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, str]:
     """
     The canonical ("deepest") column ``j*`` of an ``[H, W]`` depth proxy, with its
@@ -738,7 +764,12 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     Candidates are the columns whose maximum equals the global maximum (exact
     equality). A single candidate is returned with class ``"same_column"`` when
     several pixels of that column share the global maximum, else ``"none"``.
-    Several candidates: the selector fails closed with :class:`StabilizedTieError`.
+    Several candidates are resolved by keys that are rotation-invariant objects
+    read from each candidate's anchor, so the choice co-rotates with the panorama:
+
+    1. the full rooted image (largest wins) -> ``"cross_column_image"``;
+
+    and otherwise the selector fails closed with :class:`StabilizedTieError`.
 
     ``source`` (``[3]``) and ``context`` (``[N, 3]``) are validated when given.
     Every comparison is exact; there is no tolerance anywhere.
@@ -755,4 +786,7 @@ def canonical_column(D: torch.Tensor, source=None, context=None) -> Tuple[int, s
     if len(cands) == 1:
         n_max = int((D[:, cands[0]] == M).sum())
         return int(cands[0]), ("same_column" if n_max > 1 else "none")
+    cands = _image_key_survivors(D, cands)
+    if len(cands) == 1:
+        return int(cands[0]), "cross_column_image"
     raise StabilizedTieError(cands)

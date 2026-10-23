@@ -134,9 +134,23 @@ FIXTURES = {
     "unique": (256, 512, dict(seed=10, peaks=[(37, 100)]), _SRC, _CTX, "none"),
     "same_column": (256, 512, dict(seed=11, peaks=[(20, 300), (200, 300)]), _SRC, _CTX,
                     "same_column"),
+    "row_tie_sep1": (256, 512, dict(seed=12, peaks=[(50, 7), (50, 8)]), _SRC, _CTX,
+                     "cross_column_image"),
+    "row_tie_sep64_wrap": (256, 512, dict(seed=13, peaks=[(50, 480), (50, 32)]), _SRC, _CTX,
+                           "cross_column_image"),
+    "row_tie_sep256": (256, 512, dict(seed=14, peaks=[(90, 0), (90, 256)]), _SRC, _CTX,
+                       "cross_column_image"),
+    "cross_row_tie": (256, 512, dict(seed=15, peaks=[(30, 10), (220, 400)]), _SRC, _CTX,
+                      "cross_column_image"),
     "small_unique": (16, 32, dict(seed=20, peaks=[(3, 9)]), _SRC, _CTX, "none"),
     "small_same_column": (16, 32, dict(seed=21, peaks=[(2, 5), (13, 5)]), _SRC, _CTX,
                           "same_column"),
+    "small_row_tie_sep1_wrap": (16, 32, dict(seed=22, peaks=[(4, 31), (4, 0)]), _SRC, _CTX,
+                                "cross_column_image"),
+    "small_row_tie_sep8": (16, 32, dict(seed=23, peaks=[(9, 3), (9, 11)]), _SRC, _CTX,
+                           "cross_column_image"),
+    "small_row_tie_sep16": (16, 32, dict(seed=24, peaks=[(6, 20), (6, 4)]), _SRC, _CTX,
+                            "cross_column_image"),
 }
 
 
@@ -177,6 +191,13 @@ def _max_columns(X):
     return torch.nonzero(P == P.max()).flatten().tolist()
 
 
+def _oracle_image_winners(D, cands):
+    """Independent oracle: Python list comparison of the column-major rooted images."""
+    keys = {c: torch.roll(D, shifts=-c, dims=1).t().reshape(-1).tolist() for c in cands}
+    best = max(keys.values())
+    return [c for c in cands if keys[c] == best]
+
+
 # --------------------------------------------------------------------------- #
 # 3. canonical_column -- image-level classes
 # --------------------------------------------------------------------------- #
@@ -194,7 +215,7 @@ def test_canonical_column_image_level_classes(name):
     cands = _max_columns(D)
     assert tie_class == cls and isinstance(j, int)
     assert cands == sorted({w for _, w in FIXTURES[name][2]["peaks"]})
-    assert [j] == cands
+    assert [j] == (_oracle_image_winners(D, cands) if cls == "cross_column_image" else cands)
 
 
 def test_periodic_image_without_any_pose_key_fails_closed():
@@ -229,6 +250,23 @@ def test_selector_is_equivariant_for_every_roll(name):
     assert c0 == cls
     bad = [d for d in range(W) if _select(_roll(md, d, W)) != ((j0 + d) % W, c0)]
     assert bad == []
+
+
+# --------------------------------------------------------------------------- #
+# 8. Option-A negative control (literal first max column; rejected by Yixun, D1)
+# --------------------------------------------------------------------------- #
+def _option_a(md):
+    P = yr.column_profile(yr.recover_depth_proxy(md["depth"]))
+    return int(torch.nonzero(P == P.max())[0, 0])
+
+
+@pytest.mark.xfail(strict=True, reason="Option A (first max column) is not equivariant "
+                                       "on a cross-column tie -- the D1 negative control")
+def test_option_a_first_index_rule_breaks_equivariance():
+    _, md, _ = _fixture("row_tie_sep64_wrap")
+    j0 = _option_a(md)
+    for d in range(512):
+        assert _option_a(_roll(md, d, 512)) == (j0 + d) % 512
 
 
 # --------------------------------------------------------------------------- #
