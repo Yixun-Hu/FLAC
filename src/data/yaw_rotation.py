@@ -844,8 +844,9 @@ def canonicalize_scene_metadata(
     img_w)`` with ``dj = canonical_shift(j*, img_w)`` and its default pose keys:
     column ``j*`` becomes column 0 and the depth vectors and ALL FOUR pose fields
     of :data:`POSE_KEYS` rotate about z by the same angle (there is deliberately
-    no ``pose_keys`` argument -- a partial rotation would desynchronise the frame). ``context_audio``, ``scene``, ``padding_mask`` and every other field
-    pass through as the same objects; the input dict and its tensors are not mutated.
+    no ``pose_keys`` argument -- a partial rotation would desynchronise the frame).
+    ``context_audio``, ``scene``, ``padding_mask`` and every other field pass
+    through as the same objects; the input dict and its tensors are not mutated.
 
     Fail-closed: ``ValueError`` on a contract violation (``depth`` a finite floating
     ``[3, H, W]`` with even ``H`` and ``W == img_w``; REQUIRED ``source [3]``,
@@ -874,7 +875,7 @@ def canonicalize_scene_metadata(
 
 
 def canonical_depth_sha256(depth_canon: torch.Tensor) -> str:
-    """sha256 hex digest of ``recover_depth_proxy(depth_canon)`` as C-contiguous
+    """sha256 hex digest of ``recover_depth_proxy(depth_canon) + 0.0`` as C-contiguous
     float64 bytes -- the per-item Tier-1 hash of plan §5, bitwise comparable across
     cells, so ``depth_canon`` must be float64 (``ValueError`` otherwise).
 
