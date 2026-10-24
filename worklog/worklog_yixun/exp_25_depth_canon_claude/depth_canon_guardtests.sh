@@ -156,13 +156,15 @@ echo "//10.249.7.28/shared_data 47764605435904 31138083921920 ${GUARD_DF_AVAIL:-
 STUB
 cat > "$BIN/nvidia-smi" <<'STUB'
 #!/usr/bin/env bash
-# guard stub: memory.free -> GUARD_GPU_FREE (MiB); index,uuid -> two fixed uuids; the compute-app
-# query -> GUARD_GPU_APPS ('pid, uuid' lines, printf %b), or a failure with GUARD_GPU_APPS_FAIL=1
+# guard stub: memory.free -> GUARD_GPU_FREE (MiB, printf %b), exit GUARD_GPU_MEM_RC; index,uuid -> three
+# fixed uuids (GPU 2 is another card), exit GUARD_GPU_UUID_RC; the compute-app query -> GUARD_GPU_APPS
+# ('pid, uuid' lines, printf %b), exit GUARD_GPU_APPS_RC (GUARD_GPU_APPS_FAIL=1: no output, exit 1).
+# A nonzero exit AFTER plausible output is the rA A3 case: it must still refuse.
 case "$*" in
-  *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;;
-  *index,uuid*) printf '0, GPU-guard-0\n1, GPU-guard-1\n' ;;
+  *memory.free*) printf '%b\n' "${GUARD_GPU_FREE:-40000}"; exit "${GUARD_GPU_MEM_RC:-0}" ;;
+  *index,uuid*) printf '0, GPU-guard-0\n1, GPU-guard-1\n2, GPU-guard-2\n'; exit "${GUARD_GPU_UUID_RC:-0}" ;;
   *query-compute-apps=pid,gpu_uuid*) [ "${GUARD_GPU_APPS_FAIL:-0}" = 1 ] && exit 1
-                                     printf '%b' "${GUARD_GPU_APPS:-}" ;;
+                                     printf '%b' "${GUARD_GPU_APPS:-}"; exit "${GUARD_GPU_APPS_RC:-0}" ;;
 esac
 STUB
 cat > "$H/fake_train.sh" <<'FAKE'
@@ -496,22 +498,30 @@ case_rc "S2 SMOKE namespace holding a checkpoint" 2 "SMOKE NAMESPACE HOLDS CHECK
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 
 echo "--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---"
-case_rc "G1 a busy card refuses"            2 "GPU GATE FAILED: GPU 0 free 1000 MiB" MODE=SMOKE GUARD_GPU_FREE=1000
+case_rc "G1 a busy card refuses (rc 7: the watcher's transient class)" 7 "GPU GATE FAILED: GPU 0 free 1000 MiB" MODE=SMOKE GUARD_GPU_FREE=1000
 case_rc "G2 the GPU gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" MODE=SMOKE DRY_RUN=1 GUARD_GPU_FREE=1000
 case_rc "G3 the W&B identity gate is skipped in harness mode" 0 "W&B identity gate SKIPPED (harness)" MODE=SMOKE
 mkdir -p "$H/emptyhub"
 case_rc "G4 a missing DINOv3 snapshot refuses" 2 "DINOv3/init-identity GATE FAILED" MODE=SMOKE DRY_RUN=1 HF_HUB_CACHE="$H/emptyhub"
 case_rc "G5 the gate imports THIS checkout's src" 0 "src imported from $R/src" MODE=SMOKE DRY_RUN=1
 
-echo "--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7) ---"
-case_rc "U1 a foreign compute process on GPU 0" 2 "GPU OCCUPIED: foreign compute process" \
+echo "--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7); strict queries (rA A3) ---"
+case_rc "U1 a foreign compute process on GPU 0" 7 "GPU OCCUPIED: foreign compute process" \
   MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0\n'
-case_rc "U2 a foreign compute process on GPU 1 is named with its cwd" 2 "pid 4243 on GPU-guard-1 (cwd" \
+case_rc "U2 a foreign compute process on GPU 1 is named with its cwd" 7 "pid 4243 on GPU-guard-1 (cwd" \
   MODE=SMOKE GUARD_GPU_APPS='4243, GPU-guard-1\n'
-case_rc "U3 a failed compute-process query refuses" 2 "the compute-process query failed" \
+case_rc "U3 a failed compute-process query refuses" 7 "query-compute-apps" \
   MODE=SMOKE GUARD_GPU_APPS_FAIL=1
-case_rc "U4 a process on another card does not block" 0 "GPU occupancy gate OK" \
-  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-7\n'
+case_rc "U4 a process on another (known) card does not block" 0 "GPU occupancy gate OK" \
+  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n'
+case_rc "U6 a process on an UNKNOWN uuid refuses" 7 "unknown uuid" \
+  MODE=SMOKE GUARD_GPU_APPS='4245, GPU-guard-9\n'
+case_rc "U7 a numeric memory answer with a nonzero exit refuses" 7 "exited 3" MODE=SMOKE GUARD_GPU_MEM_RC=3
+case_rc "U8 two memory rows for one card refuse" 7 "not exactly one number" MODE=SMOKE GUARD_GPU_FREE='40000\n40000'
+case_rc "U9 a malformed compute-app row refuses" 7 "malformed compute-app row" MODE=SMOKE GUARD_GPU_APPS='garbage\n'
+case_rc "U10 a plausible uuid map with a nonzero exit refuses" 7 "exited 4" MODE=SMOKE GUARD_GPU_UUID_RC=4
+case_rc "U11 plausible compute-app rows with a nonzero exit refuse" 7 "exited 5" \
+  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n' GUARD_GPU_APPS_RC=5
 clear_evidence; rm -rf "$H/save"
 case_rc "U5 the occupancy gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" \
   MODE=SMOKE DRY_RUN=1 GUARD_GPU_APPS='4242, GPU-guard-0\n'
