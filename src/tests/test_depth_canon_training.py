@@ -12,6 +12,7 @@ golden disabled path) is ``test_yaw_aug_training.py::test_disabled_path_matches_
 """
 import dataclasses
 import random
+import re
 import types
 
 import numpy as np
@@ -219,7 +220,7 @@ def test_banner_and_tie_totals_are_flushed(monkeypatch):
     wrapper = _build(canonicalize=dict(CANON_ON))
     wrapper.on_fit_start()
     wrapper.on_fit_end()
-    assert len(calls) == 2 and all(kw.get("flush") is True for kw in calls)
+    assert len(calls) == 3 and all(kw.get("flush") is True for kw in calls)  # + the latency line
 
 
 @pytest.mark.parametrize("training", [{}, {"canonicalize": {"enabled": False}},
@@ -238,7 +239,30 @@ def test_tie_totals_are_printed_per_class_at_fit_end(capsys):
     wrapper.canon_tie_counts.update({"none": 7, "same_column": 2, "cross_column_image": 3})
     wrapper.on_fit_end()
     assert capsys.readouterr().out.splitlines() == [
-        "canonicalize tie_counts rank0 none=7 same_column=2 cross_column_image=3"]
+        "canonicalize tie_counts rank0 none=7 same_column=2 cross_column_image=3",
+        # r3b-F1 fix 2: no batch was canonicalized here, so the mean is undefined (nan)
+        "canonicalize latency rank0 batches=0 samples=0 total_s=0.000000 mean_ms_per_batch=nan"]
+
+
+LATENCY_LINE = re.compile(r"canonicalize latency rank0 batches=(\d+) samples=(\d+) "
+                          r"total_s=(\d+\.\d{6}) mean_ms_per_batch=(\S+)")
+
+
+def test_latency_is_measured_per_batch_and_logged_on_the_training_path_only():
+    """r3b-F1 fix 2 (Codex r3b BLOCKING 2): perf_counter around the per-batch loop; totals
+    on the instance; ``canon/latency_ms`` logged per training step (same guard as the ties)."""
+    wrapper, logged = _canon_wrapper(training=True)
+    wrapper._canonicalize_batch([_canon_md(0, "cross_column_image"), _canon_md(1, "same_column")])
+    wrapper._canonicalize_batch([_canon_md(2, "none")])
+    lat = wrapper.canon_latency
+    assert (lat["batches"], lat["samples"]) == (2, 3) and lat["total_s"] > 0
+    ms = [v for name, v, _ in logged if name == "canon/latency_ms"]
+    assert len(ms) == 2 and all(type(v) is float and v > 0 for v in ms)
+    assert abs(sum(ms) / 1e3 - lat["total_s"]) < 1e-9
+    wrapper.trainer.training = False
+    wrapper._canonicalize_batch([_canon_md(3, "none")])
+    assert len([1 for name, _, _ in logged if name == "canon/latency_ms"]) == 2
+    assert wrapper.canon_latency["batches"] == 3       # validation batches still measured
 
 
 # --------------------------------------------------------------------------- #
@@ -373,12 +397,13 @@ def test_cumulative_counts_are_logged_on_the_training_path_only():
     wrapper._canonicalize_batch([_canon_md(0, "cross_column_image"), _canon_md(1, "same_column")])
     wrapper._canonicalize_batch([_canon_md(2, "cross_column_image")])
     kw = {"rank_zero_only": True, "on_step": True, "on_epoch": False}
-    assert logged == [("canon/cross_column_ties", 1, kw), ("canon/same_column_ties", 1, kw),
-                      ("canon/cross_column_ties", 2, kw), ("canon/same_column_ties", 1, kw)]
+    ties = [entry for entry in logged if entry[0] != "canon/latency_ms"]   # r3b-F1 fix 2 adds it
+    assert ties == [("canon/cross_column_ties", 1, kw), ("canon/same_column_ties", 1, kw),
+                    ("canon/cross_column_ties", 2, kw), ("canon/same_column_ties", 1, kw)]
     assert all(type(value) is float for _, value, _ in logged)
     wrapper.trainer.training = False  # validation / test inside a Trainer
     wrapper._canonicalize_batch([_canon_md(3, "same_column")])
-    assert len(logged) == 4 and wrapper.canon_tie_counts["same_column"] == 2
+    assert len(logged) == 6 and wrapper.canon_tie_counts["same_column"] == 2
 
 
 def test_a_periodic_panorama_fails_closed_and_counts_nothing():
@@ -627,3 +652,10 @@ def test_lightning_fit_transfers_then_canonicalizes_then_conditions(monkeypatch,
                        "cross_column_image=1") == 1
     assert float(trainer.callback_metrics["canon/cross_column_ties"]) == 1.0
     assert float(trainer.callback_metrics["canon/same_column_ties"]) == 1.0
+    # r3b-F1 fix 2: exactly one latency line, positive and finite, after a real 1-step fit
+    lat = [LATENCY_LINE.fullmatch(ln) for ln in lines if ln.startswith("canonicalize latency")]
+    assert len(lat) == 1 and lat[0] is not None, lines
+    batches, samples, total_s, mean_ms = lat[0].groups()
+    assert int(batches) >= 1 and int(samples) == 2 * int(batches)
+    assert 0 < float(total_s) and 0 < float(mean_ms) < float("inf")
+    assert float(trainer.callback_metrics["canon/latency_ms"]) > 0

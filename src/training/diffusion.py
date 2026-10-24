@@ -34,6 +34,7 @@ from .losses import MSELoss, MultiLoss
 from .utils import create_optimizer_from_config, create_scheduler_from_config, log_metric
 
 from time import time
+from time import perf_counter  # exp_25 r3b-F1: canonicalization latency
 
 _MASK64 = (1 << 64) - 1
 # SplitMix64's golden-ratio increment and its two finalising multipliers
@@ -296,6 +297,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         # Cumulative per-class counts over every sample THIS rank canonicalized
         # (training and validation steps alike); printed by on_fit_end.
         self.canon_tie_counts = {c: 0 for c in TIE_CLASSES}
+        # r3b-F1 fix 2: wall time of the per-batch canonicalization loop (same scope).
+        self.canon_latency = {"batches": 0, "samples": 0, "total_s": 0.0}
 
         # exp_16 (ARE): the target reparameterisation z -> z - lambda*A(p).
         # ``None`` means "not an ARE arm" and is NOT the same as 0.0: at None the
@@ -471,6 +474,14 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         counts = " ".join(f"{c}={self.canon_tie_counts[c]}" for c in TIE_CLASSES)
         print(f"canonicalize tie_counts rank0 {counts}", flush=True)
 
+    @rank_zero_only
+    def _print_canonicalize_latency(self):
+        # r3b-F1 fix 2: the launcher parses this EXACT line into the smoke evidence.
+        b, n, t = (self.canon_latency[k] for k in ("batches", "samples", "total_s"))
+        mean_ms = 1e3 * t / b if b else float("nan")
+        print(f"canonicalize latency rank0 batches={b} samples={n} total_s={t:.6f} "
+              f"mean_ms_per_batch={mean_ms:.3f}", flush=True)
+
     def on_fit_start(self):
         """Announce the treatment once, on rank 0, before step 0.
 
@@ -490,6 +501,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         end of fit (only when canonicalization is enabled)."""
         if self.canonicalize_enabled:
             self._print_canonicalize_tie_totals()
+            self._print_canonicalize_latency()
 
     def _check_yaw_aug_metadata(self, metadata):
         """Fail-closed schema validation of one training batch (plan §3.1, F7).
@@ -631,6 +643,7 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             metadata = metadata.metadata
         self._check_canon_metadata(metadata)
         out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
+        t0 = perf_counter()
         for i, md in enumerate(metadata):
             try:
                 md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
@@ -641,14 +654,20 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                 raise RuntimeError(f"canonicalize: unknown tie class {tie_class!r}")
             batch_counts[tie_class] += 1
             out.append(md_canon)
+        elapsed = perf_counter() - t0
         for tie_class, n in batch_counts.items():
             self.canon_tie_counts[tie_class] += n
+        self.canon_latency["batches"] += 1
+        self.canon_latency["samples"] += len(out)
+        self.canon_latency["total_s"] += elapsed
         if self._trainer is not None and self._trainer.training:
             for name, tie_class in (("canon/cross_column_ties", "cross_column_image"),
                                     ("canon/same_column_ties", "same_column")):
                 # float: Lightning stores logged values as float32 (exact < 2**24).
                 self.log(name, float(self.canon_tie_counts[tie_class]), rank_zero_only=True,
                          on_step=True, on_epoch=False)
+            self.log("canon/latency_ms", 1e3 * elapsed, rank_zero_only=True, on_step=True,
+                     on_epoch=False)
         return out
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
