@@ -682,12 +682,111 @@ def control_key(deg):
     return "random" if deg is None else CONTROL_KEYS[deg]
 
 
-def load_control(path, *, ckpt_sha256):
-    """``(control_p99 dict, reasons)`` from the composition-control probe JSON. Only a
-    REGISTERED artifact qualifies (``registered: true``, r3b review HIGH 4): its sha256 sidecar
-    must match, it must be the probe of THE CANON@40k checkpoint, and every control p99 under
-    the eval protocol must be a finite non-negative number."""
-    reasons = []
+PROBE_CONTRACT = {   # plan v10 §1 Tier 2 (ii) + eps_cond, §5 "registered probe" (mirrors the probe's REGISTERED)
+    "n_items": 64, "batch_size": 64, "seed": 42, "device": "cuda", "img_w": 512, "split": "unseen",
+    "config_K": 8, "K": 8,   # the registered unseen K=8 config; its stream census: K context ids per item
+    "offset_keys": ("d64", "d128", "d256", "d384", "random"), "stages": ("cond", "velocity", "latent", "waveform"),
+    "protocols": {"fp32": {"cond_autocast": "off", "matmul_precision": "highest"},
+                  "eval": {"cond_autocast": "bf16", "matmul_precision": "medium"}},
+    "eps_threshold": 1e-5}
+
+
+def _probe_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("depth_canon_cond_probe_view",
+                                                  os.path.join(EXPDIR, "depth_canon_cond_probe.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _context_ok(ids, k):
+    """Exactly K nonempty strings (draws with replacement may repeat: see pairing_note)."""
+    return isinstance(ids, list) and len(ids) == k and all(isinstance(x, str) and x for x in ids)
+
+
+def _probe_number_reasons(rep, P):
+    """eps_cond, control p99 and the verdict must be what the probe's own results imply."""
+    res, keys, out = rep.get("results"), list(P["offset_keys"]), []
+    if not (isinstance(res, dict) and list(res) == list(P["protocols"]) and all(
+            isinstance(res[p], dict) and list(res[p]) == keys and all(
+                isinstance(res[p][k], dict) and all(st in res[p][k] for st in P["stages"]) for k in keys)
+            for p in res)):
+        return ["probe results are not protocols x registered offsets x stages"]
+    vals = [(v, k, i, pos) for k in keys for i, d in res["fp32"][k]["cond"]["per_id"].items()
+            for pos, v in enumerate(d["relL2"])]
+    eps = rep.get("eps_cond")
+    if not (isinstance(eps, dict) and set(eps) == {"value", "threshold", "pass", "argmax"}):
+        return out + [f"probe eps_cond {eps!r:.120} is missing or malformed"]
+    if not (vals and all(_finite(v) for v, *_ in vals) and _finite(eps["value"]) and eps["value"] >= 0):
+        return out + ["probe eps_cond (or the fp32 conditioning relL2 it is the max of) is not finite"]
+    top = max(vals)
+    _eq(out, "probe eps_cond value (max fp32 conditioning relL2 of the results)", eps["value"], top[0])
+    _eq(out, "probe eps_cond argmax", eps["argmax"], {"key": top[1], "id": top[2], "position": top[3]})
+    _eq(out, "probe eps_cond threshold (registered)", eps["threshold"], P["eps_threshold"])
+    _eq(out, "probe eps_cond pass", eps["pass"], top[0] <= P["eps_threshold"])
+    v = rep.get("verdict")
+    if not (isinstance(v, dict) and set(v) == {"pass", "eps_cond", "tier1", "masks"}
+            and all(type(x) is bool for x in v.values()) and v["eps_cond"] is eps["pass"]
+            and v["pass"] is all(v[k] for k in ("eps_cond", "tier1", "masks"))):
+        out.append(f"probe verdict {v!r:.120} is inconsistent with eps_cond")
+    for p in P["protocols"]:
+        want = {k: res[p][k]["waveform"]["summary"]["relL2"]["p99"] for k in keys}
+        want["pooled"] = ((rep.get("pooled") or {}).get(p) or {}).get("waveform", {}).get("relL2", {}).get("p99")
+        _eq(out, f"probe control_p99[{p}] (the results' waveform relL2 p99)", (rep.get("control_p99") or {}).get(p), want)
+        out += [f"probe control p99 {p}/{k} = {x!r} is not a finite non-negative number" for k, x in want.items()
+                if not (_finite(x) and x >= 0)]
+    return out
+
+
+def probe_reasons(rep, *, ckpt_sha256, pin, manifest):
+    """The registered composition control of THIS campaign (Codex rB HIGH B5): registered, no
+    deviation, the CANON@40k checkpoint, the campaign pin on a clean tree, the registered
+    arguments, the campaign's configs + split, the EMA canonical load, the offsets the probe's
+    own draw gives, the stream census, and eps / control / verdict consistent with the results."""
+    P, out = PROBE_CONTRACT, []
+    _eq(out, "probe schema_version", rep.get("schema_version"), 1)
+    if rep.get("registered") is not True:
+        out.append(f"control probe is not a registered control (registered: {rep.get('registered')!r})")
+    _eq(out, "probe deviations", rep.get("deviations"), [])
+    prov = rep.get("provenance") if isinstance(rep.get("provenance"), dict) else {}
+    canon = manifest["arms"]["CANON"]
+    ds = next(c for c in manifest["cells"] if c["split"] == P["split"] and c["K"] == P["config_K"])
+    split_json = manifest["splits"][P["split"]]["split_json"]
+    digest = model_config_digest(next(c for c in manifest["cells"] if c["arm"] == "CANON"))
+    want = {"ckpt_sha256": ckpt_sha256, "source_sha": pin, "dirty": "", "device": P["device"], "seed": P["seed"],
+            "random_offset_seed": P["seed"] + 1, "n_items": P["n_items"], "batch_size": P["batch_size"],
+            "img_w": P["img_w"], "protocols": P["protocols"], "allow_canon_mismatch": False,
+            "model_config_file_sha256": canon["model_config_sha256"], "dataset_config": ds["dataset_config"],
+            "dataset_config_sha256": ds["dataset_config_sha256"], "split_json": split_json,
+            "split_json_sha256": _file_digest(os.path.join(REPO, split_json)),
+            "load": {"weights_source": "ema", "canonicalize_trained": True, "canonicalize_applied": True,
+                     "canonicalize_mismatch": False, "img_w": P["img_w"], "model_config_sha256_file": digest,
+                     "model_config_sha256_embedded": digest}}
+    for key, value in want.items():
+        _eq(out, f"probe provenance.{key}", prov.get(key), value)
+    if not isinstance(prov.get("model_config"), str) or os.path.realpath(os.path.join(REPO, prov["model_config"])) \
+            != os.path.realpath(os.path.join(REPO, canon["model_config"])):
+        out.append(f"probe provenance.model_config {prov.get('model_config')!r} is not {canon['model_config']}")
+    _eq(out, "probe offsets (the probe's own draw)", rep.get("offsets"),
+        _probe_module().draw_offsets(P["n_items"], P["img_w"], P["seed"]))
+    items = rep.get("items")
+    if not (isinstance(items, list) and len(items) == P["n_items"] and all(
+            isinstance(it, dict) and it.get("position") == i and isinstance(it.get("target_id"), str)
+            and it["target_id"] and _context_ok(it.get("context_ids"), P["K"]) for i, it in enumerate(items))):
+        out.append(f"probe items: not {P['n_items']} ordered positions with a target and K={P['K']} context ids")
+    else:
+        _eq(out, "probe stream_input_hash (recomputed from the items)", rep.get("stream_input_hash"),
+            eval_FLAC.canonical_stream_hash([[it["position"], it["target_id"], it["context_ids"], P["img_w"]]
+                                             for it in items]))
+    return out + _probe_number_reasons(rep, P)
+
+
+def load_control(path, *, ckpt_sha256, pin, manifest):
+    """``(control_p99, reasons, eps)`` from the composition-control probe JSON: only a valid
+    registered artifact of this campaign (``probe_reasons``) with a matching sidecar is a
+    control; ``eps`` = ``{value, threshold, verdict PASS|FAIL}`` (a legitimate FAIL stays FAIL)."""
+    import hashlib
     try:
         with open(path, "rb") as f:
             text = f.read()
@@ -695,25 +794,18 @@ def load_control(path, *, ckpt_sha256):
             side = f.read()
         rep = json.loads(text)
     except (OSError, ValueError) as err:
-        return None, [f"control probe {path} unreadable ({err})"]
-    import hashlib
+        return None, [f"control probe {path} unreadable ({err})"], None
+    reasons = []
     if side != f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n":
         reasons.append(f"control probe sha256 sidecar does not match {path}")
     if not isinstance(rep, dict):
-        return None, reasons + ["control probe is not a JSON object"]
-    _eq(reasons, "control probe schema_version", rep.get("schema_version"), 1)
-    if rep.get("registered") is not True:
-        reasons.append(f"control probe is not a registered control (registered: {rep.get('registered')!r})")
-    got = (rep.get("provenance") or {}).get("ckpt_sha256")
-    if got != ckpt_sha256:
-        reasons.append(f"control probe ran on checkpoint {got}, not the CANON@40k checkpoint {ckpt_sha256}")
-    ctrl = (rep.get("control_p99") or {}).get(CONTROL_PROTOCOL)
-    keys = list(CONTROL_KEYS.values()) + ["random", "pooled"]
-    if not isinstance(ctrl, dict):
-        return None, reasons + [f"control probe has no control_p99[{CONTROL_PROTOCOL!r}]"]
-    reasons += [f"control p99 {k} = {ctrl.get(k)!r} is not a finite non-negative number" for k in keys
-                if not (_finite(ctrl.get(k)) and ctrl.get(k) >= 0)]
-    return ({k: float(ctrl[k]) for k in keys} if not reasons else None), reasons
+        return None, reasons + ["control probe is not a JSON object"], None
+    reasons += probe_reasons(rep, ckpt_sha256=ckpt_sha256, pin=pin, manifest=manifest)
+    if reasons:
+        return None, reasons, None
+    eps = rep["eps_cond"]
+    return ({k: float(v) for k, v in rep["control_p99"][CONTROL_PROTOCOL].items()}, [],
+            {"value": eps["value"], "threshold": eps["threshold"], "verdict": "PASS" if eps["pass"] else "FAIL"})
 
 
 def _waveforms(entry):
@@ -979,7 +1071,7 @@ ARM_LABEL = {"CANON": "CANON (deepest-column canonicalization) @40k",
 SHORT = {"RIR_to_GT_RIR_R@1": "R@1", "RIR_to_GT_RIR_R@5": "R@5", "RIR_to_GT_RIR_R@10": "R@10"}
 
 
-def build_results(cells, *, control, control_reasons, probe, audit, audit_reasons, pin, blocks, partial,
+def build_results(cells, *, control, control_reasons, eps, audit, audit_reasons, pin, blocks, partial,
                   audit_summary=None):
     """Every tier, table and disclosure; raises ``ValueError`` (the refusal) when a required
     cell, the registered control or the tie audit is missing/invalid, or a cell's tie counts
@@ -1007,8 +1099,8 @@ def build_results(cells, *, control, control_reasons, probe, audit, audit_reason
     return {"schema_version": 1, "pin": pin, "blocks": blocks, "partial": bool(problems), "problems": problems,
             "missing": missing, "invalid": {n: cells[n]["reasons"] for n in invalid},
             "tier1": tier1(pairs, cells), "tier2": tier2(pairs, cells, control), "tier3": t3,
-            "eps_cond": {"eps_cond": (probe or {}).get("eps_cond"), "probe_verdict": (probe or {}).get("verdict"),
-                         "registered": (probe or {}).get("registered")},
+            "eps_cond": eps or {"value": None, "threshold": PROBE_CONTRACT["eps_threshold"],
+                                "verdict": "NOT COMPUTABLE (no valid registered composition control)"},
             "table": table_block(cells), "bf_historical": bf_historical(), "traj": traj_grid(cells, t3),
             "ties": ties, "overlap": split_overlap(), "diagnostics": diag}
 
@@ -1043,8 +1135,9 @@ def render_md(res):
             f"{t1['trajectory']['n_pass']}/{t1['trajectory']['n_pairs']} equal (descriptive); distinct unseen "
             f"canonical_depth_hash values: {t1['distinct_canonical_depth_hashes_unseen']}.", "",
             h("Tier 2 — practical waveform invariance (scored dumps)"), "",
-            f"PASS: {t2['pass']} — rule: {t2.get('rule', t2.get('note'))}. eps_cond (probe): "
-            f"{res['eps_cond']['eps_cond']}.", ""]
+            f"PASS: {t2['pass']} — rule: {t2.get('rule', t2.get('note'))}.", "",
+            f"eps_cond (fp32 conditioning, max relL2) = {_num(res['eps_cond']['value'])}; registered threshold "
+            f"{res['eps_cond']['threshold']:.0e}: {res['eps_cond']['verdict']}.", ""]
     if t2.get("pairs") is not None:
         out += ["| cell | control | ctrl p99 | relL2 p99 | relL2 max | relLinf max | matched | cap |",
                 "|---|---|---|---|---|---|---|---|"]
@@ -1204,15 +1297,11 @@ def main(argv=None):
                                   canon_index=index, base_dir=args.base_dir,
                                   check_link=not args.no_link_check,
                                   no_dump_blocks=_csv(args.no_dump_blocks), dump_check=args.dump_check)
-            control, c_reasons = load_control(args.probe_json, ckpt_sha256=index[40000][1]) \
-                if 40000 in index else (None, ["no CANON@40k checkpoint in the index"])
-            try:
-                with open(args.probe_json) as f:
-                    probe = json.load(f)
-            except (OSError, ValueError):
-                probe = None
+            control, c_reasons, eps = load_control(args.probe_json, ckpt_sha256=index[40000][1], pin=args.pin,
+                                                   manifest=manifest) \
+                if 40000 in index else (None, ["no CANON@40k checkpoint in the index"], None)
             audit, a_summary, a_reasons = load_tie_audit(args.tie_audit_json)
-            res = build_results(cells, control=control, control_reasons=c_reasons, probe=probe, audit=audit,
+            res = build_results(cells, control=control, control_reasons=c_reasons, eps=eps, audit=audit,
                                 audit_reasons=a_reasons, pin=args.pin, blocks=blocks, partial=args.partial,
                                 audit_summary=a_summary)
         except (ValueError, OSError, KeyError) as err:

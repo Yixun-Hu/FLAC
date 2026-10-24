@@ -679,7 +679,7 @@ def _probe_prov(probe, ckpt_sha, pin):
             "split_json_sha256": eval_FLAC._file_sha256(os.path.join(REPO, "data/AR/unseen_eval.json")),
             "source_sha": pin, "dirty": "", "device": "cuda", "torch": torch.__version__, "cuda_device": "toy",
             "seed": 42, "random_offset_seed": 43, "noise": "per item", "n_items": 5, "batch_size": 3,
-            "num_workers": 4, "img_w": 512, "latent_shape": [4, 64], "protocols": probe.PROTOCOLS,
+            "num_workers": 4, "img_w": 512, "latent_shape": [4, 64], "protocols": copy.deepcopy(probe.PROTOCOLS),
             "load": {"weights_source": "ema", "canonicalize_trained": True, "canonicalize_applied": True,
                      "canonicalize_mismatch": False, "img_w": 512, "model_config_sha256_file": digest,
                      "model_config_sha256_embedded": digest},
@@ -789,7 +789,7 @@ def test_the_probe_contract_mirrors_the_probe():
     assert {k: P[k] for k in ("n_items", "batch_size", "seed", "device")} == {
         k: probe.REGISTERED[k] for k in ("n_items", "batch_size", "seed", "device")}
     assert P["protocols"] == probe.PROTOCOLS and tuple(P["offset_keys"]) == probe.OFFSET_KEYS
-    assert P["eps_threshold"] == probe.EPS_COND_THRESHOLD and P["K"] == 8 and P["img_w"] == 512
+    assert P["eps_threshold"] == probe.EPS_COND_THRESHOLD and P["K"] == P["config_K"] == 8 and P["img_w"] == 512
 
 
 def _scaled(r, eps, item=None):
