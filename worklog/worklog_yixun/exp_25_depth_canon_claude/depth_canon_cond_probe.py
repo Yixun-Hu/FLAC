@@ -15,6 +15,7 @@ GPU for the registered run (the Planner launches it); CPU-testable on a toy stac
 
 Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md v8 §1/§6/§8.
 """
+import contextlib
 import os
 import sys
 
@@ -148,3 +149,71 @@ def compare_cond(test, ref):
 def summarize(rel):
     """``{"relL2": paired_summary, "relLinf": paired_summary}`` over the items."""
     return {k: stats.paired_summary(rel[k]) for k in ("relL2", "relLinf")}
+
+
+# --------------------------------------------------------------------------- #
+# one forward of the evaluation's generative path, stage by stage
+# --------------------------------------------------------------------------- #
+STAGES = ("cond", "velocity", "latent", "waveform")
+# fp32: the eps_cond measurement (autocast off, true-fp32 matmuls); eval: the
+# registered evaluation protocol (--cond-autocast bf16, eval_FLAC.py's 'medium').
+PROTOCOLS = {"fp32": {"cond_autocast": "off", "matmul_precision": "highest"},
+             "eval": {"cond_autocast": "bf16", "matmul_precision": "medium"}}
+
+
+@contextlib.contextmanager
+def matmul_precision(value):
+    old = torch.get_float32_matmul_precision()
+    torch.set_float32_matmul_precision(value)
+    try:
+        yield
+    finally:
+        torch.set_float32_matmul_precision(old)
+
+
+def run_stages(module, md_list, noise, reals, protocol):
+    """The four stages for one list of (already canonical) metadata dicts, mirroring
+    ``eval_FLAC.evaluate_model``'s loop: conditioner under the protocol's cond autocast,
+    ``get_conditioning_inputs``, ``sample_discrete_euler`` with 1 step / cfg 1.0 /
+    ``batch_cfg=True`` / the wrapper's ``dist_shift`` on the GIVEN noise (the DiT's one
+    output recorded as the velocity), decode, ``clamp(-1, 1)``, pad to ``reals``."""
+    import eval_FLAC as ev
+    from src.inference import sampling
+    enabled, dtype = ev.resolve_cond_autocast(protocol["cond_autocast"])
+    device = module.device
+    device_type = torch.device(device).type
+    model = module.diffusion.model
+    objective = (model.diffusion_objective if hasattr(model, "diffusion_objective")
+                 else getattr(model, "objective", "rectified_flow"))
+    if objective != "rectified_flow":
+        raise ValueError(f"the probe mirrors the rectified_flow 1-step path only, got {objective!r}")
+    velocities = []
+
+    def recording_model(x, t, **kw):
+        v = model(x, t, **kw)
+        velocities.append(v)
+        return v
+
+    with matmul_precision(protocol["matmul_precision"]), torch.no_grad():
+        ctx = (contextlib.nullcontext() if not enabled else torch.amp.autocast(device_type)
+               if dtype is None else torch.amp.autocast(device_type, dtype=dtype))
+        with ctx:
+            cond = module.diffusion.conditioner(md_list, device)
+        cond_inputs = module.diffusion.get_conditioning_inputs(cond)
+        latent = sampling.sample_discrete_euler(
+            recording_model, noise.to(device), 1, **cond_inputs, cfg_scale=1.0,
+            dist_shift=module.diffusion.dist_shift, batch_cfg=True, disable_tqdm=True)
+        if len(velocities) != 1:
+            raise RuntimeError(f"expected one DiT call for one Euler step, saw {len(velocities)}")
+        wav = latent if module.diffusion.pretransform is None else module.diffusion.pretransform.decode(latent)
+        wav = wav.clamp(-1.0, 1.0)
+        if wav.shape != reals.shape and wav.shape[-1] < reals.shape[-1]:
+            wav = torch.nn.functional.pad(wav, (0, reals.shape[-1] - wav.shape[-1]))
+    return {"cond": cond, "velocity": velocities[0], "latent": latent, "waveform": wav}
+
+
+def compare_stages(test, ref):
+    """``{stage: comparison}`` of two :func:`run_stages` outputs (``ref`` = A)."""
+    out = {"cond": compare_cond(test["cond"], ref["cond"])}
+    out.update({s: stage_rel(test[s], ref[s]) for s in STAGES[1:]})
+    return out

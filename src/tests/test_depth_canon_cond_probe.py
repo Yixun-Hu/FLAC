@@ -179,3 +179,87 @@ def test_canonical_pairs_refuses_misaligned_offsets_and_periodic_items():
         probe.canonical_pairs(_items(2), {"d3": [3]}, W16)
     with pytest.raises(yr.StabilizedTieError):
         probe.canonical_pairs([_eval_md(0, period=16)], {"d3": [3]}, W16)
+
+
+# --------------------------------------------------------------------------- #
+# the stage runner on a REAL tiny diffusion_cond wrapper (repo factories, CPU)
+# --------------------------------------------------------------------------- #
+from test_yaw_aug_training import _base_config, no_flash  # noqa: E402,F401  (fixture)
+
+
+def _toy_module(seed=0):
+    from src.models.factory import create_model_from_config
+    from src.training.factory import create_training_wrapper_from_config
+    torch.manual_seed(seed)
+    cfg = _base_config()
+    module = create_training_wrapper_from_config(cfg, create_model_from_config(cfg))
+    return module.eval().requires_grad_(False)
+
+
+def _toy_inputs(n=3):
+    a_list, b_lists, _ = probe.canonical_pairs(_items(n), {"d5": [5] * n}, W16)
+    return a_list, b_lists["d5"], probe.noise_bank(n, (4, 64), seed=42), torch.zeros(n, 1, 64)
+
+
+def test_run_stages_is_one_eval_euler_step_with_the_given_noise(no_flash):
+    module = _toy_module()
+    a_list, _, noise, reals = _toy_inputs()
+    keep = noise.clone()
+    out = probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS["fp32"])
+    assert torch.equal(noise, keep)                                       # not mutated
+    with torch.no_grad():
+        cond = module.diffusion.conditioner(a_list, module.device)
+        v = module.diffusion.model(noise, torch.ones(3), **module.diffusion.get_conditioning_inputs(cond),
+                                   cfg_scale=1.0, batch_cfg=True)
+    assert sorted(out["cond"]) == sorted(cond)
+    assert all(torch.equal(out["cond"][k][0], cond[k][0]) for k in cond)
+    assert torch.equal(out["velocity"], v) and torch.equal(out["latent"], noise - v)
+    assert torch.equal(out["waveform"], out["latent"].clamp(-1.0, 1.0))  # no pretransform here
+
+
+def test_run_stages_hands_the_sampler_exactly_the_given_noise(no_flash, monkeypatch):
+    import src.inference.sampling as sampling
+    module, seen = _toy_module(), []
+    real = sampling.sample_discrete_euler
+    monkeypatch.setattr(sampling, "sample_discrete_euler",
+                        lambda model, x, steps, **kw: seen.append((x, steps, kw)) or real(model, x, steps, **kw))
+    a_list, b_list, noise, reals = _toy_inputs()
+    probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS["eval"])
+    probe.run_stages(module, b_list, noise, reals, probe.PROTOCOLS["eval"])
+    assert [torch.equal(x, noise) for x, _, _ in seen] == [True, True]
+    assert all(s == 1 and kw["cfg_scale"] == 1.0 and kw["batch_cfg"] is True and kw["disable_tqdm"]
+               and kw["dist_shift"] is module.diffusion.dist_shift for _, s, kw in seen)
+
+
+@pytest.mark.parametrize("name, autocast, dtype, precision", [
+    ("fp32", False, None, "highest"), ("eval", True, torch.bfloat16, "medium")])
+def test_protocols_set_cond_autocast_and_matmul_precision(no_flash, name, autocast, dtype, precision):
+    module, seen = _toy_module(), []
+    hook = module.diffusion.conditioner.register_forward_pre_hook(lambda m, a: seen.append(
+        (torch.is_autocast_enabled("cpu"), torch.get_autocast_dtype("cpu"), torch.get_float32_matmul_precision())))
+    before = torch.get_float32_matmul_precision()
+    a_list, _, noise, reals = _toy_inputs()
+    probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS[name])
+    hook.remove()
+    assert seen[0][0] is autocast and seen[0][2] == precision and (not autocast or seen[0][1] == dtype)
+    assert torch.get_float32_matmul_precision() == before and not torch.is_autocast_enabled("cpu")
+
+
+def test_identical_inputs_give_exactly_zero_at_every_stage(no_flash):
+    module = _toy_module()
+    a_list, b_list, noise, reals = _toy_inputs()
+    s1, s2 = (probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS["fp32"]) for _ in range(2))
+    cmp = probe.compare_stages(s1, s2)
+    assert list(cmp) == list(probe.STAGES)
+    assert cmp["cond"]["all"]["relL2"].max() == 0.0 and cmp["cond"]["masks_equal"] is True
+    assert all(cmp[s]["relL2"].max() == 0.0 for s in probe.STAGES[1:])
+    rot = probe.compare_stages(probe.run_stages(module, b_list, noise, reals, probe.PROTOCOLS["fp32"]), s1)
+    assert rot["cond"]["all"]["relL2"].max() < 1e-5   # float32 pose composition only
+
+
+def test_a_non_rectified_flow_objective_is_refused(no_flash):
+    module = _toy_module()
+    module.diffusion.model.diffusion_objective = "v"
+    a_list, _, noise, reals = _toy_inputs()
+    with pytest.raises(ValueError, match="rectified_flow"):
+        probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS["eval"])
