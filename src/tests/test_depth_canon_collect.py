@@ -7,6 +7,7 @@ Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_ca
 """
 import collections
 import copy
+import shutil
 import hashlib
 import importlib.util
 import json
@@ -192,6 +193,7 @@ def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root
                            post_digest=DIGEST)
     if ckpt_sha:
         edit_json(path, lambda d: d.update(ckpt_sha256=ckpt_sha))
+    return path
 
 
 # ---- cycle 2a: the metrics record (and, next, the stream sidecar) vs the cell class ---- #
@@ -439,6 +441,69 @@ def test_write_receipt_refuses_a_moved_tree(tmp_path):
                             ckpt_sha256=entry["sha256"], campaign_digest=DIGEST, spawn_digest=spawn,
                             post_digest=post)
     assert not os.path.exists(os.path.join(str(tmp_path), entry["receipt"]))
+
+
+# ---- rB-F1 B6 (Codex rB HIGH; decision A7): the receipt is offline-verifiable publication evidence ---- #
+def test_the_receipt_binds_the_artifacts_and_the_verified_dump(tmp_path):
+    r = row("T", K=8, seed=44)
+    rel = write_cell(tmp_path, r)
+    rec = json.load(open(_receipt_path(tmp_path, rel)))
+    at = lambda p: os.path.join(str(tmp_path), p)  # noqa: E731
+    assert rec["artifact_sha256"] == {"metrics": eval_FLAC._file_sha256(at(rel)),
+                                      "stream": eval_FLAC._file_sha256(at(eval_FLAC.stream_sidecar_path(rel))),
+                                      "canon": eval_FLAC._file_sha256(at(eval_FLAC.canon_sidecar_path(rel)))}
+    d = _dump_dir(tmp_path, rel)
+    ev = rec["dump_evidence"]
+    assert ev["manifest_sha256"] == eval_FLAC._file_sha256(os.path.join(d, "manifest.json"))
+    assert ev["manifest"] == json.load(open(os.path.join(d, "manifest.json")))
+    assert ev["marker"] == open(os.path.join(d, "COMPLETE")).read() == ev["manifest"]["sha256"] + "\n"
+    assert ev["waveforms_sidecar"] == open(os.path.join(d, "waveforms.sha256")).read()
+    no_dump = row("TRAJ", K=1, deg=0, step=2500)
+    rec2 = json.load(open(_receipt_path(tmp_path, write_cell(tmp_path, no_dump, dump=False))))
+    assert rec2["dump_evidence"] is None and rec2["artifact_sha256"]["canon"]
+
+
+def test_offline_verification_needs_no_dump_root(tmp_path):
+    r = row("P1-pin", "P1", K=1, seed=46, sub="T")
+    rel = write_cell(tmp_path, r)
+    assert verify(tmp_path, rel, dump_check="receipt") == []
+    shutil.rmtree(os.path.join(str(tmp_path), "dumps"))                 # the NAS unmounted / moved / collected
+    assert verify(tmp_path, rel, dump_check="receipt") == []
+    assert any("dump" in x for x in verify(tmp_path, rel, dump_check="manifest"))   # the online modes see it
+
+
+OFFLINE_EDITS = [
+    (lambda d: d["dump_evidence"]["manifest"].update(n=N - 1), "manifest"),
+    (lambda d: d["dump_evidence"].update(marker="0" * 64 + "\n"), "marker"),
+    (lambda d: d["dump_evidence"].update(manifest_sha256="0" * 64), "manifest_sha256"),
+    (lambda d: d["dump_evidence"]["manifest"].update(input_hash="0" * 64), "input_hash"),
+    (lambda d: d["dump_evidence"].update(waveforms_sidecar="x"), "sidecar"),
+    (lambda d: d["artifact_sha256"].update(stream="0" * 64), "artifact_sha256"),
+    (lambda d: d.update(dump_evidence=None), "dump_evidence"),
+]
+
+
+@pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+    r = row("R", K=1, seed=42)
+    rel = write_cell(tmp_path, r)
+    edit_json(_receipt_path(tmp_path, rel), edit)
+    reasons = verify(tmp_path, rel, dump_check="receipt")
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def test_a_committed_artifact_edited_after_the_receipt_fails_offline(tmp_path):
+    r = row("YAW-pin", "YAW", K=8, seed=45, sub="T")
+    rel = write_cell(tmp_path, r)
+    edit_json(os.path.join(str(tmp_path), eval_FLAC.stream_sidecar_path(rel)), lambda d: d.update(note=1))
+    assert any("stream" in x for x in verify(tmp_path, rel, dump_check="receipt"))
+
+
+def test_a_dump_changed_after_the_receipt_is_seen_online(tmp_path):
+    r = row("T", K=1, seed=45)
+    rel = write_cell(tmp_path, r)
+    edit_json(os.path.join(_dump_dir(tmp_path, rel), "manifest.json"), lambda d: d.update(note=1))
+    assert any("dump_evidence" in x or "manifest" in x for x in verify(tmp_path, rel, dump_check="manifest"))
 
 
 def test_receipt_rc_and_wrong_checkpoint_sha_are_refused(tmp_path):

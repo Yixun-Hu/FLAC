@@ -325,10 +325,12 @@ def manifest_row(manifest, cell):
 
 
 def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
+    import test_depth_canon_collect as T
+    manifest = T.MANIFEST
     sel = C.select_cells(manifest, only=["exp25_YAW_C4_S40000_K1_s42_th45"])
     entry = C.plan_cells(manifest, sel, farm_root="farm", dump_root=str(tmp_path / "d"),
                          canon_index=None, no_dump_blocks=[])[0]
-    os.makedirs(tmp_path / "farm" / "YAW")
+    T.write_cell(tmp_path, sel[0], farm="farm", dump_root=str(tmp_path / "d"), receipt=False)
     path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
                            log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], **DIGESTS)
     assert path == str(tmp_path / entry["receipt"]) and sorted(os.listdir(tmp_path / "farm" / "YAW")) == [
@@ -369,10 +371,39 @@ def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, ca
             "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha,
             "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check",
             "--spawn-digest", "d" * 64, "--post-digest", "d" * 64]
-    assert C.main(argv + ["--verify-after"]) == 1           # nothing but the receipt exists yet
+    assert C.main(argv + ["--verify-after"]) == 1           # nothing to bind: refused, nothing written
     text = capsys.readouterr().out
-    assert "receipt:" in text and "INVALID" in text and "missing or unreadable metrics" in text
-    assert C.main(argv) == 0                                # without --verify-after: just the receipt
+    assert "RECEIPT REFUSED" in text and not os.path.exists(tmp_path / plan_receipt(out))
+    assert C.main(argv) == 2                                # rB-F1 B6: never a receipt without verification
+    assert "--verify-after" in capsys.readouterr().out and not os.path.exists(tmp_path / plan_receipt(out))
+
+
+def plan_receipt(plan_path):
+    return json.load(open(plan_path))["cells"][0]["receipt"]
+
+
+def test_write_receipt_is_written_only_after_the_full_verification(manifest, tmp_path, capsys):
+    """B6: the receipt is the offline publication evidence, so it must not exist unless the
+    complete cell (incl. the dump, read once) verified."""
+    import test_depth_canon_collect as T
+    r = next(c for c in T.MANIFEST["cells"] if c["cell"] == "exp25_P1_T_S40000_K8_s43")
+    cells = tmp_path / "cells.json"
+    cells.write_text(json.dumps(T.MANIFEST))
+    out = str(tmp_path / "plan.json")
+    assert C.main(["--plan", out, "--cells", str(cells), "--only", r["cell"], "--farm-root", T.FARM,
+                   "--dump-root", str(tmp_path / "dumps"), "--campaign-digest", "d" * 64]) == 0
+    T.write_cell(tmp_path, r, receipt=False)
+    argv = ["--write-receipt", r["cell"], "--plan-json", out, "--cells", str(cells), "--base-dir", str(tmp_path),
+            "--lane", "1", "--log", "x.log", "--rc", "0", "--pin", T.PIN, "--ckpt-sha",
+            T.MANIFEST["arms"]["P1"]["ckpt"]["sha256"], "--farm-root", T.FARM, "--dump-root",
+            str(tmp_path / "dumps"), "--no-link-check", "--spawn-digest", "d" * 64, "--post-digest", "d" * 64,
+            "--verify-after"]
+    d = os.path.join(str(tmp_path), "dumps", os.path.basename(json.load(open(out))["cells"][0]["stem"]))
+    os.rename(os.path.join(d, "waveforms.npy"), os.path.join(d, "w.hold"))
+    assert C.main(argv) == 1 and not os.path.exists(tmp_path / plan_receipt(out))   # the dump is not complete
+    os.rename(os.path.join(d, "w.hold"), os.path.join(d, "waveforms.npy"))
+    assert C.main(argv) == 0 and os.path.exists(tmp_path / plan_receipt(out))
+    assert "VALID" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------- #
