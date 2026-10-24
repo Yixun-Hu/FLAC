@@ -566,10 +566,22 @@ def main(argv=None):
     ap.add_argument("--log", default=None)
     ap.add_argument("--rc", type=int, default=None)
     ap.add_argument("--ckpt-sha", default=None, help="the checkpoint sha256 the driver MEASURED")
+    ap.add_argument("--verify-after", action="store_true",
+                    help="with --write-receipt: then verify the cell in the same process (exit 1 if invalid)")
     args = ap.parse_args(argv)
     manifest = load_cells(args.cells)
     farm = args.farm_root or manifest["farm_root"]
     dump_root = args.dump_root or manifest["dump_root"]
+    if args.write_receipt:
+        with open(args.plan_json) as f:
+            entry = next(e for e in json.load(f)["cells"] if e["cell"] == args.write_receipt)
+        row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
+        print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, lane=args.lane,
+                                          log=args.log, rc=args.rc, pin=args.pin,
+                                          ckpt_sha256=args.ckpt_sha))
+        if not args.verify_after:
+            return 0
+        args.verify_cell, args.no_dump = entry["stem"], not entry["dump"]
     if args.verify_cell:
         suffix = args.verify_cell.partition("_metrics_")[2]
         arms = {c["arm"] for c in manifest["cells"] if c["metrics_suffix"] == suffix}
@@ -605,14 +617,6 @@ def main(argv=None):
                        "farm_root": farm, "dump_root": dump_root, "n_selected": len(entries),
                        "cells": entries}, f, indent=1)
         print(f"plan: {len(entries)} cell(s) -> {args.plan}")
-        return 0
-    if args.write_receipt:
-        with open(args.plan_json) as f:
-            entry = next(e for e in json.load(f)["cells"] if e["cell"] == args.write_receipt)
-        row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
-        print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, lane=args.lane,
-                                          log=args.log, rc=args.rc, pin=args.pin,
-                                          ckpt_sha256=args.ckpt_sha))
         return 0
     ap.error("nothing to do: pass --verify-cell, --plan or --write-receipt")
     return 2

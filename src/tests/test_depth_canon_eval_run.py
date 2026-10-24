@@ -351,3 +351,19 @@ def test_cli_plan_and_receipt(manifest, tmp_path, capsys):
                    str(tmp_path / "absent.sha256")]) == 2             # CANON cells need it
     assert "CANON" in capsys.readouterr().out
     assert C.main(["--plan", out, "--blocks", "T,bogus"]) == 2
+
+
+def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, capsys):
+    """One interpreter start (~5 s of imports) per finished cell instead of two."""
+    out = str(tmp_path / "plan.json")
+    assert C.main(["--plan", out, "--only", "exp25_P1_T_S40000_K1_s42", "--farm-root", "farm",
+                   "--dump-root", str(tmp_path / "d")]) == 0
+    os.makedirs(tmp_path / "farm" / "P1")
+    sha = manifest["arms"]["P1"]["ckpt"]["sha256"]
+    argv = ["--write-receipt", "exp25_P1_T_S40000_K1_s42", "--plan-json", out, "--base-dir", str(tmp_path),
+            "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha,
+            "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check"]
+    assert C.main(argv + ["--verify-after"]) == 1           # nothing but the receipt exists yet
+    text = capsys.readouterr().out
+    assert "receipt:" in text and "INVALID" in text and "missing or unreadable metrics" in text
+    assert C.main(argv) == 0                                # without --verify-after: just the receipt
