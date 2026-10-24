@@ -370,3 +370,69 @@ def run_probe(module, reals, metadata, img_w, seed, batch_size, latent_len, prot
     return {"offsets": offsets, "items": items, "tier1": t1, "results": results, "pooled": pooled,
             "determinism": {p: _finish(det[p]) for p in protocols}, "eps_cond": eps,
             "control_p99": control, "verdict": verdict}
+
+
+# --------------------------------------------------------------------------- #
+# CLI: load -> first n loader items -> probe -> JSON + sha256 sidecar + summary
+# --------------------------------------------------------------------------- #
+SCHEMA_VERSION = 1
+EXPDIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_MODEL_CONFIG = os.path.join(EXPDIR, "FLAC_AR_CANON.json")
+DEFAULT_DATASET_CONFIG = "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"
+
+
+def _sha256_file(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _git(*args):
+    import subprocess
+    try:
+        return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def collect_items(eval_dl, n_items):
+    """The first ``n_items`` items in loader order: ``(reals [n, C, T], [md, ...])``."""
+    reals, mds = [], []
+    for batch_reals, batch_md in eval_dl:
+        for r, md in zip(batch_reals, batch_md):
+            if len(mds) < n_items:
+                reals.append(r)
+                mds.append(md)
+        if len(mds) == n_items:
+            break
+    if len(mds) < n_items:
+        raise ValueError(f"the loader holds only {len(mds)} items; --n-items is {n_items}")
+    return torch.stack(reals), mds
+
+
+def markdown_summary(report):
+    eps, t1, v = report["eps_cond"], report["tier1"], report["verdict"]
+    out = [f"## depth_canon composition probe -- verdict {'PASS' if v['pass'] else 'FAIL'} {v}", "",
+           f"eps_cond (fp32 conditioning, max relL2 over offsets / ids / items): {eps['value']:.3e} "
+           f"(threshold {eps['threshold']:.0e}, {'PASS' if eps['pass'] else 'FAIL'}; at {eps['argmax']})",
+           f"Tier 1: {t1['depth_sha_equal']}/{t1['n_pairs']} canonical depth hashes equal, "
+           f"{t1['class_equal']} classes equal, {t1['dj_corotates']} shifts co-rotate", "",
+           "| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | "
+           "waveform p99 | waveform max |", "|---|---|---|---|---|---|---|---|---|"]
+    for p, by_key in report["results"].items():
+        for k, r in by_key.items():
+            c, w = r["cond"]["all"]["summary"]["relL2"], r["waveform"]["summary"]["relL2"]
+            out.append(f"| {p} | {k} | {c['p99']:.3e} | {c['max']:.3e} | "
+                       f"{r['velocity']['summary']['relL2']['p99']:.3e} | "
+                       f"{r['latent']['summary']['relL2']['p99']:.3e} | {w['median']:.3e} | "
+                       f"{w['p99']:.3e} | {w['max']:.3e} |")
+    for p, c in report["control_p99"].items():
+        out.append(f"control p99 ({p}, waveform relL2): " + ", ".join(f"{k} {x:.3e}" for k, x in c.items()))
+    for p, d in report["determinism"].items():
+        out.append(f"determinism floor ({p}, A twice): max waveform relL2 "
+                   f"{d['waveform']['summary']['relL2']['max']:.3e}")
+    return "\n".join(out)

@@ -429,3 +429,31 @@ def test_a_tier1_mismatch_fails_the_verdict(monkeypatch, no_flash):
     rep = _run_probe()
     assert rep["tier1"]["depth_sha_equal"] == 24 and rep["verdict"]["tier1"] is False
     assert rep["verdict"]["pass"] is False
+
+
+# --------------------------------------------------------------------------- #
+# loader items in order, and the markdown summary
+# --------------------------------------------------------------------------- #
+class _ToyLoader:
+    def __init__(self, n, bs):
+        mds = [_probe_md(i) for i in range(n)]
+        self.batches = [[torch.zeros(len(mds[j:j + bs]), 1, 64), tuple(mds[j:j + bs])]
+                        for j in range(0, n, bs)]
+
+    def __iter__(self):
+        return iter(self.batches)
+
+
+def test_collect_items_takes_the_first_n_in_loader_order():
+    reals, mds = probe.collect_items(_ToyLoader(7, 3), 5)
+    assert reals.shape == (5, 1, 64) and [md["idx"] for md in mds] == [0, 1, 2, 3, 4]
+    with pytest.raises(ValueError, match="only 4 items"):
+        probe.collect_items(_ToyLoader(4, 3), 5)
+
+
+def test_markdown_summary_reports_every_cell_and_the_verdict(no_flash):
+    text = probe.markdown_summary(_run_probe())
+    assert text.startswith("## depth_canon composition probe -- verdict PASS")
+    assert "eps_cond (fp32 conditioning" in text and "Tier 1: 25/25" in text
+    assert all(f"| {p} | {k} |" in text for p in probe.PROTOCOLS for k in probe.OFFSET_KEYS)
+    assert "control p99 (eval, waveform relL2): d64" in text and "determinism floor (fp32" in text
