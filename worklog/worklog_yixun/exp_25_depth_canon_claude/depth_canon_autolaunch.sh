@@ -6,8 +6,8 @@
 #
 #   GO token   $EXPDIR/depth_canon_GO.token, written by the Planner, never by this watcher:
 #              head=<40 hex> / manifest_sha256=<sha256 of depth_canon_pins.sha256's bytes> /
-#              issued=<full ISO-8601 with offset> / by=planner: exactly four non-blank key=value
-#              lines. Valid only while head == `git rev-parse HEAD`, manifest_sha256 == the pins
+#              issued=<full ISO-8601 with offset> / by=planner: exactly four newline-terminated
+#              key=value lines and nothing else (every line counts, blank ones too). Valid only while head == `git rev-parse HEAD`, manifest_sha256 == the pins
 #              file's sha256 and the pinned paths + launcher kit are clean (else WAITING_TOKEN),
 #              re-checked on every poll AND immediately before each launcher call.
 #   GPUs       GPU 0 and GPU 1 each: ZERO compute processes (uuid -> index mapped) AND >= 23040 MiB
@@ -125,10 +125,11 @@ PY
 
 # --- the GO token ------------------------------------------------------------------------ #
 token_ok() {   # 0 = valid (TOKEN_HEAD set); 1 = invalid (TOKEN_WHY set)
-  local line key val head="" man="" issued="" by="" n=0 cur
+  local line key val head="" man="" issued="" by="" n=0 total=0 cur
   TOKEN_WHY=""
   [ -f "$TOKEN" ] || { TOKEN_WHY="no GO token at ${TOKEN}"; return 1; }
   while IFS= read -r line || [ -n "$line" ]; do
+    total=$((total + 1))            # rB-F2 F2-5: EVERY logical line counts, blank ones included
     [ -n "$line" ] || continue
     key="${line%%=*}"; val="${line#*=}"
     [ "$key" != "$line" ] || { TOKEN_WHY="GO token line '${line}' is not key=value"; return 1; }
@@ -138,8 +139,8 @@ token_ok() {   # 0 = valid (TOKEN_HEAD set); 1 = invalid (TOKEN_WHY set)
     esac
     n=$((n + 1))
   done < "$TOKEN"
-  [ "$n" -eq 4 ] && [ "$(wc -l < "$TOKEN")" -eq 4 ] \
-    || { TOKEN_WHY="GO token must be exactly the four lines head, manifest_sha256, issued, by (got ${n} keys, $(wc -l < "$TOKEN") lines)"; return 1; }
+  [ "$n" -eq 4 ] && [ "$total" -eq 4 ] && [ "$(wc -l < "$TOKEN")" -eq 4 ] \
+    || { TOKEN_WHY="GO token must be exactly the four newline-terminated lines head, manifest_sha256, issued, by and nothing else (got ${n} keys, ${total} lines, $(wc -l < "$TOKEN") newlines)"; return 1; }
   [[ "$head" =~ ^[0-9a-f]{40}$ && "$man" =~ ^[0-9a-f]{64}$ ]] && [ "$by" = planner ] \
     && [[ "$issued" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2}|Z)$ ]] \
     || { TOKEN_WHY="GO token is malformed (head / manifest_sha256 / issued as full ISO-8601 with offset / by)"; return 1; }
