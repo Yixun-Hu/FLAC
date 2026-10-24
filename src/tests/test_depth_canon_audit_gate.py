@@ -1,0 +1,167 @@
+"""exp_25 depth_canon rB-F1 B1 (Codex rB BLOCKING + rA B1): ONE tie-audit predicate,
+``worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_audit_gate.py``, shared by the
+collector (and, next, the launcher). Fail-closed: the report must be exactly what the audit
+script writes for a complete PASS over the three registered splits, its census must be the
+one the audit's OWN enumeration derives from the split JSONs, and the map bytes on disk must
+still hash to the rows.
+
+Fixtures are REAL audits: ``depth_canon_tie_audit.py``'s own pipeline (``read_split_config`` ->
+``collect_maps`` -> ``run_rows`` -> ``build_report`` -> ``write_report``) over tiny synthetic
+256x512 maps (``test_depth_canon_tie_audit._write_tree``); mutations are re-written with the
+audit's ``write_report`` (so the sidecar matches and the CONTENT check must catch them).
+CPU only, no dataset.
+
+Written by the exp_25 Coder seat (Claude Opus 5.5, max effort), round rB-F1.
+"""
+import copy
+import hashlib
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+
+import numpy as np
+import pytest
+
+import test_depth_canon_tie_audit as TA
+from test_depth_canon import _scalar_depth
+
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+EXPREL = os.path.join("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
+GATE_PY = os.path.join(REPO, EXPREL, "depth_canon_audit_gate.py")
+REAL_AUDIT = os.path.join(REPO, EXPREL, "depth_canon_tie_audit.json")
+NAMES = ("train", "unseen", "seen")
+W = 512
+
+
+def _load_gate():
+    spec = importlib.util.spec_from_file_location("depth_canon_audit_gate", GATE_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+G = _load_gate()
+
+
+def _n_items(splits, name):
+    return sum(len(files) for rooms in splits[name].values() for files in rooms.values())
+
+
+def _n_maps(splits):
+    keys = set()
+    for rooms in splits.values():
+        for scene, ids in rooms.items():
+            for sid, files in ids.items():
+                keys |= {(scene, sid, int(f.split("_")[1][1:])) for f in files}
+    return len(keys)
+
+
+def make_audit(tmp, splits=TA.SPLITS, maps=None, names=NAMES, limit=None, out_name="depth_canon_tie_audit.json"):
+    """A REAL tie audit of a tiny synthetic tree (the audit script's own functions, in
+    main()'s order) + the contract a gate needs for it. Returns ``(path, report, contract)``."""
+    cfgs = TA._write_tree(tmp, splits=splits, maps=maps)
+    sp = {n: TA.audit.read_split_config(cfgs[n]) for n in names}
+    found, ledger = TA.audit.collect_maps(sp)
+    module = sp[names[0]]["custom_metadata_module_abs"]
+    rows = TA.audit.run_rows(found, module, sp[names[0]]["root_abs"], 1, limit)
+    rep = TA.audit.build_report(rows, ledger, list(names), len(found), limit, module)
+    out = os.path.join(str(tmp), out_name)
+    TA.audit.write_report(rep, out)
+    contract = copy.deepcopy(G.REGISTERED)
+    contract["splits"] = {n: {"dataset_config": cfgs[n], "n_items": _n_items(splits, n)} for n in NAMES}
+    contract["n_maps"] = _n_maps(splits)          # counted here, independently of the audit
+    contract["custom_metadata_module"] = TA._ar_md().__file__   # the tree's configs name it absolutely
+    return out, json.loads(json.dumps(rep)), contract
+
+
+def rewrite(out, rep):
+    """Re-publish a (mutated) report with the audit's own writer: sidecar recomputed."""
+    TA.audit.write_report(rep, out)
+
+
+def validate(out, contract, **kw):
+    return G.validate_tie_audit(out, REPO, contract=contract, **kw)
+
+
+@pytest.fixture(scope="module")
+def genuine(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("gate")
+    return make_audit(tmp)
+
+
+def test_a_genuine_complete_pass_audit_is_accepted(genuine):
+    out, rep, contract = genuine
+    ok, problems, summary = validate(out, contract)
+    assert ok and problems == [], problems
+    assert summary["audit_sha256"] == hashlib.sha256(open(out, "rb").read()).hexdigest()
+    assert summary["n_maps"] == contract["n_maps"] == 6
+    assert summary["per_split"] == rep["per_split"]
+    assert summary["split_maps"]["seen"] == ["depth_map/Cafe/Cafe_idx_0/1.npy", "depth_map/Cafe/Cafe_idx_0/3.npy"]
+    assert [i["split"] for i in summary["inputs"]] == list(NAMES)
+    assert summary["inputs"][1]["json_abs"] == rep["inputs"][1]["json_abs"]
+
+
+# --------------------------------------------------------------------------- #
+# content mutations, re-published with a MATCHING sidecar: the content check must refuse
+# --------------------------------------------------------------------------- #
+def _survivor(r):
+    r["survivors"].append({"path": r["rows"][0]["path"], "candidates": [1, 2], "survivors": [1, 2],
+                           "counts": r["rows"][0]["counts"]})
+
+
+MUTATIONS = {
+    "input_cardinality": (lambda r: r["inputs"][1].__setitem__("n_items", r["inputs"][1]["n_items"] - 1), "inputs"),
+    "input_json_hash": (lambda r: r["inputs"][0].__setitem__("json_sha256", "0" * 64), "inputs"),
+    "input_config_hash": (lambda r: r["inputs"][2].__setitem__("dataset_config_sha256", "0" * 64), "inputs"),
+    "tool_code_hash": (lambda r: r["tool"]["code_sha256"].__setitem__("src/data/yaw_rotation.py", "0" * 64),
+                       "code_sha256"),
+    "tool_script_hash": (lambda r: r["tool"].__setitem__("script_sha256", "1" * 64), "script"),
+    "tool_dirty": (lambda r: r["tool"].__setitem__("dirty_code", " M src/data/yaw_rotation.py"), "dirty"),
+    "tool_dirty_unknown": (lambda r: r["tool"].__setitem__("dirty_code", None), "dirty"),
+    "tool_source_sha": (lambda r: r["tool"].__setitem__("source_sha", "HEAD"), "source_sha"),
+    "add_survivor_listing": (_survivor, "survivors"),
+    "coverage_incomplete": (lambda r: r["coverage"].__setitem__("complete", False), "coverage"),
+    "coverage_limit": (lambda r: r["coverage"].__setitem__("limit", 6), "coverage"),
+    "schema_true": (lambda r: r.__setitem__("schema_version", True), "schema_version"),
+    "schema_float": (lambda r: r.__setitem__("schema_version", 1.0), "schema_version"),
+    "gate_exit_bool": (lambda r: r["gate"].__setitem__("exit_code", False), "gate"),
+    "gate_verdict": (lambda r: r["gate"].__setitem__("verdict", "FAIL"), "gate"),
+    "harness_tag": (lambda r: r.__setitem__("harness", True), "harness"),
+
+}
+
+
+@pytest.mark.parametrize("name", list(MUTATIONS))
+def test_a_content_mutation_with_a_recomputed_sidecar_is_refused(genuine, tmp_path, name):
+    out, rep, contract = genuine
+    edit, needle = MUTATIONS[name]
+    bad = copy.deepcopy(rep)
+    edit(bad)
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, bad)
+    ok, problems, _ = validate(path, contract)
+    assert not ok and any(needle in p for p in problems), (name, problems)
+
+
+def test_a_tampered_sidecar_is_refused(genuine, tmp_path):
+    out, rep, contract = genuine
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, rep)
+    assert validate(path, contract)[0]
+    open(path + ".sha256", "w").write("0" * 64 + "  depth_canon_tie_audit.json\n")
+    ok, problems, _ = validate(path, contract)
+    assert not ok and any("sidecar" in p for p in problems), problems
+    os.unlink(path + ".sha256")
+    assert not validate(path, contract)[0]
+
+
+def test_an_unreadable_or_non_json_report_is_refused(tmp_path, genuine):
+    _, _, contract = genuine
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    assert not validate(path, contract)[0]                                 # absent
+    open(path, "w").write("{not json")
+    open(path + ".sha256", "w").write(hashlib.sha256(b"{not json").hexdigest() + "  depth_canon_tie_audit.json\n")
+    ok, problems, _ = validate(path, contract)
+    assert not ok and problems
