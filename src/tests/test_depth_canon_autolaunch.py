@@ -421,12 +421,18 @@ def test_a_near_matching_interpreter_is_refused(rig, tmp_path):
     assert rc == 2 and "/home/yixunhu/miniconda3/envs/flac/bin/python" in out and calls(rig) == []
 
 
-@pytest.mark.parametrize("issued, blank", [("2026-10-24", False), ("2026-10-24T02:00", False),
-                                           ("2026-10-24T02:00:00", False), ("2026-10-24T02:00:00-04:00", True)],
-                         ids=["date_only", "no_seconds", "no_offset", "blank_line"])
-def test_a_token_must_be_exactly_four_lines_with_a_full_iso_timestamp(rig, issued, blank):
-    """A6b."""
-    text = f"head={rig['head']}\nmanifest_sha256={pins_sha(rig)}\nissued={issued}\n" + ("\n" if blank else "") + "by=planner\n"
+@pytest.mark.parametrize("issued, blank, end", [("2026-10-24", False, "\n"), ("2026-10-24T02:00", False, "\n"),
+                                                ("2026-10-24T02:00:00", False, "\n"),
+                                                ("2026-10-24T02:00:00-04:00", True, "\n"),
+                                                ("2026-10-24T02:00:00-04:00", True, ""),
+                                                ("2026-10-24T02:00:00-04:00", False, "")],
+                         ids=["date_only", "no_seconds", "no_offset", "blank_line",
+                              "blank_line_no_final_newline", "no_final_newline"])
+def test_a_token_must_be_exactly_four_lines_with_a_full_iso_timestamp(rig, issued, blank, end):
+    """A6b; rB-F2 F2-5 (Codex A2 NIT 5): every logical line counts, blanks included -- four keys +
+    a blank line + no final newline has four newline bytes but five lines and is NOT a token."""
+    text = (f"head={rig['head']}\nmanifest_sha256={pins_sha(rig)}\nissued={issued}\n" + ("\n" if blank else "")
+            + "by=planner" + end)
     (rig["exp"] / "depth_canon_GO.token").write_text(text)
     rc, _ = run(rig, max_polls=2)
     assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_TOKEN"
