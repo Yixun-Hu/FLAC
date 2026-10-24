@@ -14,6 +14,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 
 import numpy as np
@@ -212,7 +213,8 @@ def audit_map(key, entry, md_module, root_abs):
     (and the map then counts as NOT processed)."""
     import torch
     from src.data import yaw_rotation as yr
-    row = {"path": key, "sha256": None, "counts": dict(entry["counts"]), "j_star": None, "dj": None,
+    row = {"path": key, "sha256": None, "counts": dict(entry["counts"]), "img_w": None,
+           "j_star": None, "dj": None,
            "tie_class": None, "survivor": False, "n_candidates": None, "candidates": None,
            "survivors": None, "max_sep_deg": None, "raw_tie_class": None, "raw_survivor": None,
            "raw_agree_set": None, "raw_agree_col": None, "error": None}
@@ -228,7 +230,7 @@ def audit_map(key, entry, md_module, root_abs):
         ref = md_module.convert_equirect_to_camera_coord(torch.from_numpy(raw), *raw.shape)
         if not torch.equal(cloud, ref.permute(2, 0, 1)):
             raise RuntimeError("the cloud AR_md built differs from the resolved file's content")
-        W = int(cloud.shape[2])
+        W = row["img_w"] = int(cloud.shape[2])
         P = yr.column_profile(yr.recover_depth_proxy(cloud))
         cands = [int(c) for c in torch.nonzero(P == P.max()).flatten().tolist()]
         try:
@@ -249,3 +251,105 @@ def audit_map(key, entry, md_module, root_abs):
     except Exception as err:  # noqa: BLE001 -- recorded, and the gate then refuses PASS
         row["error"] = f"{type(err).__name__}: {err}"
     return row
+
+
+# --------------------------------------------------------------------------- #
+# the whole audit
+# --------------------------------------------------------------------------- #
+SCHEMA_VERSION = 1
+EXPDIR = os.path.dirname(os.path.abspath(__file__))
+SPLIT_CONFIGS = {"train": "src/configs/dataset_configs/AR/train/acousticroom_train.json",
+                 "unseen": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
+                 "seen": "src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json"}
+EXIT = {"PASS": 0, "FAIL": 1, "INCOMPLETE": 3, "REFUSED_SUBSET": 4}
+_WORKER = {}
+
+
+def _init_worker(module_path, root_abs):
+    import torch
+    torch.set_num_threads(1)
+    _WORKER.update(module=load_metadata_module(module_path), root=root_abs)
+
+
+def _task(item):
+    return audit_map(item[0], item[1], _WORKER["module"], _WORKER["root"])
+
+
+def run_rows(maps, module_path, root_abs, workers, limit=None):
+    """Rows in sorted-path order (``imap`` keeps the order whatever ``workers`` is)."""
+    tasks = [(k, maps[k]) for k in sorted(maps)][:limit]
+    if workers <= 1:
+        _init_worker(module_path, root_abs)
+        return [_task(t) for t in tasks]
+    import multiprocessing as mp
+    with mp.get_context("fork").Pool(workers, _init_worker, (module_path, root_abs)) as pool:
+        return list(pool.imap(_task, tasks, chunksize=8))
+
+
+def summarize(rows, split_names, img_w):
+    def cls(r):
+        return "error" if r["error"] else ("survivor" if r["survivor"] else r["tie_class"])
+    keys = ("none", "same_column", "cross_column_image", "survivor", "error")
+    per = {}
+    for s in split_names:
+        mine = [r for r in rows if r["counts"][s]]
+        p = {"maps": dict.fromkeys(keys, 0), "items": dict.fromkeys(keys, 0),
+             "dj_histogram_maps": [0] * img_w, "dj_histogram_items": [0] * img_w}
+        for r in mine:
+            p["maps"][cls(r)] += 1
+            p["items"][cls(r)] += r["counts"][s]
+            if r["dj"] is not None:
+                p["dj_histogram_maps"][r["dj"]] += 1
+                p["dj_histogram_items"][r["dj"]] += r["counts"][s]
+        per[s] = p
+    agree = {f: {"true": sum(r[f] is True for r in rows), "false": sum(r[f] is False for r in rows)}
+             for f in ("raw_agree_set", "raw_agree_col")}
+    return per, agree
+
+
+def _git(*args):
+    try:
+        return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def build_report(rows, ledger, split_names, n_union, limit, module_abs):
+    survivors = [{"path": r["path"], "candidates": r["survivors"], "counts": r["counts"]}
+                 for r in rows if r["survivor"]]
+    errors = [{"path": r["path"], "error": r["error"]} for r in rows if r["error"]]
+    subset = limit is not None or tuple(split_names) != tuple(SPLIT_CONFIGS)
+    verdict = ("FAIL" if survivors else "INCOMPLETE" if errors
+               else "REFUSED_SUBSET" if subset or len(rows) != n_union else "PASS")
+    widths = {r["img_w"] for r in rows if r["img_w"] is not None}
+    if len(widths) > 1:
+        raise ValueError(f"maps of different widths {sorted(widths)}")
+    img_w = widths.pop() if widths else 0
+    per, agree = summarize(rows, split_names, img_w)
+    code = {"script": os.path.relpath(os.path.abspath(__file__), REPO),
+            "src/data/yaw_rotation.py": "src/data/yaw_rotation.py",
+            "src/data/dataset.py": "src/data/dataset.py", "custom_metadata_module": module_abs}
+    tool = {"script_sha256": _sha256_file(os.path.abspath(__file__)),
+            "code_sha256": {k: _sha256_file(_abs(v)) for k, v in code.items()},
+            "source_sha": _git("rev-parse", "HEAD"),
+            "dirty_code": _git("status", "--porcelain", "--", *[_abs(v) for v in code.values()])}
+    return {"schema_version": SCHEMA_VERSION, "tool": tool, "inputs": ledger,
+            "coverage": {"splits": list(split_names), "limit": limit, "subset": subset,
+                         "n_maps_union": n_union, "n_maps_audited": len(rows),
+                         "complete": not subset and len(rows) == n_union},
+            "gate": {"verdict": verdict, "exit_code": EXIT[verdict], "n_survivors": len(survivors),
+                     "n_errors": len(errors)},
+            "per_split": per, "agreement": agree, "survivors": survivors, "errors": errors,
+            "rows": rows}
+
+
+def write_report(report, out):
+    """Pretty header, one row per line (grep-able), then the ``sha256sum`` sidecar."""
+    head = {k: v for k, v in report.items() if k != "rows"}
+    text = json.dumps(head, indent=1)[:-2] + ',\n "rows": [\n' + ",\n".join(
+        "  " + json.dumps(r, separators=(",", ":")) for r in report["rows"]) + "\n ]\n}\n"
+    with open(out, "w") as f:
+        f.write(text)
+    with open(out + ".sha256", "w") as f:
+        f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(out)}\n")

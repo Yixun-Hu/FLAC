@@ -10,6 +10,7 @@ schema of ``data/AR/*.json`` into a tmp tree.
 """
 import importlib.util
 import os
+import sys
 import zlib
 
 import numpy as np
@@ -28,6 +29,7 @@ W = 512
 def _load_audit():
     spec = importlib.util.spec_from_file_location("depth_canon_tie_audit", _AUDIT_PY)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module          # importable by name: Pool pickles _task by reference
     spec.loader.exec_module(module)
     return module
 
@@ -297,3 +299,81 @@ def test_raw_and_proxy_can_disagree_and_the_flags_say_so(tmp_path):
             assert row["raw_agree_col"] is (audit.raw_select(raw)[3] == row["survivors"])
             return
     pytest.fail("no raw tie broken by the proxy in the search space")
+
+
+# --------------------------------------------------------------------------- #
+# the whole audit: report + sidecar, the gate, subsets, determinism under workers
+# --------------------------------------------------------------------------- #
+PERIODIC_KEY = "depth_map/Office/Office_idx_2/5.npy"
+
+
+def _report(tmp_path, maps=None, names=("train", "unseen", "seen"), limit=None, workers=1,
+            out="audit.json"):
+    """What main() does, step by step, on a tmp tree."""
+    import json
+    cfgs = _write_tree(tmp_path, maps=maps)
+    splits = {n: audit.read_split_config(cfgs[n]) for n in names}
+    found, ledger = audit.collect_maps(splits)
+    module = splits[names[0]]["custom_metadata_module_abs"]
+    rows = audit.run_rows(found, module, splits[names[0]]["root_abs"], workers, limit)
+    rep = audit.build_report(rows, ledger, list(names), len(found), limit, module)
+    audit.write_report(rep, str(tmp_path / out))
+    assert json.loads((tmp_path / out).read_text()) == json.loads(json.dumps(rep))
+    return rep, tmp_path / out
+
+
+def test_a_clean_complete_audit_passes_and_publishes_json_and_sidecar(tmp_path):
+    import hashlib
+    rep, out = _report(tmp_path)
+    assert rep["gate"] == {"verdict": "PASS", "exit_code": 0, "n_survivors": 0, "n_errors": 0}
+    assert rep["schema_version"] == audit.SCHEMA_VERSION
+    assert rep["coverage"] == {"splits": ["train", "unseen", "seen"], "limit": None, "subset": False,
+                               "n_maps_union": 6, "n_maps_audited": 6, "complete": True}
+    assert [r["path"] for r in rep["rows"]] == sorted(r["path"] for r in rep["rows"])
+    assert rep["survivors"] == [] and rep["errors"] == []
+    assert [(r["split"], r["n_items"], r["n_unique_maps"]) for r in rep["inputs"]] == [
+        ("train", 4, 3), ("unseen", 2, 2), ("seen", 2, 2)]
+    sidecar = (tmp_path / "audit.json.sha256").read_text()
+    assert sidecar == f"{hashlib.sha256(out.read_bytes()).hexdigest()}  audit.json\n"
+    per = rep["per_split"]["train"]
+    assert per["maps"]["none"] + per["maps"]["same_column"] + per["maps"]["cross_column_image"] == 3
+    assert sum(per["items"].values()) == 4 and sum(per["dj_histogram_items"]) == 4
+    assert sum(per["dj_histogram_maps"]) == 3 and len(per["dj_histogram_maps"]) == W
+    assert rep["agreement"]["raw_agree_set"] == {"true": 6, "false": 0}
+    assert rep["tool"]["script_sha256"] == hashlib.sha256(open(_AUDIT_PY, "rb").read()).hexdigest()
+
+
+def test_a_periodic_panorama_is_listed_and_fails_the_gate(tmp_path):
+    periodic = _scalar_depth(256, W, seed=5, period=128, peaks=[(60, 11)]).numpy()
+    rep, _ = _report(tmp_path, maps={PERIODIC_KEY: periodic})
+    assert rep["gate"]["verdict"] == "FAIL" and rep["gate"]["exit_code"] == 1
+    assert rep["survivors"] == [{"path": PERIODIC_KEY, "candidates": [11, 139, 267, 395],
+                                 "counts": {"train": 0, "unseen": 1, "seen": 0}}]
+    assert rep["per_split"]["unseen"]["maps"]["survivor"] == 1
+
+
+@pytest.mark.parametrize("kw", [dict(limit=4), dict(names=("unseen", "seen"))])
+def test_a_subset_never_passes(tmp_path, kw):
+    rep, _ = _report(tmp_path, **kw)
+    assert rep["gate"]["verdict"] == "REFUSED_SUBSET" and rep["gate"]["exit_code"] == 4
+    assert rep["coverage"]["subset"] is True and rep["coverage"]["complete"] is False
+
+
+def test_a_survivor_inside_a_subset_still_fails(tmp_path):
+    periodic = _scalar_depth(256, W, seed=5, period=256, peaks=[(60, 11)]).numpy()
+    rep, _ = _report(tmp_path, maps={PERIODIC_KEY: periodic}, names=("unseen",))
+    assert rep["gate"]["verdict"] == "FAIL"
+
+
+def test_an_unprocessed_map_fails_the_gate(tmp_path):
+    bad = _scalar_depth(256, W, seed=5).numpy()
+    bad[0, 0] = np.inf
+    rep, _ = _report(tmp_path, maps={PERIODIC_KEY: bad})
+    assert rep["gate"]["verdict"] == "INCOMPLETE" and rep["gate"]["exit_code"] == 3
+    assert [e["path"] for e in rep["errors"]] == [PERIODIC_KEY]
+
+
+def test_workers_do_not_change_a_single_byte(tmp_path):
+    _, one = _report(tmp_path, workers=1, out="w1.json")
+    _, three = _report(tmp_path, workers=3, out="w3.json")
+    assert one.read_bytes() == three.read_bytes()
