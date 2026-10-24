@@ -198,3 +198,73 @@ def test_record_violations_are_named(tmp_path, spec, edit, needle):
     edit(rec)
     reasons = C.record_reasons(rec, r, pin=PIN, link=rec["ckpt_path"])
     assert reasons and any(needle in x for x in reasons), reasons
+
+
+# ---- cycle 2b: the stream sidecar and the canon sidecar ---- #
+def _sidecars(tmp, r):
+    rel = write_cell(tmp, r)
+    load = lambda p: json.load(open(os.path.join(str(tmp), p))) if p else None  # noqa: E731
+    canon = eval_FLAC.canon_sidecar_path(rel) if r["canonicalize"] else None
+    return load(rel), load(eval_FLAC.stream_sidecar_path(rel)), load(canon)
+
+
+def test_sidecars_of_a_true_cell_verify(tmp_path, case_row):
+    rec, stream, canon = _sidecars(tmp_path, case_row)
+    assert C.stream_reasons(stream, case_row, rec) == []
+    assert (canon is None) == (not case_row["canonicalize"])
+    if canon is not None:
+        assert C.canon_reasons(canon, case_row, stream, rec) == []
+
+
+STREAM_EDITS = [(lambda d: d.update(stream_count=N + 1), "stream_count"),
+                (lambda d: d["input_tuples"].pop(), "input_tuples"),
+                (lambda d: d.update(input_hash="0" * 64), "input_hash"),
+                (lambda d: d["offsets"].__setitem__(0, 1), "offset"),
+                (lambda d: d.update(img_w=256), "img_w"),
+                (lambda d: d.update(rotate_mode="random"), "rotate_mode"),
+                (lambda d: d["input_tuples"].__setitem__(1, [5] + d["input_tuples"][1][1:]), "position")]
+
+
+@pytest.mark.parametrize("edit, needle", STREAM_EDITS, ids=[e[1] for e in STREAM_EDITS])
+def test_stream_violations_are_named(tmp_path, edit, needle):
+    r = row("C4+45", K=1, deg=90)
+    rec, stream, _ = _sidecars(tmp_path, r)
+    edit(stream)
+    reasons = C.stream_reasons(stream, r, rec)
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def test_random_record_and_stream_are_one_stream(tmp_path):
+    r = row("R", K=8, seed=46)
+    rec, stream, _ = _sidecars(tmp_path, r)
+    rec["assignment_hash"] = "0" * 64
+    assert any("assignment_hash" in x for x in C.stream_reasons(stream, r, rec))
+
+
+def _relabel(d):  # same total, different classes
+    p = next(p for p in d["positions"] if p[3] == "none")
+    p[3] = "same_column"
+
+
+CANON_EDITS = [(lambda c, r: _relabel(c), "tie_counts"),
+               (lambda c, r: c["positions"][0].__setitem__(1, "AR:other"), "target"),
+               (lambda c, r: c.update(canonical_depth_hash="0" * 64), "canonical_depth_hash"),
+               (lambda c, r: c.update(canon_hash="0" * 64), "canon_hash"),
+               (lambda c, r: c["positions"][1].__setitem__(2, W), "malformed"),
+               (lambda c, r: c["positions"][2].__setitem__(4, "x"), "malformed"),
+               (lambda c, r: c.update(stream_count=N - 1), "stream_count"),
+               (lambda c, r: c.update(tiebreak="pose"), "tiebreak"),
+               (lambda c, r: r.update(canonicalize_tie_counts={
+                   "none": r["canonicalize_tie_counts"]["none"] - 1,
+                   "same_column": r["canonicalize_tie_counts"]["same_column"] + 1,
+                   "cross_column_image": r["canonicalize_tie_counts"]["cross_column_image"]}),
+                "record canonicalize_tie_counts")]
+
+
+@pytest.mark.parametrize("edit, needle", CANON_EDITS, ids=[e[1] for e in CANON_EDITS])
+def test_canon_violations_are_named(tmp_path, edit, needle):
+    r = row("R", K=1, seed=43)
+    rec, stream, canon = _sidecars(tmp_path, r)
+    edit(canon, rec)
+    reasons = C.canon_reasons(canon, r, stream, rec)
+    assert reasons and any(needle in x for x in reasons), reasons
