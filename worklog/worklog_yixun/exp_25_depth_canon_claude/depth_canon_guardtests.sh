@@ -355,13 +355,32 @@ expect "X3 the scan does match a non-finite loss (non-vacuous)" bash -c 'grep -q
 
 echo "--- R. SMOKE: the real launch path on the fake trainer ---"
 clear_evidence; rm -rf "$H/save"
+case_rc "R1 a healthy smoke passes"          0 "SMOKE VERDICT: PASS" MODE=SMOKE
+EV="$(ls "$R/$EXPREL"/depth_canon_smoke_evidence_*.json 2>/dev/null | tail -1 || true)"
+expect "R1b it wrote evidence bound to HEAD, manifest and its final log" bash -c '
+  cd "$1" && python - "$2" <<PY
+import hashlib, json, subprocess, sys
+ev = json.load(open(sys.argv[1]))
+head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+man = hashlib.sha256(open("$3/depth_canon_pins.sha256", "rb").read()).hexdigest()
+assert ev["verdict"] == "PASS" and ev["head"] == head and ev["manifest_sha256"] == man, ev
+assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projected_hours"] == 60
+assert abs(ev["steady_state_s_per_step"] - 3.9) < 0.1 and 40 < ev["projection_h"] < 46, ev
+assert hashlib.sha256(open(ev["log"], "rb").read()).hexdigest() == ev["log_sha256"]
+PY' _ "$R" "$EV" "$EXPREL"
+case_rc "R1c FULL accepts that evidence"     0 "smoke evidence: $EXPREL/$(basename "$EV")" MODE=FULL DRY_RUN=1
 case_rc "R2 no banner"                       3 "TREATMENT BANNER NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_banner
 case_rc "R3 no endpoint marker"              6 "ENDPOINT NOT REACHED" MODE=SMOKE GUARD_SCENARIO=no_endpoint
 case_rc "R4 no two-rank start"               6 "TWO-RANK DDP START NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_ranks
 case_rc "R5 a non-finite loss"               4 "NON-FINITE VALUES" MODE=SMOKE GUARD_SCENARIO=nan
+case_rc "R6 too slow: 6 s/step"              4 "SMOKE VERDICT: FAIL - projected" MODE=SMOKE GUARD_RATE=6
+case_rc "R7 no rate stamps"                  4 "SMOKE VERDICT: FAIL - the projection could not be computed" MODE=SMOKE GUARD_SCENARIO=no_stamps
 case_rc "R8 a smoke that wrote a checkpoint" 5 "SMOKE WROTE 1 CHECKPOINT" MODE=SMOKE GUARD_SCENARIO=smoke_ckpt
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 case_rc "R9 train.py failed"                 7 "train.py exited rc=7" MODE=SMOKE GUARD_TRAIN_RC=7
+expect "R10 only R1 left PASS evidence" bash -c '
+  cd "$1" && [ "$(grep -l "\"verdict\": \"PASS\"" "$2"/depth_canon_smoke_evidence_*.json | wc -l)" = 1 ]' _ "$R" "$EXPREL"
+
 echo "--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---"
 full_case() { rm -rf "$H/save/FLAC_exp25_CANON"; case_rc "$@"; }
 clear_evidence; write_evidence z_synthetic '{}'   # FULL's prerequisite (the real writer: cycle 12b)
@@ -375,6 +394,27 @@ full_case "Z5 a non-finite loss in FULL"     4 "NON-FINITE VALUES" MODE=FULL GUA
 full_case "Z6 a foreign file"                5 "CHECKPOINT SET REJECTED: foreign files" MODE=FULL GUARD_SCENARIO=foreign
 full_case "Z7 a stale checkpoint"            5 "older than the launch marker" MODE=FULL GUARD_SCENARIO=stale
 full_case "Z8 off-cadence checkpoint"        5 "cadence set" MODE=FULL GUARD_SCENARIO=wrong_cadence
+
+echo "--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---"
+if [ "${GUARD_NAS_READONLY:-0}" = 1 ]; then
+  launch_prod() {   # no harness, no stubs: the production save root and the real findmnt / df
+    set +e
+    OUT="$(cd "$R" && env DEPTH_CANON_HARNESS= EXPECT_HEAD="$(git -C "$R" rev-parse HEAD)" "$@" \
+          bash "$EXPREL/depth_canon_launch.sh" 2>&1)"
+    RC=$?
+    set -e
+  }
+  launch_prod MODE=SMOKE DRY_RUN=1
+  expect "Q1 production SMOKE dry run passes the real NAS gate" bash -c '[ "$1" = 0 ] && grep -qF "NAS gate OK: /media/diskstation/yixunhu/FLAC/checkpoints" <<<"$2"' _ "$RC" "$OUT"
+  expect "Q1b production argv saves to the NAS pin" has_value "$(argv_of "$OUT")" --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon
+  launch_prod MODE=FULL DRY_RUN=1
+  expect "Q2 production FULL refuses without production evidence" bash -c '[ "$1" = 2 ] && grep -qF "harness=false" <<<"$2"' _ "$RC" "$OUT"
+  for fv in "--save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon" "--max-steps 40000" "--checkpoint-every 2500"; do
+    expect "Q2b production FULL argv ${fv}" has_value "$(argv_of "$OUT")" "${fv%% *}" "${fv#* }"
+  done
+else
+  skip "Q1-Q2 production-path dry runs" "set GUARD_NAS_READONLY=1 to read the real NAS"
+fi
 
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 

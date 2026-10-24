@@ -433,5 +433,66 @@ print(f"checkpoint set OK: exactly the {len(want)} cadence checkpoints, all newe
 PY
 [ "$ckpt_rc" -eq 0 ] || fail "$ckpt_rc"
 
+# --- (7) SMOKE: steady-state projection <= 60 h, then the evidence --------------- #
+if [ "$MODE" = "SMOKE" ]; then
+  EVIDENCE="$EXPDIR/depth_canon_smoke_evidence_${TS}.json"
+  python - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
+      "$MAX_PROJECTED_HOURS" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" "$BANNER_SEEN" "$ENDPOINT_SEEN" \
+      "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" <<'PY' || fail 4
+import json, re, sys
+(out, log, rc, elapsed, steps, endpoint, max_h, head, manifest, harness, banner, endpoint_seen,
+ ranks, nonfinite, ckpt_rc, argv) = sys.argv[1:17]
+rc, elapsed, steps, endpoint, max_h = int(rc), float(elapsed), int(steps), int(endpoint), float(max_h)
+text = open(log, encoding="utf-8", errors="replace").read().replace("\r", "\n")
+stamps = {}   # tqdm '<n>/<total> [<elapsed><' stamps of the training progress bar
+for m in re.finditer(r"(\d+)/(\d+) \[(?:(\d+):)?(\d+):(\d+)<", text):
+    stamps[int(m.group(1))] = int(m.group(3) or 0) * 3600 + int(m.group(4)) * 60 + int(m.group(5))
+late = [n for n in stamps if n >= 10]
+rate = None
+if late and max(stamps) > min(late) and stamps[max(stamps)] > stamps[min(late)]:
+    n1, n2 = min(late), max(stamps)
+    rate = (stamps[n2] - stamps[n1]) / (n2 - n1)
+proj = None if rate is None else rate * endpoint / 3600
+upper = elapsed / steps * endpoint / 3600
+print(f"SMOKE: {steps} steps in {elapsed:.0f} s wall (startup included -> {upper:.1f} h, descriptive); "
+      f"steady state {'n/a' if rate is None else f'{rate:.3f} s/step'} -> "
+      f"{'n/a' if proj is None else f'{proj:.1f} h'} for {endpoint} steps")
+print("NOTE: the per-step rate includes canonicalization (CPU, inside the step); the training log "
+      "prints no separate canonicalization timing")
+if rc != 0:
+    verdict, why = "FAIL", f"an earlier check or train.py failed (rc {rc})"
+elif proj is None:
+    verdict, why = "FAIL", "the projection could not be computed (no tqdm rate stamps at n >= 10)"
+elif proj > max_h:
+    verdict, why = "FAIL", f"projected {proj:.1f} h > MAX_PROJECTED_HOURS={max_h:.0f}"
+else:
+    verdict, why = "PASS", f"projected {proj:.1f} h <= {max_h:.0f} h"
+print(f"SMOKE VERDICT: {verdict} - {why}")
+b = lambda s: s == "true"  # noqa: E731
+ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": verdict, "why": why,
+      "head": head, "manifest_sha256": manifest, "harness": b(harness), "config_contract_ok": True,
+      "banner_seen": b(banner), "endpoint_seen": b(endpoint_seen), "ranks_seen": b(ranks),
+      "nonfinite_seen": b(nonfinite), "smoke_checkpoints": 0 if ckpt_rc == "0" else -1,
+      "elapsed_s": elapsed, "startup_inclusive_projection_h": upper,
+      "steady_state_s_per_step": rate, "steps_per_s": None if not rate else 1.0 / rate,
+      "projection_h": proj, "max_projected_hours": int(max_h), "canonicalization_latency": None,
+      "train_rc": rc, "argv": argv, "log": log}
+json.dump(ev, open(out, "w"), indent=1)
+sys.exit(0 if verdict == "PASS" else 4)
+PY
+fi
+
 echo "=== exp_25 depth_canon ${MODE} finished: exit ${rc} ==="
+if [ "$MODE" = "SMOKE" ]; then
+  drain_log                             # the evidence binds the FINAL bytes of the log
+  python - "$EVIDENCE.partial" "$EVIDENCE" "$LOG" <<'PY' || { echo "could not publish the smoke evidence"; exit 2; }
+import hashlib, json, os, sys
+partial, final, log = sys.argv[1:4]
+ev = json.load(open(partial))
+ev["log_sha256"] = hashlib.sha256(open(log, "rb").read()).hexdigest()
+json.dump(ev, open(partial, "w"), indent=1)
+os.replace(partial, final)
+print(f"smoke evidence ({ev['verdict']}): {final}")
+PY
+fi
 exit "$rc"
