@@ -145,3 +145,18 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `dff44c8` | Planner records | Codex code-review artifacts r1 / r1 re-verify / r2 / r2 re-verify / r3b committed (previously untracked) |
 | `1c0f6fb` | Planner records | plan v10: Codex r3b amendments, round 3c as built, round 3d watcher, A4/A5 resolved (Yixun's pre-approved GO, freeze rule), A6 eval GPU policy, schedule |
 | `dbbe07f` | Planner records | receipt for rounds 3c + r3b-F1 + 3d (regression 2155/7/1, guard 150/0/0), Codex r3b verdict, pre-approved GO, adjudications Q1–Q6 + A6, reviews A/B launched |
+| `84f0a9e` | Coder rB-F1 | B1 cycle 1a-i (red by design): tie-audit gate tests on a real tiny audit — structural mutations, sidecar, non-JSON |
+| `dcdd945` | Coder rB-F1 | B1 cycle 1a-ii (red by design): gate tests — limit/subset/survivor runs, stale split JSON, cardinalities, the registered contract vs the real splits, real audit, CLI |
+| `6780dc9` | Coder rB-F1 | B1 cycle 1b: `depth_canon_audit_gate.py` part A — sidecar, exact schema, tool hashes + clean tree, inputs ledger recomputed by the audit's own code, cardinalities |
+| `6178158` | Coder rB-F1 | B1 cycle 1c (red): gate row tests — census, per-row contract, recomputed summaries, re-hashed map bytes |
+| `9134922` | Coder rB-F1 | B1 cycle 1d: gate part B — exact census, per-row contract, per_split/agreement recomputed, current map bytes re-hashed |
+| `de8981a` | Coder rB-F1 | B1 cycle 1e (red): collector tests on a REAL audit — every invalid audit / disagreeing cell refuses full collection (exit 3, nothing written) |
+| `6434db7` | Coder rB-F1 | B1 cycle 1f: collector `load_tie_audit` = the shared gate; `tie_summary` before the refusal, contradictions are problems |
+| `f52b90d` | Coder rB-F1 | B1 cycle 1g (regression fix): the driver stub evaluator puts src/tests on sys.path (1f's fixture imports sibling test modules) |
+| `cb08bd8` | Coder rB-F1 | B2 cycle 2a (red): driver lane-gate tests (uuid-mapped occupancy, fail-closed queries, opt-in sharing, re-check before spawn) |
+| `3fd2b8d` | Coder rB-F1 | B2 cycle 2b: `lane_state` — >= 10 GiB free AND no compute process, fail-closed queries, re-check before each spawn, `ALLOW_SHARED_GPU=1` relaxes occupancy only |
+| `93ef8e2` | Coder rB-F1 | B3 cycle 3a (red): receipts written by the real writer; campaign/spawn/post digest binding tests; one digest per collection |
+| `fe61023` | Coder rB-F1 | B3 cycle 3b (red): driver tests — startup digest in the receipt, edit between cells -> exit 4 before the 2nd spawn, edit during a cell -> that cell fails |
+| `c7ef06b` | Coder rB-F1 | B3 cycle 3c: relevant-tree digest at start / before every spawn / after every cell, PIN DRIFT exit 4, receipt binds the three digests, verify_cell + collection check them |
+| `8d0335f` | Coder rB-F1 | B4 cycle 4a (red): checkpoint TOCTOU tests — verified cache + hard link, measured digest, space gate, symlink/foreign entry, tampered cache, bytes changed during the cell |
+| `00ac606` | Coder rB-F1 | B4 cycle 4b: content-addressed verified checkpoint cache, free-space gate, hard-linked farm entries re-checked before the spawn, post-run measured sha256 in the receipt |
