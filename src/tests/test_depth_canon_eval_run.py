@@ -85,6 +85,23 @@ def _n_items(split):
 
 
 # --------------------------------------------------------------------------- #
+# the committed manifest IS the generator's output
+# --------------------------------------------------------------------------- #
+def test_committed_manifest_equals_the_generator_output(manifest):
+    with open(CELLS_JSON) as f:
+        committed = f.read()
+    assert committed == MC.render(manifest)
+    assert json.loads(committed) == manifest
+    assert MC.main(["--check"]) == 0
+
+
+def test_render_is_one_cell_per_line(manifest):
+    lines = MC.render(manifest).splitlines()
+    cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
+    assert len(cell_lines) == len(manifest["cells"]) == 230
+
+
+# --------------------------------------------------------------------------- #
 # structure: 230 rows, block counts, priority order, identity
 # --------------------------------------------------------------------------- #
 def test_block_counts_and_priority_order(manifest):
