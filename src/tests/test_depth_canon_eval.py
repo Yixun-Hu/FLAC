@@ -1001,6 +1001,35 @@ def test_metric_geometry_is_the_post_rotation_pre_canonical_frame(monkeypatch, t
         assert any(not torch.equal(a, b) for a, b in zip(_metric_inputs(cond), want))
 
 
+def test_are_addback_receives_the_post_rotation_pre_canonical_list(monkeypatch, tmp_path):
+    """Codex r3a-F1 re-verification NIT (i): with canonicalization ON and a mocked ARE
+    bank, ``apply_are_addback`` must receive the METRIC list (post-rotation,
+    pre-canonicalization), never the canonical list the conditioner sees. CANON + ARE is
+    not a registered cell; this pins the route before that composition is ever used."""
+    import types
+    bank = types.SimpleNamespace(cfg=types.SimpleNamespace(early_frames=1))
+    received = []
+    monkeypatch.setattr(eval_FLAC, "resolve_are_from_checkpoint",
+                        lambda emb, file_cfg, lam: (0.5, "config", {"toy": True}))
+    monkeypatch.setattr(eval_FLAC, "build_anchor_bank", lambda *a, **k: bank)
+
+    def spy(latents, bank_, lam, metadata, device):
+        assert bank_ is bank and lam == 0.5
+        received.append(metadata)
+        return latents
+    monkeypatch.setattr(eval_FLAC, "apply_are_addback", spy)
+    _, _, seen = _run(monkeypatch, tmp_path, ON32, canonicalize=True, rotate_deg=90.0)
+    plan = eval_FLAC.resolve_rotation_plan("fixed", 90.0, None, 42)
+    assert len(received) == len(seen.cond) == 2
+    for (_, batch_md), got, cond in zip(seen.loader.batches, received, seen.cond):
+        want = eval_FLAC.apply_rotation_plan(list(batch_md), plan)
+        assert got is not cond and len(got) == len(want)
+        assert all(torch.equal(g["depth"], w["depth"]) and torch.equal(g["source"], w["source"])
+                   for g, w in zip(got, want))
+        assert all(_j_star(md) == 0 for md in cond)
+        assert any(not torch.equal(g["depth"], c["depth"]) for g, c in zip(got, cond))
+
+
 def test_trained_but_not_applied_diagnostic(monkeypatch, tmp_path):
     _, _, seen = _run(monkeypatch, tmp_path, ON32, allow_canon_mismatch=True)
     rec = json.loads((tmp_path / "toy_metrics_1_1.0_cell_canonmis.json").read_text())
