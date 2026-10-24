@@ -558,3 +558,194 @@
 - **Deviations 1–11:** all accepted (8 accepted in form, semantics pending HIGH 1; 1 with the keyword-only hardening; 3 strengthened as above). **Open questions:** 1 confirmed (BLOCKING), 2 confirmed (HIGH 2), 3 confirmed (collector enforces file == embedded for table cells; evaluator records both).
 - **Legacy path:** Codex confirms behavioural + serial identity to `2be08f6` with no block and no flags (names, record field order, predictions meta, no `.canon.json`, stream sidecar unchanged, `prepare_eval_metadata(False)` ≡ `apply_rotation_plan`, single `build_output_paths` call; `test_eval_paths` "save stage" wording stale). Binding truth table verified in full; binding precedes model construction and is not bypassed by `--allow-partial-load`.
 - **Action:** fix round r3a-F1 handed to the round-3b Coder (single writer in this worktree) to run AFTER its 3b cycles; A4 flagged to Yixun with the recommendation (Codex concurs); plan v9 amendments by the Planner.
+
+## 2026-10-23T20:39:35-04:00 — r3b start: reading, baseline, round split (Coder)
+
+- **Goal** — TDD round 3b (Coder, Claude Opus 5.5 max effort): the pre-FULL tie audit (plan v8 §7 rung 3), the numerical-composition probe + ε_cond (§1 Tier 2 (ii), §6 test 21b), and the launcher kit (§4 gates (1)–(7) + a GPU gate (8), §6 guard suite) in worktree `~/codespace/exp-25-depth-canon`, branch `exp-25-depth-canon`. HEAD at start `180fea4` (the brief said `e0bcae0`; the Planner had committed the r3a review receipt `180fea4`, and committed plan v9 `503a2da` at 20:30:59 while this round was reading — every 3b commit sits on `503a2da`). CPU only (`CUDA_VISIBLE_DEVICES=""` for every pytest run), no training / eval / GPU work, nothing pushed, no environment change; GPU 0 / GPU 1 jobs of another user (xRIR, `~/codespace/xRIR_code_wt13`) never touched.
+- **Command / Validation** — Read the SOP, announcements 01–08, plan v8 (+ the v9 diff), this notebook, the ledger, every plan review (r1–r5) and code review (r1, r1-reverify, r2, r2-reverify, r3a), exp_17's `yaw_aug_a6000_launch.sh` / `_guardtests.sh` / `_codex_code_r3_review.md` (via `git show origin/exp17-yawaug-scratch:…`), exp_07's `p1_ddp_launch.sh` and `assert_arm_configs.py`, `train.py`, `defaults.ini`, `src/data/dataset.py` (split resolution), `AR_md.py`, `eval_FLAC.py` (load path, loop, sampler call), `src/inference/sampling.py`. Baseline at `180fea4`: `CUDA_VISIBLE_DEVICES="" python -m pytest src/tests/test_depth_canon.py src/tests/test_depth_canon_stats.py src/tests/test_depth_canon_eval.py -q` → **321 passed, 1 xfailed** (61.7 s).
+- **Facts that shaped the design** —
+  - P1's launcher passes **no `--val-dataset-config`** (and no `--precision`; `defaults.ini` has `bf16-mixed`), so the CANON argv carries no validation set (the brief's "val config acousticroom_seeneval.json — check what P1 used and match it" → matched P1).
+  - In this **worktree** `.git` is a file, and `~/codespace/.git` exists: `assert_arm_configs.py`'s marker walk therefore stops at `~/codespace`, and run as a script its `from src…` resolves to the stale site-packages copy (`find_spec('src')` from a neutral cwd → `site-packages/src`). The launcher works around it (cycle 11b); the exp_07 file is untouched.
+  - `AR_md.get_custom_metadata` builds the cloud with a hard-coded `256 × 512`; with `modalities = {acoustic_context: off, depth: on, poses: off}` its depth branch runs alone.
+- **Next** — cycle 1a.
+
+## 2026-10-23T20:43:52-04:00 — r3b cycle 1a: tie audit — raw-side selector + circular separation
+
+- **Goal** — The independent raw-scalar selector the audit compares the proxy against (brief (A): "implement the raw-side key as a small pure function with tests").
+- **Change** — New `worklog/…/depth_canon_tie_audit.py` (`raw_candidates`, `raw_rooted_survivors` — numpy, column-major rooted image, exact lexicographic order, all ties kept — `raw_select`, `max_circular_sep_deg`); new `src/tests/test_depth_canon_tie_audit.py`.
+- **Version Control** — `5e99cad` (parent `503a2da`); 193 insertions.
+- **Result** — `passed`. **Red:** collection `FileNotFoundError` (script absent). **Green:** 60 passed.
+- **Analysis** — Agreement with `yr.canonical_column` on none / same_column / five cross-column fixtures (separations 1, 64 wrapping, 256, cross-row) and two periodic fixtures (survivor set == the `StabilizedTieError` candidates); co-rotation under rolls {1, 64, 255, 256, 511}; a fixture whose rooted-image winner is NOT the first index. Process note: cycle 1 was drafted as one unit (267 lines) and split before committing into 1a / 1b, each with its own red run against its parent (rounds 1–3a precedent; the same holds for every "a/b" split below).
+
+## 2026-10-23T20:44:34-04:00 — r3b cycle 1b: tie audit — split item → depth map via AR_md's own path logic
+
+- **Change** — `resolve_depth_path(audio_path, root_path)`: AR_md's inline string logic (common-suffix dataset folder; scene / scene id / receiver index from the relpath `dataset.py` computes) → the exact path AR_md `np.load`s + its key `depth_map/<scene>/<id>/<r>.npy`; `DEPTH_ONLY_MODALITIES`; `load_metadata_module` (dataset.py's importlib load); REPO always first on `sys.path`.
+- **Version Control** — `92c0372`; +62 / −3.
+- **Result** — `passed`. **Red:** 3 failed (`AttributeError: … 'DEPTH_ONLY_MODALITIES'`). **Green:** 63 passed.
+- **Analysis** — The resolver mirrors code that is inline in `get_custom_metadata` (not importable); the test spies on `np.load` inside the REAL `get_custom_metadata` and pins resolver path == loaded path for `R0044` / `R000` / `R001`.
+
+## 2026-10-23T20:46:24-04:00 — r3b cycle 2: tie audit — split configs → loader items → unique maps + inputs ledger
+
+- **Change** — `read_split_config` (exactly one dataset entry; required fields; relative paths resolved against the repo root; sha256 of config, split JSON, metadata module), `enumerate_items` (the loader's own `get_audio_filenames` / `json_scandir`), `collect_maps` (dedupe by resolved path, per-split item counts, smallest item path as representative, refuses splits with different roots / modules).
+- **Version Control** — `4bdc9a3`; +169.
+- **Result** — `passed`. **Red:** 6 failed (`AttributeError: … 'read_split_config'`). **Green:** 69 passed (tmp tree in the real `{scene: {scene_id: [file]}}` schema).
+- **Read-only real check** (split JSONs only, no data read): train **291,210 items / 8,488 maps**, unseen **6,337 / 644**, seen **6,217 / 630**; union **9,650 maps** (= the plan's number); **112 maps are shared by unseen and seen**, none by train and an eval split. Split shas: train `aa4e52d6…`, unseen `9a9d817a…`, seen `04b13e58…`.
+
+## 2026-10-23T20:47:53-04:00 — r3b cycle 3: tie audit — the per-map row
+
+- **Change** — `audit_map`: read the map once (sha256 of the bytes, `np.load(allow_pickle=False)`); the cloud from `AR_md.get_custom_metadata` itself (depth-only), cross-checked bitwise against `convert_equirect_to_camera_coord(raw)` (so the hashed file IS what the loader reads); the full operator `canonicalize_scene_metadata` (proxy, rooted key, shift, post-condition) with fixed finite poses (the selector reads none) — `StabilizedTieError` ⇒ survivor; the raw selector; row = sha256, per-split counts, j*, dj, tie class, candidates, survivors, max separation, raw class, raw-vs-proxy agreement (candidate set, selected column). Any exception → `row['error']` (unprocessed).
+- **Version Control** — `1a18bab`; +129.
+- **Result** — `passed`. **Red:** 11 failed (`AttributeError: … 'audit_map'`). **Green:** 80 passed.
+- **Analysis** — The agreement flag is shown non-constant: a raw cross-ROW tie at a non-power-of-two value is broken by the proxy's per-row rounding (found by a deterministic search in the test).
+
+## 2026-10-23T20:51:19-04:00 — r3b cycle 4a: tie audit — ordered run, summaries, gate, JSON + sidecar
+
+- **Change** — `run_rows` (sorted-path order via `Pool.imap`, fork context, 1 torch thread per worker; `--limit` = first N sorted maps), `summarize` (per split: map- and item-weighted classes {none, same_column, cross_column_image, survivor, error}, 512-bin dj histograms), `build_report` (gate FAIL > INCOMPLETE > REFUSED_SUBSET > PASS → exit 1 / 3 / 4 / 0; full survivor list; errors; inputs ledger; coverage; tool provenance: script / operator / loader / AR_md sha256, HEAD, porcelain), `write_report` (deterministic bytes, one row per line, `sha256sum`-format sidecar).
+- **Version Control** — `3bfc2d6`; +186 / −2.
+- **Result** — `passed`. **Red:** 7 failed (`AttributeError: … 'run_rows'`). **Green:** 87 passed (incl. workers 1 vs 3 byte-identical). One test-harness fix before green: the test loader now registers the module in `sys.modules` (Pool pickles `_task` by reference).
+
+## 2026-10-23T20:52:40-04:00 — r3b cycle 4b: tie audit — CLI, markdown summary, timing projection
+
+- **Change** — `main()`: refusals before any data access (unknown / duplicate `--splits`, `--limit < 1` → exit 2); writes JSON + sidecar; markdown summary (per-split table, agreement, 16-bin dj histograms, survivors, errors) and a throughput line; returns the gate's code; `__main__` crash → exit 5. Survivor entries carry both the profile candidates and the rooted-image ties; the single-worker path no longer changes the caller's torch thread count.
+- **Version Control** — `c879ba7`; +124 / −6.
+- **Result** — `passed`. **Red:** 9 failed (8 × `AttributeError: … 'main'`, 1 × subprocess rc 0 ≠ 2). **Green:** 96 passed.
+
+## 2026-10-23T20:52:52-04:00 — r3b tie-audit throughput on a 48-map real subset (read-only)
+
+- **Goal** — Prove path resolution on real data and measure throughput (brief: ≤ 50 maps, read-only).
+- **Command** — from the worktree root, output to a `mktemp -d` (`/tmp/tmp.EuwLrDwQLQ`), logs in this folder:
+  `CUDA_VISIBLE_DEVICES="" python worklog/…/depth_canon_tie_audit.py --limit 48 --workers 8 --out /tmp/tmp.EuwLrDwQLQ/subset_w8.json` → `depth_canon_2026-10-23_20-52-52_tie_audit_subset48_w8.log`; the same with `--workers 1` → `…_subset48_w1.log`.
+- **Result** — `passed` (exit 4 = REFUSED_SUBSET, as designed): 48 maps (the first 48 sorted, all `Apartments/Apartments_idx_0`, train), 0 errors, 0 survivors, 47 `none` + 1 `cross_column_image` (`25.npy`, candidates [365, 366], 0.70°); raw-vs-proxy agreement 48/48 (set and column); `0.npy` → j* 346 (= the r1 re-verification's real map). **Throughput:** 29.7 maps/s with 8 workers (cold NAS reads + pool start, 1.6 s), 46.7 maps/s with 1 worker (warm page cache, 1.0 s); split enumeration 10.1 s. **Projected full audit (9,650 maps): ≈ 3.5–5.5 min + 10 s**. The two JSONs are byte-identical (workers do not change output); 46 KB for 48 rows ⇒ ≈ 5 MB for the full run.
+
+## 2026-10-23T20:56:22-04:00 — r3b cycle 5a: composition probe — registered offsets + fixed per-item noise
+
+- **Change** — New `worklog/…/depth_canon_cond_probe.py`: `draw_offsets` (the four registered offsets 64 / 128 / 256 / 384 and, per item, one independent uniform draw in [1, W−1] from a generator seeded with seed + 1), `item_noise` / `noise_bank` (one `torch.Generator` per item seeded from `(seed, i)` via numpy's `SeedSequence`, so an item's noise does not depend on the item count); new `src/tests/test_depth_canon_cond_probe.py`.
+- **Version Control** — `af8f02b`; +140.
+- **Result** — `passed`. **Red:** collection `FileNotFoundError`. **Green:** 7 passed.
+
+## 2026-10-23T20:56:37-04:00 — r3b cycle 5b: composition probe — stagewise relL2 / relL∞ via depth_canon_stats
+
+- **Change** — `stage_rel(test, ref)` (any `[B, …]` stage, bf16 included, flattened to float64 rows, computed by the reviewed `src/tools/depth_canon_stats`; A is the reference), `compare_cond` (per conditioner id, over all ids concatenated per item, mask identity), `summarize` (= `paired_summary`).
+- **Version Control** — `fbae181`; +103.
+- **Result** — `passed`. **Red:** 6 failed (`AttributeError`). **Green:** 13 passed. One TEST bug found at the first green run and fixed in the test: the scale-invariance case used float32 tensors, whose `3.7 · a` rounding moves relL2 by 1e-8 (> rtol 1e-12); it now uses float64.
+
+## 2026-10-23T20:58:29-04:00 — r3b cycle 6a: composition probe — A = canon(md), B = canon(rot_d(md)) + Tier 1
+
+- **Change** — `canonical_pairs(metadata, offsets, img_w)` (reviewed operators only) with the per-item Tier-1 record (dj_A, classes, `canonical_depth_sha256` of A, per offset d / dj_B / class_B / hash equality / class equality / `dj_B == (dj_A − d) mod W`); `draw_offsets` now refuses `img_w ≤ 384` (the registered offsets must not wrap).
+- **Version Control** — `91ba965`; +92 / −4.
+- **Result** — `passed`. **Red:** 4 failed (3 × `AttributeError: … 'canonical_pairs'`, 1 × DID NOT RAISE for `img_w=384`). **Green:** 17 passed.
+
+## 2026-10-23T20:59:58-04:00 — r3b cycle 6b: composition probe — the stage runner
+
+- **Change** — `run_stages(module, md_list, noise, reals, protocol)` mirroring the eval loop: conditioner under the protocol's cond autocast (`eval_FLAC.resolve_cond_autocast`), `get_conditioning_inputs`, `src.inference.sampling.sample_discrete_euler` with 1 step / cfg 1.0 / `batch_cfg=True` / the wrapper's `dist_shift` on the GIVEN noise (a recording wrapper keeps the DiT's single output = the velocity), decode, `clamp(-1, 1)`, the eval's pad; non-rectified-flow objectives refused. Protocols: `fp32` (autocast off, float32 matmul precision `highest`) and `eval` (bf16 cond autocast, `medium` as `evaluate_model` sets it); the previous precision is restored. `compare_stages`.
+- **Version Control** — `3212b91`; +153.
+- **Result** — `passed`. **Red:** 6 failed (`AttributeError: … 'run_stages'`). **Green:** 23 passed — on a REAL tiny `diffusion_cond` wrapper (repo factories, `test_yaw_aug_training._base_config`, flash-attn neutralized): one Euler step == `noise − v` bitwise, the sampler receives exactly the given noise with the eval kwargs, autocast / precision per protocol inside the conditioner (forward pre-hook), identical inputs → exactly 0 at every stage, A vs canon(rot_d) conditioning < 1e-5.
+
+## 2026-10-23T21:01:45-04:00 — r3b cycle 7: composition probe — checkpoint load through evaluate_model's path
+
+- **Change** — `load_probe_module(model_config, ckpt, device, allow_canon_mismatch=False)`: eval_FLAC's own `resolve_weights_source` / `resolve_are_from_checkpoint` / `resolve_canonicalize_protocol` (flag set, `cond_method="vanilla"` and `file_model_cfg` passed by keyword, so the r3a-F1 keyword-only hardening cannot break it) / `check_load_integrity` / factories (looked up on the `eval_FLAC` module). The `'diffusion.'` strip and the EMA re-keying are inline statements of `evaluate_model`, so they are repeated verbatim. ARE checkpoints refused; a non-canonical checkpoint needs `allow_canon_mismatch` (recorded).
+- **Version Control** — `408553e`; +158.
+- **Result** — `passed`. **Red:** 5 failed (`AttributeError`). **Green:** 28 passed — for one toy checkpoint (EMA on / off, a nested `diffusion.` key) the model config, the state dict (keys, order, values, `strict=False`) and the wrapper config handed to the factories are identical to what the REAL `evaluate_model` hands them; the binding refuses before model construction; ARE refused.
+
+## 2026-10-23T21:05:01-04:00 — r3b cycle 8a: composition probe — the probe loop
+
+- **Change** — `run_probe(...)`: one noise-bank row per item reused for A, A-again (determinism floor) and every B; per protocol × offset × stage the per-item relL2 / relL∞ lists + `paired_summary`; pooled summaries over the five offsets; ε_cond = max fp32 per-id conditioning relL2 (+ argmax) vs the registered 1e-5; control p99 (waveform relL2, per offset and pooled); Tier-1 counts; verdict = ε_cond ∧ Tier 1 ∧ masks.
+- **Version Control** — `1da0f34`; +161.
+- **Result** — `passed`. **Red:** 3 failed (`AttributeError: … 'run_probe'`). **Green:** 31 passed (CPU determinism floor exactly 0; every sampler call of a batch receives that batch's noise rows; a lying Tier-1 hash fails the verdict).
+
+## 2026-10-23T21:07:45-04:00 — r3b cycle 8b-i: composition probe — first-n loader items + markdown summary
+
+- **Change** — `collect_items` (first n in loader order; fail-closed when fewer), `markdown_summary`, provenance helpers (`_sha256_file`, `_git`), default arm / unseen configs, `SCHEMA_VERSION`.
+- **Version Control** — `2ad63ee`; +94.
+- **Result** — `passed`. **Red:** 2 failed (`AttributeError`). **Green:** 33 passed.
+
+## 2026-10-23T21:08:32-04:00 — r3b cycle 8b-ii: composition probe — CLI main
+
+- **Change** — `main()`: argument refusals (exit 2) before anything loads; must run from the repo root (dataset configs are cwd-relative); `medium` float32 matmul precision as `evaluate_model`; `load_probe_module`; `pl.seed_everything` BEFORE the loader (evaluate_model's order); `eval_FLAC.create_dataloader_from_config(…, shuffle=False)`; the first `--n-items`; their `RotationStream` input hash + per-item target / context ids; `run_probe`; provenance (checkpoint / configs / split sha256, HEAD + porcelain, device, torch, seeds + noise rule, latent shape, protocols, load binding); JSON + sidecar; markdown; exit 0 iff the verdict passes, 1 otherwise, 5 on a crash.
+- **Version Control** — `881575a`; +147.
+- **Result** — `passed`. **Red:** 3 failed (2 × `AttributeError: … 'main'`, 1 × subprocess rc 0 ≠ 2). **Green:** 36 passed (CPU end-to-end with the real tiny wrapper behind patched factories and a toy loader).
+
+## 2026-10-23T21:14:13-04:00 — r3b cycle 9: launcher kit — pin generator + manifest + guard skeleton
+
+- **Change** — `depth_canon_make_pins.sh` (one definition of the pinned training path: `--list`, manifest on stdout, `--write`), `depth_canon_pins.sha256` (44 files at this tree; `train.py` `bce1c94e`, `defaults.ini` `09fe9f28`, `data/AR/train.json` `aa4e52d6`, VAE `8d82159e`, control `733ca52b`, arm `aba94032` — the first four equal exp_17's P1-matched pins), `depth_canon_guardtests.sh` skeleton: every case runs in a throwaway `git clone --shared` + sparse checkout under `mktemp -d` (launcher files overlaid and committed INSIDE the clone, `weights/` symlinked), so the source repo, its experiment folder and the NAS are never written (exp_17 r3 BLOCKING: no production-evidence pollution, no concurrency-unsafe hide/delete).
+- **Version Control** — `0a271e4`; +194 (44 of them manifest data).
+- **Result** — `passed`. **Red:** guard suite exit 127 at clone set-up (generator absent). **Green:** P1–P5, 7 passed.
+- **Analysis** — Pinned superset of the plan's list: `src/training/losses/*.py`, `src/interface/*.py` (imported by the training wrapper) and `src/__init__.py`. `shellcheck` is not installed (not installed by me either); `bash -n` is the static check.
+
+## 2026-10-23T21:18:05-04:00 — r3b cycle 10a-i: launcher skeleton — mode, rung, harness, log, the exact argv
+
+- **Change** — `depth_canon_launch.sh`: MODE exactly SMOKE | FULL, DRY_RUN 0 | 1, rung MB=32 ACC=1 by string equality, `DEPTH_CANON_HARNESS` only under `/tmp` with its marker (moves the save root into it; W&B gate skipped; evidence tagged), output teed to `$EXPDIR/depth_canon_<ts>_<run>_train.log`, ARGV built once and printed (P1's recipe: no `--val-dataset-config`, no resume, no pretrained init), DRY_RUN boundary, a fail-closed placeholder for the launch path. Guard: python stub (only `python train.py` → fake trainer), helpers, A1–A9, F1–F5 (each flag value as a whole token and each flag exactly once; every emitted flag is a `defaults.ini` key), D1.
+- **Version Control** — `5e1c181`; +189.
+- **Result** — `passed`. **Red:** 7 passed / 36 failed (launcher absent). **Green:** 43 passed.
+
+## 2026-10-23T21:18:42-04:00 — r3b cycle 10a-ii: launcher — HEAD pin
+
+- **Change** — `EXPECT_HEAD` required, full 40-hex, == `git rev-parse HEAD`, else rc 2; guard K1–K4.
+- **Version Control** — `417e1ed`; +14.
+- **Result** — `passed`. **Red:** 43 passed / 4 failed (K1–K4). **Green:** 47 passed.
+
+## 2026-10-23T21:21:23-04:00 — r3b cycle 10b: launcher — content pins + config contract
+
+- **Change** — Coverage (manifest path column == generator `--list`), bytes (`sha256sum -c --strict`, also the gitignored VAE), committed (`git status --porcelain --untracked-files=all` of every pinned path + manifest + generator + launcher empty), manifest sha logged. Config contract (type-strict, key order): control sha == `733ca52b`; `training.canonicalize == {enabled: true, img_w: 512}` with exact types; no `cond_method` / `yaw_aug`; `use_ema` true; the block is the last training key; grad-ckpt true ×2; ViT widths == 512; arm − block == control; arm bytes == control bytes + the literal insertion (test 22's construction). Guard M1–M6, C1–C14; P3b now compares the COMMITTED manifest.
+- **Version Control** — `cce2a34`; +158 / −4.
+- **Result** — `passed`. **Red:** 47 passed / 20 failed (M1–M6, C1–C14). First green attempt 64 / 3 failed: C5 / C6 were shadowed by the last-key check (moved after the cond_method / yaw_aug / EMA checks) and C12's clone commit helper did not add the exp_07 folder (it now adds everything in the throwaway clone). **Green:** 67 passed.
+
+## 2026-10-23T21:29:24-04:00 — r3b cycle 11a: launcher — smoke-evidence prerequisite, NAS gate, run-owned namespaces
+
+- **Change** — Gate (2): FULL accepts only an evidence JSON with schema 1, verdict PASS, `head` == HEAD, `manifest_sha256` == the pin manifest, the same harness flag, contract / banner / endpoint / 2-rank seen, no non-finite, 0 smoke checkpoints (type-strict), and a log whose sha256 still matches. Gate (6): `findmnt` of the save root's nearest existing ancestor must be `cifs //10.249.7.28/shared_data`, `df` ≥ 30 GiB; outside DRY_RUN the root is created, re-identified, and a probe file written / read back / removed. Gate (5) pre-launch: FULL refuses a non-empty `<save>/<project>/<run>`; SMOKE refuses any `.ckpt` in its namespace. Guard: findmnt / df / nvidia-smi stubs, synthetic evidence E1–E9, N1–N5 (N1 uses the REAL findmnt on the /tmp save root), S1–S2.
+- **Version Control** — `e7e8902`; +143.
+- **Result** — `passed`. **Red** (the full cycle-11 case set against `cce2a34`): 67 passed / 21 failed. **Green:** 83 passed. (Cycle 11 was drafted as one unit, 206 lines, and split into 11a / 11b.)
+
+## 2026-10-23T21:34:31-04:00 — r3b cycle 11b: launcher — GPU gate, W&B gate, DINOv3 gate on this checkout's src
+
+- **Change** — Gate (8) outside DRY_RUN: both cards ≥ 23,040 MiB (22.5 GiB) free via `nvidia-smi` (failed query refuses; nothing is ever killed) + co-tenancy disclosure; W&B identity (exp_17's gate) outside DRY_RUN and harness mode; DINOv3 pin + exp_07 init identity: `assert_arm_configs.py` through `runpy` after `src` is imported from this checkout and its origin asserted (the worktree marker-walk issue above); env manifest. Guard G1–G5.
+- **Version Control** — `7048ccf`; +63.
+- **Result** — `passed`. **Red:** 83 passed / 5 failed (G1–G5). **Green:** 88 passed (≈ 4 min; the DINOv3 gate costs ≈ 18 s per accepted run).
+
+## 2026-10-23T22:05:37-04:00 — r3b cycle 12a: launcher — the launch path and the post-run scans
+
+- **Change** — The placeholder is replaced: a launch marker in the save root fixes the ownership epoch on the NAS's own clock (robust to CIFS clock skew); `HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 python train.py …`, its rc propagates. Gate (3): fds restored, the tee drained (bounded 120 s wait), the log read ONCE into a variable; every scan is a here-string `grep` (no `tr | grep` under `pipefail`). Banner whole line → rc 3; 2-rank DDP start + Lightning's `` `Trainer.fit` stopped: `max_steps=N` reached. `` → rc 6; non-finite scan in BOTH modes → rc 4. Gate (5) post-run: SMOKE holds no `.ckpt` (rc 5); FULL writes a sha256 manifest of every file in its namespace (`$EXPDIR/depth_canon_<ts>_exp25_CANON_checkpoints.sha256`), needs the endpoint checkpoint (rc 6) and exactly {2500, …, 40000}, no foreign file, nothing older than the marker (rc 5). First failure wins. Guard: a fake trainer behind the python stub (progress stamps, banner, marker, checkpoints per `GUARD_SCENARIO`), X1–X3, R2–R5 / R8 / R9, Z1–Z8 (FULL on synthetic evidence).
+- **Version Control** — `e490a88`; +165 / −2.
+- **Result** — `passed`. **Red** (the cycle-12 case set against `7048ccf`): 91 passed / 21 failed. **Green:** 106 passed (≈ 13 min). Cycle 12 was drafted as one unit (≈ 280 lines) and split into 12a / 12b.
+
+## 2026-10-23T22:28:12-04:00 — r3b cycle 12b: launcher — steady-state smoke projection + the smoke evidence; opt-in production section
+
+- **Change** — SMOKE: the rate is the tqdm elapsed stamps of the training progress bar between the first stamp at n ≥ 10 and the last (`<n>/<total> [<elapsed><`), the projection = rate × 40,000; PASS iff every earlier check passed AND that projection ≤ 60 h; no stamps ⇒ FAIL (fail-closed); the startup-inclusive bound is recorded descriptively. The evidence (`depth_canon_smoke_evidence_<ts>.json`: verdict, why, HEAD, manifest sha, harness flag, contract / banner / endpoint / ranks / non-finite / checkpoint flags, elapsed, both projections, s/step, steps/s, `max_projected_hours` 60, `canonicalization_latency: null` — the training log prints no separate timing; the rate includes it — train rc, argv, log) is published AFTER a final drain with the sha256 of the FINAL log (the publish line goes to the terminal only, so the hashed bytes stay final). Guard: R1 / R1b / R1c (a healthy smoke writes evidence bound to HEAD + manifest + its log, and a FULL dry run accepts exactly it), R6 (6 s/step → 66.7 h → FAIL), R7 (no stamps → FAIL), R10 (only R1 left PASS evidence); section Q (production path: the real NAS save root, real findmnt / df; READS the NAS) runs only with `GUARD_NAS_READONLY=1` and is reported SKIP otherwise.
+- **Version Control** — `84d7403`; +101.
+- **Result** — `passed`. **Red** (against `e490a88`): 106 passed / 6 failed (R1, R1b, R1c, R6, R7, R10), 1 skipped (Q). **Green:** 112 passed, 0 failed, 1 skipped (Q, opt-in) in ≈ 11 min. Guard logs (named by their finish time) in this folder: `depth_canon_2026-10-23_21-43-28_r3b_guardtests_guard_red12_finished.log`, `…_22-05-04_…_guard_g12a_finished.log`, `…_22-16-11_…_guard_red12b_finished.log`, `…_22-27-33_…_guard_g12b_finished.log`.
+
+## 2026-10-23T22:29:56-04:00 — r3b round summary (Coder): regression, deviations, open questions
+
+- **Result** — `fix_ready` for a Codex code review of round 3b. Commits (parent `503a2da`): `5e99cad` `92c0372` `4bdc9a3` `1a18bab` `3bfc2d6` `c879ba7` (tie audit), `af8f02b` `fbae181` `91ba965` `3212b91` `408553e` `1da0f34` `2ad63ee` `881575a` (composition probe), `0a271e4` `5e1c181` `417e1ed` `cce2a34` `e7e8902` `7048ccf` `e490a88` `84d7403` (launcher kit) + this records commit; each < 200 changed lines (largest 194, of which 44 manifest data). No file outside the new ones was touched (`eval_FLAC.py`, `src/training`, `src/data`, `src/tools/depth_canon_stats.py` and every existing test are unchanged).
+- **Command / Validation** (CPU, `CUDA_VISIBLE_DEVICES=""`):
+  - `python -m pytest src/tests/test_depth_canon_tie_audit.py src/tests/test_depth_canon_cond_probe.py src/tests/test_depth_canon.py src/tests/test_depth_canon_stats.py src/tests/test_depth_canon_eval.py -q` → **453 passed, 1 xfailed** (70 s; log `depth_canon_2026-10-23_22-28-22_r3b_regression.log`; new: 96 audit + 36 probe tests; the xfail is the strict Option-A control).
+  - `PATH=<flac env>/bin:$PATH bash worklog/…/depth_canon_guardtests.sh` → **112 passed, 0 failed, 1 skipped** (Q, opt-in production path) at `84d7403`'s tree.
+  - `bash -n` of the launcher, the guard suite and the generator: clean. `shellcheck` is not installed (not run, not installed).
+- **Deviations from the brief / plan (for the reviewer)** —
+  1. **Commit trailer:** the brief asked for `Co-Authored-By: Claude Fable 5.1`; this seat is Claude Opus 5.5 and the harness's attribution rule names it, so the 3b commits carry `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (truthful authorship). The Planner may amend wording at push time if a different convention is wanted.
+  2. **Tie audit, treatment path:** the cloud is built by calling `AR_md.get_custom_metadata` itself with depth-only modalities (its path logic AND its converter), cross-checked bitwise against `convert_equirect_to_camera_coord` of the resolved file; the item → map resolver mirrors AR_md's inline string logic (not importable) and is pinned by an `np.load` spy test. The full operator (incl. its post-condition) is run per map with fixed finite poses.
+  3. **Tie audit, raw path** is an independent numpy implementation of the Step B–C rule (not `canonical_column` on the raw image), per the brief. Raw-vs-proxy agreement is reported, NOT gating (the brief's exit rule: survivors == 0 AND all processed).
+  4. **Tie audit exit codes:** 0 PASS, 1 FAIL (survivors), 3 INCOMPLETE (unprocessed maps), 4 REFUSED_SUBSET (`--limit` OR a `--splits` subset — conservative), 2 argparse, 5 crash. The JSON is deterministic (no timestamps; timing only on stdout), so its sha256 is a reproducibility fingerprint; one row per line.
+  5. **Probe offsets:** the random offset is one independent draw in [1, W−1] PER ITEM (generator seed + 1), not one shared random offset; the four fixed offsets require `img_w > 384`.
+  6. **Probe noise:** per item, `torch.Generator` seeded from numpy `SeedSequence([seed, i])` (independent of the item count), not one global `randn`.
+  7. **Probe protocols:** all four stages run under BOTH `fp32` (autocast off, float32 matmul precision `highest` — true fp32 for ε_cond) and `eval` (bf16 cond autocast, `medium` as `evaluate_model` sets it). ε_cond = max fp32 per-conditioner-id relL2 over the five offsets and all items. A determinism floor (A run twice) is recorded per protocol. Control p99 is reported per offset AND pooled.
+  8. **Probe loading:** eval_FLAC's helpers are imported; the prefix strip / EMA re-keying are inline in `evaluate_model`, so 12 lines are repeated verbatim, with a test that the factories receive identical inputs from the probe and from the real `evaluate_model`. (A later round could move them into an eval_FLAC helper both call.) ARE checkpoints are refused; a non-CANON checkpoint needs `--allow-canon-mismatch` (recorded); the probe must run from the repo root.
+  9. **Launcher argv:** NO `--val-dataset-config` — `p1_ddp_launch.sh` passed none (the brief said "check what P1 used and match it"; the brief's "val config acousticroom_seeneval.json" would have been a second delta). `--precision bf16-mixed` equals `defaults.ini`.
+  10. **Pins:** a superset of the plan's list (`src/training/losses/*.py`, `src/interface/*.py`, `src/__init__.py`).
+  11. **Harness mode** (`DEPTH_CANON_HARNESS`, /tmp + marker) for the guard suite: moves only the save root, skips the W&B gate, tags evidence `harness: true`; a production FULL refuses harness evidence.
+  12. **Smoke projection (gate 7)** gates on the STEADY-STATE projection from the tqdm stamps (fail-closed when absent), not exp_17's startup-inclusive bound, which for a P1-speed arm (3.86 s/step) is ≈ 58–60 h at 25 steps while the steady state is ≈ 43 h. The startup-inclusive number is recorded.
+  13. **Ownership epoch** = the NAS mtime of a launch marker written into the save root just before `train.py` (CIFS clock skew), not the local clock.
+  14. **GPU threshold** 23,040 MiB (22.5 GiB, the brief) vs the plan's 21.9 GiB (§7 rung 5).
+  15. A missing 2-rank start line is a failure (rc 6) in both modes; `train.py`'s own non-zero rc propagates.
+  16. The guard suite runs in a throwaway `git clone --shared` + sparse checkout (≈ 11 min; the DINOv3 gate costs ≈ 18 s per accepted run).
+- **Open questions / findings for the Planner** —
+  1. **`assert_arm_configs.py` in a worktree:** its `.git` marker walk stops at `~/codespace/.git` (the worktree's `.git` is a file), so run as a script it imports `src` from the stale site-packages copy. The launcher pre-imports this checkout's `src` (asserted) before `runpy` — but any other caller of that gate from a worktree is affected (exp_17-style launchers run from the main checkout were not).
+  2. **Smoke → FULL at the same HEAD:** FULL requires smoke evidence of the SAME HEAD, so nothing may be committed between SMOKE and FULL (keep the notebook entry uncommitted until FULL is launched) — or re-run SMOKE.
+  3. **Steady-state rule (deviation 12)** — please confirm, or name the projection to gate on.
+  4. **Control p99 mapping for the 3c collector:** proposal — C4/45° cells compare against the same offset (d128/d256/d384/d64), random-yaw cells against `random`, `pooled` as the reported summary.
+  5. **Data fact:** the seen and unseen eval splits share 112 depth maps (receivers); no map is shared between train and an eval split.
+- **What the Planner must do before running** —
+  - Tie audit (read-only, ≈ 4–6 min, from the worktree root): `CUDA_VISIBLE_DEVICES="" python worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.py --workers 8 2>&1 | tee worklog/…/depth_canon_<ts>_tie_audit.log` (default `--out` = `depth_canon_tie_audit.json` + `.sha256` in this folder); exit 0 = PASS gate.
+  - Probe (GPU, after the CANON checkpoint exists, from the repo root): `python worklog/…/depth_canon_cond_probe.py --ckpt-path <CANON ckpt> --device cuda --out worklog/…/depth_canon_cond_probe.json` (defaults: arm config, unseen config, 64 items, batch 64, seed 42).
+  - Launcher: regenerate the manifest at the final pin commit (`bash worklog/…/depth_canon_make_pins.sh --write`, commit), run `GUARD_NAS_READONLY=1 bash worklog/…/depth_canon_guardtests.sh` (reads the NAS), then `MODE=SMOKE EXPECT_HEAD=<pin sha> bash worklog/…/depth_canon_launch.sh` with both cards ≥ 22.5 GiB free, then `MODE=FULL EXPECT_HEAD=<same sha> …`.
+- **Next** — r3a-F1 fix round (same seat), then one hand-back for 3b + F1.

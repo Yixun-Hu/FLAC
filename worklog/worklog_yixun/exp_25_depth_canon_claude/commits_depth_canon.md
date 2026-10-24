@@ -56,3 +56,29 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `7e51b11` | Coder r3a | cycle 5c: CLI `--canonicalize` / `--allow-canon-mismatch` / `--dump-scored-waveforms` threaded into `evaluate_model` (behavioural subprocess tests) |
 | `bd6bddc` | Coder r3a | cycle 5d: `src/tools/depth_canon_stats.py` — `rel_l2` / `rel_linf` / `paired_summary` with the pinned denominators (test 21b) |
 | `666e0f9` | Coder r3a | cycle 5e: dump verification compares bits through a `uint32` view (no 2×260 MB `tobytes` copies) + one-bit / dtype / length corruption test |
+| `9efcf13` | Coder r3a | records: lab-notebook entries (start, cycles 1a-5e, round summary) + ledger rows |
+| `e0bcae0` | Planner | r3a receipt — independent regression 1755 passed / 7 skipped / 1 xfailed at `9efcf13`, static checks, provisional positions on the Coder's open questions; Codex r3a requested |
+| `180fea4` | Planner | Codex code review r3a (REQUEST-CHANGES: BLOCKING metric geometry frame = A4, 2 HIGH, 3 NIT) + Planner receipt |
+| `503a2da` | Planner | plan v9: arm-independent metric path (A4), verified completion predicate, `canonical_depth_hash`, dump ROOT semantics, p99 definition pinned |
+| `5e99cad` | Coder r3b | cycle 1a: tie audit — raw-side selector (numpy rooted-image key) + circular candidate separation |
+| `92c0372` | Coder r3b | cycle 1b: tie audit — split item -> depth map via AR_md's own path logic (np.load spy test) |
+| `4bdc9a3` | Coder r3b | cycle 2: tie audit — split configs -> loader items (`get_audio_filenames`) -> unique maps + inputs ledger |
+| `1a18bab` | Coder r3b | cycle 3: tie audit — per-map row: AR_md cloud -> `canonicalize_scene_metadata` vs the raw selector |
+| `3bfc2d6` | Coder r3b | cycle 4a: tie audit — ordered (multi-)worker run, per-split summaries, gate (exit 0/1/3/4), deterministic JSON + sha256 sidecar |
+| `c879ba7` | Coder r3b | cycle 4b: tie audit — CLI (`--out --workers --limit --splits`), markdown summary, throughput projection |
+| `af8f02b` | Coder r3b | cycle 5a: composition probe — registered offsets + fixed per-item noise (test 21b) |
+| `fbae181` | Coder r3b | cycle 5b: composition probe — stagewise relL2 / relL∞ via `depth_canon_stats` (test 21b) |
+| `91ba965` | Coder r3b | cycle 6a: composition probe — A = canon(md), B = canon(rot_d(md)) + the probe items' Tier-1 record |
+| `3212b91` | Coder r3b | cycle 6b: composition probe — stage runner mirroring eval_FLAC's 1-step loop (fp32 / eval protocols) |
+| `408553e` | Coder r3b | cycle 7: composition probe — checkpoint load through `evaluate_model`'s path (equivalence test) |
+| `1da0f34` | Coder r3b | cycle 8a: composition probe — the probe loop: stage records, determinism floor, ε_cond, control p99, Tier 1, verdict |
+| `2ad63ee` | Coder r3b | cycle 8b-i: composition probe — first-n loader items, markdown summary, provenance helpers |
+| `881575a` | Coder r3b | cycle 8b-ii: composition probe — CLI `main` (load, seeded loader, probe, JSON + sidecar, exit = verdict) |
+| `0a271e4` | Coder r3b | cycle 9: launcher kit — pin generator + `depth_canon_pins.sha256` (44 files) + guard-suite skeleton (P cases, throwaway clone) |
+| `5e1c181` | Coder r3b | cycle 10a-i: launcher skeleton — mode, string-pinned rung, harness location, teed log, the exact argv (P1 recipe) |
+| `417e1ed` | Coder r3b | cycle 10a-ii: launcher — HEAD pin (`EXPECT_HEAD`) |
+| `cce2a34` | Coder r3b | cycle 10b: launcher — content pins (coverage + bytes + committed) and the config contract |
+| `e7e8902` | Coder r3b | cycle 11a: launcher — smoke-evidence prerequisite, NAS gate, run-owned namespaces |
+| `7048ccf` | Coder r3b | cycle 11b: launcher — GPU free-memory gate, W&B identity gate, DINOv3 gate on this checkout's src |
+| `e490a88` | Coder r3b | cycle 12a: launcher — the launch path: marker, drained single log read, scans, run-owned checkpoint set + manifest |
+| `84d7403` | Coder r3b | cycle 12b: launcher — steady-state smoke projection + the smoke evidence bound to the final log; opt-in production guard section |
