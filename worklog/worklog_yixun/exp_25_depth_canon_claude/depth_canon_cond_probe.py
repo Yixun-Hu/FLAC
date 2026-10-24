@@ -381,6 +381,50 @@ DEFAULT_MODEL_CONFIG = os.path.join(EXPDIR, "FLAC_AR_CANON.json")
 DEFAULT_DATASET_CONFIG = "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"
 
 
+# r3b-F1 fix 4 (Codex r3b HIGH 4): the ONLY configuration whose output is the registered
+# Tier-2 control; anything else needs --diagnostic, is written registered=false, exits 6 / 1.
+REGISTERED = {"n_items": 64, "batch_size": 64, "seed": 42, "device": "cuda",
+              "model_config": DEFAULT_MODEL_CONFIG,
+              "model_config_sha256": "aba94032b1e33d05d8cf5d2d188f320f70e2915bde18b8f0be7813b6b9336626",
+              "dataset_config": DEFAULT_DATASET_CONFIG,
+              "dataset_config_sha256": "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55"}
+DIAGNOSTIC_EXIT = 6
+
+
+def registered_deviations(args):
+    """Argument-level departures from :data:`REGISTERED` (checked before anything loads)."""
+    R, out = REGISTERED, []
+    for flag, key in (("--n-items", "n_items"), ("--batch-size", "batch_size"), ("--seed", "seed"),
+                      ("--device", "device")):
+        if getattr(args, key) != R[key]:
+            out.append(f"{flag} {getattr(args, key)!r} != the registered {R[key]!r}")
+    if args.allow_canon_mismatch:
+        out.append("--allow-canon-mismatch (the control must be the CANON checkpoint itself)")
+    absp = lambda p: os.path.realpath(p if os.path.isabs(p) else os.path.join(REPO, p))  # noqa: E731
+    for flag, path, key in (("--model-config", args.model_config, "model_config"),
+                            ("--dataset-config", args.dataset_config, "dataset_config")):
+        if absp(path) != absp(R[key]) or not os.path.isfile(absp(path)) \
+                or _sha256_file(absp(path)) != R[key + "_sha256"]:
+            out.append(f"{flag} {path} is not the registered {R[key]} (sha256 {R[key + '_sha256'][:12]})")
+    return out
+
+
+def load_deviations(load):
+    """Checkpoint-level departures: EMA weights selected, CANON trained = applied, no mismatch,
+    the 512-column grid, file config == embedded config."""
+    out = []
+    if load.get("weights_source") != "ema":
+        out.append(f"weights_source {load.get('weights_source')!r}: EMA weights not present / selected")
+    if (load.get("canonicalize_trained"), load.get("canonicalize_applied"),
+            load.get("canonicalize_mismatch")) != (True, True, False):
+        out.append("the checkpoint is not a canonicalization-trained model evaluated with it (mismatch)")
+    if load.get("img_w") != 512:
+        out.append(f"img_w {load.get('img_w')!r} != 512")
+    if load.get("model_config_sha256_file") != load.get("model_config_sha256_embedded"):
+        out.append("--model-config differs from the checkpoint's embedded config")
+    return out
+
+
 def _sha256_file(path):
     import hashlib
     h = hashlib.sha256()
@@ -453,6 +497,9 @@ def main(argv=None):
     ap.add_argument("--allow-canon-mismatch", action="store_true",
                     help="probe a checkpoint NOT trained with canonicalization (labelled diagnostic)")
     ap.add_argument("--out", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
+    ap.add_argument("--diagnostic", action="store_true",
+                    help=f"run OFF the registered contract: the JSON records registered=false and the "
+                         f"exit code is {DIAGNOSTIC_EXIT} (never 0), so it can never serve as the control")
     args = ap.parse_args(argv)
     for name in ("n_items", "batch_size"):
         if getattr(args, name) < 1:
@@ -461,11 +508,21 @@ def main(argv=None):
         ap.error("--seed and --num-workers must be >= 0")
     if os.path.realpath(os.getcwd()) != os.path.realpath(REPO):
         raise SystemExit(f"run from the repository root {REPO}: dataset configs hold cwd-relative paths")
+    deviations = registered_deviations(args)
+    if deviations and not args.diagnostic:
+        print("REFUSED: not the registered composition control (pass --diagnostic for a labelled, "
+              "non-qualifying run): " + "; ".join(deviations))
+        return 2
     import pytorch_lightning as pl
     import eval_FLAC as ev
     torch.set_float32_matmul_precision("medium")        # as evaluate_model; each protocol sets its own
     module, load = load_probe_module(args.model_config, args.ckpt_path, args.device,
                                      args.allow_canon_mismatch)
+    deviations += load_deviations(load)
+    if deviations and not args.diagnostic:
+        print("REFUSED: not the registered composition control: " + "; ".join(deviations))
+        return 2
+    registered = not deviations and not args.diagnostic
     with open(args.model_config) as f:
         cfg = json.load(f)
     pl.seed_everything(args.seed, workers=True)          # as evaluate_model, before the loader
@@ -500,8 +557,9 @@ def main(argv=None):
             "n_items": args.n_items, "batch_size": args.batch_size, "num_workers": args.num_workers,
             "img_w": img_w, "latent_shape": [module.diffusion.io_channels, latent_len],
             "protocols": PROTOCOLS, "load": load, "allow_canon_mismatch": args.allow_canon_mismatch}
-    report = {"schema_version": SCHEMA_VERSION, "provenance": prov,
-              "stream_input_hash": stream.input_hash(), **rep}
+    report = {"schema_version": SCHEMA_VERSION, "registered": registered,
+              "deviations": deviations + ([] if registered or deviations else ["--diagnostic given"]),
+              "provenance": prov, "stream_input_hash": stream.input_hash(), **rep}
     text = json.dumps(report, indent=1) + "\n"
     with open(args.out, "w") as f:
         f.write(text)
@@ -510,7 +568,9 @@ def main(argv=None):
         f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(args.out)}\n")
     print(markdown_summary(report))
     print(f"wrote {args.out} (+ .sha256)")
-    return 0 if report["verdict"]["pass"] else 1
+    if not report["verdict"]["pass"]:
+        return 1
+    return 0 if registered else DIAGNOSTIC_EXIT
 
 
 if __name__ == "__main__":

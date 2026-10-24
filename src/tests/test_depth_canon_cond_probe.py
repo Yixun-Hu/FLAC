@@ -462,11 +462,22 @@ def test_markdown_summary_reports_every_cell_and_the_verdict(no_flash):
 # --------------------------------------------------------------------------- #
 # main(): load -> loader -> probe -> JSON + sidecar + markdown; exit code = verdict
 # --------------------------------------------------------------------------- #
-def _run_main(tmp_path, monkeypatch, n_loader=7, bs=3, extra=()):
-    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=False))
+def _run_main(tmp_path, monkeypatch, n_loader=7, bs=3, extra=(), diagnostic=True, ema=False,
+              registered=False):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=ema))
     cfg = dict(json.load(open(cfg_path)), sample_size=64)
     open(cfg_path, "w").write(json.dumps(cfg))
-    torch.save({"state_dict": {}, "model_config": cfg}, ckpt_path)
+    sd = {"diffusion_ema.ema_model.model.w": torch.ones(2)} if ema else {}
+    torch.save({"state_dict": sd, "model_config": cfg}, ckpt_path)
+    if registered:   # the registered contract re-pointed at the CPU toy: every check still runs
+        import hashlib
+        sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()  # noqa: E731
+        (tmp_path / "data.json").write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+        monkeypatch.setattr(probe, "REGISTERED", {
+            "n_items": 5, "batch_size": bs, "seed": 42, "device": "cpu", "model_config": cfg_path,
+            "model_config_sha256": sha(cfg_path), "dataset_config": str(tmp_path / "data.json"),
+            "dataset_config_sha256": sha(str(tmp_path / "data.json"))})
+    extra = list(extra) + (["--diagnostic"] if diagnostic else [])
     (tmp_path / "data.json").write_text(json.dumps({"datasets": [{"id": "toy"}]}))
     toy, loader_kw = _toy_module(), {}
     monkeypatch.setattr(eval_FLAC, "create_model_from_config",
@@ -485,7 +496,8 @@ def test_main_end_to_end_on_cpu(tmp_path, monkeypatch, capsys, no_flash):
     import hashlib
     rc, rep, out, ckpt_path, loader_kw = _run_main(tmp_path, monkeypatch)
     text = capsys.readouterr().out
-    assert rc == 0 and rep["verdict"]["pass"] is True and rep["schema_version"] == probe.SCHEMA_VERSION
+    assert rc == 6 and rep["verdict"]["pass"] is True and rep["schema_version"] == probe.SCHEMA_VERSION
+    assert rep["registered"] is False                     # a CPU toy is a diagnostic (r3b-F1 fix 4)
     assert "eps_cond" in text and "control p99" in text and "| eval | d128 |" in text
     assert (tmp_path / "probe.json.sha256").read_text() == \
         f"{hashlib.sha256(out.read_bytes()).hexdigest()}  probe.json\n"
@@ -517,3 +529,48 @@ def test_bad_arguments_exit_2_before_anything_loads():
     proc = subprocess.run([sys.executable, _PROBE_PY, "--ckpt-path", "/nonexistent.ckpt", "--n-items", "0"],
                           capture_output=True, text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
     assert proc.returncode == 2 and "--n-items" in proc.stderr
+
+
+
+# --------------------------------------------------------------------------- #
+# r3b-F1 fix 4 (Codex r3b HIGH 4): the registered control vs a labelled diagnostic
+# --------------------------------------------------------------------------- #
+def test_registered_contract_constants():
+    R = probe.REGISTERED
+    assert (R["n_items"], R["batch_size"], R["seed"], R["device"]) == (64, 64, 42, "cuda")
+    assert R["model_config"] == probe.DEFAULT_MODEL_CONFIG and R["dataset_config"] == probe.DEFAULT_DATASET_CONFIG
+    assert R["model_config_sha256"] == "aba94032b1e33d05d8cf5d2d188f320f70e2915bde18b8f0be7813b6b9336626"
+    assert R["dataset_config_sha256"] == "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55"
+
+
+def test_a_deviation_without_diagnostic_is_refused_before_loading(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(probe, "load_probe_module", lambda *a, **k: pytest.fail("loaded before refusing"))
+    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, diagnostic=False)
+    text = capsys.readouterr().out
+    assert rc == 2 and rep is None and not out.exists() and "not the registered" in text
+    for needle in ("--n-items", "--batch-size", "--device", "--model-config", "--dataset-config"):
+        assert needle in text, needle
+
+
+def test_a_diagnostic_names_its_deviations_and_never_exits_0(tmp_path, monkeypatch, no_flash):
+    rc, rep, _, _, _ = _run_main(tmp_path, monkeypatch)
+    devs = " ".join(rep["deviations"])
+    assert rc == 6 and rep["registered"] is False
+    assert "weights_source" in devs and "--device" in devs   # the toy has no EMA weights, runs on CPU
+    args = types.SimpleNamespace(**{k: probe.REGISTERED[k] for k in ("n_items", "batch_size", "seed", "device")},
+                                 model_config=probe.REGISTERED["model_config"],
+                                 dataset_config=probe.REGISTERED["dataset_config"], allow_canon_mismatch=True)
+    assert probe.registered_deviations(args) == [
+        "--allow-canon-mismatch (the control must be the CANON checkpoint itself)"]
+    args.allow_canon_mismatch = False
+    assert probe.registered_deviations(args) == []       # the registered arguments pass
+
+
+def test_a_registered_run_and_a_post_load_refusal(tmp_path, monkeypatch, no_flash, capsys):
+    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
+    assert rc == 0 and rep["registered"] is True and rep["deviations"] == []
+    out.unlink()
+    sub = tmp_path / "non_ema"
+    sub.mkdir()
+    rc, rep, out, _, _ = _run_main(sub, monkeypatch, diagnostic=False, ema=False, registered=True)
+    assert rc == 2 and rep is None and "weights_source" in capsys.readouterr().out
