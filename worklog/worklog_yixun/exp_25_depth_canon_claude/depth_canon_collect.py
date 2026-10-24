@@ -645,6 +645,115 @@ def tier1(pairs, cells):
             "distinct_canonical_depth_hashes_unseen": len(unseen)}
 
 
+# Tier 2 (plan v9 §1, pre-registered): p99(relL2) <= 3 x the control p99 AND <= 1e-2; max > 1e-1
+# is an ALARM (suspends an unqualified invariance claim pending item triage); T-dup exact.
+TIER2_FACTOR, TIER2_CAP, TIER2_ALARM = 3.0, 1e-2, 1e-1
+CONTROL_KEYS = {90: "d128", 180: "d256", 270: "d384", 45: "d64"}   # r3b review: bit-exact offsets
+CONTROL_PROTOCOL = "eval"   # bf16 cond autocast, the cells' own protocol
+
+
+def control_key(deg):
+    """The composition-control offset a rotated cell is compared with (random -> 'random')."""
+    return "random" if deg is None else CONTROL_KEYS[deg]
+
+
+def load_control(path, *, ckpt_sha256):
+    """``(control_p99 dict, reasons)`` from the composition-control probe JSON. Only a
+    REGISTERED artifact qualifies (``registered: true``, r3b review HIGH 4): its sha256 sidecar
+    must match, it must be the probe of THE CANON@40k checkpoint, and every control p99 under
+    the eval protocol must be a finite non-negative number."""
+    reasons = []
+    try:
+        with open(path, "rb") as f:
+            text = f.read()
+        with open(path + ".sha256") as f:
+            side = f.read()
+        rep = json.loads(text)
+    except (OSError, ValueError) as err:
+        return None, [f"control probe {path} unreadable ({err})"]
+    import hashlib
+    if side != f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n":
+        reasons.append(f"control probe sha256 sidecar does not match {path}")
+    if not isinstance(rep, dict):
+        return None, reasons + ["control probe is not a JSON object"]
+    _eq(reasons, "control probe schema_version", rep.get("schema_version"), 1)
+    if rep.get("registered") is not True:
+        reasons.append(f"control probe is not a registered control (registered: {rep.get('registered')!r})")
+    got = (rep.get("provenance") or {}).get("ckpt_sha256")
+    if got != ckpt_sha256:
+        reasons.append(f"control probe ran on checkpoint {got}, not the CANON@40k checkpoint {ckpt_sha256}")
+    ctrl = (rep.get("control_p99") or {}).get(CONTROL_PROTOCOL)
+    keys = list(CONTROL_KEYS.values()) + ["random", "pooled"]
+    if not isinstance(ctrl, dict):
+        return None, reasons + [f"control probe has no control_p99[{CONTROL_PROTOCOL!r}]"]
+    reasons += [f"control p99 {k} = {ctrl.get(k)!r} is not a finite non-negative number" for k in keys
+                if not (_finite(ctrl.get(k)) and ctrl.get(k) >= 0)]
+    return ({k: float(ctrl[k]) for k in keys} if not reasons else None), reasons
+
+
+def _waveforms(entry):
+    import numpy as np
+    return np.load(os.path.join(entry["dump_dir"], "waveforms.npy"), mmap_mode="r", allow_pickle=False)
+
+
+def _paired(a, b, chunk=512):
+    """Per-item relL2 / relLinf of ``a`` against the reference ``b``, chunked (memory-bounded)."""
+    import numpy as np
+    from src.tools import depth_canon_stats as stats
+    l2, linf = [], []
+    for start in range(0, b.shape[0], chunk):
+        l2.append(stats.rel_l2(a[start:start + chunk], b[start:start + chunk]))
+        linf.append(stats.rel_linf(a[start:start + chunk], b[start:start + chunk]))
+    return np.concatenate(l2), np.concatenate(linf)
+
+
+def tier2(pairs, cells, control):
+    """Tier 2 -- practical waveform invariance of CANON from the scored dumps (rotated vs its
+    theta = 0 pair, identical input_hash). Verdict = every pair's matched rule (its offset's
+    control p99) AND the pooled rule (all pairs' items vs the pooled control p99) AND the 1e-2
+    cap; requiring both readings of "control p99" is the fail-closed resolution. The alarm and
+    the T-dup determinism requirement are reported separately (plan v9 §1)."""
+    import numpy as np
+    from src.tools import depth_canon_stats as stats
+    if control is None:
+        return {"pass": None, "note": "no registered composition control: Tier 2 not computable"}
+    out, pooled, alarm = [], [], {}
+    for p in [p for p in pairs if p["arm"] == "CANON" and p["kind"] in ("C4", "45", "R")]:
+        key = control_key(p["deg"])
+        e, ref = cells[p["cell"]], cells.get(p["ref"]) if p["ref"] else None
+        if not (p["input_hash_equal"] and e["dump"] and ref and ref["dump"]):
+            out.append({**p, "control_key": key, "computable": False, "pass_matched": False,
+                        "pass_cap": False})
+            continue
+        l2, linf = _paired(_waveforms(e), _waveforms(ref))
+        s2, sinf = stats.paired_summary(l2), stats.paired_summary(linf)
+        pooled.append(l2)
+        if s2["max"] > TIER2_ALARM:
+            targets = [t[1] for t in ref["stream"]["input_tuples"]]
+            alarm[p["cell"]] = [targets[i] for i in np.flatnonzero(l2 > TIER2_ALARM)]
+        out.append({**p, "control_key": key, "control_p99": control[key], "computable": True,
+                    "relL2": s2, "relLinf": sinf,
+                    "pass_matched": s2["p99"] <= TIER2_FACTOR * control[key], "pass_cap": s2["p99"] <= TIER2_CAP})
+    pool = stats.paired_summary(np.concatenate(pooled)) if pooled else None
+    pool_ok = bool(pool and pool["p99"] <= TIER2_FACTOR * control["pooled"] and pool["p99"] <= TIER2_CAP)
+    dup = []
+    for p in [p for p in pairs if p["arm"] == "CANON" and p["kind"] == "dup"]:
+        e, ref = cells[p["cell"]], cells.get(p["ref"]) if p["ref"] else None
+        ok = bool(p["input_hash_equal"] and e["dump"] and ref and ref["dump"])
+        mx = float(_paired(_waveforms(e), _waveforms(ref))[0].max()) if ok else None
+        sha = lambda x: json.load(open(os.path.join(x["dump_dir"], "manifest.json")))["sha256"]  # noqa: E731
+        same = bool(ok and sha(e) == sha(ref))
+        dup.append({**p, "relL2_max": mx, "dump_sha_equal": same, "pass": bool(ok and mx == 0 and same)})
+    return {"pass": bool(out) and all(p["computable"] and p["pass_matched"] and p["pass_cap"] for p in out)
+            and pool_ok, "pairs": out,
+            "pooled": {"relL2": pool, "control_p99": control["pooled"], "pass": pool_ok},
+            "determinism": {"pass": bool(dup) and all(d["pass"] for d in dup), "pairs": dup},
+            "alarm": {"suspended": bool(alarm), "items": alarm,
+                      "note": ("invariance conclusion suspended pending item triage" if alarm else "none")},
+            "rule": f"p99(relL2) <= {TIER2_FACTOR:g} x control p99 (matched offset AND pooled) and <= "
+                    f"{TIER2_CAP:g}; alarm max > {TIER2_ALARM:g}; T-dup max relL2 == 0"}
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
