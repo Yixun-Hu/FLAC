@@ -221,6 +221,16 @@ def test_canon_vit_img_w(widths, want):
             eval_FLAC.canon_vit_img_w(empty)
 
 
+@pytest.mark.parametrize("widths", [(512, 256), (512, 512)], ids=["disagreeing", "agreeing"])
+def test_canon_vit_img_w_refuses_duplicate_conditioner_ids(widths):
+    """r3a NIT: widths keyed by id let a duplicate id hide a disagreement (512 then 256 -> 256)."""
+    cfg = _model_cfg(None, widths)
+    for entry in cfg["model"]["conditioning"]["configs"][1:]:
+        entry["id"] = "context_poses_vit"
+    with pytest.raises(ValueError, match="duplicate conditioner id"):
+        eval_FLAC.canon_vit_img_w(cfg)
+
+
 def test_model_config_sha256_is_the_canonical_json_digest():
     cfg = {"b": [1, 2.0, True], "a": {"y": None, "x": "s"}}
     want = hashlib.sha256(json.dumps(cfg, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

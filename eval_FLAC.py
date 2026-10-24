@@ -414,23 +414,29 @@ def _canon_strict_diff(a, b, path):
 def canon_vit_img_w(model_config):
     """The panorama width of the config's ViT conditioners
     (``model.conditioning.configs[*].config.ViT.img_w``): every one a positive int,
-    all equal, at least one -- else ``ValueError``."""
+    all equal, at least one, no two conditioners sharing an id -- else ``ValueError``.
+    Entries are kept as ``(position, id, width)``, so a duplicate id cannot hide a width."""
     configs = (((model_config or {}).get('model') or {}).get('conditioning') or {}).get(
         'configs') or []
-    widths = {}
-    for entry in configs:
+    entries = []
+    for pos, entry in enumerate(configs):
         vit = (entry.get('config') or {}).get('ViT') if isinstance(entry, dict) else None
         if isinstance(vit, dict):
-            widths[str(entry.get('id'))] = vit.get('img_w', None)
-    if not widths:
+            entries.append((pos, str(entry.get('id')), vit.get('img_w', None)))
+    if not entries:
         raise ValueError("canonicalize protocol: the model config has no ViT conditioner, so "
                          "there is no panorama width to canonicalize on")
-    bad = {k: w for k, w in widths.items() if type(w) is not int or w <= 0}
+    ids = [cid for _, cid, _ in entries]
+    dups = sorted({cid for cid in ids if ids.count(cid) > 1})
+    if dups:
+        raise ValueError(f"canonicalize protocol: duplicate conditioner id(s) {dups} among the ViT "
+                         f"conditioners {entries}")
+    bad = [e for e in entries if type(e[2]) is not int or e[2] <= 0]
     if bad:
         raise ValueError(f"canonicalize protocol: ViT img_w must be a positive int, got {bad}")
-    if len(set(widths.values())) != 1:
-        raise ValueError(f"canonicalize protocol: the ViT conditioners disagree on img_w: {widths}")
-    return next(iter(widths.values()))
+    if len({w for _, _, w in entries}) != 1:
+        raise ValueError(f"canonicalize protocol: the ViT conditioners disagree on img_w: {entries}")
+    return entries[0][2]
 
 
 def model_config_sha256(model_config):
