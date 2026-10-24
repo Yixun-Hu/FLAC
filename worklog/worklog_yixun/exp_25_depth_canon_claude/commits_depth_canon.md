@@ -187,3 +187,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `8fd226a` | Coder rB-F1 | A3/A4/A6 cycle 14b: the watcher fixes (strict gpu_clean, env -u + MB=32 ACC=1 DRY_RUN=0, PY_PIN, 4-line ISO token, clean pins, rc 7, tee drain) |
 | `27a87b7` | Coder rB-F1 | A5 cycle 15a (red): the latency covers unwrap + validation |
 | `999d515` | Coder rB-F1 | A5 cycle 15b: `perf_counter` before the unwrap; pins regenerated (48) |
+| `76de174` | Coder rB-F1 | records: notebook A2–A6 + ledger rows |
