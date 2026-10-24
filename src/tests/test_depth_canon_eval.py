@@ -827,6 +827,22 @@ def test_is_complete_verifies_the_whole_cell(tmp_path):
             is_complete(str(cell), expected_n=bad)
 
 
+@pytest.mark.parametrize("version", [True, 1.0, "1"], ids=["json_true", "float_1.0", "string_1"])
+def test_is_complete_schema_version_is_type_strict(tmp_path, version):
+    """Codex r3a-F1 re-verification NIT: ``true`` and ``1.0`` compare equal to the int 1 in
+    Python, so the schema check must be ``type(v) is int and v == SCORED_DUMP_SCHEMA_VERSION``."""
+    dump, _ = _filled(tmp_path)
+    dump.finalize(HASH, "stem")
+    cell = tmp_path / "cell"
+    assert eval_FLAC.ScoredWaveformDump.is_complete(str(cell))
+    m = json.loads((cell / "manifest.json").read_text())
+    m["schema_version"] = version
+    (cell / "manifest.json").write_text(json.dumps(m))
+    assert json.loads((cell / "manifest.json").read_text())["schema_version"] == version
+    assert not eval_FLAC.ScoredWaveformDump.is_complete(str(cell))
+    assert not eval_FLAC.ScoredWaveformDump.is_complete(str(cell), expected_n=5)
+
+
 def test_finalize_reads_the_checksum_sidecar_back_before_the_marker(tmp_path, monkeypatch):
     dump, _ = _filled(tmp_path)
 

@@ -1723,8 +1723,9 @@ class ScoredWaveformDump:
                 marker = f.read()
             with open(os.path.join(final_dir, "waveforms.sha256")) as f:
                 sidecar = f.read()
-            if not isinstance(m, dict) or m.get("schema_version") != SCORED_DUMP_SCHEMA_VERSION:
-                return False
+            version = m.get("schema_version") if isinstance(m, dict) else None
+            if type(version) is not int or version != SCORED_DUMP_SCHEMA_VERSION:
+                return False   # type-strict: JSON true / 1.0 compare equal to 1 in Python
             n, shape, sha = m.get("n"), m.get("shape"), m.get("sha256")
             if (type(n) is not int or n < 0 or m.get("dtype") != "float32"
                     or not (isinstance(shape, list) and len(shape) == 2
