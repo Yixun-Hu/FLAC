@@ -1,0 +1,189 @@
+"""exp_25 depth_canon round 3d: the unattended SMOKE -> FULL watcher
+``depth_canon_autolaunch.sh`` (Yixun pre-approved the training GO, 2026-10-24).
+
+Every case runs the REAL script as a subprocess from a throwaway ``git init`` repo under
+/tmp (one commit, so its HEAD checks are real), in harness mode: a stub ``nvidia-smi`` on
+PATH that plays a per-poll scenario file, and a fake launcher under /tmp that records each
+call's MODE / EXPECT_HEAD and exits per its own scenario. Nothing touches a GPU, the NAS or
+the real launcher.
+
+Written by the exp_25 Coder seat (Claude Opus 5.5, max effort), round 3d.
+"""
+import fcntl
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import threading
+import time
+
+import pytest
+
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+EXPREL = os.path.join("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
+WATCHER = os.path.join(REPO, EXPREL, "depth_canon_autolaunch.sh")
+FLAC_BIN = "/home/yixunhu/miniconda3/envs/flac/bin"
+UUID0, UUID1 = "GPU-test-0", "GPU-test-1"
+
+STUB_NVSMI = r'''#!/usr/bin/env bash
+# stub: one scenario line per POLL (the index,uuid query opens a poll); the last line repeats.
+H="$DEPTH_CANON_HARNESS"; n="$(cat "$H/poll_n" 2>/dev/null || echo 0)"
+case "$*" in *index,uuid*) n=$((n + 1)); echo "$n" > "$H/poll_n" ;; esac
+total="$(wc -l < "$H/gpu_scenario")"; [ "$n" -le "$total" ] || n="$total"; [ "$n" -ge 1 ] || n=1
+line="$(sed -n "${n}p" "$H/gpu_scenario")"
+case "$*" in *index,uuid*) echo "$*" >> "$H/nvsmi_calls" ;; esac
+case "$line" in
+  fail) exit 1 ;;
+  commit*) case "$*" in *index,uuid*) git -C "$AUTOLAUNCH_TEST_REPO" -c user.name=t -c user.email=t@l \
+                                          commit -q --allow-empty -m "a commit after arming" ;; esac ;;
+esac
+case "$*" in
+  *index,uuid*) printf '0, GPU-test-0\n1, GPU-test-1\n' ;;
+  *query-compute-apps*) [ "$line" = busy ] && echo "GPU-test-0, 4242, python, 32470 MiB"
+                        [ "$line" = busy1 ] && echo "GPU-test-1, 4343, python, 16000 MiB"
+                        [ "$line" = other ] && echo "GPU-test-9, 4444, python, 100 MiB"
+                        [ "$line" = garbage ] && echo "garbage"
+                        true ;;
+  *memory.free*) [ "$line" = lowmem ] && echo 1000 || echo 40000 ;;
+esac
+'''
+FAKE_LAUNCHER = r'''#!/usr/bin/env bash
+# fake launcher: records MODE / EXPECT_HEAD; behaviour = the next "MODE rc text" scenario line
+H="$DEPTH_CANON_HARNESS"
+echo "MODE=${MODE} EXPECT_HEAD=${EXPECT_HEAD} DRY_RUN=${DRY_RUN:-unset}" >> "$H/launch_calls"
+n="$(( $(cat "$H/launch_n" 2>/dev/null || echo 0) + 1 ))"; echo "$n" > "$H/launch_n"
+total="$(wc -l < "$H/launch_scenario")"; [ "$n" -le "$total" ] || n="$total"
+read -r mode rc text <<<"$(sed -n "${n}p" "$H/launch_scenario")"
+[ "$mode" = "$MODE" ] || { echo "fake launcher: expected MODE=$mode, got $MODE"; exit 99; }
+sleep "${FAKE_SLEEP:-0}"
+echo "$text"
+exit "$rc"
+'''
+
+
+def _git(cwd, *args):
+    return subprocess.run(["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@l", *args],
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+
+@pytest.fixture()
+def rig(tmp_path):
+    """A throwaway repo (watcher at its pinned path, a pins file, a placeholder launcher) +
+    a harness dir with the marker, the stubs and the scenario files."""
+    repo, h = tmp_path / "repo", tmp_path / "h"
+    exp = repo / EXPREL
+    exp.mkdir(parents=True)
+    (h / "bin").mkdir(parents=True)
+    (h / ".depth_canon_harness").write_text("")
+    shutil.copy(WATCHER, exp / "depth_canon_autolaunch.sh")
+    (exp / "depth_canon_pins.sha256").write_text("0" * 64 + "  train.py\n")
+    (exp / "depth_canon_launch.sh").write_text("#!/usr/bin/env bash\necho placeholder; exit 9\n")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    (h / "bin" / "nvidia-smi").write_text(STUB_NVSMI)
+    (h / "fake_launch.sh").write_text(FAKE_LAUNCHER)
+    for f in (h / "bin" / "nvidia-smi", h / "fake_launch.sh"):
+        os.chmod(f, 0o755)
+    r = {"repo": repo, "exp": exp, "h": h, "head": _git(repo, "rev-parse", "HEAD")}
+    gpu(r, ["free"])
+    launches(r, ["SMOKE 0 smoke ok", "FULL 0 full ok"])
+    return r
+
+
+def gpu(r, lines):
+    (r["h"] / "gpu_scenario").write_text("\n".join(lines) + "\n")
+
+
+def launches(r, lines):
+    (r["h"] / "launch_scenario").write_text("\n".join(lines) + "\n")
+
+
+def pins_sha(r):
+    return hashlib.sha256((r["exp"] / "depth_canon_pins.sha256").read_bytes()).hexdigest()
+
+
+def token(r, head=None, manifest=None, by="planner", path=None):
+    text = (f"head={head or r['head']}\nmanifest_sha256={manifest or pins_sha(r)}\n"
+            f"issued=2026-10-24T02:00:00-04:00\nby={by}\n")
+    (path or r["exp"] / "depth_canon_GO.token").write_text(text)
+
+
+def run(r, env=None, max_polls=12, harness=True, timeout=120, path_prefix=None):
+    e = {k: v for k, v in os.environ.items()
+         if not k.startswith(("AUTOLAUNCH_", "DEPTH_CANON_", "GO_TOKEN", "MODE", "EXPECT_HEAD"))}
+    e["PATH"] = f"{r['h'] / 'bin'}:{path_prefix or FLAC_BIN}:{os.environ['PATH']}"
+    e["AUTOLAUNCH_TEST_REPO"] = str(r["repo"])
+    if harness:
+        e.update(DEPTH_CANON_HARNESS=str(r["h"]), AUTOLAUNCH_LAUNCHER=str(r["h"] / "fake_launch.sh"),
+                 AUTOLAUNCH_POLL_S="0", AUTOLAUNCH_MAX_POLLS=str(max_polls))
+    e.update(env or {})
+    p = subprocess.run(["bash", str(r["exp"] / "depth_canon_autolaunch.sh")], env=e, capture_output=True,
+                       text=True, timeout=timeout, cwd=str(r["h"]))
+    return p.returncode, p.stdout + p.stderr
+
+
+def state(r):
+    return json.loads((r["exp"] / "depth_canon_autolaunch_state.json").read_text())
+
+
+def calls(r):
+    path = r["h"] / "launch_calls"
+    return path.read_text().splitlines() if path.exists() else []
+
+
+# --------------------------------------------------------------------------- #
+# the GO token
+# --------------------------------------------------------------------------- #
+def test_a_no_token_waits_and_never_launches(rig):
+    rc, out = run(rig, max_polls=3)
+    st = state(rig)
+    assert rc == 3 and "poll budget exhausted" in out and calls(rig) == []
+    assert st["phase"] == "WAITING_TOKEN" and "token" in st["reason"] and st["kind"] == "depth_canon_autolaunch_state"
+
+
+def test_b_a_token_for_another_head_is_refused(rig):
+    token(rig, head="1" * 40)
+    rc, out = run(rig, max_polls=3)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_TOKEN"
+    assert "head" in state(rig)["reason"] and "1" * 40 in state(rig)["reason"]
+
+
+def test_c_a_token_for_another_manifest_is_refused(rig):
+    token(rig, manifest="2" * 64)
+    rc, _ = run(rig, max_polls=3)
+    assert rc == 3 and calls(rig) == [] and "manifest" in state(rig)["reason"]
+
+
+@pytest.mark.parametrize("text", ["head=abc\n", "head=" + "a" * 40 + "\nby=planner\n", "garbage\n"])
+def test_a_malformed_token_is_not_a_token(rig, text):
+    (rig["exp"] / "depth_canon_GO.token").write_text(text)
+    rc, _ = run(rig, max_polls=2)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_TOKEN"
+
+
+# --------------------------------------------------------------------------- #
+# the GPU condition
+# --------------------------------------------------------------------------- #
+def test_d_busy_gpus_wait_and_the_foreign_process_is_logged(rig):
+    token(rig)
+    gpu(rig, ["busy"])
+    rc, out = run(rig, max_polls=4)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
+    assert "pid 4242" in out and "32470 MiB" in out and out.count("pid 4242") == 1  # once per change
+
+
+def test_e_a_dirty_poll_resets_the_counter(rig):
+    token(rig)
+    gpu(rig, ["free", "free", "busy1", "free", "free"])
+    rc, _ = run(rig, max_polls=5)
+    assert rc == 3 and calls(rig) == [] and state(rig)["clean_polls"] == 2
+
+
+@pytest.mark.parametrize("scenario", ["fail", "garbage"])
+def test_j_an_unusable_nvidia_smi_is_dirty_and_never_fires(rig, scenario):
+    token(rig)
+    gpu(rig, [scenario])
+    rc, _ = run(rig, max_polls=5)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
