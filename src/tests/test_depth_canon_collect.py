@@ -13,6 +13,7 @@ import math
 import os
 from unittest import mock
 
+import numpy as np
 import pytest
 import torch
 
@@ -34,7 +35,7 @@ MC = _load("depth_canon_make_cells")
 C = _load("depth_canon_collect")
 
 PIN = "a" * 40
-N, W = 8, 512
+N, W, T = 8, 512, 16
 EMITTED = ("T60", "C50", "EDT", "FD", "Invalid T60", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
            "RIR_to_GT_RIR_R@10", "RIR_to_geom_R@1", "RIR_to_geom_R@5", "RIR_to_geom_R@10")
 SCENES = ("Apartments", "Auditorium", "Bathrooms", "Bedrooms", "Cafe", "ListeningRoom",
@@ -100,7 +101,8 @@ def default_metrics(r):
     return {k: round(base + 0.01 * (r["seed"] - 42) + 0.1 * j, 6) for j, k in enumerate(EMITTED)}
 
 
-def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM):
+def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, waves=None,
+               dump=True, receipt=True, ckpt_sha=None):
     """Everything eval_FLAC + the driver publish for one row, under ``tmp`` (= the cwd the
     evaluator ran in). Returns the metrics path (relative, as eval_FLAC names it)."""
     link = os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")
@@ -142,7 +144,53 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM):
             canon_rel = eval_FLAC.canon_sidecar_path(metrics_rel)
             with open(at(canon_rel), "w") as f:
                 json.dump(eval_FLAC.build_canon_record(canon, W), f, indent=2)
+        dump_root = os.path.join(str(tmp), "dumps")
+        os.makedirs(dump_root, exist_ok=True)
+        if dump:  # finalize exactly as evaluate_model calls it
+            d = eval_FLAC.ScoredWaveformDump(eval_FLAC.scored_waveform_dir(dump_root, metrics_rel), n)
+            d.append(waveforms_for(r, n) if waves is None else waves)
+            sha = lambda p: None if p is None else eval_FLAC._file_sha256(at(p))  # noqa: E731
+            d.finalize(stream.input_hash(), os.path.basename(d.final_dir), extra_meta={
+                "ckpt_path": link, "metrics_path": metrics_rel, "metrics_sha256": sha(metrics_rel),
+                "stream_sidecar_path": stream_rel, "stream_sidecar_sha256": sha(stream_rel),
+                "canon_sidecar_path": canon_rel, "canon_sidecar_sha256": sha(canon_rel)})
+    if receipt:
+        write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha)
     return metrics_rel
+
+
+def waveforms_for(r, n=N):
+    g = torch.Generator().manual_seed(1000 * r["K"] + r["seed"])
+    return torch.rand(n, 1, T, generator=g) * 2 - 1
+
+
+def canon_index():
+    """What a launcher checkpoint manifest yields: step -> (target path, sha256)."""
+    ns = MANIFEST["arms"]["CANON"]["ckpt"]["run_ns"]
+    return {s: (f"{ns}/checkpoints/{CANON_BASE.format(e=s // 4551, s=s)}.ckpt",
+                hashlib.sha256(f"canon-{s}".encode()).hexdigest()) for s in range(2500, 40001, 2500)}
+
+
+def expected_target(r):
+    ck = MANIFEST["arms"][r["arm"]]["ckpt"]
+    return canon_index()[r["step"]] if r["arm"] == "CANON" else (ck["path"], ck["sha256"])
+
+
+def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None):
+    target, sha = expected_target(r)
+    dump_root = os.path.join(str(tmp), "dumps")
+    argv = list(r["eval_args"]) + ["--ckpt-path", link] + \
+        (["--dump-scored-waveforms", dump_root] if dump else [])
+    rec = {"schema_version": 1, "cell": r["cell"], "stem": os.path.basename(metrics_rel)[:-len(".json")],
+           "block": r["block"], "arm": r["arm"], "step": r["step"], "ckpt_link": link,
+           "ckpt_target": target, "ckpt_sha256": ckpt_sha or sha, "model_config": r["model_config"],
+           "model_config_sha256": r["model_config_sha256"], "dataset_config": r["dataset_config"],
+           "dataset_config_sha256": r["dataset_config_sha256"],
+           "expected_stream_count": r["expected_stream_count"], "dump": dump,
+           "dump_root": dump_root if dump else None, "argv": argv, "expect_head": pin, "lane": 0,
+           "log": "logs/x.log", "rc": 0}
+    with open(os.path.join(str(tmp), metrics_rel[:-len(".json")] + ".cell.json"), "w") as f:
+        json.dump(rec, f, indent=2)
 
 
 # ---- cycle 2a: the metrics record (and, next, the stream sidecar) vs the cell class ---- #
@@ -268,3 +316,94 @@ def test_canon_violations_are_named(tmp_path, edit, needle):
     edit(canon, rec)
     reasons = C.canon_reasons(canon, r, stream, rec)
     assert reasons and any(needle in x for x in reasons), reasons
+
+
+# ---- cycle 2c: the waveform dump (announcement 08) and the driver's receipt ---- #
+def _expect(tmp, rel, r):
+    at = lambda p: os.path.join(str(tmp), p)  # noqa: E731
+    canon = eval_FLAC.canon_sidecar_path(rel) if r["canonicalize"] else None
+    return {"ckpt_path": os.path.join(FARM, r["arm"], ckpt_base(r) + ".ckpt"), "metrics_path": rel,
+            "metrics_file": at(rel), "stream_sidecar_path": eval_FLAC.stream_sidecar_path(rel),
+            "stream_file": at(eval_FLAC.stream_sidecar_path(rel)), "canon_sidecar_path": canon,
+            "canon_file": at(canon) if canon else None}
+
+
+def _dump_check(tmp, rel, r, mode="full"):
+    stream = json.load(open(os.path.join(str(tmp), eval_FLAC.stream_sidecar_path(rel))))
+    stem = os.path.basename(rel)[:-len(".json")]
+    return C.dump_reasons(os.path.join(str(tmp), "dumps", stem), r, stem=stem, stream=stream,
+                          expect=_expect(tmp, rel, r), pin=PIN, mode=mode)
+
+
+@pytest.mark.parametrize("mode", ["full", "manifest"])
+def test_dump_of_a_true_cell_verifies(tmp_path, case_row, mode):
+    assert _dump_check(tmp_path, write_cell(tmp_path, case_row), case_row, mode) == []
+
+
+def _dump_dir(tmp, rel):
+    return os.path.join(str(tmp), "dumps", os.path.basename(rel)[:-len(".json")])
+
+
+DUMP_EDITS = [
+    (lambda t, rel: os.unlink(os.path.join(_dump_dir(t, rel), "COMPLETE")), "complete", ("full", "manifest")),
+    (lambda t, rel: os.mkdir(_dump_dir(t, rel) + ".staging-77"), "staging", ("full", "manifest")),
+    (lambda t, rel: np.save(os.path.join(_dump_dir(t, rel), "waveforms.npy"), np.zeros((N, T), np.float32)),
+     "complete", ("full",)),
+    (lambda t, rel: edit_json(os.path.join(str(t), rel), lambda d: d.update(seed=42)), "metrics_sha256",
+     ("full", "manifest")),
+    (lambda t, rel: edit_json(os.path.join(_dump_dir(t, rel), "manifest.json"),
+                              lambda d: d.update(input_hash="0" * 64)), "input_hash", ("full", "manifest")),
+    (lambda t, rel: edit_json(os.path.join(_dump_dir(t, rel), "manifest.json"),
+                              lambda d: d.update(source_sha="b" * 40)), "source_sha", ("full", "manifest")),
+    (lambda t, rel: edit_json(os.path.join(_dump_dir(t, rel), "manifest.json"),
+                              lambda d: d.update(ckpt_path="elsewhere.ckpt")), "ckpt_path", ("full", "manifest")),
+]
+
+
+def edit_json(path, fn):
+    with open(path) as f:
+        d = json.load(f)
+    fn(d)
+    with open(path, "w") as f:
+        json.dump(d, f, indent=2)
+
+
+@pytest.mark.parametrize("edit, needle, modes", DUMP_EDITS, ids=[f"{e[1]}{i}" for i, e in enumerate(DUMP_EDITS)])
+def test_dump_violations_are_named(tmp_path, edit, needle, modes):
+    r = row("C4+45", K=8, deg=180)
+    rel = write_cell(tmp_path, r)
+    edit(tmp_path, rel)
+    for mode in modes:
+        reasons = _dump_check(tmp_path, rel, r, mode)
+        assert reasons and any(needle in x.lower() for x in reasons), (mode, reasons)
+
+
+def _receipt_check(tmp, rel, r, **over):
+    receipt = json.load(open(os.path.join(str(tmp), rel[:-len(".json")] + ".cell.json")))
+    target, sha = expected_target(r)
+    kw = dict(stem=os.path.basename(rel)[:-len(".json")], link=_expect(tmp, rel, r)["ckpt_path"],
+              target=target, ckpt_sha256=sha, dump=True, dump_root=os.path.join(str(tmp), "dumps"), pin=PIN)
+    kw.update(over)
+    return C.receipt_reasons(receipt, r, **kw)
+
+
+def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+    assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+
+@pytest.mark.parametrize("over, needle", [
+    (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+    (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+    (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+def test_receipt_violations_are_named(tmp_path, over, needle):
+    r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+    reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def test_receipt_rc_and_wrong_checkpoint_sha_are_refused(tmp_path):
+    r = row("TRAJ", K=8, deg=90, step=12500)
+    rel = write_cell(tmp_path, r, ckpt_sha="1" * 64)
+    assert any("ckpt_sha256" in x for x in _receipt_check(tmp_path, rel, r))
+    edit_json(os.path.join(str(tmp_path), rel[:-len(".json")] + ".cell.json"), lambda d: d.update(rc=1))
+    assert any("rc" in x for x in _receipt_check(tmp_path, rel, r))
