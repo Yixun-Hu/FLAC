@@ -540,6 +540,111 @@ def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256):
     return path
 
 
+# --------------------------------------------------------------------------- #
+# full mode: load every selected cell through verify_cell, pair, tiers
+# --------------------------------------------------------------------------- #
+def collect_cells(manifest, selected, *, farm_root, dump_root, pin, canon_index, base_dir=REPO,
+                  check_link=True, no_dump_blocks=(), dump_check="full"):
+    """``{cell: entry}`` in selection order; an entry is ``valid`` only if ``verify_cell``
+    returned no reason, and only then carries the loaded record / stream / canon sidecar."""
+    out = {}
+    for row in selected:
+        e = {"row": row, "valid": False, "missing": False, "reasons": [], "record": None,
+             "stream": None, "canon": None, "stem": None, "dump_dir": None,
+             "dump": bool(row["dump"]) and row["block"] not in no_dump_blocks}
+        out[row["cell"]] = e
+        try:
+            target, _ = expected_checkpoint(row, manifest, canon_index)
+        except KeyError as err:
+            e.update(missing=True, reasons=[str(err).strip("'\"")])
+            continue
+        p = cell_paths(row, os.path.join(farm_root, row["arm"], os.path.basename(target)), dump_root)
+        e.update(stem=p.stem, dump_dir=os.path.join(base_dir, p.dump_dir))
+        if not os.path.exists(os.path.join(base_dir, p.metrics)):
+            e.update(missing=True, reasons=[f"metrics JSON {p.metrics} absent"])
+            continue
+        e["reasons"] = verify_cell(p.stem, manifest=manifest, farm_root=farm_root, dump_root=dump_root,
+                                   pin=pin, canon_index=canon_index, base_dir=base_dir,
+                                   dump_check=dump_check, expect_dump=e["dump"], check_link=check_link)
+        if e["reasons"]:
+            continue
+        e["valid"] = True
+        for key, path in (("record", p.metrics), ("stream", p.stream)) + (
+                (("canon", p.canon),) if row["canonicalize"] else ()):
+            with open(os.path.join(base_dir, path)) as f:
+                e[key] = json.load(f)
+    return out
+
+
+def completeness(cells):
+    """``(missing, invalid)`` cell names, in selection order."""
+    return ([n for n, e in cells.items() if e["missing"]],
+            [n for n, e in cells.items() if not e["missing"] and not e["valid"]])
+
+
+def _ref_key(row):
+    """The theta = 0 unseen reference a rotated cell pairs with: same arm, K, seed, step."""
+    return (row["arm"], row["K"], row["seed"], row["step"])
+
+
+def make_pairs(cells):
+    """Every rotated cell with its theta = 0 partner of the same (arm, K, seed, step):
+    C4 (90/180/270) and 45 vs T [seed 42], R vs T [seed], T-dup vs T, TRAJ theta vs TRAJ 0.
+    ``input_hash_equal`` proves the pair saw identical items and context draws."""
+    refs = {}
+    for name, e in cells.items():
+        r = e["row"]
+        if e["valid"] and r["split"] == "unseen" and r["rotate_mode"] == "fixed" and r["rotate_deg"] == 0 \
+                and r["block"] in ("T", "P1-pin", "YAW-pin", "TRAJ") and r["subblock"] in ("T", "TRAJ"):
+            refs[_ref_key(r)] = name
+    pairs = []
+    for name, e in cells.items():
+        r = e["row"]
+        if r["block"] == "T-dup":
+            kind = "dup"
+        elif r["rotate_mode"] == "random" and r["block"] in ("R", "P1-pin", "YAW-pin"):
+            kind = "R"
+        elif r["rotate_mode"] == "fixed" and r["rotate_deg"] and r["split"] == "unseen" \
+                and r["block"] in ("C4+45", "P1-pin", "YAW-pin", "TRAJ"):
+            kind = "TRAJ" if r["block"] == "TRAJ" else ("45" if r["rotate_deg"] == 45 else "C4")
+        else:
+            continue
+        ref = refs.get(_ref_key(r))
+        same = bool(ref and e["valid"] and e["stream"]["input_hash"] == cells[ref]["stream"]["input_hash"])
+        pairs.append({"arm": r["arm"], "kind": kind, "K": r["K"], "seed": r["seed"], "step": r["step"],
+                      "deg": r["rotate_deg"] if r["rotate_mode"] == "fixed" else None, "cell": name,
+                      "ref": ref, "valid": e["valid"], "input_hash_equal": same})
+    return pairs
+
+
+TIER1_KINDS = ("C4", "45", "R", "dup")
+
+
+def _tier1_pair(p, cells):
+    if not (p["valid"] and p["ref"]):
+        return {**p, "n": 0, "n_equal": 0, "canonical_depth_hash_equal": False, "pass": False}
+    pa, pb = cells[p["cell"]]["canon"]["positions"], cells[p["ref"]]["canon"]["positions"]
+    n_equal = sum(1 for x, y in zip(pa, pb) if x[1] == y[1] and x[4] == y[4])
+    digest = lambda pos: eval_FLAC.canonical_stream_hash([[x[1], x[4]] for x in pos])  # noqa: E731
+    same = digest(pa) == digest(pb)
+    return {**p, "n": len(pa), "n_equal": n_equal, "canonical_depth_hash_equal": same,
+            "pass": bool(p["input_hash_equal"] and same and n_equal == len(pa) == len(pb))}
+
+
+def tier1(pairs, cells):
+    """Tier 1 (structural, exact): every registered rotated CANON cell (C4, 45, R) and T-dup
+    holds the SAME canonical recovered-depth image as its theta = 0 pair, position by position
+    and as the one-line ``canonical_depth_hash`` (recomputed from the positions). TRAJ pairs
+    are reported descriptively (canonicalization does not depend on the checkpoint)."""
+    reg = [_tier1_pair(p, cells) for p in pairs if p["arm"] == "CANON" and p["kind"] in TIER1_KINDS]
+    traj = [_tier1_pair(p, cells) for p in pairs if p["arm"] == "CANON" and p["kind"] == "TRAJ"]
+    unseen = {eval_FLAC.canonical_stream_hash([[x[1], x[4]] for x in e["canon"]["positions"]])
+              for e in cells.values() if e["valid"] and e["canon"] and e["row"]["split"] == "unseen"}
+    return {"pass": bool(reg) and all(p["pass"] for p in reg), "n_pairs": len(reg), "pairs": reg,
+            "trajectory": {"n_pairs": len(traj), "n_pass": sum(p["pass"] for p in traj)},
+            "distinct_canonical_depth_hashes_unseen": len(unseen)}
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 

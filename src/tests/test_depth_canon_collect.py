@@ -5,6 +5,7 @@ diverging; streams are N = 8 items (the manifest's counts lowered to N; the regi
 6,337 / 6,217 are pinned by test_depth_canon_eval_run.py).
 Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9.
 """
+import collections
 import copy
 import hashlib
 import importlib.util
@@ -516,3 +517,66 @@ def test_a_quarantined_staging_dir_is_not_a_leftover(tmp_path):
     assert C.staging_leftovers(d) == [] and _dump_check(tmp_path, rel, r) == []
     os.mkdir(d + ".staging-13")
     assert C.staging_leftovers(d) == [os.path.basename(d) + ".staging-13"]
+
+
+# ---- cycle 5a: full mode -- loading, completeness, pairing by (K, seed), Tier 1 ---- #
+def write_campaign(tmp, blocks, metrics_fn=None, waves_fn=None, skip=()):
+    for r in C.select_cells(MANIFEST, blocks=blocks):
+        if r["cell"] not in skip:
+            write_cell(tmp, r, metrics=metrics_fn(r) if metrics_fn else None,
+                       waves=waves_fn(r) if waves_fn else None)
+
+
+def collect(tmp, blocks, **kw):
+    kw.setdefault("dump_check", "full")
+    return C.collect_cells(MANIFEST, C.select_cells(MANIFEST, blocks=blocks), farm_root=FARM,
+                           dump_root=os.path.join(str(tmp), "dumps"), pin=PIN,
+                           canon_index=canon_index(), base_dir=str(tmp), check_link=False,
+                           no_dump_blocks=(), **kw)
+
+
+INVARIANCE = ["T", "T-dup", "C4+45", "R"]
+
+
+def test_collect_reports_missing_and_invalid_cells(tmp_path):
+    write_campaign(tmp_path, INVARIANCE, skip={"exp25_CANON_R_S40000_K8_s46"})
+    bad = row("C4+45", K=8, deg=270)
+    os.unlink(os.path.join(str(tmp_path), "dumps",
+                           C.cell_paths(bad, os.path.join(FARM, "CANON", ckpt_base(bad) + ".ckpt"),
+                                        "d").stem, "COMPLETE"))
+    cells = collect(tmp_path, INVARIANCE)
+    assert len(cells) == 30
+    missing, invalid = C.completeness(cells)
+    assert missing == ["exp25_CANON_R_S40000_K8_s46"] and invalid == [bad["cell"]]
+    assert cells[bad["cell"]]["reasons"] and not cells[bad["cell"]]["valid"]
+    assert all(c["valid"] for n, c in cells.items() if n not in (missing + invalid))
+
+
+def test_pairs_and_tier1(tmp_path):
+    write_campaign(tmp_path, INVARIANCE + ["P1-pin"])
+    cells = collect(tmp_path, INVARIANCE + ["P1-pin"])
+    pairs = C.make_pairs(cells)
+    kinds = collections.Counter((p["arm"], p["kind"]) for p in pairs)
+    assert kinds == {("CANON", "C4"): 6, ("CANON", "45"): 2, ("CANON", "R"): 10, ("CANON", "dup"): 2,
+                     ("P1", "C4"): 6, ("P1", "45"): 2, ("P1", "R"): 10}
+    assert all(p["input_hash_equal"] for p in pairs)
+    t1 = C.tier1(pairs, cells)
+    assert t1["pass"] and t1["n_pairs"] == 20 and all(
+        p["n_equal"] == p["n"] == N and p["canonical_depth_hash_equal"] for p in t1["pairs"])
+    # one altered per-position depth hash (sidecar rewritten consistently) -> Tier 1 FAILS
+    victim = next(p for p in pairs if p["arm"] == "CANON" and p["kind"] == "R")
+    canon = cells[victim["cell"]]["canon"]
+    canon["positions"][3][4] = "f" * 64
+    t1 = C.tier1(pairs, cells)
+    bad = next(p for p in t1["pairs"] if p["cell"] == victim["cell"])
+    assert not t1["pass"] and bad["n_equal"] == N - 1 and not bad["canonical_depth_hash_equal"]
+
+
+def test_a_pair_with_a_different_input_hash_is_not_a_pair(tmp_path):
+    write_campaign(tmp_path, ["T", "C4+45"])
+    cells = collect(tmp_path, ["T", "C4+45"])
+    rot = next(n for n in cells if n.endswith("K1_s42_th90"))
+    cells[rot]["stream"]["input_hash"] = "0" * 64
+    pairs = C.make_pairs(cells)
+    p = next(p for p in pairs if p["cell"] == rot)
+    assert not p["input_hash_equal"] and not C.tier1(pairs, cells)["pass"]
