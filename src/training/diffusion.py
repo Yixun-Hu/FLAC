@@ -639,11 +639,11 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         on rank 0 per step. Consumes no RNG. A :class:`_CpuMetadataCarrier` (what
         ``transfer_batch_to_device`` hands on when enabled) is unwrapped first.
         """
+        t0 = perf_counter()   # rB-F1 A5: the whole treatment overhead, unwrap + validation included
         if isinstance(metadata, _CpuMetadataCarrier):
             metadata = metadata.metadata
         self._check_canon_metadata(metadata)
         out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
-        t0 = perf_counter()
         for i, md in enumerate(metadata):
             try:
                 md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
