@@ -48,10 +48,11 @@ def test_offsets_are_the_registered_set_and_deterministic_from_the_seed():
 
 
 def test_random_offsets_cover_exactly_one_to_w_minus_one():
-    assert set(probe.draw_offsets(4000, 8, 7)["random"]) == set(range(1, 8))
+    assert set(probe.draw_offsets(20000, 512, 7)["random"]) == set(range(1, 512))
 
 
-@pytest.mark.parametrize("bad", [dict(n_items=0), dict(img_w=1), dict(img_w=True), dict(n_items=2.0)])
+@pytest.mark.parametrize("bad", [dict(n_items=0), dict(img_w=384), dict(img_w=True), dict(n_items=2.0),
+                                 dict(seed=-1)])
 def test_draw_offsets_refuses_bad_arguments(bad):
     kw = dict(n_items=4, img_w=512, seed=1)
     kw.update(bad)
@@ -127,3 +128,54 @@ def test_summaries_are_depth_canon_stats_paired_summary():
     v = np.array([0.0, 1e-7, 3e-6, 2e-5])
     assert probe.summarize({"relL2": v, "relLinf": 2 * v}) == {
         "relL2": stats.paired_summary(v), "relLinf": stats.paired_summary(2 * v)}
+
+
+# --------------------------------------------------------------------------- #
+# A = canon(md), B = canon(rot_d(md)) and the Tier-1 record of the probe items
+# --------------------------------------------------------------------------- #
+from src.data import yaw_rotation as yr  # noqa: E402
+from test_depth_canon_eval import CLASSES, W16, _eval_md  # noqa: E402  (16 x 32 AR clouds)
+
+
+def _items(n=5):
+    return [_eval_md(i, CLASSES[i % len(CLASSES)]) for i in range(n)]
+
+
+def test_canonical_pairs_are_the_operator_on_md_and_on_its_rotation():
+    mds = _items()
+    offsets = {"d3": [3] * 5, "d16": [16] * 5, "random": [1, 7, 31, 9, 22]}
+    a_list, b_lists, tier1 = probe.canonical_pairs(mds, offsets, W16)
+    assert list(b_lists) == list(offsets) and len(a_list) == len(tier1) == 5
+    for i, md in enumerate(mds):
+        ref, dj, tie_class = yr.canonicalize_scene_metadata(md, W16)
+        assert all(torch.equal(a_list[i][k], ref[k]) for k in ("depth",) + yr.POSE_KEYS)
+        assert tier1[i]["dj_A"] == dj and tier1[i]["class_A"] == tie_class
+        assert tier1[i]["depth_sha_A"] == yr.canonical_depth_sha256(ref["depth"])
+        for key, ds in offsets.items():
+            rot = yr.rotate_scene_metadata(md, yr.offsets_to_radians([ds[i]], W16)[0], W16)
+            want, dj_b, cls_b = yr.canonicalize_scene_metadata(rot, W16)
+            assert all(torch.equal(b_lists[key][i][k], want[k]) for k in ("depth",) + yr.POSE_KEYS)
+            assert tier1[i]["offsets"][key] == {"d": ds[i], "dj_B": dj_b, "class_B": cls_b,
+                                                "depth_sha_equal": True, "class_equal": True,
+                                                "dj_corotates": dj_b == (dj - ds[i]) % W16}
+            assert tier1[i]["offsets"][key]["dj_corotates"] is True
+    assert all(md["context_audio"] is a["context_audio"] for md, a in zip(mds, a_list))
+
+
+def test_tier1_records_a_mismatch_it_did_not_create(monkeypatch):
+    real = yr.canonical_depth_sha256
+    calls = []
+
+    def lying(depth):
+        calls.append(1)
+        return real(depth) if len(calls) % 2 else "0" * 64
+    monkeypatch.setattr(yr, "canonical_depth_sha256", lying)
+    _, _, tier1 = probe.canonical_pairs(_items(1), {"d3": [3]}, W16)
+    assert tier1[0]["offsets"]["d3"]["depth_sha_equal"] is False
+
+
+def test_canonical_pairs_refuses_misaligned_offsets_and_periodic_items():
+    with pytest.raises(ValueError, match="one offset per item"):
+        probe.canonical_pairs(_items(2), {"d3": [3]}, W16)
+    with pytest.raises(yr.StabilizedTieError):
+        probe.canonical_pairs([_eval_md(0, period=16)], {"d3": [3]}, W16)

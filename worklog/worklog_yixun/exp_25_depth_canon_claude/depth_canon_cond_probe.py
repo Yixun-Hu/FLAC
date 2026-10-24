@@ -55,9 +55,9 @@ def draw_offsets(n_items, img_w, seed):
     uniform draw in ``[1, img_w - 1]`` per item from a generator seeded with
     ``seed + RANDOM_OFFSET_SEED_SHIFT``."""
     _check_int("n_items", n_items, 1)
-    _check_int("img_w", img_w, 2)
+    _check_int("img_w", img_w, max(FIXED_OFFSETS) + 1)  # the registered offsets must not wrap
     _check_int("seed", seed, 0)
-    out = {f"d{d}": [d % img_w] * n_items for d in FIXED_OFFSETS}
+    out = {f"d{d}": [d] * n_items for d in FIXED_OFFSETS}
     g = torch.Generator().manual_seed(seed + RANDOM_OFFSET_SEED_SHIFT)
     out["random"] = [int(d) for d in torch.randint(1, img_w, (n_items,), generator=g)]
     return out
@@ -73,6 +73,42 @@ def item_noise(i, shape, seed):
 def noise_bank(n_items, shape, seed):
     """``[n_items, *shape]`` float32: one seeded noise tensor per item, reused for A and B."""
     return torch.stack([item_noise(i, shape, seed) for i in range(n_items)])
+
+
+# --------------------------------------------------------------------------- #
+# A = canon(md), B = canon(rot_d(md)), Tier 1
+# --------------------------------------------------------------------------- #
+def canonical_pairs(metadata, offsets, img_w):
+    """``(A, {key: B}, tier1)`` for one batch of loader metadata dicts.
+
+    ``A[i] = canonicalize_scene_metadata(md_i)``; ``B[key][i]`` canonicalizes
+    ``rotate_scene_metadata(md_i, d_i)`` with ``d_i = offsets[key][i]`` (the reviewed
+    operators, nothing re-implemented). ``tier1[i]`` records ``dj_A``, the classes, the
+    canonical recovered-depth sha256 of A and, per key, whether B's equals it and
+    whether ``dj_B == (dj_A - d) mod W`` (the shift co-rotates). A ``StabilizedTieError``
+    propagates (fail-closed, as in training and eval)."""
+    from src.data import yaw_rotation as yr
+    n = len(metadata)
+    for key, ds in offsets.items():
+        if len(ds) != n:
+            raise ValueError(f"offsets[{key!r}] must hold one offset per item ({n}), got {len(ds)}")
+    a_list, b_lists, tier1 = [], {k: [] for k in offsets}, []
+    for i, md in enumerate(metadata):
+        a, dj_a, cls_a = yr.canonicalize_scene_metadata(md, img_w)
+        sha_a = yr.canonical_depth_sha256(a["depth"])
+        rec = {"dj_A": dj_a, "class_A": cls_a, "depth_sha_A": sha_a, "offsets": {}}
+        for key, ds in offsets.items():
+            d = int(ds[i])
+            b, dj_b, cls_b = yr.canonicalize_scene_metadata(
+                yr.rotate_scene_metadata(md, yr.offsets_to_radians([d], img_w)[0], img_w), img_w)
+            b_lists[key].append(b)
+            rec["offsets"][key] = {"d": d, "dj_B": dj_b, "class_B": cls_b,
+                                   "depth_sha_equal": yr.canonical_depth_sha256(b["depth"]) == sha_a,
+                                   "class_equal": cls_b == cls_a,
+                                   "dj_corotates": dj_b == (dj_a - d) % img_w}
+        a_list.append(a)
+        tier1.append(rec)
+    return a_list, b_lists, tier1
 
 
 # --------------------------------------------------------------------------- #
