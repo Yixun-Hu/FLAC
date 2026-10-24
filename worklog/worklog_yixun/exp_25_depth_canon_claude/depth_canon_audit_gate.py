@@ -46,6 +46,8 @@ ROW_KEYS = ("path", "sha256", "counts", "img_w", "j_star", "dj", "tie_class", "s
             "raw_agree_col", "error")
 TIE_CLASSES = ("none", "same_column", "cross_column_image")
 PASS_GATE = {"verdict": "PASS", "exit_code": 0, "n_survivors": 0, "n_errors": 0}
+ABS_FIELDS = {"json_abs": "json_file_path", "root_abs": "root", "custom_metadata_module_abs": "custom_metadata_module"}
+HARNESS_KEYS = ("splits", "n_maps", "custom_metadata_module")   # all a harness contract may name (rA A1 iv)
 _HEX64, _HEX40 = re.compile(r"[0-9a-f]{64}"), re.compile(r"[0-9a-f]{40}")
 
 
@@ -116,6 +118,23 @@ def _tool_problems(tool, repo_root, c):
     return out
 
 
+def _ledger_problems(inputs, ledger):
+    """The inputs ledger == the one recomputed now, except the *_abs machine paths, which must
+    END with their relative paths (the committed audit validates in any checkout of the pin)."""
+    view = lambda led: [{k: v for k, v in r.items() if k not in ABS_FIELDS} if isinstance(r, dict) else r  # noqa: E731
+                        for r in led] if isinstance(led, list) else led
+    out = []
+    _expect(out, "inputs (vs the ledger recomputed from the current configs + split JSONs)", view(inputs),
+            view(json.loads(json.dumps(ledger))))
+    for i, led in enumerate(inputs if isinstance(inputs, list) else []):
+        for key, rel in ABS_FIELDS.items():
+            v, r = (led.get(key), led.get(rel)) if isinstance(led, dict) else (None, None)
+            if not (isinstance(v, str) and isinstance(r, str) and (
+                    v == r if os.path.isabs(r) else os.path.normpath(v).endswith(os.sep + os.path.normpath(r)))):
+                out.append(f"inputs[{i}].{key} {v!r} is not a path ending with its {rel} {r!r}")
+    return out
+
+
 def _row_problems(rows, maps, audit, w):
     """Per-row type/shape contract, then the census: exactly the expected map set, in the
     audit's sorted order, with the expected per-split counts."""
@@ -175,7 +194,7 @@ def _rehash_problems(rows, maps, workers):
         if changed else [])
 
 
-def _validate(audit_path, repo_root, c, workers, rehash):
+def _validate(audit_path, repo_root, c, workers, rehash, harness=False):
     problems, summary = [], {}
     try:
         with open(audit_path, "rb") as f:
@@ -191,7 +210,10 @@ def _validate(audit_path, repo_root, c, workers, rehash):
         rep = json.loads(raw, parse_constant=lambda x: (_ for _ in ()).throw(ValueError(x)))
     except ValueError as err:
         return problems + [f"the report is not strict JSON ({err})"], summary
-    if type(rep) is not dict or list(rep) != list(REPORT_KEYS):
+    if harness:   # rA A1 (iv): a harness run validates ONLY a harness-tagged synthetic report
+        if type(rep) is not dict or set(rep) != set(REPORT_KEYS) | {"harness"} or rep["harness"] is not True:
+            return problems + ["a harness run validates only a harness-tagged report (harness: true)"], summary
+    elif type(rep) is not dict or list(rep) != list(REPORT_KEYS):
         keys = list(rep) if type(rep) is dict else type(rep).__name__
         return problems + [f"report keys {keys} != {list(REPORT_KEYS)} (a harness tag is never production)"], summary
     _expect(problems, "schema_version", rep["schema_version"], 1)
@@ -214,8 +236,7 @@ def _validate(audit_path, repo_root, c, workers, rehash):
             problems.append(f"{n}: metadata module {led['custom_metadata_module']} is not the registered one")
     if len(maps) != c["n_maps"]:
         problems.append(f"the splits resolve to {len(maps)} maps, not the registered {c['n_maps']}")
-    _expect(problems, "inputs (vs the ledger recomputed from the current configs + split JSONs)",
-            rep["inputs"], json.loads(json.dumps(ledger)))
+    problems += _ledger_problems(rep["inputs"], ledger)
     row_problems = _row_problems(rep["rows"], maps, audit, c["img_w"])
     problems += row_problems
     if not row_problems:
@@ -232,12 +253,21 @@ def _validate(audit_path, repo_root, c, workers, rehash):
     return problems, summary
 
 
-def validate_tie_audit(audit_path, repo_root, *, contract=None, workers=8, rehash=True):
+def validate_tie_audit(audit_path, repo_root, *, contract=None, workers=8, rehash=True, harness_contract=None):
     """``(ok, problems, summary)``. ``contract`` defaults to :data:`REGISTERED` (tests pass a
-    synthetic one); any exception is a refusal, never a pass."""
+    synthetic one). ``harness_contract``: a JSON file naming ONLY the splits / their counts / the
+    map count / the metadata module of a guard-suite tree; the report must then be harness-
+    tagged (production never accepts one). Any exception is a refusal, never a pass."""
     try:
-        problems, summary = _validate(audit_path, os.path.abspath(repo_root),
-                                      REGISTERED if contract is None else contract, workers, rehash)
+        c, harness = (REGISTERED if contract is None else contract), harness_contract is not None
+        if harness:
+            with open(harness_contract) as f:
+                over = json.load(f)
+            if not isinstance(over, dict) or not set(over) <= set(HARNESS_KEYS):
+                return False, [f"the harness contract may name only {list(HARNESS_KEYS)}, got "
+                               f"{sorted(over) if isinstance(over, dict) else over!r}"], {}
+            c = dict(c, **over)
+        problems, summary = _validate(audit_path, os.path.abspath(repo_root), c, workers, rehash, harness)
     except Exception as err:  # noqa: BLE001 -- a crash is never a verdict
         problems, summary = [f"validation crashed ({type(err).__name__}: {err})"], {}
     return not problems, problems, summary
@@ -251,8 +281,19 @@ def main(argv=None):
     ap.add_argument("--repo", default=repo)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--print-sha", action="store_true", help="on success print only the report's sha256")
+    ap.add_argument("--harness-contract", default=None,
+                    help="guard suite only: honoured only under DEPTH_CANON_HARNESS (a /tmp dir with its marker) "
+                         "for a file inside it")
     args = ap.parse_args(argv)
-    ok, problems, summary = validate_tie_audit(args.audit, args.repo, workers=args.workers)
+    if args.harness_contract is not None:
+        h = os.path.realpath(os.environ.get("DEPTH_CANON_HARNESS") or "/nonexistent")
+        if not (h.startswith("/tmp/") and os.path.isfile(os.path.join(h, ".depth_canon_harness"))
+                and os.path.realpath(args.harness_contract).startswith(h + os.sep)):
+            print("TIE AUDIT GATE FAILED: --harness-contract is honoured only inside a guard harness "
+                  "(DEPTH_CANON_HARNESS under /tmp with its marker, the file inside it) - abort", file=sys.stderr)
+            return 2
+    ok, problems, summary = validate_tie_audit(args.audit, args.repo, workers=args.workers,
+                                               harness_contract=args.harness_contract)
     if not ok:
         print("TIE AUDIT GATE FAILED: " + "; ".join(problems) + " - abort", file=sys.stderr)
         return 1
