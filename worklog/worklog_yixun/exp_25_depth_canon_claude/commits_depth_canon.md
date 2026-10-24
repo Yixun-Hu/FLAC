@@ -188,3 +188,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `27a87b7` | Coder rB-F1 | A5 cycle 15a (red): the latency covers unwrap + validation |
 | `999d515` | Coder rB-F1 | A5 cycle 15b: `perf_counter` before the unwrap; pins regenerated (48) |
 | `76de174` | Coder rB-F1 | records: notebook A2–A6 + ledger rows |
+| `5111f4e` | Planner records | Codex code review B (round 3c) REQUEST-CHANGES receipt + artifact; fix round rB-F1 opened |
