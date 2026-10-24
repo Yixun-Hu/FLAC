@@ -862,7 +862,8 @@ class _Loader:
         return iter(self.batches)
 
 
-def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False, **eval_kw):
+def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False, events=None,
+         **eval_kw):
     import types
     import src.inference.sampling as sampling
     cfg = _model_cfg(training, widths=(W16, W16))
@@ -879,23 +880,28 @@ def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False,
     seen = types.SimpleNamespace(cond=[], scored=[], appended=[], scenes=[], metric_depth=[],
                                  loader=loader)
 
+    log = (lambda e: events.append(e)) if events is not None else (lambda e: None)
+
     def model_factory(cfg):
+        log("model")
         if raise_at_model:
             pytest.fail("evaluate_model reached model construction")
         return types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], []))
 
     module = types.SimpleNamespace(device="cpu", diffusion=types.SimpleNamespace(
         model=types.SimpleNamespace(diffusion_objective="rectified_flow"), pretransform=None,
-        conditioner=lambda md, device: seen.cond.append(md) or {}, io_channels=1, dist_shift=None,
+        conditioner=lambda md, device: log("cond") or seen.cond.append(md) or {}, io_channels=1,
+        dist_shift=None,
         get_conditioning_inputs=lambda cond: {}))
     module.eval = module.requires_grad_ = module.to = lambda *a: module
     callback = types.SimpleNamespace(
         compute_metrics=lambda split: {"T60": 1.0},
         update_metrics=lambda stage, pred, reals, scenes, **k: (
-            seen.scored.append(pred), seen.scenes.append(scenes), seen.metric_depth.append(k["depth"])))
+            log("score"), seen.scored.append(pred), seen.scenes.append(scenes),
+            seen.metric_depth.append(k["depth"])))
     real_append = eval_FLAC.ScoredWaveformDump.append
     monkeypatch.setattr(eval_FLAC.ScoredWaveformDump, "append",
-                        lambda self, t: seen.appended.append(t) or real_append(self, t))
+                        lambda self, t: log("append") or seen.appended.append(t) or real_append(self, t))
     monkeypatch.setattr(eval_FLAC, "create_model_from_config", model_factory)
     monkeypatch.setattr(eval_FLAC, "create_training_wrapper_from_config", lambda cfg, m: module)
     monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config", lambda *a, **k: loader)
@@ -1021,13 +1027,30 @@ def test_a_dump_needs_the_published_stream_sidecar(tmp_path, kw):
     assert list(tmp_path.iterdir()) == []                 # refused before any file work
 
 
-def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores():
-    import inspect
-    src = inspect.getsource(eval_FLAC.evaluate_model)
-    assert "apply_rotation_plan(" not in src and src.count("prepare_eval_metadata(") == 1
-    assert src.index("resolve_canonicalize_protocol(") < src.index("create_model_from_config(")
-    assert src.index("waveform_dump.append(fakes)") < src.index("metric_callback.update_metrics(")
-    assert src.count("build_output_paths(") == 1
+def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores(monkeypatch, tmp_path):
+    """Call order and counts on the REAL functions (replaces an inspect.getsource check)."""
+    events = []
+
+    def spy(name, fn, around=False):
+        def wrapper(*a, **k):
+            events.append(name + (">" if around else ""))
+            out = fn(*a, **k)
+            if around:
+                events.append(name + "<")
+            return out
+        monkeypatch.setattr(eval_FLAC, name, wrapper)
+    spy("resolve_canonicalize_protocol", eval_FLAC.resolve_canonicalize_protocol)
+    spy("build_output_paths", eval_FLAC.build_output_paths)
+    spy("prepare_eval_metadata", eval_FLAC.prepare_eval_metadata, around=True)
+    spy("apply_rotation_plan", eval_FLAC.apply_rotation_plan)
+    (tmp_path / "dumps").mkdir()
+    _run(monkeypatch, tmp_path, ON32, events=events, canonicalize=True, record_stream=True,
+         rotate_deg=90.0, dump_scored_waveforms=str(tmp_path / "dumps"))
+    setup = [e for e in events if e in ("resolve_canonicalize_protocol", "build_output_paths", "model")]
+    assert setup == ["resolve_canonicalize_protocol", "build_output_paths", "model"]
+    loop = [e for e in events if e not in setup]
+    assert loop == ["prepare_eval_metadata>", "apply_rotation_plan", "prepare_eval_metadata<",
+                    "cond", "append", "score"] * 2         # two batches; rotation only inside prepare
 
 
 # --------------------------------------------------------------------------- #
