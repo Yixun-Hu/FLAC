@@ -9,7 +9,9 @@ image-key survivor (exactly periodic -> ``StabilizedTieError``). Read-only on th
 
 Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md v8 §7/§8.
 """
+import hashlib
 import importlib.util
+import json
 import os
 import sys
 
@@ -119,3 +121,73 @@ def load_metadata_module(path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+# --------------------------------------------------------------------------- #
+# split configs -> items (the loader's own json_scandir) -> unique maps + ledger
+# --------------------------------------------------------------------------- #
+def _abs(p):
+    """A config path as train.py / eval_FLAC.py see it from the repository root."""
+    return p if os.path.isabs(p) else os.path.join(REPO, p)
+
+
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def read_split_config(config_path):
+    """One dataset config -> the fields the loader uses, with the content hashes."""
+    with open(_abs(config_path)) as f:
+        cfg = json.load(f)
+    entries = cfg.get("datasets")
+    if not isinstance(entries, list) or len(entries) != 1:
+        raise ValueError(f"{config_path}: expected exactly one dataset entry, got {entries!r:.200}")
+    entry = entries[0]
+    for key in ("path", "json_file_path", "custom_metadata_module", "folder_name"):
+        if not isinstance(entry.get(key), str) or not entry[key]:
+            raise ValueError(f"{config_path}: dataset entry lacks {key!r}")
+    module = _abs(entry["custom_metadata_module"])
+    return {"dataset_config": config_path, "dataset_config_sha256": _sha256_file(_abs(config_path)),
+            "json_file_path": entry["json_file_path"], "json_abs": _abs(entry["json_file_path"]),
+            "json_sha256": _sha256_file(_abs(entry["json_file_path"])),
+            "root": entry["path"], "root_abs": _abs(entry["path"]),
+            "folder_name": entry["folder_name"], "custom_metadata_module": entry["custom_metadata_module"],
+            "custom_metadata_module_abs": module, "custom_metadata_module_sha256": _sha256_file(module)}
+
+
+def enumerate_items(split):
+    """The split's item paths, built by the loader's own ``get_audio_filenames``."""
+    from src.data.dataset import get_audio_filenames
+    return get_audio_filenames(paths=split["root_abs"], json_file_path=split["json_abs"],
+                               folder_name=split["folder_name"])
+
+
+def collect_maps(splits):
+    """``{key: {"path", "rep", "counts"}}`` over the union of the splits (deduplicated by
+    the resolved depth path; ``rep`` = the smallest item path that resolves to it) and
+    the per-split ledger rows ``{split, ..., n_items, n_unique_maps}``."""
+    roots = {s["root_abs"] for s in splits.values()}
+    modules = {s["custom_metadata_module_abs"] for s in splits.values()}
+    if len(roots) != 1 or len(modules) != 1:
+        raise ValueError(f"every split must use the same dataset root and metadata module, got "
+                         f"roots {sorted(roots)} modules {sorted(modules)}")
+    root = roots.pop()
+    maps, ledger = {}, []
+    for name, split in splits.items():
+        items = enumerate_items(split)
+        keys = set()
+        for item in items:
+            path, key = resolve_depth_path(item, root)
+            entry = maps.setdefault(key, {"path": os.path.normpath(path), "rep": item,
+                                          "counts": {n: 0 for n in splits}})
+            if entry["path"] != os.path.normpath(path):
+                raise ValueError(f"map key {key} resolves to two paths: {entry['path']} / {path}")
+            entry["counts"][name] += 1
+            entry["rep"] = min(entry["rep"], item)
+            keys.add(key)
+        ledger.append(dict(split, split=name, n_items=len(items), n_unique_maps=len(keys)))
+    return maps, ledger

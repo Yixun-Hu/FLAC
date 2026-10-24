@@ -10,6 +10,7 @@ schema of ``data/AR/*.json`` into a tmp tree.
 """
 import importlib.util
 import os
+import zlib
 
 import numpy as np
 import pytest
@@ -129,3 +130,99 @@ def test_resolve_depth_path_is_the_path_ar_md_loads(tmp_path, monkeypatch, fname
     assert path == loaded[0]
     assert key == os.path.join("depth_map", "Cafe", "Cafe_idx_3", f"{receiver}.npy")
     assert os.path.normpath(path) == os.path.join(root, key)
+
+
+# --------------------------------------------------------------------------- #
+# split JSONs (real schema) -> unique maps, with the inputs ledger
+# --------------------------------------------------------------------------- #
+_PROD_TRAIN_CFG = os.path.join(_REPO_ROOT, "src", "configs", "dataset_configs", "AR", "train",
+                               "acousticroom_train.json")
+SPLITS = {
+    "train": {"Cafe": {"Cafe_idx_0": ["S001_R001_hybrid_IR.wav", "S002_R001_hybrid_IR.wav",
+                                      "S001_R0012_hybrid_IR.wav"],
+                       "Cafe_idx_1": ["S003_R001_hybrid_IR.wav"]}},
+    "unseen": {"Office": {"Office_idx_2": ["S0010_R005_hybrid_IR.wav", "S004_R006_hybrid_IR.wav"]}},
+    "seen": {"Cafe": {"Cafe_idx_0": ["S009_R001_hybrid_IR.wav", "S0010_R003_hybrid_IR.wav"]}},
+}
+
+
+def _write_tree(tmp_path, splits=SPLITS, maps=None):
+    """A tmp AcousticRooms tree: split JSONs + dataset configs in the production schema
+    (the real train config with only the paths replaced) + 256x512 maps per receiver."""
+    import json
+    root = tmp_path / "AcousticRooms"
+    template = json.load(open(_PROD_TRAIN_CFG))
+    cfgs = {}
+    for name, split in splits.items():
+        (tmp_path / f"{name}.json").write_text(json.dumps(split))
+        cfg = json.loads(json.dumps(template))
+        cfg["datasets"][0].update(path=str(root), json_file_path=str(tmp_path / f"{name}.json"),
+                                  custom_metadata_module=_ar_md().__file__)
+        (tmp_path / f"{name}_cfg.json").write_text(json.dumps(cfg, indent=4))
+        cfgs[name] = str(tmp_path / f"{name}_cfg.json")
+        for scene, rooms in split.items():
+            for sid, files in rooms.items():
+                for f in files:
+                    key = audit.resolve_depth_path(str(root / "x" / scene / sid / f), str(root))[1]
+                    p = root / key
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    if not p.exists():
+                        arr = (maps or {}).get(key)
+                        if arr is None:
+                            arr = _scalar_depth(256, W, seed=zlib.crc32(key.encode()) % 1000).numpy()
+                        np.save(p, arr)
+    return cfgs
+
+
+def test_collect_maps_dedupes_by_resolved_path_and_counts_items(tmp_path):
+    cfgs = _write_tree(tmp_path)
+    splits = {n: audit.read_split_config(p) for n, p in cfgs.items()}
+    maps, ledger = audit.collect_maps(splits)
+    assert sorted(maps) == ["depth_map/Cafe/Cafe_idx_0/1.npy", "depth_map/Cafe/Cafe_idx_0/12.npy",
+                            "depth_map/Cafe/Cafe_idx_0/3.npy", "depth_map/Cafe/Cafe_idx_1/1.npy",
+                            "depth_map/Office/Office_idx_2/5.npy", "depth_map/Office/Office_idx_2/6.npy"]
+    assert maps["depth_map/Cafe/Cafe_idx_0/1.npy"]["counts"] == {"train": 2, "unseen": 0, "seen": 1}
+    assert maps["depth_map/Cafe/Cafe_idx_0/3.npy"]["counts"] == {"train": 0, "unseen": 0, "seen": 1}
+    rep = maps["depth_map/Cafe/Cafe_idx_0/1.npy"]["rep"]   # smallest item path, any split
+    assert rep == str(tmp_path / "AcousticRooms" / "single_channel_ir_1" / "Cafe" / "Cafe_idx_0"
+                      / "S001_R001_hybrid_IR.wav")
+    assert audit.resolve_depth_path(rep, splits["train"]["root_abs"])[1] == "depth_map/Cafe/Cafe_idx_0/1.npy"
+    assert [(r["split"], r["n_items"], r["n_unique_maps"]) for r in ledger] == [
+        ("train", 4, 3), ("unseen", 2, 2), ("seen", 2, 2)]
+
+
+def test_inputs_ledger_carries_the_config_and_split_hashes(tmp_path):
+    import hashlib
+    cfgs = _write_tree(tmp_path)
+    split = audit.read_split_config(cfgs["unseen"])
+    assert split["dataset_config_sha256"] == hashlib.sha256(open(cfgs["unseen"], "rb").read()).hexdigest()
+    assert split["json_sha256"] == hashlib.sha256(open(tmp_path / "unseen.json", "rb").read()).hexdigest()
+    assert split["custom_metadata_module_sha256"] == \
+        hashlib.sha256(open(_ar_md().__file__, "rb").read()).hexdigest()
+    assert split["folder_name"] == "single_channel_ir_1"
+
+
+def test_relative_config_paths_resolve_against_the_repo_root():
+    split = audit.read_split_config("src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json")
+    assert split["json_abs"] == os.path.join(_REPO_ROOT, "data", "AR", "unseen_eval.json")
+    assert split["root_abs"] == os.path.join(_REPO_ROOT, "AcousticRooms")
+
+
+@pytest.mark.parametrize("mutate, needle", [
+    (lambda c: c["datasets"].append(dict(c["datasets"][0])), "exactly one dataset"),
+    (lambda c: c["datasets"][0].pop("json_file_path"), "json_file_path")])
+def test_read_split_config_refuses_unexpected_configs(tmp_path, mutate, needle):
+    import json
+    cfg = json.load(open(_PROD_TRAIN_CFG))
+    mutate(cfg)
+    (tmp_path / "c.json").write_text(json.dumps(cfg))
+    with pytest.raises(ValueError, match=needle):
+        audit.read_split_config(str(tmp_path / "c.json"))
+
+
+def test_collect_maps_refuses_splits_with_different_roots(tmp_path):
+    cfgs = _write_tree(tmp_path)
+    splits = {n: audit.read_split_config(p) for n, p in cfgs.items()}
+    splits["seen"]["root_abs"] = str(tmp_path / "Elsewhere" / "AcousticRooms")
+    with pytest.raises(ValueError, match="same dataset root"):
+        audit.collect_maps(splits)
