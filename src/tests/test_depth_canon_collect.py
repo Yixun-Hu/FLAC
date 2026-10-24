@@ -76,7 +76,14 @@ def target_ids(split, n=N):
     return [f"AR:{split}/Room{i % 3}/S00{i % 4}_R{i:03d}" for i in range(n)]
 
 
-def build_stream(r, n=N):
+# rB-F1 NIT a: AR_md draws the K references with replacement when a room offers fewer than K
+# other sources, so some targets carry REPEATED context ids -- the same targets in every cell of
+# a (split, K) (seed-invariant; 520 / 6,337 unseen K=8 targets in exp_15's streams). The
+# fixtures carry such items too.
+REPEATS = {("unseen", 8): (2, 5), ("seen", 8): (1,)}
+
+
+def build_stream(r, n=N, repeats=None):
     if r["rotate_mode"] == "random":
         g = torch.Generator(device="cpu").manual_seed(r["rotate_seed"])
         offs = [int(d) for d in draw_yaw_offsets(n, W, g).tolist()]
@@ -85,6 +92,8 @@ def build_stream(r, n=N):
     s = eval_FLAC.RotationStream()
     for i, (t, off) in enumerate(zip(target_ids(r["split"], n), offs)):
         ctx = [f"{r['split']}:K{r['K']}:s{r['seed']}:{i}:{j}" for j in range(r["K"])]
+        if i in (REPEATS.get((r["split"], r["K"]), ()) if repeats is None else repeats):
+            ctx[1] = ctx[0]                                    # a draw with replacement
         s.rows.append(eval_FLAC.StreamRow(i, t, ctx, W, off, i, 1))
     return s
 
@@ -104,7 +113,7 @@ def default_metrics(r):
 
 
 def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, waves=None,
-               dump=True, receipt=True, ckpt_sha=None, link=None, dump_root=None):
+               dump=True, receipt=True, ckpt_sha=None, link=None, dump_root=None, repeats=None):
     """Everything eval_FLAC + the driver publish for one row, under ``tmp`` (= the cwd the
     evaluator ran in). Returns the metrics path (relative, as eval_FLAC names it)."""
     link = link or os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")  # = the evaluator's --ckpt-path
@@ -117,7 +126,7 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
     os.makedirs(os.path.dirname(at(metrics_rel)), exist_ok=True)  # the farm, under the cwd
     plan = eval_FLAC.resolve_rotation_plan(r["rotate_mode"], float(r["rotate_deg"] or 0),
                                            r["rotate_seed"], r["seed"])
-    stream = build_stream(r, n)
+    stream = build_stream(r, n, repeats)
     canon = build_canon(r, stream) if r["canonicalize"] else None
     m = metrics or default_metrics(r)
     scenes = by_scene or {s: {k: v + 0.01 * i for k, v in m.items()} for i, s in enumerate(SCENES)}
@@ -273,7 +282,9 @@ STREAM_EDITS = [(lambda d: d.update(stream_count=N + 1), "stream_count"),
                 (lambda d: d["offsets"].__setitem__(0, 1), "offset"),
                 (lambda d: d.update(img_w=256), "img_w"),
                 (lambda d: d.update(rotate_mode="random"), "rotate_mode"),
-                (lambda d: d["input_tuples"].__setitem__(1, [5] + d["input_tuples"][1][1:]), "position")]
+                (lambda d: d["input_tuples"].__setitem__(1, [5] + d["input_tuples"][1][1:]), "position"),
+                (lambda d: d["input_tuples"][2].__setitem__(2, []), "context_ids"),            # not K ids
+                (lambda d: d["input_tuples"][3].__setitem__(2, [""]), "context_ids")]          # an empty id
 
 
 @pytest.mark.parametrize("edit, needle", STREAM_EDITS, ids=[e[1] for e in STREAM_EDITS])
@@ -1205,3 +1216,39 @@ def test_the_nas_retention_audit(tmp_path, capsys):
     assert _retention(tmp_path, "--dump-check", "manifest") == 1
     out = capsys.readouterr().out
     assert "8/10 published dump(s) retained" in out and gone["cell"] in out and changed["cell"] in out
+
+
+
+# ---- rB-F1 NIT a: K context ids per item; the registered repetition rule; the pairing note ---- #
+def test_repeated_context_ids_are_legal_when_every_cell_agrees(tmp_path):
+    write_campaign(tmp_path, ["T", "R"])
+    cells = collect(tmp_path, ["T", "R"])
+    assert all(e["valid"] for e in cells.values())                     # repeats are not malformed
+    census = C.context_replacement(cells)
+    assert census["unseen/K8"] == {"cells": 10, "targets_with_repeated_context": 2, "consistent": True}
+    assert census["unseen/K1"] == {"cells": 10, "targets_with_repeated_context": 0, "consistent": True}
+
+
+def test_a_cell_whose_repeated_targets_differ_refuses_full_collection(tmp_path, monkeypatch, capsys):
+    blocks = ["T", "T-dup", "C4+45", "R", "S"]
+    odd = row("R", K=8, seed=44)
+    write_campaign(tmp_path, blocks, skip={odd["cell"], row("T", K=8, seed=44)["cell"]})
+    for r in (odd, row("T", K=8, seed=44)):                           # its theta=0 pair agrees with it
+        write_cell(tmp_path, r, repeats=(2, 5, 6))
+    write_probe(tmp_path, monkeypatch)
+    write_audit(tmp_path, monkeypatch)
+    rc, out = _collect_cli(tmp_path, blocks=",".join(blocks))
+    text = capsys.readouterr().out
+    assert rc == 3 and "repeated context" in text and not os.path.exists(out + ".json"), text
+
+
+def test_the_pairing_result_states_what_the_input_hash_proves(tmp_path, monkeypatch):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path, monkeypatch)
+    write_audit(tmp_path, monkeypatch)
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    res, md = json.load(open(out + ".json")), open(out + ".md").read()
+    note = res["pairing"]["note"]
+    assert rc == 0 and "not in the hash preimage" in note and "execution protocol" in note
+    assert res["pairing"]["context_replacement"]["unseen/K8"]["consistent"] is True
+    assert "execution protocol" in md
