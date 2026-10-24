@@ -15,6 +15,10 @@ OUT = os.path.join(REPO, "worklog", "worklog_yixun", "model_comparison.md")
 KEYS = [("T60", "T60"), ("C50", "C50"), ("EDT", "EDT"),
         ("R@1", "RIR_to_GT_RIR_R@1"), ("R@5", "RIR_to_GT_RIR_R@5"), ("R@10", "RIR_to_GT_RIR_R@10")]
 MIN_SEEDS = 5
+# exp_25 depth_canon row labels (plan v9 §5): the comparators are RE-MEASURED at the exp_25 pin
+EXP25_LABELS = {"CANON": "depth-canon CANON @40k (exp_25)",
+                "P1": "P1 vanilla @40k — re-measured at the exp_25 pin (P1-pin)",
+                "YAW": "yaw-aug A6000 YAW @40k (exp_17 ckpt) — re-measured at the exp_25 pin (YAW-pin)"}
 
 # (model label, eval-protocol note, K, [glob patterns relative to repo root])
 ROWS = [
@@ -150,6 +154,17 @@ ROWS = [
   ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K1.json"], "exp15"),
  ("yaw-aug vanilla YAWAUG @40k (exp_15)", "vanilla eval, theta=0 (scene-routed)", 8,
   ["outputs_FLAC/exp15_YAWAUG/**/*exp15_YAWAUG_tbl_S40000_s4[2-6]_K8.json"], "exp15"),
+] + [
+ # --- exp_25 depth_canon (plan v9 §5, announcement 04) --------------------------
+ # ADDITIVE, its own list. One-pin rows: CANON's theta=0 table block and the P1 / Yaw-Aug
+ # comparators RE-MEASURED at the exp_25 evaluator pin (exp_17's YAW raws are lost; the exp_15
+ # YAWAUG row above is the neuronic recipe and stays untouched). contract="exp25" sends every
+ # file through depth_canon_collect.verify_cell; an arm publishes as a two-K pair, one pin.
+ (EXP25_LABELS[arm], "vanilla eval + canonicalize (exp_25 pin)" if arm == "CANON" else
+  "vanilla eval (exp_25 pin)", k,
+  [f"outputs_FLAC/exp25_depth_canon/{arm}/*_metrics_1_1.0_exp25_{arm}_T_S40000_K{k}_s4[2-6]"
+   + ("_canon" if arm == "CANON" else "") + ".json"], "exp25")
+ for arm in ("CANON", "P1", "YAW") for k in (1, 8)
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
@@ -472,6 +487,104 @@ def validate_exp15_cell(files, repo_root=None, expected_k=None):
     return (not problems), problems
 
 
+EXP25_DIR = ("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
+EXP25_FARM = "outputs_FLAC/exp25_depth_canon"
+
+
+def exp25_arm_of(label):
+    """The arm a registered exp_25 row label names (None for any other label)."""
+    return {v: k for k, v in EXP25_LABELS.items()}.get(label)
+
+
+def _load_exp25_validator(repo_root=None):
+    """depth_canon_collect.py of the evidence root -- the predicate the eval driver runs."""
+    import importlib.util
+    path = os.path.join(repo_paths(repo_root)["root"], *EXP25_DIR, "depth_canon_collect.py")
+    spec = importlib.util.spec_from_file_location("depth_canon_collect_gen", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the exp_25 validator from {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def validate_exp25_cell(files, repo_root=None, expected_arm=None, expected_k=None):
+    """``(ok, problems)`` for one exp_25 row: every file is a registered theta=0 table cell of
+    the declared arm and K, at ONE pin, and passes ``verify_cell`` (record, stream + canon
+    sidecars, receipt, dump marker/manifest digests). Fewer than five valid seeds render pending."""
+    if not files:
+        return True, []
+    root = repo_paths(repo_root)["root"]
+    try:
+        V = _load_exp25_validator(root)
+        manifest = V.load_cells(os.path.join(root, *EXP25_DIR, "depth_canon_cells.json"))
+    except Exception as exc:                       # the gate must not fail open
+        return False, [f"cannot load the exp_25 validator ({exc})"]
+    problems, pins, seeds = [], set(), []
+    for path in sorted(files):
+        try:
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+        except (ValueError, OSError) as exc:
+            problems.append(f"{os.path.basename(path)}: unreadable ({exc})")
+    if problems or len(pins) != 1:
+        return False, problems + ([f"the cell spans {len(pins)} evaluator pins"] if len(pins) != 1 else [])
+    pin, index = pins.pop(), None
+    try:
+        if expected_arm in (None, "CANON"):
+            index = V.load_canon_index(V.find_canon_manifest(os.path.join(root, *EXP25_DIR)),
+                                       manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+    except Exception as exc:
+        return False, [f"no CANON checkpoint index ({exc})"]
+    for path in sorted(files):
+        name, stem = os.path.basename(path), os.path.basename(path)[:-len(".json")]
+        hits = [c for c in manifest["cells"] if c["metrics_suffix"] == stem.partition("_metrics_")[2]]
+        if len(hits) != 1:
+            problems.append(f"{name}: not a registered exp_25 cell")
+            continue
+        r = hits[0]
+        if (r["block"], r["subblock"]) not in (("T", "T"), ("P1-pin", "T"), ("YAW-pin", "T")):
+            problems.append(f"{name}: only a theta=0 table cell is a row ({r['block']}/{r['subblock']})")
+        if expected_arm is not None and r["arm"] != expected_arm:
+            problems.append(f"{name}: a {r['arm']} cell under the {expected_arm} row")
+        if expected_k is not None and r["K"] != int(expected_k):
+            problems.append(f"{name}: K={r['K']}, the row says K={expected_k}")
+        if os.path.realpath(path) != os.path.realpath(os.path.join(root, EXP25_FARM, r["arm"], name)):
+            problems.append(f"{name}: not at its farm path {EXP25_FARM}/{r['arm']}/")
+        problems += [f"{name}: {x}" for x in V.verify_cell(
+            stem, manifest=manifest, farm_root=EXP25_FARM, dump_root=manifest["dump_root"], pin=pin,
+            canon_index=index, base_dir=root, dump_check="manifest", expect_dump=True, check_link=False)]
+        seeds.append(r["seed"])
+    if len(seeds) != len(set(seeds)) or len(files) > MIN_SEEDS:
+        problems.append(f"seeds {sorted(seeds)}: one record per seed, at most {MIN_SEEDS}")
+    return (not problems), problems
+
+
+def check_exp25_round(rendered, exp25_cells):
+    """``(withheld_labels, problems)``: an exp_25 arm publishes only as a complete, valid K=1 +
+    K=8 pair, and every published exp_25 row shares ONE evaluator pin."""
+    rows = [r for r in rendered if r.get("contract") == "exp25"]
+    started = {label for (label, _k), files in exp25_cells.items() if files}
+    problems, ready = [], set()
+    for label in sorted(started):
+        mine = {r["K"]: r["line"] for r in rows if r["label"] == label}
+        bad = [k for k in (1, 8) if k not in mine or "BLOCKED" in mine[k] or "*pending" in mine[k]]
+        if bad:
+            problems.append(f"{label}: publishes only as a complete, valid K=1 + K=8 pair (K={bad} not ready)")
+        else:
+            ready.add(label)
+    pins = set()
+    for (label, _k), files in exp25_cells.items():
+        for path in files if label in ready else ():
+            with open(path) as fh:
+                pins.add(str(json.load(fh).get("source_sha")))
+    if len(pins) > 1:
+        problems.append(f"the exp_25 rows span {len(pins)} evaluator pins ({sorted(p[:12] for p in pins)}): "
+                        "nothing publishes across pins")
+        ready = set()
+    return started - ready, problems
+
+
 def check_exp15_round(rendered):
     """``[problem, ...]`` — the exp_15 YAWAUG pair publishes whole or not at all.
 
@@ -714,6 +827,13 @@ def render_row(label, proto, K, files, repo_root=None, validator_path=None, cont
             detail = problems[0] if problems else "unspecified"
             return (f"| {label} | {proto} | {K} | {len(files)} | "
                     f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
+    if contract == "exp25":
+        ok, problems = validate_exp25_cell(files, repo_root=repo_root,
+                                           expected_arm=exp25_arm_of(label), expected_k=K)
+        if not ok:
+            detail = problems[0] if problems else "unspecified"
+            return (f"| {label} | {proto} | {K} | {len(files)} | "
+                    f"**BLOCKED — row validation failed:** {detail} | | | | | |"), True
     if contract == "exp15":
         ok, problems = validate_exp15_cell(files, repo_root=repo_root, expected_k=K)
         if not ok:
@@ -937,6 +1057,7 @@ def main(argv=None):
 
     rendered, blocked_rows, exp11_status, q9_cells = [], [], {}, {}
     exp14_cells, exp14_status = {}, {}
+    exp25_cells = {}
     for spec in ROWS:
         label, proto, K, pats = spec[:4]
         contract = spec[4] if len(spec) > 4 else "table"
@@ -955,6 +1076,8 @@ def main(argv=None):
             # transaction gate consumes it rather than re-deriving readiness from
             # how many files happen to exist (round-3 closure A4/B2)
             exp14_status[(label, K)] = bool(files) and not blocked
+        if contract == "exp25":
+            exp25_cells[(label, K)] = files
         if blocked:
             blocked_rows.append(f"{label} (K={K})")
         if is_exp11_row(pats) and files:
@@ -1008,6 +1131,17 @@ def main(argv=None):
                                          "the exp_15 YAWAUG row publishes only as a "
                                          "complete K=1 + K=8 pair")
         lines_tail += ["", "**exp_15 YAWAUG rows WITHHELD:** " + "; ".join(exp15_problems)]
+    exp25_withheld, exp25_problems = check_exp25_round(rendered, exp25_cells)
+    if exp25_problems:
+        print("exp_25 rows not publishable:", file=sys.stderr)
+        for problem in exp25_problems:
+            print("  -", problem, file=sys.stderr)
+        for r in rendered:
+            if r.get("contract") == "exp25" and r["label"] in exp25_withheld:
+                r["line"] = withheld_row(r["label"], r["proto"], r["K"], r["n"],
+                                         "an exp_25 arm publishes only as a complete two-K pair "
+                                         "at the one campaign pin")
+        lines_tail += ["", "**exp_25 rows WITHHELD:** " + "; ".join(exp25_problems)]
     two_k = check_two_k_coverage(exp11_status)
     if two_k:
         bad_labels = {p.split(":")[0] for p in two_k}
