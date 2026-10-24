@@ -164,6 +164,15 @@ gpu_clean() {   # 0 = both cards idle with enough memory; 1 = dirty (GPU_WHY set
   done
 }
 
+run_launcher() {   # run_launcher <MODE> <capture file>; returns the launcher's rc
+  local rc
+  set +e
+  MODE="$1" EXPECT_HEAD="$TOKEN_HEAD" DRY_RUN=0 bash "$LAUNCHER" 2>&1 | tee "$2"
+  rc="${PIPESTATUS[0]}"
+  set -e
+  return "$rc"
+}
+
 # --- the loop ---------------------------------------------------------------------------- #
 write_state WAITING_TOKEN "starting"
 POLLS=0; LAST_BEAT="$(date +%s)"
@@ -185,7 +194,30 @@ while :; do
   CLEAN=$((CLEAN + 1))
   write_state WAITING_GPU "clean poll ${CLEAN}/${STABLE_POLLS}"
   [ "$CLEAN" -ge "$STABLE_POLLS" ] || { sleep "$POLL_S"; continue; }
-  # fire: the SMOKE -> FULL sequence lands in the next cycle; until then, refuse (fail-closed)
-  write_state FAILED "the fire sequence is not part of this revision"
+  # fire -- the token is re-checked immediately before EACH launcher call
+  if ! token_ok; then CLEAN=0; TOKEN_HEAD=""; write_state WAITING_TOKEN "$TOKEN_WHY"; sleep "$POLL_S"; continue; fi
+  write_state SMOKE_RUNNING "MODE=SMOKE EXPECT_HEAD=${TOKEN_HEAD}"
+  CAP="$EXPDIR/depth_canon_${TS}_autolaunch_smoke_$((RETRIES + 1)).out"
+  rc=0; run_launcher SMOKE "$CAP" || rc=$?
+  SMOKE_RC="$rc"
+  if [ "$rc" -ne 0 ]; then
+    if grep -qF -- "$GPU_GATE_STR" "$CAP" || grep -qF -- "$GPU_OCCUPIED_STR" "$CAP"; then
+      RETRIES=$((RETRIES + 1)); CLEAN=0
+      if [ "$RETRIES" -gt "$MAX_GPU_RETRIES" ]; then
+        write_state FAILED "stage=SMOKE rc=${rc}: the launcher's GPU gate refused ${RETRIES} times (> ${MAX_GPU_RETRIES} retries)"
+        exit 1
+      fi
+      write_state WAITING_GPU "SMOKE refused by the launcher's GPU gate (rc ${rc}); retry ${RETRIES}/${MAX_GPU_RETRIES} after re-stabilizing"
+      sleep "$POLL_S"; continue
+    fi
+    write_state FAILED "stage=SMOKE rc=${rc} (see ${CAP}); FULL not attempted"
+    exit 1
+  fi
+  if ! token_ok; then CLEAN=0; TOKEN_HEAD=""; write_state WAITING_TOKEN "$TOKEN_WHY (after a passing SMOKE)"; sleep "$POLL_S"; continue; fi
+  write_state FULL_RUNNING "MODE=FULL EXPECT_HEAD=${TOKEN_HEAD}"
+  rc=0; run_launcher FULL /dev/null || rc=$?       # FULL's output reaches this log through the tee
+  FULL_RC="$rc"
+  if [ "$rc" -eq 0 ]; then write_state DONE "SMOKE and FULL both exited 0"; exit 0; fi
+  write_state FAILED "stage=FULL rc=${rc}"
   exit 1
 done
