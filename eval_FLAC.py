@@ -1564,6 +1564,12 @@ def _file_sha256(path):
     return digest.hexdigest()
 
 
+def _write_checksum_sidecar(staging, sha256):
+    """``waveforms.sha256`` in ``sha256sum`` format; read back by :meth:`ScoredWaveformDump.finalize`."""
+    with open(os.path.join(staging, "waveforms.sha256"), 'w') as f:
+        f.write(f"{sha256}  waveforms.npy\n")
+
+
 def _write_complete_marker(staging, sha256):
     """The LAST file written inside the staging directory (plan §5, review r3 H2)."""
     with open(os.path.join(staging, SCORED_DUMP_MARKER), 'w') as f:
@@ -1649,17 +1655,19 @@ class ScoredWaveformDump:
         np.save(npy, arr, allow_pickle=False)
         manifest["sha256"] = sha = _file_sha256(npy)
         manifest.update(extra_meta or {})
-        with open(os.path.join(self.staging_dir, "waveforms.sha256"), 'w') as f:
-            f.write(f"{sha}  waveforms.npy\n")
+        _write_checksum_sidecar(self.staging_dir, sha)
         with open(os.path.join(self.staging_dir, "manifest.json"), 'w') as f:
             json.dump(manifest, f, indent=2)
         loaded = np.load(npy, allow_pickle=False)
         with open(os.path.join(self.staging_dir, "manifest.json")) as f:
             reread = json.load(f)
+        with open(os.path.join(self.staging_dir, "waveforms.sha256")) as f:
+            sidecar = f.read()
         if (loaded.dtype != np.float32 or loaded.shape != (self.expected_n, self._t or 0)
                 or not np.array_equal(loaded.view(np.uint32), arr.view(np.uint32))  # bitwise
                 or _file_sha256(npy) != sha
-                or reread != manifest):
+                or reread != manifest
+                or sidecar != f"{sha}  waveforms.npy\n"):
             raise RuntimeError(f"scored-waveform dump: verification of {self.staging_dir!r} "
                                "failed; no COMPLETE marker written")
         _write_complete_marker(self.staging_dir, sha)
@@ -1669,15 +1677,41 @@ class ScoredWaveformDump:
         return manifest
 
     @staticmethod
-    def is_complete(final_dir):
-        """True iff ``final_dir`` carries the ``COMPLETE`` marker and a parseable
-        manifest object (the driver's resume predicate; the collector verifies more)."""
-        if not os.path.isfile(os.path.join(final_dir, SCORED_DUMP_MARKER)):
-            return False
+    def is_complete(final_dir, expected_n=None):
+        """The EVALUATOR-side completion predicate of one cell directory: ``COMPLETE``
+        holds the waveform sha256; ``manifest.json`` is an object with this schema
+        version, an int ``n >= 0``, ``dtype`` float32, ``shape == [n, T]``, sha256-hex
+        ``sha256`` and ``input_hash`` and a non-empty ``metrics_stem``; ``n`` equals
+        ``expected_n`` when given; ``waveforms.npy`` is float32 of exactly that shape and
+        hashes to the manifest's ``sha256``; ``waveforms.sha256`` is its ``sha256sum`` line.
+        It does NOT verify the external artifacts the manifest names (metrics / stream /
+        canon sidecar digests): the collector's verification of those is still required
+        before a driver may skip the cell (plan §5)."""
+        if expected_n is not None and (type(expected_n) is not int or expected_n < 0):
+            raise ValueError(f"is_complete: expected_n must be None or an int >= 0, got {expected_n!r}")
         try:
             with open(os.path.join(final_dir, "manifest.json")) as f:
-                return isinstance(json.load(f), dict)
-        except (OSError, ValueError):
+                m = json.load(f)
+            with open(os.path.join(final_dir, SCORED_DUMP_MARKER)) as f:
+                marker = f.read()
+            with open(os.path.join(final_dir, "waveforms.sha256")) as f:
+                sidecar = f.read()
+            if not isinstance(m, dict) or m.get("schema_version") != SCORED_DUMP_SCHEMA_VERSION:
+                return False
+            n, shape, sha = m.get("n"), m.get("shape"), m.get("sha256")
+            if (type(n) is not int or n < 0 or m.get("dtype") != "float32"
+                    or not (isinstance(shape, list) and len(shape) == 2
+                            and all(type(x) is int for x in shape) and shape[0] == n)
+                    or not _is_sha256_hex(sha) or not _is_sha256_hex(m.get("input_hash"))
+                    or not isinstance(m.get("metrics_stem"), str) or not m["metrics_stem"]
+                    or (expected_n is not None and n != expected_n)):
+                return False
+            npy = os.path.join(final_dir, "waveforms.npy")
+            arr = np.load(npy, mmap_mode="r", allow_pickle=False)
+            if arr.dtype != np.float32 or list(arr.shape) != shape or _file_sha256(npy) != sha:
+                return False
+            return sidecar == f"{sha}  waveforms.npy\n" and marker == sha + "\n"
+        except (OSError, ValueError, TypeError, KeyError):
             return False
 
 

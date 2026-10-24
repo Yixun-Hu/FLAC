@@ -725,19 +725,59 @@ def test_a_reread_that_differs_from_the_appended_rows_writes_no_marker(tmp_path,
     assert not (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}" / "COMPLETE").exists()
 
 
-def test_is_complete_requires_the_marker_and_a_parseable_manifest(tmp_path):
+def test_is_complete_verifies_the_whole_cell(tmp_path):
+    """r3a HIGH: the evaluator-side predicate verifies every artifact of the cell."""
+    import shutil
+    import numpy as np
     is_complete = eval_FLAC.ScoredWaveformDump.is_complete
-    assert not is_complete(str(tmp_path / "absent"))
-    d = tmp_path / "d"
-    d.mkdir()
-    (d / "manifest.json").write_text("{}")
-    assert not is_complete(str(d))                       # no marker
-    (d / "COMPLETE").write_text("x")
-    assert is_complete(str(d))
-    (d / "manifest.json").write_text("{not json")
-    assert not is_complete(str(d))                       # marker, broken manifest
-    (d / "manifest.json").write_text("[]")
-    assert not is_complete(str(d))
+    dump, _ = _filled(tmp_path)
+    dump.finalize(HASH, "stem")
+    cell = tmp_path / "cell"
+    assert is_complete(str(cell)) and is_complete(str(cell), expected_n=5)
+    assert not is_complete(str(cell), expected_n=4) and not is_complete(str(tmp_path / "absent"))
+
+    def manifest(d, **over):
+        m = json.loads((d / "manifest.json").read_text())
+        m.update(over)
+        (d / "manifest.json").write_text(json.dumps(m))
+    variants = {
+        "empty_manifest": lambda d: (d / "manifest.json").write_text("{}"),
+        "list_manifest": lambda d: (d / "manifest.json").write_text("[]"),
+        "broken_manifest": lambda d: (d / "manifest.json").write_text("{not json"),
+        "missing_array": lambda d: (d / "waveforms.npy").unlink(),
+        "wrong_n": lambda d: manifest(d, n=6),
+        "wrong_shape": lambda d: manifest(d, shape=[5, 17]),
+        "wrong_dtype": lambda d: manifest(d, dtype="float64"),
+        "wrong_schema": lambda d: manifest(d, schema_version=2),
+        "bad_manifest_hash": lambda d: manifest(d, sha256="0" * 64),
+        "bad_input_hash": lambda d: manifest(d, input_hash="x"),
+        "no_stem": lambda d: manifest(d, metrics_stem=""),
+        "bad_checksum": lambda d: (d / "waveforms.sha256").write_text("0" * 64 + "  waveforms.npy\n"),
+        "missing_checksum": lambda d: (d / "waveforms.sha256").unlink(),
+        "bad_marker_hash": lambda d: (d / "COMPLETE").write_text("0" * 64 + "\n"),
+        "missing_marker": lambda d: (d / "COMPLETE").unlink(),
+        "array_altered": lambda d: np.save(d / "waveforms.npy", np.zeros((5, 16), np.float32)),
+    }
+    for name, edit in variants.items():
+        shutil.copytree(cell, tmp_path / name)
+        edit(tmp_path / name)
+        assert not is_complete(str(tmp_path / name)), name
+    for bad in (-1, 2.0, True):
+        with pytest.raises(ValueError, match="expected_n"):
+            is_complete(str(cell), expected_n=bad)
+
+
+def test_finalize_reads_the_checksum_sidecar_back_before_the_marker(tmp_path, monkeypatch):
+    dump, _ = _filled(tmp_path)
+
+    def wrong_sidecar(staging, sha256):
+        with open(eval_FLAC.os.path.join(staging, "waveforms.sha256"), "w") as f:
+            f.write("0" * 64 + "  waveforms.npy\n")
+    monkeypatch.setattr(eval_FLAC, "_write_checksum_sidecar", wrong_sidecar)
+    with pytest.raises(RuntimeError, match="verification"):
+        dump.finalize(HASH, "stem")
+    assert not (tmp_path / "cell").exists()
+    assert not (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}" / "COMPLETE").exists()
 
 
 def test_dump_directory_names_are_derived_from_the_metrics_stem_and_injective():
