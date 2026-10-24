@@ -179,3 +179,11 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `268bd22` | Coder rB-F1 | data: the full rung-3 tie audit + sidecar committed unchanged (+ run log, gate re-validation log) |
 | `a5c28fd` | Coder rB-F1 | A1 cycle 11c (red, guard): T section on real tiny harness audits; P1b/M6 48 pins; B4/B5; Q0 |
 | `343bdf1` | Coder rB-F1 | A1 cycle 11d: the launcher calls depth_canon_audit_gate.py; gate sha in the SMOKE->FULL bind; audit + sidecar pinned (48) |
+| `08ef666` | Coder rB-F1 | A2 cycle 12a (red): DINOv3 snapshot pin tests on synthetic HF caches |
+| `36765c0` | Coder rB-F1 | A2 cycle 12b: `assert_vit_pin` pins config.json + model.safetensors (exact file set); pins regenerated (48) |
+| `2122aa2` | Coder rB-F1 | A3 + A6e cycle 13a (red, guard): strict nvidia-smi cases, GPU refusals rc 7 |
+| `6b42489` | Coder rB-F1 | A3 + A6e cycle 13b: launcher `gpu_query` (status apart from stdout), strict parsing, every GPU-gate refusal exits 7 |
+| `ca8d59a` | Coder rB-F1 | A3/A4/A6 cycle 14a (red): watcher strictness, literal rung + scrub, rc-7 transient, interpreter, token, dirty pins, drain |
+| `8fd226a` | Coder rB-F1 | A3/A4/A6 cycle 14b: the watcher fixes (strict gpu_clean, env -u + MB=32 ACC=1 DRY_RUN=0, PY_PIN, 4-line ISO token, clean pins, rc 7, tee drain) |
+| `27a87b7` | Coder rB-F1 | A5 cycle 15a (red): the latency covers unwrap + validation |
+| `999d515` | Coder rB-F1 | A5 cycle 15b: `perf_counter` before the unwrap; pins regenerated (48) |
