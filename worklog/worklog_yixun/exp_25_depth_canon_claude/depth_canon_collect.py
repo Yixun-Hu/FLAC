@@ -258,10 +258,12 @@ DUMP_MANIFEST_KEYS = ("schema_version", "n", "dtype", "shape", "sha256", "input_
 
 
 def staging_leftovers(dump_dir):
-    """Sibling ``<dump_dir>.staging-*`` entries (a crashed or failed finalize)."""
+    """Sibling ``<dump_dir>.staging-*`` entries (a crashed or failed finalize) -- except the
+    ones the driver already parked as ``….incomplete-<ts>`` (quarantined, never deleted)."""
     parent, name = os.path.split(os.path.abspath(dump_dir))
     try:
-        return sorted(e for e in os.listdir(parent) if e.startswith(name + ".staging-"))
+        return sorted(e for e in os.listdir(parent) if e.startswith(name + ".staging-")
+                      and ".incomplete-" not in e[len(name):])
     except OSError:
         return []
 

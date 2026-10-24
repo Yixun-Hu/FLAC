@@ -177,17 +177,134 @@ cell_fields() {
       (.nas_manifest // ""), (.nas_manifest_key // ""), .link, .metrics, .stream, (.canon // ""),
       .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem] | join("\u001f")' "$PLAN"
 }
-[ "$DRY_RUN" = 1 ] || die "RUN PATH NOT YET AVAILABLE in this revision (DRY_RUN=1 only) - abort"
-N_SEL="${#CELL_IDS[@]}"
-for cid in "${CELL_IDS[@]}"; do
+VERIFY_EXTRA=(); [ -n "$CANON_MANIFEST" ] && VERIFY_EXTRA=(--canon-ckpt-manifest "$CANON_MANIFEST")
+existing_artifacts() {   # every artifact of the current cell that exists (one path per line)
+  local p
+  for p in "$METRICS" "$STREAM" "$CANON_PROBE" "$RECEIPT" "$DUMP_DIR" "$DUMP_DIR".staging-*; do
+    case "$p" in *.staging-*.incomplete-*) continue ;; esac            # already parked
+    { [ -e "$p" ] || [ -L "$p" ]; } && printf '%s\n' "$p"
+  done
+}
+complete_and_verified() {   # 0 = SKIP; the collector runs is_complete exactly once
+  local extra=("${VERIFY_EXTRA[@]}") p
+  [ -f "$METRICS" ] && [ -f "$STREAM" ] && [ -f "$RECEIPT" ] || return 1
+  [ -z "$CANON" ] || [ -f "$CANON" ] || return 1
+  if [ "$DUMP" = true ]; then [ -d "$DUMP_DIR" ] && [ -f "$DUMP_DIR/COMPLETE" ] || return 1
+  else extra+=(--no-dump); fi
+  for p in "$DUMP_DIR".staging-*; do
+    case "$p" in *.incomplete-*) ;; *) [ -e "$p" ] && return 1 ;; esac
+  done
+  "$PY" "$COLLECT" --verify-cell "$STEM" --pin "$EXPECT_HEAD" --cells "$CELLS" --farm-root "$FARM_ROOT" \
+    --dump-root "$DUMP_ROOT" --base-dir "$REPO" "${extra[@]}" 2>&1 | grep -v -e pkg_resources -e declare_namespace | sed 's/^/    /'
+  return "${PIPESTATUS[0]}"
+}
+prepare_cell() {   # sets the cell globals; 0 = run it, 3 = SKIP, 1 = refused (message printed)
+  local cid="$1" what p dest
   IFS=$'\x1f' read -r ARM BLOCK TARGET SHA NASM NASK LINK METRICS STREAM CANON CANON_PROBE RECEIPT \
     DUMP DUMP_DIR STEM < <(cell_fields "$cid")
-  verify_ckpt "$TARGET" "$SHA" "$NASM" "$NASK"
-  if [ -L "$LINK" ] && [ "$(readlink -- "$LINK")" != "$TARGET" ]; then
-    die "FARM GATE FAILED: ${LINK} -> $(readlink -- "$LINK"), not ${TARGET} - abort"
+  mapfile -t ARGV < <(jq -r --arg c "$cid" '.cells[] | select(.cell == $c) | .argv[]' "$PLAN")
+  ( verify_ckpt "$TARGET" "$SHA" "$NASM" "$NASK" ) || return 1          # die -> subshell exit 2
+  SHA_DONE[$TARGET]=1
+  if [ -L "$LINK" ] || [ -e "$LINK" ]; then
+    [ -L "$LINK" ] && [ "$(readlink -- "$LINK")" = "$TARGET" ] \
+      || { echo "FARM GATE FAILED: ${LINK} exists and is not a link to ${TARGET} - abort"; return 1; }
+  elif [ "$DRY_RUN" = 0 ]; then
+    mkdir -p "$(dirname "$LINK")" && ( farm_ok "$(dirname "$LINK")" ) && ln -s -- "$TARGET" "$LINK" \
+      || { echo "FARM GATE FAILED: cannot link ${LINK} - abort"; return 1; }
   fi
-  echo "CELL ${cid} | ${BLOCK} | ${ARM} | would run | link ${LINK} -> ${TARGET}"
-  echo "DRYRUN ${cid} argv: $(jq -c --arg c "$cid" '.cells[] | select(.cell == $c) | .argv' "$PLAN")"
+  if complete_and_verified; then echo "CELL ${cid} | ${BLOCK} | SKIP (complete and verified)"; return 3; fi
+  mapfile -t STALE < <(existing_artifacts)
+  what="run"; [ "${#STALE[@]}" -gt 0 ] && what="QUARANTINE ${#STALE[@]} artifact(s), then run"
+  echo "CELL ${cid} | ${BLOCK} | ${ARM} | $([ "$DRY_RUN" = 1 ] && echo would) ${what}"
+  for p in "${STALE[@]}"; do
+    dest="${p}.incomplete-${TS}"
+    if [ "$DRY_RUN" = 1 ]; then echo "  would quarantine ${p}"; continue; fi
+    [ ! -e "$dest" ] && mv -- "$p" "$dest" || { echo "QUARANTINE FAILED: ${p} - abort"; return 1; }
+    echo "  QUARANTINED ${p} -> ${dest}"
+  done
+  return 0
+}
+N_SEL="${#CELL_IDS[@]}"
+if [ "$DRY_RUN" = 1 ]; then
+  for cid in "${CELL_IDS[@]}"; do
+    prepare_cell "$cid"; st=$?
+    [ "$st" -eq 1 ] && exit 2
+    [ "$st" -eq 0 ] && echo "DRYRUN ${cid} argv: $(jq -c --arg c "$cid" '.cells[] | select(.cell == $c) | .argv' "$PLAN")"
+  done
+  echo "=== DRY_RUN summary: ${N_SEL} cell(s) planned; nothing evaluated, linked, created or moved ==="
+  exit 0
+fi
+
+run_cell() {   # lane cell sha argv... -- a background job: evaluate, then receipt + verify
+  local lane="$1" cid="$2" sha="$3"; shift 3
+  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0
+  CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ]; then echo "  !! FAILED ${cid}: the evaluator exited rc=${rc} (log ${clog})"; return 1; fi
+  "$PY" "$COLLECT" --write-receipt "$cid" --plan-json "$PLAN" --cells "$CELLS" --base-dir "$REPO" \
+    --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$sha" --farm-root "$FARM_ROOT" \
+    --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" --verify-after >> "$clog" 2>&1 \
+    || { echo "  !! FAILED ${cid}: post-run verification refused the cell (log ${clog})"; return 1; }
+  echo "  DONE ${cid} on GPU ${lane}: complete and verified"
+}
+declare -A LANE_PID=() PID_CELL=() PID_LANE=() GPU_NOTE=()
+N_SKIP=0; N_DONE=0; FAILED=(); ABORT=""; NEXT=0; POLLS=0; i=0; READY=""
+reap() {   # collect every finished job; never waits on a running one, never signals anything
+  local pid st running=" $(jobs -rp | tr '\n' ' ') "
+  for pid in "${!PID_CELL[@]}"; do
+    case "$running" in *" ${pid} "*) continue ;; esac
+    st=0; wait "$pid" || st=$?
+    if [ "$st" -eq 0 ]; then N_DONE=$((N_DONE + 1)); else FAILED+=("${PID_CELL[$pid]}"); fi
+    unset "LANE_PID[${PID_LANE[$pid]}]" "PID_CELL[$pid]" "PID_LANE[$pid]"
+  done
+}
+pick_lane() {   # LANE = the next idle lane (round-robin) whose card has >= MIN free MiB
+  local k lane free; LANE=""
+  for ((k = 0; k < ${#LANES[@]}; k++)); do
+    lane="${LANES[$(( (NEXT + k) % ${#LANES[@]} ))]}"
+    [ -z "${LANE_PID[$lane]:-}" ] || continue
+    free="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$lane" 2>/dev/null | head -n1 | tr -d ' ')"
+    [[ "$free" =~ ^[0-9]+$ ]] || { ABORT="GPU GATE FAILED: nvidia-smi cannot report GPU ${lane}"; return 1; }
+    if [ "$free" -ge "$MIN_GPU_FREE_MIB" ]; then
+      LANE="$lane"; NEXT=$(( (NEXT + k + 1) % ${#LANES[@]} )); return 0
+    fi
+    if [ "${GPU_NOTE[$lane]:-}" != "${READY}#${POLLS}" ]; then   # once per waiting cell / poll
+      echo "  GPU ${lane}: ${free} MiB free < ${MIN_GPU_FREE_MIB} MiB - waiting (nothing is ever killed)"
+      GPU_NOTE[$lane]="${READY}#${POLLS}"
+    fi
+  done
+  return 1
+}
+while :; do
+  reap
+  if [ -n "$ABORT" ] || [ "$i" -ge "$N_SEL" ]; then [ "${#PID_CELL[@]}" -eq 0 ] && break; sleep 2; continue; fi
+  if [ -z "$READY" ]; then
+    prepare_cell "${CELL_IDS[$i]}"; st=$?
+    [ "$st" -eq 1 ] && { ABORT="cell ${CELL_IDS[$i]} refused"; continue; }
+    [ "$st" -eq 3 ] && { N_SKIP=$((N_SKIP + 1)); i=$((i + 1)); continue; }
+    READY="${CELL_IDS[$i]}"
+  fi
+  [ "${#PID_CELL[@]}" -lt "${#LANES[@]}" ] || { sleep 2; continue; }
+  if ! pick_lane; then
+    [ -n "$ABORT" ] && continue
+    if [ "${#PID_CELL[@]}" -gt 0 ]; then sleep 10; continue; fi   # a lane is busy: re-check soon
+    POLLS=$((POLLS + 1))
+    if [ "$GPU_MAX_POLLS" -gt 0 ] && [ "$POLLS" -ge "$GPU_MAX_POLLS" ]; then
+      ABORT="GPU GATE: no idle lane with >= ${MIN_GPU_FREE_MIB} MiB free after ${POLLS} poll(s)"; continue
+    fi
+    sleep "$GPU_POLL_SECONDS"; continue
+  fi
+  POLLS=0
+  [ "$(git rev-parse HEAD)" = "$EXPECT_HEAD" ] || { ABORT="HEAD PIN FAILED: HEAD moved during the campaign"; continue; }
+  echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
+  run_cell "$LANE" "$READY" "$SHA" "${ARGV[@]}" &
+  LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
+  READY=""; i=$((i + 1))
 done
-echo "=== DRY_RUN summary: ${N_SEL} cell(s) planned; nothing evaluated, linked, created or moved ==="
-exit 0
+COMPLETE=$((N_SKIP + N_DONE))
+echo "=== summary: selected ${N_SEL} | skipped (complete and verified) ${N_SKIP} | ran ok ${N_DONE} | failed ${#FAILED[@]} | not run $((N_SEL - COMPLETE - ${#FAILED[@]})) ==="
+for c in "${FAILED[@]}"; do echo "  FAILED ${c}"; done
+echo "completion: ${COMPLETE}/${N_SEL} selected cell(s) complete and verified (manifest: $(jq '.cells | length' "$CELLS") cells)"
+[ -z "$ABORT" ] || { echo "ABORTED: ${ABORT} - abort"; exit 2; }
+[ "${#FAILED[@]}" -eq 0 ] && [ "$COMPLETE" -eq "$N_SEL" ] && { echo "CAMPAIGN SELECTION COMPLETE"; exit 0; }
+echo "CAMPAIGN SELECTION INCOMPLETE - re-run to resume"
+exit 1
