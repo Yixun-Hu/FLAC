@@ -1121,3 +1121,83 @@ def test_cli_flags_reach_evaluate_model(tmp_path, flags, needle):
         env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
     assert proc.returncode == 1 and b"unrecognized arguments" not in proc.stderr
     assert needle.encode() in proc.stderr, proc.stderr.decode()[-2000:]
+
+
+# --------------------------------------------------------------------------- #
+# rB-F2 F2-6 (Codex B2 HIGH, B4): the record names the EXACT bytes torch.load deserialized
+# --------------------------------------------------------------------------- #
+LOAD = {"ckpt_sha256_loaded": SHA_A, "ckpt_bytes_loaded": 724_000_123}
+
+
+@pytest.mark.parametrize("case", MATRIX, ids=lambda c: f'{c["cond_method"]}_{c["rotate_deg"]}')
+def test_record_without_a_load_digest_is_still_the_golden_record(case, monkeypatch):
+    """``ckpt_load=None`` (the default) leaves every legacy record byte-identical."""
+    monkeypatch.setattr(eval_FLAC, "source_sha", lambda: META["source_sha_stub"])
+    args = (META["metrics"], META["ckpt_path"], case["rotate_deg"], case["cond_method"],
+            case["frame_avg_angles"])
+    explicit = eval_FLAC.build_metrics_record(*args, ckpt_load=None, **_record_kwargs(case))
+    assert list(explicit) == case["metrics_record_keys"]
+    assert json.dumps(explicit, indent=4) == case["metrics_record_json_indent4"]
+
+
+def test_the_load_digest_follows_the_base_keys():
+    base = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None, canon_provenance=_prov())
+    rec = eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None, canon_provenance=_prov(),
+                                         ckpt_load=dict(LOAD))
+    keys = list(base)
+    at = keys.index("device") + 1
+    assert list(rec) == keys[:at] + list(eval_FLAC.CKPT_LOAD_KEYS) + keys[at:]
+    assert tuple(eval_FLAC.CKPT_LOAD_KEYS) == ("ckpt_sha256_loaded", "ckpt_bytes_loaded")
+    assert {k: rec[k] for k in eval_FLAC.CKPT_LOAD_KEYS} == LOAD
+
+
+@pytest.mark.parametrize("bad", [{"ckpt_sha256_loaded": SHA_A}, dict(LOAD, extra=1),
+                                 dict(LOAD, ckpt_sha256_loaded="A" * 64), dict(LOAD, ckpt_sha256_loaded="a" * 63),
+                                 dict(LOAD, ckpt_bytes_loaded=0), dict(LOAD, ckpt_bytes_loaded=True),
+                                 dict(LOAD, ckpt_bytes_loaded=1.0), "not a dict"])
+def test_a_malformed_load_digest_is_refused(bad):
+    with pytest.raises(ValueError, match="ckpt"):
+        eval_FLAC.build_metrics_record({"T60": 1.0}, CKPT, 0.0, "vanilla", None, ckpt_load=bad)
+
+
+def test_read_checkpoint_exact_hashes_the_returned_buffer(tmp_path):
+    p = tmp_path / "x.ckpt"
+    p.write_bytes(b"\x00checkpoint bytes\xff" * 1000)
+    buf, load = eval_FLAC.read_checkpoint_exact(str(p))
+    assert buf == p.read_bytes()
+    assert load == {"ckpt_sha256_loaded": hashlib.sha256(buf).hexdigest(), "ckpt_bytes_loaded": len(buf)}
+
+
+def test_evaluate_model_records_the_digest_of_the_bytes_it_deserialized(monkeypatch, tmp_path):
+    """evaluate_model reads the checkpoint ONCE into memory, hashes THAT buffer and hands the same
+    buffer to torch.load (map_location='cpu', no other argument -- the call is otherwise unchanged).
+    The spy rewrites the file on disk after the read: the record still names what was deserialized."""
+    import io
+    real_load, seen = torch.load, []
+
+    def spy(f, *args, **kwargs):
+        seen.append((type(f), args, kwargs))
+        if isinstance(f, io.BytesIO):
+            seen.append(("bytes", hashlib.sha256(f.getvalue()).hexdigest(), len(f.getvalue())))
+            with open(tmp_path / "toy.ckpt", "ab") as out:      # the file changes AFTER the read
+                out.write(b"appended after the evaluator read the file")
+        return real_load(f, *args, **kwargs)
+    monkeypatch.setattr(torch, "load", spy)
+    _run(monkeypatch, tmp_path, {})
+    rec = json.loads((tmp_path / "toy_metrics_1_1.0_cell.json").read_text())
+    assert seen[0] == (io.BytesIO, (), {"map_location": "cpu"}), seen[0]
+    _, sha, n = seen[1]
+    assert (rec["ckpt_sha256_loaded"], rec["ckpt_bytes_loaded"]) == (sha, n)
+    now = (tmp_path / "toy.ckpt").read_bytes()
+    assert hashlib.sha256(now[:n]).hexdigest() == sha and len(now) > n     # the deserialized prefix, not the file now
+    assert list(rec).index("ckpt_sha256_loaded") == list(rec).index("device") + 1
+
+
+def test_the_legacy_cell_record_gains_only_the_load_digest(monkeypatch, tmp_path):
+    _run(monkeypatch, tmp_path, {})
+    rec = json.loads((tmp_path / "toy_metrics_1_1.0_cell.json").read_text())
+    data = (tmp_path / "toy.ckpt").read_bytes()
+    assert rec["ckpt_sha256_loaded"] == hashlib.sha256(data).hexdigest()
+    assert rec["ckpt_bytes_loaded"] == len(data)
+    base = eval_FLAC.build_metrics_record({"T60": 1.0}, rec["ckpt_path"], 0.0, "vanilla", None)
+    assert [k for k in rec if k not in base] == list(eval_FLAC.CKPT_LOAD_KEYS)
