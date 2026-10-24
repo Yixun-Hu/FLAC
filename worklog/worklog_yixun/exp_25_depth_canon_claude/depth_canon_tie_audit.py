@@ -9,6 +9,7 @@ image-key survivor (exactly periodic -> ``StabilizedTieError``). Read-only on th
 
 Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md v8 §7/§8.
 """
+import importlib.util
 import os
 import sys
 
@@ -26,8 +27,12 @@ def _repo_root(p):
 
 
 REPO = _repo_root(os.path.dirname(os.path.abspath(__file__)))
-if REPO not in sys.path:
-    sys.path.insert(0, REPO)
+sys.path.insert(0, REPO)  # this checkout's src/, never a stale pip-installed copy
+
+# AR_md.get_custom_metadata with every modality but the depth switched off: the depth
+# branch then runs alone, verbatim (its path logic and its point-cloud construction).
+DEPTH_ONLY_MODALITIES = {"acoustic_context": {"load": False}, "depth": {"load": True},
+                         "poses": {"load": False}}
 
 
 # --------------------------------------------------------------------------- #
@@ -86,3 +91,31 @@ def max_circular_sep_deg(cands, img_w):
         return 0.0
     cols = max(min((a - b) % img_w, (b - a) % img_w) for a in cands for b in cands if a != b)
     return cols * 360.0 / img_w
+
+
+# --------------------------------------------------------------------------- #
+# split item -> depth map: AR_md's own string logic (it is inline in
+# get_custom_metadata, so it cannot be imported; the tests pin equality with the
+# path AR_md actually np.load()s)
+# --------------------------------------------------------------------------- #
+def resolve_depth_path(audio_path, root_path):
+    """``(path, key)``: the depth path exactly as ``AR_md.get_custom_metadata`` builds
+    it for the loader item ``audio_path`` (``info['relpath']`` computed as
+    ``src/data/dataset.py`` does), and its key ``depth_map/<scene>/<id>/<r>.npy``."""
+    rel_path = os.path.relpath(audio_path, root_path)                          # dataset.py
+    common_suffix = os.path.commonpath([audio_path[::-1], rel_path[::-1]])[::-1]  # AR_md
+    dataset_folder = audio_path[: -len(common_suffix)]
+    scene_name = rel_path.split("/")[-3]
+    scene_id = rel_path.split("/")[-2]
+    filename = rel_path.split("/")[-1].split(".")[0]
+    receiver_idx = int(filename.split("_")[1][1:])
+    path = os.path.join(dataset_folder + "depth_map", scene_name, scene_id, f"{receiver_idx}.npy")
+    return path, os.path.join("depth_map", scene_name, scene_id, f"{receiver_idx}.npy")
+
+
+def load_metadata_module(path):
+    """The custom metadata module, loaded by path exactly as ``src/data/dataset.py`` does."""
+    spec = importlib.util.spec_from_file_location("metadata_module", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

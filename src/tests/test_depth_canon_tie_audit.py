@@ -16,7 +16,7 @@ import pytest
 import torch
 
 from src.data import yaw_rotation as yr
-from test_depth_canon import _scalar_depth
+from test_depth_canon import _ar_md, _scalar_depth
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _AUDIT_PY = os.path.join(_REPO_ROOT, "worklog", "worklog_yixun", "exp_25_depth_canon_claude",
@@ -103,3 +103,29 @@ def test_raw_select_refuses_malformed_maps(bad):
                                          ([1, 2, 511], 3 * 360.0 / W), ([5, 6], 360.0 / W)])
 def test_max_circular_separation_in_degrees(cands, want):
     assert audit.max_circular_sep_deg(cands, W) == pytest.approx(want, abs=1e-12)
+
+
+# --------------------------------------------------------------------------- #
+# split item -> depth map: the loader's own path logic
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("fname, receiver", [("S001_R0044_hybrid_IR.wav", 44),
+                                             ("S0071_R000_hybrid_IR.wav", 0),
+                                             ("S009_R001_hybrid_IR.wav", 1)])
+def test_resolve_depth_path_is_the_path_ar_md_loads(tmp_path, monkeypatch, fname, receiver):
+    root = str(tmp_path / "AcousticRooms")
+    audio = os.path.join(root, "single_channel_ir_1", "Cafe", "Cafe_idx_3", fname)
+    loaded = []
+
+    def spy(path, *a, **k):
+        loaded.append(path)
+        return np.ones((256, 512))
+
+    monkeypatch.setattr(np, "load", spy)
+    info = {"path": audio, "relpath": os.path.relpath(audio, root),
+            "modalities": audit.DEPTH_ONLY_MODALITIES}
+    md = _ar_md().get_custom_metadata(info, None)
+    assert set(md) == {"scene", "depth"} and loaded and len(loaded) == 1
+    path, key = audit.resolve_depth_path(audio, root)
+    assert path == loaded[0]
+    assert key == os.path.join("depth_map", "Cafe", "Cafe_idx_3", f"{receiver}.npy")
+    assert os.path.normpath(path) == os.path.join(root, key)
