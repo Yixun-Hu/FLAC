@@ -677,6 +677,26 @@ def test_verification_failure_writes_no_marker(tmp_path, monkeypatch):
     assert not (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}" / "COMPLETE").exists()
 
 
+@pytest.mark.parametrize("corrupt", ["one_bit", "float64", "short"])
+def test_a_reread_that_differs_from_the_appended_rows_writes_no_marker(tmp_path, monkeypatch, corrupt):
+    dump, _ = _filled(tmp_path)
+    real_load = eval_FLAC.np.load
+
+    def corrupting_load(path, **kw):
+        arr = real_load(path, **kw)
+        if corrupt == "one_bit":
+            arr = arr.copy()
+            arr.view(eval_FLAC.np.uint32)[0, 0] ^= 1          # flip the lowest mantissa bit
+        return {"float64": lambda: arr.astype("float64"), "short": lambda: arr[:-1]}.get(
+            corrupt, lambda: arr)()
+
+    monkeypatch.setattr(eval_FLAC.np, "load", corrupting_load)
+    with pytest.raises(RuntimeError, match="verification"):
+        dump.finalize(HASH, "stem")
+    assert not (tmp_path / "cell").exists()
+    assert not (tmp_path / f"cell.staging-{eval_FLAC.os.getpid()}" / "COMPLETE").exists()
+
+
 def test_is_complete_requires_the_marker_and_a_parseable_manifest(tmp_path):
     is_complete = eval_FLAC.ScoredWaveformDump.is_complete
     assert not is_complete(str(tmp_path / "absent"))

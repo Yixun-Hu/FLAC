@@ -1642,7 +1642,8 @@ class ScoredWaveformDump:
         with open(os.path.join(self.staging_dir, "manifest.json")) as f:
             reread = json.load(f)
         if (loaded.dtype != np.float32 or loaded.shape != (self.expected_n, self._t or 0)
-                or loaded.tobytes() != arr.tobytes() or _file_sha256(npy) != sha
+                or not np.array_equal(loaded.view(np.uint32), arr.view(np.uint32))  # bitwise
+                or _file_sha256(npy) != sha
                 or reread != manifest):
             raise RuntimeError(f"scored-waveform dump: verification of {self.staging_dir!r} "
                                "failed; no COMPLETE marker written")
