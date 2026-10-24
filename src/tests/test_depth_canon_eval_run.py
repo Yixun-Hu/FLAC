@@ -397,6 +397,7 @@ while i < len(argv):
     nxt = argv[i + 1] if i + 1 < len(argv) else "--"
     opts[argv[i]], i = (nxt, i + 2) if not nxt.startswith("--") else (True, i + 1)
 sys.path.insert(0, os.getcwd())
+sys.path.insert(0, os.path.dirname("@TESTMOD@"))   # its fixtures import sibling test modules (rB-F1 B1)
 spec = importlib.util.spec_from_file_location("tdc", "@TESTMOD@")
 T = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(T)
