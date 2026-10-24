@@ -397,6 +397,8 @@ with open(os.path.join(H, "calls.log"), "a") as f:
     f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv}) + "\n")
 if os.environ.get("STUB_MODE") == "crash":
     sys.exit(3)
+if os.environ.get("STUB_MODE") == "mutate":        # an edit of the evaluated tree DURING the cell
+    open("eval_FLAC.py", "a").write("\n# drift during the cell\n")
 opts, i = {}, 0
 while i < len(argv):
     nxt = argv[i + 1] if i + 1 < len(argv) else "--"
@@ -426,6 +428,7 @@ case "$*" in
     if [ -f "$H/uuids" ]; then cat "$H/uuids"; else printf '0, GPU-00000000-aaaa\n1, GPU-11111111-bbbb\n'; fi ;;
   *query-compute-apps*)
     n=$(( $(cat "$H/apps.count" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$H/apps.count"
+    [ "${GUARD_MUTATE_AT:-0}" = "$n" ] && printf '\n# drift between cells\n' >> eval_FLAC.py   # cwd = the clone
     f="$H/apps.$n"; [ -f "$f" ] || f="$H/apps.default"
     if [ -f "$f" ]; then cat "$f"; fi
     exit "${GUARD_APPS_RC:-0}" ;;
@@ -769,3 +772,43 @@ def test_the_lane_is_rechecked_immediately_before_the_spawn(clone, harness, slee
     _apps(harness, [(sleepers(), 0)])                                       # every later poll
     rc, out = drive(clone, harness, "--only", TWO[0], "--lanes", "0")
     assert rc == 2 and not _calls(harness) and "re-check" in out, out
+
+
+# ---- rB-F1 B3 (Codex rB HIGH): the campaign pin closes over the evaluated BYTES ---- #
+def _ran(harness):
+    return [c["argv"][c["argv"].index("--eval-name") + 1] for c in _calls(harness)]
+
+
+def test_the_receipt_binds_the_campaign_tree_digest(clone, harness):
+    import re
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 0, out
+    digest = re.search(r"evaluator tree digest ([0-9a-f]{64})", out).group(1)
+    rec = json.load(open(_entry(clone, harness, TWO[0])["receipt"]))
+    assert rec["campaign_digest"] == rec["spawn_digest"] == rec["post_digest"] == digest
+    assert _verify(clone, harness, TWO[0], expect_digest=digest) == []
+
+
+def test_an_edit_between_two_cells_stops_the_campaign(clone, harness):
+    path = clone / "eval_FLAC.py"
+    original = path.read_bytes()
+    try:
+        rc, out = drive(clone, harness, "--only", ",".join(TWO), "--lanes", "0", env={"GUARD_MUTATE_AT": "3"})
+    finally:
+        path.write_bytes(original)
+    ran = _ran(harness)
+    assert rc == 4 and "PIN DRIFT" in out and len(ran) == 1, out
+    other = next(c for c in TWO if c not in ran)
+    assert _verify(clone, harness, ran[0]) == []                          # the first cell is intact
+    assert not os.path.exists(_entry(clone, harness, other)["receipt"])   # the second never spawned
+
+
+def test_an_edit_during_a_cell_fails_that_cell(clone, harness):
+    path = clone / "eval_FLAC.py"
+    original = path.read_bytes()
+    try:
+        rc, out = drive(clone, harness, "--only", TWO[0], env={"STUB_MODE": "mutate"})
+    finally:
+        path.write_bytes(original)
+    assert rc == 4 and "changed while the cell ran" in out, out
+    assert not os.path.exists(_entry(clone, harness, TWO[0])["receipt"])
