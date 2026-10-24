@@ -205,3 +205,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `b724af6` | Coder rB-F2 | F2-6d: collector LOAD_KEYS + receipt binding + `--ckpt-bytes`; driver `cache_ok` (0444, size, re-hash) at staging and before each spawn |
 | `39ccdf4` | Coder rB-F2 | F2-7a (red): the retention audit refuses `--dump-check receipt` |
 | `bf7bf38` | Coder rB-F2 | F2-7b: `--nas-retention-audit` accepts only full / manifest |
+| `55402de` | Coder rB-F2 | records: notebook F2-1 … F2-7 + closing summary, ledger rows, the round's guard / pytest logs (final regression + full guard) |
