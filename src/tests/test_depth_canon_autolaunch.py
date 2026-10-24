@@ -181,12 +181,82 @@ def test_e_a_dirty_poll_resets_the_counter(rig):
     assert rc == 3 and calls(rig) == [] and state(rig)["clean_polls"] == 2
 
 
+def test_f_three_clean_polls_fire_smoke_then_full(rig):
+    token(rig)
+    rc, out = run(rig)
+    st = state(rig)
+    assert rc == 0, out
+    assert calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0",
+                          f"MODE=FULL EXPECT_HEAD={rig['head']} DRY_RUN=0"]
+    assert (st["phase"], st["smoke_rc"], st["full_rc"], st["token_head"]) == ("DONE", 0, 0, rig["head"])
+    assert st["clean_polls"] >= 3 and st["watcher_pid"] > 0 and st["log"].endswith("_autolaunch.log")
+    assert "smoke ok" in open(os.path.join(rig["repo"], st["log"])).read()     # launcher output tee'd
+    assert len((rig["h"] / "nvsmi_calls").read_text().splitlines()) >= 3
+
+
+def test_another_card_and_low_memory(rig):
+    token(rig)
+    gpu(rig, ["other", "other", "other"])
+    assert run(rig)[0] == 0                                    # a process on GPU 9 does not block
+    for f in ("poll_n", "launch_n", "launch_calls"):
+        (rig["h"] / f).unlink(missing_ok=True)
+    gpu(rig, ["lowmem"])
+    rc, out = run(rig, max_polls=3)
+    assert rc == 3 and calls(rig) == [] and "1000 MiB" in out
+
+
+def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
+    token(rig)
+    launches(rig, ["SMOKE 2 GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - wait",
+                   "SMOKE 0 smoke ok", "FULL 0 full ok"])
+    rc, out = run(rig, max_polls=20)
+    assert rc == 0 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE", "MODE=SMOKE", "MODE=FULL"]
+    assert state(rig)["gpu_retries"] == 1
+    polls = len((rig["h"] / "nvsmi_calls").read_text().splitlines())
+    assert polls >= 6                                          # 3 clean polls before each SMOKE
+
+
+def test_g2_five_retries_then_failed(rig):
+    token(rig)
+    launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
+    rc, out = run(rig, max_polls=60)
+    st = state(rig)
+    assert rc == 1 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE"] * 6
+    assert (st["phase"], st["gpu_retries"]) == ("FAILED", 6) and "SMOKE" in st["reason"]
+
+
+def test_h_any_other_smoke_failure_is_final(rig):
+    token(rig)
+    launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 70.0 h > MAX_PROJECTED_HOURS=60"])
+    rc, _ = run(rig)
+    st = state(rig)
+    assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0"]
+    assert (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", 4, None) and "SMOKE" in st["reason"]
+
+
+def test_i_a_full_failure_is_final(rig):
+    token(rig)
+    launches(rig, ["SMOKE 0 smoke ok", "FULL 6 ENDPOINT NOT REACHED"])
+    rc, _ = run(rig)
+    st = state(rig)
+    assert rc == 1 and (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", 0, 6)
+    assert "FULL" in st["reason"] and "6" in st["reason"]
+
+
 @pytest.mark.parametrize("scenario", ["fail", "garbage"])
 def test_j_an_unusable_nvidia_smi_is_dirty_and_never_fires(rig, scenario):
     token(rig)
     gpu(rig, [scenario])
     rc, _ = run(rig, max_polls=5)
     assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
+
+
+def test_k_a_commit_after_arming_is_refused(rig):
+    token(rig)
+    gpu(rig, ["free", "free", "commit-and-free", "free"])         # the commit lands on the firing poll
+    rc, out = run(rig, max_polls=6)
+    assert rc == 3 and calls(rig) == [], out                      # the pre-launch re-check caught it
+    assert state(rig)["phase"] == "WAITING_TOKEN" and "head" in state(rig)["reason"]
 
 
 # --------------------------------------------------------------------------- #
@@ -230,3 +300,53 @@ def test_the_production_launcher_must_exist(rig):
     (rig["exp"] / "depth_canon_launch.sh").unlink()
     rc, out = run(rig, harness=False, timeout=20)
     assert rc == 2 and "launcher" in out
+
+
+def test_a_harness_go_token_override(rig, tmp_path):
+    tok = tmp_path / "GO.token"
+    token(rig, path=tok)
+    rc, _ = run(rig, env={"GO_TOKEN": str(tok)})
+    assert rc == 0 and len(calls(rig)) == 2
+
+
+# --------------------------------------------------------------------------- #
+# (o) the state file is valid JSON at every observation and replaced atomically
+# --------------------------------------------------------------------------- #
+def test_o_the_state_file_is_always_whole_json(rig):
+    token(rig)
+    path = rig["exp"] / "depth_canon_autolaunch_state.json"
+    seen, bad, stop = [], [], threading.Event()
+
+    def reader():
+        while not stop.is_set():
+            try:
+                text = path.read_text()
+            except FileNotFoundError:
+                continue
+            try:
+                seen.append(json.loads(text)["phase"])
+            except ValueError:
+                bad.append(text)
+    t = threading.Thread(target=reader)
+    t.start()
+    try:
+        rc, _ = run(rig, env={"AUTOLAUNCH_POLL_S": "0.05", "FAKE_SLEEP": "0.3"})
+    finally:
+        stop.set()
+        t.join()
+    assert rc == 0 and bad == []
+    order = [p for i, p in enumerate(seen) if i == 0 or p != seen[i - 1]]
+    assert order[-3:] == ["SMOKE_RUNNING", "FULL_RUNNING", "DONE"] and "WAITING_GPU" in order
+    assert not [p for p in os.listdir(rig["exp"]) if "autolaunch_state.json." in p]   # no temp left
+
+
+def test_the_watcher_never_signals_and_writes_only_inside_expdir(rig):
+    """Contract: no `kill` anywhere in the script; a complete run leaves new files only in $EXPDIR."""
+    text = open(WATCHER).read()
+    assert "kill" not in text and "pkill" not in text and "/media/diskstation" not in text
+    token(rig)
+    assert run(rig)[0] == 0
+    status = _git(rig["repo"], "status", "--porcelain", "--untracked-files=all").splitlines()
+    assert status and all(line[3:].startswith(EXPREL.replace(os.sep, "/") + "/") for line in status), status
+    new = sorted(p[3:].rsplit("/", 1)[1] for p in status)
+    assert "depth_canon_autolaunch_state.json" in new and any(p.endswith("_autolaunch.log") for p in new)
