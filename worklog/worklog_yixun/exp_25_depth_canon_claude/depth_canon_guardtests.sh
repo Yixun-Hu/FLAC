@@ -80,6 +80,39 @@ cat > "$BIN/nvidia-smi" <<'STUB'
 # guard stub: memory.free queries answer GUARD_GPU_FREE (MiB); other queries print nothing
 case "$*" in *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;; esac
 STUB
+cat > "$H/fake_train.sh" <<'FAKE'
+#!/usr/bin/env bash
+# guard fake trainer: prints what a real run prints and writes what it writes, per GUARD_SCENARIO
+set -euo pipefail
+declare -A A
+while [ $# -gt 0 ]; do case "$1" in --*) A["${1#--}"]="${2:-}"; shift 2 ;; *) shift ;; esac; done
+sc="${GUARD_SCENARIO:-ok}"; steps="${A[max-steps]}"; cad="${A[checkpoint-every]}"; rate="${GUARD_RATE:-3.9}"
+ns="${A[save-dir]}/${A[name]}/${A[experiment-name]}/checkpoints"
+stamp() { local t; t="$(python -c "print(int(2 + $1 * $rate))")"
+          if [ "$t" -ge 3600 ]; then printf '%d:%02d:%02d' $((t / 3600)) $((t % 3600 / 60)) $((t % 60))
+          else printf '%02d:%02d' $((t / 60)) $((t % 60)); fi; }
+[ "$sc" = no_ranks ] || echo "All distributed processes registered. Starting with 2 processes"
+[ "$sc" = no_banner ] || echo "canonicalize ENABLED img_w=512 tiebreak=image"
+if [ "$steps" -le 25 ]; then ns_list="$(seq 1 "$steps")"; else ns_list="1 10 2500 20000 $steps"; fi
+for n in $ns_list; do
+  loss=0.123; [ "$sc" = nan ] && [ "$n" = "$steps" ] && loss=nan
+  [ "$sc" = no_stamps ] || printf '\rEpoch 0:   0%%|          | %s/4550 [%s<1:00:00,  %ss/it, v_num=ab12, train/loss=%s]' "$n" "$(stamp "$n")" "$rate" "$loss"
+done
+echo
+if [ "$cad" -le "$steps" ] || [ "$sc" = smoke_ckpt ]; then
+  mkdir -p "$ns"
+  for ((s = cad; s <= steps; s += cad)); do
+    [ "$sc" = no_endpoint_ckpt ] && [ "$s" = "$steps" ] && continue
+    printf 'ckpt %s\n' "$s" > "$ns/epoch=$((s / 4550))-step=$s.ckpt"
+  done
+  [ "$sc" = smoke_ckpt ] && printf 'x\n' > "$ns/epoch=0-step=10.ckpt"
+  [ "$sc" = foreign ] && printf 'x\n' > "$ns/notes.txt"
+  [ "$sc" = wrong_cadence ] && printf 'x\n' > "$ns/epoch=0-step=1234.ckpt"
+  [ "$sc" = stale ] && touch -d '2000-01-01 00:00:00' "$ns/epoch=0-step=2500.ckpt"
+fi
+[ "$sc" = no_endpoint ] || printf '`Trainer.fit` stopped: `max_steps=%s` reached.' "$steps"
+exit "${GUARD_TRAIN_RC:-0}"
+FAKE
 chmod +x "$BIN"/*
 
 # launch <VAR=value ...>: the CLONE's launcher, harness mode, stubs first on PATH; sets OUT, RC
@@ -309,10 +342,39 @@ rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 echo "--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---"
 case_rc "G1 a busy card refuses"            2 "GPU GATE FAILED: GPU 0 free 1000 MiB" MODE=SMOKE GUARD_GPU_FREE=1000
 case_rc "G2 the GPU gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" MODE=SMOKE DRY_RUN=1 GUARD_GPU_FREE=1000
-case_rc "G3 the W&B identity gate is skipped in harness mode" 2 "W&B identity gate SKIPPED (harness)" MODE=SMOKE
+case_rc "G3 the W&B identity gate is skipped in harness mode" 0 "W&B identity gate SKIPPED (harness)" MODE=SMOKE
 mkdir -p "$H/emptyhub"
 case_rc "G4 a missing DINOv3 snapshot refuses" 2 "DINOv3/init-identity GATE FAILED" MODE=SMOKE DRY_RUN=1 HF_HUB_CACHE="$H/emptyhub"
 case_rc "G5 the gate imports THIS checkout's src" 0 "src imported from $R/src" MODE=SMOKE DRY_RUN=1
+
+echo "--- X. the preflight cannot satisfy the post-run scans ---"
+launch MODE=SMOKE DRY_RUN=1; PRE="$OUT"
+expect "X1 the preflight never prints the banner as a whole line" bash -c '! tr "\r" "\n" <<<"$1" | grep -qxF "$2"' _ "$PRE" "canonicalize ENABLED img_w=512 tiebreak=image"
+expect "X2 the preflight never matches the non-finite scan" bash -c '! grep -qiE "\b(nan|inf)\b" <<<"$1"' _ "$PRE"
+expect "X3 the scan does match a non-finite loss (non-vacuous)" bash -c 'grep -qiE "\b(nan|inf)\b" <<<"x, train/loss=nan]"'
+
+echo "--- R. SMOKE: the real launch path on the fake trainer ---"
+clear_evidence; rm -rf "$H/save"
+case_rc "R2 no banner"                       3 "TREATMENT BANNER NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_banner
+case_rc "R3 no endpoint marker"              6 "ENDPOINT NOT REACHED" MODE=SMOKE GUARD_SCENARIO=no_endpoint
+case_rc "R4 no two-rank start"               6 "TWO-RANK DDP START NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_ranks
+case_rc "R5 a non-finite loss"               4 "NON-FINITE VALUES" MODE=SMOKE GUARD_SCENARIO=nan
+case_rc "R8 a smoke that wrote a checkpoint" 5 "SMOKE WROTE 1 CHECKPOINT" MODE=SMOKE GUARD_SCENARIO=smoke_ckpt
+rm -rf "$H/save/FLAC_exp25_CANON_smoke"
+case_rc "R9 train.py failed"                 7 "train.py exited rc=7" MODE=SMOKE GUARD_TRAIN_RC=7
+echo "--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---"
+full_case() { rm -rf "$H/save/FLAC_exp25_CANON"; case_rc "$@"; }
+clear_evidence; write_evidence z_synthetic '{}'   # FULL's prerequisite (the real writer: cycle 12b)
+full_case "Z1 a healthy FULL passes"         0 "checkpoint set OK: exactly the 16 cadence checkpoints" MODE=FULL
+MAN="$(ls "$R/$EXPREL"/depth_canon_*_exp25_CANON_checkpoints.sha256 2>/dev/null | tail -1 || true)"
+expect "Z1b the checkpoint manifest hashes all 16 files" bash -c '[ -n "$1" ] && [ "$(wc -l < "$1")" = 16 ] && sha256sum -c --quiet "$1"' _ "$MAN"
+full_case "Z2 no banner"                     3 "TREATMENT BANNER NOT FOUND" MODE=FULL GUARD_SCENARIO=no_banner
+full_case "Z3 the endpoint checkpoint is missing" 6 "ENDPOINT CHECKPOINT MISSING" MODE=FULL GUARD_SCENARIO=no_endpoint_ckpt
+full_case "Z4 no endpoint marker"            6 "ENDPOINT NOT REACHED" MODE=FULL GUARD_SCENARIO=no_endpoint
+full_case "Z5 a non-finite loss in FULL"     4 "NON-FINITE VALUES" MODE=FULL GUARD_SCENARIO=nan
+full_case "Z6 a foreign file"                5 "CHECKPOINT SET REJECTED: foreign files" MODE=FULL GUARD_SCENARIO=foreign
+full_case "Z7 a stale checkpoint"            5 "older than the launch marker" MODE=FULL GUARD_SCENARIO=stale
+full_case "Z8 off-cadence checkpoint"        5 "cadence set" MODE=FULL GUARD_SCENARIO=wrong_cadence
 
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 

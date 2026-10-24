@@ -333,4 +333,105 @@ pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}' || t
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi
-echo "launch path not implemented yet - abort"; exit 2
+# --- launch -------------------------------------------------------------------- #
+LAUNCH_MARK="$SAVE_ROOT/.depth_canon_launch_${EXPNAME}_${TS}"
+: > "$LAUNCH_MARK" || { echo "cannot write the launch marker ${LAUNCH_MARK} - abort"; exit 2; }
+echo "launch marker: ${LAUNCH_MARK} (its filesystem mtime is this run's ownership epoch)"
+START_EPOCH="$(date +%s)"
+rc=0
+HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 "${ARGV[@]}" || rc=$?
+END_EPOCH="$(date +%s)"
+echo "=== exp_25 depth_canon ${MODE}: train.py exited rc=${rc} after $((END_EPOCH - START_EPOCH)) s ==="
+
+# --- (3) drain the tee, then read the log ONCE (no tr|grep pipeline under pipefail)
+drain_log() {
+  exec 1>&3 2>&4                       # our ends of the tee pipe close; tee sees EOF
+  local i
+  for ((i = 0; i < 600; i++)); do kill -0 "$TEE_PID" 2>/dev/null || break; sleep 0.2; done
+  if kill -0 "$TEE_PID" 2>/dev/null; then echo "WARNING: the log tee is still open after 120 s; reading ${LOG} as it stands"; fi
+  LOGTEXT="$(tr '\r' '\n' < "$LOG")"
+}
+drain_log
+exec > >(tee -a "$LOG") 2>&1
+TEE_PID=$!
+fail() { [ "$rc" -ne 0 ] || rc="$1"; }   # the first failure decides the exit code
+
+if grep -qxF "$BANNER" <<<"$LOGTEXT"; then
+  BANNER_SEEN=true; echo "treatment banner: FOUND (whole line '${BANNER}')"
+else
+  BANNER_SEEN=false; echo "TREATMENT BANNER NOT FOUND in ${LOG} - the run may have trained WITHOUT canonicalization - invalid"; fail 3
+fi
+if grep -qF "All distributed processes registered. Starting with 2 processes" <<<"$LOGTEXT"; then
+  RANKS_SEEN=true
+else
+  RANKS_SEEN=false; echo "TWO-RANK DDP START NOT FOUND in ${LOG} - not the registered recipe - invalid"; fail 6
+fi
+if grep -qF "\`Trainer.fit\` stopped: \`max_steps=${MAXSTEPS}\` reached." <<<"$LOGTEXT"; then
+  ENDPOINT_SEEN=true
+else
+  ENDPOINT_SEEN=false; echo "ENDPOINT NOT REACHED: Lightning's max_steps=${MAXSTEPS} termination marker is absent - invalid"; fail 6
+fi
+if grep -qiE '\b(nan|inf)\b' <<<"$LOGTEXT"; then
+  NONFINITE=true
+  echo "NON-FINITE VALUES in ${LOG}: $(grep -m1 -iE '\b(nan|inf)\b' <<<"$LOGTEXT" | cut -c1-200) - the fit is not healthy"; fail 4
+else
+  NONFINITE=false; echo "non-finite scan: clean"
+fi
+
+# --- (5) run-owned checkpoints (FULL) / none at all (SMOKE) ---------------------- #
+CKPT_MANIFEST="$EXPDIR/depth_canon_${TS}_${EXPNAME}_checkpoints.sha256"
+ckpt_rc=0
+python - "$RUN_NS" "$LAUNCH_MARK" "$MODE" "$MAXSTEPS" "$CADENCE" "$CKPT_MANIFEST" <<'PY' || ckpt_rc=$?
+import hashlib, os, re, sys
+ns, mark, mode, endpoint, cadence, manifest = sys.argv[1:7]
+endpoint, cadence = int(endpoint), int(cadence)
+files = sorted(os.path.relpath(os.path.join(d, f), ns) for d, _, fs in os.walk(ns) for f in fs)
+if mode == "SMOKE":
+    ckpts = [f for f in files if f.endswith(".ckpt")]
+    if ckpts:
+        print(f"SMOKE WROTE {len(ckpts)} CHECKPOINT(S) under {ns}: {ckpts[:5]} - the cadence pin failed")
+        sys.exit(5)
+    print(f"smoke checkpoints: 0 under {ns} (cadence {cadence} >> {endpoint} steps)")
+    sys.exit(0)
+def sha(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 24), b""):
+            h.update(chunk)
+    return h.hexdigest()
+with open(manifest + ".tmp", "w") as out:            # every file found, for the record
+    for f in files:
+        out.write(f"{sha(os.path.join(ns, f))}  {os.path.join(ns, f)}\n")
+os.replace(manifest + ".tmp", manifest)
+epoch = os.stat(mark).st_mtime                        # same filesystem clock as the checkpoints
+pat = re.compile(r"checkpoints/epoch=\d+-step=(\d+)\.ckpt")
+steps, foreign, stale = [], [], []
+for f in files:
+    m = pat.fullmatch(f)
+    if m is None:
+        foreign.append(f)
+        continue
+    steps.append(int(m.group(1)))
+    if os.stat(os.path.join(ns, f)).st_mtime < epoch:
+        stale.append(f)
+print(f"checkpoint manifest: {manifest} ({len(files)} files)")
+if endpoint not in steps:
+    print(f"ENDPOINT CHECKPOINT MISSING: no checkpoints/epoch=*-step={endpoint}.ckpt under {ns}")
+    sys.exit(6)
+want = list(range(cadence, endpoint + 1, cadence))
+problems = []
+if foreign:
+    problems.append(f"foreign files {foreign[:5]}")
+if stale:
+    problems.append(f"files older than the launch marker {stale[:5]}")
+if sorted(steps) != want:
+    problems.append(f"cadence set {sorted(steps)} != {cadence}, {2 * cadence}, ..., {endpoint}")
+if problems:
+    print("CHECKPOINT SET REJECTED: " + "; ".join(problems))
+    sys.exit(5)
+print(f"checkpoint set OK: exactly the {len(want)} cadence checkpoints, all newer than the launch marker")
+PY
+[ "$ckpt_rc" -eq 0 ] || fail "$ckpt_rc"
+
+echo "=== exp_25 depth_canon ${MODE} finished: exit ${rc} ==="
+exit "$rc"
