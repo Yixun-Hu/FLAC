@@ -165,3 +165,101 @@ def test_an_unreadable_or_non_json_report_is_refused(tmp_path, genuine):
     open(path + ".sha256", "w").write(hashlib.sha256(b"{not json").hexdigest() + "  depth_canon_tie_audit.json\n")
     ok, problems, _ = validate(path, contract)
     assert not ok and problems
+
+
+# --------------------------------------------------------------------------- #
+# runs that are not a complete PASS, and data that changed after the audit
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("kw, needle", [(dict(limit=4), "coverage"), (dict(names=("unseen", "seen")), "coverage")],
+                         ids=["limit", "subset"])
+def test_a_limit_or_subset_run_is_refused(tmp_path, kw, needle):
+    out, rep, contract = make_audit(tmp_path, **kw)
+    assert rep["gate"]["verdict"] == "REFUSED_SUBSET"
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any(needle in p for p in problems), problems
+
+
+def test_an_audit_that_found_a_survivor_is_refused(tmp_path):
+    periodic = _scalar_depth(256, W, seed=5, period=128, peaks=[(60, 11)]).numpy()
+    out, rep, contract = make_audit(tmp_path, maps={TA.PERIODIC_KEY: periodic})
+    assert rep["gate"]["verdict"] == "FAIL"
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any("gate" in p for p in problems) and any("survivor" in p for p in problems), problems
+
+
+def test_a_split_json_changed_after_the_audit_is_refused(tmp_path):
+    out, rep, contract = make_audit(tmp_path)
+    split = rep["inputs"][1]["json_abs"]
+    data = json.load(open(split))
+    data["Office"]["Office_idx_2"].append("S0099_R006_hybrid_IR.wav")    # one more item, same map
+    open(split, "w").write(json.dumps(data))
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any("inputs" in p for p in problems), problems
+
+
+def test_the_registered_cardinalities_bind_the_census(genuine):
+    out, rep, contract = genuine
+    for edit in (lambda c: c["splits"]["unseen"].__setitem__("n_items", 3), lambda c: c.__setitem__("n_maps", 7)):
+        c = copy.deepcopy(contract)
+        edit(c)
+        ok, problems, _ = validate(out, c)
+        assert not ok and any("registered" in p for p in problems), problems
+
+
+# --------------------------------------------------------------------------- #
+# the registered contract itself, against the real split JSONs (the audit's own code)
+# --------------------------------------------------------------------------- #
+def test_the_registered_contract_is_the_real_census():
+    R = G.REGISTERED
+    assert R["audit_script"] == os.path.join(EXPREL, "depth_canon_tie_audit.py").replace(os.sep, "/")
+    assert R["n_maps"] == 9650 and R["img_w"] == 512
+    assert {n: s["n_items"] for n, s in R["splits"].items()} == {"train": 291210, "unseen": 6337, "seen": 6217}
+    sp = {n: TA.audit.read_split_config(R["splits"][n]["dataset_config"]) for n in NAMES}
+    found, ledger = TA.audit.collect_maps(sp)
+    assert len(found) == 9650 and [r["n_items"] for r in ledger] == [291210, 6337, 6217]
+    assert sum(1 for e in found.values() if e["counts"]["unseen"] and e["counts"]["seen"]) == 112
+
+
+@pytest.mark.skipif(not os.path.exists(REAL_AUDIT), reason="the full rung-3 audit is not in this checkout")
+def test_the_real_full_audit_passes_the_registered_contract_without_rehash():
+    """The genuine report (sidecar, schema, census, hashes). Its 9,650 map re-hashes run in
+    the launcher / collector (minutes over CIFS), not in the unit suite."""
+    ok, problems, summary = G.validate_tie_audit(REAL_AUDIT, REPO, rehash=False)
+    assert ok, problems
+    assert summary["n_maps"] == 9650 and len(summary["split_maps"]["unseen"]) == 644
+
+
+# --------------------------------------------------------------------------- #
+# the CLI: 0 ok / 1 invalid with the reasons; --print-sha for the launcher binding
+# --------------------------------------------------------------------------- #
+def test_the_cli(genuine, monkeypatch, capsys, tmp_path):
+    out, rep, contract = genuine
+    monkeypatch.setattr(G, "REGISTERED", contract)
+    assert G.main(["--audit", out]) == 0
+    assert "TIE AUDIT GATE OK" in capsys.readouterr().out
+    assert G.main(["--audit", out, "--print-sha"]) == 0
+    assert capsys.readouterr().out == hashlib.sha256(open(out, "rb").read()).hexdigest() + "\n"
+    bad = copy.deepcopy(rep)
+    bad["gate"]["verdict"] = "FAIL"
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, bad)
+    assert G.main(["--audit", path, "--print-sha"]) == 1
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.startswith("TIE AUDIT GATE FAILED: ") and "gate.verdict" in cap.err
+
+
+def test_the_gate_runs_as_a_program(tmp_path):
+    proc = subprocess.run([sys.executable, GATE_PY, "--audit", str(tmp_path / "absent.json")],
+                          capture_output=True, text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+    assert proc.returncode == 1 and "TIE AUDIT GATE FAILED" in proc.stderr and proc.stdout == ""
+
+
+def test_the_gate_module_imports_only_the_standard_library():
+    """Importing it must stay cheap (the generator loads the collector, which loads the gate);
+    the audit's own enumeration code is loaded lazily, inside validate_tie_audit."""
+    import ast
+    tree = ast.parse(open(GATE_PY).read())
+    top = {(n.module if isinstance(n, ast.ImportFrom) else a.name).split(".")[0]
+           for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))
+           for a in (n.names if isinstance(n, ast.Import) else [n])}
+    assert top <= set(sys.stdlib_module_names), top - set(sys.stdlib_module_names)
