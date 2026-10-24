@@ -382,9 +382,15 @@ exp, name, over = sys.argv[1:4]
 log = f"{exp}/depth_canon_guard_{name}_smoke_train.log"
 open(log, "w").write("synthetic smoke log\n")
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-man = hashlib.sha256(open(f"{exp}/depth_canon_pins.sha256", "rb").read()).hexdigest()
+sha = lambda *ps: hashlib.sha256(b"".join(open(p, "rb").read() for p in ps)).hexdigest()
+man = sha(f"{exp}/depth_canon_pins.sha256")
 ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
-      "manifest_sha256": man, "harness": True, "config_contract_ok": True, "banner_seen": True,
+      "manifest_sha256": man, "launcher_sha256": sha(f"{exp}/depth_canon_launch.sh"),
+      "make_pins_sha256": sha(f"{exp}/depth_canon_make_pins.sh"),
+      "contract_sha256": sha(f"{exp}/FLAC_AR_CANON.json",
+                             "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json"),
+      "audit_sha256": sha(f"{exp}/depth_canon_tie_audit.json"),
+      "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
       "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
       "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
@@ -396,8 +402,8 @@ PY
 clear_evidence() { rm -f "$R/$EXPREL"/depth_canon_smoke_evidence_*.json; }
 NEED="FULL requires a PASSING smoke evidence"
 case_rc "E1 no evidence"                    2 "$NEED" MODE=FULL DRY_RUN=1
-write_evidence e2 '{"head": "1" * 40}'
-case_rc "E2 evidence of another HEAD"       2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e2 '{"launcher_sha256": "1" * 64}'
+case_rc "E2 evidence of another launcher"   2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e3 '{"manifest_sha256": "2" * 64}'
 case_rc "E3 evidence of another manifest"   2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e4 '{"verdict": "FAIL"}'
@@ -412,6 +418,24 @@ write_evidence e8 '{"banner_seen": 1}'
 case_rc "E8 a truthy non-bool field"        2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e9 '{}'
 case_rc "E9 genuine evidence accepted"      0 "smoke evidence: $EXPREL/depth_canon_smoke_evidence_e9.json" MODE=FULL DRY_RUN=1
+
+echo "--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---"
+bind_case() {   # bind_case <name> <want_rc> <want_text> <change>: evidence, then the change, then FULL
+  make_clone >/dev/null; write_evidence b '{}'
+  ( cd "$R" && eval "$4" ) >/dev/null
+  case_rc "$1" "$2" "$3" MODE=FULL DRY_RUN=1
+}
+if want B; then
+bind_case "B1 a record-only commit between SMOKE and FULL is accepted" 0 "smoke evidence:" \
+  'echo "- note" >> "$EXPREL/depth_canon_worklog.md" && commit_clone "records only"'
+bind_case "B2 a training-closure change (+ its regenerated manifest) needs a new SMOKE" 2 "$NEED" \
+  'printf "\n# edit\n" >> src/data/utils.py && bash "$EXPREL/depth_canon_make_pins.sh" --write && commit_clone "src"'
+bind_case "B3 a committed launcher change needs a new SMOKE" 2 "$NEED" \
+  'printf "\n# edit\n" >> "$EXPREL/depth_canon_launch.sh" && commit_clone "launcher"'
+bind_case "B4 a new (still qualifying) tie audit needs a new SMOKE" 2 "$NEED" \
+  'printf " \n" >> "$EXPREL/depth_canon_tie_audit.json" && sha256sum "$EXPREL/depth_canon_tie_audit.json" | sed "s#  .*/#  #" > "$EXPREL/depth_canon_tie_audit.json.sha256"'
+make_clone >/dev/null
+fi
 
 echo "--- N. NAS gate on the save root: identity, free space, write probe ---"
 case_rc "N1 a non-CIFS save root (real findmnt)" 2 "NAS GATE FAILED: identity" MODE=SMOKE DRY_RUN=1 GUARD_FINDMNT=real

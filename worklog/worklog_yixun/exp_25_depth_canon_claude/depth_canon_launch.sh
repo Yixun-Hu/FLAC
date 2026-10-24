@@ -286,13 +286,25 @@ PY
 )" || exit 2
 echo "tie audit OK: ${TIE_AUDIT} (sha256 ${AUDIT_SHA}): 9,650 maps, 0 survivors, 0 errors, hashes current"
 
+# --- the content the SMOKE evidence binds (r3b-F1 fix 9): HEAD is provenance only -------- #
+# A record-only commit between SMOKE and FULL keeps every one of these; any change to the
+# training closure (pin manifest), the launcher, the pin generator, the config contract's
+# inputs or the tie audit changes one of them and needs a new SMOKE.
+LAUNCHER_SHA="$(sha256sum "$SELF" | awk '{print $1}')"
+MAKE_PINS_SHA="$(sha256sum "$MAKE_PINS" | awk '{print $1}')"
+CONTRACT_SHA="$(cat "$ARM_CFG" "$CONTROL_CFG" | sha256sum | awk '{print $1}')"
+echo "evidence binding: manifest ${MANIFEST_SHA} launcher ${LAUNCHER_SHA} pins-generator ${MAKE_PINS_SHA} contract ${CONTRACT_SHA} audit ${AUDIT_SHA}"
+
 # --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
 if [ "$MODE" = "FULL" ]; then
-  SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
+  SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$MANIFEST_SHA" "$HARNESS_FLAG" "$LAUNCHER_SHA" "$MAKE_PINS_SHA" \
+      "$CONTRACT_SHA" "$AUDIT_SHA" <<'PY' || true
 import glob, hashlib, json, math, os, sys
-exp, head, manifest, harness = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "true"
-NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
-        "manifest_sha256": manifest, "harness": harness, "config_contract_ok": True,
+exp, manifest, harness, launcher, make_pins, contract, audit = sys.argv[1:8]
+NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS",
+        "manifest_sha256": manifest, "launcher_sha256": launcher, "make_pins_sha256": make_pins,
+        "contract_sha256": contract, "audit_sha256": audit, "harness": harness == "true",
+        "config_contract_ok": True,
         "banner_seen": True, "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False,
         "smoke_checkpoints": 0, "finite_loss_seen": True}
 def qualifies(path):
@@ -315,7 +327,7 @@ for p in sorted(glob.glob(os.path.join(exp, "depth_canon_smoke_evidence_*.json")
 PY
 )"
   [ -n "$SMOKE_EVIDENCE" ] || {
-    echo "FULL requires a PASSING smoke evidence for HEAD ${HEAD_SHA} + manifest ${MANIFEST_SHA} (harness=${HARNESS_FLAG}) in ${EXPDIR} - none qualifies - run MODE=SMOKE at this HEAD first - abort"; exit 2; }
+    echo "FULL requires a PASSING smoke evidence bound to this content (manifest ${MANIFEST_SHA}, launcher ${LAUNCHER_SHA}, pins generator ${MAKE_PINS_SHA}, contract ${CONTRACT_SHA}, audit ${AUDIT_SHA}; harness=${HARNESS_FLAG}) in ${EXPDIR} - none qualifies - run MODE=SMOKE first - abort"; exit 2; }
   echo "smoke evidence: ${SMOKE_EVIDENCE}"
 fi
 
@@ -546,10 +558,11 @@ if [ "$MODE" = "SMOKE" ]; then
   EVIDENCE="$EXPDIR/depth_canon_smoke_evidence_${TS}.json"
   "$PY" - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
       "$MAX_PROJECTED_HOURS" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" "$BANNER_SEEN" "$ENDPOINT_SEEN" \
-      "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" <<'PY' || fail 4
+      "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" "$LAUNCHER_SHA" "$MAKE_PINS_SHA" "$CONTRACT_SHA" \
+      "$AUDIT_SHA" <<'PY' || fail 4
 import json, math, re, sys
 (out, log, rc, elapsed, steps, endpoint, max_h, head, manifest, harness, banner, endpoint_seen,
- ranks, nonfinite, ckpt_rc, argv) = sys.argv[1:17]
+ ranks, nonfinite, ckpt_rc, argv, launcher, make_pins, contract, audit) = sys.argv[1:21]
 rc, elapsed, steps, endpoint, max_h = int(rc), float(elapsed), int(steps), int(endpoint), float(max_h)
 text = open(log, encoding="utf-8", errors="replace").read().replace("\r", "\n")
 stamps = {}   # tqdm '<n>/<total> [<elapsed><' stamps of the training progress bar
@@ -605,7 +618,9 @@ else:
 print(f"SMOKE VERDICT: {verdict} - {why}")
 b = lambda s: s == "true"  # noqa: E731
 ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": verdict, "why": why,
-      "head": head, "manifest_sha256": manifest, "harness": b(harness), "config_contract_ok": True,
+      "head": head, "manifest_sha256": manifest, "launcher_sha256": launcher,
+      "make_pins_sha256": make_pins, "contract_sha256": contract, "audit_sha256": audit,
+      "harness": b(harness), "config_contract_ok": True,
       "banner_seen": b(banner), "endpoint_seen": b(endpoint_seen), "ranks_seen": b(ranks),
       "nonfinite_seen": b(nonfinite), "smoke_checkpoints": 0 if ckpt_rc == "0" else -1,
       "elapsed_s": elapsed, "startup_inclusive_projection_h": upper,
