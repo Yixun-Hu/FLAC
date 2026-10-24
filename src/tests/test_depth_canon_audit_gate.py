@@ -263,3 +263,62 @@ def test_the_gate_module_imports_only_the_standard_library():
            for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))
            for a in (n.names if isinstance(n, ast.Import) else [n])}
     assert top <= set(sys.stdlib_module_names), top - set(sys.stdlib_module_names)
+
+
+# --------------------------------------------------------------------------- #
+# the rows: exactly the expected census, typed, summaries recomputed, bytes re-hashed
+# --------------------------------------------------------------------------- #
+ROW_MUTATIONS = {   # the census, the per-row contract and the recomputed summaries
+    "drop_train_per_split": (lambda r: r["per_split"].pop("train"), "per_split"),
+    "per_split_count": (lambda r: r["per_split"]["unseen"]["items"].__setitem__(
+        "none", r["per_split"]["unseen"]["items"]["none"] + 1), "per_split"),
+    "row_survivor": (lambda r: r["rows"][0].__setitem__("survivor", True), "row"),
+    "row_error": (lambda r: r["rows"][1].__setitem__("error", "x"), "row"),
+    "duplicate_row": (lambda r: r["rows"].insert(1, copy.deepcopy(r["rows"][0])), "rows"),
+    "arbitrary_row_path": (lambda r: r["rows"][0].__setitem__("path", "m0"), "rows"),
+    "dropped_row": (lambda r: r["rows"].pop(), "rows"),
+    "row_counts": (lambda r: r["rows"][0]["counts"].__setitem__("train", r["rows"][0]["counts"]["train"] + 1),
+                   "counts"),
+    "row_tie_class": (lambda r: r["rows"][0].__setitem__("tie_class", "stabilized"), "tie_class"),
+    "row_img_w": (lambda r: r["rows"][0].__setitem__("img_w", 256), "img_w"),
+    "row_dj": (lambda r: r["rows"][0].__setitem__("dj", 600), "dj"),
+    "row_sha": (lambda r: r["rows"][0].__setitem__("sha256", "x"), "sha256"),
+    "row_extra_key": (lambda r: r["rows"][0].__setitem__("note", 1), "row"),
+    "agreement": (lambda r: r["agreement"]["raw_agree_set"].__setitem__("true", 99), "agreement"),
+}
+
+
+@pytest.mark.parametrize("name", list(ROW_MUTATIONS))
+def test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused(genuine, tmp_path, name):
+    out, rep, contract = genuine
+    edit, needle = ROW_MUTATIONS[name]
+    bad = copy.deepcopy(rep)
+    edit(bad)
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, bad)
+    ok, problems, _ = validate(path, contract)
+    assert not ok and any(needle in p for p in problems), (name, problems)
+
+
+def _map_file(rep, key):
+    root = rep["inputs"][0]["root_abs"]
+    return os.path.join(root, key)
+
+
+def test_a_depth_map_changed_after_the_audit_is_refused(tmp_path):
+    out, rep, contract = make_audit(tmp_path)
+    assert validate(out, contract)[0]
+    victim = _map_file(rep, rep["rows"][2]["path"])
+    arr = np.load(victim)
+    arr[0, 0] += 1e-9
+    np.save(victim, arr)
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any(rep["rows"][2]["path"] in p and "sha256" in p for p in problems), problems
+    assert validate(out, contract, rehash=False)[0]                       # only the re-hash sees it
+
+
+def test_a_missing_depth_map_is_refused(tmp_path):
+    out, rep, contract = make_audit(tmp_path)
+    os.unlink(_map_file(rep, rep["rows"][0]["path"]))
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any("missing" in p or "unreadable" in p for p in problems), problems
