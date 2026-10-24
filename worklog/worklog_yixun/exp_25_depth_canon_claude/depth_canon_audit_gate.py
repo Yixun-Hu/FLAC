@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 EXPREL = "worklog/worklog_yixun/exp_25_depth_canon_claude"
 SPLIT_NAMES = ("train", "unseen", "seen")
@@ -115,6 +116,65 @@ def _tool_problems(tool, repo_root, c):
     return out
 
 
+def _row_problems(rows, maps, audit, w):
+    """Per-row type/shape contract, then the census: exactly the expected map set, in the
+    audit's sorted order, with the expected per-split counts."""
+    if not isinstance(rows, list):
+        return [f"rows is {type(rows).__name__}, not a list"]
+    bad = []
+    for i, r in enumerate(rows):
+        why = None
+        if type(r) is not dict or list(r) != list(ROW_KEYS):
+            why = "row keys are not the audit's"
+        elif not (isinstance(r["path"], str) and isinstance(r["sha256"], str) and _HEX64.fullmatch(r["sha256"])):
+            why = f"path {r['path']!r} / sha256 {r['sha256']!r} malformed"
+        elif not (type(r["counts"]) is dict and list(r["counts"]) == list(SPLIT_NAMES)
+                  and all(type(v) is int and v >= 0 for v in r["counts"].values())):
+            why = f"counts {r['counts']!r} malformed"
+        elif type(r["img_w"]) is not int or r["img_w"] != w:
+            why = f"img_w {r['img_w']!r} != {w}"
+        elif type(r["j_star"]) is not int or not 0 <= r["j_star"] < w or type(r["dj"]) is not int \
+                or r["dj"] != (w - r["j_star"]) % w:
+            why = f"j_star {r['j_star']!r} / dj {r['dj']!r} inconsistent"
+        elif r["tie_class"] not in TIE_CLASSES or r["survivor"] is not False or r["error"] is not None:
+            why = f"tie_class {r['tie_class']!r} / survivor {r['survivor']!r} / error {r['error']!r}"
+        elif not (isinstance(r["candidates"], list) and r["candidates"]
+                  and all(type(x) is int and 0 <= x < w for x in r["candidates"])
+                  and r["candidates"] == sorted(set(r["candidates"])) and r["n_candidates"] == len(r["candidates"])
+                  and type(r["n_candidates"]) is int and r["j_star"] in r["candidates"]
+                  and r["survivors"] == [r["j_star"]]
+                  and (len(r["candidates"]) == 1) == (r["tie_class"] != "cross_column_image")):
+            why = "candidates / survivors / class inconsistent"
+        elif type(r["max_sep_deg"]) is not float or r["max_sep_deg"] != audit.max_circular_sep_deg(r["candidates"], w):
+            why = f"max_sep_deg {r['max_sep_deg']!r} != the candidates' separation"
+        elif r["raw_tie_class"] not in TIE_CLASSES + (None,) or (r["raw_tie_class"] is None) != r["raw_survivor"] \
+                or not all(type(r[k]) is bool for k in ("raw_survivor", "raw_agree_set", "raw_agree_col")):
+            why = "raw_* fields malformed"
+        if why:
+            bad.append(f"row {i}: {why}")
+    out = [f"{len(bad)} malformed row(s): " + "; ".join(bad[:5])] if bad else []
+    paths = [r.get("path") if isinstance(r, dict) else None for r in rows]
+    if paths != sorted(maps):
+        extra, gone = sorted(set(map(str, paths)) - set(maps)), sorted(set(maps) - set(map(str, paths)))
+        out.append(f"rows are not the {len(maps)} expected maps in order ({len(paths)} rows, "
+                   f"{len(paths) - len(set(map(str, paths)))} duplicate(s), unexpected {extra[:3]}, missing {gone[:3]})")
+    elif not bad:
+        wrong = [r["path"] for r in rows if r["counts"] != maps[r["path"]]["counts"]]
+        if wrong:
+            out.append(f"{len(wrong)} row(s) carry counts that are not the split census: {wrong[:3]}")
+    return out
+
+
+def _rehash_problems(rows, maps, workers):
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:   # hashlib + file reads release the GIL
+        now = list(pool.map(_sha256, [maps[r["path"]]["path"] for r in rows]))
+    missing = [r["path"] for r, h in zip(rows, now) if h is None]
+    changed = [r["path"] for r, h in zip(rows, now) if h is not None and h != r["sha256"]]
+    return ([f"{len(missing)} depth map(s) missing / unreadable now: {missing[:3]}"] if missing else []) + (
+        [f"{len(changed)} depth map(s) changed since the audit (current sha256 != the row): {changed[:3]}"]
+        if changed else [])
+
+
 def _validate(audit_path, repo_root, c, workers, rehash):
     problems, summary = [], {}
     try:
@@ -156,6 +216,14 @@ def _validate(audit_path, repo_root, c, workers, rehash):
         problems.append(f"the splits resolve to {len(maps)} maps, not the registered {c['n_maps']}")
     _expect(problems, "inputs (vs the ledger recomputed from the current configs + split JSONs)",
             rep["inputs"], json.loads(json.dumps(ledger)))
+    row_problems = _row_problems(rep["rows"], maps, audit, c["img_w"])
+    problems += row_problems
+    if not row_problems:
+        per, agree = audit.summarize(rep["rows"], list(SPLIT_NAMES), c["img_w"])
+        _expect(problems, "per_split (recomputed from the rows)", rep["per_split"], per)
+        _expect(problems, "agreement (recomputed from the rows)", rep["agreement"], agree)
+        if rehash:
+            problems += _rehash_problems(rep["rows"], maps, workers)
     summary.update(n_maps=len(rep["rows"]) if isinstance(rep["rows"], list) else None,
                    per_split=rep["per_split"],
                    inputs=[{k: led[k] for k in ("split", "json_file_path", "json_abs", "n_items", "n_unique_maps")}
