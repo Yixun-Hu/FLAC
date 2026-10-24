@@ -403,7 +403,35 @@ def _prepare(batch, plan=FIXED0, stream=None, canon_stream=None, canonicalize=Tr
     if canonicalize and canon_stream is None:
         canon_stream = eval_FLAC.CanonStream()
     out = eval_FLAC.prepare_eval_metadata(batch, plan, gen, stream, canonicalize, W16, canon_stream)
-    return out, stream, canon_stream
+    return out.cond, stream, canon_stream
+
+
+def _prepare_full(batch, plan=FIXED0, canonicalize=True, seed=7):
+    """prepare_eval_metadata's whole result: (cond, metric) frames."""
+    gen = torch.Generator().manual_seed(seed) if plan.is_random else None
+    stream = eval_FLAC.RotationStream() if plan.is_random else None
+    canon = eval_FLAC.CanonStream() if canonicalize else None
+    return eval_FLAC.prepare_eval_metadata(batch, plan, gen, stream, canonicalize, W16, canon)
+
+
+def test_prepare_returns_the_canonical_conditioning_and_the_pre_canonical_metric_frame():
+    """r3a BLOCKING (decision A4): only the conditioner sees the canonical frame."""
+    batch = _batch()
+    prepared = _prepare_full(batch, FIXED90)
+    assert isinstance(prepared, eval_FLAC.PreparedMetadata) and prepared.metric is not prepared.cond
+    rotated = eval_FLAC.apply_rotation_plan(batch, FIXED90)
+    for metric, rot, cond in zip(prepared.metric, rotated, prepared.cond):
+        assert all(torch.equal(metric[k], rot[k]) for k in ("depth",) + yr.POSE_KEYS)
+        assert _j_star(cond) == 0
+    assert any(_j_star(md) != 0 for md in prepared.metric)
+
+
+@pytest.mark.parametrize("plan", [FIXED0, FIXED90, RANDOM7], ids=["z", "rot90", "random"])
+def test_disabled_metric_frame_is_the_conditioning_list_itself(plan):
+    batch = _batch()
+    prepared = _prepare_full(batch, plan, canonicalize=False)
+    assert prepared.metric is prepared.cond
+    assert (prepared.cond is batch) is (plan is FIXED0)
 
 
 @pytest.mark.parametrize("plan", [FIXED0, FIXED90, RANDOM7], ids=["z", "rot90", "random"])
@@ -748,7 +776,8 @@ def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False,
     torch.save(ckpt, str(tmp_path / "toy.ckpt"))
     batch = _batch()
     loader = _Loader([(torch.zeros(3, 1, 16), batch[:3]), (torch.zeros(2, 1, 16), batch[3:])])
-    seen = types.SimpleNamespace(cond=[], scored=[], appended=[], loader=loader)
+    seen = types.SimpleNamespace(cond=[], scored=[], appended=[], scenes=[], metric_depth=[],
+                                 loader=loader)
 
     def model_factory(cfg):
         if raise_at_model:
@@ -760,8 +789,10 @@ def _run(monkeypatch, tmp_path, training, embedded="same", raise_at_model=False,
         conditioner=lambda md, device: seen.cond.append(md) or {}, io_channels=1, dist_shift=None,
         get_conditioning_inputs=lambda cond: {}))
     module.eval = module.requires_grad_ = module.to = lambda *a: module
-    callback = types.SimpleNamespace(compute_metrics=lambda split: {"T60": 1.0},
-                                     update_metrics=lambda stage, pred, *a, **k: seen.scored.append(pred))
+    callback = types.SimpleNamespace(
+        compute_metrics=lambda split: {"T60": 1.0},
+        update_metrics=lambda stage, pred, reals, scenes, **k: (
+            seen.scored.append(pred), seen.scenes.append(scenes), seen.metric_depth.append(k["depth"])))
     real_append = eval_FLAC.ScoredWaveformDump.append
     monkeypatch.setattr(eval_FLAC.ScoredWaveformDump, "append",
                         lambda self, t: seen.appended.append(t) or real_append(self, t))
@@ -819,6 +850,33 @@ def test_legacy_cell_is_untouched(monkeypatch, tmp_path, capsys):
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "dataset.json", "model.json", "toy.ckpt", "toy_metrics_1_1.0_cell.json"]
     assert [seen.cond[0], seen.cond[1]] == [seen.loader.batches[0][1], seen.loader.batches[1][1]]
+    for (_, batch_md), depth in zip(seen.loader.batches, seen.metric_depth):  # legacy metric inputs
+        assert all(torch.equal(a, b) for a, b in zip(depth, _metric_inputs(batch_md)))
+
+
+def _metric_inputs(md_list):
+    """What evaluate_model hands update_metrics as geometry, from a given metadata list."""
+    return [(md["depth"][:3] - md["source"][:, None, None]).unsqueeze(0).float() for md in md_list]
+
+
+@pytest.mark.parametrize("kw", [dict(rotate_deg=90.0), dict(rotate_mode="random", rotate_seed=7)],
+                         ids=["rot90", "random"])
+def test_metric_geometry_is_the_post_rotation_pre_canonical_frame(monkeypatch, tmp_path, kw):
+    """r3a BLOCKING (A4): the AGREE retrieval gallery must be arm-independent."""
+    _, _, seen = _run(monkeypatch, tmp_path, ON32, canonicalize=True, **kw)
+    plan = eval_FLAC.resolve_rotation_plan(kw.get("rotate_mode", "fixed"), kw.get("rotate_deg", 0.0),
+                                           kw.get("rotate_seed"), 42)
+    gen = torch.Generator().manual_seed(plan.rotate_seed) if plan.is_random else None
+    stream = eval_FLAC.RotationStream() if plan.is_random else None
+    assert len(seen.metric_depth) == len(seen.cond) == 2
+    for (_, batch_md), cond, depth, scenes in zip(seen.loader.batches, seen.cond, seen.metric_depth,
+                                                  seen.scenes):
+        rotated = eval_FLAC.apply_rotation_plan(list(batch_md), plan, gen, stream)
+        want = _metric_inputs(rotated)
+        assert len(depth) == len(want) and all(torch.equal(a, b) for a, b in zip(depth, want))
+        assert scenes == [md["scene"] for md in rotated]
+        assert all(_j_star(md) == 0 for md in cond)                  # conditioner: canonical
+        assert any(not torch.equal(a, b) for a, b in zip(_metric_inputs(cond), want))
 
 
 def test_trained_but_not_applied_diagnostic(monkeypatch, tmp_path):

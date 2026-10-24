@@ -1046,7 +1046,8 @@ class CanonStream:
         return len(self.rows)
 
     def record(self, md, md_canon, dj, tie_class):
-        """Append one position: ``md`` as canonicalized, ``md_canon`` the result."""
+        """Append one position: ``md`` is the post-rotation, PRE-canonicalization dict
+        that was canonicalized; ``md_canon`` is the result."""
         if type(dj) is not int or dj < 0:
             raise ValueError(f"canon stream: dj must be a non-negative int, got {dj!r}")
         if tie_class not in TIE_CLASSES:
@@ -1164,16 +1165,28 @@ def apply_rotation_plan(metadata, plan, generator=None, stream=None):
     return metadata
 
 
+class PreparedMetadata(NamedTuple):
+    """One batch after :func:`prepare_eval_metadata`. ``cond`` is what the conditioner
+    sees (canonical when canonicalization is applied); ``metric`` is the post-rotation,
+    PRE-canonicalization list every metric input (scene / depth / query for the AGREE
+    retrieval gallery) and the ARE add-back are built from, so the metric path is the
+    same for every arm (plan v9 §2.2, decision A4). Without canonicalization the two
+    are the SAME list object."""
+    cond: list
+    metric: list
+
+
 def prepare_eval_metadata(metadata, rotation_plan, generator, stream, canonicalize,
                           img_w, canon_stream):
-    """One batch's metadata as the conditioner must see it: the evaluation rotation
+    """One batch's metadata, as a :class:`PreparedMetadata`: the evaluation rotation
     (:func:`apply_rotation_plan`, which records the PRE-rotation identity into
-    ``stream``), THEN -- with ``canonicalize`` -- per-sample deepest-column
-    canonicalization (exp_25, plan v8 §2.2), each position recorded into
-    ``canon_stream``. Pure with respect to globals; the loader's dicts are not mutated.
+    ``stream``) gives ``metric``; THEN -- with ``canonicalize`` -- per-sample
+    deepest-column canonicalization (exp_25, plan v8 §2.2), each position recorded
+    into ``canon_stream``, gives ``cond``. Pure with respect to globals; the loader's
+    dicts are not mutated.
 
-    Disabled, it is exactly :func:`apply_rotation_plan` (and refuses a stray
-    ``canon_stream``). Enabled, the treatment runs on the loader's CPU float64
+    Disabled, ``cond`` and ``metric`` are both exactly :func:`apply_rotation_plan`'s
+    list (and a stray ``canon_stream`` is refused). Enabled, the treatment runs on the loader's CPU float64
     point cloud as in training (``_canonicalize_batch``): another device or dtype,
     and the operator's own contract violations, raise ``ValueError`` prefixed
     ``canonicalize: metadata[i]:``; a ``StabilizedTieError`` propagates untouched.
@@ -1184,14 +1197,16 @@ def prepare_eval_metadata(metadata, rotation_plan, generator, stream, canonicali
         if canon_stream is not None:
             raise ValueError("prepare_eval_metadata: a CanonStream without canonicalization "
                              "would record nothing")
-        return apply_rotation_plan(metadata, rotation_plan, generator, stream)
+        rotated = apply_rotation_plan(metadata, rotation_plan, generator, stream)
+        return PreparedMetadata(rotated, rotated)
     if not isinstance(canon_stream, CanonStream):
         raise ValueError("prepare_eval_metadata: canonicalization needs a CanonStream to "
                          "record every position")
     if type(img_w) is not int or img_w <= 0:
         raise ValueError(f"prepare_eval_metadata: img_w must be a positive int, got {img_w!r}")
+    rotated = apply_rotation_plan(metadata, rotation_plan, generator, stream)
     out = []
-    for i, md in enumerate(apply_rotation_plan(metadata, rotation_plan, generator, stream)):
+    for i, md in enumerate(rotated):
         depth = md.get("depth") if isinstance(md, dict) else None
         if torch.is_tensor(depth) and depth.device.type != "cpu":
             raise ValueError(f"canonicalize: metadata[{i}]['depth'] is on {depth.device}; the "
@@ -1205,7 +1220,7 @@ def prepare_eval_metadata(metadata, rotation_plan, generator, stream, canonicali
             raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err
         canon_stream.record(md, md_canon, dj, tie_class)
         out.append(md_canon)
-    return out
+    return PreparedMetadata(out, rotated)
 
 
 def resolve_weights_source(training_config, state_dict_keys):
@@ -1945,10 +1960,13 @@ def evaluate_model(
             # panorama + source/context poses) while leaving context_audio and the
             # target RIR fixed. Fixed mode = one angle for the whole run; random
             # mode = an independent per-sample draw. See src/data/yaw_rotation.py.
-            # exp_25: then, with --canonicalize, deepest-column canonicalization.
-            metadata = prepare_eval_metadata(metadata, rotation_plan, rot_generator, rot_stream,
+            # exp_25: then, with --canonicalize, deepest-column canonicalization -- for the
+            # CONDITIONER only: every metric input below comes from the post-rotation,
+            # pre-canonicalization list, as in every comparator cell (plan v9 §2.2, A4).
+            prepared = prepare_eval_metadata(metadata, rotation_plan, rot_generator, rot_stream,
                                              canon_protocol.applied, canon_protocol.img_w,
                                              canon_stream)
+            metadata, metric_metadata = prepared.cond, prepared.metric
 
             with cond_autocast_ctx():
                 if cond_method == 'fa_invariant':
@@ -1988,7 +2006,7 @@ def evaluate_model(
 
             # exp_16 (ARE): + lambda * A_query, on the LATENT, before the decode
             if are_bank is not None:
-                fakes = apply_are_addback(fakes, are_bank, are_lambda, metadata,
+                fakes = apply_are_addback(fakes, are_bank, are_lambda, metric_metadata,
                                           module.device)
 
             # Decode
@@ -2007,9 +2025,9 @@ def evaluate_model(
                     reals = torch.nn.functional.pad(reals, (0, fakes.shape[-1] - reals.shape[-1]))
     
             # Compute metrics
-            scene_list = [md["scene"] for md in metadata]
-            depth_list = [md["depth"] if 'depth' in md else None for md in metadata]
-            query_list = [md["source"] if 'source' in md else None for md in metadata]
+            scene_list = [md["scene"] for md in metric_metadata]
+            depth_list = [md["depth"] if 'depth' in md else None for md in metric_metadata]
+            query_list = [md["source"] if 'source' in md else None for md in metric_metadata]
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
             if waveform_dump is not None:
                 waveform_dump.append(fakes)  # exactly the tensor scored below (announcement 08)
