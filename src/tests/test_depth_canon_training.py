@@ -265,6 +265,23 @@ def test_latency_is_measured_per_batch_and_logged_on_the_training_path_only():
     assert wrapper.canon_latency["batches"] == 3       # validation batches still measured
 
 
+def test_latency_covers_the_carrier_unwrap_and_the_schema_check(monkeypatch):
+    """rB-F1 A5 (Codex rA NIT): the timer starts BEFORE the carrier unwrap and the validation,
+    so the latency is the whole treatment overhead of _canonicalize_batch."""
+    import src.training.diffusion as D
+    clock = [100.0]
+    monkeypatch.setattr(D, "perf_counter", lambda: clock[0])
+    wrapper, _ = _canon_wrapper(training=False)
+    real = wrapper._check_canon_metadata
+
+    def slow_check(metadata):
+        clock[0] += 5.0                                  # the validation "takes" 5 s
+        return real(metadata)
+    monkeypatch.setattr(wrapper, "_check_canon_metadata", slow_check)
+    wrapper._canonicalize_batch(D._CpuMetadataCarrier([_canon_md(0, "none")]))
+    assert wrapper.canon_latency["total_s"] == 5.0 and wrapper.canon_latency["batches"] == 1
+
+
 # --------------------------------------------------------------------------- #
 # 13 / 12c. _canonicalize_batch: schema + CPU-float64 contract, operator, counters
 # --------------------------------------------------------------------------- #
