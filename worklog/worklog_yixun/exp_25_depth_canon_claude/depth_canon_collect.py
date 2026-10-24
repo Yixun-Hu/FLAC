@@ -840,6 +840,102 @@ def table_block(cells):
     return out
 
 
+def traj_grid(cells, t3):
+    """The D5c trajectory: CANON checkpoints 2.5k..40k x theta {0,90,180,270} x K, seed 42,
+    item-weighted (40k = the T / C4 cells). Descriptive, single seed; each step's Delta_C4 is
+    set against 10 % of P1-pin's Delta_C4 @40k (the only P1 reference measured at this pin)."""
+    idx, grid = _index(cells), []
+    for step in range(2500, 40001, 2500):
+        for k in (1, 8):
+            ent = {d: idx.get(("CANON", "F", k, 42, step, d)) for d in (0, 90, 180, 270)}
+            ok = all(_same_items(e, ent[0]) for e in ent.values())
+            delta = {key: (max(_value(e, key, "item") for e in ent.values())
+                           - min(_value(e, key, "item") for e in ent.values())) for key in TIER3_KEYS} if ok else None
+            p1 = {key: t3["arms"]["P1"][k]["item"][key]["delta_c4"] for key in TIER3_KEYS}
+            grid.append({"step": step, "K": k, "cells": {str(d): e["row"]["cell"] if e else None for d, e in ent.items()},
+                         "values": {str(d): {key: _value(e, key, "item") for key in TIER3_KEYS} if e else None
+                                    for d, e in ent.items()},
+                         "delta_c4": delta,
+                         "within_10pct_of_p1_40k": {key: (delta[key] <= TIER3_FRACTION * p1[key])
+                                                    if delta and p1[key] is not None else None
+                                                    for key in TIER3_KEYS}})
+    return {"grid": grid, "note": "descriptive, single seed 42, item-weighted; 40k = the T / C4 cells; "
+                                  "reference = 10 % of P1-pin Delta_C4 @40k"}
+
+
+BF_LABEL = "fa scratch B-F @40k (equivariant, 59% budget)"
+MODEL_COMPARISON = os.path.join(REPO, "worklog", "worklog_yixun", "model_comparison.md")
+
+
+def bf_historical(path=MODEL_COMPARISON):
+    """B-F's HISTORICAL theta = 0 row, quoted verbatim (plan §5 ledger: not re-measured)."""
+    rows = {}
+    with open(path) as f:
+        for line in f:
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) >= 10 and cells[0] == BF_LABEL:
+                rows[int(cells[2])] = {"protocol": cells[1], "n": int(cells[3]),
+                                       "values": dict(zip(("T60", "C50", "EDT", "R@1", "R@5", "R@10"), cells[4:10]))}
+    return {"label": BF_LABEL, "rows": rows,
+            "provenance": "quoted from model_comparison.md (exp_07 B-F @40k, fa_invariant eval, legacy "
+                          "per-angle loop, its own historical evaluator pin; raw JSONs "
+                          "outputs_FLAC/exp07_BF/**/*exp10_BF40_K{1,8}_s4[2-6]*.json) -- not re-measured "
+                          "at the exp_25 pin, no rotated or random-yaw cells (plan §5 ledger)"}
+
+
+def load_tie_audit(path):
+    """``(report, reasons)``: the rung-3 tie audit, only when its sidecar verifies and its gate
+    is a complete PASS."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            text = f.read()
+        with open(path + ".sha256") as f:
+            side = f.read()
+        rep = json.loads(text)
+    except (OSError, ValueError) as err:
+        return None, [f"tie audit {path} unreadable ({err})"]
+    reasons = []
+    if side != f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n":
+        reasons.append(f"tie audit sha256 sidecar does not match {path}")
+    if (rep.get("gate") or {}).get("verdict") != "PASS" or (rep.get("coverage") or {}).get("complete") is not True:
+        reasons.append(f"tie audit gate is not a complete PASS ({rep.get('gate')})")
+    return (rep if not reasons else None), reasons
+
+
+def tie_summary(cells, audit):
+    """Tie classes per canonicalized cell (records) and per split (the audit, item-weighted);
+    every cell's counts must equal its split's audit counts (a per-map property)."""
+    per_cell = {n: e["record"]["canonicalize_tie_counts"] for n, e in cells.items()
+                if e["valid"] and e["row"]["canonicalize"]}
+    per_split = {s: (audit or {}).get("per_split", {}).get(s) for s in ("train", "unseen", "seen")} if audit else {}
+    mismatches = []
+    if audit:
+        for n, counts in per_cell.items():
+            items = (per_split.get(cells[n]["row"]["split"]) or {}).get("items") or {}
+            if counts != {c: items.get(c) for c in TIE_CLASSES}:
+                mismatches.append(n)
+    shared = sum(1 for r in (audit or {}).get("rows", []) if r["counts"].get("unseen") and r["counts"].get("seen"))
+    return {"per_cell": per_cell, "per_split": per_split, "mismatches": mismatches,
+            "shared_maps": shared if audit else None}
+
+
+def split_overlap(splits=(("unseen", "data/AR/unseen_eval.json"), ("seen", "data/AR/seen_eval.json"))):
+    """The seen / unseen item overlap (r3b review): the two splits are NOT independent samples."""
+    items = {}
+    for name, rel in splits:
+        with open(os.path.join(REPO, rel)) as f:
+            data = json.load(f)
+        items[name] = {(room, rid, w) for room, ids in data.items() for rid, ws in ids.items() for w in ws}
+    shared = len(items["unseen"] & items["seen"])
+    u, sn = len(items["unseen"]), len(items["seen"])
+    return {"unseen_items": u, "seen_items": sn, "shared_items": shared,
+            "disclosure": (f"DISCLOSURE: the seen and unseen AR eval splits share {shared:,} exact item paths "
+                           f"({100 * shared / u:.1f} % of unseen, {100 * shared / sn:.1f} % of seen) and 112 "
+                           "depth maps (rung-3 tie-audit enumeration): seen and unseen results are correlated "
+                           "and must not be presented as independent estimates.")}
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 

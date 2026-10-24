@@ -723,3 +723,62 @@ def test_table_block_mean_and_sample_sd(tmp_path):
     assert t60["n"] == 5 and abs(t60["mean"] - 5.52) < 1e-9 and abs(t60["sd"] - 0.0158113883) < 1e-9
     assert set(tab) == {"CANON", "P1", "YAW", "seen"} and tab["YAW"][8]["scene"]["C50"]["n"] == 5
     assert tab["seen"]["YAW"][1]["item"]["T60"]["n"] == 5 and "CANON" not in tab["seen"]  # S not written
+
+
+# ---- cycle 5d: TRAJ grid, B-F historical row, tie counts, the seen/unseen overlap ---- #
+def test_traj_grid(tmp_path):
+    blocks = ["T", "C4+45", "P1-pin", "TRAJ"]
+    write_campaign(tmp_path, blocks, metrics_fn=t3_metrics)
+    cells = collect(tmp_path, blocks)
+    t3 = C.tier3(cells)
+    grid = C.traj_grid(cells, t3)
+    assert [g["step"] for g in grid["grid"]] == [s for s in range(2500, 40001, 2500) for _ in (1, 8)]
+    for g in grid["grid"]:
+        assert abs(g["delta_c4"]["T60"] - 0.007) < 1e-9 and set(g["values"]) == {"0", "90", "180", "270"}
+        assert g["within_10pct_of_p1_40k"]["T60"] is True
+    last = grid["grid"][-1]
+    assert last["cells"]["0"] == "exp25_CANON_T_S40000_K8_s42"          # 40k = the T / C4 cells
+
+
+def test_bf_row_is_quoted_with_its_provenance():
+    bf = C.bf_historical()
+    assert bf["rows"][1]["values"]["T60"] == "9.543 ± 0.054" and bf["rows"][8]["values"]["T60"] == "8.202 ± 0.017"
+    assert bf["rows"][8]["protocol"] == "fa eval (legacy-loop)" and bf["rows"][8]["n"] == 5
+    assert "not re-measured" in bf["provenance"] and "model_comparison.md" in bf["provenance"]
+
+
+def write_audit(tmp, verdict="PASS", unseen=None, tamper=False):
+    items = {"none": 6, "same_column": 1, "cross_column_image": 1, "survivor": 0, "error": 0}
+    rep = {"schema_version": 1, "coverage": {"complete": True, "limit": None},
+           "gate": {"verdict": verdict, "n_survivors": 0, "n_errors": 0},
+           "per_split": {"unseen": {"items": unseen or items, "maps": items},
+                         "seen": {"items": items, "maps": items}},
+           "rows": [{"counts": {"train": 0, "unseen": 1, "seen": 1}}, {"counts": {"train": 1, "unseen": 0, "seen": 0}}]}
+    text = json.dumps(rep) + "\n"
+    path = os.path.join(str(tmp), "depth_canon_tie_audit.json")
+    open(path, "w").write(text)
+    digest = "0" * 64 if tamper else hashlib.sha256(text.encode()).hexdigest()
+    open(path + ".sha256", "w").write(f"{digest}  depth_canon_tie_audit.json\n")
+    return path
+
+
+def test_tie_counts_per_cell_and_per_split(tmp_path):
+    write_campaign(tmp_path, ["T", "R"])
+    cells = collect(tmp_path, ["T", "R"])
+    audit, reasons = C.load_tie_audit(write_audit(tmp_path))
+    assert reasons == []
+    ties = C.tie_summary(cells, audit)
+    assert len(ties["per_cell"]) == 20 and ties["mismatches"] == [] and ties["shared_maps"] == 1
+    assert ties["per_split"]["unseen"]["items"]["cross_column_image"] == 1
+    audit, _ = C.load_tie_audit(write_audit(tmp_path, unseen={"none": 7, "same_column": 0,
+                                                               "cross_column_image": 1}))
+    assert len(C.tie_summary(cells, audit)["mismatches"]) == 20
+    for kw, needle in ((dict(tamper=True), "sha256"), (dict(verdict="FAIL"), "PASS")):
+        assert any(needle in x for x in C.load_tie_audit(write_audit(tmp_path, **kw))[1])
+
+
+def test_the_seen_unseen_overlap_disclosure():
+    ov = C.split_overlap()
+    assert (ov["unseen_items"], ov["seen_items"], ov["shared_items"]) == (6337, 6217, 1093)
+    assert "not be presented as independent estimates" in ov["disclosure"]
+    assert "17.2 %" in ov["disclosure"] and "17.6 %" in ov["disclosure"]
