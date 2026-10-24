@@ -144,3 +144,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `33a8d72` | Coder r3d | cycle 2b: the fire sequence (SMOKE -> FULL, transient GPU-gate retries <= 5, final failures) |
 | `dff44c8` | Planner records | Codex code-review artifacts r1 / r1 re-verify / r2 / r2 re-verify / r3b committed (previously untracked) |
 | `1c0f6fb` | Planner records | plan v10: Codex r3b amendments, round 3c as built, round 3d watcher, A4/A5 resolved (Yixun's pre-approved GO, freeze rule), A6 eval GPU policy, schedule |
+| `dbbe07f` | Planner records | receipt for rounds 3c + r3b-F1 + 3d (regression 2155/7/1, guard 150/0/0), Codex r3b verdict, pre-approved GO, adjudications Q1–Q6 + A6, reviews A/B launched |
