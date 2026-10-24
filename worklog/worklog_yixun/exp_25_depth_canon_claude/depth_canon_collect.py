@@ -828,7 +828,8 @@ PROBE_CONTRACT = {   # plan v10 §1 Tier 2 (ii) + eps_cond, §5 "registered prob
     "offset_keys": ("d64", "d128", "d256", "d384", "random"), "stages": ("cond", "velocity", "latent", "waveform"),
     "protocols": {"fp32": {"cond_autocast": "off", "matmul_precision": "highest"},
                   "eval": {"cond_autocast": "bf16", "matmul_precision": "medium"}},
-    "eps_threshold": 1e-5}
+    "eps_threshold": 1e-5,
+    "ckpt_step": 40000}   # rB-F3: the CANON checkpoint the probe is bound to (digest AND loaded length)
 
 
 def _probe_module():
@@ -879,11 +880,45 @@ def _probe_number_reasons(rep, P):
     return out
 
 
-def probe_reasons(rep, *, ckpt_sha256, pin, manifest):
+def canon_endpoint_receipts(cells):
+    """rB-F3 F3-2: the receipts (``<stem>.cell.json``) of every VERIFIED CANON@``ckpt_step`` cell of
+    the selection -- each holds the digest + length of the checkpoint bytes its evaluator loaded."""
+    step = PROBE_CONTRACT["ckpt_step"]
+    return [e["receipt"] for e in cells.values()
+            if e["valid"] and e["row"]["arm"] == "CANON" and e["row"]["step"] == step]
+
+
+def _probe_length_reasons(prov, ckpt_sha256, receipts):
+    """rB-F3 F3-2 (Codex rA3/rB3 HIGH): the probe's ``ckpt_bytes_loaded`` == the one length every
+    verified CANON@40k cell receipt holds for the same checkpoint. No such receipt, receipts that
+    disagree or name other bytes -> the length is NOT verifiable (a reason, never a silent pass)."""
+    label, step = "probe provenance.ckpt_bytes_loaded", PROBE_CONTRACT["ckpt_step"]
+    if not receipts:
+        return [f"{label} is not verifiable: the selection holds no verified CANON@{step} cell receipt "
+                "(the length of the checkpoint bytes the campaign loaded)"]
+    out = [f"{label} is not verifiable: a verified CANON@{step} cell receipt's ckpt_sha256_loaded "
+           f"{r.get('ckpt_sha256_loaded')!r} is not the probe's checkpoint {ckpt_sha256}"
+           for r in receipts if r.get("ckpt_sha256_loaded") != ckpt_sha256]
+    sizes = [r.get("ckpt_bytes_loaded") for r in receipts]
+    bad = [n for n in sizes if type(n) is not int or n <= 0]
+    if bad:
+        return out + [f"{label} is not verifiable: a verified CANON@{step} cell receipt's ckpt_bytes_loaded "
+                      f"{bad[0]!r} is not a positive int"]
+    if len(set(sizes)) != 1:
+        return out + [f"{label} is not verifiable: the verified CANON@{step} cell receipts disagree on "
+                      f"ckpt_bytes_loaded ({sorted(set(sizes))})"]
+    _eq(out, f"{label} (vs the verified CANON@{step} cell receipts' ckpt_bytes_loaded)",
+        prov.get("ckpt_bytes_loaded"), sizes[0])
+    return out
+
+
+def probe_reasons(rep, *, ckpt_sha256, canon_receipts, pin, manifest):
     """The registered composition control of THIS campaign (Codex rB HIGH B5): registered, no
     deviation, the CANON@40k checkpoint, the campaign pin on a clean tree, the registered
     arguments, the campaign's configs + split, the EMA canonical load, the offsets the probe's
-    own draw gives, the stream census, and eps / control / verdict consistent with the results."""
+    own draw gives, the stream census, and eps / control / verdict consistent with the results.
+    rB-F3 F3-2: the bytes the probe deserialized -- ``ckpt_sha256_loaded`` == the manifest sha,
+    ``ckpt_bytes_loaded`` == the length ``canon_receipts`` (:func:`canon_endpoint_receipts`) hold."""
     P, out = PROBE_CONTRACT, []
     _eq(out, "probe schema_version", rep.get("schema_version"), 1)
     if rep.get("registered") is not True:
@@ -894,7 +929,8 @@ def probe_reasons(rep, *, ckpt_sha256, pin, manifest):
     ds = next(c for c in manifest["cells"] if c["split"] == P["split"] and c["K"] == P["config_K"])
     split_json = manifest["splits"][P["split"]]["split_json"]
     digest = model_config_digest(next(c for c in manifest["cells"] if c["arm"] == "CANON"))
-    want = {"ckpt_sha256": ckpt_sha256, "source_sha": pin, "dirty": "", "device": P["device"], "seed": P["seed"],
+    want = {"ckpt_sha256": ckpt_sha256, "ckpt_sha256_loaded": ckpt_sha256,
+            "source_sha": pin, "dirty": "", "device": P["device"], "seed": P["seed"],
             "random_offset_seed": P["seed"] + 1, "n_items": P["n_items"], "batch_size": P["batch_size"],
             "img_w": P["img_w"], "protocols": P["protocols"], "allow_canon_mismatch": False,
             "model_config_file_sha256": canon["model_config_sha256"], "dataset_config": ds["dataset_config"],
@@ -905,6 +941,7 @@ def probe_reasons(rep, *, ckpt_sha256, pin, manifest):
                      "model_config_sha256_embedded": digest}}
     for key, value in want.items():
         _eq(out, f"probe provenance.{key}", prov.get(key), value)
+    out += _load_reasons("probe provenance", prov) + _probe_length_reasons(prov, ckpt_sha256, canon_receipts)
     if not isinstance(prov.get("model_config"), str) or os.path.realpath(os.path.join(REPO, prov["model_config"])) \
             != os.path.realpath(os.path.join(REPO, canon["model_config"])):
         out.append(f"probe provenance.model_config {prov.get('model_config')!r} is not {canon['model_config']}")
@@ -922,10 +959,11 @@ def probe_reasons(rep, *, ckpt_sha256, pin, manifest):
     return out + _probe_number_reasons(rep, P)
 
 
-def load_control(path, *, ckpt_sha256, pin, manifest):
+def load_control(path, *, ckpt_sha256, canon_receipts, pin, manifest):
     """``(control_p99, reasons, eps)`` from the composition-control probe JSON: only a valid
     registered artifact of this campaign (``probe_reasons``) with a matching sidecar is a
-    control; ``eps`` = ``{value, threshold, verdict PASS|FAIL}`` (a legitimate FAIL stays FAIL)."""
+    control; ``eps`` = ``{value, threshold, verdict PASS|FAIL}`` (a legitimate FAIL stays FAIL).
+    ``canon_receipts``: :func:`canon_endpoint_receipts` of the collected cells (rB-F3, required)."""
     import hashlib
     try:
         with open(path, "rb") as f:
@@ -940,7 +978,7 @@ def load_control(path, *, ckpt_sha256, pin, manifest):
         reasons.append(f"control probe sha256 sidecar does not match {path}")
     if not isinstance(rep, dict):
         return None, reasons + ["control probe is not a JSON object"], None
-    reasons += probe_reasons(rep, ckpt_sha256=ckpt_sha256, pin=pin, manifest=manifest)
+    reasons += probe_reasons(rep, ckpt_sha256=ckpt_sha256, canon_receipts=canon_receipts, pin=pin, manifest=manifest)
     if reasons:
         return None, reasons, None
     eps = rep["eps_cond"]
@@ -1516,9 +1554,11 @@ def main(argv=None):
                                   canon_index=index, base_dir=args.base_dir,
                                   check_link=not args.no_link_check,
                                   no_dump_blocks=_csv(args.no_dump_blocks), dump_check=args.dump_check)
-            control, c_reasons, eps = load_control(args.probe_json, ckpt_sha256=index[40000][1], pin=args.pin,
+            step = PROBE_CONTRACT["ckpt_step"]
+            control, c_reasons, eps = load_control(args.probe_json, ckpt_sha256=index[step][1],
+                                                   canon_receipts=canon_endpoint_receipts(cells), pin=args.pin,
                                                    manifest=manifest) \
-                if 40000 in index else (None, ["no CANON@40k checkpoint in the index"], None)
+                if step in index else (None, [f"no CANON@{step} checkpoint in the index"], None)
             audit, a_summary, a_reasons = load_tie_audit(args.tie_audit_json)
             res = build_results(cells, control=control, control_reasons=c_reasons, eps=eps, audit=audit,
                                 audit_reasons=a_reasons, pin=args.pin, blocks=blocks, partial=args.partial,
