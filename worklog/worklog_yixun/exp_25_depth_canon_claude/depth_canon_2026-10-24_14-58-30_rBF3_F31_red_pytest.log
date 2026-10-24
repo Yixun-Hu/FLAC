@@ -1,0 +1,384 @@
+# rB-F3 F3-1a red: tests at HEAD 6cdcf9f + uncommitted test edits, production code unchanged; re-run 2026-10-24T14:58:56-04:00 for the full output
+.........................FF.FFFFFFF................FF                    [100%]
+=================================== FAILURES ===================================
+_____________ test_load_reports_the_binding_and_the_weights_source _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_load_reports_the_binding_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc8aff40>
+
+    def test_load_reports_the_binding_and_the_weights_source(tmp_path, monkeypatch):
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        _capture(monkeypatch, [], stop=False)
+>       module, info, ckpt_load = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+E       ValueError: not enough values to unpack (expected 3, got 2)
+
+src/tests/test_depth_canon_cond_probe.py:339: ValueError
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+__ test_a_non_canonical_checkpoint_is_refused_before_the_model_unless_allowed __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_non_canonical_checkpoin0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc78fd30>
+
+    def test_a_non_canonical_checkpoint_is_refused_before_the_model_unless_allowed(tmp_path, monkeypatch):
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, {"use_ema": False})
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="TRAINED with canonicalize=False"):
+            probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+        _capture(monkeypatch, [], stop=False)
+>       _, info, _ = probe.load_probe_module(cfg_path, ckpt_path, "cpu", allow_canon_mismatch=True)
+E       ValueError: not enough values to unpack (expected 3, got 2)
+
+src/tests/test_depth_canon_cond_probe.py:355: ValueError
+----------------------------- Captured stdout call -----------------------------
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+_______ test_the_probe_reads_once_and_deserializes_the_buffer_it_hashed ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_the_probe_reads_once_and_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e293dbe0e0>
+
+    def test_the_probe_reads_once_and_deserializes_the_buffer_it_hashed(tmp_path, monkeypatch):
+        """One ``eval_FLAC.read_checkpoint_exact`` of the path, one ``torch.load(io.BytesIO(buf),
+        map_location='cpu')`` (no other argument); the returned digest + length are THAT buffer's,
+        not the file's after the read."""
+        import hashlib
+        import io
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        _capture(monkeypatch, [], stop=False)
+        reads, real_read, seen = [], eval_FLAC.read_checkpoint_exact, []
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact", lambda p: reads.append(p) or real_read(p))
+        _torch_load_spy(monkeypatch, ckpt_path, seen)
+>       module, info, ckpt_load = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+E       ValueError: not enough values to unpack (expected 3, got 2)
+
+src/tests/test_depth_canon_cond_probe.py:400: ValueError
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad0] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e293dae920>
+bad = {'ckpt_bytes_loaded': 1.0}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad1] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc78e800>
+bad = {'ckpt_bytes_loaded': True}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad2] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc78e620>
+bad = {'ckpt_bytes_loaded': 0}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad3] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc78e7a0>
+bad = {'ckpt_sha256_loaded': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad4] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e293dafa90>
+bad = {'ckpt_sha256_loaded': None}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+________ test_a_malformed_load_digest_is_refused_before_the_model[bad5] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_a_malformed_load_digest_i5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e293dbfb20>
+bad = {'extra': 1}
+
+    @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                     dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                     dict(ckpt_sha256_loaded=None), dict(extra=1)])
+    def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+        """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+        cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+        real_read = eval_FLAC.read_checkpoint_exact
+        monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                            lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+        monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+        with pytest.raises(ValueError, match="ckpt load provenance"):
+>           probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+src/tests/test_depth_canon_cond_probe.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py:267: in load_probe_module
+    model = ev.create_model_from_config(model_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cfg = {'model': {'conditioning': {'configs': [{'id': 'source', 'type': 'dist_embedder', 'config': {}}, {'id': 'vit0', 'type'...onicalize': {'enabled': True, 'img_w': 512}, 'use_ema': False}, 'model_type': 'diffusion_cond', 'sample_size': 16, ...}
+
+>   monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+E   Failed: model built
+
+src/tests/test_depth_canon_cond_probe.py:420: Failed
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+__________ test_main_records_the_loaded_digest_after_the_file_digest ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_main_records_the_loaded_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e2dc8af850>
+no_flash = None
+
+    def test_main_records_the_loaded_digest_after_the_file_digest(tmp_path, monkeypatch, no_flash):
+        import hashlib
+        rc, rep, out, ckpt_path, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
+        prov, data = rep["provenance"], open(ckpt_path, "rb").read()
+        assert rc == 0 and rep["registered"] is True and rep["deviations"] == []
+>       assert list(prov)[:5] == ["ckpt_path", "ckpt_sha256", "ckpt_sha256_loaded", "ckpt_bytes_loaded", "model_config"]
+E       AssertionError: assert ['ckpt_path',...taset_config'] == ['ckpt_path',...model_config']
+E         
+E         At index 2 diff: 'model_config' != 'ckpt_sha256_loaded'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_cond_probe.py:688: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+## depth_canon composition probe -- verdict PASS {'pass': True, 'eps_cond': True, 'tier1': True, 'masks': True}
+
+eps_cond (fp32 conditioning, max relL2 over offsets / ids / items): 2.396e-07 (threshold 1e-05, PASS; at {'key': 'd64', 'id': 'source', 'position': 2})
+Tier 1: 25/25 canonical depth hashes equal, 25 classes equal, 25 shifts co-rotate
+
+| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | waveform p99 | waveform max |
+|---|---|---|---|---|---|---|---|---|
+| fp32 | d64 | 1.754e-07 | 1.761e-07 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d128 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d256 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d384 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | random | 1.798e-07 | 1.823e-07 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d64 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d128 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d256 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d384 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | random | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+control p99 (fp32, waveform relL2): d64 0.000e+00, d128 0.000e+00, d256 0.000e+00, d384 0.000e+00, random 0.000e+00, pooled 0.000e+00
+control p99 (eval, waveform relL2): d64 0.000e+00, d128 0.000e+00, d256 0.000e+00, d384 0.000e+00, random 0.000e+00, pooled 0.000e+00
+determinism floor (fp32, A twice): max waveform relL2 0.000e+00
+determinism floor (eval, A twice): max waveform relL2 0.000e+00
+wrote /tmp/pytest-of-yixunhu/pytest-1827/test_main_records_the_loaded_d0/probe.json (+ .sha256)
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+________ test_main_names_the_deserialized_bytes_not_the_file_afterwards ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1827/test_main_names_the_deserializ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73e4d0fe0bb0>
+no_flash = None
+
+    def test_main_names_the_deserialized_bytes_not_the_file_afterwards(tmp_path, monkeypatch, no_flash):
+        """The file is rewritten on disk AFTER the probe read it: ``ckpt_sha256`` (the path, hashed at the
+        end, kept for continuity) names the file now; the loaded digest + length name what was deserialized."""
+        import hashlib
+        import io
+        seen = []
+        _torch_load_spy(monkeypatch, str(tmp_path / "toy.ckpt"), seen)
+        rc, rep, out, ckpt_path, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
+        prov, now = rep["provenance"], open(ckpt_path, "rb").read()
+>       assert rc == 0 and [s for s in seen if s[0] == "call"] == [("call", io.BytesIO, (), {"map_location": "cpu"})]
+E       AssertionError: assert (0 == 0 and [('call', <cl...ion': 'cpu'})] == [('call', <cl...ion': 'cpu'})]
+E         
+E         At index 0 diff: ('call', <class 'str'>, (), {'map_location': 'cpu'}) != ('call', <class '_io.BytesIO'>, (), {'map_location': 'cpu'})
+E         Use -v to get more diff)
+
+src/tests/test_depth_canon_cond_probe.py:703: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+## depth_canon composition probe -- verdict PASS {'pass': True, 'eps_cond': True, 'tier1': True, 'masks': True}
+
+eps_cond (fp32 conditioning, max relL2 over offsets / ids / items): 2.396e-07 (threshold 1e-05, PASS; at {'key': 'd64', 'id': 'source', 'position': 2})
+Tier 1: 25/25 canonical depth hashes equal, 25 classes equal, 25 shifts co-rotate
+
+| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | waveform p99 | waveform max |
+|---|---|---|---|---|---|---|---|---|
+| fp32 | d64 | 1.754e-07 | 1.761e-07 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d128 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d256 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | d384 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| fp32 | random | 1.798e-07 | 1.823e-07 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d64 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d128 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d256 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | d384 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+| eval | random | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 | 0.000e+00 |
+control p99 (fp32, waveform relL2): d64 0.000e+00, d128 0.000e+00, d256 0.000e+00, d384 0.000e+00, random 0.000e+00, pooled 0.000e+00
+control p99 (eval, waveform relL2): d64 0.000e+00, d128 0.000e+00, d256 0.000e+00, d384 0.000e+00, random 0.000e+00, pooled 0.000e+00
+determinism floor (fp32, A twice): max waveform relL2 0.000e+00
+determinism floor (eval, A twice): max waveform relL2 0.000e+00
+wrote /tmp/pytest-of-yixunhu/pytest-1827/test_main_names_the_deserializ0/probe.json (+ .sha256)
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_cond_probe.py::test_load_reports_the_binding_and_the_weights_source
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_non_canonical_checkpoint_is_refused_before_the_model_unless_allowed
+FAILED src/tests/test_depth_canon_cond_probe.py::test_the_probe_reads_once_and_deserializes_the_buffer_it_hashed
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad0]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad1]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad2]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad3]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad4]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_a_malformed_load_digest_is_refused_before_the_model[bad5]
+FAILED src/tests/test_depth_canon_cond_probe.py::test_main_records_the_loaded_digest_after_the_file_digest
+FAILED src/tests/test_depth_canon_cond_probe.py::test_main_names_the_deserialized_bytes_not_the_file_afterwards
+11 failed, 42 passed, 5 warnings in 14.08s

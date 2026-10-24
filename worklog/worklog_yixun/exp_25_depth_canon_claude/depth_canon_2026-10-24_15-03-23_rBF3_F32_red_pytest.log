@@ -1,0 +1,1112 @@
+# rB-F3 F3-2a red: HEAD 9234949 (F3-1b) + the uncommitted collector test edits, collector unchanged; 2026-10-24T15:03:23-04:00
+........................................................................ [ 29%]
+........................................................................ [ 59%]
+..................FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.......... [ 88%]
+..........................FF                                             [100%]
+=================================== FAILURES ===================================
+___________ test_a_registered_probe_of_this_campaign_is_the_control ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_registered_probe_of_thi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce2e9fa4d0>
+
+    def test_a_registered_probe_of_this_campaign_is_the_control(tmp_path, monkeypatch):
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch))
+
+src/tests/test_depth_canon_collect.py:928: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_registered_probe_of_thi0/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+----------------------------- Captured stdout call -----------------------------
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+_____ test_an_unbound_or_inconsistent_probe_is_not_a_control[unregistered] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c07f10>
+name = 'unregistered'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten0/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+______ test_an_unbound_or_inconsistent_probe_is_not_a_control[deviation] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c06fb0>
+name = 'deviation'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten1/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+___ test_an_unbound_or_inconsistent_probe_is_not_a_control[tampered_sidecar] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c07550>
+name = 'tampered_sidecar'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten2/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+___ test_an_unbound_or_inconsistent_probe_is_not_a_control[other_checkpoint] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae0880>
+name = 'other_checkpoint'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten3/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+______ test_an_unbound_or_inconsistent_probe_is_not_a_control[other_pin] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae3fa0>
+name = 'other_pin'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten4/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+______ test_an_unbound_or_inconsistent_probe_is_not_a_control[dirty_tree] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c05960>
+name = 'dirty_tree'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten5/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_______ test_an_unbound_or_inconsistent_probe_is_not_a_control[n_items] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae2740>
+name = 'n_items'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten6/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_________ test_an_unbound_or_inconsistent_probe_is_not_a_control[seed] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c05a50>
+name = 'seed'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten7/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+________ test_an_unbound_or_inconsistent_probe_is_not_a_control[device] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c06e90>
+name = 'device'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten8/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+____ test_an_unbound_or_inconsistent_probe_is_not_a_control[no_bf16_stage] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae3100>
+name = 'no_bf16_stage'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten9/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+__ test_an_unbound_or_inconsistent_probe_is_not_a_control[model_config_hash] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae1fc0>
+name = 'model_config_hash'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten10/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[dataset_config_hash] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae2dd0>
+name = 'dataset_config_hash'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten11/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+______ test_an_unbound_or_inconsistent_probe_is_not_a_control[split_hash] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7f9a0>
+name = 'split_hash'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten12/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_____ test_an_unbound_or_inconsistent_probe_is_not_a_control[load_not_ema] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce2e9fa110>
+name = 'load_not_ema'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten13/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_______ test_an_unbound_or_inconsistent_probe_is_not_a_control[offsets] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten14')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae1e10>
+name = 'offsets'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten14/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_____ test_an_unbound_or_inconsistent_probe_is_not_a_control[item_dropped] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten15')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c07fa0>
+name = 'item_dropped'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten15/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+____ test_an_unbound_or_inconsistent_probe_is_not_a_control[context_count] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten16')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c05660>
+name = 'context_count'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten16/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+____ test_an_unbound_or_inconsistent_probe_is_not_a_control[context_empty] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten17')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7fa90>
+name = 'context_empty'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten17/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_____ test_an_unbound_or_inconsistent_probe_is_not_a_control[stream_hash] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten18')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae36d0>
+name = 'stream_hash'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten18/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_____ test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_missing] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten19')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae27d0>
+name = 'eps_missing'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten19/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_______ test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_nan] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten20')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7f7c0>
+name = 'eps_nan'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten20/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+___ test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_inconsistent] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten21')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7db70>
+name = 'eps_inconsistent'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten21/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+____ test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_threshold] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten22')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7f8e0>
+name = 'eps_threshold'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten22/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+___ test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_pass_flipped] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten23')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce2e9f8a00>
+name = 'eps_pass_flipped'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten23/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[control_inconsistent] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten24')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c074f0>
+name = 'control_inconsistent'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten24/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[verdict_inconsistent] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten25')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c05c60>
+name = 'verdict_inconsistent'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten25/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten26')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7e5c0>
+name = 'loaded_digest_missing'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten26/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_other] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten27')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7e920>
+name = 'loaded_digest_other'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten27/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_not_hex] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten28')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7e860>
+name = 'loaded_digest_not_hex'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten28/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten29')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae0e20>
+name = 'loaded_length_missing'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten29/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_float] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten30')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24ae1d50>
+name = 'loaded_length_float'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten30/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+__ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_bool] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten31')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b92ec0>
+name = 'loaded_length_bool'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten31/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+__ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_zero] __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten32')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c07130>
+name = 'loaded_length_zero'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten32/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_not_the_receipts] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten33')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c05e40>
+name = 'loaded_length_not_the_receipts'
+
+    @pytest.mark.parametrize("name", list(PROBE_EDITS))
+    def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+        kw, needle = PROBE_EDITS[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+
+src/tests/test_depth_canon_collect.py:938: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_an_unbound_or_inconsisten33/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+______________ test_a_legitimate_eps_fail_stays_a_scientific_fail ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_legitimate_eps_fail_sta0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b92cb0>
+
+    def test_a_legitimate_eps_fail_stays_a_scientific_fail(tmp_path, monkeypatch):
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, mutate=lambda r: _relabel_eps(r, 1e9)))
+
+src/tests/test_depth_canon_collect.py:943: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_legitimate_eps_fail_sta0/depth_canon_cond_probe.json'
+receipts = None
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+__________________ test_the_probe_contract_mirrors_the_probe ___________________
+
+    def test_the_probe_contract_mirrors_the_probe():
+        probe = _toy_probe_run()[0]
+        P = C.PROBE_CONTRACT
+        assert {k: P[k] for k in ("n_items", "batch_size", "seed", "device")} == {
+            k: probe.REGISTERED[k] for k in ("n_items", "batch_size", "seed", "device")}
+        assert P["protocols"] == probe.PROTOCOLS and tuple(P["offset_keys"]) == probe.OFFSET_KEYS
+        assert P["eps_threshold"] == probe.EPS_COND_THRESHOLD and P["K"] == P["config_K"] == 8 and P["img_w"] == 512
+>       assert P["ckpt_step"] == 40000                                     # rB-F3: the checkpoint it is bound to
+E       KeyError: 'ckpt_step'
+
+src/tests/test_depth_canon_collect.py:955: KeyError
+_______ test_a_probe_with_the_receipts_length_and_digest_is_the_control ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_with_the_receipts0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b912a0>
+
+    def test_a_probe_with_the_receipts_length_and_digest_is_the_control(tmp_path, monkeypatch):
+        for receipts in (_endpoint_receipts(1), _endpoint_receipts(12)):
+>           control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts)
+
+src/tests/test_depth_canon_collect.py:971: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_with_the_receipts0/depth_canon_cond_probe.json'
+receipts = [{'ckpt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 724000123}]
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+__ test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[no_receipt] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b93b50>
+name = 'no_receipt'
+
+    @pytest.mark.parametrize("name", list(RECEIPT_CASES))
+    def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+        receipts, needle = RECEIPT_CASES[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+
+src/tests/test_depth_canon_collect.py:978: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip0/depth_canon_cond_probe.json'
+receipts = []
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipts_disagree] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b907c0>
+name = 'receipts_disagree'
+
+    @pytest.mark.parametrize("name", list(RECEIPT_CASES))
+    def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+        receipts, needle = RECEIPT_CASES[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+
+src/tests/test_depth_canon_collect.py:978: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip1/depth_canon_cond_probe.json'
+receipts = [{'ckpt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 72400...pt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 724000124}]
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_length_not_int] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7e080>
+name = 'receipt_length_not_int'
+
+    @pytest.mark.parametrize("name", list(RECEIPT_CASES))
+    def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+        receipts, needle = RECEIPT_CASES[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+
+src/tests/test_depth_canon_collect.py:978: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip2/depth_canon_cond_probe.json'
+receipts = [{'ckpt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 724000123.0}]
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_of_another_checkpoint] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b7ca30>
+name = 'receipt_of_another_checkpoint'
+
+    @pytest.mark.parametrize("name", list(RECEIPT_CASES))
+    def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+        receipts, needle = RECEIPT_CASES[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+
+src/tests/test_depth_canon_collect.py:978: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip3/depth_canon_cond_probe.json'
+receipts = [{'ckpt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 72400...pt_sha256_loaded': '3333333333333333333333333333333333333333333333333333333333333333', 'ckpt_bytes_loaded': 724000123}]
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+_ test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[length_not_the_receipts] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24c068c0>
+name = 'length_not_the_receipts'
+
+    @pytest.mark.parametrize("name", list(RECEIPT_CASES))
+    def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+        receipts, needle = RECEIPT_CASES[name]
+>       control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+
+src/tests/test_depth_canon_collect.py:978: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_the_receip4/depth_canon_cond_probe.json'
+receipts = [{'ckpt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 72400...pt_sha256_loaded': 'e2505f22405ac6d960a83fe042906d52708194ed766cc5e38486212ee687489d', 'ckpt_bytes_loaded': 724000122}]
+
+    def _load(path, receipts=None):
+>       return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                              canon_receipts=_endpoint_receipts() if receipts is None else receipts)
+E       TypeError: load_control() got an unexpected keyword argument 'canon_receipts'
+
+src/tests/test_depth_canon_collect.py:858: TypeError
+____ test_the_receipts_held_are_those_of_the_verified_canon_endpoint_cells _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_the_receipts_held_are_tho0')
+
+    def test_the_receipts_held_are_those_of_the_verified_canon_endpoint_cells(tmp_path):
+        write_campaign(tmp_path, ["T", "D-ii"])
+        traj = row("TRAJ", K=1, seed=42, deg=270, step=7500)
+        write_cell(tmp_path, traj)                                     # a verified CANON cell of ANOTHER step
+        cells = collect(tmp_path, ["T", "D-ii", "TRAJ"])
+        assert cells[traj["cell"]]["valid"] and all(cells[r["cell"]]["valid"] for r in C.select_cells(MANIFEST, ["D-ii"]))
+        want = [e["receipt"] for e in cells.values() if e["row"]["block"] == "T"]
+>       assert len(want) == 10 and C.canon_endpoint_receipts(cells) == want
+E       AttributeError: module 'depth_canon_collect' has no attribute 'canon_endpoint_receipts'
+
+src/tests/test_depth_canon_collect.py:990: AttributeError
+_____ test_a_probe_length_other_than_the_receipts_refuses_full_collection ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_other_than0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b0a860>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cce24b095d0>
+
+    def test_a_probe_length_other_than_the_receipts_refuses_full_collection(tmp_path, monkeypatch, capsys):
+        write_campaign(tmp_path, INVARIANCE_S)
+        write_probe(tmp_path, monkeypatch, mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=CKPT_BYTES + 1))
+        write_audit(tmp_path, monkeypatch)
+        rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+        text = capsys.readouterr().out
+>       assert rc == 3 and "ckpt_bytes_loaded" in text and not os.path.exists(out + ".json"), text
+E       AssertionError: Running json scandir...
+E         Found 2 files in 1 subfolders
+E         Running json scandir...
+E         Found 8 files in 1 subfolders
+E         Running json scandir...
+E         Found 8 files in 1 subfolders
+E         wrote /tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_other_than0/results.md and /tmp/pytest-of-yixunhu/pytest-1831/test_a_probe_length_other_than0/results.json (complete)
+E         
+E       assert (0 == 3)
+
+src/tests/test_depth_canon_collect.py:1432: AssertionError
+_ test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1831/test_a_selection_without_a_ver0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7cce24b8bca0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7cce24b8a950>
+
+    def test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe(tmp_path, monkeypatch, capsys):
+        write_campaign(tmp_path, ["D-ii"])                              # P1 checkpoint cells only
+        write_probe(tmp_path, monkeypatch)
+        write_audit(tmp_path, monkeypatch)
+        rc, out = _collect_cli(tmp_path, blocks="D-ii")
+        text = capsys.readouterr().out
+>       assert rc == 3 and "ckpt_bytes_loaded" in text and "not verifiable" in text, text
+E       AssertionError: Running json scandir...
+E         Found 2 files in 1 subfolders
+E         Running json scandir...
+E         Found 8 files in 1 subfolders
+E         Running json scandir...
+E         Found 8 files in 1 subfolders
+E         wrote /tmp/pytest-of-yixunhu/pytest-1831/test_a_selection_without_a_ver0/results.md and /tmp/pytest-of-yixunhu/pytest-1831/test_a_selection_without_a_ver0/results.json (complete)
+E         
+E       assert (0 == 3)
+
+src/tests/test_depth_canon_collect.py:1441: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[unregistered]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[deviation]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[tampered_sidecar]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[other_checkpoint]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[other_pin]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[dirty_tree]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[n_items]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[seed]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[device]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[no_bf16_stage]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[model_config_hash]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[dataset_config_hash]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[split_hash]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[load_not_ema]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[offsets]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[item_dropped]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[context_count]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[context_empty]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[stream_hash]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_missing]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_nan]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_inconsistent]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_threshold]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_pass_flipped]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[control_inconsistent]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[verdict_inconsistent]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_missing]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_other]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_not_hex]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_missing]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_float]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_bool]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_zero]
+FAILED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_not_the_receipts]
+FAILED src/tests/test_depth_canon_collect.py::test_a_legitimate_eps_fail_stays_a_scientific_fail
+FAILED src/tests/test_depth_canon_collect.py::test_the_probe_contract_mirrors_the_probe
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_with_the_receipts_length_and_digest_is_the_control
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[no_receipt]
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipts_disagree]
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_length_not_int]
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_of_another_checkpoint]
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[length_not_the_receipts]
+FAILED src/tests/test_depth_canon_collect.py::test_the_receipts_held_are_those_of_the_verified_canon_endpoint_cells
+FAILED src/tests/test_depth_canon_collect.py::test_a_probe_length_other_than_the_receipts_refuses_full_collection
+FAILED src/tests/test_depth_canon_collect.py::test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe
+46 failed, 198 passed, 5 warnings in 35.16s
