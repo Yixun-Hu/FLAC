@@ -54,6 +54,42 @@ commit_clone() {
   git -C "$R" -c user.name=guard -c user.email=guard@localhost commit -q --allow-empty -m "$1"
 }
 
+# --- harness: marker, stubs on PATH for the launcher only --------------------- #
+BIN="$H/bin"; mkdir -p "$BIN"; touch "$H/.depth_canon_harness"
+REAL_PY="$(command -v python)"
+cat > "$BIN/python" <<STUB
+#!/usr/bin/env bash
+# guard stub: 'python train.py ...' runs the fake trainer; everything else is the real python
+if [ "\${1:-}" = "train.py" ]; then shift; exec bash "$H/fake_train.sh" "\$@"; fi
+exec "$REAL_PY" "\$@"
+STUB
+chmod +x "$BIN"/*
+
+# launch <VAR=value ...>: the CLONE's launcher, harness mode, stubs first on PATH; sets OUT, RC
+launch() {
+  set +e
+  OUT="$(cd "$R" && env PATH="$BIN:$PATH" DEPTH_CANON_HARNESS="$H" \
+        EXPECT_HEAD="$(git -C "$R" rev-parse HEAD)" "$@" bash "$EXPREL/depth_canon_launch.sh" 2>&1)"
+  RC=$?
+  set -e
+}
+# case_rc <name> <want_rc> <want_text> <VAR=value ...>
+case_rc() {
+  local name="$1" want_rc="$2" want_txt="$3"; shift 3
+  launch "$@"
+  if [ "$RC" = "$want_rc" ] && grep -qF -- "$want_txt" <<<"$OUT"; then ok "$name (rc=$RC)"
+  else bad "$name" "want rc=$want_rc + '$want_txt'; got rc=$RC; last: $(tail -1 <<<"$OUT")"; fi
+}
+argv_of() { grep -m1 '^ARGV: ' <<<"$1" | sed 's/^ARGV: //' || true; }
+argval() {   # the token after <flag>, printed only when the flag occurs exactly once
+  local -a t; read -r -a t <<<"$1"; local i n=0 v=""
+  for ((i = 0; i < ${#t[@]}; i++)); do
+    if [ "${t[$i]}" = "$2" ]; then n=$((n + 1)); v="${t[$((i + 1))]:-}"; fi
+  done
+  [ "$n" -eq 1 ] && printf '%s' "$v"
+}
+has_value() { [ "$(argval "$1" "$2")" = "$3" ]; }
+
 echo "=== exp_25 depth_canon guard suite -- source HEAD $(git -C "$SRC_REPO" rev-parse --short HEAD) -- tmp $H ==="
 make_clone
 
@@ -88,6 +124,43 @@ mv "$R/weights" "$R/weights.off"
 expect "P5 a missing pinned file fails the generator" \
   bash -c 'cd "$1" && ! bash "$2/depth_canon_make_pins.sh" --list >/dev/null 2>"$3/p5.err" && grep -q "missing pinned file weights/FLAC/VAE.safetensors" "$3/p5.err"' _ "$R" "$EXPREL" "$H"
 mv "$R/weights.off" "$R/weights"
+
+echo "--- A. mode, dry-run flag, rung (string-pinned), harness location ---"
+case_rc "A1 MODE unset"          2 "MODE must be exactly SMOKE or FULL"  MODE=
+case_rc "A2 MODE lowercase"      2 "MODE must be exactly SMOKE or FULL"  MODE=full DRY_RUN=1
+case_rc "A3 MODE near-miss"      2 "MODE must be exactly SMOKE or FULL"  MODE=FULL_ DRY_RUN=1
+case_rc "A4 DRY_RUN not 0/1"     2 "DRY_RUN must be 0 or 1"              MODE=SMOKE DRY_RUN=yes
+case_rc "A5 accumulation smuggled" 2 "only the BN-compliant rung"        MODE=FULL DRY_RUN=1 MB=8 ACC=8
+case_rc "A6 micro-batch halved"  2 "only the BN-compliant rung"          MODE=FULL DRY_RUN=1 MB=16
+case_rc "A7 non-numeric rung"    2 "only the BN-compliant rung"          MODE=FULL DRY_RUN=1 MB=32x
+case_rc "A8 harness outside /tmp" 2 "must be a directory under /tmp"     MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$HOME"
+case_rc "A9 harness without its marker" 2 "lacks the .depth_canon_harness marker" MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$BIN"
+
+echo "--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---"
+launch MODE=FULL DRY_RUN=1; FULL_ARGV="$(argv_of "$OUT")"
+launch MODE=SMOKE DRY_RUN=1; SMOKE_ARGV="$(argv_of "$OUT")"
+expect "F1 argv starts with 'python train.py'" bash -c '[[ "$1" == "python train.py "* ]]' _ "$FULL_ARGV"
+for fv in "--model-config $EXPREL/FLAC_AR_CANON.json" \
+          "--dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json" \
+          "--pretransform-ckpt-path weights/FLAC/VAE.safetensors" "--max-steps 40000" \
+          "--checkpoint-every 2500" "--batch-size 32" "--accum-batches 1" "--num-gpus 2" \
+          "--sync-batchnorm true" "--strategy ddp_find_unused_parameters_true" \
+          "--precision bf16-mixed" "--seed 42" "--num-workers 6" "--logger wandb" \
+          "--name FLAC_exp25_CANON" "--experiment-name exp25_CANON" "--save-dir $H/save"; do
+  expect "F2 FULL ${fv}" has_value "$FULL_ARGV" "${fv%% *}" "${fv#* }"
+done
+for fv in "--max-steps 25" "--checkpoint-every 1000000" "--name FLAC_exp25_CANON_smoke" \
+          "--experiment-name exp25_CANON_smoke" "--save-dir $H/save" "--sync-batchnorm true"; do
+  expect "F3 SMOKE ${fv}" has_value "$SMOKE_ARGV" "${fv%% *}" "${fv#* }"
+done
+expect "F4 no validation set, no resume, no pretrained init (P1 passed none)" bash -c '
+  [ -n "$1" ] || exit 1
+  for f in --val-dataset-config --ckpt-path --pretrained-ckpt-path; do grep -qw -- "$f" <<<"$1" && exit 1; done; exit 0' _ "$FULL_ARGV"
+expect "F5 every emitted flag is a defaults.ini key (prefigure)" bash -c '
+  [ -n "$1" ] || exit 1
+  for f in $(grep -o -- "--[a-z-]*" <<<"$1"); do k="${f#--}"; grep -qE "^${k//-/_} *=" "$2/defaults.ini" || { echo "unknown $f"; exit 1; }; done' \
+  _ "$FULL_ARGV" "$R"
+case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo
 echo "=== ${PASS} passed, ${FAIL} failed, ${SKIP} skipped ==="
