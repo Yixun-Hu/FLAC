@@ -1308,6 +1308,9 @@ def main(argv=None):
     ap.add_argument("--spawn-digest", default=None, help="--write-receipt: the tree digest at the spawn")
     ap.add_argument("--post-digest", default=None, help="--write-receipt: the tree digest after the run")
     ap.add_argument("--collect", action="store_true", help="the full mode: write the results files")
+    ap.add_argument("--nas-retention-audit", action="store_true",
+                    help="every PUBLISHED dump (receipt with dump evidence) of the selection still exists on "
+                         "the NAS and matches its receipt (--dump-check full re-hashes, manifest is quick)")
     ap.add_argument("--partial", action="store_true", help="write a labelled PARTIAL table")
     ap.add_argument("--probe-json", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
     ap.add_argument("--tie-audit-json", default=os.path.join(EXPDIR, "depth_canon_tie_audit.json"))
@@ -1388,6 +1391,31 @@ def main(argv=None):
                        "cells": entries}, f, indent=1)
         print(f"plan: {len(entries)} cell(s) -> {args.plan}")
         return 0
+    if args.nas_retention_audit:   # rB-F1 B6: the table never needs the NAS; this audits retention
+        selected = select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)
+        index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                 manifest["arms"]["CANON"]["ckpt"]["run_ns"]) \
+            if any(c["arm"] == "CANON" for c in selected) else None
+        published, lost = 0, []
+        for row in selected:
+            target, _ = expected_checkpoint(row, manifest, index)
+            p = cell_paths(row, os.path.join(farm, row["arm"], os.path.basename(target)), dump_root)
+            try:
+                with open(os.path.join(args.base_dir, p.receipt)) as f:
+                    if json.load(f).get("dump_evidence") is None:
+                        continue          # not published, or published without a dump: nothing to retain
+            except (OSError, ValueError, AttributeError):
+                continue
+            published += 1
+            reasons = verify_cell(p.stem, manifest=manifest, farm_root=farm, dump_root=dump_root, pin=args.pin,
+                                  canon_index=index, base_dir=args.base_dir, dump_check=args.dump_check,
+                                  expect_dump=True, check_link=False)
+            if reasons:
+                lost.append(f"  NOT RETAINED {row['cell']}: " + "; ".join(reasons[:3]))
+        print(f"NAS retention: {published - len(lost)}/{published} published dump(s) retained and matching their "
+              f"receipts (dump check {args.dump_check})")
+        print("\n".join(lost))
+        return 0 if not lost else 1
     if args.collect:
         try:
             blocks = _csv(args.blocks) or list(manifest["blocks"])

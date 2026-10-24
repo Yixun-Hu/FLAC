@@ -510,8 +510,9 @@ def _load_exp25_validator(repo_root=None):
 
 def validate_exp25_cell(files, repo_root=None, expected_arm=None, expected_k=None):
     """``(ok, problems)`` for one exp_25 row: every file is a registered theta=0 table cell of
-    the declared arm and K, at ONE pin, and passes ``verify_cell`` (record, stream + canon
-    sidecars, receipt, dump marker/manifest digests). Fewer than five valid seeds render pending."""
+    the declared arm and K, at ONE pin and ONE campaign digest, and passes ``verify_cell``
+    OFFLINE (record, stream + canon sidecars, and the receipt's committed-artifact digests and
+    dump evidence -- no NAS read; decision A7). Fewer than five valid seeds render pending."""
     if not files:
         return True, []
     root = repo_paths(repo_root)["root"]
@@ -520,7 +521,7 @@ def validate_exp25_cell(files, repo_root=None, expected_arm=None, expected_k=Non
         manifest = V.load_cells(os.path.join(root, *EXP25_DIR, "depth_canon_cells.json"))
     except Exception as exc:                       # the gate must not fail open
         return False, [f"cannot load the exp_25 validator ({exc})"]
-    problems, pins, seeds = [], set(), []
+    problems, pins, seeds, digests = [], set(), [], set()
     for path in sorted(files):
         try:
             with open(path) as fh:
@@ -553,11 +554,23 @@ def validate_exp25_cell(files, repo_root=None, expected_arm=None, expected_k=Non
             problems.append(f"{name}: not at its farm path {EXP25_FARM}/{r['arm']}/")
         problems += [f"{name}: {x}" for x in V.verify_cell(
             stem, manifest=manifest, farm_root=EXP25_FARM, dump_root=manifest["dump_root"], pin=pin,
-            canon_index=index, base_dir=root, dump_check="manifest", expect_dump=True, check_link=False)]
+            canon_index=index, base_dir=root, dump_check="receipt", expect_dump=True, check_link=False)]
         seeds.append(r["seed"])
+        digests.add(_exp25_campaign_digest(path))
     if len(seeds) != len(set(seeds)) or len(files) > MIN_SEEDS:
         problems.append(f"seeds {sorted(seeds)}: one record per seed, at most {MIN_SEEDS}")
+    if len(digests) > 1:
+        problems.append(f"the cell spans {len(digests)} campaign digests (one evaluated tree per campaign)")
     return (not problems), problems
+
+
+def _exp25_campaign_digest(metrics_path):
+    """The relevant-tree digest the driver's receipt binds (rB-F1 B3); None if unreadable."""
+    try:
+        with open(metrics_path[:-len(".json")] + ".cell.json") as fh:
+            return json.load(fh).get("campaign_digest")
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def check_exp25_round(rendered, exp25_cells):
@@ -573,14 +586,18 @@ def check_exp25_round(rendered, exp25_cells):
             problems.append(f"{label}: publishes only as a complete, valid K=1 + K=8 pair (K={bad} not ready)")
         else:
             ready.add(label)
-    pins = set()
+    pins, digests = set(), set()
     for (label, _k), files in exp25_cells.items():
         for path in files if label in ready else ():
             with open(path) as fh:
                 pins.add(str(json.load(fh).get("source_sha")))
+            digests.add(_exp25_campaign_digest(path))
     if len(pins) > 1:
         problems.append(f"the exp_25 rows span {len(pins)} evaluator pins ({sorted(p[:12] for p in pins)}): "
                         "nothing publishes across pins")
+        ready = set()
+    if len(digests) > 1:
+        problems.append(f"the exp_25 rows span {len(digests)} campaign digests: nothing publishes across them")
         ready = set()
     return started - ready, problems
 
