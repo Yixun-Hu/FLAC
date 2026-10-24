@@ -409,9 +409,25 @@ T.write_cell(os.getcwd(), row, pin=eval_FLAC.source_sha(), n=row["expected_strea
              dump_root=opts.get("--dump-scored-waveforms"), receipt=False)
 '''
 STUB_FINDMNT = "#!/usr/bin/env bash\nprintf '%s\\n' \"${GUARD_FINDMNT_LINE:-cifs   //10.249.7.28/shared_data}\"\n"
-STUB_NVSMI = ('#!/usr/bin/env bash\necho "$*" >> "$DEPTH_CANON_EVAL_HARNESS/nvsmi.log"\n'
-              '[ "${GUARD_NVSMI_FAIL:-0}" = 1 ] && exit 1\n'
-              'case "$*" in *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;; esac\n')
+STUB_NVSMI = r"""#!/usr/bin/env bash
+# harness nvidia-smi: index->uuid map, per-call compute-app scenarios (apps.<n>, else
+# apps.default), memory.free; GUARD_* switches inject failures. It never touches a GPU.
+H="$DEPTH_CANON_EVAL_HARNESS"
+echo "$*" >> "$H/nvsmi.log"
+[ "${GUARD_NVSMI_FAIL:-0}" = 1 ] && exit 1
+case "$*" in
+  *index,uuid*)
+    [ "${GUARD_UUID_FAIL:-0}" = 1 ] && { echo "0, GPU-00000000-aaaa"; exit 9; }
+    if [ -f "$H/uuids" ]; then cat "$H/uuids"; else printf '0, GPU-00000000-aaaa\n1, GPU-11111111-bbbb\n'; fi ;;
+  *query-compute-apps*)
+    n=$(( $(cat "$H/apps.count" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$H/apps.count"
+    f="$H/apps.$n"; [ -f "$f" ] || f="$H/apps.default"
+    if [ -f "$f" ]; then cat "$f"; fi
+    exit "${GUARD_APPS_RC:-0}" ;;
+  *memory.free*) printf '%b\n' "${GUARD_GPU_FREE:-40000}" ;;
+esac
+"""
+UUID = {0: "GPU-00000000-aaaa", 1: "GPU-11111111-bbbb"}
 
 
 def _git(cwd, *args):
@@ -662,3 +678,89 @@ def test_a_no_dump_block_completes_without_a_dump(clone, harness):
     assert _verify(clone, harness, cell, expect_dump=False) == []
     rc, out = drive(clone, harness, "--only", cell, "--no-dump-blocks", "TRAJ")
     assert rc == 0 and "SKIP (complete and verified)" in out, out
+
+
+# ---- rB-F1 B2 (Codex rB HIGH; decision A6): a lane needs >= 10 GiB free AND no compute process ---- #
+@pytest.fixture()
+def sleepers():
+    """Stand-ins for foreign compute processes: OUR OWN `sleep`s (the driver must not signal them)."""
+    procs = []
+
+    def start():
+        procs.append(subprocess.Popen(["sleep", "300"]))
+        return procs[-1].pid
+    yield start
+    for p in procs:                       # our own children only
+        p.kill()
+        p.wait()
+
+
+def _apps(harness, rows, name="apps.default"):
+    (harness["dir"] / name).write_text("".join(f"{pid}, {UUID[g]}, python, 15000\n" for pid, g in rows))
+
+
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def test_an_occupied_lane_is_skipped_and_the_occupant_is_logged(clone, harness, sleepers):
+    pid = sleepers()
+    _apps(harness, [(pid, 0)])
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 0, out
+    assert [c["cvd"] for c in _calls(harness)] == ["1"]                   # GPU 0 is foreign-occupied
+    assert f"{pid}" in out and "occupied" in out and "cwd" in out and _alive(pid), out
+
+
+def test_both_lanes_occupied_waits_then_aborts_and_signals_nothing(clone, harness, sleepers):
+    a, b = sleepers(), sleepers()
+    _apps(harness, [(a, 0), (b, 1)])
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 2 and "GPU GATE" in out and not _calls(harness), out
+    assert _alive(a) and _alive(b)                                          # nothing was signalled
+
+
+def test_allow_shared_gpu_shares_but_keeps_the_memory_gate(clone, harness, sleepers):
+    _apps(harness, [(sleepers(), 0), (sleepers(), 1)])
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"ALLOW_SHARED_GPU": "1"})
+    assert rc == 0 and len(_calls(harness)) == 1 and "ALLOW_SHARED_GPU" in out, out
+    rc, out = drive(clone, harness, "--only", TWO[1], env={"ALLOW_SHARED_GPU": "1", "GUARD_GPU_FREE": "100"})
+    assert rc == 2 and len(_calls(harness)) == 1, out                        # memory still gates
+    rc, out = drive(clone, harness, "--only", TWO[1], env={"ALLOW_SHARED_GPU": "yes"})
+    assert rc == 2 and "ALLOW_SHARED_GPU" in out, out
+
+
+@pytest.mark.parametrize("setup, env, needle", [
+    (None, {"GUARD_UUID_FAIL": "1"}, "index,uuid"),
+    (None, {"GUARD_APPS_RC": "6"}, "compute-apps"),
+    ("malformed", {}, "malformed"),
+    ("unknown_uuid", {}, "unknown"),
+    ("dup_uuid", {}, "duplicate"),
+    ("no_lane_uuid", {}, "uuid"),
+    (None, {"GUARD_GPU_FREE": "40000\\n40000"}, "memory"),
+], ids=["uuid_query_fails", "apps_query_fails", "malformed_app_row", "unknown_uuid", "duplicate_uuid",
+        "lane_without_uuid", "two_memory_rows"])
+def test_a_query_failure_fails_closed(clone, harness, sleepers, setup, env, needle):
+    h = harness["dir"]
+    if setup == "malformed":
+        (h / "apps.default").write_text("garbage row\n")
+    elif setup == "unknown_uuid":
+        (h / "apps.default").write_text(f"{sleepers()}, GPU-99999999-zzzz, python, 10\n")
+    elif setup == "dup_uuid":
+        (h / "uuids").write_text("0, GPU-00000000-aaaa\n1, GPU-00000000-aaaa\n")
+    elif setup == "no_lane_uuid":
+        (h / "uuids").write_text("1, GPU-11111111-bbbb\n")
+    rc, out = drive(clone, harness, "--only", TWO[0], "--lanes", "0", env=env)
+    assert rc == 2 and "GPU GATE FAILED" in out and needle in out and not _calls(harness), out
+
+
+def test_the_lane_is_rechecked_immediately_before_the_spawn(clone, harness, sleepers):
+    """Free at selection, a newcomer at the re-check: no spawn on that card."""
+    (harness["dir"] / "apps.1").write_text("")
+    _apps(harness, [(sleepers(), 0)])                                       # every later poll
+    rc, out = drive(clone, harness, "--only", TWO[0], "--lanes", "0")
+    assert rc == 2 and not _calls(harness) and "re-check" in out, out
