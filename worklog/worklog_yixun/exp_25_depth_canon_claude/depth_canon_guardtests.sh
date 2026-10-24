@@ -83,8 +83,14 @@ echo "//10.249.7.28/shared_data 47764605435904 31138083921920 ${GUARD_DF_AVAIL:-
 STUB
 cat > "$BIN/nvidia-smi" <<'STUB'
 #!/usr/bin/env bash
-# guard stub: memory.free queries answer GUARD_GPU_FREE (MiB); other queries print nothing
-case "$*" in *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;; esac
+# guard stub: memory.free -> GUARD_GPU_FREE (MiB); index,uuid -> two fixed uuids; the compute-app
+# query -> GUARD_GPU_APPS ('pid, uuid' lines, printf %b), or a failure with GUARD_GPU_APPS_FAIL=1
+case "$*" in
+  *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;;
+  *index,uuid*) printf '0, GPU-guard-0\n1, GPU-guard-1\n' ;;
+  *query-compute-apps=pid,gpu_uuid*) [ "${GUARD_GPU_APPS_FAIL:-0}" = 1 ] && exit 1
+                                     printf '%b' "${GUARD_GPU_APPS:-}" ;;
+esac
 STUB
 cat > "$H/fake_train.sh" <<'FAKE'
 #!/usr/bin/env bash
@@ -366,6 +372,19 @@ case_rc "G3 the W&B identity gate is skipped in harness mode" 0 "W&B identity ga
 mkdir -p "$H/emptyhub"
 case_rc "G4 a missing DINOv3 snapshot refuses" 2 "DINOv3/init-identity GATE FAILED" MODE=SMOKE DRY_RUN=1 HF_HUB_CACHE="$H/emptyhub"
 case_rc "G5 the gate imports THIS checkout's src" 0 "src imported from $R/src" MODE=SMOKE DRY_RUN=1
+
+echo "--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7) ---"
+case_rc "U1 a foreign compute process on GPU 0" 2 "GPU OCCUPIED: foreign compute process" \
+  MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0\n'
+case_rc "U2 a foreign compute process on GPU 1 is named with its cwd" 2 "pid 4243 on GPU-guard-1 (cwd" \
+  MODE=SMOKE GUARD_GPU_APPS='4243, GPU-guard-1\n'
+case_rc "U3 a failed compute-process query refuses" 2 "the compute-process query failed" \
+  MODE=SMOKE GUARD_GPU_APPS_FAIL=1
+case_rc "U4 a process on another card does not block" 0 "GPU occupancy gate OK" \
+  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-7\n'
+clear_evidence; rm -rf "$H/save"
+case_rc "U5 the occupancy gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" \
+  MODE=SMOKE DRY_RUN=1 GUARD_GPU_APPS='4242, GPU-guard-0\n'
 
 echo "--- X. the preflight cannot satisfy the post-run scans ---"
 launch MODE=SMOKE DRY_RUN=1; PRE="$OUT"

@@ -304,6 +304,29 @@ else
       echo "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"; exit 2; }
   done
   echo "GPU memory gate OK: GPU 0 and GPU 1 each >= ${MIN_GPU_FREE_MIB} MiB free"
+  # r3b-F1 fix 7 (Codex r3b HIGH 7): free memory is not an idle card -- ANY compute process
+  # on GPU 0 / GPU 1 refuses (read-only: its pid and cwd are printed; nothing is signalled).
+  UUIDS="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null || true)"
+  OURS=""
+  for G in 0 1; do
+    U="$(awk -F', *' -v g="$G" '$1 == g {print $2}' <<<"$UUIDS")"
+    [ -n "$U" ] || { echo "GPU GATE FAILED: no uuid for GPU ${G} - refusing to launch blind"; exit 2; }
+    OURS="${OURS} ${U}"
+  done
+  APPS="$(nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader 2>/dev/null)" || {
+    echo "GPU GATE FAILED: the compute-process query failed - refusing to launch blind"; exit 2; }
+  BUSY=""
+  while IFS=', ' read -r APID AUUID; do
+    [ -n "$APID" ] || continue
+    case " ${OURS} " in *" ${AUUID} "*)
+      BUSY="${BUSY}  pid ${APID} on ${AUUID} (cwd $(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?'))"$'\n' ;;
+    esac
+  done <<<"$APPS"
+  if [ -n "$BUSY" ]; then
+    echo "GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - this launcher never signals another process; wait for them to end:"
+    printf '%s' "$BUSY"; exit 2
+  fi
+  echo "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1"
   echo "--- co-tenancy disclosure: compute apps at launch ---"
   nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
   nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
