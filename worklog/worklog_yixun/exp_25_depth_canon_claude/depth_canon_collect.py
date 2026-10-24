@@ -1394,7 +1394,8 @@ def main(argv=None):
     ap.add_argument("--collect", action="store_true", help="the full mode: write the results files")
     ap.add_argument("--nas-retention-audit", action="store_true",
                     help="every PUBLISHED dump (receipt with dump evidence) of the selection still exists on "
-                         "the NAS and matches its receipt (--dump-check full re-hashes, manifest is quick)")
+                         "the NAS and matches its receipt (--dump-check full re-hashes, manifest is quick; "
+                         "receipt is refused: it never reads the NAS)")
     ap.add_argument("--partial", action="store_true", help="write a labelled PARTIAL table")
     ap.add_argument("--probe-json", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
     ap.add_argument("--tie-audit-json", default=os.path.join(EXPDIR, "depth_canon_tie_audit.json"))
@@ -1477,6 +1478,10 @@ def main(argv=None):
         print(f"plan: {len(entries)} cell(s) -> {args.plan}")
         return 0
     if args.nas_retention_audit:   # rB-F1 B6: the table never needs the NAS; this audits retention
+        if args.dump_check not in ("full", "manifest"):   # rB-F2 F2-7: 'receipt' never reads the NAS
+            print(f"RETENTION AUDIT REFUSED: --dump-check {args.dump_check} never reads the NAS; a retention "
+                  "audit needs --dump-check full (re-hash) or manifest (quick)")
+            return 2
         selected = select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)
         index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
                                  manifest["arms"]["CANON"]["ckpt"]["run_ns"]) \
