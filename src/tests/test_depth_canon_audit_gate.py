@@ -322,3 +322,84 @@ def test_a_missing_depth_map_is_refused(tmp_path):
     os.unlink(_map_file(rep, rep["rows"][0]["path"]))
     ok, problems, _ = validate(out, contract)
     assert not ok and any("missing" in p or "unreadable" in p for p in problems), problems
+
+
+
+# --------------------------------------------------------------------------- #
+# rA A1 (iii)/(iv): checkout-portable ledger; harness mode = a harness contract file, accepted
+# ONLY under DEPTH_CANON_HARNESS and ONLY for a harness-tagged report
+# --------------------------------------------------------------------------- #
+@pytest.mark.skipif(not os.path.exists(REAL_AUDIT), reason="the full rung-3 audit is not in this checkout")
+def test_a_report_audited_in_another_checkout_is_accepted(tmp_path):
+    """The *_abs ledger fields are machine paths: they must END with their relative path, while
+    the content fields (relative paths, hashes, counts) must be equal -- so the committed audit
+    validates in any checkout of the pin (e.g. the guard suite's clone)."""
+    rep = json.load(open(REAL_AUDIT))
+    for led in rep["inputs"]:
+        for key in ("json_abs", "root_abs", "custom_metadata_module_abs"):
+            led[key] = led[key].replace(REPO, "/tmp/another_checkout", 1)
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, rep)
+    ok, problems, _ = G.validate_tie_audit(path, REPO, rehash=False)
+    assert ok, problems
+    rep["inputs"][1]["json_abs"] = "/tmp/another_checkout/data/AR/not_the_split.json"
+    rewrite(path, rep)
+    ok, problems, _ = G.validate_tie_audit(path, REPO, rehash=False)
+    assert not ok and any("json_abs" in p for p in problems), problems
+
+
+def _harness_report(rep):
+    tagged = copy.deepcopy(rep)
+    tagged["harness"] = True
+    return tagged
+
+
+def _harness_contract(tmp, contract, **over):
+    c = {"splits": contract["splits"], "n_maps": contract["n_maps"],
+         "custom_metadata_module": contract["custom_metadata_module"], **over}
+    path = tmp / "audit_contract.json"
+    path.write_text(json.dumps(c))
+    return str(path)
+
+
+def test_harness_mode_accepts_only_a_tagged_report_against_a_harness_contract(genuine, tmp_path):
+    out, rep, contract = genuine
+    hc = _harness_contract(tmp_path, contract)
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, _harness_report(rep))
+    ok, problems, summary = G.validate_tie_audit(path, REPO, harness_contract=hc)
+    assert ok and summary["n_maps"] == 6, problems
+    prod = G.validate_tie_audit(path, REPO, contract=contract)                       # production: never
+    assert not prod[0] and any("harness" in p for p in prod[1])
+    rewrite(path, rep)                                                                # untagged in harness mode
+    ok, problems, _ = G.validate_tie_audit(path, REPO, harness_contract=hc)
+    assert not ok and any("harness" in p for p in problems)
+
+
+@pytest.mark.parametrize("over", [{"audit_script": "x.py"}, {"img_w": 256}, {"code": []}],
+                         ids=["script", "img_w", "code"])
+def test_a_harness_contract_may_only_name_the_splits(genuine, tmp_path, over):
+    out, rep, contract = genuine
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, _harness_report(rep))
+    ok, problems, _ = G.validate_tie_audit(path, REPO, harness_contract=_harness_contract(tmp_path, contract, **over))
+    assert not ok and any("harness contract" in p for p in problems), problems
+
+
+def test_the_cli_honours_a_harness_contract_only_inside_a_harness(genuine, tmp_path, monkeypatch, capsys):
+    out, rep, contract = genuine
+    h = tmp_path / "h"
+    h.mkdir()
+    hc = _harness_contract(h, contract)
+    path = str(tmp_path / "depth_canon_tie_audit.json")
+    rewrite(path, _harness_report(rep))
+    monkeypatch.delenv("DEPTH_CANON_HARNESS", raising=False)
+    assert G.main(["--audit", path, "--harness-contract", hc]) == 2                 # no harness
+    monkeypatch.setenv("DEPTH_CANON_HARNESS", str(h))
+    assert G.main(["--audit", path, "--harness-contract", hc]) == 2                 # no marker
+    (h / ".depth_canon_harness").write_text("")
+    outside = _harness_contract(tmp_path, contract)
+    assert G.main(["--audit", path, "--harness-contract", outside]) == 2            # file outside the harness
+    capsys.readouterr()
+    assert G.main(["--audit", path, "--harness-contract", hc, "--print-sha"]) == 0
+    assert capsys.readouterr().out.strip() == hashlib.sha256(open(path, "rb").read()).hexdigest()
