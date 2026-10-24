@@ -1160,20 +1160,38 @@ def tie_summary(cells, audit, summary=None):
     return {"per_cell": per_cell, "per_split": per_split, "mismatches": mismatches, "shared_maps": shared}
 
 
-def split_overlap(splits=(("unseen", "data/AR/unseen_eval.json"), ("seen", "data/AR/seen_eval.json"))):
-    """The seen / unseen item overlap (r3b review): the two splits are NOT independent samples."""
+REGISTERED_OVERLAP = {"items": 1093, "maps": 112}   # the r3b data finding (plan v10 §5)
+_DEFAULT_SPLITS = (("unseen", "data/AR/unseen_eval.json"), ("seen", "data/AR/seen_eval.json"))
+
+
+def split_overlap(summary=None):
+    """The seen / unseen overlap (r3b review; rB-F1 NIT b): the shared ITEMS recomputed from the
+    split JSONs the validated audit names (the registered defaults without one), the shared
+    depth MAPS derived from the validated audit's per-split map sets (None without one) --
+    both compared with the registered overlap; a difference is flagged in ``mismatch``."""
+    files = ({i["split"]: i["json_abs"] for i in summary["inputs"]} if summary
+             else {n: os.path.join(REPO, rel) for n, rel in _DEFAULT_SPLITS})
     items = {}
-    for name, rel in splits:
-        with open(os.path.join(REPO, rel)) as f:
+    for name in ("unseen", "seen"):
+        with open(files[name]) as f:
             data = json.load(f)
         items[name] = {(room, rid, w) for room, ids in data.items() for rid, ws in ids.items() for w in ws}
     shared = len(items["unseen"] & items["seen"])
     u, sn = len(items["unseen"]), len(items["seen"])
-    return {"unseen_items": u, "seen_items": sn, "shared_items": shared,
+    maps = len(set(summary["split_maps"]["unseen"]) & set(summary["split_maps"]["seen"])) if summary else None
+    reg = dict(REGISTERED_OVERLAP)
+    mismatch = ([f"overlap: {shared} shared items != the registered {reg['items']}"] if shared != reg["items"] else []) \
+        + ([f"overlap: {maps} shared depth maps != the registered {reg['maps']}"]
+           if maps is not None and maps != reg["maps"] else [])
+    maps_txt = (f"{maps} depth maps (derived from the validated rung-3 tie audit)" if maps is not None
+                else "an unknown number of depth maps (not derivable: no validated tie audit)")
+    return {"unseen_items": u, "seen_items": sn, "shared_items": shared, "shared_maps": maps, "registered": reg,
+            "mismatch": mismatch,
             "disclosure": (f"DISCLOSURE: the seen and unseen AR eval splits share {shared:,} exact item paths "
-                           f"({100 * shared / u:.1f} % of unseen, {100 * shared / sn:.1f} % of seen) and 112 "
-                           "depth maps (rung-3 tie-audit enumeration): seen and unseen results are correlated "
-                           "and must not be presented as independent estimates.")}
+                           f"({100 * shared / u:.1f} % of unseen, {100 * shared / sn:.1f} % of seen) and {maps_txt}: "
+                           "seen and unseen results are correlated and must not be presented as independent "
+                           "estimates." + (f" MISMATCH with the registered overlap: {'; '.join(mismatch)}."
+                                           if mismatch else ""))}
 
 
 ARM_LABEL = {"CANON": "CANON (deepest-column canonicalization) @40k",
@@ -1195,6 +1213,8 @@ def build_results(cells, *, control, control_reasons, eps, audit, audit_reasons,
         [f"tie audit: {'; '.join(audit_reasons)}"] if audit is None else []) + (
         [f"tie audit: {len(ties['mismatches'])} canonicalized cell(s) carry tie counts that differ from the "
          f"validated audit's split counts ({', '.join(ties['mismatches'][:3])})"] if ties["mismatches"] else [])
+    overlap = split_overlap(audit_summary)
+    problems += overlap["mismatch"]
     repl = context_replacement(cells)
     problems += [f"{k}: repeated context ids on different targets in different cells (the registered rule: "
                  "the same targets in every cell of a split and K)" for k, v in repl.items() if not v["consistent"]]
@@ -1217,7 +1237,7 @@ def build_results(cells, *, control, control_reasons, eps, audit, audit_reasons,
             "eps_cond": eps or {"value": None, "threshold": PROBE_CONTRACT["eps_threshold"],
                                 "verdict": "NOT COMPUTABLE (no valid registered composition control)"},
             "table": table_block(cells), "bf_historical": bf_historical(), "traj": traj_grid(cells, t3),
-            "ties": ties, "overlap": split_overlap(), "diagnostics": diag}
+            "ties": ties, "overlap": overlap, "diagnostics": diag}
 
 
 def _fmt(st, key):
