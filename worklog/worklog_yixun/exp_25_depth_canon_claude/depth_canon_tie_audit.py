@@ -265,9 +265,10 @@ EXIT = {"PASS": 0, "FAIL": 1, "INCOMPLETE": 3, "REFUSED_SUBSET": 4}
 _WORKER = {}
 
 
-def _init_worker(module_path, root_abs):
-    import torch
-    torch.set_num_threads(1)
+def _init_worker(module_path, root_abs, pool_worker=True):
+    if pool_worker:  # one torch thread per process; the calling process is left alone
+        import torch
+        torch.set_num_threads(1)
     _WORKER.update(module=load_metadata_module(module_path), root=root_abs)
 
 
@@ -279,7 +280,7 @@ def run_rows(maps, module_path, root_abs, workers, limit=None):
     """Rows in sorted-path order (``imap`` keeps the order whatever ``workers`` is)."""
     tasks = [(k, maps[k]) for k in sorted(maps)][:limit]
     if workers <= 1:
-        _init_worker(module_path, root_abs)
+        _init_worker(module_path, root_abs, pool_worker=False)
         return [_task(t) for t in tasks]
     import multiprocessing as mp
     with mp.get_context("fork").Pool(workers, _init_worker, (module_path, root_abs)) as pool:
@@ -316,8 +317,8 @@ def _git(*args):
 
 
 def build_report(rows, ledger, split_names, n_union, limit, module_abs):
-    survivors = [{"path": r["path"], "candidates": r["survivors"], "counts": r["counts"]}
-                 for r in rows if r["survivor"]]
+    survivors = [{"path": r["path"], "candidates": r["candidates"], "survivors": r["survivors"],
+                  "counts": r["counts"]} for r in rows if r["survivor"]]
     errors = [{"path": r["path"], "error": r["error"]} for r in rows if r["error"]]
     subset = limit is not None or tuple(split_names) != tuple(SPLIT_CONFIGS)
     verdict = ("FAIL" if survivors else "INCOMPLETE" if errors
@@ -353,3 +354,78 @@ def write_report(report, out):
         f.write(text)
     with open(out + ".sha256", "w") as f:
         f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(out)}\n")
+
+
+def markdown_summary(report):
+    cov, gate = report["coverage"], report["gate"]
+    out = [f"## depth_canon tie audit -- gate {gate['verdict']} (exit {gate['exit_code']})", "",
+           f"coverage: splits {','.join(cov['splits'])}; maps audited {cov['n_maps_audited']} of "
+           f"{cov['n_maps_union']}; limit {cov['limit']}; complete {cov['complete']}", "",
+           "| split | items | maps | none | same_column | cross_column_image | survivor | error |",
+           "|---|---|---|---|---|---|---|---|"]
+    for row in report["inputs"]:
+        p = report["per_split"][row["split"]]
+        out.append(f"| {row['split']} | {row['n_items']} | {row['n_unique_maps']} | " + " | ".join(
+            f"{p['maps'][k]} ({p['items'][k]} items)" for k in p["maps"]) + " |")
+    a = report["agreement"]
+    out += ["", f"raw-vs-proxy agreement: candidate set {a['raw_agree_set']}, "
+                f"selected column {a['raw_agree_col']}"]
+    for split, p in report["per_split"].items():
+        h = p["dj_histogram_items"]
+        if h:
+            step = max(1, len(h) // 16)
+            bins = [sum(h[i:i + step]) for i in range(0, len(h), step)]
+            out.append(f"dj histogram ({split}, items, {len(bins)} bins of {step} columns): {bins}")
+    out.append(f"survivors ({gate['n_survivors']}): " + ("none" if not report["survivors"] else ""))
+    out += [f"  {s['path']} candidates {s['candidates']} rooted-image ties {s['survivors']} "
+            f"counts {s['counts']}" for s in report["survivors"]]
+    out.append(f"errors ({gate['n_errors']}): " + ("none" if not report["errors"] else ""))
+    out += [f"  {e['path']}: {e['error']}" for e in report["errors"][:50]]
+    return "\n".join(out)
+
+
+def main(argv=None):
+    import argparse
+    import time
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--out", default=os.path.join(EXPDIR, "depth_canon_tie_audit.json"))
+    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--limit", type=int, default=None, help="audit only the first N maps (sorted "
+                    "path order); the gate then REFUSES to declare PASS")
+    ap.add_argument("--splits", default=",".join(SPLIT_CONFIGS),
+                    help="comma list from " + ",".join(SPLIT_CONFIGS) + "; any subset refuses PASS")
+    args = ap.parse_args(argv)
+    names = args.splits.split(",")
+    if not names or any(n not in SPLIT_CONFIGS for n in names) or len(set(names)) != len(names):
+        ap.error(f"--splits must be distinct names from {list(SPLIT_CONFIGS)}")
+    if args.limit is not None and args.limit < 1:
+        ap.error("--limit must be >= 1")
+    names = [n for n in SPLIT_CONFIGS if n in names]
+    t0 = time.time()
+    splits = {n: read_split_config(SPLIT_CONFIGS[n]) for n in names}
+    maps, ledger = collect_maps(splits)
+    module_abs = splits[names[0]]["custom_metadata_module_abs"]
+    t1 = time.time()
+    rows = run_rows(maps, module_abs, splits[names[0]]["root_abs"], args.workers, args.limit)
+    t2 = time.time()
+    report = build_report(rows, ledger, names, len(maps), args.limit, module_abs)
+    write_report(report, args.out)
+    print(markdown_summary(report))
+    rate = len(rows) / max(t2 - t1, 1e-9)
+    print(f"\ntiming: enumeration {t1 - t0:.1f} s; {len(rows)} maps in {t2 - t1:.1f} s with "
+          f"{args.workers} worker(s) = {rate:.2f} maps/s; projected for all {len(maps)} maps of these "
+          f"splits: {len(maps) / rate / 60:.1f} min")
+    print(f"wrote {args.out} (+ .sha256)")
+    return report["gate"]["exit_code"]
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as err:  # noqa: BLE001 -- never let a crash look like a gate verdict
+        import traceback
+        traceback.print_exc()
+        print(f"AUDIT CRASHED ({type(err).__name__}); no verdict", file=sys.stderr)
+        sys.exit(5)

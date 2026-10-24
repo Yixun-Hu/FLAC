@@ -348,6 +348,7 @@ def test_a_periodic_panorama_is_listed_and_fails_the_gate(tmp_path):
     rep, _ = _report(tmp_path, maps={PERIODIC_KEY: periodic})
     assert rep["gate"]["verdict"] == "FAIL" and rep["gate"]["exit_code"] == 1
     assert rep["survivors"] == [{"path": PERIODIC_KEY, "candidates": [11, 139, 267, 395],
+                                 "survivors": [11, 139, 267, 395],
                                  "counts": {"train": 0, "unseen": 1, "seen": 0}}]
     assert rep["per_split"]["unseen"]["maps"]["survivor"] == 1
 
@@ -377,3 +378,44 @@ def test_workers_do_not_change_a_single_byte(tmp_path):
     _, one = _report(tmp_path, workers=1, out="w1.json")
     _, three = _report(tmp_path, workers=3, out="w3.json")
     assert one.read_bytes() == three.read_bytes()
+
+
+# --------------------------------------------------------------------------- #
+# CLI: exit code == gate, markdown summary on stdout, argument refusals
+# --------------------------------------------------------------------------- #
+def _main(tmp_path, monkeypatch, capsys, *args, maps=None):
+    cfgs = _write_tree(tmp_path, maps=maps)
+    monkeypatch.setattr(audit, "SPLIT_CONFIGS", cfgs)
+    rc = audit.main(["--out", str(tmp_path / "cli.json"), "--workers", "2"] + list(args))
+    return rc, capsys.readouterr().out
+
+
+@pytest.mark.parametrize("args, maps, rc_want, needle", [
+    ([], None, 0, "gate PASS (exit 0)"),
+    ([], {PERIODIC_KEY: _scalar_depth(256, W, seed=5, period=256, peaks=[(60, 11)]).numpy()}, 1,
+     f"{PERIODIC_KEY} candidates [11, 267]"),
+    (["--limit", "2"], None, 4, "gate REFUSED_SUBSET (exit 4)"),
+    (["--splits", "seen,unseen"], None, 4, "coverage: splits unseen,seen"),
+    ([], {PERIODIC_KEY: np.full((256, W), np.inf)}, 3, "errors (1):")])
+def test_main_exit_code_is_the_gate_and_stdout_has_the_summary(
+        tmp_path, monkeypatch, capsys, args, maps, rc_want, needle):
+    rc, text = _main(tmp_path, monkeypatch, capsys, *args, maps=maps)
+    assert rc == rc_want and needle in text
+    assert "| split | items | maps |" in text and "timing:" in text and "maps/s" in text
+    assert (tmp_path / "cli.json").exists() and (tmp_path / "cli.json.sha256").exists()
+
+
+@pytest.mark.parametrize("args", [["--splits", "train,bogus"], ["--splits", "seen,seen"],
+                                  ["--limit", "0"]])
+def test_main_refuses_malformed_arguments_before_any_data_access(args, monkeypatch):
+    monkeypatch.setattr(audit, "read_split_config", lambda *a: pytest.fail("data was read"))
+    with pytest.raises(SystemExit) as err:
+        audit.main(args)
+    assert err.value.code == 2
+
+
+def test_the_script_runs_as_a_program():
+    import subprocess
+    proc = subprocess.run([sys.executable, _AUDIT_PY, "--splits", "nope"], capture_output=True,
+                          text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+    assert proc.returncode == 2 and "--splits must be distinct names" in proc.stderr
