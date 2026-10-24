@@ -35,6 +35,8 @@ def _repo_root(p):
 REPO = _repo_root(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)  # this checkout's src/ and eval_FLAC.py, never a stale installed copy
 
+from src.tools import depth_canon_stats as stats  # noqa: E402
+
 FIXED_OFFSETS = (64, 128, 256, 384)
 OFFSET_KEYS = tuple(f"d{d}" for d in FIXED_OFFSETS) + ("random",)
 RANDOM_OFFSET_SEED_SHIFT = 1  # the random offsets' generator is seeded with seed + 1
@@ -71,3 +73,42 @@ def item_noise(i, shape, seed):
 def noise_bank(n_items, shape, seed):
     """``[n_items, *shape]`` float32: one seeded noise tensor per item, reused for A and B."""
     return torch.stack([item_noise(i, shape, seed) for i in range(n_items)])
+
+
+# --------------------------------------------------------------------------- #
+# stagewise comparison
+# --------------------------------------------------------------------------- #
+def _rows(t):
+    """``[B, ...]`` tensor -> float64 CPU ``[B, prod(rest)]`` numpy (bf16 included)."""
+    t = t.detach().to(device="cpu", dtype=torch.float64)
+    return t.reshape(t.shape[0], -1).numpy()
+
+
+def stage_rel(test, ref):
+    """Per-item ``{"relL2", "relLinf"}`` of ``test`` against the reference ``ref``."""
+    a, b = _rows(test), _rows(ref)
+    return {"relL2": stats.rel_l2(a, b), "relLinf": stats.rel_linf(a, b)}
+
+
+def compare_cond(test, ref):
+    """Conditioning dicts ``{id: [tensor, mask]}``: per-id relL2 / relLinf of the
+    tensors, the same over all ids concatenated per item (``"all"``, ids sorted), and
+    whether every mask is identical."""
+    if sorted(test) != sorted(ref):
+        raise ValueError(f"conditioner ids differ: {sorted(test)} vs {sorted(ref)}")
+    ids = sorted(ref)
+    out = {"ids": ids, "masks_equal": all(
+        (test[k][1] is None and ref[k][1] is None) or
+        (test[k][1] is not None and ref[k][1] is not None and torch.equal(test[k][1].cpu(), ref[k][1].cpu()))
+        for k in ids)}
+    for k in ids:
+        out[k] = stage_rel(test[k][0], ref[k][0])
+    cat = lambda c: torch.cat([c[k][0].detach().double().cpu().reshape(c[k][0].shape[0], -1)  # noqa: E731
+                               for k in ids], dim=1)
+    out["all"] = stage_rel(cat(test), cat(ref))
+    return out
+
+
+def summarize(rel):
+    """``{"relL2": paired_summary, "relLinf": paired_summary}`` over the items."""
+    return {k: stats.paired_summary(rel[k]) for k in ("relL2", "relLinf")}
