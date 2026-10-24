@@ -25,6 +25,8 @@
 # after the tee is drained, a non-finite scan in FULL too) plus plan §4 gates
 # (5) run-owned checkpoints, (6) NAS identity / write probe / free space,
 # (7) projection <= 60 h, and (8) GPU free memory. It never kills anything.
+# Exit 7 (rA A6e) = a GPU-gate refusal (memory floor, occupancy, or an nvidia-smi answer that is
+# not clean): the ONE transient class the watcher retries; every other refusal exits 2.
 #
 # Write targets: the NAS save root (checkpoints, launch marker, write probe), this experiment
 # folder (logs, smoke evidence, checkpoint manifest) and -- the one expected extra target --
@@ -336,34 +338,53 @@ echo "run namespace OK: ${RUN_NS}"
 if [ "$DRY_RUN" = "1" ]; then
   echo "GPU memory gate SKIPPED under DRY_RUN"
 else
+  # rA A3: every query's exit status is checked (a nonzero status refuses even after plausible
+  # output), memory is exactly one number per card, every compute-app row parses and names a
+  # known uuid. rA A6e: EVERY GPU-gate refusal exits 7 -- the watcher's one transient class.
+  gpu_query() {   # gpu_query <nvidia-smi args...> -> GPU_OUT; refuses (exit 7) on any nonzero status
+    local rc=0
+    GPU_OUT="$(nvidia-smi "$@" 2>/dev/null)" || rc=$?
+    [ "$rc" -eq 0 ] || { echo "GPU GATE FAILED: nvidia-smi $* exited ${rc} (stdout '${GPU_OUT//$'\n'/|}') - refusing to launch blind"; exit 7; }
+  }
   for G in 0 1; do
-    FREE="$(nvidia-smi -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -dc '0-9' || true)"
-    [ -n "$FREE" ] || { echo "GPU GATE FAILED: the free-memory query failed on GPU ${G} - refusing to launch blind"; exit 2; }
+    gpu_query -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits
+    [[ "$GPU_OUT" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] || {
+      echo "GPU GATE FAILED: the free memory of GPU ${G} is not exactly one number ('${GPU_OUT//$'\n'/|}') - refusing to launch blind"; exit 7; }
+    FREE="${BASH_REMATCH[1]}"
     [ "$FREE" -ge "$MIN_GPU_FREE_MIB" ] || {
-      echo "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"; exit 2; }
+      echo "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"; exit 7; }
   done
   echo "GPU memory gate OK: GPU 0 and GPU 1 each >= ${MIN_GPU_FREE_MIB} MiB free"
   # r3b-F1 fix 7 (Codex r3b HIGH 7): free memory is not an idle card -- ANY compute process
   # on GPU 0 / GPU 1 refuses (read-only: its pid and cwd are printed; nothing is signalled).
-  UUIDS="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null || true)"
-  OURS=""
+  declare -A UUID_OF=() IDX_OF=()
+  gpu_query --query-gpu=index,uuid --format=csv,noheader
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$ ]] || {
+      echo "GPU GATE FAILED: malformed index,uuid row '${line}' - refusing to launch blind"; exit 7; }
+    [ -z "${UUID_OF[${BASH_REMATCH[1]}]:-}" ] && [ -z "${IDX_OF[${BASH_REMATCH[2]}]:-}" ] || {
+      echo "GPU GATE FAILED: a duplicate index or uuid in '${line}' - refusing to launch blind"; exit 7; }
+    UUID_OF[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"; IDX_OF[${BASH_REMATCH[2]}]="${BASH_REMATCH[1]}"
+  done <<<"$GPU_OUT"
   for G in 0 1; do
-    U="$(awk -F', *' -v g="$G" '$1 == g {print $2}' <<<"$UUIDS")"
-    [ -n "$U" ] || { echo "GPU GATE FAILED: no uuid for GPU ${G} - refusing to launch blind"; exit 2; }
-    OURS="${OURS} ${U}"
+    [ -n "${UUID_OF[$G]:-}" ] || { echo "GPU GATE FAILED: no uuid for GPU ${G} - refusing to launch blind"; exit 7; }
   done
-  APPS="$(nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader 2>/dev/null)" || {
-    echo "GPU GATE FAILED: the compute-process query failed - refusing to launch blind"; exit 2; }
+  gpu_query --query-compute-apps=pid,gpu_uuid --format=csv,noheader
   BUSY=""
-  while IFS=', ' read -r APID AUUID; do
-    [ -n "$APID" ] || continue
-    case " ${OURS} " in *" ${AUUID} "*)
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$ ]] || {
+      echo "GPU GATE FAILED: malformed compute-app row '${line}' - refusing to launch blind"; exit 7; }
+    APID="${BASH_REMATCH[1]}"; AUUID="${BASH_REMATCH[2]}"
+    [ -n "${IDX_OF[$AUUID]:-}" ] || {
+      echo "GPU GATE FAILED: compute process ${APID} is on an unknown uuid ${AUUID} - refusing to launch blind"; exit 7; }
+    case "${IDX_OF[$AUUID]}" in 0|1)
       BUSY="${BUSY}  pid ${APID} on ${AUUID} (cwd $(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?'))"$'\n' ;;
     esac
-  done <<<"$APPS"
+  done <<<"$GPU_OUT"
   if [ -n "$BUSY" ]; then
     echo "GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - this launcher never signals another process; wait for them to end:"
-    printf '%s' "$BUSY"; exit 2
+    printf '%s' "$BUSY"; exit 7
   fi
   echo "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1"
   echo "--- co-tenancy disclosure: compute apps at launch ---"
