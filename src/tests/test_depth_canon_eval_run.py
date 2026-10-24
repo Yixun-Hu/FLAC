@@ -332,7 +332,8 @@ def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
                          canon_index=None, no_dump_blocks=[])[0]
     T.write_cell(tmp_path, sel[0], farm="farm", dump_root=str(tmp_path / "d"), receipt=False)
     path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
-                           log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], **DIGESTS)
+                           log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], ckpt_bytes=T.CKPT_BYTES,
+                           **DIGESTS)
     assert path == str(tmp_path / entry["receipt"]) and os.path.isfile(path)
     assert not [p for p in os.listdir(tmp_path / "farm" / "YAW") if ".tmp-" in p]   # atomic: no temp left
     rec = json.load(open(path))
@@ -341,7 +342,7 @@ def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
                              dump=True, dump_root=str(tmp_path / "d"), pin=PIN, expect_digest="d" * 64) == []
     with pytest.raises(ValueError, match="sha256"):
         C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
-                        log="x.log", rc=0, pin=PIN, ckpt_sha256="0" * 64, **DIGESTS)
+                        log="x.log", rc=0, pin=PIN, ckpt_sha256="0" * 64, ckpt_bytes=T.CKPT_BYTES, **DIGESTS)
 
 
 def test_cli_plan_and_receipt(manifest, tmp_path, capsys):
@@ -368,7 +369,7 @@ def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, ca
     os.makedirs(tmp_path / "farm" / "P1")
     sha = manifest["arms"]["P1"]["ckpt"]["sha256"]
     argv = ["--write-receipt", "exp25_P1_T_S40000_K1_s42", "--plan-json", out, "--base-dir", str(tmp_path),
-            "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha,
+            "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha, "--ckpt-bytes", "17",
             "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check",
             "--spawn-digest", "d" * 64, "--post-digest", "d" * 64]
     assert C.main(argv + ["--verify-after"]) == 1           # nothing to bind: refused, nothing written
@@ -395,7 +396,8 @@ def test_write_receipt_is_written_only_after_the_full_verification(manifest, tmp
     T.write_cell(tmp_path, r, receipt=False)
     argv = ["--write-receipt", r["cell"], "--plan-json", out, "--cells", str(cells), "--base-dir", str(tmp_path),
             "--lane", "1", "--log", "x.log", "--rc", "0", "--pin", T.PIN, "--ckpt-sha",
-            T.MANIFEST["arms"]["P1"]["ckpt"]["sha256"], "--farm-root", T.FARM, "--dump-root",
+            T.MANIFEST["arms"]["P1"]["ckpt"]["sha256"], "--ckpt-bytes", str(T.CKPT_BYTES), "--farm-root", T.FARM,
+            "--dump-root",
             str(tmp_path / "dumps"), "--no-link-check", "--spawn-digest", "d" * 64, "--post-digest", "d" * 64,
             "--verify-after"]
     d = os.path.join(str(tmp_path), "dumps", os.path.basename(json.load(open(out))["cells"][0]["stem"]))
@@ -449,9 +451,10 @@ spec.loader.exec_module(T)
 import eval_FLAC
 manifest = json.load(open(os.environ["DEPTH_CANON_CELLS"]))
 row = next(c for c in manifest["cells"] if c["cell"] == opts["--eval-name"])
+_, load = eval_FLAC.read_checkpoint_exact(opts["--ckpt-path"])   # the bytes this "evaluator" loaded (rB-F2)
 T.write_cell(os.getcwd(), row, pin=eval_FLAC.source_sha(), n=row["expected_stream_count"],
              link=opts["--ckpt-path"], dump="--dump-scored-waveforms" in opts,
-             dump_root=opts.get("--dump-scored-waveforms"), receipt=False)
+             dump_root=opts.get("--dump-scored-waveforms"), receipt=False, ckpt_load=load)
 '''
 STUB_DF = ('#!/usr/bin/env bash\n[ -n "${GUARD_DF_AVAIL:-}" ] && { echo Avail; echo "$GUARD_DF_AVAIL"; exit 0; }\n'
            'exec /usr/bin/df "$@"\n')
@@ -469,6 +472,11 @@ case "$*" in
   *query-compute-apps*)
     n=$(( $(cat "$H/apps.count" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$H/apps.count"
     [ "${GUARD_MUTATE_AT:-0}" = "$n" ] && printf '\n# drift between cells\n' >> eval_FLAC.py   # cwd = the clone
+    if [ "${GUARD_TAMPER_CACHE_AT:-0}" = "$n" ]; then   # rB-F2 F2-6: same size, same 0444 mode, other bytes
+      for c in "$H"/farm/.ckpt_cache/*.ckpt; do
+        chmod 0644 "$c"; printf 'X' | dd of="$c" bs=1 count=1 conv=notrunc 2>/dev/null; chmod 0444 "$c"
+      done
+    fi
     f="$H/apps.$n"; [ -f "$f" ] || f="$H/apps.default"
     if [ -f "$f" ]; then cat "$f"; fi
     exit "${GUARD_APPS_RC:-0}" ;;
@@ -872,6 +880,10 @@ def test_the_checkpoint_is_staged_into_a_verified_cache_and_hard_linked(clone, h
     assert rec["ckpt_sha256_measured"] == rec["ckpt_sha256"] == e["sha256"]
     assert rec["ckpt_cache"] == str(cache)
     assert "space" in out and "available" in out                                       # the gate's numbers
+    # rB-F2 F2-6: the evaluator's digest of the bytes it deserialized == measured == manifest, the
+    # cache re-hashed immediately before the spawn
+    assert rec["ckpt_sha256_loaded"] == e["sha256"] and rec["ckpt_bytes_loaded"] == cache.stat().st_size
+    assert f"checkpoint re-verified before the spawn: {cache}" in out
 
 
 def test_insufficient_space_refuses_before_any_copy(clone, harness):
@@ -904,6 +916,27 @@ def test_a_tampered_cache_file_is_refused(clone, harness):
     os.unlink(e["receipt"])                                 # force a re-run of the cell
     rc, out = drive(clone, harness, "--only", TWO[0])
     assert rc == 2 and "CACHE GATE FAILED" in out and len(_calls(harness)) == 1, out
+
+
+def test_an_existing_writable_cache_entry_is_rejected(clone, harness):
+    """rB-F2 F2-6 (a): an existing cache file must satisfy the immutable-cache contract (regular,
+    0444, the expected size) -- right bytes in a writable file are refused."""
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 0, out
+    e = _entry(clone, harness, TWO[0])
+    cache = _cache(harness, e["sha256"])
+    os.chmod(cache, 0o644)                                  # bytes untouched
+    os.unlink(e["receipt"])                                 # force a re-run of the cell
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 2 and "CACHE GATE FAILED" in out and "0444" in out and len(_calls(harness)) == 1, out
+
+
+def test_a_cache_file_changed_before_the_spawn_is_refused(clone, harness):
+    """rB-F2 F2-6 (b): the cache file is re-hashed immediately before EACH spawn. The harness flips
+    one byte in place at the lane re-check (same size, 0444 restored): no evaluator runs."""
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"GUARD_TAMPER_CACHE_AT": "2"})
+    assert rc == 2 and "CACHE GATE FAILED" in out and "before the spawn" in out and not _calls(harness), out
+    assert not os.path.exists(_entry(clone, harness, TWO[0])["receipt"])
 
 
 def test_bytes_changed_during_the_cell_fail_the_measured_digest(clone, harness):

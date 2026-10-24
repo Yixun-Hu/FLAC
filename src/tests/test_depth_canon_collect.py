@@ -112,10 +112,17 @@ def default_metrics(r):
     return {k: round(base + 0.01 * (r["seed"] - 42) + 0.1 * j, 6) for j, k in enumerate(EMITTED)}
 
 
+CKPT_BYTES = 724_000_123   # the length eval_FLAC reports for the bytes it loaded (rB-F2 F2-6)
+
+
 def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, waves=None,
-               dump=True, receipt=True, ckpt_sha=None, link=None, dump_root=None, repeats=None):
+               dump=True, receipt=True, ckpt_sha=None, link=None, dump_root=None, repeats=None,
+               ckpt_load=None):
     """Everything eval_FLAC + the driver publish for one row, under ``tmp`` (= the cwd the
-    evaluator ran in). Returns the metrics path (relative, as eval_FLAC names it)."""
+    evaluator ran in). Returns the metrics path (relative, as eval_FLAC names it). ``ckpt_load``:
+    the evaluator's digest of the bytes it deserialized (default: the cell's expected checkpoint)."""
+    if ckpt_load is None:
+        ckpt_load = {"ckpt_sha256_loaded": expected_target(r)[1], "ckpt_bytes_loaded": CKPT_BYTES}
     link = link or os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")  # = the evaluator's --ckpt-path
     paths = eval_FLAC.build_output_paths(
         link, 1, 1.0, r["cell"], cond_method="vanilla", rotate_deg=float(r["rotate_deg"] or 0),
@@ -144,7 +151,7 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
             m, link, float(r["rotate_deg"] or 0), "vanilla", None, cond_autocast="bf16",
             batch_size=64, n_samples=n, dataset_config=r["dataset_config"], seed=r["seed"],
             cfg_scale=1.0, steps=1, eval_name=r["cell"], weights_source="ema", device="cuda",
-            by_scene=scenes, frame_avg_max_fwd_samples=64, canon_provenance=prov, **rot)
+            by_scene=scenes, frame_avg_max_fwd_samples=64, canon_provenance=prov, ckpt_load=ckpt_load, **rot)
         with open(at(metrics_rel), "w") as f:
             json.dump(rec, f, indent=4)
         stream_rel = eval_FLAC.stream_sidecar_path(metrics_rel)
@@ -198,8 +205,8 @@ def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root
                          canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
     assert entry["link"] == link and entry["metrics"] == metrics_rel
     path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
-                           ckpt_sha256=entry["sha256"], campaign_digest=DIGEST, spawn_digest=DIGEST,
-                           post_digest=DIGEST)
+                           ckpt_sha256=entry["sha256"], ckpt_bytes=CKPT_BYTES, campaign_digest=DIGEST,
+                           spawn_digest=DIGEST, post_digest=DIGEST)
     if ckpt_sha:
         edit_json(path, lambda d: d.update(ckpt_sha256=ckpt_sha))
     return path
@@ -247,6 +254,10 @@ EDITS = [  # (row spec, edit, needle)
     (dict(block="D-i", K=1), lambda d: d.update(canonicalize_mismatch=False), "canonicalize_mismatch"),
     (dict(block="D-ii", K=8), lambda d: d.update(canonicalize_mismatch=False), "canonicalize_mismatch"),
     (dict(block="P1-pin", sub="T"), lambda d: d.update(canonicalize_trained=False), "key order"),
+    (C4, lambda d: d.pop("ckpt_sha256_loaded"), "key order"),                       # rB-F2 F2-6
+    (C4, lambda d: d.update(ckpt_sha256_loaded="x" * 64), "ckpt_sha256_loaded"),
+    (C4, lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+    (C4, lambda d: d.update(ckpt_bytes_loaded=True), "ckpt_bytes_loaded"),
 ]
 
 
@@ -449,8 +460,8 @@ def test_write_receipt_refuses_a_moved_tree(tmp_path):
     for spawn, post in ((DIGEST, "e" * 64), ("e" * 64, DIGEST)):
         with pytest.raises(ValueError, match="digest"):
             C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
-                            ckpt_sha256=entry["sha256"], campaign_digest=DIGEST, spawn_digest=spawn,
-                            post_digest=post)
+                            ckpt_sha256=entry["sha256"], ckpt_bytes=CKPT_BYTES, campaign_digest=DIGEST,
+                            spawn_digest=spawn, post_digest=post)
     assert not os.path.exists(os.path.join(str(tmp_path), entry["receipt"]))
 
 
@@ -611,6 +622,60 @@ def test_the_receipt_binds_the_measured_checkpoint(tmp_path, edit, needle):
     assert rec["ckpt_cache"] == f"{FARM}/.ckpt_cache/{sha}.ckpt"
     edit_json(_receipt_path(tmp_path, rel), edit)
     assert any(needle in x for x in _receipt_check(tmp_path, rel, r))
+
+
+# ---- rB-F2 F2-6 (Codex B2 HIGH, B4): loaded == measured == manifest ---- #
+def test_the_receipt_binds_the_evaluators_loaded_digest(tmp_path):
+    r = row("P1-pin", "P1", K=1, seed=44, sub="T")
+    rel = write_cell(tmp_path, r)
+    rec, met = json.load(open(_receipt_path(tmp_path, rel))), json.load(open(tmp_path / rel))
+    sha = MANIFEST["arms"]["P1"]["ckpt"]["sha256"]
+    assert rec["ckpt_sha256_loaded"] == rec["ckpt_sha256_measured"] == rec["ckpt_sha256"] == sha
+    assert rec["ckpt_bytes_loaded"] == met["ckpt_bytes_loaded"] == CKPT_BYTES
+    assert list(rec)[list(rec).index("ckpt_sha256_measured") + 1:][:2] == ["ckpt_sha256_loaded", "ckpt_bytes_loaded"]
+    assert verify(tmp_path, rel) == []
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda d: d.update(ckpt_sha256_loaded="1" * 64), "ckpt_sha256_loaded"),
+    (lambda d: d.update(ckpt_bytes_loaded=CKPT_BYTES + 1), "ckpt_bytes_loaded"),
+    (lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+    (lambda d: d.pop("ckpt_sha256_loaded"), "receipt keys")], ids=["sha", "bytes", "zero", "absent"])
+def test_a_tampered_loaded_digest_in_the_receipt_is_invalid(tmp_path, edit, needle):
+    r = row("C4+45", K=8, deg=180)
+    rel = write_cell(tmp_path, r)
+    edit_json(_receipt_path(tmp_path, rel), edit)
+    reasons = verify(tmp_path, rel, dump_check="receipt")
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def test_a_tampered_loaded_digest_in_the_record_is_invalid_even_with_a_rebound_receipt(tmp_path):
+    """The metrics record's own digest must equal the receipt's -- even when the receipt's artifact
+    digest is recomputed for the edited record (so only the loaded-digest binding can catch it)."""
+    r = row("YAW-pin", "YAW", K=1, seed=43, sub="T")
+    rel = write_cell(tmp_path, r)
+    edit_json(tmp_path / rel, lambda d: d.update(ckpt_sha256_loaded="2" * 64))
+    edit_json(_receipt_path(tmp_path, rel),
+              lambda d: d["artifact_sha256"].update(metrics=eval_FLAC._file_sha256(str(tmp_path / rel))))
+    reasons = verify(tmp_path, rel, dump_check="receipt")
+    assert reasons and any("ckpt_sha256_loaded" in x for x in reasons), reasons
+    assert not any("artifact_sha256" in x for x in reasons), reasons
+
+
+@pytest.mark.parametrize("load, nbytes, needle", [
+    ({"ckpt_sha256_loaded": "3" * 64, "ckpt_bytes_loaded": CKPT_BYTES}, CKPT_BYTES, "loaded"),
+    (None, CKPT_BYTES + 1, "bytes"), (None, None, "bytes")], ids=["other_bytes_loaded", "size", "no_size"])
+def test_write_receipt_refuses_a_cell_that_loaded_other_bytes(tmp_path, load, nbytes, needle):
+    r = row("T", K=8, seed=42)
+    rel = write_cell(tmp_path, r, receipt=False, ckpt_load=load)
+    entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=os.path.join(str(tmp_path), "dumps"),
+                         canon_index=canon_index(), no_dump_blocks=[])[0]
+    assert entry["metrics"] == rel
+    with pytest.raises(ValueError, match=needle):
+        C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                        ckpt_sha256=entry["sha256"], ckpt_bytes=nbytes, campaign_digest=DIGEST,
+                        spawn_digest=DIGEST, post_digest=DIGEST)
+    assert not os.path.exists(os.path.join(str(tmp_path), entry["receipt"]))
 
 
 def _canon_manifest_file(tmp, lines=None):
