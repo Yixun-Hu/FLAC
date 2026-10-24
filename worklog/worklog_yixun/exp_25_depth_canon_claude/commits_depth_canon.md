@@ -142,3 +142,5 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `0ba37ac` | Coder r3d | cycle 1c: precondition tests (mutation-red) |
 | `0f22293` | Coder r3d | cycle 2a (red by design): fire-sequence + state tests |
 | `33a8d72` | Coder r3d | cycle 2b: the fire sequence (SMOKE -> FULL, transient GPU-gate retries <= 5, final failures) |
+| `dff44c8` | Planner records | Codex code-review artifacts r1 / r1 re-verify / r2 / r2 re-verify / r3b committed (previously untracked) |
+| `1c0f6fb` | Planner records | plan v10: Codex r3b amendments, round 3c as built, round 3d watcher, A4/A5 resolved (Yixun's pre-approved GO, freeze rule), A6 eval GPU policy, schedule |
