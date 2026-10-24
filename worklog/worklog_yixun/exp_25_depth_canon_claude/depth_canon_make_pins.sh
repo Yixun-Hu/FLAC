@@ -25,7 +25,8 @@ FIXED=(train.py defaults.ini src/__init__.py
        src/configs/dataset_configs/AR/train/acousticroom_train.json data/AR/train.json
        weights/FLAC/VAE.safetensors "$EXP07/FLAC_AR_BVp1.json" "$EXPDIR/FLAC_AR_CANON.json"
        "$EXP07/assert_arm_configs.py"
-       "$EXP07/FLAC_AR_BV.json" "$EXP07/FLAC_AR_BF.json")   # opened by assert_arm_configs.py:105 (r3b-F1 fix 5)
+       "$EXP07/FLAC_AR_BV.json" "$EXP07/FLAC_AR_BF.json"    # opened by assert_arm_configs.py:105 (r3b-F1 fix 5)
+       "$EXPDIR/depth_canon_tie_audit.json" "$EXPDIR/depth_canon_tie_audit.json.sha256")   # rA A1 (i): committed + bound
 GLOB_DIRS=(src/data src/models src/training src/training/losses src/inference src/interface)
 
 pin_paths() {
