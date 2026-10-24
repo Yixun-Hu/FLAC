@@ -181,8 +181,26 @@ def _model_cfg(training=None, widths=(512, 512)):
 
 def _resolve(flag=False, file_t=None, emb_t=None, allow=False, cond="vanilla", widths=(512, 512)):
     return eval_FLAC.resolve_canonicalize_protocol(
-        flag, copy.deepcopy(file_t), copy.deepcopy(emb_t), allow, cond,
+        flag, copy.deepcopy(file_t), copy.deepcopy(emb_t), allow, cond_method=cond,
         file_model_cfg=_model_cfg(file_t, widths))
+
+
+def test_cond_method_and_file_model_cfg_are_keyword_only():
+    """r3a hardening: the positional sixth-argument shape was easy to miscall."""
+    with pytest.raises(TypeError):
+        eval_FLAC.resolve_canonicalize_protocol(True, ON, ON, False, "vanilla",
+                                                file_model_cfg=_model_cfg(ON))
+    with pytest.raises(TypeError):
+        eval_FLAC.resolve_canonicalize_protocol(True, ON, ON, False)        # cond_method required
+
+
+@pytest.mark.parametrize("cfg", [None, [], "cfg"])
+def test_in_play_needs_the_file_model_config(cfg):
+    with pytest.raises(ValueError, match="file_model_cfg"):
+        eval_FLAC.resolve_canonicalize_protocol(True, ON, ON, False, cond_method="vanilla",
+                                                file_model_cfg=cfg)
+    assert eval_FLAC.resolve_canonicalize_protocol(              # not in play: never consulted
+        False, {}, {}, False, cond_method="vanilla", file_model_cfg=cfg) == eval_FLAC.LEGACY_CANON_PROTOCOL
 
 
 # --------------------------------------------------------------------------- #
@@ -302,7 +320,7 @@ def test_mismatch_message_names_both_sides():
 
 def test_protocol_blocks_are_copies():
     file_t, emb_t = copy.deepcopy(ON), copy.deepcopy(ON)
-    p = eval_FLAC.resolve_canonicalize_protocol(True, file_t, emb_t, False, "vanilla",
+    p = eval_FLAC.resolve_canonicalize_protocol(True, file_t, emb_t, False, cond_method="vanilla",
                                                 file_model_cfg=_model_cfg(ON))
     file_t["canonicalize"]["img_w"] = emb_t["canonicalize"]["img_w"] = 1
     assert p.file_block == p.embedded_block == ON["canonicalize"]

@@ -448,7 +448,7 @@ def model_config_sha256(model_config):
 
 
 def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg,
-                                  allow_mismatch, cond_method, file_model_cfg=None):
+                                  allow_mismatch, *, cond_method, file_model_cfg=None):
     """Bind ``--canonicalize`` to the CHECKPOINT, fail-closed (plan v8 §2.2, review B2 / r2 H1).
 
     Canonicalization adds no parameter, so a CANON checkpoint loads cleanly under a
@@ -465,8 +465,11 @@ def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg
     * ``--canonicalize`` with ``cond_method='fa_invariant'``;
     * ``trained != applied`` without ``allow_mismatch``; ``allow_mismatch`` with
       ``trained == applied`` (an unnecessary allow flag);
-    * no unanimous positive-int ViT ``img_w`` in ``file_model_cfg``, or a trained
-      block whose ``img_w`` differs from it.
+    * no ``file_model_cfg`` (the whole file model config, a dict) -- it is required
+      whenever canonicalization is in play; no unanimous positive-int ViT ``img_w``
+      in it, or a trained block whose ``img_w`` differs from it.
+
+    ``cond_method`` and ``file_model_cfg`` are keyword-only (r3a hardening).
     """
     for name, value in (("--canonicalize", flag), ("--allow-canon-mismatch", allow_mismatch)):
         if type(value) is not bool:
@@ -475,6 +478,10 @@ def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg
     file_has = isinstance(file_training_cfg, dict) and CANON_KEY in file_training_cfg
     if not (embedded_has or file_has or flag or allow_mismatch):
         return LEGACY_CANON_PROTOCOL
+    if not isinstance(file_model_cfg, dict):
+        raise ValueError("canonicalize protocol: canonicalization is in play but no file model "
+                         f"config (file_model_cfg) was given ({type(file_model_cfg).__name__}); its "
+                         "ViT img_w defines the canonical column grid")
     if not isinstance(embedded_training_cfg, dict):
         raise ValueError(
             "canonicalize protocol: canonicalization is in play but the checkpoint carries no "
@@ -1902,7 +1909,7 @@ def evaluate_model(
     canon_protocol = resolve_canonicalize_protocol(
         canonicalize, file_model_config.get('training'),
         embedded_model_config.get('training') if isinstance(embedded_model_config, dict) else None,
-        allow_canon_mismatch, cond_method, file_model_cfg=file_model_config)
+        allow_canon_mismatch, cond_method=cond_method, file_model_cfg=file_model_config)
     if canon_protocol.in_play:
         print(f"canonicalize: trained={canon_protocol.trained} applied={canon_protocol.applied} "
               f"mismatch={canon_protocol.mismatch} img_w={canon_protocol.img_w}")
