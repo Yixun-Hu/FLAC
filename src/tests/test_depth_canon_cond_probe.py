@@ -410,13 +410,14 @@ def test_the_probe_reads_once_and_deserializes_the_buffer_it_hashed(tmp_path, mo
 
 @pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
                                  dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
-                                 dict(ckpt_sha256_loaded=None), dict(extra=1)])
+                                 dict(ckpt_sha256_loaded=None), dict(extra=1), None, {}])
 def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
-    """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+    """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int
+    (``bad`` None / {} = no digest at all: never silently an empty provenance)."""
     cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
     real_read = eval_FLAC.read_checkpoint_exact
-    monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
-                        lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+    monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact", lambda p: (
+        real_read(p)[0], bad if not bad else dict(real_read(p)[1], **bad)))
     monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
     with pytest.raises(ValueError, match="ckpt load provenance"):
         probe.load_probe_module(cfg_path, ckpt_path, "cpu")

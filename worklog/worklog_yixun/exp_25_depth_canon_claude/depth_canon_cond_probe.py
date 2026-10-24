@@ -223,7 +223,7 @@ def compare_stages(test, ref):
 # loading: eval_FLAC.evaluate_model's checkpoint path
 # --------------------------------------------------------------------------- #
 def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch=False):
-    """``(module, info)`` -- the checkpoint loaded the way ``evaluate_model`` loads it.
+    """``(module, info, ckpt_load)`` -- the checkpoint loaded the way ``evaluate_model`` loads it.
 
     The helpers are eval_FLAC's own (``resolve_weights_source``,
     ``resolve_are_from_checkpoint``, ``resolve_canonicalize_protocol`` with the
@@ -232,15 +232,27 @@ def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch
     statements in ``evaluate_model``, so they are repeated here verbatim; the tests pin
     the state dict and both configs this hands the factories against the ones
     ``evaluate_model`` hands them for the same checkpoint. ARE checkpoints are refused
-    (no add-back bank here); a non-canonical checkpoint needs ``allow_canon_mismatch``."""
+    (no add-back bank here); a non-canonical checkpoint needs ``allow_canon_mismatch``.
+
+    rB-F3 F3-1 (Codex rA3/rB3 HIGH): as ``evaluate_model`` (rB-F2 F2-6), the file is read ONCE
+    (``eval_FLAC.read_checkpoint_exact``), THAT buffer is deserialized
+    (``torch.load(io.BytesIO(buf), map_location="cpu")``) and ``ckpt_load`` =
+    ``{ckpt_sha256_loaded, ckpt_bytes_loaded}`` of exactly that buffer, validated type-strictly by
+    eval_FLAC's own ``_ckpt_load_provenance`` (a malformed value is a ``ValueError``)."""
     import copy
+    import io
     import json
     import eval_FLAC as ev
     with open(model_config_path) as f:
         model_config = json.load(f)
     file_model_config = copy.deepcopy(model_config)
     training_config = model_config.get("training", None)
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    buf, ckpt_load = ev.read_checkpoint_exact(ckpt_path)
+    if ckpt_load is None:                                          # (_ckpt_load_provenance passes None)
+        raise ValueError("ckpt load provenance must be the digest + length of the bytes read, got None")
+    ckpt_load = ev._ckpt_load_provenance({}, ckpt_load)            # exactly the two keys, type-strict
+    ckpt = torch.load(io.BytesIO(buf), map_location="cpu")
+    del buf
     state_dict = ckpt["state_dict"]
     for key in list(state_dict.keys()):                            # verbatim (evaluate_model)
         if key.startswith("diffusion."):
@@ -275,7 +287,7 @@ def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch
             "canonicalize_applied": protocol.applied, "canonicalize_mismatch": protocol.mismatch,
             "img_w": protocol.img_w, "model_config_sha256_file": ev.model_config_sha256(file_model_config),
             "model_config_sha256_embedded": ev.model_config_sha256(embedded)}
-    return module, info
+    return module, info, ckpt_load
 
 
 # --------------------------------------------------------------------------- #
@@ -546,8 +558,8 @@ def main(argv=None):
     import pytorch_lightning as pl
     import eval_FLAC as ev
     torch.set_float32_matmul_precision("medium")        # as evaluate_model; each protocol sets its own
-    module, load = load_probe_module(args.model_config, args.ckpt_path, args.device,
-                                     args.allow_canon_mismatch)
+    module, load, ckpt_load = load_probe_module(args.model_config, args.ckpt_path, args.device,
+                                                args.allow_canon_mismatch)
     deviations += load_deviations(load)
     if deviations and not args.diagnostic:
         print("REFUSED: not the registered composition control: " + "; ".join(deviations))
@@ -573,6 +585,7 @@ def main(argv=None):
     split = (dataset_config.get("datasets") or [{}])[0].get("json_file_path")
     dev = torch.device(args.device)
     prov = {"ckpt_path": args.ckpt_path, "ckpt_sha256": _sha256_file(args.ckpt_path),
+            **ckpt_load,                # rB-F3 F3-1: the digest + length of the bytes deserialized
             "model_config": args.model_config, "model_config_file_sha256": _sha256_file(args.model_config),
             "dataset_config": args.dataset_config, "dataset_config_sha256": _sha256_file(args.dataset_config),
             "split_json": split, "split_json_sha256": _sha256_file(split) if split and os.path.exists(split) else None,
