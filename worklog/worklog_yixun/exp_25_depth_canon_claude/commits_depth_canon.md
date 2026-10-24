@@ -38,3 +38,21 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `1adda49` | Planner | plan v8: DDP-opaque metadata carrier (Codex code review r2 BLOCKING), tests 12b/12c amended |
 | `c7771ec` | Coder r2 fix | F1 (code review r2 BLOCKING): `_CpuMetadataCarrier` — enabled `transfer_batch_to_device` hands the untouched metadata on in an opaque `__slots__` carrier that DDP's `_to_kwargs`/`_recursive_to` does not descend into; `_canonicalize_batch` unwraps it first; real-`_to_kwargs` regression tests (meta + CUDA) |
 | `8f16dfb` | Coder r2 fix | F2 (NIT): operator `ValueError`s re-raised as `canonicalize: metadata[i]: …` (`StabilizedTieError` untouched) |
+| `b424969` | Coder r2 fix | F3 + records: ledger one row per SHA (chronological; dup `518e03a` merged; `de6e774`/`9350054`/`a7f8893`/`1adda49`/`c7771ec`/`8f16dfb` added) + fix-round notebook entries |
+| `df31f44` | Coder r2 fix | records: F3 notebook-entry timestamp corrected to the `date(1)` value (18:57:13, was hand-typed 18:58:24) |
+| `cd31610` | Planner | round-2 fix-round receipt (Planner verification 586 passed, 1 xfailed); worklog |
+| `2be08f6` | Planner | round 2 closed (Codex re-verification SHIP); round-3 split (3a / 3b / 3c) recorded; worklog — base of TDD round 3a |
+| `83504a0` | Coder r3a | cycle 1a: `canon_suffix` + `build_output_paths(..., canonicalize, canon_mismatch)` tokens after the method suffix, before rotation (test 16; golden + exp_01 names byte-identical; 72-combo injectivity) |
+| `3904928` | Coder r3a | cycle 1b: `build_metrics_record(..., canon_provenance=None)` → `_canon_provenance`, `CANON_RECORD_KEYS` (8 fields, validated fail-closed, appended last) (test 17) |
+| `d9148b3` | Coder r3a | cycle 2a: `CanonProtocol` / `LEGACY_CANON_PROTOCOL`, `_canon_strict_diff`, `canon_vit_img_w`, `model_config_sha256` (test 18 helpers) |
+| `1428ba8` | Coder r3a | cycle 2b: `resolve_canonicalize_protocol` — fail-closed checkpoint binding, every plan §2.2 rule (test 18) |
+| `f9e0e3c` | Coder r3a | cycle 3a: `CanonStream`, `canon_sidecar_path`, `build_canon_record` (`.canon.json`) (test 20) |
+| `2981bf8` | Coder r3a | cycle 3b-i: `prepare_eval_metadata` — rotation, then per-sample canonicalization on the CPU float64 cloud (test 19) |
+| `46521f9` | Coder r3a | cycle 3b-ii: `build_canon_provenance` (record fields from the protocol + stream + both config digests) |
+| `0f5d100` | Coder r3a | cycle 4a: `ScoredWaveformDump` construction refusals + `append`; `scored_waveform_dir` (test 21) |
+| `6eb790b` | Coder r3a | cycle 4b: `ScoredWaveformDump.finalize` (staging → verify → `COMPLETE` → atomic rename) + `is_complete` (test 21) |
+| `c62ac96` | Coder r3a | cycle 5a: `evaluate_model` canonicalization wiring — binding before model construction, one early `build_output_paths`, `prepare_eval_metadata` in the loop, canon checks, provenance, `.canon.json` (toy-stack drive of the real loop) |
+| `bd38095` | Coder r3a | cycle 5b: `evaluate_model` scored-waveform dump wiring — stream required, target refused before the model, `append` right before `update_metrics` (spied), `finalize` last |
+| `7e51b11` | Coder r3a | cycle 5c: CLI `--canonicalize` / `--allow-canon-mismatch` / `--dump-scored-waveforms` threaded into `evaluate_model` (behavioural subprocess tests) |
+| `bd6bddc` | Coder r3a | cycle 5d: `src/tools/depth_canon_stats.py` — `rel_l2` / `rel_linf` / `paired_summary` with the pinned denominators (test 21b) |
+| `666e0f9` | Coder r3a | cycle 5e: dump verification compares bits through a `uint32` view (no 2×260 MB `tobytes` copies) + one-bit / dtype / length corruption test |
