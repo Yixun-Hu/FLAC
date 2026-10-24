@@ -1179,3 +1179,29 @@ def test_a_block_selection_defines_the_required_set(tmp_path, monkeypatch, capsy
     assert rc == 0, capsys.readouterr().out
     res = json.load(open(out + ".json"))
     assert res["blocks"] == blocks and res["partial"] is False
+
+
+
+# ---- rB-F1 B6: the NAS retention audit (a separate command; the table never needs the NAS) ---- #
+def _retention(tmp, *extra):
+    cells_json = os.path.join(str(tmp), "cells.json")
+    with open(cells_json, "w") as f:
+        json.dump(MANIFEST, f)
+    return C.main(["--nas-retention-audit", "--pin", PIN, "--cells", cells_json, "--farm-root", FARM,
+                   "--dump-root", os.path.join(str(tmp), "dumps"), "--base-dir", str(tmp),
+                   "--canon-ckpt-manifest", _canon_manifest_file(tmp), "--blocks", "T,TRAJ"] + list(extra))
+
+
+def test_the_nas_retention_audit(tmp_path, capsys):
+    write_campaign(tmp_path, ["T"])
+    gone, changed = row("T", K=1, seed=43), row("T", K=8, seed=46)
+    write_cell(tmp_path, row("TRAJ", K=1, deg=0, step=2500), dump=False)    # published, nothing to retain
+    assert _retention(tmp_path) == 0
+    assert "10/10 published dump(s) retained" in capsys.readouterr().out
+    rel_g = C.cell_paths(gone, os.path.join(FARM, "CANON", ckpt_base(gone) + ".ckpt"), "d").stem
+    shutil.rmtree(os.path.join(str(tmp_path), "dumps", rel_g))
+    rel_c = C.cell_paths(changed, os.path.join(FARM, "CANON", ckpt_base(changed) + ".ckpt"), "d").stem
+    edit_json(os.path.join(str(tmp_path), "dumps", rel_c, "manifest.json"), lambda d: d.update(note=1))
+    assert _retention(tmp_path, "--dump-check", "manifest") == 1
+    out = capsys.readouterr().out
+    assert "8/10 published dump(s) retained" in out and gone["cell"] in out and changed["cell"] in out

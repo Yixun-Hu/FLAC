@@ -155,3 +155,35 @@ def test_an_arm_publishes_only_as_a_two_k_pair(tmp_path, monkeypatch):
     assert "WITHHELD" not in rows[("CANON", 1)] and "WITHHELD" not in rows[("CANON", 8)]
     assert "± " in rows[("CANON", 8)] and "WITHHELD" in rows[("P1", 1)]
     assert "pending (0/5" in rows[("YAW", 1)]
+
+
+
+# ---- rB-F1 B6 (Codex rB HIGH; decision A7): table regeneration needs NO NAS ---- #
+def _receipt(metrics_path):
+    return metrics_path[:-len(".json")] + ".cell.json"
+
+
+def test_validation_is_offline_from_the_committed_receipt(tmp_path):
+    root, m = _tree(tmp_path)
+    files = _write_row(root, m, "CANON", 1)
+    shutil.rmtree(m["dump_root"])                                   # the NAS unmounted / moved / collected
+    ok, problems = G.validate_exp25_cell(sorted(files), repo_root=str(root), expected_arm="CANON", expected_k=1)
+    assert ok, problems
+    line, blocked = G.render_row(G.EXP25_LABELS["CANON"], "vanilla eval + canonicalize (exp_25 pin)", 1,
+                                 sorted(files), repo_root=str(root), contract="exp25")
+    assert not blocked and "| 5 |" in line and "± " in line
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda d: d["dump_evidence"].update(marker="0" * 64 + "\n"), "marker"),
+    (lambda d: d["artifact_sha256"].update(metrics="0" * 64), "artifact_sha256"),
+    (lambda d: d.update(campaign_digest="e" * 64, spawn_digest="e" * 64, post_digest="e" * 64), "digest")],
+    ids=["evidence", "artifact", "second_campaign_digest"])
+def test_a_tampered_or_foreign_receipt_blocks_the_row(tmp_path, edit, needle):
+    root, m = _tree(tmp_path)
+    files = sorted(_write_row(root, m, "YAW", 8))
+    T.edit_json(_receipt(files[3]), edit)
+    ok, problems = G.validate_exp25_cell(files, repo_root=str(root), expected_arm="YAW", expected_k=8)
+    assert not ok and any(needle in p for p in problems), problems
+    line, blocked = G.render_row("x", "vanilla eval (exp_25 pin)", 8, files, repo_root=str(root), contract="exp25")
+    assert blocked and "BLOCKED" in line
