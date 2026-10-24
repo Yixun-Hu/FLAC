@@ -276,3 +276,97 @@ def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch
             "img_w": protocol.img_w, "model_config_sha256_file": ev.model_config_sha256(file_model_config),
             "model_config_sha256_embedded": ev.model_config_sha256(embedded)}
     return module, info
+
+
+# --------------------------------------------------------------------------- #
+# the probe proper (no I/O)
+# --------------------------------------------------------------------------- #
+EPS_COND_THRESHOLD = 1e-5
+
+
+def _pair_lists():
+    return {"relL2": [], "relLinf": []}
+
+
+def _new_acc():
+    acc = {"cond": {"ids": None, "masks_equal": True, "per_id": {}, "all": _pair_lists()}}
+    acc.update({s: _pair_lists() for s in STAGES[1:]})
+    return acc
+
+
+def _append(acc, cmp):
+    c = cmp["cond"]
+    if acc["cond"]["ids"] not in (None, c["ids"]):
+        raise RuntimeError(f"conditioner ids changed between batches: {acc['cond']['ids']} -> {c['ids']}")
+    acc["cond"]["ids"] = c["ids"]
+    acc["cond"]["masks_equal"] = acc["cond"]["masks_equal"] and c["masks_equal"]
+    for target, src in [(acc["cond"]["per_id"].setdefault(i, _pair_lists()), c[i]) for i in c["ids"]] + \
+            [(acc["cond"]["all"], c["all"])] + [(acc[s], cmp[s]) for s in STAGES[1:]]:
+        for k in ("relL2", "relLinf"):
+            target[k].extend(float(v) for v in src[k])
+
+
+def _finish(acc):
+    for d in list(acc["cond"]["per_id"].values()) + [acc["cond"]["all"]] + [acc[s] for s in STAGES[1:]]:
+        d["summary"] = summarize({k: np.array(d[k]) for k in ("relL2", "relLinf")})
+    return acc
+
+
+def _pooled(results_p):
+    """Per stage, the summary over the five registered offsets' items together."""
+    out = {}
+    for s in STAGES:
+        rows = [results_p[k]["cond"]["all"] if s == "cond" else results_p[k][s] for k in OFFSET_KEYS]
+        out[s] = summarize({m: np.array([v for r in rows for v in r[m]]) for m in ("relL2", "relLinf")})
+    return out
+
+
+def _eps_cond(results):
+    """max fp32 conditioning relL2 over the registered offsets, conditioner ids and items."""
+    if "fp32" not in results:
+        return None
+    value, key, cid, pos = max((v, k, i, pos) for k in OFFSET_KEYS
+                               for i, d in results["fp32"][k]["cond"]["per_id"].items()
+                               for pos, v in enumerate(d["relL2"]))
+    return {"value": value, "threshold": EPS_COND_THRESHOLD, "pass": value <= EPS_COND_THRESHOLD,
+            "argmax": {"key": key, "id": cid, "position": pos}}
+
+
+def run_probe(module, reals, metadata, img_w, seed, batch_size, latent_len, protocols=None):
+    """Per protocol and offset key: stagewise B-vs-A comparisons for every item, A run
+    twice for the determinism floor, the Tier-1 record, eps_cond and the control p99."""
+    protocols = PROTOCOLS if protocols is None else protocols
+    n = len(metadata)
+    if reals.shape[0] != n:
+        raise ValueError(f"{reals.shape[0]} reals for {n} metadata items")
+    offsets = draw_offsets(n, img_w, seed)
+    noise = noise_bank(n, (module.diffusion.io_channels, latent_len), seed)
+    acc = {p: {k: _new_acc() for k in OFFSET_KEYS} for p in protocols}
+    det = {p: _new_acc() for p in protocols}
+    items = []
+    for start in range(0, n, batch_size):
+        sl = slice(start, min(start + batch_size, n))
+        a_list, b_lists, tier1 = canonical_pairs(list(metadata[sl]), {k: v[sl] for k, v in offsets.items()},
+                                                 img_w)
+        items += tier1
+        for p, proto in protocols.items():
+            sa = run_stages(module, a_list, noise[sl], reals[sl], proto)
+            _append(det[p], compare_stages(run_stages(module, a_list, noise[sl], reals[sl], proto), sa))
+            for key in OFFSET_KEYS:
+                _append(acc[p][key], compare_stages(
+                    run_stages(module, b_lists[key], noise[sl], reals[sl], proto), sa))
+    results = {p: {k: _finish(acc[p][k]) for k in OFFSET_KEYS} for p in protocols}
+    pooled = {p: _pooled(results[p]) for p in protocols}
+    eps = _eps_cond(results)
+    control = {p: dict({k: results[p][k]["waveform"]["summary"]["relL2"]["p99"] for k in OFFSET_KEYS},
+                       pooled=pooled[p]["waveform"]["relL2"]["p99"]) for p in protocols}
+    pairs = [o for it in items for o in it["offsets"].values()]
+    t1 = {"n_pairs": len(pairs)} | {f: sum(o[f] for o in pairs)
+                                    for f in ("depth_sha_equal", "class_equal", "dj_corotates")}
+    verdict = {"eps_cond": bool(eps and eps["pass"]),
+               "tier1": all(t1[f] == t1["n_pairs"] for f in ("depth_sha_equal", "class_equal", "dj_corotates")),
+               "masks": all(results[p][k]["cond"]["masks_equal"] for p in protocols for k in OFFSET_KEYS)}
+    verdict = {"pass": all(verdict.values()), **verdict}
+    return {"offsets": offsets, "items": items, "tier1": t1, "results": results, "pooled": pooled,
+            "determinism": {p: _finish(det[p]) for p in protocols}, "eps_cond": eps,
+            "control_p99": control, "verdict": verdict}

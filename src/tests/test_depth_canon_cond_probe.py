@@ -362,3 +362,70 @@ def test_an_are_checkpoint_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
     with pytest.raises(ValueError, match="ARE"):
         probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+
+# --------------------------------------------------------------------------- #
+# the probe loop: real tiny wrapper, real stages, items at W = 512
+# --------------------------------------------------------------------------- #
+from test_depth_canon import _cloud, _scalar_depth  # noqa: E402
+
+
+def _probe_md(i):
+    s = torch.tensor([1.3, -0.7 + 0.1 * i, 0.2])
+    ctx = torch.tensor([[0.9, 1.1, -0.3], [-1.2, 0.4 + 0.05 * i, 0.1]])
+    peaks = [(1, (300 + 37 * i) % 512)] + ([(2, (300 + 37 * i) % 512)] if i % 3 == 1 else [])
+    return {"depth": _cloud(_scalar_depth(4, 512, seed=200 + i, peaks=peaks)), "source": s,
+            "source_vit": s[None], "context_poses": ctx, "context_poses_vit": ctx.clone(),
+            "context_audio": torch.zeros(2, 1, 8), "padding_mask": torch.ones(64), "scene": "Toy",
+            "idx": i, "relpath": f"single_channel_ir_1/Toy/Toy_idx_0/S00{i}_R001_hybrid_IR.wav"}
+
+
+def _run_probe(n=5, bs=3):
+    mds = [_probe_md(i) for i in range(n)]
+    return probe.run_probe(_toy_module(), torch.zeros(n, 1, 64), mds, img_w=512, seed=42,
+                           batch_size=bs, latent_len=64)
+
+
+def test_run_probe_results_eps_cond_and_control(no_flash):
+    rep = _run_probe()
+    assert rep["offsets"] == probe.draw_offsets(5, 512, 42)
+    for p in probe.PROTOCOLS:
+        for key in probe.OFFSET_KEYS:
+            res = rep["results"][p][key]
+            assert res["waveform"]["summary"]["relL2"]["n"] == 5 and len(res["waveform"]["relL2"]) == 5
+            assert set(res["cond"]["ids"]) == {"source", "context_poses"} and res["cond"]["masks_equal"]
+            assert res["latent"]["summary"] == probe.summarize(
+                {k: np.array(res["latent"][k]) for k in ("relL2", "relLinf")})
+        assert all(max(rep["determinism"][p][s]["relL2"]) == 0.0 for s in probe.STAGES[1:])
+    eps = max(v for key in probe.OFFSET_KEYS for i in rep["results"]["fp32"][key]["cond"]["ids"]
+              for v in rep["results"]["fp32"][key]["cond"]["per_id"][i]["relL2"])
+    assert rep["eps_cond"]["value"] == eps and rep["eps_cond"]["threshold"] == 1e-5
+    assert rep["eps_cond"]["pass"] is (eps <= 1e-5) is True
+    pooled = [v for key in probe.OFFSET_KEYS for v in rep["results"]["eval"][key]["waveform"]["relL2"]]
+    assert rep["control_p99"]["eval"]["pooled"] == stats.paired_summary(np.array(pooled))["p99"]
+    assert rep["control_p99"]["eval"]["d128"] == rep["results"]["eval"]["d128"]["waveform"]["summary"]["relL2"]["p99"]
+    assert rep["tier1"] == {"n_pairs": 25, "depth_sha_equal": 25, "class_equal": 25, "dj_corotates": 25}
+    assert [it["class_A"] for it in rep["items"]] == ["none", "same_column", "none", "none", "same_column"]
+    assert rep["verdict"] == {"pass": True, "eps_cond": True, "tier1": True, "masks": True}
+
+
+def test_one_noise_tensor_per_item_is_reused_for_every_pass(monkeypatch, no_flash):
+    import src.inference.sampling as sampling
+    seen, real = [], sampling.sample_discrete_euler
+    monkeypatch.setattr(sampling, "sample_discrete_euler",
+                        lambda model, x, steps, **kw: seen.append(x.clone()) or real(model, x, steps, **kw))
+    _run_probe()
+    bank = probe.noise_bank(5, (4, 64), 42)
+    per_batch = 2 * (2 + len(probe.OFFSET_KEYS))          # protocols x (A, A again, five B)
+    assert len(seen) == 2 * per_batch                      # batches of 3 + 2 items
+    assert all(torch.equal(x, bank[:3]) for x in seen[:per_batch])
+    assert all(torch.equal(x, bank[3:]) for x in seen[per_batch:])
+
+
+def test_a_tier1_mismatch_fails_the_verdict(monkeypatch, no_flash):
+    real, calls = yr.canonical_depth_sha256, []
+    monkeypatch.setattr(yr, "canonical_depth_sha256",
+                        lambda d: calls.append(1) or (real(d) if len(calls) != 3 else "0" * 64))
+    rep = _run_probe()
+    assert rep["tier1"]["depth_sha_equal"] == 24 and rep["verdict"]["tier1"] is False
+    assert rep["verdict"]["pass"] is False
