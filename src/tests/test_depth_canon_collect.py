@@ -1312,6 +1312,18 @@ def test_the_nas_retention_audit(tmp_path, capsys):
 
 
 
+def test_the_nas_retention_audit_refuses_the_offline_receipt_mode(tmp_path, capsys):
+    """rB-F2 F2-7 (Codex B2 NIT): --dump-check receipt never reads the NAS, so it could report an
+    absent dump as retained; a retention audit accepts only full and manifest."""
+    write_campaign(tmp_path, ["T"])
+    shutil.rmtree(os.path.join(str(tmp_path), "dumps"))                  # every published dump is gone
+    assert _retention(tmp_path, "--dump-check", "receipt") == 2
+    out = capsys.readouterr().out
+    assert "RETENTION AUDIT REFUSED" in out and "retained" not in out
+    assert _retention(tmp_path, "--dump-check", "manifest") == 1          # the online modes see the loss
+    assert "0/10 published dump(s) retained" in capsys.readouterr().out
+
+
 # ---- rB-F1 NIT a: K context ids per item; the registered repetition rule; the pairing note ---- #
 def test_repeated_context_ids_are_legal_when_every_cell_agrees(tmp_path):
     write_campaign(tmp_path, ["T", "R"])
