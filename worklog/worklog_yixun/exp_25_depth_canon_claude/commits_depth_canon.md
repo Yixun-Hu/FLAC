@@ -82,3 +82,13 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `7048ccf` | Coder r3b | cycle 11b: launcher — GPU free-memory gate, W&B identity gate, DINOv3 gate on this checkout's src |
 | `e490a88` | Coder r3b | cycle 12a: launcher — the launch path: marker, drained single log read, scans, run-owned checkpoint set + manifest |
 | `84d7403` | Coder r3b | cycle 12b: launcher — steady-state smoke projection + the smoke evidence bound to the final log; opt-in production guard section |
+| `58c296f` | Coder r3b | records: lab-notebook entries (start, cycles 1a-12b, real-data throughput, round summary) + ledger rows |
+| `b9f83b9` | Coder r3a-F1 | fix 1 (BLOCKING, A4): `PreparedMetadata(cond, metric)` — only the conditioner sees the canonical frame; metric inputs + ARE add-back from the post-rotation, pre-canonicalization list |
+| `f50a436` | Coder r3a-F1 | fix 2 (HIGH): `finalize` reads the checksum sidecar back; `is_complete(final_dir, expected_n=None)` verifies the whole cell |
+| `bb6bbfa` | Coder r3a-F1 | fix 3 (HIGH 2): `.canon.json` gains the rotation-invariant `canonical_depth_hash` |
+| `b2e59da` | Coder r3a-F1 | fix 4 (NIT): `canon_vit_img_w` refuses duplicate conditioner ids |
+| `fdf5267` | Coder r3a-F1 | fix 5 (NIT): dump target — refuse ANY existing final path (never remove one) and reserved `.staging-` components |
+| `f42ffa9` | Coder r3a-F1 | fix 6 (NIT): `append` fails closed on non-float32 |
+| `2d1c15b` | Coder r3a-F1 | fix 7: `cond_method` / `file_model_cfg` keyword-only; `file_model_cfg` required in play |
+| `0b21c12` | Coder r3a-F1 | fix 8: a dump requires `--record-stream` (published stream sidecar) |
+| `1d28e41` | Coder r3a-F1 | fix 9: routing test spies on the real functions (replaces `inspect.getsource`) |

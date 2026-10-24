@@ -749,3 +749,73 @@
   - Probe (GPU, after the CANON checkpoint exists, from the repo root): `python worklog/…/depth_canon_cond_probe.py --ckpt-path <CANON ckpt> --device cuda --out worklog/…/depth_canon_cond_probe.json` (defaults: arm config, unseen config, 64 items, batch 64, seed 42).
   - Launcher: regenerate the manifest at the final pin commit (`bash worklog/…/depth_canon_make_pins.sh --write`, commit), run `GUARD_NAS_READONLY=1 bash worklog/…/depth_canon_guardtests.sh` (reads the NAS), then `MODE=SMOKE EXPECT_HEAD=<pin sha> bash worklog/…/depth_canon_launch.sh` with both cards ≥ 22.5 GiB free, then `MODE=FULL EXPECT_HEAD=<same sha> …`.
 - **Next** — r3a-F1 fix round (same seat), then one hand-back for 3b + F1.
+
+## 2026-10-23T22:31:06-04:00 (the 3b records commit time; F1 began right after it) — r3a-F1 start (Coder): the Codex code review r3a fix round
+
+- **Goal** — Close `depth_canon_codex_code_r3a_review.md` (REQUEST-CHANGES: 1 BLOCKING, 2 HIGH, 3 NIT + hardening) per the coordinator's item list 1–9, AFTER round 3b (records `58c296f`), as the single writer. Scope: `eval_FLAC.py` and `src/tests/test_depth_canon_eval.py` only (`src/training`, `src/data`, `src/tools/depth_canon_stats.py` untouched; no finding needed the stats tool). Every fix: red against its parent commit, then green, one commit < 200 lines; CPU only. The RAM accumulation of the dump rows (≈ 743 MiB per cell at finalize) is left as it is (known, tolerable cost per the review).
+
+## 2026-10-23T22:34:59-04:00 — r3a-F1 fix 1 (BLOCKING, decision A4): arm-independent metric path
+
+- **Change** — `PreparedMetadata(cond, metric)` (NamedTuple); `prepare_eval_metadata` returns it: `metric` = `apply_rotation_plan`'s list (post-rotation, PRE-canonicalization), `cond` = the canonical list, the SAME object as `metric` when canonicalization is off. `evaluate_model` conditions on `cond` (vanilla and fa branches) and builds `scene_list` / `depth_list` / `query_list` (AGREE retrieval gallery) and the ARE add-back's metadata from `metric`. `CanonStream.record`'s docstring corrected (`md` is pre-canonicalization).
+- **Version Control** — `b9f83b9` (parent `58c296f`); +96 / −20.
+- **Result** — `passed`. **Red:** 14 failed (`AttributeError: 'list' object has no attribute 'cond'/'metric'`, no `PreparedMetadata`, and both end-to-end metric-frame cases), 139 passed. **Green:** 153 passed; eval regression (`test_eval_paths test_yaw_random_eval test_exp14_fixed_mode_snapshot test_exp14_validate_cell test_are_lambda_config test_frame_avg_cap_config`) 484 passed, 2 skipped.
+- **Analysis** — Tests: unit (θ90: `metric` equals the rotation's output and is not canonical, `cond` has j* = 0; disabled: `metric is cond`, and `is` the loader's list at θ0) and end to end on the toy stack in fixed-90 and random modes: the depth handed to `update_metrics` is exactly `(d[:3] − source)` of the post-rotation, pre-canonicalization dicts, the scenes match, the conditioner saw j* = 0, the canonical frame differs; the legacy cell's metric inputs come from the loader's own dicts. CANON + ARE is not a registered cell; the ARE argument switch is covered by the legacy-identity path only (same object when not canonical).
+
+## 2026-10-23T22:37:25-04:00 — r3a-F1 fix 2 (HIGH): a verified completion predicate
+
+- **Change** — `_write_checksum_sidecar`; `finalize` reads `waveforms.sha256` back before `COMPLETE` (a wrong line → `RuntimeError`, no marker). `is_complete(final_dir, expected_n=None)`: manifest object of this schema, int `n ≥ 0`, dtype float32, `shape == [n, T]`, sha256-hex `sha256` / `input_hash`, non-empty `metrics_stem`, `n == expected_n` when given; array float32 of exactly that shape hashing to the manifest's sha; sidecar text; `COMPLETE` == the waveform hash. Docstring: the EVALUATOR-side predicate; the collector's external-digest check is still required before a driver skips.
+- **Version Control** — `f50a436`; +96 / −22.
+- **Result** — `passed`. **Red:** 2 failed (`TypeError: … unexpected keyword argument 'expected_n'`; no `_write_checksum_sidecar`). **Green:** 154 passed. The weak marker-plus-any-JSON test is replaced by the positive case + 16 marker-bearing negatives (`{}` / `[]` / broken manifest, missing array, wrong n / shape / dtype / schema / hashes / stem, bad or missing checksum, bad or missing marker, altered array) + `expected_n` checks.
+
+## 2026-10-23T22:38:47-04:00 — r3a-F1 fix 3 (HIGH 2): `canonical_depth_hash`
+
+- **Change** — `CanonStream.canonical_depth_hash()` = `canonical_stream_hash` of the ordered `[target_id, canonical_depth_sha256]` pairs; `build_canon_record` adds it after the unchanged `canon_hash`.
+- **Version Control** — `bb6bbfa`; +28 / −2.
+- **Result** — `passed`. **Red:** 8 failed (`AttributeError: … 'canonical_depth_hash'`). **Green:** 157 passed (recomputable from the record's positions; equal across rolled copies 1 / 8 / 16 / 31 while `canon_hash` differs; sensitive to reordering, target substitution, one altered hash).
+
+## 2026-10-23T22:39:47-04:00 — r3a-F1 fix 4 (NIT): duplicate conditioner ids
+
+- **Change** — `canon_vit_img_w` collects `(position, id, width)` and refuses any duplicate id among the ViT conditioners before the positive-int / unanimity checks.
+- **Version Control** — `b2e59da`; +25 / −9.
+- **Result** — `passed`. **Red:** 2 failed (DID NOT RAISE — disagreeing 512/256 and agreeing widths under one id). **Green:** 159 passed.
+
+## 2026-10-23T22:41:22-04:00 — r3a-F1 fix 5 (NIT): dump-target hygiene
+
+- **Change** — `check_target` refuses ANY existing final path (non-empty dir, empty dir, file, symlink) and keeps it, and any path component carrying `.staging-`; `finalize` no longer removes an empty final directory. Class docstring and CLI help updated.
+- **Version Control** — `fdf5267`; +38 / −29.
+- **Result** — `passed`. **Red:** 8 failed (old messages "not empty" / "is not a directory", empty dir accepted, `.staging-` accepted). **Green:** 162 passed.
+
+## 2026-10-23T22:45:02-04:00 — r3a-F1 fix 6 (NIT): `append` fails closed on non-float32
+
+- **Change** — `append` raises on any dtype other than float32 (no silent cast); the uint32-view bitwise verification is unchanged.
+- **Version Control** — `f42ffa9`; +16 / −5.
+- **Result** — `passed`. **Red** (test file against the parent's `eval_FLAC.py`): 3 failed (DID NOT RAISE for float64 / bfloat16 / float16). **Green:** 165 passed. A test-editing slip during the green step (the old shape-refusal loop had been left at the end of the new rejection test, where `_t` was still unset) was found by the first green run and fixed in the test before committing.
+
+## 2026-10-23T22:46:42-04:00 — r3a-F1 fix 7 (hardening): keyword-only binding arguments
+
+- **Change** — `resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg, allow_mismatch, *, cond_method, file_model_cfg=None)`; in play, a missing / non-dict `file_model_cfg` is a `ValueError` naming it; `evaluate_model` passes both by name.
+- **Version Control** — `2d1c15b`; +31 / −6.
+- **Result** — `passed`. **Red:** 4 failed (positional call accepted; `None` / `[]` gave "no ViT conditioner"; `"cfg"` → `AttributeError`). **Green:** 205 passed with the probe tests (the 3b probe already passed both by keyword).
+
+## 2026-10-23T22:47:39-04:00 — r3a-F1 fix 8: a dump requires `--record-stream`
+
+- **Change** — `--dump-scored-waveforms` requires `record_stream=True` (fail-closed option; random mode alone accumulates the stream but publishes no `.stream.json`); error text + help say so; refused before any file work.
+- **Version Control** — `0b21c12`; +20 / −6.
+- **Result** — `passed`. **Red:** 1 failed (random mode got past the guard to `FileNotFoundError` on the model config). **Green:** 171 passed.
+
+## 2026-10-23T22:49:24-04:00 — r3a-F1 fix 9: the routing test spies on the real functions
+
+- **Change** — The `inspect.getsource` test is replaced by an event log on the REAL `resolve_canonicalize_protocol`, `build_output_paths`, `prepare_eval_metadata` (entry/exit), `apply_rotation_plan` and the toy stack's model factory / conditioner / dump append / metric update (`_run(events=…)`): binding → paths (once) → model; per batch prepare> rotate prepare< cond append score, twice.
+- **Version Control** — `1d28e41`; +34 / −11 (test only).
+- **Result** — `passed` (171). Red evidence for a test-only change = mutation checks on `eval_FLAC.py` (edited in place, restored, `git diff` clean afterwards): `update_metrics` before `append` → the test fails; a second `build_output_paths` call → the test fails.
+
+## 2026-10-23T23:06:39-04:00 — r3a-F1 round summary + final regression for 3b + F1 (Coder)
+
+- **Result** — `fix_ready` for the Codex re-verification of r3a-F1 and the code review of round 3b. F1 commits `b9f83b9` `f50a436` `bb6bbfa` `b2e59da` `fdf5267` `f42ffa9` `2d1c15b` `0b21c12` `1d28e41` (each < 200 lines; largest +96 / −22), touching only `eval_FLAC.py` and `src/tests/test_depth_canon_eval.py`. Review items: BLOCKING metric frame → fix 1; HIGH completion predicate → fix 2; HIGH rotation-invariant digest → fix 3; NIT duplicate ids → fix 4; NIT dump-target hygiene → fix 5; NIT float32 → fix 6; keyword-only hardening → fix 7; dump ↔ published stream → fix 8; getsource test → fix 9; both docstrings (`CanonStream.record`, `is_complete`) → fixes 1 / 2. Not changed (as instructed): the RAM accumulation of dump rows.
+- **Command / Validation** (CPU, `CUDA_VISIBLE_DEVICES=""`, from the worktree root, HEAD `1d28e41`):
+  - The Planner's 18-file receipt set + the two 3b files: `python -m pytest src/tests/test_depth_canon_eval.py src/tests/test_eval_paths.py src/tests/test_yaw_random_eval.py src/tests/test_exp14_fixed_mode_snapshot.py src/tests/test_exp14_validate_cell.py src/tests/test_depth_canon.py src/tests/test_depth_canon_training.py src/tests/test_depth_canon_stats.py src/tests/test_depth_canon_arm_config.py src/tests/test_yaw_aug_training.py src/tests/test_cond_dispatch.py src/tests/test_yaw_aug_arm_config.py src/tests/test_frame_avg_cap_config.py src/tests/test_are_lambda_config.py src/tests/test_eval_localization.py src/tests/test_gen_model_comparison_gate.py src/tests/test_yaw_gen_collect.py src/tests/test_yaw_aug_collect.py src/tests/test_depth_canon_tie_audit.py src/tests/test_depth_canon_cond_probe.py -q` → **1911 passed, 7 skipped, 1 xfailed, 0 failed** in 365 s (= the Planner's 1755 + 132 new 3b tests + 24 net new F1 tests; the xfail is the strict Option-A control). Log `depth_canon_2026-10-23_22-49-39_r3b_f1_final_regression.log`.
+  - `bash -n` of `depth_canon_launch.sh`, `depth_canon_guardtests.sh`, `depth_canon_make_pins.sh`: clean.
+  - `PATH=<flac env>/bin:$PATH bash worklog/…/depth_canon_guardtests.sh` → **112 passed, 0 failed, 1 skipped** (Q, opt-in production path). Log `depth_canon_2026-10-23_22-49-39_r3b_f1_final_guardtests.log`.
+- **Open items for the reviewer** — (1) fix 1 covers the ARE add-back argument switch only through the legacy object identity (CANON + ARE is not a registered cell); (2) `is_complete` reads the whole array to hash it (≈ 260 MB per cell) — a deliberate cost of a verified predicate; (3) fix 5 changes the driver's contract: an existing (even empty) cell directory is now always refused and must be quarantined by the 3c driver.
+- **GPU state at hand-back** (not ours, untouched): GPU 0 32,481 MiB used / 16,062 free, GPU 1 32,648 used / 15,885 free (both cards carry another user's xRIR jobs) — below the launcher's 22.5 GiB floor on both, so a SMOKE would refuse right now.
+- **Next** — hand-back to the Planner (Codex review of 3b + re-verification of F1).
