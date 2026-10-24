@@ -1599,8 +1599,11 @@ class ScoredWaveformDump:
 
     Fail-closed at construction (i.e. before any evaluation work): the dump root
     (parent of ``final_dir``) must already exist -- it is never created, so an
-    unmounted NAS cannot silently become a local directory -- and ``final_dir``
-    must be absent or an empty directory. :meth:`finalize` builds the cell in the
+    unmounted NAS cannot silently become a local directory -- ``final_dir`` must not
+    exist at all (an existing path, even an empty directory, is refused and kept: the
+    driver quarantines and reports such targets, the evaluator never reuses or removes
+    one), and no component of the path may carry the reserved ``.staging-`` name.
+    :meth:`finalize` builds the cell in the
     same-filesystem sibling ``<final_dir>.staging-<pid>``: ``waveforms.npy``
     (``[N, T]`` float32), ``waveforms.sha256``, ``manifest.json``; re-opens and
     verifies them; writes ``COMPLETE`` last; only then renames the staging
@@ -1622,15 +1625,16 @@ class ScoredWaveformDump:
     def check_target(final_dir):
         """The construction-time refusals, callable before any work; returns the abspath."""
         final_dir = os.path.abspath(final_dir)
+        if any(".staging-" in part for part in final_dir.split(os.sep)):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} contains the reserved "
+                             "'.staging-' name (staging directories are the dump's own)")
         if not os.path.isdir(os.path.dirname(final_dir)):
             raise ValueError(f"scored-waveform dump: the dump root {os.path.dirname(final_dir)!r} "
                              "does not exist (it is never created: a missing mount must not "
                              "silently become a local directory)")
-        if os.path.islink(final_dir) or (os.path.lexists(final_dir) and not os.path.isdir(final_dir)):
-            raise ValueError(f"scored-waveform dump: {final_dir!r} is not a directory")
-        if os.path.isdir(final_dir) and os.listdir(final_dir):
-            raise ValueError(f"scored-waveform dump: {final_dir!r} exists and is not empty; "
-                             "refusing to overwrite a cell's dump")
+        if os.path.lexists(final_dir):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} already exists; the driver must "
+                             "quarantine it -- the evaluator never reuses or removes a cell target")
         return final_dir
 
     def append(self, fakes_scored):
@@ -1686,9 +1690,7 @@ class ScoredWaveformDump:
             raise RuntimeError(f"scored-waveform dump: verification of {self.staging_dir!r} "
                                "failed; no COMPLETE marker written")
         _write_complete_marker(self.staging_dir, sha)
-        if os.path.isdir(self.final_dir):
-            os.rmdir(self.final_dir)  # empty (checked above): replaced by the complete cell
-        os.rename(self.staging_dir, self.final_dir)
+        os.rename(self.staging_dir, self.final_dir)   # final_dir is absent (checked above)
         return manifest
 
     @staticmethod
@@ -2221,7 +2223,7 @@ if __name__ == "__main__":
     parser.add_argument("--are-lambda", type=float, default=None, help="exp_16 ARE: weight of the analytic direct-sound anchor added back to the sampled latent before decoding. Omit to use the arm's OWN training.are_lambda from --model-config (None for every non-ARE arm, which leaves the run and its record byte-identical to today). Passing it OVERRIDES the config -- including 0.0, which is the AR3 eval-time sweep and is recorded as such. Requires the model config to declare training.are_anchor; the applied value and its source are written into the metrics record and into the output filename.")
     parser.add_argument("--canonicalize", action='store_true', help="exp_25: deepest-column yaw canonicalization of the conditioning (depth panorama + all four pose fields) AFTER the evaluation rotation and BEFORE conditioning. Bound to the checkpoint: it must match the embedded training.canonicalize (announcement 05) unless --allow-canon-mismatch. Adds '_canon' to the output names, the canonicalize_* record fields and a <metrics-stem>.canon.json sidecar. Not with --cond-method fa_invariant.")
     parser.add_argument("--allow-canon-mismatch", action='store_true', help="exp_25: permit a labelled trained != applied canonicalization diagnostic (adds '_canonmis'). Never authorises a disagreement between the embedded and --model-config training.canonicalize blocks, and is itself an error when trained == applied.")
-    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream or --rotate-mode random; refuses a non-empty cell directory.")
+    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream or --rotate-mode random; refuses any existing cell directory.")
     args = parser.parse_args()
 
     if args.store_predictions:

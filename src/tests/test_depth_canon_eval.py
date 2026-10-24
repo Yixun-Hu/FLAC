@@ -13,6 +13,7 @@ import copy
 import hashlib
 import itertools
 import json
+import os
 
 import pytest
 import torch
@@ -641,25 +642,32 @@ def test_append_stores_the_float32_cpu_copy_of_the_scored_tensor(tmp_path):
             dump.append(bad)
 
 
-@pytest.mark.parametrize("setup, needle", [
-    (lambda d: (d.mkdir(), (d / "waveforms.npy").write_text("x")), "not empty"),
-    (lambda d: d.write_text("x"), "not a directory"),
-    (lambda d: None, None)])
-def test_the_final_directory_is_checked_before_any_work(tmp_path, setup, needle):
+@pytest.mark.parametrize("setup", [
+    lambda d: (d.mkdir(), (d / "waveforms.npy").write_text("x")),   # non-empty directory
+    lambda d: d.mkdir(),                                            # EMPTY directory (r3a NIT)
+    lambda d: d.write_text("x"),                                    # a file
+    lambda d: d.symlink_to(d.parent)], ids=["non_empty", "empty", "file", "symlink"])
+def test_any_existing_final_path_is_refused_before_any_work_and_kept(tmp_path, setup):
     final = tmp_path / "cell"
     setup(final)
-    if needle:
-        with pytest.raises(ValueError, match=needle):
-            eval_FLAC.ScoredWaveformDump(str(final), 1)
+    before = sorted(p.name for p in tmp_path.iterdir())
+    with pytest.raises(ValueError, match="already exists"):
+        eval_FLAC.ScoredWaveformDump(str(final), 1)
+    assert sorted(p.name for p in tmp_path.iterdir()) == before and os.path.lexists(final)
+
+
+def test_a_missing_dump_root_is_refused_and_never_created(tmp_path):
     with pytest.raises(ValueError, match="dump root"):
         eval_FLAC.ScoredWaveformDump(str(tmp_path / "missing_root" / "cell"), 1)
+    assert not (tmp_path / "missing_root").exists()
 
 
-def test_an_empty_final_directory_is_replaced(tmp_path):
-    (tmp_path / "cell").mkdir()
-    dump, _ = _filled(tmp_path)
-    dump.finalize(HASH, "stem")
-    assert eval_FLAC.ScoredWaveformDump.is_complete(str(tmp_path / "cell"))
+@pytest.mark.parametrize("parts", [("r.staging-12", "cell"), ("r", "cell.staging-7")],
+                         ids=["root", "cell"])
+def test_a_reserved_staging_component_is_refused(tmp_path, parts):
+    (tmp_path / parts[0]).mkdir()
+    with pytest.raises(ValueError, match="reserved"):
+        eval_FLAC.ScoredWaveformDump(str(tmp_path / parts[0] / parts[1]), 1)
 
 
 @pytest.mark.parametrize("kw, needle", [
@@ -680,11 +688,10 @@ def test_finalize_refuses_a_short_dump_and_a_final_dir_that_filled_up(tmp_path):
     with pytest.raises(ValueError, match="expected 6"):
         dump.finalize(HASH, "stem")
     dump, _ = _filled(tmp_path)
-    (tmp_path / "cell").mkdir()
-    (tmp_path / "cell" / "other").write_text("x")
-    with pytest.raises(ValueError, match="not empty"):
+    (tmp_path / "cell").mkdir()                       # appeared after construction, even empty
+    with pytest.raises(ValueError, match="already exists"):
         dump.finalize(HASH, "stem")
-    assert not list(tmp_path.glob("cell.staging-*"))
+    assert not list(tmp_path.glob("cell.staging-*")) and (tmp_path / "cell").is_dir()
 
 
 def test_a_crash_at_the_rename_leaves_a_marked_staging_dir_and_no_final_dir(tmp_path, monkeypatch):
@@ -958,7 +965,7 @@ def test_trained_but_not_applied_diagnostic(monkeypatch, tmp_path):
 @pytest.mark.parametrize("training, kw, needle", [
     (ON32, {}, "TRAINED with canonicalize=True"),
     ({}, dict(canonicalize=True), "TRAINED with canonicalize=False"),
-    (ON32, dict(canonicalize=True, record_stream=True, dump_scored_waveforms="TAKEN"), "not empty")])
+    (ON32, dict(canonicalize=True, record_stream=True, dump_scored_waveforms="TAKEN"), "already exists")])
 def test_protocol_and_dump_refusals_come_before_model_construction(
         monkeypatch, tmp_path, training, kw, needle):
     if kw.get("dump_scored_waveforms") == "TAKEN":
