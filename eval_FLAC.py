@@ -3,6 +3,7 @@ import argparse
 import contextlib
 import copy
 import hashlib
+import io
 import json
 import math
 import subprocess
@@ -355,6 +356,35 @@ CANON_RECORD_KEYS = (
     'canonicalize_img_w', 'canonicalize_tiebreak', 'canonicalize_tie_counts',
     'model_config_sha256_file', 'model_config_sha256_embedded',
 )
+
+
+# rB-F2 F2-6 (Codex B2 HIGH, B4): the checkpoint is read ONCE into memory, that buffer is hashed and
+# handed to torch.load, and the record carries these two fields (right after the base keys) -- so the
+# digest names exactly the bytes deserialized, not the file at some other moment.
+CKPT_LOAD_KEYS = ('ckpt_sha256_loaded', 'ckpt_bytes_loaded')
+
+
+def read_checkpoint_exact(ckpt_path):
+    """``(buffer, load)``: the checkpoint's bytes, read once, and ``load`` = the
+    :data:`CKPT_LOAD_KEYS` provenance of exactly that buffer (sha256, length)."""
+    with open(ckpt_path, 'rb') as f:
+        buf = f.read()
+    return buf, {'ckpt_sha256_loaded': hashlib.sha256(buf).hexdigest(), 'ckpt_bytes_loaded': len(buf)}
+
+
+def _ckpt_load_provenance(record, load):
+    """Append :data:`CKPT_LOAD_KEYS` -- ONLY when given (``None`` leaves the record untouched,
+    so a record built without it stays byte-identical). Refuses a malformed value."""
+    if load is None:
+        return record
+    if not isinstance(load, dict) or list(load) != list(CKPT_LOAD_KEYS) \
+            or not _is_sha256_hex(load['ckpt_sha256_loaded']) \
+            or type(load['ckpt_bytes_loaded']) is not int or load['ckpt_bytes_loaded'] <= 0:
+        raise ValueError(f"ckpt load provenance must be {{{', '.join(CKPT_LOAD_KEYS)}}} = "
+                         f"(a sha256 hex digest, a positive int), got {load!r}")
+    for key in CKPT_LOAD_KEYS:
+        record[key] = load[key]
+    return record
 
 
 def canon_suffix(applied=False, mismatch=False):
@@ -1459,7 +1489,7 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
                          assignment_hash=None, stream_count=None, img_w=None,
                          by_scene=None, frame_avg_max_fwd_samples=None,
                          are_lambda=None, are_lambda_source=None, are_anchor=None,
-                         canon_provenance=None):
+                         canon_provenance=None, ckpt_load=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -1482,6 +1512,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
 
     exp_25: ``canon_provenance`` (``None`` unless canonicalization is in play)
     appends :data:`CANON_RECORD_KEYS` last; see :func:`_canon_provenance`.
+    ``ckpt_load`` (rB-F2 F2-6; ``evaluate_model`` always passes it) adds
+    :data:`CKPT_LOAD_KEYS` right after the base keys; ``None`` leaves the record as before.
     """
     execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
     record = {
@@ -1510,6 +1542,7 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "weights_source": weights_source,
         "device": device,
     }
+    record = _ckpt_load_provenance(record, ckpt_load)
     record = _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
                                   assignment_hash, stream_count, img_w)
     record = _per_scene_provenance(record, by_scene)
@@ -1881,8 +1914,10 @@ def evaluate_model(
 
     training_config = model_config.get('training', None)
     
-    # Load ckpt
-    ckpt = torch.load(ckpt_path, map_location='cpu')
+    # Load ckpt: read once, hash THAT buffer, deserialize THAT buffer (rB-F2 F2-6)
+    ckpt_buf, ckpt_load = read_checkpoint_exact(ckpt_path)
+    ckpt = torch.load(io.BytesIO(ckpt_buf), map_location='cpu')
+    del ckpt_buf
     state_dict = ckpt['state_dict']
     for key in list(state_dict.keys()):
         if key.startswith('diffusion.'):
@@ -2155,6 +2190,7 @@ def evaluate_model(
         are_anchor=are_anchor_cfg, **rotation_provenance,
         canon_provenance=build_canon_provenance(canon_protocol, canon_stream,
                                                 file_model_config, embedded_model_config),
+        ckpt_load=ckpt_load,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
