@@ -63,6 +63,23 @@ cat > "$BIN/python" <<STUB
 if [ "\${1:-}" = "train.py" ]; then shift; exec bash "$H/fake_train.sh" "\$@"; fi
 exec "$REAL_PY" "\$@"
 STUB
+cat > "$BIN/findmnt" <<'STUB'
+#!/usr/bin/env bash
+# guard stub: the CIFS share for every target (GUARD_FINDMNT=real defers to the real findmnt)
+[ "${GUARD_FINDMNT:-cifs}" = real ] && exec /usr/bin/findmnt "$@"
+printf '%s\n' "${GUARD_FINDMNT_LINE:-cifs   //10.249.7.28/shared_data}"
+STUB
+cat > "$BIN/df" <<'STUB'
+#!/usr/bin/env bash
+# guard stub: a df -P -B1 table whose 'Available' column is GUARD_DF_AVAIL bytes
+echo "Filesystem 1-blocks Used Available Capacity Mounted on"
+echo "//10.249.7.28/shared_data 47764605435904 31138083921920 ${GUARD_DF_AVAIL:-16626521513984} 66% /media/diskstation"
+STUB
+cat > "$BIN/nvidia-smi" <<'STUB'
+#!/usr/bin/env bash
+# guard stub: memory.free queries answer GUARD_GPU_FREE (MiB); other queries print nothing
+case "$*" in *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;; esac
+STUB
 chmod +x "$BIN"/*
 
 # launch <VAR=value ...>: the CLONE's launcher, harness mode, stubs first on PATH; sets OUT, RC
@@ -233,6 +250,61 @@ sed -i 's/"img_w": 512$/"img_w":  512/' "$R/$ARM"
 case_rc "C13 parse-equal but not byte-equal" 2 "not the control's bytes plus the literal insertion" MODE=SMOKE DRY_RUN=1
 make_clone >/dev/null
 case_rc "C14 the genuine arm passes"    0 "config contract OK" MODE=SMOKE DRY_RUN=1
+
+echo "--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---"
+write_evidence() {   # write_evidence <name> '<python dict of overrides>'
+  ( cd "$R" && python - "$EXPREL" "$1" "$2" <<'PY'
+import hashlib, json, subprocess, sys
+exp, name, over = sys.argv[1:4]
+log = f"{exp}/depth_canon_guard_{name}_smoke_train.log"
+open(log, "w").write("synthetic smoke log\n")
+head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+man = hashlib.sha256(open(f"{exp}/depth_canon_pins.sha256", "rb").read()).hexdigest()
+ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
+      "manifest_sha256": man, "harness": True, "config_contract_ok": True, "banner_seen": True,
+      "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
+      "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
+ev.update(eval(over))
+json.dump(ev, open(f"{exp}/depth_canon_smoke_evidence_{name}.json", "w"))
+PY
+  )
+}
+clear_evidence() { rm -f "$R/$EXPREL"/depth_canon_smoke_evidence_*.json; }
+NEED="FULL requires a PASSING smoke evidence"
+case_rc "E1 no evidence"                    2 "$NEED" MODE=FULL DRY_RUN=1
+write_evidence e2 '{"head": "1" * 40}'
+case_rc "E2 evidence of another HEAD"       2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e3 '{"manifest_sha256": "2" * 64}'
+case_rc "E3 evidence of another manifest"   2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e4 '{"verdict": "FAIL"}'
+case_rc "E4 a failed smoke"                 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e5 '{"harness": False}'
+case_rc "E5 production evidence in harness mode" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e6 '{}'; printf 'edited\n' >> "$R/$EXPREL/depth_canon_guard_e6_smoke_train.log"
+case_rc "E6 evidence whose log was edited"  2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e7 '{"smoke_checkpoints": 1}'
+case_rc "E7 a smoke that wrote a checkpoint" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e8 '{"banner_seen": 1}'
+case_rc "E8 a truthy non-bool field"        2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e9 '{}'
+case_rc "E9 genuine evidence accepted"      0 "smoke evidence: $EXPREL/depth_canon_smoke_evidence_e9.json" MODE=FULL DRY_RUN=1
+
+echo "--- N. NAS gate on the save root: identity, free space, write probe ---"
+case_rc "N1 a non-CIFS save root (real findmnt)" 2 "NAS GATE FAILED: identity" MODE=SMOKE DRY_RUN=1 GUARD_FINDMNT=real
+case_rc "N2 another CIFS share"             2 "NAS GATE FAILED: identity" MODE=SMOKE DRY_RUN=1 GUARD_FINDMNT_LINE="cifs //10.0.0.1/other"
+case_rc "N3 under 30 GiB free"              2 "NAS GATE FAILED: free space" MODE=SMOKE DRY_RUN=1 GUARD_DF_AVAIL=1000
+case_rc "N4 dry run skips the write probe"  0 "write probe SKIPPED under DRY_RUN" MODE=SMOKE DRY_RUN=1
+mkdir -p "$H/save"; chmod 555 "$H/save"
+case_rc "N5 an unwritable save root"        2 "NAS GATE FAILED: write probe" MODE=SMOKE
+chmod 755 "$H/save"
+
+echo "--- S. run-owned namespaces ---"
+mkdir -p "$H/save/FLAC_exp25_CANON/exp25_CANON/checkpoints"; touch "$H/save/FLAC_exp25_CANON/exp25_CANON/checkpoints/old.ckpt"
+case_rc "S1 FULL into a non-empty namespace" 2 "RUN NAMESPACE NOT EMPTY" MODE=FULL DRY_RUN=1
+rm -rf "$H/save/FLAC_exp25_CANON"
+mkdir -p "$H/save/FLAC_exp25_CANON_smoke/exp25_CANON_smoke/checkpoints"; touch "$H/save/FLAC_exp25_CANON_smoke/exp25_CANON_smoke/checkpoints/x.ckpt"
+case_rc "S2 SMOKE namespace holding a checkpoint" 2 "SMOKE NAMESPACE HOLDS CHECKPOINTS" MODE=SMOKE DRY_RUN=1
+rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 

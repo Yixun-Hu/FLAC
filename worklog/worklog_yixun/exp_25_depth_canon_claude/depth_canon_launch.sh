@@ -204,6 +204,77 @@ if not (ctl_raw.endswith(TRAILER) and ctl_raw.count(TRAILER) == 1
 print(f"config contract OK: {arm_p} == {ctl_p} (sha {ctl_sha[:12]}...) + training.canonicalize {block}")
 PY
 
+# --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
+if [ "$MODE" = "FULL" ]; then
+  SMOKE_EVIDENCE="$(python - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
+import glob, hashlib, json, os, sys
+exp, head, manifest, harness = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "true"
+NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
+        "manifest_sha256": manifest, "harness": harness, "config_contract_ok": True,
+        "banner_seen": True, "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False,
+        "smoke_checkpoints": 0}
+def qualifies(path):
+    try:
+        ev = json.load(open(path))
+    except (OSError, ValueError):
+        return False
+    if any(type(ev.get(k)) is not type(v) or ev.get(k) != v for k, v in NEED.items()):
+        return False
+    log = ev.get("log")      # the evidence is bound to the bytes of the log it summarizes
+    return (isinstance(log, str) and os.path.isfile(log)
+            and hashlib.sha256(open(log, "rb").read()).hexdigest() == ev.get("log_sha256"))
+for p in sorted(glob.glob(os.path.join(exp, "depth_canon_smoke_evidence_*.json")), reverse=True):
+    if qualifies(p):
+        print(p)
+        break
+PY
+)"
+  [ -n "$SMOKE_EVIDENCE" ] || {
+    echo "FULL requires a PASSING smoke evidence for HEAD ${HEAD_SHA} + manifest ${MANIFEST_SHA} (harness=${HARNESS_FLAG}) in ${EXPDIR} - none qualifies - run MODE=SMOKE at this HEAD first - abort"; exit 2; }
+  echo "smoke evidence: ${SMOKE_EVIDENCE}"
+fi
+
+# --- (6) NAS gate on the save root: identity, free space, write probe --------- #
+nas_identity_ok() {   # the CIFS share must be what holds <path>
+  local line
+  line="$(findmnt -n -T "$1" -o FSTYPE,SOURCE 2>/dev/null || true)"
+  grep -qE "^${NAS_FSTYPE}[[:space:]]+${NAS_SOURCE//./\\.}\$" <<<"$line" && return 0
+  echo "NAS GATE FAILED: identity -- ${1} is on '$(tr '\n' ';' <<<"$line")', not '${NAS_FSTYPE} ${NAS_SOURCE}' - abort"
+  return 1
+}
+nas_gate() {
+  local anc="$SAVE_ROOT" avail probe
+  while [ ! -e "$anc" ] && [ "$anc" != "/" ]; do anc="$(dirname "$anc")"; done
+  nas_identity_ok "$anc" || return 1
+  avail="$(df -P -B1 "$anc" 2>/dev/null | awk 'NR==2{print $4}' || true)"
+  [[ "$avail" =~ ^[0-9]+$ ]] || { echo "NAS GATE FAILED: free space -- df failed on ${anc} - abort"; return 1; }
+  [ "$avail" -ge $((MIN_NAS_FREE_GIB * 1024 * 1024 * 1024)) ] || {
+    echo "NAS GATE FAILED: free space -- ${avail} bytes available on ${anc} < ${MIN_NAS_FREE_GIB} GiB - abort"; return 1; }
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "NAS gate OK: ${anc} is ${NAS_FSTYPE} ${NAS_SOURCE}, ${avail} bytes free; write probe SKIPPED under DRY_RUN"
+    return 0
+  fi
+  mkdir -p "$SAVE_ROOT" || { echo "NAS GATE FAILED: write probe -- cannot create ${SAVE_ROOT} - abort"; return 1; }
+  nas_identity_ok "$SAVE_ROOT" || return 1
+  probe="$SAVE_ROOT/.depth_canon_write_probe_$$"
+  if ! { printf 'probe\n' > "$probe" && [ "$(cat "$probe")" = probe ] && rm -f "$probe" && [ ! -e "$probe" ]; } 2>/dev/null; then
+    rm -f "$probe" 2>/dev/null || true
+    echo "NAS GATE FAILED: write probe -- could not create, read back and remove a file in ${SAVE_ROOT} - abort"; return 1
+  fi
+  echo "NAS gate OK: ${SAVE_ROOT} is ${NAS_FSTYPE} ${NAS_SOURCE}, ${avail} bytes free, write probe created + removed"
+}
+nas_gate || exit 2
+
+# --- (5) run-owned namespaces ---------------------------------------------------- #
+if [ "$MODE" = "FULL" ]; then
+  if [ -e "$RUN_NS" ] && [ -n "$(find "$RUN_NS" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+    echo "RUN NAMESPACE NOT EMPTY: ${RUN_NS} already holds files - a FULL run must own its namespace; move it aside deliberately - abort"; exit 2
+  fi
+elif [ -n "$(find "$RUN_NS" -name '*.ckpt' -print -quit 2>/dev/null)" ]; then
+  echo "SMOKE NAMESPACE HOLDS CHECKPOINTS under ${RUN_NS} - a smoke must never leave one; move them aside - abort"; exit 2
+fi
+echo "run namespace OK: ${RUN_NS}"
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi
