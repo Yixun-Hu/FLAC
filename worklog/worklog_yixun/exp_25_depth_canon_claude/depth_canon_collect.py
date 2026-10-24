@@ -242,3 +242,113 @@ def canon_reasons(canon, row, stream, rec):
     _eq(reasons, "canon canonical_depth_hash (recomputed)", canon.get("canonical_depth_hash"),
         eval_FLAC.canonical_stream_hash([[p[1], p[4]] for p in pos]))
     return reasons
+
+
+def _file_digest(path):
+    return eval_FLAC._file_sha256(path) if path and os.path.isfile(path) else None
+
+
+DUMP_FILES = ("COMPLETE", "manifest.json", "waveforms.npy", "waveforms.sha256")
+DUMP_MANIFEST_KEYS = ("schema_version", "n", "dtype", "shape", "sha256", "input_hash", "metrics_stem",
+                      "source_sha", "ckpt_path", "metrics_path", "metrics_sha256", "stream_sidecar_path",
+                      "stream_sidecar_sha256", "canon_sidecar_path", "canon_sidecar_sha256")
+
+
+def staging_leftovers(dump_dir):
+    """Sibling ``<dump_dir>.staging-*`` entries (a crashed or failed finalize)."""
+    parent, name = os.path.split(os.path.abspath(dump_dir))
+    try:
+        return sorted(e for e in os.listdir(parent) if e.startswith(name + ".staging-"))
+    except OSError:
+        return []
+
+
+def dump_reasons(dump_dir, row, *, stem, stream, expect, pin, mode="full"):
+    """The published waveform dump of one cell. ``mode='full'`` runs the evaluator's verified
+    predicate ``ScoredWaveformDump.is_complete(dir, expected_n)`` (streams the whole array
+    ONCE -- never call this in a poll loop); ``'manifest'`` reads only the marker + manifest.
+    Both then bind the manifest to THIS cell: the stream's input_hash, the stem, the pin,
+    the checkpoint link and the paths + sha256 digests of the metrics / stream / canon files
+    as they are on disk now. ``expect``: the evaluator's path strings + the files' locations."""
+    if mode not in ("full", "manifest"):
+        raise ValueError(f"dump check mode must be 'full' or 'manifest', got {mode!r}")
+    reasons = [f"leftover staging directory {s}" for s in staging_leftovers(dump_dir)]
+    if os.path.islink(dump_dir) or not os.path.isdir(dump_dir):
+        return reasons + [f"dump directory {dump_dir} is absent (or not a plain directory)"]
+    n = row["expected_stream_count"]
+    if sorted(os.listdir(dump_dir)) != sorted(DUMP_FILES):
+        reasons.append(f"dump directory holds {sorted(os.listdir(dump_dir))}, expected {list(DUMP_FILES)}")
+    if mode == "full" and not eval_FLAC.ScoredWaveformDump.is_complete(dump_dir, n):
+        return reasons + [f"dump is not complete (ScoredWaveformDump.is_complete, expected_n={n})"]
+    try:
+        with open(os.path.join(dump_dir, "manifest.json")) as f:
+            m = json.load(f)
+        with open(os.path.join(dump_dir, eval_FLAC.SCORED_DUMP_MARKER)) as f:
+            marker = f.read()
+    except (OSError, ValueError) as err:
+        return reasons + [f"dump COMPLETE marker / manifest unreadable ({err})"]
+    if not isinstance(m, dict):
+        return reasons + ["dump manifest is not a JSON object"]
+    if list(m) != list(DUMP_MANIFEST_KEYS):
+        reasons.append(f"dump manifest keys {list(m)} != {list(DUMP_MANIFEST_KEYS)}")
+    if marker != f"{m.get('sha256')}\n" or not eval_FLAC._is_sha256_hex(m.get("sha256")):
+        reasons.append("dump COMPLETE marker does not hold the manifest's waveform sha256")
+    shape = m.get("shape")
+    if not (isinstance(shape, list) and len(shape) == 2 and all(type(x) is int for x in shape)
+            and shape[0] == n and shape[1] > 0):
+        reasons.append(f"dump shape {shape!r} is not [{n}, T]")
+    for key, want in (("schema_version", eval_FLAC.SCORED_DUMP_SCHEMA_VERSION), ("n", n),
+                      ("dtype", "float32"),
+                      ("input_hash", stream.get("input_hash") if isinstance(stream, dict) else None),
+                      ("metrics_stem", stem), ("source_sha", pin), ("ckpt_path", expect["ckpt_path"]),
+                      ("metrics_path", expect["metrics_path"]),
+                      ("metrics_sha256", _file_digest(expect["metrics_file"])),
+                      ("stream_sidecar_path", expect["stream_sidecar_path"]),
+                      ("stream_sidecar_sha256", _file_digest(expect["stream_file"])),
+                      ("canon_sidecar_path", expect["canon_sidecar_path"]),
+                      ("canon_sidecar_sha256", _file_digest(expect["canon_file"]))):
+        _eq(reasons, f"dump manifest {key}", m.get(key), want)
+    return reasons
+
+
+RECEIPT_SCHEMA_VERSION = 1
+RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_link", "ckpt_target",
+                "ckpt_sha256", "model_config", "model_config_sha256", "dataset_config",
+                "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
+                "expect_head", "lane", "log", "rc")
+
+
+def cell_argv(row, link, dump_root, dump):
+    """The evaluator argv of one cell: the manifest's flags + the farm link (+ the dump ROOT)."""
+    return list(row["eval_args"]) + ["--ckpt-path", link] + (
+        ["--dump-scored-waveforms", dump_root] if dump else [])
+
+
+def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump_root, pin):
+    """The driver's ``<metrics stem>.cell.json``: what was run, on which checkpoint (its
+    sha256 verified BEFORE the run against the endpoint manifest / the CANON launcher's
+    checkpoint manifest), at which pin, with which argv, and that the evaluator exited 0.
+    The committed configs must still hash to the manifest's pins."""
+    if not isinstance(receipt, dict):
+        return ["receipt is not a JSON object"]
+    reasons = []
+    if list(receipt) != list(RECEIPT_KEYS):
+        reasons.append(f"receipt keys {list(receipt)} != {list(RECEIPT_KEYS)}")
+    want = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": row["cell"], "stem": stem,
+            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": link,
+            "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "model_config": row["model_config"],
+            "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
+            "dataset_config_sha256": row["dataset_config_sha256"],
+            "expected_stream_count": row["expected_stream_count"], "dump": dump,
+            "dump_root": dump_root if dump else None, "argv": cell_argv(row, link, dump_root, dump),
+            "expect_head": pin, "rc": 0}
+    for key, value in want.items():
+        _eq(reasons, f"receipt {key}", receipt.get(key), value)
+    if type(receipt.get("lane")) is not int or receipt["lane"] < 0:
+        reasons.append(f"receipt lane {receipt.get('lane')!r} is not a GPU index")
+    if not isinstance(receipt.get("log"), str) or not receipt["log"]:
+        reasons.append("receipt names no evaluator log")
+    for key in ("model_config", "dataset_config"):
+        if _file_digest(os.path.join(REPO, row[key])) != row[key + "_sha256"]:
+            reasons.append(f"{row[key]} no longer hashes to the manifest's {key}_sha256")
+    return reasons
