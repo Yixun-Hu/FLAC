@@ -352,9 +352,9 @@ def test_cli_plan_and_receipt(manifest, tmp_path, capsys):
     assert [e["cell"] for e in plan["cells"]] == [c["cell"] for c in manifest["cells"] if c["block"] == "P1-pin"][:3]
     assert (plan["farm_root"], plan["dump_root"], plan["n_selected"]) == ("farm", "/d", 3)
     assert C.main(["--plan", out, "--blocks", "T", "--canon-ckpt-manifest",
-                   str(tmp_path / "absent.sha256")]) == 2             # CANON cells need it
+                   str(tmp_path / "absent.sha256"), "--campaign-digest", "d" * 64]) == 2   # CANON cells need it
     assert "CANON" in capsys.readouterr().out
-    assert C.main(["--plan", out, "--blocks", "T,bogus"]) == 2
+    assert C.main(["--plan", out, "--blocks", "T,bogus", "--campaign-digest", "d" * 64]) == 2
 
 
 def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, capsys):
@@ -385,7 +385,7 @@ import subprocess  # noqa: E402
 
 DRIVER_REL = f"{EXPREL}/depth_canon_eval_run.sh"
 KIT = ("depth_canon_eval_run.sh", "depth_canon_collect.py", "depth_canon_make_cells.py",
-       "depth_canon_cells.json")
+       "depth_canon_cells.json", "depth_canon_audit_gate.py")
 TESTMOD = os.path.join(REPO, "src", "tests", "test_depth_canon_collect.py")
 STUB_EVAL = r'''#!/usr/bin/env python3
 """Harness stub for eval_FLAC.py: records its call, then publishes exactly what the real

@@ -26,7 +26,11 @@
 #   DEPTH_CANON_EVAL_HARNESS=<dir under /tmp holding a .depth_canon_eval_harness marker>:
 #              test mode only -- DEPTH_CANON_EVAL_PY (stub evaluator) and DEPTH_CANON_CELLS
 #              are honoured, and the farm / logs / lock move into that dir.
-# Exit: 0 all selected cells complete (or DRY_RUN) | 1 a cell failed | 2 a gate refused.
+# Pin: EXPECT_HEAD == HEAD and a committed relevant tree at start; its content digest is
+#   re-computed before EVERY spawn and after every cell (bound into the receipt): a change
+#   stops the campaign (no further spawn; running cells finish; nothing is killed).
+# Exit: 0 all selected cells complete (or DRY_RUN) | 1 a cell failed | 2 a gate refused |
+#   4 PIN DRIFT: HEAD or the relevant tree changed during the campaign.
 #
 # Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9 §5.
 # ============================================================================
@@ -102,10 +106,19 @@ for tool in jq flock findmnt sha256sum; do command -v "$tool" >/dev/null || die 
 HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$EXPECT_HEAD" ] || die "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"
 mapfile -t MODEL_CFGS < <(jq -r '.arms[].model_config' "$CELLS")
-DIRTY="$(git status --porcelain --untracked-files=all -- eval_FLAC.py src ':(exclude)src/tests' data/AR \
-  "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS" "$EXPDIR/depth_canon_cells.json")"
+RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
+          "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")
+tree_dirty() { git status --porcelain --untracked-files=all -- "${RELEVANT[@]}"; }
+tree_digest() {   # sha256 of the sorted sha256sum lines of every tracked + untracked (unignored) relevant file
+  local lines
+  lines="$(git ls-files -z --cached --others --exclude-standard -- "${RELEVANT[@]}" | LC_ALL=C sort -zu \
+    | xargs -0r sha256sum --)" && [ -n "$lines" ] || return 1
+  printf '%s\n' "$lines" | sha256sum | awk '{print $1}'
+}
+DIRTY="$(tree_dirty)"
 [ -z "$DIRTY" ] || { echo "EVALUATOR TREE NOT COMMITTED at HEAD (every cell must run the pinned code):"; echo "$DIRTY"; exit 2; }
-echo "evaluator pin OK: ${HEAD_SHA}"
+CAMPAIGN_DIGEST="$(tree_digest)" || die "TREE DIGEST FAILED: cannot hash the relevant tree - abort"
+echo "evaluator pin OK: ${HEAD_SHA}; evaluator tree digest ${CAMPAIGN_DIGEST}"
 while read -r path sha; do
   [ -f "$path" ] || die "CONFIG MISSING: ${path} - abort"
   got="$(sha256sum "$path" | awk '{print $1}')"
@@ -119,7 +132,8 @@ fi
 
 # --- the plan: selection, checkpoints, paths, argv (depth_canon_collect.py) --------- #
 PLAN="$LOGDIR/depth_canon_${TS}_eval_plan.json"
-PLAN_ARGS=(--plan "$PLAN" --cells "$CELLS" --farm-root "$FARM_ROOT" --no-dump-blocks "$NO_DUMP")
+PLAN_ARGS=(--plan "$PLAN" --cells "$CELLS" --farm-root "$FARM_ROOT" --no-dump-blocks "$NO_DUMP"
+           --campaign-digest "$CAMPAIGN_DIGEST")
 [ -n "$DUMP_ROOT" ] && PLAN_ARGS+=(--dump-root "$DUMP_ROOT")
 [ -n "$BLOCKS" ] && PLAN_ARGS+=(--blocks "$BLOCKS")
 [ -n "$ONLY" ] && PLAN_ARGS+=(--only "$ONLY")
@@ -200,7 +214,7 @@ complete_and_verified() {   # 0 = SKIP; the collector runs is_complete exactly o
     case "$p" in *.incomplete-*) ;; *) [ -e "$p" ] && return 1 ;; esac
   done
   "$PY" "$COLLECT" --verify-cell "$STEM" --pin "$EXPECT_HEAD" --cells "$CELLS" --farm-root "$FARM_ROOT" \
-    --dump-root "$DUMP_ROOT" --base-dir "$REPO" "${extra[@]}" 2>&1 | grep -v -e pkg_resources -e declare_namespace | sed 's/^/    /'
+    --dump-root "$DUMP_ROOT" --base-dir "$REPO" --campaign-digest "$CAMPAIGN_DIGEST" "${extra[@]}" 2>&1 | grep -v -e pkg_resources -e declare_namespace | sed 's/^/    /'
   return "${PIPESTATUS[0]}"
 }
 prepare_cell() {   # sets the cell globals; 0 = run it, 3 = SKIP, 1 = refused (message printed)
@@ -240,25 +254,32 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-run_cell() {   # lane cell sha argv... -- a background job: evaluate, then receipt + verify
-  local lane="$1" cid="$2" sha="$3"; shift 3
-  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0
+run_cell() {   # lane cell sha spawn-digest argv... -- a background job: evaluate, then receipt + verify
+  local lane="$1" cid="$2" sha="$3" spawn="$4"; shift 4
+  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post
   CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
   if [ "$rc" -ne 0 ]; then echo "  !! FAILED ${cid}: the evaluator exited rc=${rc} (log ${clog})"; return 1; fi
+  post="$(tree_digest)" || post=""
+  if [ "$post" != "$CAMPAIGN_DIGEST" ] || [ -n "$(tree_dirty)" ]; then
+    echo "  !! FAILED ${cid}: the relevant tree changed while the cell ran (digest '${post}' != ${CAMPAIGN_DIGEST}); no receipt"
+    return 4
+  fi
   "$PY" "$COLLECT" --write-receipt "$cid" --plan-json "$PLAN" --cells "$CELLS" --base-dir "$REPO" \
     --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$sha" --farm-root "$FARM_ROOT" \
+    --spawn-digest "$spawn" --post-digest "$post" \
     --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" --verify-after >> "$clog" 2>&1 \
     || { echo "  !! FAILED ${cid}: post-run verification refused the cell (log ${clog})"; return 1; }
   echo "  DONE ${cid} on GPU ${lane}: complete and verified"
 }
 declare -A LANE_PID=() PID_CELL=() PID_LANE=() GPU_NOTE=()
-N_SKIP=0; N_DONE=0; FAILED=(); ABORT=""; NEXT=0; POLLS=0; i=0; READY=""
+N_SKIP=0; N_DONE=0; FAILED=(); ABORT=""; DRIFT=""; NEXT=0; POLLS=0; i=0; READY=""
 reap() {   # collect every finished job; never waits on a running one, never signals anything
   local pid st running=" $(jobs -rp | tr '\n' ' ') "
   for pid in "${!PID_CELL[@]}"; do
     case "$running" in *" ${pid} "*) continue ;; esac
     st=0; wait "$pid" || st=$?
     if [ "$st" -eq 0 ]; then N_DONE=$((N_DONE + 1)); else FAILED+=("${PID_CELL[$pid]}"); fi
+    if [ "$st" -eq 4 ]; then DRIFT=1; ABORT="${ABORT:-PIN DRIFT: the relevant tree changed while ${PID_CELL[$pid]} ran}"; fi
     unset "LANE_PID[${PID_LANE[$pid]}]" "PID_CELL[$pid]" "PID_LANE[$pid]"
   done
 }
@@ -339,7 +360,12 @@ while :; do
     gpu_wait; continue
   fi
   POLLS=0
-  [ "$(git rev-parse HEAD)" = "$EXPECT_HEAD" ] || { ABORT="HEAD PIN FAILED: HEAD moved during the campaign"; continue; }
+  [ "$(git rev-parse HEAD)" = "$EXPECT_HEAD" ] || { ABORT="PIN DRIFT: HEAD moved during the campaign"; DRIFT=1; continue; }
+  SPAWN_DIGEST="$(tree_digest)" || SPAWN_DIGEST=""     # the evaluated bytes, before EVERY spawn (Codex rB)
+  if [ "$SPAWN_DIGEST" != "$CAMPAIGN_DIGEST" ] || [ -n "$(tree_dirty)" ]; then
+    ABORT="PIN DRIFT: the relevant tree changed during the campaign (digest '${SPAWN_DIGEST}' != ${CAMPAIGN_DIGEST}); no further cell is spawned"
+    DRIFT=1; continue
+  fi
   lane_state "$LANE"; st=$?                  # re-checked immediately before the spawn (Codex rB HIGH)
   if [ "$st" -ne 0 ]; then
     [ "$st" -eq 2 ] && { ABORT="GPU GATE FAILED: ${LANE_WHY}"; continue; }
@@ -347,7 +373,7 @@ while :; do
     gpu_wait; continue
   fi
   echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
-  run_cell "$LANE" "$READY" "$SHA" "${ARGV[@]}" &
+  run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "${ARGV[@]}" &
   LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
   READY=""; i=$((i + 1))
 done
@@ -355,7 +381,7 @@ COMPLETE=$((N_SKIP + N_DONE))
 echo "=== summary: selected ${N_SEL} | skipped (complete and verified) ${N_SKIP} | ran ok ${N_DONE} | failed ${#FAILED[@]} | not run $((N_SEL - COMPLETE - ${#FAILED[@]})) ==="
 for c in "${FAILED[@]}"; do echo "  FAILED ${c}"; done
 echo "completion: ${COMPLETE}/${N_SEL} selected cell(s) complete and verified (manifest: $(jq '.cells | length' "$CELLS") cells)"
-[ -z "$ABORT" ] || { echo "ABORTED: ${ABORT} - abort"; exit 2; }
+[ -z "$ABORT" ] || { echo "ABORTED: ${ABORT} - abort"; [ -z "$DRIFT" ] || exit 4; exit 2; }
 [ "${#FAILED[@]}" -eq 0 ] && [ "$COMPLETE" -eq "$N_SEL" ] && { echo "CAMPAIGN SELECTION COMPLETE"; exit 0; }
 echo "CAMPAIGN SELECTION INCOMPLETE - re-run to resume"
 exit 1

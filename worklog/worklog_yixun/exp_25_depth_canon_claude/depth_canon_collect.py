@@ -320,7 +320,8 @@ RECEIPT_SCHEMA_VERSION = 1
 RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_link", "ckpt_target",
                 "ckpt_sha256", "model_config", "model_config_sha256", "dataset_config",
                 "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
-                "expect_head", "lane", "log", "rc")
+                "expect_head", "campaign_digest", "spawn_digest", "post_digest", "lane", "log", "rc")
+DIGEST_KEYS = ("campaign_digest", "spawn_digest", "post_digest")   # rB-F1 B3: the evaluated tree
 
 
 def cell_argv(row, link, dump_root, dump):
@@ -329,7 +330,7 @@ def cell_argv(row, link, dump_root, dump):
         ["--dump-scored-waveforms", dump_root] if dump else [])
 
 
-def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump_root, pin):
+def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump_root, pin, expect_digest=None):
     """The driver's ``<metrics stem>.cell.json``: what was run, on which checkpoint (its
     sha256 verified BEFORE the run against the endpoint manifest / the CANON launcher's
     checkpoint manifest), at which pin, with which argv, and that the evaluator exited 0.
@@ -349,6 +350,13 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
             "expect_head": pin, "rc": 0}
     for key, value in want.items():
         _eq(reasons, f"receipt {key}", receipt.get(key), value)
+    d = receipt.get("campaign_digest")
+    if not eval_FLAC._is_sha256_hex(d):
+        reasons.append(f"receipt campaign_digest {d!r} is not a sha256 digest")
+    for key in DIGEST_KEYS[1:]:   # the relevant tree at the spawn / after the evaluator exited
+        _eq(reasons, f"receipt {key} vs campaign_digest", receipt.get(key), d)
+    if expect_digest is not None:
+        _eq(reasons, "receipt campaign_digest vs this campaign's", d, expect_digest)
     if type(receipt.get("lane")) is not int or receipt["lane"] < 0:
         reasons.append(f"receipt lane {receipt.get('lane')!r} is not a GPU index")
     if not isinstance(receipt.get("log"), str) or not receipt["log"]:
@@ -419,7 +427,7 @@ def find_canon_manifest(expdir=EXPDIR):
 
 
 def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, base_dir=REPO,
-                dump_check="full", expect_dump=True, check_link=True):
+                dump_check="full", expect_dump=True, check_link=True, expect_digest=None):
     """Named reasons the cell ``stem`` is not complete-and-verified ([] = the driver may skip
     it, the generator may publish it). Checks the metrics record, stream and canon sidecars,
     the driver's receipt, the dump (``dump_check`` 'full' = ``is_complete`` once, or
@@ -458,7 +466,8 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     if row["canonicalize"]:
         reasons += canon_reasons(docs["canon"], row, docs["stream"], docs["metrics"])
     reasons += receipt_reasons(docs["receipt"], row, stem=stem, link=link, target=target,
-                               ckpt_sha256=sha, dump=expect_dump, dump_root=dump_root, pin=pin)
+                               ckpt_sha256=sha, dump=expect_dump, dump_root=dump_root, pin=pin,
+                               expect_digest=expect_digest)
     if expect_dump:
         canon = paths.canon if row["canonicalize"] else None
         expect = {"ckpt_path": link, "metrics_path": paths.metrics, "metrics_file": at(paths.metrics),
@@ -518,12 +527,17 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
     return out
 
 
-def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256):
+def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, campaign_digest, spawn_digest,
+                  post_digest):
     """Atomically write the cell's ``.cell.json`` (temp file + ``os.replace``). Refuses a
-    measured checkpoint digest that is not the expected one (the driver must not get here)."""
+    measured checkpoint digest that is not the expected one, and a relevant-tree digest at the
+    spawn / after the run that is not the campaign's (the driver must not get here)."""
     if ckpt_sha256 != entry["sha256"]:
         raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
                          f"{entry['sha256']}")
+    if not eval_FLAC._is_sha256_hex(campaign_digest) or {spawn_digest, post_digest} != {campaign_digest}:
+        raise ValueError(f"{entry['cell']}: tree digest moved (campaign {campaign_digest}, spawn {spawn_digest}, "
+                         f"post {post_digest})")
     rec = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
            "ckpt_target": entry["target"], "ckpt_sha256": ckpt_sha256, "model_config": row["model_config"],
@@ -531,7 +545,8 @@ def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256):
            "dataset_config_sha256": row["dataset_config_sha256"],
            "expected_stream_count": row["expected_stream_count"], "dump": entry["dump"],
            "dump_root": entry["dump_root"] if entry["dump"] else None, "argv": entry["argv"],
-           "expect_head": pin, "lane": lane, "log": log, "rc": rc}
+           "expect_head": pin, "campaign_digest": campaign_digest, "spawn_digest": spawn_digest,
+           "post_digest": post_digest, "lane": lane, "log": log, "rc": rc}
     path = os.path.join(base_dir, entry["receipt"])
     tmp = f"{path}.tmp-{os.getpid()}"
     with open(tmp, "w") as f:
@@ -550,7 +565,7 @@ def collect_cells(manifest, selected, *, farm_root, dump_root, pin, canon_index,
     out = {}
     for row in selected:
         e = {"row": row, "valid": False, "missing": False, "reasons": [], "record": None,
-             "stream": None, "canon": None, "stem": None, "dump_dir": None,
+             "stream": None, "canon": None, "receipt": None, "stem": None, "dump_dir": None,
              "dump": bool(row["dump"]) and row["block"] not in no_dump_blocks}
         out[row["cell"]] = e
         try:
@@ -569,7 +584,7 @@ def collect_cells(manifest, selected, *, farm_root, dump_root, pin, canon_index,
         if e["reasons"]:
             continue
         e["valid"] = True
-        for key, path in (("record", p.metrics), ("stream", p.stream)) + (
+        for key, path in (("record", p.metrics), ("stream", p.stream), ("receipt", p.receipt)) + (
                 (("canon", p.canon),) if row["canonicalize"] else ()):
             with open(os.path.join(base_dir, path)) as f:
                 e[key] = json.load(f)
@@ -967,6 +982,9 @@ def build_results(cells, *, control, control_reasons, probe, audit, audit_reason
         [f"tie audit: {'; '.join(audit_reasons)}"] if audit is None else []) + (
         [f"tie audit: {len(ties['mismatches'])} canonicalized cell(s) carry tie counts that differ from the "
          f"validated audit's split counts ({', '.join(ties['mismatches'][:3])})"] if ties["mismatches"] else [])
+    digests = sorted({e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]})
+    if len(digests) > 1:   # rB-F1 B3: one campaign = one evaluated tree
+        problems.append(f"the cells span {len(digests)} campaign digests ({', '.join(d[:12] for d in digests)})")
     if problems and not partial:
         raise ValueError("RESULTS REFUSED (pass --partial for a labelled partial table): " + "; ".join(problems)
                          + "".join(f"\n  missing {n}" for n in missing)
@@ -1097,6 +1115,10 @@ def main(argv=None):
     ap.add_argument("--log", default=None)
     ap.add_argument("--rc", type=int, default=None)
     ap.add_argument("--ckpt-sha", default=None, help="the checkpoint sha256 the driver MEASURED")
+    ap.add_argument("--campaign-digest", default=None,
+                    help="--plan: the relevant-tree digest at campaign start (required); --verify-cell: expected")
+    ap.add_argument("--spawn-digest", default=None, help="--write-receipt: the tree digest at the spawn")
+    ap.add_argument("--post-digest", default=None, help="--write-receipt: the tree digest after the run")
     ap.add_argument("--collect", action="store_true", help="the full mode: write the results files")
     ap.add_argument("--partial", action="store_true", help="write a labelled PARTIAL table")
     ap.add_argument("--probe-json", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
@@ -1111,11 +1133,14 @@ def main(argv=None):
     dump_root = args.dump_root or manifest["dump_root"]
     if args.write_receipt:
         with open(args.plan_json) as f:
-            entry = next(e for e in json.load(f)["cells"] if e["cell"] == args.write_receipt)
+            plan = json.load(f)
+        entry = next(e for e in plan["cells"] if e["cell"] == args.write_receipt)
         row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
         print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, lane=args.lane,
                                           log=args.log, rc=args.rc, pin=args.pin,
-                                          ckpt_sha256=args.ckpt_sha))
+                                          ckpt_sha256=args.ckpt_sha, campaign_digest=plan["campaign_digest"],
+                                          spawn_digest=args.spawn_digest, post_digest=args.post_digest))
+        args.campaign_digest = plan["campaign_digest"]
         if not args.verify_after:
             return 0
         args.verify_cell, args.no_dump = entry["stem"], not entry["dump"]
@@ -1129,12 +1154,15 @@ def main(argv=None):
         reasons = verify_cell(args.verify_cell, manifest=manifest, farm_root=farm, dump_root=dump_root,
                               pin=args.pin, canon_index=index, base_dir=args.base_dir,
                               dump_check=args.dump_check, expect_dump=not args.no_dump,
-                              check_link=not args.no_link_check)
+                              check_link=not args.no_link_check, expect_digest=args.campaign_digest)
         print(("VALID " if not reasons else "INVALID ") + args.verify_cell)
         for reason in reasons:
             print("  - " + reason)
         return 0 if not reasons else 1
     if args.plan:
+        if not (args.campaign_digest and eval_FLAC._is_sha256_hex(args.campaign_digest)):
+            print("PLAN REFUSED: --campaign-digest (the relevant-tree sha256 at campaign start) is required")
+            return 2
         try:
             selected = select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)
             index = None
@@ -1151,6 +1179,7 @@ def main(argv=None):
             return 2
         with open(args.plan, "w") as f:
             json.dump({"schema_version": 1, "cells_manifest": os.path.abspath(args.cells),
+                       "campaign_digest": args.campaign_digest,
                        "farm_root": farm, "dump_root": dump_root, "n_selected": len(entries),
                        "cells": entries}, f, indent=1)
         print(f"plan: {len(entries)} cell(s) -> {args.plan}")
