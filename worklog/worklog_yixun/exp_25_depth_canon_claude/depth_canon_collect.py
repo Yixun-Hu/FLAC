@@ -883,41 +883,53 @@ def bf_historical(path=MODEL_COMPARISON):
                           "at the exp_25 pin, no rotated or random-yaw cells (plan §5 ledger)"}
 
 
+_GATE = None
+
+
+def audit_gate():
+    """``depth_canon_audit_gate.py`` of this experiment folder, loaded once: the ONE tie-audit
+    predicate (Codex rB B1), the same module the launcher applies."""
+    global _GATE
+    if _GATE is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("depth_canon_audit_gate",
+                                                      os.path.join(EXPDIR, "depth_canon_audit_gate.py"))
+        _GATE = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_GATE)
+    return _GATE
+
+
 def load_tie_audit(path):
-    """``(report, reasons)``: the rung-3 tie audit, only when its sidecar verifies and its gate
-    is a complete PASS."""
+    """``(report, summary, reasons)`` -- the rung-3 tie audit only when the shared gate
+    (``validate_tie_audit``: sidecar, exact schema, the audit's own census, current hashes,
+    re-hashed map bytes) accepts it; otherwise ``(None, None, reasons)``."""
     import hashlib
-    try:
-        with open(path, "rb") as f:
-            text = f.read()
-        with open(path + ".sha256") as f:
-            side = f.read()
-        rep = json.loads(text)
-    except (OSError, ValueError) as err:
-        return None, [f"tie audit {path} unreadable ({err})"]
-    reasons = []
-    if side != f"{hashlib.sha256(text).hexdigest()}  {os.path.basename(path)}\n":
-        reasons.append(f"tie audit sha256 sidecar does not match {path}")
-    if (rep.get("gate") or {}).get("verdict") != "PASS" or (rep.get("coverage") or {}).get("complete") is not True:
-        reasons.append(f"tie audit gate is not a complete PASS ({rep.get('gate')})")
-    return (rep if not reasons else None), reasons
+    ok, problems, summary = audit_gate().validate_tie_audit(path, REPO)
+    if not ok:
+        return None, None, problems
+    with open(path, "rb") as f:
+        raw = f.read()
+    if hashlib.sha256(raw).hexdigest() != summary["audit_sha256"]:
+        return None, None, [f"tie audit {path} changed while it was being validated"]
+    return json.loads(raw), summary, []
 
 
-def tie_summary(cells, audit):
-    """Tie classes per canonicalized cell (records) and per split (the audit, item-weighted);
-    every cell's counts must equal its split's audit counts (a per-map property)."""
+def tie_summary(cells, audit, summary=None):
+    """Tie classes per canonicalized cell (records) and per split (the VALIDATED audit,
+    item-weighted); every cell's counts must equal its split's audit counts (a per-map
+    property), else the cell is listed in ``mismatches`` (a problem in full mode)."""
     per_cell = {n: e["record"]["canonicalize_tie_counts"] for n, e in cells.items()
                 if e["valid"] and e["row"]["canonicalize"]}
-    per_split = {s: (audit or {}).get("per_split", {}).get(s) for s in ("train", "unseen", "seen")} if audit else {}
+    per_split = {s: audit["per_split"][s] for s in ("train", "unseen", "seen")} if audit else {}
     mismatches = []
     if audit:
         for n, counts in per_cell.items():
-            items = (per_split.get(cells[n]["row"]["split"]) or {}).get("items") or {}
-            if counts != {c: items.get(c) for c in TIE_CLASSES}:
+            items = per_split[cells[n]["row"]["split"]]["items"]
+            if counts != {c: items[c] for c in TIE_CLASSES}:
                 mismatches.append(n)
-    shared = sum(1 for r in (audit or {}).get("rows", []) if r["counts"].get("unseen") and r["counts"].get("seen"))
-    return {"per_cell": per_cell, "per_split": per_split, "mismatches": mismatches,
-            "shared_maps": shared if audit else None}
+    shared = (len(set(summary["split_maps"]["unseen"]) & set(summary["split_maps"]["seen"]))
+              if audit and summary else None)
+    return {"per_cell": per_cell, "per_split": per_split, "mismatches": mismatches, "shared_maps": shared}
 
 
 def split_overlap(splits=(("unseen", "data/AR/unseen_eval.json"), ("seen", "data/AR/seen_eval.json"))):
@@ -942,14 +954,19 @@ ARM_LABEL = {"CANON": "CANON (deepest-column canonicalization) @40k",
 SHORT = {"RIR_to_GT_RIR_R@1": "R@1", "RIR_to_GT_RIR_R@5": "R@5", "RIR_to_GT_RIR_R@10": "R@10"}
 
 
-def build_results(cells, *, control, control_reasons, probe, audit, audit_reasons, pin, blocks, partial):
+def build_results(cells, *, control, control_reasons, probe, audit, audit_reasons, pin, blocks, partial,
+                  audit_summary=None):
     """Every tier, table and disclosure; raises ``ValueError`` (the refusal) when a required
-    cell, the registered control or the tie audit is missing/invalid -- unless ``partial``."""
+    cell, the registered control or the tie audit is missing/invalid, or a cell's tie counts
+    contradict the validated audit -- unless ``partial``."""
     missing, invalid = completeness(cells)
+    ties = tie_summary(cells, audit, audit_summary)       # BEFORE the refusal (Codex rB B1)
     problems = ([f"{len(missing)} required cell(s) missing"] if missing else []) + (
         [f"{len(invalid)} cell(s) failed verification"] if invalid else []) + (
         [f"composition control: {'; '.join(control_reasons)}"] if control is None else []) + (
-        [f"tie audit: {'; '.join(audit_reasons)}"] if audit is None else [])
+        [f"tie audit: {'; '.join(audit_reasons)}"] if audit is None else []) + (
+        [f"tie audit: {len(ties['mismatches'])} canonicalized cell(s) carry tie counts that differ from the "
+         f"validated audit's split counts ({', '.join(ties['mismatches'][:3])})"] if ties["mismatches"] else [])
     if problems and not partial:
         raise ValueError("RESULTS REFUSED (pass --partial for a labelled partial table): " + "; ".join(problems)
                          + "".join(f"\n  missing {n}" for n in missing)
@@ -965,7 +982,7 @@ def build_results(cells, *, control, control_reasons, probe, audit, audit_reason
             "eps_cond": {"eps_cond": (probe or {}).get("eps_cond"), "probe_verdict": (probe or {}).get("verdict"),
                          "registered": (probe or {}).get("registered")},
             "table": table_block(cells), "bf_historical": bf_historical(), "traj": traj_grid(cells, t3),
-            "ties": tie_summary(cells, audit), "overlap": split_overlap(), "diagnostics": diag}
+            "ties": ties, "overlap": split_overlap(), "diagnostics": diag}
 
 
 def _fmt(st, key):
@@ -1155,9 +1172,10 @@ def main(argv=None):
                     probe = json.load(f)
             except (OSError, ValueError):
                 probe = None
-            audit, a_reasons = load_tie_audit(args.tie_audit_json)
+            audit, a_summary, a_reasons = load_tie_audit(args.tie_audit_json)
             res = build_results(cells, control=control, control_reasons=c_reasons, probe=probe, audit=audit,
-                                audit_reasons=a_reasons, pin=args.pin, blocks=blocks, partial=args.partial)
+                                audit_reasons=a_reasons, pin=args.pin, blocks=blocks, partial=args.partial,
+                                audit_summary=a_summary)
         except (ValueError, OSError, KeyError) as err:
             print(str(err))
             return 3

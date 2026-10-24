@@ -849,7 +849,7 @@ def test_an_invalid_audit_is_labelled_under_partial(tmp_path, monkeypatch):
     rc, out = _collect_cli(tmp_path, "--partial", blocks=",".join(INVARIANCE_S))
     res, md = json.load(open(out + ".json")), open(out + ".md").read()
     assert rc == 0 and res["partial"] is True and any("tie" in p for p in res["problems"])
-    assert len(res["ties"]["mismatches"]) == 30 and "PARTIAL" in md
+    assert len(res["ties"]["mismatches"]) == 40 and "PARTIAL" in md        # T, T-dup, C4+45, R, S
 
 
 def test_the_seen_unseen_overlap_disclosure():
