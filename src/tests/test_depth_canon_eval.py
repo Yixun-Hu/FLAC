@@ -1010,6 +1010,17 @@ def test_a_dump_without_a_stream_is_refused_before_any_file_work(tmp_path):
                                  dump_scored_waveforms=str(tmp_path))
 
 
+@pytest.mark.parametrize("kw", [dict(rotate_mode="random", rotate_seed=3), dict(record_stream=False)],
+                         ids=["random_mode_alone", "fixed_without_stream"])
+def test_a_dump_needs_the_published_stream_sidecar(tmp_path, kw):
+    """r3a: random mode accumulates a stream but publishes no sidecar -- not enough."""
+    with pytest.raises(ValueError, match="--record-stream"):
+        eval_FLAC.evaluate_model(str(tmp_path / "m.json"), str(tmp_path / "d.json"),
+                                 str(tmp_path / "c.ckpt"), steps=1, cfg_scale=1.0, device="cpu",
+                                 dump_scored_waveforms=str(tmp_path), **kw)
+    assert list(tmp_path.iterdir()) == []                 # refused before any file work
+
+
 def test_the_loop_routes_through_prepare_eval_metadata_and_dumps_what_it_scores():
     import inspect
     src = inspect.getsource(eval_FLAC.evaluate_model)

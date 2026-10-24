@@ -1839,13 +1839,16 @@ def evaluate_model(
             "was never verified."
         )
     # exp_25: a scored-waveform dump is bound to its items through the stream's
-    # input_hash (announcement 08), so it needs an accumulated stream.
+    # input_hash (announcement 08), whose preimages must be PUBLISHED with the cell:
+    # random mode alone accumulates a stream but writes no sidecar (r3a, fail-closed).
     if dump_scored_waveforms is not None and not (
-            isinstance(dump_scored_waveforms, str) and dump_scored_waveforms and accumulate_stream):
+            isinstance(dump_scored_waveforms, str) and dump_scored_waveforms
+            and record_stream is True):
         raise ValueError(
-            "--dump-scored-waveforms needs a dump root directory AND an assignment stream "
-            "(--record-stream or --rotate-mode random): the manifest binds the waveforms "
-            "to their items through the stream's input_hash.")
+            "--dump-scored-waveforms needs a dump root directory AND --record-stream: the "
+            "manifest binds the waveforms to their items through the stream's input_hash, "
+            "and the .stream.json sidecar holding its preimages must be published with the "
+            "cell (--rotate-mode random alone accumulates the stream but does not publish it).")
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
@@ -2233,7 +2236,7 @@ if __name__ == "__main__":
     parser.add_argument("--are-lambda", type=float, default=None, help="exp_16 ARE: weight of the analytic direct-sound anchor added back to the sampled latent before decoding. Omit to use the arm's OWN training.are_lambda from --model-config (None for every non-ARE arm, which leaves the run and its record byte-identical to today). Passing it OVERRIDES the config -- including 0.0, which is the AR3 eval-time sweep and is recorded as such. Requires the model config to declare training.are_anchor; the applied value and its source are written into the metrics record and into the output filename.")
     parser.add_argument("--canonicalize", action='store_true', help="exp_25: deepest-column yaw canonicalization of the conditioning (depth panorama + all four pose fields) AFTER the evaluation rotation and BEFORE conditioning. Bound to the checkpoint: it must match the embedded training.canonicalize (announcement 05) unless --allow-canon-mismatch. Adds '_canon' to the output names, the canonicalize_* record fields and a <metrics-stem>.canon.json sidecar. Not with --cond-method fa_invariant.")
     parser.add_argument("--allow-canon-mismatch", action='store_true', help="exp_25: permit a labelled trained != applied canonicalization diagnostic (adds '_canonmis'). Never authorises a disagreement between the embedded and --model-config training.canonicalize blocks, and is itself an error when trained == applied.")
-    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream or --rotate-mode random; refuses any existing cell directory.")
+    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream (the stream sidecar is published with the cell); refuses any existing cell directory.")
     args = parser.parse_args()
 
     if args.store_predictions:
