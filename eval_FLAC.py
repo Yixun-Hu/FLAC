@@ -1642,10 +1642,13 @@ class ScoredWaveformDump:
         if not torch.is_tensor(fakes_scored) or fakes_scored.ndim != 3 or fakes_scored.shape[1] != 1:
             raise ValueError("scored-waveform dump: expected the scored [B, 1, T] mono tensor, got "
                              f"{getattr(fakes_scored, 'shape', type(fakes_scored).__name__)}")
+        if fakes_scored.dtype != torch.float32:   # no silent cast: the dump IS the scored tensor
+            raise ValueError(f"scored-waveform dump: the scored tensor must be float32, got "
+                             f"{fakes_scored.dtype}")
         if self._t is not None and fakes_scored.shape[2] != self._t:
             raise ValueError(f"scored-waveform dump: scored length changed {self._t} -> "
                              f"{fakes_scored.shape[2]}")
-        rows = fakes_scored.detach()[:, 0, :].to(device='cpu', dtype=torch.float32).clone(
+        rows = fakes_scored.detach()[:, 0, :].to(device='cpu').clone(
             memory_format=torch.contiguous_format)
         self._t = int(fakes_scored.shape[2])
         self._rows.append(rows)

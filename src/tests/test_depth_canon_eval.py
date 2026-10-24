@@ -629,17 +629,25 @@ def test_the_dump_is_exactly_the_appended_tensors_in_stream_order(tmp_path):
     assert eval_FLAC.ScoredWaveformDump.is_complete(str(tmp_path / "cell"))
 
 
-def test_append_stores_the_float32_cpu_copy_of_the_scored_tensor(tmp_path):
+def test_append_stores_a_cpu_copy_of_the_float32_scored_tensor(tmp_path):
     dump = eval_FLAC.ScoredWaveformDump(str(tmp_path / "cell"), 2)
-    fakes = _scored(2).double()
+    fakes = _scored(2)
     rows = dump.append(fakes)
     assert rows.dtype == torch.float32 and rows.device.type == "cpu"
-    assert torch.equal(rows, fakes.float()[:, 0, :])
+    assert torch.equal(rows, fakes[:, 0, :])
     fakes.zero_()                                    # a later in-place change is not dumped
-    assert not torch.equal(rows, fakes.float()[:, 0, :])
+    assert not torch.equal(rows, fakes[:, 0, :])
     for bad in (torch.zeros(2, 2, 16), torch.zeros(2, 16), [0.0], torch.zeros(2, 1, 8)):
         with pytest.raises(ValueError, match="scored"):
             dump.append(bad)
+
+
+@pytest.mark.parametrize("dtype", [torch.float64, torch.bfloat16, torch.float16])
+def test_append_refuses_a_non_float32_scored_tensor(tmp_path, dtype):
+    """r3a NIT: a silent cast would weaken 'exactly the tensor handed to update_metrics'."""
+    dump = eval_FLAC.ScoredWaveformDump(str(tmp_path / "cell"), 2)
+    with pytest.raises(ValueError, match="float32"):
+        dump.append(_scored(2).to(dtype))
 
 
 @pytest.mark.parametrize("setup", [
