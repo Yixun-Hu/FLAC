@@ -56,6 +56,7 @@ BASE_KEYS = ("metrics", "ckpt_path", "rotate_deg", "cond_method", "frame_avg_ang
 RANDOM_KEYS = ("rotate_mode", "rotate_seed", "input_hash", "assignment_hash", "stream_count", "img_w")
 SCENE_RECORD_KEYS = ("by_scene", "per_scene_schema", "scene_count")
 CANON_KEYS = tuple(eval_FLAC.CANON_RECORD_KEYS)
+LOAD_KEYS = tuple(eval_FLAC.CKPT_LOAD_KEYS)   # rB-F2 F2-6: the digest of the bytes torch.load deserialized
 
 
 def load_cells(path=CELLS_JSON):
@@ -86,7 +87,7 @@ def model_config_digest(row):
 
 
 def expected_record_keys(row):
-    return (list(BASE_KEYS) + (list(RANDOM_KEYS) if row["rotate_mode"] == "random" else [])
+    return (list(BASE_KEYS) + list(LOAD_KEYS) + (list(RANDOM_KEYS) if row["rotate_mode"] == "random" else [])
             + list(SCENE_RECORD_KEYS) + (list(CANON_KEYS) if row["canon_in_play"] else []))
 
 
@@ -97,6 +98,13 @@ def _metric_block_reasons(label, block):
         return [f"{label} metrics keys {sorted(block)} != the evaluator's emission set {sorted(METRIC_KEYS)}"]
     return [f"{label}[{k}] = {block[k]!r} is not a finite number" for k in METRIC_KEYS
             if not _finite(block[k])]
+
+
+def _load_reasons(label, doc):
+    """rB-F2 F2-6: the evaluator's digest + length of the checkpoint bytes it deserialized."""
+    sha, n = doc.get("ckpt_sha256_loaded"), doc.get("ckpt_bytes_loaded")
+    return ([] if eval_FLAC._is_sha256_hex(sha) else [f"{label} ckpt_sha256_loaded {sha!r} is not a sha256 digest"]) + (
+        [] if type(n) is int and n > 0 else [f"{label} ckpt_bytes_loaded {n!r} is not a positive int"])
 
 
 def record_reasons(rec, row, *, pin, link):
@@ -125,6 +133,7 @@ def record_reasons(rec, row, *, pin, link):
                     if not eval_FLAC._is_sha256_hex(rec.get(k))]
     for key, value in expect.items():
         _eq(reasons, key, rec.get(key), value)
+    reasons += _load_reasons("metrics record", rec)
     reasons += _metric_block_reasons("metrics", rec.get("metrics"))
     by_scene = rec.get("by_scene")
     if not isinstance(by_scene, dict) or set(by_scene) != set(SCENE_KEYS):
@@ -362,7 +371,8 @@ def evidence_reasons(ev, row, *, stem, stream, expect, pin):
 
 RECEIPT_SCHEMA_VERSION = 1
 RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_link", "ckpt_target",
-                "ckpt_sha256", "ckpt_cache", "ckpt_sha256_measured", "model_config", "model_config_sha256", "dataset_config",
+                "ckpt_sha256", "ckpt_cache", "ckpt_sha256_measured", "ckpt_sha256_loaded", "ckpt_bytes_loaded",
+                "model_config", "model_config_sha256", "dataset_config",
                 "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
                 "expect_head", "campaign_digest", "spawn_digest", "post_digest", "artifact_sha256",
                 "dump_evidence", "lane", "log", "rc")
@@ -394,7 +404,7 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
     want = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": row["cell"], "stem": stem,
             "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": link,
             "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "ckpt_cache": ckpt_cache_path(link, ckpt_sha256),
-            "ckpt_sha256_measured": ckpt_sha256, "model_config": row["model_config"],
+            "ckpt_sha256_measured": ckpt_sha256, "ckpt_sha256_loaded": ckpt_sha256, "model_config": row["model_config"],
             "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
             "dataset_config_sha256": row["dataset_config_sha256"],
             "expected_stream_count": row["expected_stream_count"], "dump": dump,
@@ -419,6 +429,7 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
                                         expect=expect, pin=pin)
         elif receipt.get("dump_evidence") is not None:
             reasons.append("receipt dump_evidence present for a cell run without a dump")
+    reasons += _load_reasons("receipt", receipt)
     if type(receipt.get("lane")) is not int or receipt["lane"] < 0:
         reasons.append(f"receipt lane {receipt.get('lane')!r} is not a GPU index")
     if not isinstance(receipt.get("log"), str) or not receipt["log"]:
@@ -542,6 +553,9 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     reasons += receipt_reasons(docs["receipt"], row, stem=stem, link=link, target=target,
                                ckpt_sha256=sha, dump=expect_dump, dump_root=dump_root, pin=pin,
                                expect_digest=expect_digest, expect=expect, stream=docs["stream"])
+    if isinstance(docs["metrics"], dict) and isinstance(docs["receipt"], dict):   # rB-F2 F2-6: loaded == receipt
+        for key in LOAD_KEYS:
+            _eq(reasons, f"metrics record {key} vs the receipt's", docs["metrics"].get(key), docs["receipt"].get(key))
     if dump_check == "receipt":
         pass                       # offline: the receipt's evidence stands for the dump (decision A7)
     elif expect_dump:
@@ -607,11 +621,13 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
     return out
 
 
-def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, campaign_digest, spawn_digest,
-                  post_digest):
+def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt_bytes, campaign_digest,
+                  spawn_digest, post_digest):
     """The cell's receipt (``.cell.json``) as a dict: refuses a measured checkpoint digest that
     is not the expected one and a tree digest at the spawn / after the run that is not the
-    campaign's; binds the committed artifacts' digests and, for a dump, its evidence (B6)."""
+    campaign's; binds the committed artifacts' digests and, for a dump, its evidence (B6); and
+    (rB-F2 F2-6) the evaluator's digest of the bytes it deserialized, which must equal the
+    expected one, with the length the driver measured (``ckpt_bytes``)."""
     if ckpt_sha256 != entry["sha256"]:
         raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
                          f"{entry['sha256']}")
@@ -624,6 +640,18 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, camp
     if artifacts["metrics"] is None or artifacts["stream"] is None or (entry["canon"] and artifacts["canon"] is None):
         raise ValueError(f"{entry['cell']}: nothing to bind -- the metrics / stream / canon files are not all there")
     try:
+        with open(at(entry["metrics"])) as f:
+            met = json.load(f)
+        loaded = {k: met.get(k) for k in LOAD_KEYS} if isinstance(met, dict) else {}
+    except (OSError, ValueError) as err:
+        raise ValueError(f"{entry['cell']}: the metrics record is unreadable ({err})") from err
+    if loaded.get("ckpt_sha256_loaded") != entry["sha256"]:
+        raise ValueError(f"{entry['cell']}: the evaluator loaded checkpoint bytes with sha256 "
+                         f"{loaded.get('ckpt_sha256_loaded')!r}, not the expected {entry['sha256']}")
+    if type(ckpt_bytes) is not int or ckpt_bytes <= 0 or loaded.get("ckpt_bytes_loaded") != ckpt_bytes:
+        raise ValueError(f"{entry['cell']}: the evaluator loaded {loaded.get('ckpt_bytes_loaded')!r} checkpoint "
+                         f"bytes, the driver measured {ckpt_bytes!r} bytes")
+    try:
         evidence = dump_evidence(at(entry["dump_dir"])) if entry["dump"] else None
     except (OSError, ValueError) as err:
         raise ValueError(f"{entry['cell']}: the dump cannot be bound ({err})") from err
@@ -631,6 +659,7 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, camp
            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
            "ckpt_target": entry["target"], "ckpt_sha256": entry["sha256"],
            "ckpt_cache": ckpt_cache_path(entry["link"], entry["sha256"]), "ckpt_sha256_measured": ckpt_sha256,
+           "ckpt_sha256_loaded": loaded["ckpt_sha256_loaded"], "ckpt_bytes_loaded": loaded["ckpt_bytes_loaded"],
            "model_config": row["model_config"],
            "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
            "dataset_config_sha256": row["dataset_config_sha256"],
@@ -1356,6 +1385,8 @@ def main(argv=None):
     ap.add_argument("--log", default=None)
     ap.add_argument("--rc", type=int, default=None)
     ap.add_argument("--ckpt-sha", default=None, help="the checkpoint sha256 the driver MEASURED")
+    ap.add_argument("--ckpt-bytes", type=int, default=None,
+                    help="--write-receipt: the checkpoint size the driver measured (== the evaluator's loaded length)")
     ap.add_argument("--campaign-digest", default=None,
                     help="--plan: the relevant-tree digest at campaign start (required); --verify-cell: expected")
     ap.add_argument("--spawn-digest", default=None, help="--write-receipt: the tree digest at the spawn")
@@ -1386,7 +1417,8 @@ def main(argv=None):
         row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
         try:
             rec = build_receipt(entry, row, base_dir=args.base_dir, lane=args.lane, log=args.log, rc=args.rc,
-                                pin=args.pin, ckpt_sha256=args.ckpt_sha, campaign_digest=plan["campaign_digest"],
+                                pin=args.pin, ckpt_sha256=args.ckpt_sha, ckpt_bytes=args.ckpt_bytes,
+                                campaign_digest=plan["campaign_digest"],
                                 spawn_digest=args.spawn_digest, post_digest=args.post_digest)
             index = (load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
                                       manifest["arms"]["CANON"]["ckpt"]["run_ns"]) if row["arm"] == "CANON" else None)

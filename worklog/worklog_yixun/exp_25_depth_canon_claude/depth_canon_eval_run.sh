@@ -11,10 +11,13 @@
 #   checkpoint  exists (P1/YAW: listed in the NAS MANIFEST.sha256; CANON: the launcher's
 #               checkpoint manifest); COPIED into the content-addressed cache
 #               <farm>/.ckpt_cache/<sha256>.ckpt (temp file -> sha256 == the pin -> 0444 ->
-#               atomic rename; a free-space gate first), re-verified once per campaign.
+#               atomic rename; a free-space gate first). An existing cache file must satisfy the
+#               immutable-cache contract (regular, mode 0444, the source's size) and is re-hashed;
+#               the contract + a full re-hash are repeated immediately before EACH spawn (rB-F2).
 #   farm entry  <farm>/<ARM>/<checkpoint basename> = a HARD link of the cache file (never a
 #               symlink; a stale entry aborts); re-checked right before the spawn, and the
-#               file the evaluator opened is hashed again after the run (receipt).
+#               file the evaluator opened is hashed again after the run (receipt). The receipt
+#               also binds eval_FLAC's own sha256 + length of the buffer it handed torch.load.
 #   predicate   (cycle 4b) SKIP only a complete-and-verified cell; QUARANTINE the rest.
 #   run         one lane per GPU: >= 10 GiB free AND no compute process on the card (uuid-mapped,
 #               fail-closed queries, re-checked right before the spawn); never signals anything.
@@ -197,7 +200,16 @@ echo "checkpoint cache space: ${N_STAGE} checkpoint(s) to stage = $((NEED)) B + 
 [ "$AVAIL" -ge $((NEED + CACHE_MARGIN)) ] || die "CACHE SPACE GATE FAILED: $((NEED + CACHE_MARGIN)) B needed > ${AVAIL} B available - abort"
 
 # --- per cell: checkpoint, link, (predicate), (run) ----------------------------------- #
-declare -A SHA_DONE=()
+declare -A SHA_DONE=() CKPT_SIZE=()
+cache_ok() {   # <cache> <sha>: the immutable-cache contract (regular, 0444, the source's size) + a full re-hash
+  local got mode size
+  { [ -f "$1" ] && [ ! -L "$1" ]; } || { CACHE_WHY="${1} is not a regular file"; return 1; }
+  mode="$(stat -c %a -- "$1")"; size="$(stat -c %s -- "$1")"
+  [ "$mode" = 444 ] || { CACHE_WHY="${1} has mode ${mode}, not the immutable 0444"; return 1; }
+  [ "$size" = "${CKPT_SIZE[$2]:-}" ] || { CACHE_WHY="${1} is ${size} bytes, the source is ${CKPT_SIZE[$2]:-unknown}"; return 1; }
+  got="$(sha256sum -- "$1" | awk '{print $1}')"
+  [ "$got" = "$2" ] || { CACHE_WHY="${1} hashes to ${got}, not ${2}"; return 1; }
+}
 stage_ckpt() {   # target sha nas-manifest nas-key cache: the verified immutable cache file (once per sha)
   local target="$1" want="$2" nasm="$3" key="$4" cache="$5" got tmp
   [ -f "$target" ] || { echo "CHECKPOINT MISSING: ${target} - abort"; return 1; }
@@ -205,15 +217,14 @@ stage_ckpt() {   # target sha nas-manifest nas-key cache: the verified immutable
     grep -qxF "${want}  ${key}" "$nasm" 2>/dev/null || { echo "NAS MANIFEST CHECK FAILED: ${nasm} does not list '${want}  ${key}' - abort"; return 1; }
   fi
   [ -n "${SHA_DONE[$want]:-}" ] && return 0
+  CKPT_SIZE[$want]="$(stat -c %s -- "$target")"
   if [ "$DRY_RUN" = 1 ]; then   # read-only: hash the source, stage nothing
     got="$(sha256sum -- "$target" | awk '{print $1}')"
     [ "$got" = "$want" ] || { echo "CHECKPOINT SHA MISMATCH: ${target} is ${got}, the manifest pins ${want} - abort"; return 1; }
     echo "checkpoint OK (DRY_RUN, not staged): ${target} (${want})"
-  elif [ -e "$cache" ] || [ -L "$cache" ]; then
-    { [ -f "$cache" ] && [ ! -L "$cache" ]; } || { echo "CACHE GATE FAILED: ${cache} is not a regular file - abort"; return 1; }
-    got="$(sha256sum -- "$cache" | awk '{print $1}')"
-    [ "$got" = "$want" ] || { echo "CACHE GATE FAILED: ${cache} hashes to ${got}, not ${want} - abort"; return 1; }
-    echo "checkpoint OK: cached ${cache} re-verified (${want})"
+  elif [ -e "$cache" ] || [ -L "$cache" ]; then   # rB-F2 F2-6 (a): the immutable-cache contract, then the bytes
+    cache_ok "$cache" "$want" || { echo "CACHE GATE FAILED: ${CACHE_WHY} - abort"; return 1; }
+    echo "checkpoint OK: cached ${cache} re-verified (0444, ${CKPT_SIZE[$want]} bytes, ${want})"
   else
     mkdir -p "$CACHE_DIR" && ( farm_ok "$CACHE_DIR" ) || { echo "CACHE GATE FAILED: cannot create ${CACHE_DIR} - abort"; return 1; }
     tmp="$CACHE_DIR/.staging-${want}-$$"
@@ -296,7 +307,7 @@ fi
 
 run_cell() {   # lane cell sha spawn-digest link cache argv... -- a background job: evaluate, receipt, verify
   local lane="$1" cid="$2" sha="$3" spawn="$4" link="$5" cache="$6"; shift 6
-  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured
+  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured nbytes
   CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
   if [ "$rc" -ne 0 ]; then echo "  !! FAILED ${cid}: the evaluator exited rc=${rc} (log ${clog})"; return 1; fi
   post="$(tree_digest)" || post=""
@@ -305,12 +316,14 @@ run_cell() {   # lane cell sha spawn-digest link cache argv... -- a background j
     return 4
   fi
   measured="$(sha256sum -- "$link" | awk '{print $1}')"   # the file the evaluator opened, hashed again
+  nbytes="$(stat -c %s -- "$link")"                        # == the length eval_FLAC reports it loaded
   if [ "$measured" != "$sha" ] || ! farm_entry_ok "$link" "$cache"; then
     echo "  !! FAILED ${cid}: the evaluated checkpoint ${link} now hashes to '${measured}', not ${sha} (or left the cache inode); no receipt"
     return 1
   fi
   "$PY" "$COLLECT" --write-receipt "$cid" --plan-json "$PLAN" --cells "$CELLS" --base-dir "$REPO" \
-    --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$measured" --farm-root "$FARM_ROOT" \
+    --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$measured" --ckpt-bytes "$nbytes" \
+    --farm-root "$FARM_ROOT" \
     --spawn-digest "$spawn" --post-digest "$post" \
     --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" --verify-after >> "$clog" 2>&1 \
     || { echo "  !! FAILED ${cid}: post-run verification refused the cell (log ${clog})"; return 1; }
@@ -417,8 +430,11 @@ while :; do
     echo "  GPU ${LANE}: changed at the re-check before the spawn (${LANE_WHY}) - not spawned"
     gpu_wait; continue
   fi
-  echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
   farm_entry_ok "$LINK" "$CACHED" || { ABORT="FARM GATE FAILED: ${LINK} is no longer the hard link of ${CACHED}"; continue; }
+  # rB-F2 F2-6 (b): the contract + a full re-hash of the very file the evaluator will open, right now
+  cache_ok "$CACHED" "$SHA" || { ABORT="CACHE GATE FAILED before the spawn of ${READY}: ${CACHE_WHY}"; continue; }
+  echo "  checkpoint re-verified before the spawn: ${CACHED} (0444, ${CKPT_SIZE[$SHA]} bytes, ${SHA})"
+  echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
   run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "$LINK" "$CACHED" "${ARGV[@]}" &
   LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
   READY=""; i=$((i + 1))
