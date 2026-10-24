@@ -124,3 +124,21 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `2929e12` | Coder r3c | cycle 5e-ii: `build_results`, `render_md`, `--collect` |
 | `d9fa986` | Coder r3c | cycle 6-i (red by design): generator exp25 tests |
 | `e93c42a` | Coder r3c | cycle 6-ii: `gen_model_comparison.py` exp25 rows + contract (additive) |
+| `6c92209` | Coder r3c | records: lab-notebook entries (start, cycles 0a–6-ii, round summary) + ledger rows |
+| `c6feecf` | Coder r3b-F1 | fix 3 (HIGH 3): tie audit enforces the training input contract (float64 (256,512) raw, float64 cpu (3,256,512) cloud, depth modality) |
+| `ef43d03` | Coder r3b-F1 | fix 8 (NIT 8): tie-audit precedence INCOMPLETE > FAIL > REFUSED_SUBSET > PASS |
+| `7333a57` | Coder r3b-F1 | fix 2a (BLOCKING 2): `_canonicalize_batch` latency (perf_counter), `canon/latency_ms`, the rank-0 latency line at fit end |
+| `dc52861` | Coder r3b-F1 | fix 4 (HIGH 4): probe registered contract vs `--diagnostic` (registered:false, exit 6) |
+| `ddea813` | Coder r3b-F1 | fix 5 (HIGH 5): pin closure (+ FLAC_AR_BV / FLAC_AR_BF), manifest regenerated (46); guard `GUARD_ONLY` filter |
+| `22d520c` | Coder r3b-F1 | fix 6 (HIGH 6): the launcher requires the flac interpreter for every gate and train.py |
+| `ce92947` | Coder r3b-F1 | fix 7 (HIGH 7): GPU occupancy gate (no compute process on GPU 0/1; pid + cwd printed, never signalled) |
+| `f8db9dc` | Coder r3b-F1 | fix 1 (BLOCKING 1): SMOKE and FULL gated by the complete PASS tie audit (+ sidecar, counts, hashes) |
+| `4256fc7` | Coder r3b-F1 | fix 2b (BLOCKING 2): smoke evidence requires finite train/loss + the measured canonicalization latency; FULL checks both |
+| `8404388` | Coder r3b-F1 | fix 9 (NIT 9): content-scoped SMOKE->FULL binding (manifest, launcher, pin generator, contract, audit; HEAD provenance) |
+| `f8dcb5f` | Coder r3b-F1 | fix 10 (NIT 10): launcher header documents its write targets incl. repo-local `wandb/` |
+| `5408a68` | Coder r3b-F1 | fix 9b: guard state — re-write the E9 evidence after section B |
+| `929576d` | Coder r3d | cycle 1a (red by design): autolaunch watcher tests — token + GPU waits |
+| `827548d` | Coder r3d | cycle 1b: `depth_canon_autolaunch.sh` — preconditions, GO token, GPU condition, atomic state (fire point refuses) |
+| `0ba37ac` | Coder r3d | cycle 1c: precondition tests (mutation-red) |
+| `0f22293` | Coder r3d | cycle 2a (red by design): fire-sequence + state tests |
+| `33a8d72` | Coder r3d | cycle 2b: the fire sequence (SMOKE -> FULL, transient GPU-gate retries <= 5, final failures) |
