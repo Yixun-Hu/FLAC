@@ -25,7 +25,9 @@ SRC_REPO="$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse -
 EXPREL="worklog/worklog_yixun/exp_25_depth_canon_claude"
 OVERLAY=(depth_canon_launch.sh depth_canon_guardtests.sh depth_canon_make_pins.sh depth_canon_pins.sha256
          depth_canon_audit_gate.py)
-H="$(mktemp -d "${TMPDIR:-/tmp}/depth_canon_guard.XXXXXX")"
+H="$(mktemp -d /tmp/depth_canon_guard.XXXXXX)"   # rB-F2 F2-3 (c): /tmp, never $TMPDIR
+case "$(readlink -f -- "$H")" in /tmp/depth_canon_guard.??????) ;;
+  *) echo "GUARD ABORTED: the tmp root '${H}' does not resolve under /tmp/depth_canon_guard.*"; exit 2 ;; esac
 trap 'rm -rf "$H"' EXIT
 R="$H/repo"
 PASS=0; FAIL=0; SKIP=0
@@ -54,7 +56,7 @@ make_clone() {   # a fresh clone of the source HEAD + the overlaid launcher file
   ln -s "$SRC_REPO/weights" "$R/weights"
   ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write )
   commit_clone "guard overlay"
-  write_audit ok
+  write_audit ok || { echo "GUARD ABORTED: make_clone could not build the harness tie-audit fixture (reason above)" >&2; exit 1; }
 }
 
 write_audit() {   # write_audit <mode>: a REAL tie audit (the clone's audit script) of a tiny synthetic tree in
@@ -92,13 +94,19 @@ for k, key in enumerate(sorted(maps)):
     d = 0.5 + 7.0 * rng.random((256, 512))
     if mode == "survivor" and k == 0:
         d = np.tile(d[:, :128], (1, 4))                       # exactly periodic -> an image-key survivor
-    if mode == "error" and k == 1:
+    if mode in ("error", "ok_but_error") and k == 1:
         d[0, 0] = np.inf                                      # an unprocessed map
     np.save(maps[key]["path"], d)
 limit = 2 if mode == "limit" else None
 rows = audit.run_rows(maps, ar_md, root, 1, limit)
 rep = audit.build_report(rows, ledger, list(SPLITS), len(maps), limit, ar_md)
 rep["harness"] = True                                         # the guard's reports are never production
+if mode in ("ok", "ok_but_error"):   # rB-F2 F2-3 (b): a fixture meant to PASS must BE a complete PASS -- loudly
+    g = rep["gate"]
+    if g.get("verdict") != "PASS" or g.get("n_errors") or g.get("n_survivors") or rep["errors"] or rep["survivors"]:
+        sys.stderr.write(f"GUARD FIXTURE FAILED: write_audit({mode}) is not a complete PASS: gate {g}; "
+                         f"errors {rep['errors'][:5]}; survivors {rep['survivors'][:5]}\n")
+        sys.exit(3)
 if mode == "script":
     rep["tool"]["script_sha256"] = "0" * 64
 if mode == "counts":
@@ -644,6 +652,7 @@ if [ "${GUARD_NAS_READONLY:-0}" = 1 ]; then
   for fv in "--save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon" "--max-steps 40000" "--checkpoint-every 2500"; do
     expect "Q2b production FULL argv ${fv}" has_value "$(argv_of "$OUT")" "${fv%% *}" "${fv#* }"
   done
+  make_clone >/dev/null   # rB-F2 F2-3 (a): back to a fresh harness clone + harness report (D1 needs it)
 else
   skip "Q1-Q2 production-path dry runs" "set GUARD_NAS_READONLY=1 to read the real NAS"
 fi
