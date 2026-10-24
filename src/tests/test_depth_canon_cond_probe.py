@@ -608,7 +608,7 @@ def test_main_publishes_through_build_report_and_write_report(tmp_path, monkeypa
     real_build, real_write = probe.build_report, probe.write_report
     monkeypatch.setattr(probe, "build_report", lambda *a, **k: seen.setdefault("report", real_build(*a, **k)))
     monkeypatch.setattr(probe, "write_report", lambda r, o: seen.setdefault("out", (r, o)) and real_write(r, o))
-    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, ema=True, registered=True)
+    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
     assert rc == 0 and seen["report"] is seen["out"][0] and seen["out"][1] == str(out)
     assert rep == json.loads(json.dumps(seen["report"]))
     text = out.read_text()

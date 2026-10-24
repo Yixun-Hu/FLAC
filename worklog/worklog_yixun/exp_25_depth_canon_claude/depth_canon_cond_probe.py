@@ -409,6 +409,14 @@ def registered_deviations(args):
     return out
 
 
+def tree_deviations(dirty):
+    """The evaluator tree (eval_FLAC.py, src/, this script) must be clean at the recorded
+    commit (Codex rB HIGH B5): ``git status --porcelain`` empty; None (git failed) is dirty."""
+    if dirty == "":
+        return []
+    return [f"the evaluator tree is dirty or unknown (git status {dirty!r}): not the pinned code"]
+
+
 def load_deviations(load):
     """Checkpoint-level departures: EMA weights selected, CANON trained = applied, no mismatch,
     the 512-column grid, file config == embedded config."""
@@ -456,6 +464,27 @@ def collect_items(eval_dl, n_items):
     if len(mds) < n_items:
         raise ValueError(f"the loader holds only {len(mds)} items; --n-items is {n_items}")
     return torch.stack(reals), mds
+
+
+def build_report(registered, deviations, prov, stream, rep):
+    """The published report, in main()'s layout: the probe ``rep`` with the per-item stream
+    identity merged into ``items``, its provenance and the stream's input hash."""
+    rep = dict(rep, items=[dict(position=i, target_id=row.target_id, context_ids=row.context_ids, **t)
+                           for i, (row, t) in enumerate(zip(stream.rows, rep["items"]))])
+    return {"schema_version": SCHEMA_VERSION, "registered": registered,
+            "deviations": deviations + ([] if registered or deviations else ["--diagnostic given"]),
+            "provenance": prov, "stream_input_hash": stream.input_hash(), **rep}
+
+
+def write_report(report, out):
+    """``json.dumps(indent=1)`` + newline, then the ``sha256sum`` sidecar."""
+    import hashlib
+    import json
+    text = json.dumps(report, indent=1) + "\n"
+    with open(out, "w") as f:
+        f.write(text)
+    with open(out + ".sha256", "w") as f:
+        f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(out)}\n")
 
 
 def markdown_summary(report):
@@ -508,7 +537,8 @@ def main(argv=None):
         ap.error("--seed and --num-workers must be >= 0")
     if os.path.realpath(os.getcwd()) != os.path.realpath(REPO):
         raise SystemExit(f"run from the repository root {REPO}: dataset configs hold cwd-relative paths")
-    deviations = registered_deviations(args)
+    dirty = _git("status", "--porcelain", "--", "eval_FLAC.py", "src", os.path.abspath(__file__))
+    deviations = registered_deviations(args) + tree_deviations(dirty)
     if deviations and not args.diagnostic:
         print("REFUSED: not the registered composition control (pass --diagnostic for a labelled, "
               "non-qualifying run): " + "; ".join(deviations))
@@ -540,8 +570,6 @@ def main(argv=None):
     pre = module.diffusion.pretransform
     latent_len = cfg["sample_size"] if pre is None else cfg["sample_size"] // pre.downsampling_ratio
     rep = run_probe(module, reals, mds, img_w, args.seed, args.batch_size, latent_len)
-    rep["items"] = [dict(position=i, target_id=row.target_id, context_ids=row.context_ids, **t)
-                    for i, (row, t) in enumerate(zip(stream.rows, rep["items"]))]
     split = (dataset_config.get("datasets") or [{}])[0].get("json_file_path")
     dev = torch.device(args.device)
     prov = {"ckpt_path": args.ckpt_path, "ckpt_sha256": _sha256_file(args.ckpt_path),
@@ -549,7 +577,7 @@ def main(argv=None):
             "dataset_config": args.dataset_config, "dataset_config_sha256": _sha256_file(args.dataset_config),
             "split_json": split, "split_json_sha256": _sha256_file(split) if split and os.path.exists(split) else None,
             "source_sha": _git("rev-parse", "HEAD"),
-            "dirty": _git("status", "--porcelain", "--", "eval_FLAC.py", "src", os.path.abspath(__file__)),
+            "dirty": dirty,
             "device": args.device, "torch": torch.__version__,
             "cuda_device": torch.cuda.get_device_name(dev) if dev.type == "cuda" else None,
             "seed": args.seed, "random_offset_seed": args.seed + RANDOM_OFFSET_SEED_SHIFT,
@@ -557,15 +585,8 @@ def main(argv=None):
             "n_items": args.n_items, "batch_size": args.batch_size, "num_workers": args.num_workers,
             "img_w": img_w, "latent_shape": [module.diffusion.io_channels, latent_len],
             "protocols": PROTOCOLS, "load": load, "allow_canon_mismatch": args.allow_canon_mismatch}
-    report = {"schema_version": SCHEMA_VERSION, "registered": registered,
-              "deviations": deviations + ([] if registered or deviations else ["--diagnostic given"]),
-              "provenance": prov, "stream_input_hash": stream.input_hash(), **rep}
-    text = json.dumps(report, indent=1) + "\n"
-    with open(args.out, "w") as f:
-        f.write(text)
-    import hashlib
-    with open(args.out + ".sha256", "w") as f:
-        f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(args.out)}\n")
+    report = build_report(registered, deviations, prov, stream, rep)
+    write_report(report, args.out)
     print(markdown_summary(report))
     print(f"wrote {args.out} (+ .sha256)")
     if not report["verdict"]["pass"]:
