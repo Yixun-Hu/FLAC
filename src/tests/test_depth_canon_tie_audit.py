@@ -226,3 +226,74 @@ def test_collect_maps_refuses_splits_with_different_roots(tmp_path):
     splits["seen"]["root_abs"] = str(tmp_path / "Elsewhere" / "AcousticRooms")
     with pytest.raises(ValueError, match="same dataset root"):
         audit.collect_maps(splits)
+
+
+# --------------------------------------------------------------------------- #
+# per-map audit: the treatment path (AR_md cloud -> operator) vs the raw path
+# --------------------------------------------------------------------------- #
+def _one_map_tree(tmp_path, raw, scene="Cafe", sid="Cafe_idx_0", fname="S001_R007_hybrid_IR.wav"):
+    split = {scene: {sid: [fname]}}
+    key = audit.resolve_depth_path(f"/r/x/{scene}/{sid}/{fname}", "/r")[1]
+    cfgs = _write_tree(tmp_path, splits={"unseen": split}, maps={key: raw})
+    splits = {"unseen": audit.read_split_config(cfgs["unseen"])}
+    maps, _ = audit.collect_maps(splits)
+    return key, maps[key], splits["unseen"]
+
+
+def _row(tmp_path, raw):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    key, entry, split = _one_map_tree(tmp_path, raw)
+    module = audit.load_metadata_module(split["custom_metadata_module_abs"])
+    return audit.audit_map(key, entry, module, split["root_abs"]), entry
+
+
+@pytest.mark.parametrize("name, peaks, period, want", FIXTURES, ids=[f[0] for f in FIXTURES])
+def test_audit_map_rows(tmp_path, name, peaks, period, want):
+    import hashlib
+    raw = _fixture(name, peaks, period).numpy()
+    row, entry = _row(tmp_path, raw)
+    assert row["error"] is None and row["path"] == "depth_map/Cafe/Cafe_idx_0/7.npy"
+    assert row["sha256"] == hashlib.sha256(open(entry["path"], "rb").read()).hexdigest()
+    j, raw_class, cands, survivors = audit.raw_select(raw)
+    assert row["candidates"] == cands and row["n_candidates"] == len(cands)
+    assert row["max_sep_deg"] == audit.max_circular_sep_deg(cands, W)
+    assert row["raw_agree_set"] is True and row["raw_agree_col"] is True
+    assert row["counts"] == {"unseen": 1}
+    if want is None:
+        assert row["survivor"] is True and row["survivors"] == survivors
+        assert (row["j_star"], row["dj"], row["tie_class"]) == (None, None, None)
+    else:
+        assert row["survivor"] is False and row["tie_class"] == want == raw_class
+        assert row["j_star"] == j and row["dj"] == (W - j) % W and row["survivors"] == [j]
+
+
+def test_audit_map_records_a_processing_error(tmp_path):
+    raw = _fixture("unique", [(40, 300)], None).numpy()
+    raw[3, 4] = np.nan
+    row, _ = _row(tmp_path, raw)
+    assert row["error"] and "non-finite" in row["error"] and row["survivor"] is False
+    assert row["sha256"] is not None and row["tie_class"] is None
+
+
+def test_audit_map_refuses_content_other_than_what_ar_md_loads(tmp_path, monkeypatch):
+    key, entry, split = _one_map_tree(tmp_path, _fixture("u", [(40, 300)], None).numpy())
+    other = tmp_path / "other.npy"
+    np.save(other, _fixture("u", [(41, 301)], None, seed=9).numpy())
+    module = audit.load_metadata_module(split["custom_metadata_module_abs"])
+    row = audit.audit_map(key, dict(entry, path=str(other)), module, split["root_abs"])
+    assert row["error"] and "AR_md" in row["error"]
+
+
+def test_raw_and_proxy_can_disagree_and_the_flags_say_so(tmp_path):
+    """A raw tie across two ROWS at a non-power-of-two value: z = -d sin(phi) is rounded
+    per row, so the proxy may break the raw tie. The flags must report it."""
+    for v in np.linspace(7.6, 7.99, 40):
+        raw = _fixture("u", [], None).numpy()
+        raw[17, 100] = raw[201, 400] = v
+        row, _ = _row(tmp_path / f"v{v:.6f}", raw)
+        if row["raw_agree_set"] is False:
+            assert row["error"] is None and audit.raw_candidates(raw) == [100, 400]
+            assert row["n_candidates"] == 1
+            assert row["raw_agree_col"] is (audit.raw_select(raw)[3] == row["survivors"])
+            return
+    pytest.fail("no raw tie broken by the proxy in the search space")

@@ -11,6 +11,7 @@ Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.
 """
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -191,3 +192,60 @@ def collect_maps(splits):
             keys.add(key)
         ledger.append(dict(split, split=name, n_items=len(items), n_unique_maps=len(keys)))
     return maps, ledger
+
+
+# --------------------------------------------------------------------------- #
+# per map: treatment path vs raw path
+# --------------------------------------------------------------------------- #
+def _canon_md(cloud):
+    """The operator's input: AR_md's cloud plus fixed finite poses. The selector reads
+    no pose (plan v6), so these only satisfy canonicalize_scene_metadata's contract."""
+    import torch
+    src = torch.tensor([1.0, 0.0, 0.0])
+    ctx = torch.tensor([[0.0, 1.0, 0.0]])
+    return {"depth": cloud, "source": src, "source_vit": src[None], "context_poses": ctx,
+            "context_poses_vit": ctx.clone()}
+
+
+def audit_map(key, entry, md_module, root_abs):
+    """One row of the audit. Never raises: a failure is recorded in ``row['error']``
+    (and the map then counts as NOT processed)."""
+    import torch
+    from src.data import yaw_rotation as yr
+    row = {"path": key, "sha256": None, "counts": dict(entry["counts"]), "j_star": None, "dj": None,
+           "tie_class": None, "survivor": False, "n_candidates": None, "candidates": None,
+           "survivors": None, "max_sep_deg": None, "raw_tie_class": None, "raw_survivor": None,
+           "raw_agree_set": None, "raw_agree_col": None, "error": None}
+    try:
+        with open(entry["path"], "rb") as f:
+            blob = f.read()
+        row["sha256"] = hashlib.sha256(blob).hexdigest()
+        raw = np.load(io.BytesIO(blob), allow_pickle=False)
+        _check_raw(raw)
+        info = {"path": entry["rep"], "relpath": os.path.relpath(entry["rep"], root_abs),
+                "modalities": DEPTH_ONLY_MODALITIES}
+        cloud = md_module.get_custom_metadata(info, None)["depth"]      # AR_md's own cloud
+        ref = md_module.convert_equirect_to_camera_coord(torch.from_numpy(raw), *raw.shape)
+        if not torch.equal(cloud, ref.permute(2, 0, 1)):
+            raise RuntimeError("the cloud AR_md built differs from the resolved file's content")
+        W = int(cloud.shape[2])
+        P = yr.column_profile(yr.recover_depth_proxy(cloud))
+        cands = [int(c) for c in torch.nonzero(P == P.max()).flatten().tolist()]
+        try:
+            _, dj, tie_class = yr.canonicalize_scene_metadata(_canon_md(cloud), W)
+            j_star = (W - dj) % W
+            if j_star not in cands:
+                raise RuntimeError(f"selected column {j_star} is not a candidate {cands}")
+            survivors = [j_star]
+            row.update(j_star=j_star, dj=dj, tie_class=tie_class)
+        except yr.StabilizedTieError as err:
+            survivors = list(err.candidates)
+            row["survivor"] = True
+        raw_j, raw_class, raw_cands, raw_survivors = raw_select(raw)
+        row.update(n_candidates=len(cands), candidates=cands, survivors=survivors,
+                   max_sep_deg=max_circular_sep_deg(cands, W), raw_tie_class=raw_class,
+                   raw_survivor=raw_j is None, raw_agree_set=raw_cands == cands,
+                   raw_agree_col=raw_survivors == survivors)
+    except Exception as err:  # noqa: BLE001 -- recorded, and the gate then refuses PASS
+        row["error"] = f"{type(err).__name__}: {err}"
+    return row
