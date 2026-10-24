@@ -28,6 +28,8 @@ UUID0, UUID1 = "GPU-test-0", "GPU-test-1"
 
 STUB_NVSMI = r'''#!/usr/bin/env bash
 # stub: one scenario line per POLL (the index,uuid query opens a poll); the last line repeats.
+# rA A3 scenarios exit NONZERO after plausible output (uuidrc / memrc / appsrc), print two memory
+# rows (memtwo), or name a process on a uuid outside the map (unknown); GPU 2 is a known other card.
 H="$DEPTH_CANON_HARNESS"; n="$(cat "$H/poll_n" 2>/dev/null || echo 0)"
 case "$*" in *index,uuid*) n=$((n + 1)); echo "$n" > "$H/poll_n" ;; esac
 total="$(wc -l < "$H/gpu_scenario")"; [ "$n" -le "$total" ] || n="$total"; [ "$n" -ge 1 ] || n=1
@@ -39,19 +41,25 @@ case "$line" in
                                           commit -q --allow-empty -m "a commit after arming" ;; esac ;;
 esac
 case "$*" in
-  *index,uuid*) printf '0, GPU-test-0\n1, GPU-test-1\n' ;;
+  *index,uuid*) printf '0, GPU-test-0\n1, GPU-test-1\n2, GPU-test-2\n'; [ "$line" = uuidrc ] && exit 4; true ;;
   *query-compute-apps*) [ "$line" = busy ] && echo "GPU-test-0, 4242, python, 32470 MiB"
                         [ "$line" = busy1 ] && echo "GPU-test-1, 4343, python, 16000 MiB"
-                        [ "$line" = other ] && echo "GPU-test-9, 4444, python, 100 MiB"
+                        [ "$line" = other ] && echo "GPU-test-2, 4444, python, 100 MiB"
+                        [ "$line" = unknown ] && echo "GPU-test-9, 4545, python, 100 MiB"
                         [ "$line" = garbage ] && echo "garbage"
+                        [ "$line" = appsrc ] && exit 5
                         true ;;
-  *memory.free*) [ "$line" = lowmem ] && echo 1000 || echo 40000 ;;
+  *memory.free*) [ "$line" = lowmem ] && echo 1000 || echo 40000
+                 [ "$line" = memtwo ] && echo 40000
+                 [ "$line" = memrc ] && exit 3
+                 true ;;
 esac
 '''
 FAKE_LAUNCHER = r'''#!/usr/bin/env bash
 # fake launcher: records MODE / EXPECT_HEAD; behaviour = the next "MODE rc text" scenario line
 H="$DEPTH_CANON_HARNESS"
-echo "MODE=${MODE} EXPECT_HEAD=${EXPECT_HEAD} DRY_RUN=${DRY_RUN:-unset}" >> "$H/launch_calls"
+echo "MODE=${MODE} EXPECT_HEAD=${EXPECT_HEAD} DRY_RUN=${DRY_RUN:-unset} MB=${MB:-unset} ACC=${ACC:-unset}" >> "$H/launch_calls"
+env | grep -E '^(GO_TOKEN|AUTOLAUNCH_)' >> "$H/launch_env" || true
 n="$(( $(cat "$H/launch_n" 2>/dev/null || echo 0) + 1 ))"; echo "$n" > "$H/launch_n"
 total="$(wc -l < "$H/launch_scenario")"; [ "$n" -le "$total" ] || n="$total"
 read -r mode rc text <<<"$(sed -n "${n}p" "$H/launch_scenario")"
@@ -186,8 +194,8 @@ def test_f_three_clean_polls_fire_smoke_then_full(rig):
     rc, out = run(rig)
     st = state(rig)
     assert rc == 0, out
-    assert calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0",
-                          f"MODE=FULL EXPECT_HEAD={rig['head']} DRY_RUN=0"]
+    assert calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1",
+                          f"MODE=FULL EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1"]
     assert (st["phase"], st["smoke_rc"], st["full_rc"], st["token_head"]) == ("DONE", 0, 0, rig["head"])
     assert st["clean_polls"] >= 3 and st["watcher_pid"] > 0 and st["log"].endswith("_autolaunch.log")
     assert "smoke ok" in open(os.path.join(rig["repo"], st["log"])).read()     # launcher output tee'd
@@ -207,7 +215,7 @@ def test_another_card_and_low_memory(rig):
 
 def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
     token(rig)
-    launches(rig, ["SMOKE 2 GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - wait",
+    launches(rig, ["SMOKE 7 GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - wait",
                    "SMOKE 0 smoke ok", "FULL 0 full ok"])
     rc, out = run(rig, max_polls=20)
     assert rc == 0 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE", "MODE=SMOKE", "MODE=FULL"]
@@ -218,7 +226,7 @@ def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
 
 def test_g2_five_retries_then_failed(rig):
     token(rig)
-    launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
+    launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
     rc, out = run(rig, max_polls=60)
     st = state(rig)
     assert rc == 1 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE"] * 6
@@ -230,7 +238,7 @@ def test_h_any_other_smoke_failure_is_final(rig):
     launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 70.0 h > MAX_PROJECTED_HOURS=60"])
     rc, _ = run(rig)
     st = state(rig)
-    assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0"]
+    assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1"]
     assert (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", 4, None) and "SMOKE" in st["reason"]
 
 
@@ -243,7 +251,7 @@ def test_i_a_full_failure_is_final(rig):
     assert "FULL" in st["reason"] and "6" in st["reason"]
 
 
-@pytest.mark.parametrize("scenario", ["fail", "garbage"])
+@pytest.mark.parametrize("scenario", ["fail", "garbage", "uuidrc", "memrc", "memtwo", "appsrc", "unknown"])
 def test_j_an_unusable_nvidia_smi_is_dirty_and_never_fires(rig, scenario):
     token(rig)
     gpu(rig, [scenario])
@@ -276,7 +284,9 @@ def test_l_a_second_instance_is_refused(rig):
 @pytest.mark.parametrize("env, needle", [
     ({"AUTOLAUNCH_LAUNCHER": "/tmp/x.sh"}, "AUTOLAUNCH_LAUNCHER"),
     ({"AUTOLAUNCH_POLL_S": "0"}, "AUTOLAUNCH_POLL_S"),
-    ({"GO_TOKEN": "/tmp/t"}, "GO_TOKEN")])
+    ({"GO_TOKEN": "/tmp/t"}, "GO_TOKEN"),
+    ({"AUTOLAUNCH_STABLE_POLLS": "1"}, "AUTOLAUNCH_STABLE_POLLS"),
+    ({"AUTOLAUNCH_MAX_POLLS": "1"}, "AUTOLAUNCH_MAX_POLLS")])
 def test_m_overrides_without_the_harness_are_refused(rig, env, needle):
     rc, out = run(rig, env=env, harness=False, timeout=20)
     assert rc == 2 and needle in out and calls(rig) == []
@@ -350,3 +360,75 @@ def test_the_watcher_never_signals_and_writes_only_inside_expdir(rig):
     assert status and all(line[3:].startswith(EXPREL.replace(os.sep, "/") + "/") for line in status), status
     new = sorted(p[3:].rsplit("/", 1)[1] for p in status)
     assert "depth_canon_autolaunch_state.json" in new and any(p.endswith("_autolaunch.log") for p in new)
+
+
+
+# --------------------------------------------------------------------------- #
+# rB-F1 block 2: rA A4 (literal rung + scrubbed state), A6a/b/d/e/f
+# --------------------------------------------------------------------------- #
+def test_the_launcher_gets_the_literal_rung_and_no_harness_overrides(rig):
+    """A4: an inherited MB / ACC / DRY_RUN can never reach the launcher (a stray shell variable
+    must not turn the unattended window into a final failure), nor any harness-only override."""
+    token(rig)
+    rc, out = run(rig, env={"MB": "8", "ACC": "4", "DRY_RUN": "1"})
+    assert rc == 0, out
+    assert all(c.endswith("DRY_RUN=0 MB=32 ACC=1") for c in calls(rig)) and len(calls(rig)) == 2
+    assert (rig["h"] / "launch_env").read_text() == ""           # GO_TOKEN / AUTOLAUNCH_* scrubbed
+    text = open(WATCHER).read()
+    assert "env -u DEPTH_CANON_HARNESS -u GO_TOKEN -u AUTOLAUNCH_LAUNCHER" in text   # production scrub
+
+
+def test_only_rc_7_is_a_transient_gpu_refusal(rig):
+    """A6e: the launcher's dedicated rc 7 is the ONE transient class; the old text match is gone
+    (rc 2 carrying a GPU string is a final failure)."""
+    token(rig)
+    launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
+    rc, _ = run(rig, max_polls=20)
+    assert rc == 1 and len(calls(rig)) == 1 and state(rig)["phase"] == "FAILED"
+    assert "GPU_GATE_STR" not in open(WATCHER).read()
+
+
+def test_a_near_matching_interpreter_is_refused(rig, tmp_path):
+    """A6a: the resolved path must BE the launcher's pinned interpreter, not match a glob."""
+    fake = tmp_path / "x" / "envs" / "flac" / "bin"
+    fake.mkdir(parents=True)
+    (fake / "python").write_text("#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(fake / "python", 0o755)
+    token(rig)
+    rc, out = run(rig, path_prefix=f"{fake}:{FLAC_BIN}")
+    assert rc == 2 and "/home/yixunhu/miniconda3/envs/flac/bin/python" in out and calls(rig) == []
+
+
+@pytest.mark.parametrize("issued, blank", [("2026-10-24", False), ("2026-10-24T02:00", False),
+                                           ("2026-10-24T02:00:00", False), ("2026-10-24T02:00:00-04:00", True)],
+                         ids=["date_only", "no_seconds", "no_offset", "blank_line"])
+def test_a_token_must_be_exactly_four_lines_with_a_full_iso_timestamp(rig, issued, blank):
+    """A6b."""
+    text = f"head={rig['head']}\nmanifest_sha256={pins_sha(rig)}\nissued={issued}\n" + ("\n" if blank else "") + "by=planner\n"
+    (rig["exp"] / "depth_canon_GO.token").write_text(text)
+    rc, _ = run(rig, max_polls=2)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_TOKEN"
+
+
+def test_a_dirty_pinned_path_waits_for_a_clean_tree(rig):
+    """A6d: a dirty pinned file is WAITING_TOKEN (the launcher would refuse it), never a fired
+    launch that fails terminally."""
+    (rig["repo"] / "train.py").write_text("print('pinned')\n")
+    _git(rig["repo"], "add", "-A")
+    _git(rig["repo"], "commit", "-q", "-m", "a pinned file")
+    rig["head"] = _git(rig["repo"], "rev-parse", "HEAD")
+    token(rig)
+    (rig["repo"] / "train.py").write_text("print('edited')\n")
+    rc, _ = run(rig, max_polls=3)
+    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_TOKEN"
+    assert "dirty" in state(rig)["reason"] and "train.py" in state(rig)["reason"]
+
+
+def test_the_log_is_complete_when_the_watcher_exits(rig):
+    """A6f: the outer tee is drained before exit (the last state line and FULL's output are in
+    the log the moment the watcher returns)."""
+    token(rig)
+    launches(rig, ["SMOKE 0 smoke ok", "FULL 0 full ok " + "x" * 2000])
+    rc, _ = run(rig)
+    text = open(os.path.join(rig["repo"], state(rig)["log"])).read()
+    assert rc == 0 and "full ok" in text and text.rstrip().endswith("phase DONE: SMOKE and FULL both exited 0")
