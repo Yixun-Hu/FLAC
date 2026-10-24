@@ -366,11 +366,12 @@ else
     GPU_OUT="$(nvidia-smi "$@" 2>/dev/null)" || rc=$?
     [ "$rc" -eq 0 ] || gpu_refuse "GPU GATE FAILED: nvidia-smi $* exited ${rc} (stdout '${GPU_OUT//$'\n'/|}') - refusing to launch blind"
   }
+  declare -A FREE_OF=()
   for G in 0 1; do
     gpu_query -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits
     [[ "$GPU_OUT" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] || gpu_refuse \
       "GPU GATE FAILED: the free memory of GPU ${G} is not exactly one number ('${GPU_OUT//$'\n'/|}') - refusing to launch blind"
-    FREE="${BASH_REMATCH[1]}"
+    FREE="${BASH_REMATCH[1]}"; FREE_OF[$G]="$FREE"
     [ "$FREE" -ge "$MIN_GPU_FREE_MIB" ] || gpu_refuse \
       "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"
   done
@@ -390,7 +391,7 @@ else
     [ -n "${UUID_OF[$G]:-}" ] || gpu_refuse "GPU GATE FAILED: no uuid for GPU ${G} - refusing to launch blind"
   done
   gpu_query --query-compute-apps=pid,gpu_uuid --format=csv,noheader
-  BUSY=""
+  BUSY=""; OTHER=""
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$ ]] || gpu_refuse \
@@ -398,8 +399,9 @@ else
     APID="${BASH_REMATCH[1]}"; AUUID="${BASH_REMATCH[2]}"
     [ -n "${IDX_OF[$AUUID]:-}" ] || gpu_refuse \
       "GPU GATE FAILED: compute process ${APID} is on an unknown uuid ${AUUID} - refusing to launch blind"
-    case "${IDX_OF[$AUUID]}" in 0|1)
-      BUSY="${BUSY}  pid ${APID} on ${AUUID} (cwd $(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?'))"$'\n' ;;
+    case "${IDX_OF[$AUUID]}" in
+      0|1) BUSY="${BUSY}  pid ${APID} on ${AUUID} (cwd $(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?'))"$'\n' ;;
+      *) OTHER="${OTHER}  pid ${APID} on GPU ${IDX_OF[$AUUID]} (${AUUID})"$'\n' ;;
     esac
   done <<<"$GPU_OUT"
   if [ -n "$BUSY" ]; then
@@ -407,9 +409,12 @@ else
     gpu_refuse "$(printf '%s' "$BUSY")"
   fi
   echo "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1"
-  echo "--- co-tenancy disclosure: compute apps at launch ---"
-  nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
-  nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
+  # rB-F2 F2-2 (Codex A2 HIGH 2): no further, best-effort nvidia-smi query -- the disclosure is the
+  # strict gate's own validated answers
+  echo "--- co-tenancy disclosure at launch (the validated gate answers above) ---"
+  for G in 0 1; do echo "GPU ${G} ${UUID_OF[$G]}: ${FREE_OF[$G]} MiB free, no compute process"; done
+  if [ -n "$OTHER" ]; then echo "compute processes on other cards:"; printf '%s' "$OTHER"
+  else echo "compute processes on other cards: none"; fi
 fi
 
 # --- W&B identity (exp_17 gate; not under DRY_RUN, not in harness mode) --------- #
