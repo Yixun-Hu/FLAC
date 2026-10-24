@@ -187,3 +187,46 @@ def test_j_an_unusable_nvidia_smi_is_dirty_and_never_fires(rig, scenario):
     gpu(rig, [scenario])
     rc, _ = run(rig, max_polls=5)
     assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
+
+
+# --------------------------------------------------------------------------- #
+# preconditions (exit 2)
+# --------------------------------------------------------------------------- #
+def test_l_a_second_instance_is_refused(rig):
+    token(rig)
+    lock = open(rig["exp"] / ".depth_canon_autolaunch.lock", "w")
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        rc, out = run(rig, max_polls=2)
+    finally:
+        lock.close()
+    assert rc == 2 and "lock" in out and calls(rig) == []
+
+
+@pytest.mark.parametrize("env, needle", [
+    ({"AUTOLAUNCH_LAUNCHER": "/tmp/x.sh"}, "AUTOLAUNCH_LAUNCHER"),
+    ({"AUTOLAUNCH_POLL_S": "0"}, "AUTOLAUNCH_POLL_S"),
+    ({"GO_TOKEN": "/tmp/t"}, "GO_TOKEN")])
+def test_m_overrides_without_the_harness_are_refused(rig, env, needle):
+    rc, out = run(rig, env=env, harness=False, timeout=20)
+    assert rc == 2 and needle in out and calls(rig) == []
+
+
+def test_m2_a_harness_launcher_outside_tmp_is_refused(rig):
+    rc, out = run(rig, env={"AUTOLAUNCH_LAUNCHER": os.path.join(REPO, "train.py")})
+    assert rc == 2 and "AUTOLAUNCH_LAUNCHER" in out
+
+
+def test_n_a_non_flac_python_first_on_path_is_refused(rig, tmp_path):
+    other = tmp_path / "otherpy"
+    other.mkdir()
+    (other / "python").write_text("#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(other / "python", 0o755)
+    rc, out = run(rig, path_prefix=f"{other}:{FLAC_BIN}")
+    assert rc == 2 and "flac" in out and calls(rig) == []
+
+
+def test_the_production_launcher_must_exist(rig):
+    (rig["exp"] / "depth_canon_launch.sh").unlink()
+    rc, out = run(rig, harness=False, timeout=20)
+    assert rc == 2 and "launcher" in out
