@@ -12,7 +12,8 @@
 #               MANIFEST.sha256; CANON: the launcher's checkpoint manifest); hashed once.
 #   farm link   <farm>/<ARM>/<checkpoint basename> -> the checkpoint (a stale entry aborts).
 #   predicate   (cycle 4b) SKIP only a complete-and-verified cell; QUARANTINE the rest.
-#   run         (cycle 4c) one lane per GPU, gated on free memory; never kills anything.
+#   run         one lane per GPU: >= 10 GiB free AND no compute process on the card (uuid-mapped,
+#               fail-closed queries, re-checked right before the spawn); never signals anything.
 #
 # Usage:  EXPECT_HEAD=<40-hex pin> bash depth_canon_eval_run.sh [--blocks B,..]
 #           [--only CELL,..] [--limit N] [--no-dump-blocks B,..] [--dump-root DIR]
@@ -20,6 +21,8 @@
 #   DRY_RUN=1  every gate except the side-effecting / GPU ones: no link, no mkdir, no
 #              quarantine, no evaluation; prints each cell's exact argv.
 #   GPU_POLL_SECONDS (default 600), GPU_MAX_POLLS (default 0 = wait for ever).
+#   ALLOW_SHARED_GPU=1  Yixun's explicit opt-in (decision A6): a card holding foreign compute
+#              processes may be used; the memory floor and the query-integrity checks stay.
 #   DEPTH_CANON_EVAL_HARNESS=<dir under /tmp holding a .depth_canon_eval_harness marker>:
 #              test mode only -- DEPTH_CANON_EVAL_PY (stub evaluator) and DEPTH_CANON_CELLS
 #              are honoured, and the farm / logs / lock move into that dir.
@@ -63,6 +66,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$DRY_RUN" in 0|1) ;; *) die "DRY_RUN must be 0 or 1 (got '${DRY_RUN}') - abort" ;; esac
+ALLOW_SHARED_GPU="${ALLOW_SHARED_GPU:-0}"
+case "$ALLOW_SHARED_GPU" in 0|1) ;; *) die "ALLOW_SHARED_GPU must be 0 or 1 (got '${ALLOW_SHARED_GPU}') - abort" ;; esac
 [[ "$LANES_CSV" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "--lanes must be a comma list of GPU indices (got '${LANES_CSV}') - abort"
 IFS=, read -r -a LANES <<<"$LANES_CSV"
 [ "$(printf '%s\n' "${LANES[@]}" | sort -u | wc -l)" -eq "${#LANES[@]}" ] || die "--lanes repeats a GPU - abort"
@@ -257,22 +262,66 @@ reap() {   # collect every finished job; never waits on a running one, never sig
     unset "LANE_PID[${PID_LANE[$pid]}]" "PID_CELL[$pid]" "PID_LANE[$pid]"
   done
 }
-pick_lane() {   # LANE = the next idle lane (round-robin) whose card has >= MIN free MiB
-  local k lane free; LANE=""
+RE_MAP='^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$'
+RE_APP='^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+),[[:space:]]*([^,]*),[[:space:]]*([0-9]+|\[N/A\])$'
+lane_state() {   # <gpu>: 0 usable | 1 not now (LANE_WHY) | 2 a query failed / is malformed (fail closed)
+  local lane="$1" out rc line want pid uuid occ="" free
+  local -A byidx=() byuuid=()
+  out="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] && [ -n "$out" ] || { LANE_WHY="nvidia-smi --query-gpu=index,uuid failed (rc ${rc})"; return 2; }
+  while IFS= read -r line; do
+    [[ "$line" =~ $RE_MAP ]] || { LANE_WHY="malformed index,uuid row '${line}'"; return 2; }
+    [ -z "${byidx[${BASH_REMATCH[1]}]:-}" ] && [ -z "${byuuid[${BASH_REMATCH[2]}]:-}" ] \
+      || { LANE_WHY="duplicate index or uuid in the nvidia-smi map ('${line}')"; return 2; }
+    byidx[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"; byuuid[${BASH_REMATCH[2]}]="${BASH_REMATCH[1]}"
+  done <<<"$out"
+  want="${byidx[$lane]:-}"
+  [ -n "$want" ] || { LANE_WHY="GPU ${lane} has no uuid in the nvidia-smi index map"; return 2; }
+  out="$(nvidia-smi --query-compute-apps=pid,gpu_uuid,process_name,used_memory --format=csv,noheader,nounits 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || { LANE_WHY="nvidia-smi --query-compute-apps failed (rc ${rc})"; return 2; }
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ "$line" =~ $RE_APP ]] || { LANE_WHY="malformed compute-app row '${line}'"; return 2; }
+    pid="${BASH_REMATCH[1]}"; uuid="${BASH_REMATCH[2]}"
+    [ -n "${byuuid[$uuid]:-}" ] || { LANE_WHY="compute process ${pid} sits on an unknown uuid ${uuid}"; return 2; }
+    [ "$uuid" = "$want" ] && occ+=" pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]} MiB, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?'))"
+  done <<<"$out"
+  out="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$lane" 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] \
+    || { LANE_WHY="nvidia-smi memory.free of GPU ${lane} failed or is not one number (rc ${rc}: '${out//$'\n'/|}')"; return 2; }
+  free="${BASH_REMATCH[1]}"
+  [ "$free" -ge "$MIN_GPU_FREE_MIB" ] || { LANE_WHY="${free} MiB free < ${MIN_GPU_FREE_MIB} MiB"; return 1; }
+  LANE_WHY=""
+  if [ -n "$occ" ]; then
+    [ "$ALLOW_SHARED_GPU" = 1 ] || { LANE_WHY="occupied by foreign compute process(es):${occ}"; return 1; }
+    LANE_WHY="shared with${occ} (ALLOW_SHARED_GPU=1)"
+  fi
+  return 0
+}
+pick_lane() {   # LANE = the next idle lane (round-robin) lane_state accepts; a failed query aborts
+  local k lane st; LANE=""
   for ((k = 0; k < ${#LANES[@]}; k++)); do
     lane="${LANES[$(( (NEXT + k) % ${#LANES[@]} ))]}"
     [ -z "${LANE_PID[$lane]:-}" ] || continue
-    free="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$lane" 2>/dev/null | head -n1 | tr -d ' ')"
-    [[ "$free" =~ ^[0-9]+$ ]] || { ABORT="GPU GATE FAILED: nvidia-smi cannot report GPU ${lane}"; return 1; }
-    if [ "$free" -ge "$MIN_GPU_FREE_MIB" ]; then
+    lane_state "$lane"; st=$?
+    [ "$st" -eq 2 ] && { ABORT="GPU GATE FAILED: ${LANE_WHY}"; return 1; }
+    if [ "$st" -eq 0 ]; then
+      [ -z "$LANE_WHY" ] || echo "  GPU ${lane}: ${LANE_WHY}"
       LANE="$lane"; NEXT=$(( (NEXT + k + 1) % ${#LANES[@]} )); return 0
     fi
     if [ "${GPU_NOTE[$lane]:-}" != "${READY}#${POLLS}" ]; then   # once per waiting cell / poll
-      echo "  GPU ${lane}: ${free} MiB free < ${MIN_GPU_FREE_MIB} MiB - waiting (nothing is ever killed)"
+      echo "  GPU ${lane}: ${LANE_WHY} - waiting (nothing is ever signalled)"
       GPU_NOTE[$lane]="${READY}#${POLLS}"
     fi
   done
   return 1
+}
+gpu_wait() {   # one counted poll of the GPU gate; sets ABORT when the budget is spent
+  POLLS=$((POLLS + 1))
+  if [ "$GPU_MAX_POLLS" -gt 0 ] && [ "$POLLS" -ge "$GPU_MAX_POLLS" ]; then
+    ABORT="GPU GATE: no usable lane (>= ${MIN_GPU_FREE_MIB} MiB free, unoccupied) after ${POLLS} poll(s)"; return
+  fi
+  sleep "$GPU_POLL_SECONDS"
 }
 while :; do
   reap
@@ -287,14 +336,16 @@ while :; do
   if ! pick_lane; then
     [ -n "$ABORT" ] && continue
     if [ "${#PID_CELL[@]}" -gt 0 ]; then sleep 10; continue; fi   # a lane is busy: re-check soon
-    POLLS=$((POLLS + 1))
-    if [ "$GPU_MAX_POLLS" -gt 0 ] && [ "$POLLS" -ge "$GPU_MAX_POLLS" ]; then
-      ABORT="GPU GATE: no idle lane with >= ${MIN_GPU_FREE_MIB} MiB free after ${POLLS} poll(s)"; continue
-    fi
-    sleep "$GPU_POLL_SECONDS"; continue
+    gpu_wait; continue
   fi
   POLLS=0
   [ "$(git rev-parse HEAD)" = "$EXPECT_HEAD" ] || { ABORT="HEAD PIN FAILED: HEAD moved during the campaign"; continue; }
+  lane_state "$LANE"; st=$?                  # re-checked immediately before the spawn (Codex rB HIGH)
+  if [ "$st" -ne 0 ]; then
+    [ "$st" -eq 2 ] && { ABORT="GPU GATE FAILED: ${LANE_WHY}"; continue; }
+    echo "  GPU ${LANE}: changed at the re-check before the spawn (${LANE_WHY}) - not spawned"
+    gpu_wait; continue
+  fi
   echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
   run_cell "$LANE" "$READY" "$SHA" "${ARGV[@]}" &
   LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
