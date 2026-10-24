@@ -12,10 +12,13 @@ artifact is not the cell it claims to be ([] = valid). Comparisons are TYPE-stri
 
 Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9.
 """
+import glob
 import json
 import math
 import os
+import re
 import sys
+from typing import NamedTuple
 
 
 def _repo_root(p):
@@ -352,3 +355,161 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
         if _file_digest(os.path.join(REPO, row[key])) != row[key + "_sha256"]:
             reasons.append(f"{row[key]} no longer hashes to the manifest's {key}_sha256")
     return reasons
+
+
+class CellPaths(NamedTuple):
+    link: str
+    metrics: str
+    stream: str
+    canon: str      # where a canon sidecar WOULD be (it must exist iff the cell canonicalizes)
+    receipt: str
+    dump_dir: str
+    stem: str
+
+
+def cell_paths(row, link, dump_root):
+    """Every path of one cell, derived exactly as eval_FLAC derives them from ``link``."""
+    m = eval_FLAC.build_output_paths(
+        link, 1, 1.0, row["cell"], cond_method="vanilla", rotate_deg=float(row["rotate_deg"] or 0),
+        n_angles=4, rotate_mode=row["rotate_mode"], rotate_seed=row["rotate_seed"], are_lambda=None,
+        canonicalize=row["canonicalize"], canon_mismatch=row["canon_mismatch"])["metrics"]
+    return CellPaths(link, m, eval_FLAC.stream_sidecar_path(m), eval_FLAC.canon_sidecar_path(m),
+                     m[:-len(".json")] + ".cell.json", eval_FLAC.scored_waveform_dir(dump_root, m),
+                     os.path.basename(m)[:-len(".json")])
+
+
+def expected_checkpoint(row, manifest, canon_index):
+    """``(target path, sha256)`` the cell must have been evaluated on."""
+    ck = manifest["arms"][row["arm"]]["ckpt"]
+    if ck["kind"] == "endpoint":
+        return ck["path"], ck["sha256"]
+    if not canon_index or row["step"] not in canon_index:
+        raise KeyError(f"no CANON checkpoint index entry for step {row['step']} (the launcher's "
+                       "depth_canon_*_exp25_CANON_checkpoints.sha256 is required for CANON cells)")
+    return canon_index[row["step"]]
+
+
+def load_canon_index(path, run_ns):
+    """``{step: (path, sha256)}`` from the launcher's FULL checkpoint manifest (``sha256sum``
+    lines). Every line must be one checkpoint of the CANON run namespace; any other line,
+    a malformed digest or a duplicate step is a ``ValueError`` (fail-closed)."""
+    pat = re.compile(re.escape(run_ns.rstrip("/")) + r"/checkpoints/epoch=\d+-step=(\d+)\.ckpt")
+    index = {}
+    with open(path) as f:
+        for line in f.read().splitlines():
+            sha, sep, ckpt = line.partition("  ")
+            m = pat.fullmatch(ckpt) if sep and eval_FLAC._is_sha256_hex(sha) else None
+            if m is None:
+                raise ValueError(f"{path}: {line!r} is not a checkpoint of the CANON run {run_ns}")
+            if int(m.group(1)) in index:
+                raise ValueError(f"{path}: duplicate step {m.group(1)}")
+            index[int(m.group(1))] = (ckpt, sha)
+    return index
+
+
+def find_canon_manifest(expdir=EXPDIR):
+    """The ONE launcher checkpoint manifest in the experiment folder, else ``FileNotFoundError``."""
+    hits = sorted(glob.glob(os.path.join(expdir, "depth_canon_*_exp25_CANON_checkpoints.sha256")))
+    if len(hits) != 1:
+        raise FileNotFoundError(f"expected exactly one depth_canon_*_exp25_CANON_checkpoints.sha256 in "
+                                f"{expdir}, found {len(hits)}: pass --canon-ckpt-manifest")
+    return hits[0]
+
+
+def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, base_dir=REPO,
+                dump_check="full", expect_dump=True, check_link=True):
+    """Named reasons the cell ``stem`` is not complete-and-verified ([] = the driver may skip
+    it, the generator may publish it). Checks the metrics record, stream and canon sidecars,
+    the driver's receipt, the dump (``dump_check`` 'full' = ``is_complete`` once, or
+    'manifest'), and -- ``check_link`` -- that the farm link still points at the checkpoint.
+    Relative artifact paths resolve against ``base_dir`` (the evaluator's cwd)."""
+    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
+        return [f"pin {pin!r} is not a full 40-hex commit"]
+    ckpt_name, _, suffix = stem.partition("_metrics_")
+    rows = [c for c in manifest["cells"] if c["metrics_suffix"] == suffix]
+    if len(rows) != 1 or not ckpt_name:
+        return [f"{stem!r} names no registered cell of the manifest ({len(rows)} suffix matches)"]
+    row = rows[0]
+    try:
+        target, sha = expected_checkpoint(row, manifest, canon_index)
+    except KeyError as err:
+        return [str(err).strip("'\"")]
+    if os.path.basename(target) != ckpt_name + ".ckpt":
+        return [f"{stem!r}: checkpoint {ckpt_name!r} is not this cell's {os.path.basename(target)!r}"]
+    link = os.path.join(farm_root, row["arm"], os.path.basename(target))
+    paths = cell_paths(row, link, dump_root)
+    at = lambda p: os.path.join(base_dir, p)  # noqa: E731 -- an absolute p stays absolute
+    docs, reasons = {}, []
+    wanted = [("metrics", paths.metrics), ("stream", paths.stream), ("receipt", paths.receipt)]
+    for key, path in wanted + ([("canon", paths.canon)] if row["canonicalize"] else []):
+        try:
+            with open(at(path)) as f:
+                docs[key] = json.load(f)
+        except (OSError, ValueError) as err:
+            reasons.append(f"missing or unreadable {key} artifact {path} ({type(err).__name__})")
+    if reasons:
+        return reasons
+    if not row["canonicalize"] and os.path.lexists(at(paths.canon)):
+        reasons.append(f"unexpected canon sidecar {paths.canon} for a cell without canonicalization")
+    reasons += record_reasons(docs["metrics"], row, pin=pin, link=link)
+    reasons += stream_reasons(docs["stream"], row, docs["metrics"])
+    if row["canonicalize"]:
+        reasons += canon_reasons(docs["canon"], row, docs["stream"], docs["metrics"])
+    reasons += receipt_reasons(docs["receipt"], row, stem=stem, link=link, target=target,
+                               ckpt_sha256=sha, dump=expect_dump, dump_root=dump_root, pin=pin)
+    if expect_dump:
+        canon = paths.canon if row["canonicalize"] else None
+        expect = {"ckpt_path": link, "metrics_path": paths.metrics, "metrics_file": at(paths.metrics),
+                  "stream_sidecar_path": paths.stream, "stream_file": at(paths.stream),
+                  "canon_sidecar_path": canon, "canon_file": at(canon) if canon else None}
+        reasons += dump_reasons(at(paths.dump_dir), row, stem=stem, stream=docs["stream"],
+                                expect=expect, pin=pin, mode=dump_check)
+    elif os.path.lexists(at(paths.dump_dir)) or staging_leftovers(at(paths.dump_dir)):
+        reasons.append(f"a dump exists at {paths.dump_dir} for a cell run without one")
+    if check_link:
+        here = at(link)
+        if not os.path.islink(here):
+            reasons.append(f"farm link {link} is not a symlink")
+        elif os.path.realpath(here) != os.path.realpath(target):
+            reasons.append(f"farm link {link} -> {os.path.realpath(here)}, not {target}")
+    return reasons
+
+
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--verify-cell", metavar="STEM", help="verify ONE cell; exit 0 valid / 1 invalid")
+    ap.add_argument("--pin", help="the campaign evaluator pin (40-hex)")
+    ap.add_argument("--cells", default=CELLS_JSON)
+    ap.add_argument("--farm-root", default=None, help="as passed to the evaluator (default: manifest)")
+    ap.add_argument("--dump-root", default=None, help="the dump ROOT (default: manifest)")
+    ap.add_argument("--base-dir", default=REPO, help="the evaluator's cwd (default: the repo root)")
+    ap.add_argument("--canon-ckpt-manifest", default=None)
+    ap.add_argument("--dump-check", choices=("full", "manifest"), default="full")
+    ap.add_argument("--no-dump", action="store_true", help="the cell was run without a dump")
+    ap.add_argument("--no-link-check", action="store_true")
+    args = ap.parse_args(argv)
+    manifest = load_cells(args.cells)
+    farm = args.farm_root or manifest["farm_root"]
+    dump_root = args.dump_root or manifest["dump_root"]
+    if args.verify_cell:
+        suffix = args.verify_cell.partition("_metrics_")[2]
+        arms = {c["arm"] for c in manifest["cells"] if c["metrics_suffix"] == suffix}
+        index = None
+        if arms == {"CANON"}:   # only CANON-checkpoint cells need the launcher's manifest
+            index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                     manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+        reasons = verify_cell(args.verify_cell, manifest=manifest, farm_root=farm, dump_root=dump_root,
+                              pin=args.pin, canon_index=index, base_dir=args.base_dir,
+                              dump_check=args.dump_check, expect_dump=not args.no_dump,
+                              check_link=not args.no_link_check)
+        print(("VALID " if not reasons else "INVALID ") + args.verify_cell)
+        for reason in reasons:
+            print("  - " + reason)
+        return 0 if not reasons else 1
+    ap.error("nothing to do: pass --verify-cell")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
