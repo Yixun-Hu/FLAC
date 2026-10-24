@@ -814,6 +814,7 @@ def _probe_prov(probe, ckpt_sha, pin):
     digest = C.model_config_digest(next(c for c in MANIFEST["cells"] if c["arm"] == "CANON"))
     return {"ckpt_path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000.ckpt",
             "ckpt_sha256": ckpt_sha or canon_index()[40000][1],
+            "ckpt_sha256_loaded": ckpt_sha or canon_index()[40000][1], "ckpt_bytes_loaded": CKPT_BYTES,  # rB-F3
             "model_config": os.path.join(REPO, canon["model_config"]),
             "model_config_file_sha256": canon["model_config_sha256"], "dataset_config": ds["dataset_config"],
             "dataset_config_sha256": ds["dataset_config_sha256"], "split_json": "data/AR/unseen_eval.json",
@@ -847,8 +848,15 @@ def test_control_key_mapping():
     assert [C.control_key(d) for d in (90, 180, 270, 45, None)] == ["d128", "d256", "d384", "d64", "random"]
 
 
-def _load(path):
-    return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST)
+def _endpoint_receipts(n=3, nbytes=CKPT_BYTES, sha=None):
+    """The two fields ``canon_endpoint_receipts`` hands the probe contract: the receipts of the
+    verified CANON@40k cells, each naming the endpoint's bytes and the length its evaluator loaded."""
+    return [{"ckpt_sha256_loaded": sha or canon_index()[40000][1], "ckpt_bytes_loaded": nbytes} for _ in range(n)]
+
+
+def _load(path, receipts=None):
+    return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST,
+                          canon_receipts=_endpoint_receipts() if receipts is None else receipts)
 
 
 def _relabel_eps(r, factor):
@@ -900,6 +908,19 @@ PROBE_EDITS = {
     "control_inconsistent": (dict(mutate=lambda r: r["control_p99"]["eval"].update(d64=0.5)), "control_p99"),
     "verdict_inconsistent": (dict(mutate=lambda r: r["verdict"].update(eps_cond=not r["verdict"]["eps_cond"])),
                              "verdict"),
+    # rB-F3 F3-2 (Codex rA3/rB3 HIGH): the digest + length of the bytes the probe deserialized
+    "loaded_digest_missing": (dict(mutate=lambda r: r["provenance"].pop("ckpt_sha256_loaded")), "ckpt_sha256_loaded"),
+    "loaded_digest_other": (dict(mutate=lambda r: r["provenance"].update(ckpt_sha256_loaded="2" * 64)),
+                            "ckpt_sha256_loaded"),
+    "loaded_digest_not_hex": (dict(mutate=lambda r: r["provenance"].update(ckpt_sha256_loaded="A" * 64)),
+                              "ckpt_sha256_loaded"),
+    "loaded_length_missing": (dict(mutate=lambda r: r["provenance"].pop("ckpt_bytes_loaded")), "ckpt_bytes_loaded"),
+    "loaded_length_float": (dict(mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=float(CKPT_BYTES))),
+                            "ckpt_bytes_loaded"),
+    "loaded_length_bool": (dict(mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=True)), "ckpt_bytes_loaded"),
+    "loaded_length_zero": (dict(mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=0)), "ckpt_bytes_loaded"),
+    "loaded_length_not_the_receipts": (dict(mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=CKPT_BYTES + 1)),
+                                       "ckpt_bytes_loaded"),
 }
 
 
@@ -931,6 +952,48 @@ def test_the_probe_contract_mirrors_the_probe():
         k: probe.REGISTERED[k] for k in ("n_items", "batch_size", "seed", "device")}
     assert P["protocols"] == probe.PROTOCOLS and tuple(P["offset_keys"]) == probe.OFFSET_KEYS
     assert P["eps_threshold"] == probe.EPS_COND_THRESHOLD and P["K"] == P["config_K"] == 8 and P["img_w"] == 512
+    assert P["ckpt_step"] == 40000                                     # rB-F3: the checkpoint it is bound to
+
+
+# ---- rB-F3 F3-2: the probe's loaded length is bound to the campaign's verified CANON@40k receipts ---- #
+RECEIPT_CASES = {   # (receipts, needle besides the field name)
+    "no_receipt": (lambda: [], "not verifiable"),
+    "receipts_disagree": (lambda: _endpoint_receipts(2) + _endpoint_receipts(1, nbytes=CKPT_BYTES + 1), "disagree"),
+    "receipt_length_not_int": (lambda: _endpoint_receipts(1, nbytes=float(CKPT_BYTES)), "not verifiable"),
+    "receipt_of_another_checkpoint": (lambda: _endpoint_receipts(2) + _endpoint_receipts(1, sha="3" * 64),
+                                      "ckpt_sha256_loaded"),
+    "length_not_the_receipts": (lambda: _endpoint_receipts(3, nbytes=CKPT_BYTES - 1), "expected 724000122"),
+}
+
+
+def test_a_probe_with_the_receipts_length_and_digest_is_the_control(tmp_path, monkeypatch):
+    for receipts in (_endpoint_receipts(1), _endpoint_receipts(12)):
+        control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts)
+        assert reasons == [] and control is not None and eps is not None
+
+
+@pytest.mark.parametrize("name", list(RECEIPT_CASES))
+def test_a_probe_length_the_receipts_do_not_hold_is_not_a_control(tmp_path, monkeypatch, name):
+    receipts, needle = RECEIPT_CASES[name]
+    control, reasons, eps = _load(write_probe(tmp_path, monkeypatch), receipts())
+    assert control is None and eps is None, name
+    assert any("ckpt_bytes_loaded" in x and needle in x for x in reasons), (name, reasons)
+
+
+def test_the_receipts_held_are_those_of_the_verified_canon_endpoint_cells(tmp_path):
+    write_campaign(tmp_path, ["T", "D-ii"])
+    traj = row("TRAJ", K=1, seed=42, deg=270, step=7500)
+    write_cell(tmp_path, traj)                                     # a verified CANON cell of ANOTHER step
+    cells = collect(tmp_path, ["T", "D-ii", "TRAJ"])
+    assert cells[traj["cell"]]["valid"] and all(cells[r["cell"]]["valid"] for r in C.select_cells(MANIFEST, ["D-ii"]))
+    want = [e["receipt"] for e in cells.values() if e["row"]["block"] == "T"]
+    assert len(want) == 10 and C.canon_endpoint_receipts(cells) == want
+    assert {r["ckpt_bytes_loaded"] for r in want} == {CKPT_BYTES}
+    bad = row("T", K=8, seed=43)
+    os.unlink(os.path.join(str(tmp_path), "dumps", C.cell_paths(
+        bad, os.path.join(FARM, "CANON", ckpt_base(bad) + ".ckpt"), "d").stem, "COMPLETE"))
+    cells = collect(tmp_path, ["T", "D-ii", "TRAJ"])
+    assert not cells[bad["cell"]]["valid"] and len(C.canon_endpoint_receipts(cells)) == 9   # verified only
 
 
 def _scaled(r, eps, item=None):
@@ -1357,3 +1420,26 @@ def test_the_pairing_result_states_what_the_input_hash_proves(tmp_path, monkeypa
     assert rc == 0 and "not in the hash preimage" in note and "execution protocol" in note
     assert res["pairing"]["context_replacement"]["unseen/K8"]["consistent"] is True
     assert "execution protocol" in md
+
+
+# ---- rB-F3 F3-2: the full collection binds the probe's loaded length to the campaign's receipts ---- #
+def test_a_probe_length_other_than_the_receipts_refuses_full_collection(tmp_path, monkeypatch, capsys):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path, monkeypatch, mutate=lambda r: r["provenance"].update(ckpt_bytes_loaded=CKPT_BYTES + 1))
+    write_audit(tmp_path, monkeypatch)
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    text = capsys.readouterr().out
+    assert rc == 3 and "ckpt_bytes_loaded" in text and not os.path.exists(out + ".json"), text
+
+
+def test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe(tmp_path, monkeypatch, capsys):
+    write_campaign(tmp_path, ["D-ii"])                              # P1 checkpoint cells only
+    write_probe(tmp_path, monkeypatch)
+    write_audit(tmp_path, monkeypatch)
+    rc, out = _collect_cli(tmp_path, blocks="D-ii")
+    text = capsys.readouterr().out
+    assert rc == 3 and "ckpt_bytes_loaded" in text and "not verifiable" in text, text
+    rc, out = _collect_cli(tmp_path, "--partial", blocks="D-ii")
+    res = json.load(open(out + ".json"))
+    assert rc == 0 and res["partial"] is True and res["eps_cond"]["verdict"].startswith("NOT COMPUTABLE")
+    assert any("not verifiable" in p for p in res["problems"])
