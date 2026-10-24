@@ -429,6 +429,8 @@ with open(os.path.join(H, "calls.log"), "a") as f:
     f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv}) + "\n")
 if os.environ.get("STUB_MODE") == "crash":
     sys.exit(3)
+if os.environ.get("STUB_CRASH_CELL") and os.environ["STUB_CRASH_CELL"] in argv:
+    sys.exit(3)                                    # only THIS cell's evaluator fails
 if os.environ.get("STUB_MODE") == "tamper_ckpt":   # the opened checkpoint's bytes change DURING the cell
     _ck = argv[argv.index("--ckpt-path") + 1]
     os.chmod(_ck, 0o644)
@@ -909,3 +911,17 @@ def test_bytes_changed_during_the_cell_fail_the_measured_digest(clone, harness):
     assert rc == 1 and "FAILED" in out, out
     e = _entry(clone, harness, TWO[0])
     assert not os.path.exists(e["receipt"])                 # the measured sha256 != the manifest's
+
+
+
+# ---- rB-F1 NIT d: a failed cell does not stop the campaign; the next one completes ---- #
+def test_a_failure_then_a_success_on_one_lane(clone, harness):
+    rc, out = drive(clone, harness, "--only", ",".join(TWO), "--lanes", "0",
+                    env={"STUB_CRASH_CELL": TWO[1]})
+    ran = _ran(harness)
+    assert ran == [TWO[1], TWO[0]], ran                                # manifest order: the failure first
+    assert rc == 1 and f"FAILED {TWO[1]}" in out and "ran ok 1 | failed 1" in out, out
+    assert not os.path.exists(_entry(clone, harness, TWO[1])["receipt"])
+    assert _verify(clone, harness, TWO[0]) == []                        # the second cell completed
+    rc, out = drive(clone, harness, "--only", ",".join(TWO), "--lanes", "0")
+    assert rc == 0 and out.count("SKIP (complete and verified)") == 1 and _ran(harness)[-1] == TWO[1], out
