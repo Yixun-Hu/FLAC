@@ -419,3 +419,41 @@ def test_the_script_runs_as_a_program():
     proc = subprocess.run([sys.executable, _AUDIT_PY, "--splits", "nope"], capture_output=True,
                           text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
     assert proc.returncode == 2 and "--splits must be distinct names" in proc.stderr
+
+
+# --------------------------------------------------------------------------- #
+# r3b-F1 fix 3 (Codex r3b HIGH 3): the audit's input contract is production's
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("make, needle", [
+    (lambda r: r.astype(np.float32), "float64"),
+    (lambda r: r[:, :256].copy(), "(256, 512)"),
+    (lambda r: np.concatenate([r, r[:2]], axis=0), "(256, 512)")],
+    ids=["float32", "narrow", "tall"])
+def test_a_map_off_the_registered_contract_is_an_error_never_a_pass(tmp_path, make, needle):
+    """Production refuses non-float64 depth (diffusion.py _check_canon_metadata); the audit
+    must not PASS a map training would reject: wrong dtype / shape -> row error -> rc 3."""
+    raw = make(_fixture("unique", [(40, 300)], None).numpy())
+    row, _ = _row(tmp_path, raw)
+    assert row["error"] and needle in row["error"] and row["tie_class"] is None, row["error"]
+    (tmp_path / "rep").mkdir()
+    rep, _ = _report(tmp_path / "rep", maps={PERIODIC_KEY: raw})
+    assert rep["gate"]["verdict"] == "INCOMPLETE" and rep["gate"]["exit_code"] == 3
+
+
+def test_the_cloud_contract_is_checked_too(tmp_path, monkeypatch):
+    key, entry, split = _one_map_tree(tmp_path, _fixture("u", [(40, 300)], None).numpy())
+    module = audit.load_metadata_module(split["custom_metadata_module_abs"])
+    real = module.get_custom_metadata
+    monkeypatch.setattr(module, "get_custom_metadata",
+                        lambda info, a: {**real(info, a), "depth": real(info, a)["depth"].float()})
+    row = audit.audit_map(key, entry, module, split["root_abs"])
+    assert row["error"] and "torch.float64" in row["error"]
+
+
+def test_the_split_config_must_load_depth(tmp_path):
+    import json
+    cfg = json.load(open(_PROD_TRAIN_CFG))
+    cfg["modalities"]["depth"]["load"] = False
+    (tmp_path / "c.json").write_text(json.dumps(cfg))
+    with pytest.raises(ValueError, match="depth modality"):
+        audit.read_split_config(str(tmp_path / "c.json"))

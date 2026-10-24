@@ -51,6 +51,25 @@ def _check_raw(raw):
         raise ValueError("raw depth contains non-finite values")
 
 
+RAW_SHAPE = (256, 512)       # AR_md's hard-coded panorama grid (r3b-F1 fix 3)
+CLOUD_SHAPE = (3,) + RAW_SHAPE
+
+
+def check_registered_contract(raw=None, cloud=None):
+    """The training path's input contract (Codex r3b HIGH 3): production refuses any depth
+    that is not the CPU float64 point cloud (``diffusion.py`` ``_check_canon_metadata``), so
+    the audit must not PASS a map it would reject. Raises ``ValueError`` (-> a row error)."""
+    import torch
+    if raw is not None and (raw.dtype != np.float64 or tuple(raw.shape) != RAW_SHAPE):
+        raise ValueError(f"raw map {raw.dtype} {tuple(raw.shape)} is not the registered float64 "
+                         f"{RAW_SHAPE} contract")
+    if cloud is not None and not (torch.is_tensor(cloud) and cloud.dtype == torch.float64
+                                  and cloud.device.type == "cpu" and tuple(cloud.shape) == CLOUD_SHAPE):
+        raise ValueError(f"AR_md cloud {getattr(cloud, 'dtype', type(cloud).__name__)} "
+                         f"{getattr(cloud, 'device', '')} {tuple(getattr(cloud, 'shape', ()))} is not the "
+                         f"training contract torch.float64 cpu {CLOUD_SHAPE}")
+
+
 def raw_candidates(raw):
     """Columns whose maximum equals the global maximum (exact equality), ascending."""
     _check_raw(raw)
@@ -152,6 +171,9 @@ def read_split_config(config_path):
     for key in ("path", "json_file_path", "custom_metadata_module", "folder_name"):
         if not isinstance(entry.get(key), str) or not entry[key]:
             raise ValueError(f"{config_path}: dataset entry lacks {key!r}")
+    if ((cfg.get("modalities") or {}).get("depth") or {}).get("load") is not True:
+        raise ValueError(f"{config_path}: the depth modality is not loaded (modalities.depth.load "
+                         "must be true, as in the registered configs)")
     module = _abs(entry["custom_metadata_module"])
     return {"dataset_config": config_path, "dataset_config_sha256": _sha256_file(_abs(config_path)),
             "json_file_path": entry["json_file_path"], "json_abs": _abs(entry["json_file_path"]),
@@ -224,9 +246,11 @@ def audit_map(key, entry, md_module, root_abs):
         row["sha256"] = hashlib.sha256(blob).hexdigest()
         raw = np.load(io.BytesIO(blob), allow_pickle=False)
         _check_raw(raw)
+        check_registered_contract(raw=raw)
         info = {"path": entry["rep"], "relpath": os.path.relpath(entry["rep"], root_abs),
                 "modalities": DEPTH_ONLY_MODALITIES}
         cloud = md_module.get_custom_metadata(info, None)["depth"]      # AR_md's own cloud
+        check_registered_contract(cloud=cloud)
         ref = md_module.convert_equirect_to_camera_coord(torch.from_numpy(raw), *raw.shape)
         if not torch.equal(cloud, ref.permute(2, 0, 1)):
             raise RuntimeError("the cloud AR_md built differs from the resolved file's content")
