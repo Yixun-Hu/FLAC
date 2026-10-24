@@ -23,7 +23,8 @@ set -euo pipefail
 
 SRC_REPO="$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)"
 EXPREL="worklog/worklog_yixun/exp_25_depth_canon_claude"
-OVERLAY=(depth_canon_launch.sh depth_canon_guardtests.sh depth_canon_make_pins.sh depth_canon_pins.sha256)
+OVERLAY=(depth_canon_launch.sh depth_canon_guardtests.sh depth_canon_make_pins.sh depth_canon_pins.sha256
+         depth_canon_audit_gate.py)
 H="$(mktemp -d "${TMPDIR:-/tmp}/depth_canon_guard.XXXXXX")"
 trap 'rm -rf "$H"' EXIT
 R="$H/repo"
@@ -56,47 +57,75 @@ make_clone() {   # a fresh clone of the source HEAD + the overlaid launcher file
   write_audit ok
 }
 
-write_audit() {   # write_audit <mode>: a synthetic tie audit of the clone (r3b-F1 fix 1), + sidecar
-  ( cd "$R" && "$REAL_PY" - "$EXPREL" "$1" <<'PY'
-import hashlib, json, sys
-exp, mode = sys.argv[1:3]
-sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
-ar = "src/configs/dataset_configs/custom_metadata/AR_md.py"
-splits = {"train": ("src/configs/dataset_configs/AR/train/acousticroom_train.json", 291210),
-          "unseen": ("src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json", 6337),
-          "seen": ("src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json", 6217)}
-inputs = []
-for name, (cfg, n) in splits.items():
-    j = json.load(open(cfg))["datasets"][0]["json_file_path"]
-    inputs.append({"dataset_config": cfg, "dataset_config_sha256": sha(cfg), "json_file_path": j,
-                   "json_sha256": sha(j), "custom_metadata_module": ar,
-                   "custom_metadata_module_sha256": sha(ar), "split": name, "n_items": n})
-n_maps = 48 if mode == "subset" else 9650
-rep = {"schema_version": 1,
-       "tool": {"script_sha256": "0" * 64 if mode == "script" else sha(f"{exp}/depth_canon_tie_audit.py"),
-                "code_sha256": {"src/data/yaw_rotation.py": sha("src/data/yaw_rotation.py"),
-                                "src/data/dataset.py": sha("src/data/dataset.py"), "custom_metadata_module": sha(ar)}},
-       "inputs": inputs,
-       "coverage": {"splits": ["train", "unseen", "seen"], "limit": 48 if mode == "subset" else None,
-                    "subset": mode == "subset", "n_maps_union": 9650, "n_maps_audited": n_maps,
-                    "complete": mode != "subset"},
-       "gate": {"verdict": {"subset": "REFUSED_SUBSET", "survivor": "FAIL", "error": "INCOMPLETE"}.get(mode, "PASS"),
-                "exit_code": {"subset": 4, "survivor": 1, "error": 3}.get(mode, 0),
-                "n_survivors": int(mode == "survivor"), "n_errors": int(mode == "error")},
-       "survivors": [{"path": "m0"}] if mode == "survivor" else [],
-       "errors": [{"path": "m1", "error": "x"}] if mode == "error" else [],
-       "rows": [{"path": f"m{i}", "error": "x" if (mode == "error" and i == 1) else None,
-                 "survivor": mode == "survivor" and i == 0} for i in range(n_maps)]}
-if mode == "stale":
-    rep["inputs"][1]["json_sha256"] = "0" * 64
+write_audit() {   # write_audit <mode>: a REAL tie audit (the clone's audit script) of a tiny synthetic tree in
+                  # $H/audit_tree, harness-tagged, + sidecar + the harness contract; the audit report is a
+                  # PINNED file (rA A1 i), so the manifest is regenerated and the clone committed
+  ( cd "$R" && "$REAL_PY" - "$EXPREL" "$1" "$H" <<'PY'
+import importlib.util, json, os, shutil, sys
+import numpy as np
+exp, mode, h = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location("guard_tie_audit", os.path.join(exp, "depth_canon_tie_audit.py"))
+audit = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = audit
+spec.loader.exec_module(audit)
+tree = os.path.join(h, "audit_tree")
+shutil.rmtree(tree, ignore_errors=True)
+os.makedirs(tree)
+root, ar_md = os.path.join(tree, "AcousticRooms"), os.path.abspath("src/configs/dataset_configs/custom_metadata/AR_md.py")
+template = json.load(open("src/configs/dataset_configs/AR/train/acousticroom_train.json"))
+SPLITS = {"train": {"Cafe": {"Cafe_idx_0": ["S001_R001_hybrid_IR.wav", "S002_R001_hybrid_IR.wav", "S001_R002_hybrid_IR.wav"]}},
+          "unseen": {"Office": {"Office_idx_2": ["S001_R005_hybrid_IR.wav", "S002_R006_hybrid_IR.wav"]}},
+          "seen": {"Cafe": {"Cafe_idx_0": ["S003_R001_hybrid_IR.wav"]}, "Office": {"Office_idx_2": ["S003_R005_hybrid_IR.wav"]}}}
+cfgs = {}
+for name, split in SPLITS.items():
+    jp, cp = os.path.join(tree, f"{name}.json"), os.path.join(tree, f"{name}_cfg.json")
+    json.dump(split, open(jp, "w"))
+    cfg = json.loads(json.dumps(template))
+    cfg["datasets"][0].update(path=root, json_file_path=jp, custom_metadata_module=ar_md)
+    json.dump(cfg, open(cp, "w"), indent=4)
+    cfgs[name] = cp
+sp = {n: audit.read_split_config(cfgs[n]) for n in SPLITS}
+maps, ledger = audit.collect_maps(sp)
+rng = np.random.default_rng(3)
+for k, key in enumerate(sorted(maps)):
+    os.makedirs(os.path.dirname(maps[key]["path"]), exist_ok=True)
+    d = 0.5 + 7.0 * rng.random((256, 512))
+    if mode == "survivor" and k == 0:
+        d = np.tile(d[:, :128], (1, 4))                       # exactly periodic -> an image-key survivor
+    if mode == "error" and k == 1:
+        d[0, 0] = np.inf                                      # an unprocessed map
+    np.save(maps[key]["path"], d)
+limit = 2 if mode == "limit" else None
+rows = audit.run_rows(maps, ar_md, root, 1, limit)
+rep = audit.build_report(rows, ledger, list(SPLITS), len(maps), limit, ar_md)
+rep["harness"] = True                                         # the guard's reports are never production
+if mode == "script":
+    rep["tool"]["script_sha256"] = "0" * 64
 if mode == "counts":
-    rep["inputs"][2]["n_items"] = 6216
-text = json.dumps(rep) + "\n"
-open(f"{exp}/depth_canon_tie_audit.json", "w").write(text)
-digest = "0" * 64 if mode == "tamper" else hashlib.sha256(text.encode()).hexdigest()
-open(f"{exp}/depth_canon_tie_audit.json.sha256", "w").write(f"{digest}  depth_canon_tie_audit.json\n")
+    rep["inputs"][2]["n_items"] -= 1
+if mode == "dup":
+    rep["rows"].insert(1, dict(rep["rows"][0]))
+if mode == "arbitrary":
+    rep["rows"][0]["path"] = "m0"
+if mode == "untagged":
+    del rep["harness"]
+out = os.path.join(exp, "depth_canon_tie_audit.json")
+audit.write_report(rep, out)                                  # the audit's own writer: sidecar recomputed
+if mode == "tamper":
+    open(out + ".sha256", "w").write("0" * 64 + "  depth_canon_tie_audit.json\n")
+if mode == "stale":                                           # a split JSON changed after the audit
+    json.dump(dict(SPLITS["unseen"], Extra={"Extra_idx_0": ["S001_R001_hybrid_IR.wav"]}), open(sp["unseen"]["json_abs"], "w"))
+if mode == "map_byte":                                        # a depth map changed after the audit
+    p = maps[sorted(maps)[0]]["path"]
+    d = np.load(p)
+    d[0, 0] += 1e-9
+    np.save(p, d)
+json.dump({"splits": {n: {"dataset_config": cfgs[n], "n_items": led["n_items"]} for n, led in zip(SPLITS, ledger)},
+           "n_maps": len(maps), "custom_metadata_module": ar_md}, open(os.path.join(h, "audit_contract.json"), "w"))
 PY
-  )
+  ) || return 1
+  ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null )
+  commit_clone "guard: tie audit ($1)"
 }
 
 commit_clone() {   # everything the throwaway clone holds (ignored files stay ignored)
@@ -219,7 +248,8 @@ expect "P1b the list covers the training path" bash -c '
            weights/FLAC/VAE.safetensors worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json \
            '"$EXPREL"'/FLAC_AR_CANON.json worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py \
            worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BV.json \
-           worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json; do
+           worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json \
+           '"$EXPREL"'/depth_canon_tie_audit.json '"$EXPREL"'/depth_canon_tie_audit.json.sha256; do
     grep -qxF "$p" <<<"$1" || { echo "missing $p"; exit 1; }; done
   ! grep -q "^src/tests/" <<<"$1"' _ "$LIST"
 M1="$(cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh")"
@@ -310,7 +340,7 @@ case_rc "M5 another VAE behind the (gitignored) weights link" 2 "PIN MANIFEST FA
 rm "$R/weights"; ln -s "$SRC_REPO/weights" "$R/weights"
 printf '\n# guard edit\n' >> "$R/src/data/utils.py"
 ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null ); commit_clone "guard: new pin commit"
-case_rc "M6 a committed change with its regenerated manifest is a new valid pin" 0 "pin manifest OK: 46 files" MODE=SMOKE DRY_RUN=1
+case_rc "M6 a committed change with its regenerated manifest is a new valid pin" 0 "pin manifest OK: 48 files" MODE=SMOKE DRY_RUN=1
 printf '\n' >> "$R/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"
 case_rc "M7 an edit to a config the DINOv3 gate opens (FLAC_AR_BF.json) is caught" 2 "PIN MANIFEST FAILED: content" MODE=SMOKE DRY_RUN=1
 make_clone >/dev/null
@@ -360,19 +390,26 @@ case_rc "C13 parse-equal but not byte-equal" 2 "not the control's bytes plus the
 make_clone >/dev/null
 case_rc "C14 the genuine arm passes"    0 "config contract OK" MODE=SMOKE DRY_RUN=1
 
-echo "--- T. SMOKE and FULL need the complete PASSING tie audit (r3b-F1 fix 1; plan §7 rung 3) ---"
-rm -f "$R/$EXPREL/depth_canon_tie_audit.json" "$R/$EXPREL/depth_canon_tie_audit.json.sha256"
+echo "--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---"
 AUDIT_NEED="TIE AUDIT GATE FAILED"
-case_rc "T1 no tie audit"                         2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
-case_rc "T1b SMOKE refuses without it too"        2 "$AUDIT_NEED" MODE=SMOKE DRY_RUN=1
-write_audit subset;   case_rc "T2 a subset audit (--limit, REFUSED_SUBSET)" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
-write_audit stale;    case_rc "T3 a stale audit (a split JSON changed since)" 2 "split JSON" MODE=FULL DRY_RUN=1
-write_audit tamper;   case_rc "T4 a tampered audit (sidecar mismatch)" 2 "sha256 sidecar" MODE=FULL DRY_RUN=1
-write_audit survivor; case_rc "T5 an audit holding a survivor" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
-write_audit error;    case_rc "T6 an audit holding an error" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
-write_audit script;   case_rc "T7 an audit by another audit script" 2 "audit script" MODE=FULL DRY_RUN=1
-write_audit counts;   case_rc "T8 item counts that are not the registered ones" 2 "6216 items" MODE=FULL DRY_RUN=1
-write_audit ok;       case_rc "T9 the complete PASS audit is accepted" 0 "tie audit OK" MODE=SMOKE DRY_RUN=1
+git -C "$R" rm -q "$EXPREL/depth_canon_tie_audit.json" "$EXPREL/depth_canon_tie_audit.json.sha256"; commit_clone "guard: no audit"
+case_rc "T1 no tie audit (a pinned file): the pin gate refuses" 2 "PIN MANIFEST FAILED" MODE=FULL DRY_RUN=1
+case_rc "T1b SMOKE refuses without it too"        2 "PIN MANIFEST FAILED" MODE=SMOKE DRY_RUN=1
+write_audit limit;     case_rc "T2 a --limit audit (REFUSED_SUBSET)" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit stale;     case_rc "T3 a split JSON changed after the audit" 2 "split JSONs" MODE=FULL DRY_RUN=1
+write_audit tamper;    case_rc "T4 a tampered sidecar (re-pinned)" 2 "sha256 sidecar" MODE=FULL DRY_RUN=1
+write_audit survivor;  case_rc "T5 an audit that found a survivor" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit error;     case_rc "T6 an audit with an unprocessed map" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit script;    case_rc "T7 an audit by another audit script" 2 "audit script" MODE=FULL DRY_RUN=1
+write_audit counts;    case_rc "T8 item counts that are not the census" 2 "inputs" MODE=FULL DRY_RUN=1
+write_audit dup;       case_rc "T10 duplicated rows (sidecar recomputed)" 2 "duplicate" MODE=FULL DRY_RUN=1
+write_audit arbitrary; case_rc "T11 arbitrary row paths (sidecar recomputed)" 2 "rows are not the" MODE=FULL DRY_RUN=1
+write_audit map_byte;  case_rc "T12 a depth map changed after the audit" 2 "changed since the audit" MODE=FULL DRY_RUN=1
+write_audit untagged;  case_rc "T13 an untagged report in harness mode" 2 "harness-tagged" MODE=FULL DRY_RUN=1
+write_audit ok
+case_rc "T14 the harness report in PRODUCTION mode is refused" 2 "a harness tag is never production" \
+  MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS= PATH="$(dirname "$REAL_PY"):$BIN:$PATH"
+case_rc "T9 the complete PASS audit is accepted"  0 "tie audit OK" MODE=SMOKE DRY_RUN=1
 
 echo "--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---"
 write_evidence() {   # write_evidence <name> '<python dict of overrides>'
@@ -390,6 +427,7 @@ ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PAS
       "contract_sha256": sha(f"{exp}/FLAC_AR_CANON.json",
                              "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json"),
       "audit_sha256": sha(f"{exp}/depth_canon_tie_audit.json"),
+      "audit_gate_sha256": sha(f"{exp}/depth_canon_audit_gate.py"),
       "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
       "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
@@ -433,7 +471,9 @@ bind_case "B2 a training-closure change (+ its regenerated manifest) needs a new
 bind_case "B3 a committed launcher change needs a new SMOKE" 2 "$NEED" \
   'printf "\n# edit\n" >> "$EXPREL/depth_canon_launch.sh" && commit_clone "launcher"'
 bind_case "B4 a new (still qualifying) tie audit needs a new SMOKE" 2 "$NEED" \
-  'printf " \n" >> "$EXPREL/depth_canon_tie_audit.json" && sha256sum "$EXPREL/depth_canon_tie_audit.json" | sed "s#  .*/#  #" > "$EXPREL/depth_canon_tie_audit.json.sha256"'
+  'printf " \n" >> "$EXPREL/depth_canon_tie_audit.json" && sha256sum "$EXPREL/depth_canon_tie_audit.json" | sed "s#  .*/#  #" > "$EXPREL/depth_canon_tie_audit.json.sha256" && bash "$EXPREL/depth_canon_make_pins.sh" --write && commit_clone "audit"'
+bind_case "B5 a committed change to the audit gate needs a new SMOKE" 2 "$NEED" \
+  'printf "\n# edit\n" >> "$EXPREL/depth_canon_audit_gate.py" && commit_clone "gate"'
 make_clone >/dev/null
 fi
 write_evidence e9 '{}'   # the genuine evidence the N / S / G sections run against (E9's state)
@@ -555,7 +595,14 @@ if [ "${GUARD_NAS_READONLY:-0}" = 1 ]; then
     RC=$?
     set -e
   }
+  make_clone >/dev/null   # the GENUINE committed audit (rA A1): restored from the source HEAD, real data read-only
+  git -C "$R" checkout -q "$(git -C "$SRC_REPO" rev-parse HEAD)" -- "$EXPREL/depth_canon_tie_audit.json" \
+    "$EXPREL/depth_canon_tie_audit.json.sha256"
+  ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null ); commit_clone "guard: the genuine audit"
+  ln -s "$SRC_REPO/AcousticRooms" "$R/AcousticRooms"
   launch_prod MODE=SMOKE DRY_RUN=1
+  expect "Q0 production validates the genuine committed tie audit (all maps re-hashed)" \
+    bash -c '[ "$1" = 0 ] && grep -qF "tie audit OK" <<<"$2"' _ "$RC" "$OUT"
   expect "Q1 production SMOKE dry run passes the real NAS gate" bash -c '[ "$1" = 0 ] && grep -qF "NAS gate OK: /media/diskstation/yixunhu/FLAC/checkpoints" <<<"$2"' _ "$RC" "$OUT"
   expect "Q1b production argv saves to the NAS pin" has_value "$(argv_of "$OUT")" --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon
   launch_prod MODE=FULL DRY_RUN=1
