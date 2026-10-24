@@ -504,3 +504,15 @@ def test_cli_verify_cell(tmp_path, capsys):
     assert C.main(argv) == 0 and "VALID" in capsys.readouterr().out
     os.unlink(os.path.join(str(tmp_path), eval_FLAC.stream_sidecar_path(rel)))
     assert C.main(argv) == 1 and "INVALID" in capsys.readouterr().out
+
+
+def test_a_quarantined_staging_dir_is_not_a_leftover(tmp_path):
+    """The driver parks a staging leftover as <name>.staging-<pid>.incomplete-<ts>: that must
+    never count as a leftover again, or the cell could never complete."""
+    r = row("T", K=1, seed=44)
+    rel = write_cell(tmp_path, r)
+    d = os.path.join(str(tmp_path), "dumps", os.path.basename(rel)[:-len(".json")])
+    os.mkdir(d + ".staging-12.incomplete-2026-10-24_00-00-00")
+    assert C.staging_leftovers(d) == [] and _dump_check(tmp_path, rel, r) == []
+    os.mkdir(d + ".staging-13")
+    assert C.staging_leftovers(d) == [os.path.basename(d) + ".staging-13"]

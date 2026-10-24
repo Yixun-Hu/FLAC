@@ -567,3 +567,97 @@ def test_config_drift_and_bad_arguments_abort(clone, harness):
 def test_gpu_gate_is_skipped_under_dry_run(clone, harness):
     rc, out = drive(clone, harness, "--only", ONE_PER_CLASS[0], env={"DRY_RUN": "1", "GUARD_NVSMI_FAIL": "1"})
     assert rc == 0 and not (harness["dir"] / "nvsmi.log").exists(), out
+
+
+# ---- cycles 4b/4c: the resume predicate, quarantine, the GPU lanes (stub evaluator) ---- #
+TWO = ["exp25_P1_T_S40000_K1_s42", "exp25_CANON_C4_S40000_K1_s42_th90"]
+
+
+def _calls(harness):
+    path = harness["dir"] / "calls.log"
+    return [json.loads(x) for x in path.read_text().splitlines()] if path.exists() else []
+
+
+def _entry(clone, harness, cell):
+    """The cell's plan entry, as the driver computes it (farm = the harness farm)."""
+    h, m = harness["dir"], harness["manifest"]
+    sel = C.select_cells(m, only=[cell])
+    index = C.load_canon_index(str(h / "canon_ckpts.sha256"), m["arms"]["CANON"]["ckpt"]["run_ns"])
+    return C.plan_cells(m, sel, farm_root=str(h / "farm"), dump_root=str(h / "dumps"),
+                        canon_index=index, no_dump_blocks=[])[0]
+
+
+def _verify(clone, harness, cell, **kw):
+    h, m = harness["dir"], harness["manifest"]
+    index = C.load_canon_index(str(h / "canon_ckpts.sha256"), m["arms"]["CANON"]["ckpt"]["run_ns"])
+    return C.verify_cell(_entry(clone, harness, cell)["stem"], manifest=m, farm_root=str(h / "farm"),
+                         dump_root=str(h / "dumps"), pin=harness["head"], canon_index=index,
+                         base_dir=str(clone), **kw)
+
+
+def test_a_run_completes_cells_on_both_lanes_and_a_rerun_skips_them(clone, harness):
+    rc, out = drive(clone, harness, "--only", ",".join(TWO))
+    assert rc == 0 and "CAMPAIGN SELECTION COMPLETE" in out and "2/2" in out, out
+    calls = _calls(harness)
+    assert sorted(c["cvd"] for c in calls) == ["0", "1"]                       # one lane per card
+    assert sorted(c["argv"][c["argv"].index("--eval-name") + 1] for c in calls) == sorted(TWO)
+    for cell in TWO:
+        assert _verify(clone, harness, cell) == [], cell                         # links checked too
+        rec = json.load(open(_entry(clone, harness, cell)["receipt"]))
+        assert rec["rc"] == 0 and rec["expect_head"] == harness["head"] and rec["lane"] in (0, 1)
+    rc, out = drive(clone, harness, "--only", ",".join(TWO))
+    assert rc == 0 and out.count("SKIP (complete and verified)") == 2 and len(_calls(harness)) == 2, out
+
+
+def _break(state, e):
+    d = e["dump_dir"]
+    if state == "marker_without_manifest":
+        os.unlink(os.path.join(d, "manifest.json"))
+    elif state == "unmarked_final_dir":
+        os.unlink(os.path.join(d, "COMPLETE"))
+    elif state == "staging_leftover":
+        os.mkdir(d + ".staging-999")
+    elif state == "metrics_without_sidecar":
+        os.unlink(e["stream"])
+
+
+def test_every_incomplete_state_is_quarantined_then_rerun(clone, harness):
+    cell = "exp25_CANON_R_S40000_K8_s43"
+    rc, out = drive(clone, harness, "--only", cell)
+    assert rc == 0, out
+    e = _entry(clone, harness, cell)
+    for n, state in enumerate(["marker_without_manifest", "unmarked_final_dir", "staging_leftover",
+                               "metrics_without_sidecar"], start=2):
+        _break(state, e)
+        rc, out = drive(clone, harness, "--only", cell)
+        assert rc == 0 and "QUARANTINED" in out and len(_calls(harness)) == n, (state, out)
+        assert _verify(clone, harness, cell) == [], state
+        parked = [p for p in os.listdir(harness["dir"] / "dumps") if ".incomplete-" in p]
+        assert parked, state                                                   # moved, never deleted
+    farm = os.path.dirname(e["metrics"])
+    assert any(".json.incomplete-" in p for p in os.listdir(farm))
+    rc, out = drive(clone, harness, "--only", cell)                            # quarantine is final
+    assert rc == 0 and "SKIP (complete and verified)" in out and len(_calls(harness)) == 5, out
+
+
+def test_an_evaluator_failure_is_reported_and_nothing_is_marked_complete(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"STUB_MODE": "crash"})
+    assert rc == 1 and "FAILED exp25_P1_T_S40000_K1_s42" in out and "INCOMPLETE" in out, out
+    assert not os.path.exists(_entry(clone, harness, TWO[0])["receipt"])
+
+
+def test_the_gpu_gate_waits_and_never_runs_on_a_busy_card(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"GUARD_GPU_FREE": "100"})
+    assert rc == 2 and "GPU GATE" in out and not _calls(harness), out
+    assert (harness["dir"] / "nvsmi.log").read_text().count("memory.free") >= 2
+
+
+def test_a_no_dump_block_completes_without_a_dump(clone, harness):
+    cell = "exp25_CANON_TRAJ_S5000_K1_s42_th0"
+    rc, out = drive(clone, harness, "--only", cell, "--no-dump-blocks", "TRAJ")
+    assert rc == 0, out
+    e = _entry(clone, harness, cell)
+    assert not os.path.exists(e["dump_dir"]) and json.load(open(e["receipt"]))["dump"] is False
+    assert _verify(clone, harness, cell, expect_dump=False) == []
+    rc, out = drive(clone, harness, "--only", cell, "--no-dump-blocks", "TRAJ")
+    assert rc == 0 and "SKIP (complete and verified)" in out, out
