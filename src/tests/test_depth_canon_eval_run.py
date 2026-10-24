@@ -333,8 +333,8 @@ def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
     T.write_cell(tmp_path, sel[0], farm="farm", dump_root=str(tmp_path / "d"), receipt=False)
     path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
                            log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], **DIGESTS)
-    assert path == str(tmp_path / entry["receipt"]) and sorted(os.listdir(tmp_path / "farm" / "YAW")) == [
-        os.path.basename(entry["receipt"])]                            # atomic: no temp left behind
+    assert path == str(tmp_path / entry["receipt"]) and os.path.isfile(path)
+    assert not [p for p in os.listdir(tmp_path / "farm" / "YAW") if ".tmp-" in p]   # atomic: no temp left
     rec = json.load(open(path))
     assert C.receipt_reasons(rec, manifest_row(manifest, entry["cell"]), stem=entry["stem"],
                              link=entry["link"], target=entry["target"], ckpt_sha256=entry["sha256"],

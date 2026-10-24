@@ -292,16 +292,23 @@ def dump_reasons(dump_dir, row, *, stem, stream, expect, pin, mode="full"):
             marker = f.read()
     except (OSError, ValueError) as err:
         return reasons + [f"dump COMPLETE marker / manifest unreadable ({err})"]
+    return reasons + manifest_reasons(m, marker, row, stem=stem, stream=stream, expect=expect, pin=pin)
+
+
+def manifest_reasons(m, marker, row, *, stem, stream, expect, pin, label="dump manifest"):
+    """A dump manifest (+ its COMPLETE marker) bound to THIS cell; shared by the on-disk check
+    and the receipt's offline dump evidence (rB-F1 B6)."""
+    n, reasons = row["expected_stream_count"], []
     if not isinstance(m, dict):
-        return reasons + ["dump manifest is not a JSON object"]
+        return [f"{label} is not a JSON object"]
     if list(m) != list(DUMP_MANIFEST_KEYS):
-        reasons.append(f"dump manifest keys {list(m)} != {list(DUMP_MANIFEST_KEYS)}")
+        reasons.append(f"{label} keys {list(m)} != {list(DUMP_MANIFEST_KEYS)}")
     if marker != f"{m.get('sha256')}\n" or not eval_FLAC._is_sha256_hex(m.get("sha256")):
-        reasons.append("dump COMPLETE marker does not hold the manifest's waveform sha256")
+        reasons.append(f"{label}: the COMPLETE marker does not hold the manifest's waveform sha256")
     shape = m.get("shape")
     if not (isinstance(shape, list) and len(shape) == 2 and all(type(x) is int for x in shape)
             and shape[0] == n and shape[1] > 0):
-        reasons.append(f"dump shape {shape!r} is not [{n}, T]")
+        reasons.append(f"{label} shape {shape!r} is not [{n}, T]")
     for key, want in (("schema_version", eval_FLAC.SCORED_DUMP_SCHEMA_VERSION), ("n", n),
                       ("dtype", "float32"),
                       ("input_hash", stream.get("input_hash") if isinstance(stream, dict) else None),
@@ -312,15 +319,49 @@ def dump_reasons(dump_dir, row, *, stem, stream, expect, pin, mode="full"):
                       ("stream_sidecar_sha256", _file_digest(expect["stream_file"])),
                       ("canon_sidecar_path", expect["canon_sidecar_path"]),
                       ("canon_sidecar_sha256", _file_digest(expect["canon_file"]))):
-        _eq(reasons, f"dump manifest {key}", m.get(key), want)
+        _eq(reasons, f"{label} {key}", m.get(key), want)
     return reasons
+
+
+def dump_evidence(dump_dir):
+    """What a receipt binds of a fully verified dump (rB-F1 B6, decision A7): the manifest's exact
+    bytes (digest + content), the COMPLETE marker and the waveforms sidecar -- enough to
+    re-verify the publication offline, without the NAS."""
+    import hashlib
+    with open(os.path.join(dump_dir, "manifest.json"), "rb") as f:
+        raw = f.read()
+    with open(os.path.join(dump_dir, eval_FLAC.SCORED_DUMP_MARKER)) as f:
+        marker = f.read()
+    with open(os.path.join(dump_dir, "waveforms.sha256")) as f:
+        side = f.read()
+    return {"manifest_sha256": hashlib.sha256(raw).hexdigest(), "manifest": json.loads(raw), "marker": marker,
+            "waveforms_sidecar": side}
+
+
+def evidence_reasons(ev, row, *, stem, stream, expect, pin):
+    """The receipt's dump evidence, OFFLINE: self-consistent (the recorded manifest serializes,
+    as the evaluator writes it, to ``manifest_sha256``), the marker and sidecar the evaluator
+    writes for its waveform sha256, and the manifest bound to this cell and to the committed
+    metrics / stream / canon files."""
+    import hashlib
+    if not (isinstance(ev, dict) and set(ev) == {"manifest_sha256", "manifest", "marker", "waveforms_sidecar"}):
+        return [f"receipt dump_evidence {ev!r:.80} is missing or malformed"]
+    m, out = ev["manifest"], []
+    if not isinstance(m, dict) or hashlib.sha256(json.dumps(m, indent=2).encode()).hexdigest() != ev["manifest_sha256"]:
+        out.append("receipt dump_evidence.manifest_sha256 is not the digest of the recorded manifest")
+    out += manifest_reasons(m, ev["marker"], row, stem=stem, stream=stream, expect=expect, pin=pin,
+                            label="receipt dump_evidence manifest")
+    if ev["waveforms_sidecar"] != f"{m.get('sha256') if isinstance(m, dict) else None}  waveforms.npy\n":
+        out.append("receipt dump_evidence waveforms sidecar is not the sha256sum line of the waveform digest")
+    return out
 
 
 RECEIPT_SCHEMA_VERSION = 1
 RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_link", "ckpt_target",
                 "ckpt_sha256", "ckpt_cache", "ckpt_sha256_measured", "model_config", "model_config_sha256", "dataset_config",
                 "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
-                "expect_head", "campaign_digest", "spawn_digest", "post_digest", "lane", "log", "rc")
+                "expect_head", "campaign_digest", "spawn_digest", "post_digest", "artifact_sha256",
+                "dump_evidence", "lane", "log", "rc")
 DIGEST_KEYS = ("campaign_digest", "spawn_digest", "post_digest")   # rB-F1 B3: the evaluated tree
 
 
@@ -335,7 +376,8 @@ def cell_argv(row, link, dump_root, dump):
         ["--dump-scored-waveforms", dump_root] if dump else [])
 
 
-def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump_root, pin, expect_digest=None):
+def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump_root, pin, expect_digest=None,
+                    expect=None, stream=None):
     """The driver's ``<metrics stem>.cell.json``: what was run, on which checkpoint (its
     sha256 verified BEFORE the run against the endpoint manifest / the CANON launcher's
     checkpoint manifest), at which pin, with which argv, and that the evaluator exited 0.
@@ -363,6 +405,16 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
         _eq(reasons, f"receipt {key} vs campaign_digest", receipt.get(key), d)
     if expect_digest is not None:
         _eq(reasons, "receipt campaign_digest vs this campaign's", d, expect_digest)
+    if expect is not None:   # rB-F1 B6: the committed artifacts and the dump evidence, offline
+        _eq(reasons, "receipt artifact_sha256 (the committed metrics / stream / canon now)",
+            receipt.get("artifact_sha256"), {"metrics": _file_digest(expect["metrics_file"]),
+                                             "stream": _file_digest(expect["stream_file"]),
+                                             "canon": _file_digest(expect["canon_file"])})
+        if dump:
+            reasons += evidence_reasons(receipt.get("dump_evidence"), row, stem=stem, stream=stream,
+                                        expect=expect, pin=pin)
+        elif receipt.get("dump_evidence") is not None:
+            reasons.append("receipt dump_evidence present for a cell run without a dump")
     if type(receipt.get("lane")) is not int or receipt["lane"] < 0:
         reasons.append(f"receipt lane {receipt.get('lane')!r} is not a GPU index")
     if not isinstance(receipt.get("log"), str) or not receipt["log"]:
@@ -433,12 +485,15 @@ def find_canon_manifest(expdir=EXPDIR):
 
 
 def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, base_dir=REPO,
-                dump_check="full", expect_dump=True, check_link=True, expect_digest=None):
+                dump_check="full", expect_dump=True, check_link=True, expect_digest=None, receipt_doc=None):
     """Named reasons the cell ``stem`` is not complete-and-verified ([] = the driver may skip
     it, the generator may publish it). Checks the metrics record, stream and canon sidecars,
-    the driver's receipt, the dump (``dump_check`` 'full' = ``is_complete`` once, or
-    'manifest'), and -- ``check_link`` -- that the farm link still points at the checkpoint.
-    Relative artifact paths resolve against ``base_dir`` (the evaluator's cwd)."""
+    the driver's receipt (its committed-artifact digests and dump evidence), the dump
+    (``dump_check`` 'full' = ``is_complete`` once, 'manifest' = marker + manifest, both + the
+    receipt's evidence == the dump on disk; 'receipt' = OFFLINE, the receipt's evidence stands
+    for the dump, no NAS read), and -- ``check_link`` -- the farm entry's cache identity.
+    ``receipt_doc``: a draft receipt verified before it is written. Relative artifact paths
+    resolve against ``base_dir`` (the evaluator's cwd)."""
     if not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
         return [f"pin {pin!r} is not a full 40-hex commit"]
     ckpt_name, _, suffix = stem.partition("_metrics_")
@@ -456,7 +511,12 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     paths = cell_paths(row, link, dump_root)
     at = lambda p: os.path.join(base_dir, p)  # noqa: E731 -- an absolute p stays absolute
     docs, reasons = {}, []
-    wanted = [("metrics", paths.metrics), ("stream", paths.stream), ("receipt", paths.receipt)]
+    if dump_check not in ("full", "manifest", "receipt"):
+        raise ValueError(f"dump_check must be 'full', 'manifest' or 'receipt', got {dump_check!r}")
+    if receipt_doc is not None:   # a draft receipt, verified BEFORE it is written (rB-F1 B6)
+        docs["receipt"] = receipt_doc
+    wanted = [("metrics", paths.metrics), ("stream", paths.stream)] + (
+        [("receipt", paths.receipt)] if receipt_doc is None else [])
     for key, path in wanted + ([("canon", paths.canon)] if row["canonicalize"] else []):
         try:
             with open(at(path)) as f:
@@ -471,16 +531,24 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     reasons += stream_reasons(docs["stream"], row, docs["metrics"])
     if row["canonicalize"]:
         reasons += canon_reasons(docs["canon"], row, docs["stream"], docs["metrics"])
+    canon = paths.canon if row["canonicalize"] else None
+    expect = {"ckpt_path": link, "metrics_path": paths.metrics, "metrics_file": at(paths.metrics),
+              "stream_sidecar_path": paths.stream, "stream_file": at(paths.stream),
+              "canon_sidecar_path": canon, "canon_file": at(canon) if canon else None}
     reasons += receipt_reasons(docs["receipt"], row, stem=stem, link=link, target=target,
                                ckpt_sha256=sha, dump=expect_dump, dump_root=dump_root, pin=pin,
-                               expect_digest=expect_digest)
-    if expect_dump:
-        canon = paths.canon if row["canonicalize"] else None
-        expect = {"ckpt_path": link, "metrics_path": paths.metrics, "metrics_file": at(paths.metrics),
-                  "stream_sidecar_path": paths.stream, "stream_file": at(paths.stream),
-                  "canon_sidecar_path": canon, "canon_file": at(canon) if canon else None}
+                               expect_digest=expect_digest, expect=expect, stream=docs["stream"])
+    if dump_check == "receipt":
+        pass                       # offline: the receipt's evidence stands for the dump (decision A7)
+    elif expect_dump:
         reasons += dump_reasons(at(paths.dump_dir), row, stem=stem, stream=docs["stream"],
                                 expect=expect, pin=pin, mode=dump_check)
+        try:
+            if not isinstance(docs["receipt"], dict) or \
+                    dump_evidence(at(paths.dump_dir)) != docs["receipt"].get("dump_evidence"):
+                reasons.append("receipt dump_evidence != the dump on disk now")
+        except (OSError, ValueError):
+            pass                   # the dump itself is reported unreadable above
     elif os.path.lexists(at(paths.dump_dir)) or staging_leftovers(at(paths.dump_dir)):
         reasons.append(f"a dump exists at {paths.dump_dir} for a cell run without one")
     if check_link:   # rB-F1 B4: a regular file on the verified cache file's inode, never a symlink
@@ -535,18 +603,27 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
     return out
 
 
-def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, campaign_digest, spawn_digest,
+def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, campaign_digest, spawn_digest,
                   post_digest):
-    """Atomically write the cell's ``.cell.json`` (temp file + ``os.replace``). Refuses a
-    measured checkpoint digest that is not the expected one, and a relevant-tree digest at the
-    spawn / after the run that is not the campaign's (the driver must not get here)."""
+    """The cell's receipt (``.cell.json``) as a dict: refuses a measured checkpoint digest that
+    is not the expected one and a tree digest at the spawn / after the run that is not the
+    campaign's; binds the committed artifacts' digests and, for a dump, its evidence (B6)."""
     if ckpt_sha256 != entry["sha256"]:
         raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
                          f"{entry['sha256']}")
     if not eval_FLAC._is_sha256_hex(campaign_digest) or {spawn_digest, post_digest} != {campaign_digest}:
         raise ValueError(f"{entry['cell']}: tree digest moved (campaign {campaign_digest}, spawn {spawn_digest}, "
                          f"post {post_digest})")
-    rec = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
+    at = lambda p: os.path.join(base_dir, p) if p else None  # noqa: E731
+    artifacts = {"metrics": _file_digest(at(entry["metrics"])), "stream": _file_digest(at(entry["stream"])),
+                 "canon": _file_digest(at(entry["canon"]))}
+    if artifacts["metrics"] is None or artifacts["stream"] is None or (entry["canon"] and artifacts["canon"] is None):
+        raise ValueError(f"{entry['cell']}: nothing to bind -- the metrics / stream / canon files are not all there")
+    try:
+        evidence = dump_evidence(at(entry["dump_dir"])) if entry["dump"] else None
+    except (OSError, ValueError) as err:
+        raise ValueError(f"{entry['cell']}: the dump cannot be bound ({err})") from err
+    return {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
            "ckpt_target": entry["target"], "ckpt_sha256": entry["sha256"],
            "ckpt_cache": ckpt_cache_path(entry["link"], entry["sha256"]), "ckpt_sha256_measured": ckpt_sha256,
@@ -556,7 +633,14 @@ def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, camp
            "expected_stream_count": row["expected_stream_count"], "dump": entry["dump"],
            "dump_root": entry["dump_root"] if entry["dump"] else None, "argv": entry["argv"],
            "expect_head": pin, "campaign_digest": campaign_digest, "spawn_digest": spawn_digest,
-           "post_digest": post_digest, "lane": lane, "log": log, "rc": rc}
+           "post_digest": post_digest, "artifact_sha256": artifacts, "dump_evidence": evidence,
+           "lane": lane, "log": log, "rc": rc}
+
+
+def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+    """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+    built here from ``kw``) -- temp file + ``os.replace``."""
+    rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
     path = os.path.join(base_dir, entry["receipt"])
     tmp = f"{path}.tmp-{os.getpid()}"
     with open(tmp, "w") as f:
@@ -1204,7 +1288,8 @@ def main(argv=None):
     ap.add_argument("--dump-root", default=None, help="the dump ROOT (default: manifest)")
     ap.add_argument("--base-dir", default=REPO, help="the evaluator's cwd (default: the repo root)")
     ap.add_argument("--canon-ckpt-manifest", default=None)
-    ap.add_argument("--dump-check", choices=("full", "manifest"), default="full")
+    ap.add_argument("--dump-check", choices=("full", "manifest", "receipt"), default="full",
+                    help="receipt = offline: the receipt's dump evidence stands for the dump (no NAS)")
     ap.add_argument("--no-dump", action="store_true", help="the cell was run without a dump")
     ap.add_argument("--no-link-check", action="store_true")
     ap.add_argument("--plan", metavar="OUT", help="write the driver's plan JSON; exit 2 if refused")
@@ -1234,19 +1319,35 @@ def main(argv=None):
     manifest = load_cells(args.cells)
     farm = args.farm_root or manifest["farm_root"]
     dump_root = args.dump_root or manifest["dump_root"]
-    if args.write_receipt:
+    if args.write_receipt:   # rB-F1 B6: the receipt exists only after the FULL verification passed
+        if not args.verify_after:
+            print("RECEIPT REFUSED: a receipt is publication evidence; pass --verify-after (it is written only "
+                  "after the cell's full verification)")
+            return 2
         with open(args.plan_json) as f:
             plan = json.load(f)
         entry = next(e for e in plan["cells"] if e["cell"] == args.write_receipt)
         row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
-        print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, lane=args.lane,
-                                          log=args.log, rc=args.rc, pin=args.pin,
-                                          ckpt_sha256=args.ckpt_sha, campaign_digest=plan["campaign_digest"],
-                                          spawn_digest=args.spawn_digest, post_digest=args.post_digest))
-        args.campaign_digest = plan["campaign_digest"]
-        if not args.verify_after:
-            return 0
-        args.verify_cell, args.no_dump = entry["stem"], not entry["dump"]
+        try:
+            rec = build_receipt(entry, row, base_dir=args.base_dir, lane=args.lane, log=args.log, rc=args.rc,
+                                pin=args.pin, ckpt_sha256=args.ckpt_sha, campaign_digest=plan["campaign_digest"],
+                                spawn_digest=args.spawn_digest, post_digest=args.post_digest)
+            index = (load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                      manifest["arms"]["CANON"]["ckpt"]["run_ns"]) if row["arm"] == "CANON" else None)
+        except (ValueError, OSError) as err:
+            print(f"RECEIPT REFUSED: {err}")
+            return 1
+        reasons = verify_cell(entry["stem"], manifest=manifest, farm_root=farm, dump_root=dump_root, pin=args.pin,
+                              canon_index=index, base_dir=args.base_dir, dump_check=args.dump_check,
+                              expect_dump=entry["dump"], check_link=not args.no_link_check,
+                              expect_digest=plan["campaign_digest"], receipt_doc=rec)
+        if reasons:
+            print(f"INVALID {entry['stem']}\n" + "".join(f"  - {x}\n" for x in reasons)
+                  + "RECEIPT REFUSED: the cell did not verify; no receipt written")
+            return 1
+        print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, receipt=rec))
+        print("VALID " + entry["stem"])
+        return 0
     if args.verify_cell:
         suffix = args.verify_cell.partition("_metrics_")[2]
         arms = {c["arm"] for c in manifest["cells"] if c["metrics_suffix"] == suffix}
