@@ -285,7 +285,7 @@ EXPDIR = os.path.dirname(os.path.abspath(__file__))
 SPLIT_CONFIGS = {"train": "src/configs/dataset_configs/AR/train/acousticroom_train.json",
                  "unseen": "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
                  "seen": "src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json"}
-EXIT = {"PASS": 0, "FAIL": 1, "INCOMPLETE": 3, "REFUSED_SUBSET": 4}
+EXIT = {"PASS": 0, "FAIL": 1, "INCOMPLETE": 3, "REFUSED_SUBSET": 4}   # precedence INCOMPLETE > FAIL > REFUSED_SUBSET > PASS
 _WORKER = {}
 
 
@@ -345,7 +345,9 @@ def build_report(rows, ledger, split_names, n_union, limit, module_abs):
                   "counts": r["counts"]} for r in rows if r["survivor"]]
     errors = [{"path": r["path"], "error": r["error"]} for r in rows if r["error"]]
     subset = limit is not None or tuple(split_names) != tuple(SPLIT_CONFIGS)
-    verdict = ("FAIL" if survivors else "INCOMPLETE" if errors
+    # precedence (r3b-F1 fix 8): an unprocessed map makes the run INCOMPLETE whatever else it
+    # found -- a partially processed run is not an ordinary FAIL; survivors are still listed
+    verdict = ("INCOMPLETE" if errors else "FAIL" if survivors
                else "REFUSED_SUBSET" if subset or len(rows) != n_union else "PASS")
     widths = {r["img_w"] for r in rows if r["img_w"] is not None}
     if len(widths) > 1:

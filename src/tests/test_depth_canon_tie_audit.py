@@ -457,3 +457,15 @@ def test_the_split_config_must_load_depth(tmp_path):
     (tmp_path / "c.json").write_text(json.dumps(cfg))
     with pytest.raises(ValueError, match="depth modality"):
         audit.read_split_config(str(tmp_path / "c.json"))
+
+
+def test_errors_take_precedence_over_survivors(tmp_path):
+    """r3b-F1 fix 8 (NIT 8): a partially processed run is INCOMPLETE (rc 3) even when it also
+    found a survivor; the survivor is still listed and counted."""
+    periodic = _scalar_depth(256, W, seed=5, period=128, peaks=[(60, 11)]).numpy()
+    bad = _scalar_depth(256, W, seed=6).numpy()
+    bad[0, 0] = np.inf
+    rep, _ = _report(tmp_path, maps={PERIODIC_KEY: periodic, "depth_map/Office/Office_idx_2/6.npy": bad})
+    assert rep["gate"]["verdict"] == "INCOMPLETE" and rep["gate"]["exit_code"] == 3
+    assert rep["gate"]["n_survivors"] == 1 and rep["gate"]["n_errors"] == 1
+    assert [s["path"] for s in rep["survivors"]] == [PERIODIC_KEY]
