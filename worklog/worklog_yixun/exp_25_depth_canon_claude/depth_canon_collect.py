@@ -182,6 +182,10 @@ def stream_reasons(stream, row, rec=None):
                 and isinstance(t[2], list) and t[3] == IMG_W):
             reasons.append(f"stream input tuple at position {i} is malformed or out of order: {t!r}")
             break
+        if not _context_ok(t[2], row["K"]):   # rB-F1 NIT a: K from the cell's dataset config
+            reasons.append(f"stream position {i}: context_ids {t[2]!r:.80} are not exactly K={row['K']} nonempty "
+                           "strings")
+            break
     for i, t in enumerate(asg):
         if not (isinstance(t, list) and len(t) == 3 and t[0] == i and i < len(inp) and i < len(offs)
                 and isinstance(inp[i], list) and len(inp[i]) > 1 and t[1] == inp[i][1] and t[2] == offs[i]):
@@ -726,6 +730,29 @@ def make_pairs(cells):
     return pairs
 
 
+PAIRING_NOTE = ("input_hash equality proves that a pair saw the same targets and the same context draws in "
+                "the same order; identical generative noise is not in the hash preimage -- it follows from the "
+                "execution protocol: same arm / K / step / eval seed, batch size 64 and the same stream census "
+                "under the one pinned evaluator, hence the same global torch.randn sequence")
+
+
+def context_replacement(cells):
+    """The registered context-uniqueness rule (rB-F1 NIT a): AR_md draws the K references without
+    replacement unless the room has fewer than K other sources, and then WITH replacement (ids
+    repeat). Which targets repeat is a property of the split, not of the seed (520 / 6,337 unseen
+    K=8 targets in every one of exp_15's eleven streams), so every valid cell of a (split, K)
+    must repeat on exactly the same targets."""
+    by = {}
+    for name, e in cells.items():
+        if e["valid"]:
+            r = e["row"]
+            hit = tuple(sorted(t[1] for t in e["stream"]["input_tuples"] if len(set(t[2])) != len(t[2])))
+            by.setdefault(f"{r['split']}/K{r['K']}", {}).setdefault(hit, []).append(name)
+    return {key: {"cells": sum(len(v) for v in sets.values()),
+                  "targets_with_repeated_context": len(next(iter(sets))) if len(sets) == 1 else None,
+                  "consistent": len(sets) == 1} for key, sets in sorted(by.items())}
+
+
 TIER1_KINDS = ("C4", "45", "R", "dup")
 
 
@@ -1168,6 +1195,9 @@ def build_results(cells, *, control, control_reasons, eps, audit, audit_reasons,
         [f"tie audit: {'; '.join(audit_reasons)}"] if audit is None else []) + (
         [f"tie audit: {len(ties['mismatches'])} canonicalized cell(s) carry tie counts that differ from the "
          f"validated audit's split counts ({', '.join(ties['mismatches'][:3])})"] if ties["mismatches"] else [])
+    repl = context_replacement(cells)
+    problems += [f"{k}: repeated context ids on different targets in different cells (the registered rule: "
+                 "the same targets in every cell of a split and K)" for k, v in repl.items() if not v["consistent"]]
     digests = sorted({e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]})
     if len(digests) > 1:   # rB-F1 B3: one campaign = one evaluated tree
         problems.append(f"the cells span {len(digests)} campaign digests ({', '.join(d[:12] for d in digests)})")
@@ -1182,6 +1212,7 @@ def build_results(cells, *, control, control_reasons, eps, audit, audit_reasons,
         for n, e in cells.items() if e["valid"] and e["row"]["block"] in ("D-i", "D-ii")}
     return {"schema_version": 1, "pin": pin, "blocks": blocks, "partial": bool(problems), "problems": problems,
             "missing": missing, "invalid": {n: cells[n]["reasons"] for n in invalid},
+            "pairing": {"note": PAIRING_NOTE, "context_replacement": repl},
             "tier1": tier1(pairs, cells), "tier2": tier2(pairs, cells, control), "tier3": t3,
             "eps_cond": eps or {"value": None, "threshold": PROBE_CONTRACT["eps_threshold"],
                                 "verdict": "NOT COMPUTABLE (no valid registered composition control)"},
@@ -1214,7 +1245,9 @@ def render_md(res):
         out += [f"**PARTIAL:** {'; '.join(res['problems'])}. Missing: " + (", ".join(res["missing"]) or "none")
                 + ". Invalid: " + (", ".join(res["invalid"]) or "none") + ".", ""]
     t1, t2, t3 = res["tier1"], res["tier2"], res["tier3"]
-    out += [h("Tier 1 — canonical depth identity (exact)"), "",
+    out += [f"Pairing: {res['pairing']['note']}. Context draws with replacement (repeated ids, same targets in "
+            f"every cell of a split and K): {res['pairing']['context_replacement']}.", "",
+            h("Tier 1 — canonical depth identity (exact)"), "",
             f"PASS: {t1['pass']} over {t1['n_pairs']} rotated/duplicate CANON pairs; TRAJ pairs "
             f"{t1['trajectory']['n_pass']}/{t1['trajectory']['n_pairs']} equal (descriptive); distinct unseen "
             f"canonical_depth_hash values: {t1['distinct_canonical_depth_hashes_unseen']}.", "",
