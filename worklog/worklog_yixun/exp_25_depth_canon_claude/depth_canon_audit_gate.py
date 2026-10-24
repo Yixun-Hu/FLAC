@@ -9,7 +9,9 @@ per-map census, ``per_split`` and ``agreement`` recomputed with the AUDIT'S OWN 
 (``read_split_config`` / ``collect_maps`` / ``summarize``, loaded lazily from the audit
 script whose sha256 the report records); the registered cardinalities; current hashes of the
 audit script, operator, loader and AR_md with a clean recorded tree; and every depth map's
-CURRENT bytes re-hashed against its row (a map changed after the audit fails closed).
+CURRENT bytes re-hashed against its row (a map changed after the audit fails closed) -- in a
+KILLABLE child process (this file, ``--rehash-worker``) under a :data:`REHASH_DEADLINE_S` wall-clock
+deadline: a hung read fails the gate closed instead of stalling it (rB-F2 F2-4).
 
 API ``validate_tie_audit(audit_path, repo_root) -> (ok, problems, summary)``; CLI exit 0 ok / 1
 invalid (stderr ``TIE AUDIT GATE FAILED: ...``) / 2 usage. Stdlib imports only. Written by the
@@ -22,6 +24,8 @@ import io
 import json
 import os
 import re
+import signal
+import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
@@ -49,6 +53,7 @@ PASS_GATE = {"verdict": "PASS", "exit_code": 0, "n_survivors": 0, "n_errors": 0}
 ABS_FIELDS = {"json_abs": "json_file_path", "root_abs": "root", "custom_metadata_module_abs": "custom_metadata_module"}
 HARNESS_KEYS = ("splits", "n_maps", "custom_metadata_module")   # all a harness contract may name (rA A1 iv)
 _HEX64, _HEX40 = re.compile(r"[0-9a-f]{64}"), re.compile(r"[0-9a-f]{40}")
+REHASH_DEADLINE_S = 900   # rB-F2 F2-4 (reviewed): 15 min; the real 9,650-map re-hash over CIFS takes ~2 min 15 s
 
 
 def _repo_root(p):
@@ -184,9 +189,54 @@ def _row_problems(rows, maps, audit, w):
     return out
 
 
-def _rehash_problems(rows, maps, workers):
+def _hash_paths(paths, workers):
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:   # hashlib + file reads release the GIL
-        now = list(pool.map(_sha256, [maps[r["path"]]["path"] for r in rows]))
+        return list(pool.map(_sha256, paths))
+
+
+def _rehash_argv(workers):
+    """The hasher child: this gate in ``--rehash-worker`` mode (stdin: JSON paths; stdout: JSON digests)."""
+    return [sys.executable, os.path.abspath(__file__), "--rehash-worker", "--workers", str(max(1, workers))]
+
+
+def _rehash_in_child(paths, workers, deadline_s):
+    """``(digests, None)`` or ``(None, why)``. Past the deadline the child's own process group is
+    SIGKILLed and the gate fails closed; a child that still does not exit (an uninterruptible read)
+    is abandoned after 10 s, never waited on."""
+    try:
+        proc = subprocess.Popen(_rehash_argv(workers), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, start_new_session=True)
+    except OSError as err:
+        return None, f"the map re-hash child could not start ({err})"
+    try:
+        out, err = proc.communicate(json.dumps(paths), timeout=deadline_s)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        return None, (f"the map re-hash exceeded its {deadline_s:g} s wall-clock deadline (a hung NAS read?); "
+                      "the gate fails closed")
+    if proc.returncode != 0:
+        return None, f"the map re-hash child exited {proc.returncode} ({err.strip()[-300:]!r})"
+    try:
+        digests = json.loads(out)
+    except ValueError:
+        return None, "the map re-hash child printed no JSON"
+    if not (isinstance(digests, list) and len(digests) == len(paths)
+            and all(d is None or (isinstance(d, str) and _HEX64.fullmatch(d)) for d in digests)):
+        return None, "the map re-hash child's answer is malformed"
+    return digests, None
+
+
+def _rehash_problems(rows, maps, workers, deadline_s=REHASH_DEADLINE_S):
+    now, why = _rehash_in_child([maps[r["path"]]["path"] for r in rows], workers, deadline_s)
+    if why:
+        return [why]
     missing = [r["path"] for r, h in zip(rows, now) if h is None]
     changed = [r["path"] for r, h in zip(rows, now) if h is not None and h != r["sha256"]]
     return ([f"{len(missing)} depth map(s) missing / unreadable now: {missing[:3]}"] if missing else []) + (
@@ -194,7 +244,7 @@ def _rehash_problems(rows, maps, workers):
         if changed else [])
 
 
-def _validate(audit_path, repo_root, c, workers, rehash, harness=False):
+def _validate(audit_path, repo_root, c, workers, rehash, harness=False, deadline_s=REHASH_DEADLINE_S):
     problems, summary = [], {}
     try:
         with open(audit_path, "rb") as f:
@@ -244,7 +294,7 @@ def _validate(audit_path, repo_root, c, workers, rehash, harness=False):
         _expect(problems, "per_split (recomputed from the rows)", rep["per_split"], per)
         _expect(problems, "agreement (recomputed from the rows)", rep["agreement"], agree)
         if rehash:
-            problems += _rehash_problems(rep["rows"], maps, workers)
+            problems += _rehash_problems(rep["rows"], maps, workers, deadline_s)
     summary.update(n_maps=len(rep["rows"]) if isinstance(rep["rows"], list) else None,
                    per_split=rep["per_split"],
                    inputs=[{k: led[k] for k in ("split", "json_file_path", "json_abs", "n_items", "n_unique_maps")}
@@ -253,7 +303,8 @@ def _validate(audit_path, repo_root, c, workers, rehash, harness=False):
     return problems, summary
 
 
-def validate_tie_audit(audit_path, repo_root, *, contract=None, workers=8, rehash=True, harness_contract=None):
+def validate_tie_audit(audit_path, repo_root, *, contract=None, workers=8, rehash=True, harness_contract=None,
+                       rehash_deadline_s=REHASH_DEADLINE_S):
     """``(ok, problems, summary)``. ``contract`` defaults to :data:`REGISTERED` (tests pass a
     synthetic one). ``harness_contract``: a JSON file naming ONLY the splits / their counts / the
     map count / the metadata module of a guard-suite tree; the report must then be harness-
@@ -267,7 +318,8 @@ def validate_tie_audit(audit_path, repo_root, *, contract=None, workers=8, rehas
                 return False, [f"the harness contract may name only {list(HARNESS_KEYS)}, got "
                                f"{sorted(over) if isinstance(over, dict) else over!r}"], {}
             c = dict(c, **over)
-        problems, summary = _validate(audit_path, os.path.abspath(repo_root), c, workers, rehash, harness)
+        problems, summary = _validate(audit_path, os.path.abspath(repo_root), c, workers, rehash, harness,
+                                      rehash_deadline_s)
     except Exception as err:  # noqa: BLE001 -- a crash is never a verdict
         problems, summary = [f"validation crashed ({type(err).__name__}: {err})"], {}
     return not problems, problems, summary
@@ -281,10 +333,15 @@ def main(argv=None):
     ap.add_argument("--repo", default=repo)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--print-sha", action="store_true", help="on success print only the report's sha256")
+    ap.add_argument("--rehash-worker", action="store_true",
+                    help="internal: the hasher child (stdin: a JSON list of paths; stdout: their sha256 or null)")
     ap.add_argument("--harness-contract", default=None,
                     help="guard suite only: honoured only under DEPTH_CANON_HARNESS (a /tmp dir with its marker) "
                          "for a file inside it")
     args = ap.parse_args(argv)
+    if args.rehash_worker:
+        print(json.dumps(_hash_paths(json.load(sys.stdin), args.workers)))
+        return 0
     if args.harness_contract is not None:
         h = os.path.realpath(os.environ.get("DEPTH_CANON_HARNESS") or "/nonexistent")
         if not (h.startswith("/tmp/") and os.path.isfile(os.path.join(h, ".depth_canon_harness"))
