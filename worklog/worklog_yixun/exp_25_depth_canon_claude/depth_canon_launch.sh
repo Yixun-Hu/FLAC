@@ -275,6 +275,61 @@ elif [ -n "$(find "$RUN_NS" -name '*.ckpt' -print -quit 2>/dev/null)" ]; then
 fi
 echo "run namespace OK: ${RUN_NS}"
 
+# --- (8) GPU free memory on both cards (never kills anything) ------------------- #
+if [ "$DRY_RUN" = "1" ]; then
+  echo "GPU memory gate SKIPPED under DRY_RUN"
+else
+  for G in 0 1; do
+    FREE="$(nvidia-smi -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -dc '0-9' || true)"
+    [ -n "$FREE" ] || { echo "GPU GATE FAILED: the free-memory query failed on GPU ${G} - refusing to launch blind"; exit 2; }
+    [ "$FREE" -ge "$MIN_GPU_FREE_MIB" ] || {
+      echo "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"; exit 2; }
+  done
+  echo "GPU memory gate OK: GPU 0 and GPU 1 each >= ${MIN_GPU_FREE_MIB} MiB free"
+  echo "--- co-tenancy disclosure: compute apps at launch ---"
+  nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null || true
+  nvidia-smi --query-gpu=index,memory.used,memory.free --format=csv,noheader 2>/dev/null || true
+fi
+
+# --- W&B identity (exp_17 gate; not under DRY_RUN, not in harness mode) --------- #
+if [ "$DRY_RUN" = "1" ]; then
+  echo "W&B identity gate SKIPPED under DRY_RUN"
+elif [ "$HARNESS_FLAG" = true ]; then
+  echo "W&B identity gate SKIPPED (harness)"
+else
+  eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1 || true)"
+  python - "$WANDB_IDENTITY" <<'PY' || { echo "W&B IDENTITY GATE FAILED: not ${WANDB_IDENTITY} - abort"; exit 2; }
+import sys
+try:
+    import wandb
+    email = wandb.Api().viewer.email
+except Exception as e:  # noqa: BLE001
+    print("wandb identity check FAILED:", e); sys.exit(1)
+print("wandb identity:", email)
+sys.exit(0 if email == sys.argv[1] else 2)
+PY
+fi
+
+# --- DINOv3 pin + exp_07 wiring / init identity, offline ------------------------ #
+# src is imported from THIS checkout before the gate runs: the gate's own .git
+# marker walk stops at a parent directory's .git when run from a git worktree.
+HF_HUB_OFFLINE=1 python - "$REPO" "$DINO_GATE" <<'PY' || { echo "DINOv3/init-identity GATE FAILED - abort"; exit 2; }
+import os, runpy, sys
+repo, gate = sys.argv[1], sys.argv[2]
+sys.path.insert(0, repo)
+import src
+origin = os.path.realpath(os.path.dirname(src.__file__))
+if origin != os.path.realpath(os.path.join(repo, "src")):
+    sys.exit(f"src would be imported from {origin}, not {repo}/src")
+print(f"src imported from {origin}")
+runpy.run_path(gate, run_name="__main__")
+PY
+
+echo "--- env manifest ---"
+echo "python: $(command -v python)"
+python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
+pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}' || true
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi

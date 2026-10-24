@@ -306,6 +306,14 @@ mkdir -p "$H/save/FLAC_exp25_CANON_smoke/exp25_CANON_smoke/checkpoints"; touch "
 case_rc "S2 SMOKE namespace holding a checkpoint" 2 "SMOKE NAMESPACE HOLDS CHECKPOINTS" MODE=SMOKE DRY_RUN=1
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 
+echo "--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---"
+case_rc "G1 a busy card refuses"            2 "GPU GATE FAILED: GPU 0 free 1000 MiB" MODE=SMOKE GUARD_GPU_FREE=1000
+case_rc "G2 the GPU gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" MODE=SMOKE DRY_RUN=1 GUARD_GPU_FREE=1000
+case_rc "G3 the W&B identity gate is skipped in harness mode" 2 "W&B identity gate SKIPPED (harness)" MODE=SMOKE
+mkdir -p "$H/emptyhub"
+case_rc "G4 a missing DINOv3 snapshot refuses" 2 "DINOv3/init-identity GATE FAILED" MODE=SMOKE DRY_RUN=1 HF_HUB_CACHE="$H/emptyhub"
+case_rc "G5 the gate imports THIS checkout's src" 0 "src imported from $R/src" MODE=SMOKE DRY_RUN=1
+
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo
