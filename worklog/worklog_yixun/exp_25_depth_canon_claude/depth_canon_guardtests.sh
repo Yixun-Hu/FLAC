@@ -160,11 +160,18 @@ cat > "$BIN/nvidia-smi" <<'STUB'
 # fixed uuids (GPU 2 is another card), exit GUARD_GPU_UUID_RC; the compute-app query -> GUARD_GPU_APPS
 # ('pid, uuid' lines, printf %b), exit GUARD_GPU_APPS_RC (GUARD_GPU_APPS_FAIL=1: no output, exit 1).
 # A nonzero exit AFTER plausible output is the rA A3 case: it must still refuse.
+# rB-F2 F2-2: ONLY the launcher's three strict gate queries are answered; any other query (e.g. a
+# best-effort disclosure query) is logged to $H/nvsmi_unexpected and FAILS (exit 9).
+H="$(dirname "$(dirname "$(readlink -f "$0")")")"
 case "$*" in
-  *memory.free*) printf '%b\n' "${GUARD_GPU_FREE:-40000}"; exit "${GUARD_GPU_MEM_RC:-0}" ;;
-  *index,uuid*) printf '0, GPU-guard-0\n1, GPU-guard-1\n2, GPU-guard-2\n'; exit "${GUARD_GPU_UUID_RC:-0}" ;;
-  *query-compute-apps=pid,gpu_uuid*) [ "${GUARD_GPU_APPS_FAIL:-0}" = 1 ] && exit 1
-                                     printf '%b' "${GUARD_GPU_APPS:-}"; exit "${GUARD_GPU_APPS_RC:-0}" ;;
+  "-i "[01]" --query-gpu=memory.free --format=csv,noheader,nounits")
+    printf '%b\n' "${GUARD_GPU_FREE:-40000}"; exit "${GUARD_GPU_MEM_RC:-0}" ;;
+  "--query-gpu=index,uuid --format=csv,noheader")
+    printf '0, GPU-guard-0\n1, GPU-guard-1\n2, GPU-guard-2\n'; exit "${GUARD_GPU_UUID_RC:-0}" ;;
+  "--query-compute-apps=pid,gpu_uuid --format=csv,noheader")
+    [ "${GUARD_GPU_APPS_FAIL:-0}" = 1 ] && exit 1
+    printf '%b' "${GUARD_GPU_APPS:-}"; exit "${GUARD_GPU_APPS_RC:-0}" ;;
+  *) printf '%s\n' "$*" >> "$H/nvsmi_unexpected"; echo "guard stub: unexpected nvidia-smi query"; exit 9 ;;
 esac
 STUB
 cat > "$H/fake_train.sh" <<'FAKE'
@@ -514,6 +521,12 @@ case_rc "U3 a failed compute-process query refuses" 7 "query-compute-apps" \
   MODE=SMOKE GUARD_GPU_APPS_FAIL=1
 case_rc "U4 a process on another (known) card does not block" 0 "GPU occupancy gate OK" \
   MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n'
+rm -f "$H/nvsmi_unexpected"
+case_rc "U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2)" 0 \
+  "GPU 1 GPU-guard-1: 40000 MiB free, no compute process" MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n'
+expect "U12b ... and names the compute process seen on another card" grep -qF "pid 4244 on GPU 2 (GPU-guard-2)" <<<"$OUT"
+expect "U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)" \
+  test ! -e "$H/nvsmi_unexpected"
 case_rc "U6 a process on an UNKNOWN uuid refuses" 7 "unknown uuid" \
   MODE=SMOKE GUARD_GPU_APPS='4245, GPU-guard-9\n'
 case_rc "U7 a numeric memory answer with a nonzero exit refuses" 7 "exited 3" MODE=SMOKE GUARD_GPU_MEM_RC=3
