@@ -32,7 +32,13 @@ PASS=0; FAIL=0; SKIP=0
 ok()   { echo "  PASS  $1"; PASS=$((PASS + 1)); }
 bad()  { echo "  FAIL  $1${2:+ -- $2}"; FAIL=$((FAIL + 1)); }
 skip() { echo "  SKIP  $1${2:+ -- $2}"; SKIP=$((SKIP + 1)); }
-expect() { local name="$1"; shift; if "$@"; then ok "$name"; else bad "$name"; fi; }
+FILTERED=0
+want() {   # GUARD_ONLY=P,T,...: run only the cases of those sections (the case name's leading letters)
+  [ -z "${GUARD_ONLY:-}" ] && return 0
+  case ",${GUARD_ONLY}," in *",${1%%[0-9]*},"*) return 0 ;; esac
+  FILTERED=$((FILTERED + 1)); return 1
+}
+expect() { local name="$1"; shift; want "$name" || return 0; if "$@"; then ok "$name"; else bad "$name"; fi; }
 
 make_clone() {   # a fresh clone of the source HEAD + the overlaid launcher files, committed
   rm -rf "$R"
@@ -126,6 +132,7 @@ launch() {
 # case_rc <name> <want_rc> <want_text> <VAR=value ...>
 case_rc() {
   local name="$1" want_rc="$2" want_txt="$3"; shift 3
+  want "$name" || return 0
   launch "$@"
   if [ "$RC" = "$want_rc" ] && grep -qF -- "$want_txt" <<<"$OUT"; then ok "$name (rc=$RC)"
   else bad "$name" "want rc=$want_rc + '$want_txt'; got rc=$RC; last: $(tail -1 <<<"$OUT")"; fi
@@ -154,7 +161,9 @@ expect "P1b the list covers the training path" bash -c '
            src/configs/dataset_configs/custom_metadata/AR_md.py \
            src/configs/dataset_configs/AR/train/acousticroom_train.json data/AR/train.json \
            weights/FLAC/VAE.safetensors worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json \
-           '"$EXPREL"'/FLAC_AR_CANON.json worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py; do
+           '"$EXPREL"'/FLAC_AR_CANON.json worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py \
+           worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BV.json \
+           worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json; do
     grep -qxF "$p" <<<"$1" || { echo "missing $p"; exit 1; }; done
   ! grep -q "^src/tests/" <<<"$1"' _ "$LIST"
 M1="$(cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh")"
@@ -236,7 +245,9 @@ case_rc "M5 another VAE behind the (gitignored) weights link" 2 "PIN MANIFEST FA
 rm "$R/weights"; ln -s "$SRC_REPO/weights" "$R/weights"
 printf '\n# guard edit\n' >> "$R/src/data/utils.py"
 ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null ); commit_clone "guard: new pin commit"
-case_rc "M6 a committed change with its regenerated manifest is a new valid pin" 0 "pin manifest OK: 44 files" MODE=SMOKE DRY_RUN=1
+case_rc "M6 a committed change with its regenerated manifest is a new valid pin" 0 "pin manifest OK: 46 files" MODE=SMOKE DRY_RUN=1
+printf '\n' >> "$R/worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"
+case_rc "M7 an edit to a config the DINOv3 gate opens (FLAC_AR_BF.json) is caught" 2 "PIN MANIFEST FAILED: content" MODE=SMOKE DRY_RUN=1
 make_clone >/dev/null
 
 echo "--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---"
@@ -419,5 +430,6 @@ fi
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo
+[ "$FILTERED" -eq 0 ] || echo "(${FILTERED} case(s) not run: GUARD_ONLY=${GUARD_ONLY})"
 echo "=== ${PASS} passed, ${FAIL} failed, ${SKIP} skipped ==="
 [ "$FAIL" -eq 0 ]
