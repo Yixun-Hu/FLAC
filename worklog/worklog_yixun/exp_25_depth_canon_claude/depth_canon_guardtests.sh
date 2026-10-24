@@ -195,6 +195,15 @@ case_rc "A7 non-numeric rung"    2 "only the BN-compliant rung"          MODE=FU
 case_rc "A8 harness outside /tmp" 2 "must be a directory under /tmp"     MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$HOME"
 case_rc "A9 harness without its marker" 2 "lacks the .depth_canon_harness marker" MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$BIN"
 
+echo "--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---"
+mkdir -p "$H/otherpy"; printf '#!/usr/bin/env bash\necho "NOT THE FLAC PYTHON"; exit 1\n' > "$H/otherpy/python"
+chmod +x "$H/otherpy/python"
+case_rc "I1 production mode with another python first on PATH" 2 "INTERPRETER GATE FAILED" \
+  MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS= PATH="$H/otherpy:$PATH"
+case_rc "I2 harness mode with a python outside the harness first on PATH" 2 "INTERPRETER GATE FAILED" \
+  MODE=SMOKE DRY_RUN=1 PATH="$(dirname "$REAL_PY"):$BIN:$PATH"
+case_rc "I3 the harness stub is accepted and named" 0 "interpreter OK: $BIN/python" MODE=SMOKE DRY_RUN=1
+
 echo "--- K. HEAD pin ---"
 case_rc "K1 EXPECT_HEAD unset"   2 "EXPECT_HEAD must be the full 40-hex"  MODE=SMOKE DRY_RUN=1 EXPECT_HEAD=
 case_rc "K2 short EXPECT_HEAD"   2 "EXPECT_HEAD must be the full 40-hex"  MODE=SMOKE DRY_RUN=1 EXPECT_HEAD="$(git -C "$R" rev-parse --short HEAD)"
@@ -204,7 +213,7 @@ case_rc "K4 the pin passes"      0 "HEAD pin OK: $(git -C "$R" rev-parse HEAD)" 
 echo "--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---"
 launch MODE=FULL DRY_RUN=1; FULL_ARGV="$(argv_of "$OUT")"
 launch MODE=SMOKE DRY_RUN=1; SMOKE_ARGV="$(argv_of "$OUT")"
-expect "F1 argv starts with 'python train.py'" bash -c '[[ "$1" == "python train.py "* ]]' _ "$FULL_ARGV"
+expect "F1 argv starts with the pinned interpreter + train.py" bash -c '[[ "$1" == "$2 train.py "* ]]' _ "$FULL_ARGV" "$BIN/python"
 for fv in "--model-config $EXPREL/FLAC_AR_CANON.json" \
           "--dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json" \
           "--pretransform-ckpt-path weights/FLAC/VAE.safetensors" "--max-steps 40000" \

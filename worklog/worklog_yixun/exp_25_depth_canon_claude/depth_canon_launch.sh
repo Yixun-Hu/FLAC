@@ -52,6 +52,7 @@ MAX_PROJECTED_HOURS=60            # plan §4 gate (7)
 MIN_NAS_FREE_GIB=30               # plan §4 gate (6)
 MIN_GPU_FREE_MIB=23040            # 22.5 GiB per card (gate (8))
 SAVE_ROOT_PIN="/media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon"
+PY_PIN="/home/yixunhu/miniconda3/envs/flac/bin/python"   # the flac env, REQUIRED (r3b-F1 fix 6)
 NAS_FSTYPE="cifs"
 NAS_SOURCE="//10.249.7.28/shared_data"
 WANDB_IDENTITY="yh4742@princeton.edu"
@@ -100,9 +101,26 @@ echo "=== exp_25 depth_canon ${MODE} -- ${TS} -- HEAD ${HEAD_SHA} -- dry_run=${D
 [ "$HARNESS_FLAG" = true ] && echo "HARNESS MODE (${HREAL}): guard-suite run, not a registered run"
 echo "identity: project=${NAME} | run=${EXPNAME} | save-root=${SAVE_ROOT} (production pin ${SAVE_ROOT_PIN})"
 echo "budget: mode=${MODE} | endpoint=${MAXSTEPS} | cadence=${CADENCE}"
+# --- the interpreter (r3b-F1 fix 6): the flac env runs every gate AND train.py -------- #
+# Production: the pinned interpreter, and 'python' on PATH must BE it (an activated other env
+# fails closed). Harness: the guard suite's stub, which must live inside the harness dir.
+PATH_PY="$(command -v python 2>/dev/null || true)"
+if [ "$HARNESS_FLAG" = true ]; then
+  case "$(readlink -f -- "$PATH_PY" 2>/dev/null)" in
+    "$HREAL"/?*) PY="$PATH_PY" ;;
+    *) echo "INTERPRETER GATE FAILED: harness mode needs the harness's python stub first on PATH (got '${PATH_PY}') - abort"; exit 2 ;;
+  esac
+else
+  [ -x "$PY_PIN" ] || { echo "INTERPRETER GATE FAILED: ${PY_PIN} is missing - abort"; exit 2; }
+  if [ -z "$PATH_PY" ] || [ "$(readlink -f -- "$PATH_PY")" != "$(readlink -f -- "$PY_PIN")" ]; then
+    echo "INTERPRETER GATE FAILED: 'python' on PATH is '${PATH_PY:-absent}', not the flac env ${PY_PIN} (activate it) - abort"; exit 2
+  fi
+  PY="$PY_PIN"
+fi
+echo "interpreter OK: ${PY}"
 # P1's recipe exactly (p1_ddp_launch.sh): no --val-dataset-config, no resume, no
 # pretrained init; --precision bf16-mixed is defaults.ini's value, passed explicitly.
-ARGV=(python train.py
+ARGV=("$PY" train.py
   --model-config "$ARM_CFG" --dataset-config "$DATASET_CFG" --pretransform-ckpt-path "$VAE"
   --max-steps "$MAXSTEPS" --checkpoint-every "$CADENCE"
   --batch-size "$MB" --accum-batches "$ACC" --num-gpus 2 --sync-batchnorm true
@@ -145,7 +163,7 @@ MANIFEST_SHA="$(sha256sum "$PIN_MANIFEST" | awk '{print $1}')"
 echo "pin manifest OK: ${#PINNED[@]} files match ${PIN_MANIFEST} (sha256 ${MANIFEST_SHA}); pinned paths + launcher kit committed at HEAD"
 
 # --- config contract: the P1 control plus exactly training.canonicalize -------- #
-python - "$ARM_CFG" "$CONTROL_CFG" "$CONTROL_SHA" <<'PY' || { echo "CONFIG CONTRACT FAILED - abort"; exit 2; }
+"$PY" - "$ARM_CFG" "$CONTROL_CFG" "$CONTROL_SHA" <<'PY' || { echo "CONFIG CONTRACT FAILED - abort"; exit 2; }
 import hashlib, json, sys
 arm_p, ctl_p, ctl_sha = sys.argv[1:4]
 ctl_raw, arm_raw = open(ctl_p, "rb").read(), open(arm_p, "rb").read()
@@ -206,7 +224,7 @@ PY
 
 # --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
 if [ "$MODE" = "FULL" ]; then
-  SMOKE_EVIDENCE="$(python - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
+  SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
 import glob, hashlib, json, os, sys
 exp, head, manifest, harness = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "true"
 NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
@@ -298,7 +316,7 @@ elif [ "$HARNESS_FLAG" = true ]; then
   echo "W&B identity gate SKIPPED (harness)"
 else
   eval "$(grep -E '^[[:space:]]*export[[:space:]]+WANDB_API_KEY=' ~/.bashrc 2>/dev/null | tail -1 || true)"
-  python - "$WANDB_IDENTITY" <<'PY' || { echo "W&B IDENTITY GATE FAILED: not ${WANDB_IDENTITY} - abort"; exit 2; }
+  "$PY" - "$WANDB_IDENTITY" <<'PY' || { echo "W&B IDENTITY GATE FAILED: not ${WANDB_IDENTITY} - abort"; exit 2; }
 import sys
 try:
     import wandb
@@ -313,7 +331,7 @@ fi
 # --- DINOv3 pin + exp_07 wiring / init identity, offline ------------------------ #
 # src is imported from THIS checkout before the gate runs: the gate's own .git
 # marker walk stops at a parent directory's .git when run from a git worktree.
-HF_HUB_OFFLINE=1 python - "$REPO" "$DINO_GATE" <<'PY' || { echo "DINOv3/init-identity GATE FAILED - abort"; exit 2; }
+HF_HUB_OFFLINE=1 "$PY" - "$REPO" "$DINO_GATE" <<'PY' || { echo "DINOv3/init-identity GATE FAILED - abort"; exit 2; }
 import os, runpy, sys
 repo, gate = sys.argv[1], sys.argv[2]
 sys.path.insert(0, repo)
@@ -326,9 +344,9 @@ runpy.run_path(gate, run_name="__main__")
 PY
 
 echo "--- env manifest ---"
-echo "python: $(command -v python)"
-python -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
-pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}' || true
+echo "python: ${PY}"
+"$PY" -c "import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda)"
+"$PY" -m pip freeze 2>/dev/null | sha256sum | awk '{print "pip-freeze sha256:", $1}' || true
 
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
@@ -381,7 +399,7 @@ fi
 # --- (5) run-owned checkpoints (FULL) / none at all (SMOKE) ---------------------- #
 CKPT_MANIFEST="$EXPDIR/depth_canon_${TS}_${EXPNAME}_checkpoints.sha256"
 ckpt_rc=0
-python - "$RUN_NS" "$LAUNCH_MARK" "$MODE" "$MAXSTEPS" "$CADENCE" "$CKPT_MANIFEST" <<'PY' || ckpt_rc=$?
+"$PY" - "$RUN_NS" "$LAUNCH_MARK" "$MODE" "$MAXSTEPS" "$CADENCE" "$CKPT_MANIFEST" <<'PY' || ckpt_rc=$?
 import hashlib, os, re, sys
 ns, mark, mode, endpoint, cadence, manifest = sys.argv[1:7]
 endpoint, cadence = int(endpoint), int(cadence)
@@ -436,7 +454,7 @@ PY
 # --- (7) SMOKE: steady-state projection <= 60 h, then the evidence --------------- #
 if [ "$MODE" = "SMOKE" ]; then
   EVIDENCE="$EXPDIR/depth_canon_smoke_evidence_${TS}.json"
-  python - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
+  "$PY" - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
       "$MAX_PROJECTED_HOURS" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" "$BANNER_SEEN" "$ENDPOINT_SEEN" \
       "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" <<'PY' || fail 4
 import json, re, sys
@@ -485,7 +503,7 @@ fi
 echo "=== exp_25 depth_canon ${MODE} finished: exit ${rc} ==="
 if [ "$MODE" = "SMOKE" ]; then
   drain_log                             # the evidence binds the FINAL bytes of the log
-  python - "$EVIDENCE.partial" "$EVIDENCE" "$LOG" <<'PY' || { echo "could not publish the smoke evidence"; exit 2; }
+  "$PY" - "$EVIDENCE.partial" "$EVIDENCE" "$LOG" <<'PY' || { echo "could not publish the smoke evidence"; exit 2; }
 import hashlib, json, os, sys
 partial, final, log = sys.argv[1:4]
 ev = json.load(open(partial))
