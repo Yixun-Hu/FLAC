@@ -182,7 +182,7 @@ EDITS = [  # (row spec, edit, needle)
     (C4, lambda d: d["by_scene"].pop("Cafe"), "by_scene"),
     (C4, lambda d: d.update(canonicalize_applied=False), "canonicalize_applied"),
     (C4, lambda d: d.update(model_config_sha256_embedded="0" * 64), "model_config_sha256"),
-    (C4, lambda d: d.update(canonicalize_tie_counts={"none": N, "same_column": 0,
+    (C4, lambda d: d.update(canonicalize_tie_counts={"none": N, "same_column": 1,
                                                      "cross_column_image": 0}), "tie_counts"),
     (dict(block="D-i", K=1), lambda d: d.update(canonicalize_mismatch=False), "canonicalize_mismatch"),
     (dict(block="D-ii", K=8), lambda d: d.update(canonicalize_mismatch=False), "canonicalize_mismatch"),
