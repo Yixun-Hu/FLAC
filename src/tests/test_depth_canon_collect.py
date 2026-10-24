@@ -747,34 +747,109 @@ def test_bf_row_is_quoted_with_its_provenance():
     assert "not re-measured" in bf["provenance"] and "model_comparison.md" in bf["provenance"]
 
 
-def write_audit(tmp, verdict="PASS", unseen=None, tamper=False):
-    items = {"none": 6, "same_column": 1, "cross_column_image": 1, "survivor": 0, "error": 0}
-    rep = {"schema_version": 1, "coverage": {"complete": True, "limit": None},
-           "gate": {"verdict": verdict, "n_survivors": 0, "n_errors": 0},
-           "per_split": {"unseen": {"items": unseen or items, "maps": items},
-                         "seen": {"items": items, "maps": items}},
-           "rows": [{"counts": {"train": 0, "unseen": 1, "seen": 1}}, {"counts": {"train": 1, "unseen": 0, "seen": 0}}]}
-    text = json.dumps(rep) + "\n"
+# rB-F1 B1 (Codex rB BLOCKING): the tie audit is a REAL audit (the audit script's own
+# pipeline) of a tiny tree whose eval splits carry exactly the cells' tie classes, and the
+# collector validates it with the ONE shared gate (depth_canon_audit_gate.py).
+import tempfile  # noqa: E402
+
+import test_depth_canon_audit_gate as TG  # noqa: E402
+import test_depth_canon_tie_audit as TA  # noqa: E402
+
+_OFFICE = "Office_idx_2"
+AUDIT_SPLITS = {   # unseen / seen: 8 items each = 6 'none', 1 'same_column', 1 'cross_column_image'
+    "train": {"Cafe": {"Cafe_idx_0": ["S001_R001_hybrid_IR.wav", "S002_R001_hybrid_IR.wav"]}},
+    "unseen": {"Office": {_OFFICE: [f"S00{s}_R005_hybrid_IR.wav" for s in range(1, 7)]
+                          + ["S001_R006_hybrid_IR.wav", "S001_R007_hybrid_IR.wav"]}},
+    "seen": {"Office": {_OFFICE: ["S001_R005_hybrid_IR.wav", "S007_R005_hybrid_IR.wav", "S008_R005_hybrid_IR.wav",
+                                  "S009_R005_hybrid_IR.wav", "S0010_R005_hybrid_IR.wav", "S0011_R005_hybrid_IR.wav",
+                                  "S002_R006_hybrid_IR.wav", "S002_R007_hybrid_IR.wav"]}}}
+SAME_MAP, CROSS_MAP = f"depth_map/Office/{_OFFICE}/6.npy", f"depth_map/Office/{_OFFICE}/7.npy"
+
+
+def write_audit(tmp, monkeypatch, mutate=None, tamper=False, maps=None, limit=None):
+    """Publish a real audit at ``tmp/depth_canon_tie_audit.json`` with the audit's own writer
+    (``mutate`` edits the report first, so its sidecar still matches) and point the gate's
+    registered contract at this tree."""
+    tree = tempfile.mkdtemp(prefix="audit_tree_", dir=str(tmp))
+    planted = {SAME_MAP: TA._fixture("s", [(10, 77), (200, 77)], None).numpy(),
+               CROSS_MAP: TA._fixture("c", [(90, 5), (90, 6)], None).numpy(), **(maps or {})}
+    _, rep, contract = TG.make_audit(__import__("pathlib").Path(tree), splits=AUDIT_SPLITS, maps=planted,
+                                     limit=limit)
+    if mutate:
+        mutate(rep)
     path = os.path.join(str(tmp), "depth_canon_tie_audit.json")
-    open(path, "w").write(text)
-    digest = "0" * 64 if tamper else hashlib.sha256(text.encode()).hexdigest()
-    open(path + ".sha256", "w").write(f"{digest}  depth_canon_tie_audit.json\n")
+    TA.audit.write_report(rep, path)
+    if tamper:
+        open(path + ".sha256", "w").write("0" * 64 + "  depth_canon_tie_audit.json\n")
+    monkeypatch.setattr(C.audit_gate(), "REGISTERED", contract)
     return path
 
 
-def test_tie_counts_per_cell_and_per_split(tmp_path):
-    write_campaign(tmp_path, ["T", "R"])
-    cells = collect(tmp_path, ["T", "R"])
-    audit, reasons = C.load_tie_audit(write_audit(tmp_path))
-    assert reasons == []
-    ties = C.tie_summary(cells, audit)
-    assert len(ties["per_cell"]) == 20 and ties["mismatches"] == [] and ties["shared_maps"] == 1
+def _plain_map():
+    return TA._fixture("u", [], None, seed=11).numpy()
+
+
+def test_tie_counts_per_cell_and_per_split(tmp_path, monkeypatch):
+    write_campaign(tmp_path, ["T", "R", "S"])
+    cells = collect(tmp_path, ["T", "R", "S"])
+    audit, summary, reasons = C.load_tie_audit(write_audit(tmp_path, monkeypatch))
+    assert reasons == [] and summary["n_maps"] == 4
+    ties = C.tie_summary(cells, audit, summary)
+    assert len(ties["per_cell"]) == 30 and ties["mismatches"] == [] and ties["shared_maps"] == 3
     assert ties["per_split"]["unseen"]["items"]["cross_column_image"] == 1
-    audit, _ = C.load_tie_audit(write_audit(tmp_path, unseen={"none": 7, "same_column": 0,
-                                                               "cross_column_image": 1}))
-    assert len(C.tie_summary(cells, audit)["mismatches"]) == 20
-    for kw, needle in ((dict(tamper=True), "sha256"), (dict(verdict="FAIL"), "PASS")):
-        assert any(needle in x for x in C.load_tie_audit(write_audit(tmp_path, **kw))[1])
+    assert ties["per_split"]["train"]["items"]["none"] == 2
+    audit, summary, _ = C.load_tie_audit(write_audit(tmp_path, monkeypatch, maps={SAME_MAP: _plain_map()}))
+    assert len(C.tie_summary(cells, audit, summary)["mismatches"]) == 30      # unseen AND seen cells
+    for kw, needle in ((dict(tamper=True), "sidecar"), (dict(mutate=lambda r: r["gate"].update(verdict="FAIL")),
+                                                         "gate")):
+        audit, summary, reasons = C.load_tie_audit(write_audit(tmp_path, monkeypatch, **kw))
+        assert audit is None and summary is None and any(needle in x for x in reasons), reasons
+
+
+AUDIT_CASES = {   # every one must refuse FULL collection: exit 3, neither result file written
+    "drop_train_per_split": dict(mutate=lambda r: r["per_split"].pop("train")),
+    "item_count": dict(mutate=lambda r: r["per_split"]["unseen"]["items"].update(none=5)),
+    "cardinality": dict(mutate=lambda r: r["inputs"][1].update(n_items=7)),
+    "input_hash": dict(mutate=lambda r: r["inputs"][2].update(json_sha256="0" * 64)),
+    "tool_hash": dict(mutate=lambda r: r["tool"]["code_sha256"].update({"src/data/dataset.py": "0" * 64})),
+    "survivor": dict(mutate=lambda r: r["survivors"].append({"path": r["rows"][0]["path"]})),
+    "coverage_incomplete": dict(mutate=lambda r: r["coverage"].update(complete=False)),
+    "limit_run": dict(limit=2),
+    "tampered_sidecar": dict(tamper=True),
+    "cell_disagrees_with_the_audit": dict(maps={SAME_MAP: _plain_map()}),
+}
+INVARIANCE_S = ["T", "T-dup", "C4+45", "R", "S"]
+
+
+def test_a_genuine_audit_lets_full_collection_through(tmp_path, monkeypatch, capsys):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path)
+    write_audit(tmp_path, monkeypatch)
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    assert rc == 0, capsys.readouterr().out
+    res = json.load(open(out + ".json"))
+    assert res["partial"] is False and res["ties"]["mismatches"] == [] and res["ties"]["shared_maps"] == 3
+
+
+@pytest.mark.parametrize("name", list(AUDIT_CASES))
+def test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection(tmp_path, monkeypatch, capsys, name):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path)
+    write_audit(tmp_path, monkeypatch, **AUDIT_CASES[name])
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    text = capsys.readouterr().out
+    assert rc == 3 and not os.path.exists(out + ".md") and not os.path.exists(out + ".json"), text
+    assert "tie" in text and "RESULTS REFUSED" in text, text
+
+
+def test_an_invalid_audit_is_labelled_under_partial(tmp_path, monkeypatch):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path)
+    write_audit(tmp_path, monkeypatch, maps={SAME_MAP: _plain_map()})
+    rc, out = _collect_cli(tmp_path, "--partial", blocks=",".join(INVARIANCE_S))
+    res, md = json.load(open(out + ".json")), open(out + ".md").read()
+    assert rc == 0 and res["partial"] is True and any("tie" in p for p in res["problems"])
+    assert len(res["ties"]["mismatches"]) == 30 and "PARTIAL" in md
 
 
 def test_the_seen_unseen_overlap_disclosure():
@@ -802,10 +877,10 @@ def _collect_cli(tmp, *extra, blocks=None):
 ALL_BLOCKS = list(MANIFEST["blocks"])
 
 
-def test_full_collection_writes_both_results_files(tmp_path, capsys):
+def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys):
     write_campaign(tmp_path, ALL_BLOCKS, metrics_fn=t3_metrics)
     write_probe(tmp_path)
-    write_audit(tmp_path)
+    write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path)
     assert rc == 0, capsys.readouterr().out
     res = json.load(open(out + ".json"))
@@ -819,11 +894,11 @@ def test_full_collection_writes_both_results_files(tmp_path, capsys):
         assert needle in md, needle
 
 
-def test_missing_cells_refuse_the_table_unless_partial(tmp_path, capsys):
+def test_missing_cells_refuse_the_table_unless_partial(tmp_path, monkeypatch, capsys):
     gone = "exp25_YAW_C4_S40000_K8_s42_th45"
     write_campaign(tmp_path, ALL_BLOCKS, skip={gone})
     write_probe(tmp_path, registered=False)
-    write_audit(tmp_path)
+    write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path)
     assert rc == 3 and not os.path.exists(out + ".md") and not os.path.exists(out + ".json")
     text = capsys.readouterr().out
@@ -836,11 +911,11 @@ def test_missing_cells_refuse_the_table_unless_partial(tmp_path, capsys):
     assert headings and all("PARTIAL" in h for h in headings) and gone in md
 
 
-def test_a_block_selection_defines_the_required_set(tmp_path, capsys):
+def test_a_block_selection_defines_the_required_set(tmp_path, monkeypatch, capsys):
     blocks = [b for b in ALL_BLOCKS if b != "YAW-pin"]                       # the A1 switch off
     write_campaign(tmp_path, blocks, metrics_fn=t3_metrics)
     write_probe(tmp_path)
-    write_audit(tmp_path)
+    write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path, blocks=",".join(blocks))
     assert rc == 0, capsys.readouterr().out
     res = json.load(open(out + ".json"))
