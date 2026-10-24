@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 
 import pytest
 
@@ -397,6 +398,10 @@ with open(os.path.join(H, "calls.log"), "a") as f:
     f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv}) + "\n")
 if os.environ.get("STUB_MODE") == "crash":
     sys.exit(3)
+if os.environ.get("STUB_MODE") == "tamper_ckpt":   # the opened checkpoint's bytes change DURING the cell
+    _ck = argv[argv.index("--ckpt-path") + 1]
+    os.chmod(_ck, 0o644)
+    open(_ck, "ab").write(b"tampered")
 if os.environ.get("STUB_MODE") == "mutate":        # an edit of the evaluated tree DURING the cell
     open("eval_FLAC.py", "a").write("\n# drift during the cell\n")
 opts, i = {}, 0
@@ -415,6 +420,8 @@ T.write_cell(os.getcwd(), row, pin=eval_FLAC.source_sha(), n=row["expected_strea
              link=opts["--ckpt-path"], dump="--dump-scored-waveforms" in opts,
              dump_root=opts.get("--dump-scored-waveforms"), receipt=False)
 '''
+STUB_DF = ('#!/usr/bin/env bash\n[ -n "${GUARD_DF_AVAIL:-}" ] && { echo Avail; echo "$GUARD_DF_AVAIL"; exit 0; }\n'
+           'exec /usr/bin/df "$@"\n')
 STUB_FINDMNT = "#!/usr/bin/env bash\nprintf '%s\\n' \"${GUARD_FINDMNT_LINE:-cifs   //10.249.7.28/shared_data}\"\n"
 STUB_NVSMI = r"""#!/usr/bin/env bash
 # harness nvidia-smi: index->uuid map, per-call compute-app scenarios (apps.<n>, else
@@ -475,7 +482,7 @@ def harness(tmp_path, clone):
     h = tmp_path / "h"
     (h / "bin").mkdir(parents=True)
     (h / ".depth_canon_eval_harness").write_text("")
-    for name, body in (("findmnt", STUB_FINDMNT), ("nvidia-smi", STUB_NVSMI)):
+    for name, body in (("findmnt", STUB_FINDMNT), ("nvidia-smi", STUB_NVSMI), ("df", STUB_DF)):
         (h / "bin" / name).write_text(body)
         os.chmod(h / "bin" / name, 0o755)
     (h / "stub_eval.py").write_text(STUB_EVAL.replace("@TESTMOD@", TESTMOD))
@@ -812,3 +819,62 @@ def test_an_edit_during_a_cell_fails_that_cell(clone, harness):
         path.write_bytes(original)
     assert rc == 4 and "changed while the cell ran" in out, out
     assert not os.path.exists(_entry(clone, harness, TWO[0])["receipt"])
+
+
+# ---- rB-F1 B4 (Codex rB HIGH): the evaluated checkpoint is a verified, immutable local copy ---- #
+def _cache(harness, sha):
+    return harness["dir"] / "farm" / ".ckpt_cache" / f"{sha}.ckpt"
+
+
+def test_the_checkpoint_is_staged_into_a_verified_cache_and_hard_linked(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 0, out
+    e = _entry(clone, harness, TWO[0])
+    cache = _cache(harness, e["sha256"])
+    assert cache.is_file() and not cache.is_symlink() and (cache.stat().st_mode & 0o777) == 0o444
+    assert not os.path.islink(e["link"]) and os.stat(e["link"]).st_ino == cache.stat().st_ino
+    assert hashlib.sha256(cache.read_bytes()).hexdigest() == e["sha256"]
+    assert not [p for p in os.listdir(cache.parent) if p.startswith(".staging-")]        # nothing left over
+    rec = json.load(open(e["receipt"]))
+    assert rec["ckpt_sha256_measured"] == rec["ckpt_sha256"] == e["sha256"]
+    assert rec["ckpt_cache"] == str(cache)
+    assert "space" in out and "available" in out                                       # the gate's numbers
+
+
+def test_insufficient_space_refuses_before_any_copy(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"GUARD_DF_AVAIL": "1000"})
+    assert rc == 2 and "CACHE SPACE GATE FAILED" in out and not _calls(harness), out
+    assert not (harness["dir"] / "farm" / ".ckpt_cache").exists() or not os.listdir(
+        harness["dir"] / "farm" / ".ckpt_cache")
+
+
+def test_a_symlink_or_foreign_farm_entry_is_refused(clone, harness):
+    e = _entry(clone, harness, TWO[0])
+    os.makedirs(os.path.dirname(e["link"]))
+    os.symlink(e["target"], e["link"])                     # the r3c layout: a retargetable link
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 2 and "FARM GATE FAILED" in out and not _calls(harness), out
+    os.unlink(e["link"])
+    shutil.copy(e["target"], e["link"])                    # right bytes, but not the cache's inode
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 2 and "FARM GATE FAILED" in out and not _calls(harness), out
+
+
+def test_a_tampered_cache_file_is_refused(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 0, out
+    e = _entry(clone, harness, TWO[0])
+    cache = _cache(harness, e["sha256"])
+    os.chmod(cache, 0o644)
+    with open(cache, "ab") as f:
+        f.write(b"x")
+    os.unlink(e["receipt"])                                 # force a re-run of the cell
+    rc, out = drive(clone, harness, "--only", TWO[0])
+    assert rc == 2 and "CACHE GATE FAILED" in out and len(_calls(harness)) == 1, out
+
+
+def test_bytes_changed_during_the_cell_fail_the_measured_digest(clone, harness):
+    rc, out = drive(clone, harness, "--only", TWO[0], env={"STUB_MODE": "tamper_ckpt"})
+    assert rc == 1 and "FAILED" in out, out
+    e = _entry(clone, harness, TWO[0])
+    assert not os.path.exists(e["receipt"])                 # the measured sha256 != the manifest's

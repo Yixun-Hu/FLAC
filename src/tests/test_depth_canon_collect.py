@@ -502,16 +502,39 @@ def test_verify_cell_without_a_dump(tmp_path):
     assert any("dump" in x for x in verify(tmp_path, rel2, expect_dump=False))
 
 
-def test_verify_cell_checks_the_farm_link(tmp_path):
+def test_verify_cell_checks_the_farm_entry_is_the_cache_file(tmp_path):
+    """rB-F1 B4: the farm entry is a regular file hard-linked to the content-addressed cache
+    file <farm>/.ckpt_cache/<sha256>.ckpt -- never a symlink (it could be retargeted)."""
     r = row("YAW-pin", "YAW", K=1, seed=42, sub="T")
     rel = write_cell(tmp_path, r)
+    sha = MANIFEST["arms"]["YAW"]["ckpt"]["sha256"]
     link = os.path.join(str(tmp_path), FARM, "YAW", "epoch=8-step=40000.ckpt")
-    assert any("farm link" in x for x in verify(tmp_path, rel, check_link=True))
-    os.symlink("/elsewhere/epoch=8-step=40000.ckpt", link)
-    assert any("farm link" in x for x in verify(tmp_path, rel, check_link=True))
+    cache = os.path.join(str(tmp_path), FARM, ".ckpt_cache", f"{sha}.ckpt")
+    os.makedirs(os.path.dirname(cache))
+    open(cache, "wb").write(b"the verified copy")
+    assert any("farm entry" in x for x in verify(tmp_path, rel, check_link=True))          # absent
+    os.symlink(cache, link)
+    assert any("symlink" in x for x in verify(tmp_path, rel, check_link=True))             # never a symlink
     os.unlink(link)
-    os.symlink(MANIFEST["arms"]["YAW"]["ckpt"]["path"], link)
+    open(link, "wb").write(b"the verified copy")
+    assert any("hard link" in x for x in verify(tmp_path, rel, check_link=True))           # another inode
+    os.unlink(link)
+    os.link(cache, link)
     assert verify(tmp_path, rel, check_link=True) == []
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda d: d.update(ckpt_sha256_measured="1" * 64), "ckpt_sha256_measured"),
+    (lambda d: d.update(ckpt_cache="outputs_FLAC/elsewhere.ckpt"), "ckpt_cache")])
+def test_the_receipt_binds_the_measured_checkpoint(tmp_path, edit, needle):
+    r = row("P1-pin", "P1", K=8, seed=43, sub="T")
+    rel = write_cell(tmp_path, r)
+    rec = json.load(open(_receipt_path(tmp_path, rel)))
+    sha = MANIFEST["arms"]["P1"]["ckpt"]["sha256"]
+    assert rec["ckpt_sha256_measured"] == rec["ckpt_sha256"] == sha
+    assert rec["ckpt_cache"] == f"{FARM}/.ckpt_cache/{sha}.ckpt"
+    edit_json(_receipt_path(tmp_path, rel), edit)
+    assert any(needle in x for x in _receipt_check(tmp_path, rel, r))
 
 
 def _canon_manifest_file(tmp, lines=None):
