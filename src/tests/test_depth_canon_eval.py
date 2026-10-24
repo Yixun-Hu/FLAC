@@ -352,8 +352,11 @@ def test_canon_hash_is_recomputable_from_the_preimages():
     rec = json.loads(json.dumps(eval_FLAC.build_canon_record(stream, W16)))
     assert rec == {"schema_version": 1, "img_w": W16, "tiebreak": "image", "stream_count": 5,
                    "tie_counts": stream.tie_counts(), "positions": stream.position_tuples(),
-                   "canon_hash": stream.canon_hash()}
+                   "canon_hash": stream.canon_hash(),
+                   "canonical_depth_hash": stream.canonical_depth_hash()}
     assert eval_FLAC.canonical_stream_hash(rec["positions"]) == rec["canon_hash"]
+    assert eval_FLAC.canonical_stream_hash([[p[1], p[4]] for p in rec["positions"]]) == \
+        rec["canonical_depth_hash"]                    # recomputable from the same preimages
 
 
 @pytest.mark.parametrize("roll", [1, 8, 16, 31])
@@ -363,6 +366,20 @@ def test_canonical_depth_hashes_are_equal_across_a_rolled_copy(roll):
         assert a[:2] == b[:2] and a[3:] == b[3:]       # position, target, class, depth sha
         assert b[2] == (a[2] - roll) % W16             # the residual shift co-rotates
     assert base.canon_hash() != rolled.canon_hash()    # dj is part of the cell digest
+    assert base.canonical_depth_hash() == rolled.canonical_depth_hash()   # Tier 1, one line
+
+
+@pytest.mark.parametrize("edit", ["reorder", "target", "one_hash"])
+def test_canonical_depth_hash_is_sensitive_to_order_targets_and_each_hash(edit):
+    base = _canon_stream_of(_batch())
+    changed = copy.deepcopy(base)
+    if edit == "reorder":
+        changed.rows[0], changed.rows[1] = changed.rows[1], changed.rows[0]
+    elif edit == "target":
+        changed.rows[2][1] = "999|single_channel_ir_1/Other/Other_idx_0/S001_R001_hybrid_IR.wav"
+    else:
+        changed.rows[3][4] = "0" * 64
+    assert changed.canonical_depth_hash() != base.canonical_depth_hash()
 
 
 def test_canon_sidecar_path():

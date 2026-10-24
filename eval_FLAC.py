@@ -1075,6 +1075,14 @@ class CanonStream:
         compact, LF-joined) -- recomputable from the sidecar's ``positions``."""
         return canonical_stream_hash(self.position_tuples())
 
+    def canonical_depth_hash(self):
+        """The ROTATION-INVARIANT Tier-1 digest (plan v9 §2.2, r3a HIGH 2):
+        :func:`canonical_stream_hash` of the ordered ``[target_id, canonical_depth_sha256]``
+        pairs. Equal between a rotated cell and its theta = 0 pair iff every position
+        holds the same item with the same canonical depth image (``dj`` is left out,
+        so unlike :meth:`canon_hash` it does not depend on the rotation)."""
+        return canonical_stream_hash([[r[1], r[4]] for r in self.rows])
+
 
 def canon_sidecar_path(metrics_path):
     """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.canon.json``."""
@@ -1093,7 +1101,8 @@ def build_canon_record(stream, img_w):
     return {"schema_version": CANON_SIDECAR_SCHEMA_VERSION, "img_w": img_w,
             "tiebreak": CANON_TIEBREAK, "stream_count": len(stream),
             "tie_counts": stream.tie_counts(), "positions": stream.position_tuples(),
-            "canon_hash": stream.canon_hash()}
+            "canon_hash": stream.canon_hash(),
+            "canonical_depth_hash": stream.canonical_depth_hash()}
 
 
 def _batch_img_w(metadata):
