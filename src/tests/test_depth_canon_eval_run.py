@@ -367,3 +367,203 @@ def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, ca
     text = capsys.readouterr().out
     assert "receipt:" in text and "INVALID" in text and "missing or unreadable metrics" in text
     assert C.main(argv) == 0                                # without --verify-after: just the receipt
+
+
+# --------------------------------------------------------------------------- #
+# part 3: the driver depth_canon_eval_run.sh, run as a subprocess against a THROWAWAY
+# clone (git clone --shared + sparse checkout; the kit's working-tree files overlaid and
+# committed inside it) in harness mode: stub evaluator + stub findmnt / nvidia-smi on
+# PATH, fake checkpoints, farm / dumps / logs / lock all under one /tmp harness dir.
+# Nothing in the source repo, the NAS or a GPU is touched.
+# --------------------------------------------------------------------------- #
+import subprocess  # noqa: E402
+
+DRIVER_REL = f"{EXPREL}/depth_canon_eval_run.sh"
+KIT = ("depth_canon_eval_run.sh", "depth_canon_collect.py", "depth_canon_make_cells.py",
+       "depth_canon_cells.json")
+TESTMOD = os.path.join(REPO, "src", "tests", "test_depth_canon_collect.py")
+STUB_EVAL = r'''#!/usr/bin/env python3
+"""Harness stub for eval_FLAC.py: records its call, then publishes exactly what the real
+evaluator publishes for the cell (test_depth_canon_collect.write_cell, real eval_FLAC code)."""
+import importlib.util, json, os, sys
+H = os.environ["DEPTH_CANON_EVAL_HARNESS"]
+argv = sys.argv[1:]
+with open(os.path.join(H, "calls.log"), "a") as f:
+    f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv}) + "\n")
+if os.environ.get("STUB_MODE") == "crash":
+    sys.exit(3)
+opts, i = {}, 0
+while i < len(argv):
+    nxt = argv[i + 1] if i + 1 < len(argv) else "--"
+    opts[argv[i]], i = (nxt, i + 2) if not nxt.startswith("--") else (True, i + 1)
+sys.path.insert(0, os.getcwd())
+spec = importlib.util.spec_from_file_location("tdc", "@TESTMOD@")
+T = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(T)
+import eval_FLAC
+manifest = json.load(open(os.environ["DEPTH_CANON_CELLS"]))
+row = next(c for c in manifest["cells"] if c["cell"] == opts["--eval-name"])
+T.write_cell(os.getcwd(), row, pin=eval_FLAC.source_sha(), n=row["expected_stream_count"],
+             link=opts["--ckpt-path"], dump="--dump-scored-waveforms" in opts,
+             dump_root=opts.get("--dump-scored-waveforms"), receipt=False)
+'''
+STUB_FINDMNT = "#!/usr/bin/env bash\nprintf '%s\\n' \"${GUARD_FINDMNT_LINE:-cifs   //10.249.7.28/shared_data}\"\n"
+STUB_NVSMI = ('#!/usr/bin/env bash\necho "$*" >> "$DEPTH_CANON_EVAL_HARNESS/nvsmi.log"\n'
+              '[ "${GUARD_NVSMI_FAIL:-0}" = 1 ] && exit 1\n'
+              'case "$*" in *memory.free*) echo "${GUARD_GPU_FREE:-40000}" ;; esac\n')
+
+
+def _git(cwd, *args):
+    return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+@pytest.fixture(scope="module")
+def clone(tmp_path_factory):
+    root = tmp_path_factory.mktemp("evalrun") / "repo"
+    _git(REPO, "rev-parse", "HEAD")
+    subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", REPO, str(root)], check=True)
+    _git(root, "sparse-checkout", "set", "--cone", "src", "data/AR",
+         "worklog/worklog_yixun/exp_07_fa_scratch_claude", "worklog/worklog_yixun/exp_15_yaw_aug_claude",
+         EXPREL)
+    _git(root, "checkout", "-q", "--detach", _git(REPO, "rev-parse", "HEAD"))
+    for f in KIT:
+        if os.path.exists(os.path.join(EXPDIR, f)):
+            with open(os.path.join(EXPDIR, f), "rb") as src, open(root / EXPREL / f, "wb") as dst:
+                dst.write(src.read())
+    _git(root, "add", "-A")
+    _git(root, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "--allow-empty",
+         "-m", "kit overlay")
+    return root
+
+
+def _fake_ckpt(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(content)
+    return hashlib.sha256(content).hexdigest()
+
+
+@pytest.fixture()
+def harness(tmp_path, clone):
+    """A harness dir + its cells manifest (N = 8, checkpoints redirected to fake files)."""
+    h = tmp_path / "h"
+    (h / "bin").mkdir(parents=True)
+    (h / ".depth_canon_eval_harness").write_text("")
+    for name, body in (("findmnt", STUB_FINDMNT), ("nvidia-smi", STUB_NVSMI)):
+        (h / "bin" / name).write_text(body)
+        os.chmod(h / "bin" / name, 0o755)
+    (h / "stub_eval.py").write_text(STUB_EVAL.replace("@TESTMOD@", TESTMOD))
+    m = json.loads(json.dumps(MC.build_manifest()))
+    for split in m["splits"].values():
+        split["expected_stream_count"] = 8
+    lines = []
+    for arm in ("P1", "YAW"):
+        ck = m["arms"][arm]["ckpt"]
+        ck["path"] = str(h / "nas" / arm / "epoch=8-step=40000.ckpt")
+        ck["sha256"] = _fake_ckpt(ck["path"], f"fake {arm}".encode())
+        ck["nas_manifest"] = str(h / "nas" / "MANIFEST.sha256")
+        lines.append(f"{ck['sha256']}  {ck['nas_manifest_key']}\n")
+    (h / "nas" / "MANIFEST.sha256").write_text("".join(lines))
+    ns = m["arms"]["CANON"]["ckpt"]["run_ns"] = str(h / "nas" / "canon")
+    canon = [f"{_fake_ckpt(f'{ns}/checkpoints/epoch={s // 4551}-step={s}.ckpt', str(s).encode())}  "
+             f"{ns}/checkpoints/epoch={s // 4551}-step={s}.ckpt\n" for s in range(2500, 40001, 2500)]
+    (h / "canon_ckpts.sha256").write_text("".join(canon))
+    for c in m["cells"]:
+        c["expected_stream_count"] = 8
+        c["eval_args"][c["eval_args"].index("--expected-stream-count") + 1] = "8"
+    (h / "cells.json").write_text(json.dumps(m))
+    return {"dir": h, "manifest": m, "head": _git(clone, "rev-parse", "HEAD")}
+
+
+def drive(clone, harness, *args, env=None, timeout=600):
+    h = harness["dir"]
+    e = {k: v for k, v in os.environ.items() if k not in ("DRY_RUN", "EXPECT_HEAD")}
+    e.update(PATH=f"{h / 'bin'}:{os.environ['PATH']}", DEPTH_CANON_EVAL_HARNESS=str(h),
+             DEPTH_CANON_EVAL_PY=str(h / "stub_eval.py"), DEPTH_CANON_CELLS=str(h / "cells.json"),
+             EXPECT_HEAD=harness["head"], GPU_POLL_SECONDS="0", GPU_MAX_POLLS="2",
+             CUDA_VISIBLE_DEVICES="")
+    e.update(env or {})
+    base = ["--dump-root", str(h / "dumps"), "--canon-ckpt-manifest", str(h / "canon_ckpts.sha256")]
+    p = subprocess.run(["bash", str(clone / DRIVER_REL), *base, *args], env=e, capture_output=True,
+                       text=True, timeout=timeout, cwd=str(h))
+    return p.returncode, p.stdout + p.stderr
+
+
+ONE_PER_CLASS = ["exp25_CANON_T_S40000_K1_s42", "exp25_CANON_T_S40000_K8_s42_dup",
+                 "exp25_CANON_C4_S40000_K1_s42_th45", "exp25_CANON_R_S40000_K8_s44",
+                 "exp25_CANON_Di_S40000_K1_s42", "exp25_P1_Dii_S40000_K8_s42", "exp25_CANON_S_S40000_K1_s43",
+                 "exp25_P1_R_S40000_K1_s45", "exp25_YAW_S_S40000_K8_s46", "exp25_CANON_TRAJ_S12500_K8_s42_th180"]
+
+
+def _dry_argv(out):
+    return {ln.split()[1]: json.loads(ln.split(" argv: ", 1)[1]) for ln in out.splitlines()
+            if ln.startswith("DRYRUN ")}
+
+
+def test_dry_run_prints_the_exact_argv_per_block_class(clone, harness):
+    rc, out = drive(clone, harness, "--only", ",".join(ONE_PER_CLASS), "--no-dump-blocks", "TRAJ",
+                    env={"DRY_RUN": "1"})
+    assert rc == 0, out
+    got, h, m = _dry_argv(out), harness["dir"], harness["manifest"]
+    assert sorted(got) == sorted(ONE_PER_CLASS)
+    for cell in ONE_PER_CLASS:
+        row = manifest_row(m, cell)
+        target = (m["arms"][row["arm"]]["ckpt"]["path"] if row["arm"] != "CANON" else
+                  f"{h}/nas/canon/checkpoints/epoch={row['step'] // 4551}-step={row['step']}.ckpt")
+        link = f"{h}/farm/{row['arm']}/{os.path.basename(target)}"
+        dump = [] if row["block"] == "TRAJ" else ["--dump-scored-waveforms", str(h / "dumps")]
+        assert got[cell] == row["eval_args"] + ["--ckpt-path", link] + dump, cell
+        f = got[cell]
+        assert ("--canonicalize" in f) == (row["arm"] == "CANON" and row["block"] != "D-i"
+                                          or row["block"] == "D-ii")
+    assert "would run" in out and not (h / "calls.log").exists()        # nothing evaluated
+    assert not (h / "farm").exists() and not (h / "dumps").exists()     # side-effect free
+    assert not (h / "nvsmi.log").exists()                               # GPU gate skipped
+
+
+@pytest.mark.parametrize("env, needle", [
+    ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"),
+    ({"DEPTH_CANON_EVAL_HARNESS": "/var/tmp"}, "HARNESS")])
+def test_pin_and_harness_refusals(clone, harness, env, needle):
+    rc, out = drive(clone, harness, "--only", ONE_PER_CLASS[0], env={"DRY_RUN": "1", **env})
+    assert rc == 2 and needle in out, out
+
+
+def test_an_uncommitted_evaluator_aborts(clone, harness):
+    path = clone / "eval_FLAC.py"
+    original = path.read_bytes()
+    try:
+        path.write_bytes(original + b"\n# drift\n")
+        rc, out = drive(clone, harness, "--only", ONE_PER_CLASS[0], env={"DRY_RUN": "1"})
+        assert rc == 2 and "NOT COMMITTED" in out and "eval_FLAC.py" in out, out
+    finally:
+        path.write_bytes(original)
+
+
+def test_checkpoint_sha_mismatch_and_unlisted_checkpoint_abort(clone, harness):
+    p1 = harness["manifest"]["arms"]["P1"]["ckpt"]["path"]
+    with open(p1, "ab") as f:
+        f.write(b"tampered")
+    rc, out = drive(clone, harness, "--only", "exp25_P1_T_S40000_K1_s42", env={"DRY_RUN": "1"})
+    assert rc == 2 and "CHECKPOINT SHA" in out, out
+    nas = harness["dir"] / "nas" / "MANIFEST.sha256"
+    nas.write_text("\n".join(ln for ln in nas.read_text().splitlines() if "YAW" not in ln) + "\n")
+    rc, out = drive(clone, harness, "--only", "exp25_YAW_T_S40000_K1_s42", env={"DRY_RUN": "1"})
+    assert rc == 2 and "NAS MANIFEST" in out, out
+
+
+def test_config_drift_and_bad_arguments_abort(clone, harness):
+    m = harness["manifest"]
+    m["cells"][0]["model_config_sha256"] = "0" * 64
+    (harness["dir"] / "cells.json").write_text(json.dumps(m))
+    rc, out = drive(clone, harness, "--only", ONE_PER_CLASS[0], env={"DRY_RUN": "1"})
+    assert rc == 2 and "CONFIG" in out, out
+    for args in (["--lanes", "0,x"], ["--blocks", "T,nope"], ["--bogus"]):
+        rc, out = drive(clone, harness, *args, env={"DRY_RUN": "1"})
+        assert rc == 2, (args, out)
+
+
+def test_gpu_gate_is_skipped_under_dry_run(clone, harness):
+    rc, out = drive(clone, harness, "--only", ONE_PER_CLASS[0], env={"DRY_RUN": "1", "GUARD_NVSMI_FAIL": "1"})
+    assert rc == 0 and not (harness["dir"] / "nvsmi.log").exists(), out

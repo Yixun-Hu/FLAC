@@ -102,10 +102,10 @@ def default_metrics(r):
 
 
 def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, waves=None,
-               dump=True, receipt=True, ckpt_sha=None):
+               dump=True, receipt=True, ckpt_sha=None, link=None, dump_root=None):
     """Everything eval_FLAC + the driver publish for one row, under ``tmp`` (= the cwd the
     evaluator ran in). Returns the metrics path (relative, as eval_FLAC names it)."""
-    link = os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")
+    link = link or os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")  # = the evaluator's --ckpt-path
     paths = eval_FLAC.build_output_paths(
         link, 1, 1.0, r["cell"], cond_method="vanilla", rotate_deg=float(r["rotate_deg"] or 0),
         n_angles=4, rotate_mode=r["rotate_mode"], rotate_seed=r["rotate_seed"], are_lambda=None,
@@ -144,7 +144,7 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
             canon_rel = eval_FLAC.canon_sidecar_path(metrics_rel)
             with open(at(canon_rel), "w") as f:
                 json.dump(eval_FLAC.build_canon_record(canon, W), f, indent=2)
-        dump_root = os.path.join(str(tmp), "dumps")
+        dump_root = dump_root or os.path.join(str(tmp), "dumps")
         os.makedirs(dump_root, exist_ok=True)
         if dump:  # finalize exactly as evaluate_model calls it
             d = eval_FLAC.ScoredWaveformDump(eval_FLAC.scored_waveform_dir(dump_root, metrics_rel), n)
