@@ -403,3 +403,49 @@ def test_the_cli_honours_a_harness_contract_only_inside_a_harness(genuine, tmp_p
     capsys.readouterr()
     assert G.main(["--audit", path, "--harness-contract", hc, "--print-sha"]) == 0
     assert capsys.readouterr().out.strip() == hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+
+# --------------------------------------------------------------------------- #
+# rB-F2 F2-4 (Codex A2 NIT 4): the map re-hash runs in a KILLABLE child process under a
+# reviewed wall-clock deadline; a hung (CIFS) read fails the gate closed instead of stalling
+# the unattended watcher. No CLI flag or environment variable changes the deadline.
+# --------------------------------------------------------------------------- #
+import inspect  # noqa: E402
+import time  # noqa: E402
+
+
+def test_the_rehash_deadline_is_registered_and_not_overridable():
+    assert G.REHASH_DEADLINE_S == 900          # 15 min; the real full re-hash takes ~2 min 15 s
+    assert inspect.signature(G.validate_tie_audit).parameters["rehash_deadline_s"].default == G.REHASH_DEADLINE_S
+    src = open(GATE_PY).read()
+    assert "--rehash-deadline" not in src and "os.environ" not in src.split("def main")[0]
+
+
+def test_the_hasher_child_is_this_gate_in_worker_mode(tmp_path):
+    p = tmp_path / "f.npy"
+    p.write_bytes(b"abc")
+    argv = G._rehash_argv(2)
+    assert argv[:2] == [sys.executable, os.path.abspath(GATE_PY)] and "--rehash-worker" in argv
+    proc = subprocess.run(argv, input=json.dumps([str(p), str(tmp_path / "absent.npy")]), capture_output=True,
+                          text=True, timeout=60, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+    assert proc.returncode == 0 and json.loads(proc.stdout) == [hashlib.sha256(b"abc").hexdigest(), None], proc
+
+
+def test_a_hung_hasher_fails_closed_at_the_deadline(genuine, monkeypatch):
+    out, _, contract = genuine
+    monkeypatch.setattr(G, "_rehash_argv", lambda workers: [sys.executable, "-c", "import time; time.sleep(120)"])
+    t0 = time.monotonic()
+    ok, problems, _ = validate(out, contract, rehash_deadline_s=1.5)
+    assert not ok and any("deadline" in p for p in problems), problems
+    assert time.monotonic() - t0 < 60
+
+
+@pytest.mark.parametrize("code, needle", [
+    ("import sys; sys.exit(3)", "exited 3"), ("print('not json')", "JSON"), ("print('[1, 2]')", "malformed"),
+    ("import json, sys; n = len(json.load(sys.stdin)); print(json.dumps(['0' * 64] * n))", "changed since the audit")],
+    ids=["nonzero", "not_json", "malformed", "wrong_digests"])
+def test_a_failing_hasher_child_fails_closed(genuine, monkeypatch, code, needle):
+    out, _, contract = genuine
+    monkeypatch.setattr(G, "_rehash_argv", lambda workers: [sys.executable, "-c", code])
+    ok, problems, _ = validate(out, contract)
+    assert not ok and any(needle in p for p in problems), problems
