@@ -462,8 +462,16 @@ def test_markdown_summary_reports_every_cell_and_the_verdict(no_flash):
 # --------------------------------------------------------------------------- #
 # main(): load -> loader -> probe -> JSON + sidecar + markdown; exit code = verdict
 # --------------------------------------------------------------------------- #
+def _clean_git(monkeypatch, dirty=""):
+    """The evaluator tree's cleanliness is part of the registered contract (rB-F1 B5): tests
+    pin what ``git status`` reports instead of depending on this checkout's state."""
+    real = probe._git
+    monkeypatch.setattr(probe, "_git", lambda *a: dirty if a[:1] == ("status",) else real(*a))
+
+
 def _run_main(tmp_path, monkeypatch, n_loader=7, bs=3, extra=(), diagnostic=True, ema=False,
-              registered=False):
+              registered=False, dirty=""):
+    _clean_git(monkeypatch, dirty)
     cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=ema))
     cfg = dict(json.load(open(cfg_path)), sample_size=64)
     open(cfg_path, "w").write(json.dumps(cfg))
@@ -574,3 +582,38 @@ def test_a_registered_run_and_a_post_load_refusal(tmp_path, monkeypatch, no_flas
     sub.mkdir()
     rc, rep, out, _, _ = _run_main(sub, monkeypatch, diagnostic=False, ema=False, registered=True)
     assert rc == 2 and rep is None and "weights_source" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- #
+# rB-F1 B5 (Codex rB HIGH): a dirty evaluator tree is a registered deviation; the report
+# is assembled and published by named functions (the collector's fixtures use them)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("dirty", [" M src/models/dit.py", None], ids=["dirty", "git_failed"])
+def test_a_dirty_tree_is_a_registered_deviation(tmp_path, monkeypatch, no_flash, capsys, dirty):
+    monkeypatch.setattr(probe, "load_probe_module", lambda *a, **k: pytest.fail("loaded before refusing"))
+    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True,
+                                   dirty=dirty)
+    assert rc == 2 and rep is None and not out.exists() and "dirty" in capsys.readouterr().out
+
+
+def test_a_dirty_diagnostic_records_the_deviation(tmp_path, monkeypatch, no_flash):
+    rc, rep, _, _, _ = _run_main(tmp_path, monkeypatch, ema=True, registered=True, dirty=" M eval_FLAC.py")
+    assert rc == 6 and rep["registered"] is False and rep["provenance"]["dirty"] == " M eval_FLAC.py"
+    assert any("dirty" in d for d in rep["deviations"])
+
+
+def test_main_publishes_through_build_report_and_write_report(tmp_path, monkeypatch, no_flash):
+    import hashlib
+    seen = {}
+    real_build, real_write = probe.build_report, probe.write_report
+    monkeypatch.setattr(probe, "build_report", lambda *a, **k: seen.setdefault("report", real_build(*a, **k)))
+    monkeypatch.setattr(probe, "write_report", lambda r, o: seen.setdefault("out", (r, o)) and real_write(r, o))
+    rc, rep, out, _, _ = _run_main(tmp_path, monkeypatch, ema=True, registered=True)
+    assert rc == 0 and seen["report"] is seen["out"][0] and seen["out"][1] == str(out)
+    assert rep == json.loads(json.dumps(seen["report"]))
+    text = out.read_text()
+    assert text == json.dumps(seen["report"], indent=1) + "\n"
+    assert (tmp_path / "probe.json.sha256").read_text() == \
+        f"{hashlib.sha256(text.encode()).hexdigest()}  probe.json\n"
+    assert [it["position"] for it in rep["items"]] == list(range(5))
+    assert all(set(it) >= {"target_id", "context_ids", "dj_A", "offsets"} for it in rep["items"])
