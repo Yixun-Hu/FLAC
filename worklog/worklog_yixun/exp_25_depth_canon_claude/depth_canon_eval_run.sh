@@ -8,9 +8,13 @@
 # Every cell is a row of depth_canon_cells.json; its argv and every artifact path come
 # from `depth_canon_collect.py --plan` (one definition, eval_FLAC's own build_output_paths).
 # Per cell, in the manifest's priority order:
-#   checkpoint  exists; sha256 == the manifest's pin (P1/YAW: also listed in the NAS
-#               MANIFEST.sha256; CANON: the launcher's checkpoint manifest); hashed once.
-#   farm link   <farm>/<ARM>/<checkpoint basename> -> the checkpoint (a stale entry aborts).
+#   checkpoint  exists (P1/YAW: listed in the NAS MANIFEST.sha256; CANON: the launcher's
+#               checkpoint manifest); COPIED into the content-addressed cache
+#               <farm>/.ckpt_cache/<sha256>.ckpt (temp file -> sha256 == the pin -> 0444 ->
+#               atomic rename; a free-space gate first), re-verified once per campaign.
+#   farm entry  <farm>/<ARM>/<checkpoint basename> = a HARD link of the cache file (never a
+#               symlink; a stale entry aborts); re-checked right before the spawn, and the
+#               file the evaluator opened is hashed again after the run (receipt).
 #   predicate   (cycle 4b) SKIP only a complete-and-verified cell; QUARANTINE the rest.
 #   run         one lane per GPU: >= 10 GiB free AND no compute process on the card (uuid-mapped,
 #               fail-closed queries, re-checked right before the spawn); never signals anything.
@@ -177,24 +181,61 @@ farm_ok() {   # <dir>: absent (DRY_RUN) or a real directory under the repo / har
 }
 farm_ok "$FARM_ROOT"
 
+# --- the checkpoint cache: a free-space gate on the local filesystem BEFORE any copy --- #
+CACHE_DIR="$FARM_ROOT/.ckpt_cache"; CACHE_MARGIN=$((2 * 1024 * 1024 * 1024))
+farm_ok "$CACHE_DIR"
+NEED=0; N_STAGE=0
+while IFS=$'\x1f' read -r target sha; do
+  [ -f "$CACHE_DIR/${sha}.ckpt" ] && continue
+  [ -f "$target" ] || die "CHECKPOINT MISSING: ${target} - abort"
+  NEED=$((NEED + $(stat -c %s -- "$target"))); N_STAGE=$((N_STAGE + 1))
+done < <(jq -r '[.cells[] | (.target + "\u001f" + .sha256)] | unique[]' "$PLAN")
+anc="$CACHE_DIR"; while [ ! -e "$anc" ]; do anc="$(dirname "$anc")"; done
+AVAIL="$(df -B1 --output=avail -- "$anc" 2>/dev/null | tail -n 1 | tr -d ' ')"
+[[ "$AVAIL" =~ ^[0-9]+$ ]] || die "CACHE SPACE GATE FAILED: df cannot report the free space of ${anc} - abort"
+echo "checkpoint cache space: ${N_STAGE} checkpoint(s) to stage = $((NEED)) B + ${CACHE_MARGIN} B margin = $((NEED + CACHE_MARGIN)) B needed; ${AVAIL} B available on ${anc}"
+[ "$AVAIL" -ge $((NEED + CACHE_MARGIN)) ] || die "CACHE SPACE GATE FAILED: $((NEED + CACHE_MARGIN)) B needed > ${AVAIL} B available - abort"
+
 # --- per cell: checkpoint, link, (predicate), (run) ----------------------------------- #
 declare -A SHA_DONE=()
-verify_ckpt() {   # target expected-sha nas-manifest nas-key; hashed once per path
-  local target="$1" want="$2" nasm="$3" key="$4" got
-  [ -f "$target" ] || die "CHECKPOINT MISSING: ${target} - abort"
-  [ -n "${SHA_DONE[$target]:-}" ] && return 0
+stage_ckpt() {   # target sha nas-manifest nas-key cache: the verified immutable cache file (once per sha)
+  local target="$1" want="$2" nasm="$3" key="$4" cache="$5" got tmp
+  [ -f "$target" ] || { echo "CHECKPOINT MISSING: ${target} - abort"; return 1; }
   if [ -n "$nasm" ]; then
-    grep -qxF "${want}  ${key}" "$nasm" 2>/dev/null || die "NAS MANIFEST CHECK FAILED: ${nasm} does not list '${want}  ${key}' - abort"
+    grep -qxF "${want}  ${key}" "$nasm" 2>/dev/null || { echo "NAS MANIFEST CHECK FAILED: ${nasm} does not list '${want}  ${key}' - abort"; return 1; }
   fi
-  got="$(sha256sum "$target" | awk '{print $1}')"
-  [ "$got" = "$want" ] || die "CHECKPOINT SHA MISMATCH: ${target} is ${got}, the manifest pins ${want} - abort"
-  SHA_DONE[$target]=1
-  echo "checkpoint OK: ${target} (${want})"
+  [ -n "${SHA_DONE[$want]:-}" ] && return 0
+  if [ "$DRY_RUN" = 1 ]; then   # read-only: hash the source, stage nothing
+    got="$(sha256sum -- "$target" | awk '{print $1}')"
+    [ "$got" = "$want" ] || { echo "CHECKPOINT SHA MISMATCH: ${target} is ${got}, the manifest pins ${want} - abort"; return 1; }
+    echo "checkpoint OK (DRY_RUN, not staged): ${target} (${want})"
+  elif [ -e "$cache" ] || [ -L "$cache" ]; then
+    { [ -f "$cache" ] && [ ! -L "$cache" ]; } || { echo "CACHE GATE FAILED: ${cache} is not a regular file - abort"; return 1; }
+    got="$(sha256sum -- "$cache" | awk '{print $1}')"
+    [ "$got" = "$want" ] || { echo "CACHE GATE FAILED: ${cache} hashes to ${got}, not ${want} - abort"; return 1; }
+    echo "checkpoint OK: cached ${cache} re-verified (${want})"
+  else
+    mkdir -p "$CACHE_DIR" && ( farm_ok "$CACHE_DIR" ) || { echo "CACHE GATE FAILED: cannot create ${CACHE_DIR} - abort"; return 1; }
+    tmp="$CACHE_DIR/.staging-${want}-$$"
+    cp --no-preserve=all -- "$target" "$tmp" || { rm -f -- "$tmp"; echo "CACHE GATE FAILED: cannot copy ${target} - abort"; return 1; }
+    got="$(sha256sum -- "$tmp" | awk '{print $1}')"
+    if [ "$got" != "$want" ]; then
+      rm -f -- "$tmp"; echo "CHECKPOINT SHA MISMATCH: the copy of ${target} is ${got}, the manifest pins ${want} - abort"; return 1
+    fi
+    { chmod 0444 -- "$tmp" && mv -n -T -- "$tmp" "$cache" && [ ! -e "$tmp" ]; } \
+      || { rm -f -- "$tmp"; echo "CACHE GATE FAILED: cannot publish ${cache} - abort"; return 1; }
+    echo "checkpoint OK: ${target} -> ${cache} (the local copy hashes to the pin ${want})"
+  fi
+  SHA_DONE[$want]=1
+}
+farm_entry_ok() {   # <entry> <cache>: a regular file (never a symlink) on the cache file's inode
+  [ ! -L "$1" ] && [ -f "$1" ] && [ ! -L "$2" ] && [ -f "$2" ] \
+    && [ "$(stat -c '%d:%i:%s' -- "$1")" = "$(stat -c '%d:%i:%s' -- "$2")" ]
 }
 cell_fields() {
   jq -r --arg c "$1" '.cells[] | select(.cell == $c) | [.arm, .block, .target, .sha256,
       (.nas_manifest // ""), (.nas_manifest_key // ""), .link, .metrics, .stream, (.canon // ""),
-      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem] | join("\u001f")' "$PLAN"
+      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem, .cache] | join("\u001f")' "$PLAN"
 }
 VERIFY_EXTRA=(); [ -n "$CANON_MANIFEST" ] && VERIFY_EXTRA=(--canon-ckpt-manifest "$CANON_MANIFEST")
 existing_artifacts() {   # every artifact of the current cell that exists (one path per line)
@@ -220,16 +261,15 @@ complete_and_verified() {   # 0 = SKIP; the collector runs is_complete exactly o
 prepare_cell() {   # sets the cell globals; 0 = run it, 3 = SKIP, 1 = refused (message printed)
   local cid="$1" what p dest
   IFS=$'\x1f' read -r ARM BLOCK TARGET SHA NASM NASK LINK METRICS STREAM CANON CANON_PROBE RECEIPT \
-    DUMP DUMP_DIR STEM < <(cell_fields "$cid")
+    DUMP DUMP_DIR STEM CACHED < <(cell_fields "$cid")
   mapfile -t ARGV < <(jq -r --arg c "$cid" '.cells[] | select(.cell == $c) | .argv[]' "$PLAN")
-  ( verify_ckpt "$TARGET" "$SHA" "$NASM" "$NASK" ) || return 1          # die -> subshell exit 2
-  SHA_DONE[$TARGET]=1
+  stage_ckpt "$TARGET" "$SHA" "$NASM" "$NASK" "$CACHED" || return 1
   if [ -L "$LINK" ] || [ -e "$LINK" ]; then
-    [ -L "$LINK" ] && [ "$(readlink -- "$LINK")" = "$TARGET" ] \
-      || { echo "FARM GATE FAILED: ${LINK} exists and is not a link to ${TARGET} - abort"; return 1; }
+    farm_entry_ok "$LINK" "$CACHED" \
+      || { echo "FARM GATE FAILED: ${LINK} exists and is not a hard link of the verified ${CACHED} - abort"; return 1; }
   elif [ "$DRY_RUN" = 0 ]; then
-    mkdir -p "$(dirname "$LINK")" && ( farm_ok "$(dirname "$LINK")" ) && ln -s -- "$TARGET" "$LINK" \
-      || { echo "FARM GATE FAILED: cannot link ${LINK} - abort"; return 1; }
+    mkdir -p "$(dirname "$LINK")" && ( farm_ok "$(dirname "$LINK")" ) && ln -- "$CACHED" "$LINK" \
+      && farm_entry_ok "$LINK" "$CACHED" || { echo "FARM GATE FAILED: cannot hard-link ${LINK} - abort"; return 1; }
   fi
   if complete_and_verified; then echo "CELL ${cid} | ${BLOCK} | SKIP (complete and verified)"; return 3; fi
   mapfile -t STALE < <(existing_artifacts)
@@ -254,9 +294,9 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-run_cell() {   # lane cell sha spawn-digest argv... -- a background job: evaluate, then receipt + verify
-  local lane="$1" cid="$2" sha="$3" spawn="$4"; shift 4
-  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post
+run_cell() {   # lane cell sha spawn-digest link cache argv... -- a background job: evaluate, receipt, verify
+  local lane="$1" cid="$2" sha="$3" spawn="$4" link="$5" cache="$6"; shift 6
+  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured
   CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
   if [ "$rc" -ne 0 ]; then echo "  !! FAILED ${cid}: the evaluator exited rc=${rc} (log ${clog})"; return 1; fi
   post="$(tree_digest)" || post=""
@@ -264,8 +304,13 @@ run_cell() {   # lane cell sha spawn-digest argv... -- a background job: evaluat
     echo "  !! FAILED ${cid}: the relevant tree changed while the cell ran (digest '${post}' != ${CAMPAIGN_DIGEST}); no receipt"
     return 4
   fi
+  measured="$(sha256sum -- "$link" | awk '{print $1}')"   # the file the evaluator opened, hashed again
+  if [ "$measured" != "$sha" ] || ! farm_entry_ok "$link" "$cache"; then
+    echo "  !! FAILED ${cid}: the evaluated checkpoint ${link} now hashes to '${measured}', not ${sha} (or left the cache inode); no receipt"
+    return 1
+  fi
   "$PY" "$COLLECT" --write-receipt "$cid" --plan-json "$PLAN" --cells "$CELLS" --base-dir "$REPO" \
-    --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$sha" --farm-root "$FARM_ROOT" \
+    --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$measured" --farm-root "$FARM_ROOT" \
     --spawn-digest "$spawn" --post-digest "$post" \
     --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" --verify-after >> "$clog" 2>&1 \
     || { echo "  !! FAILED ${cid}: post-run verification refused the cell (log ${clog})"; return 1; }
@@ -373,7 +418,8 @@ while :; do
     gpu_wait; continue
   fi
   echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
-  run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "${ARGV[@]}" &
+  farm_entry_ok "$LINK" "$CACHED" || { ABORT="FARM GATE FAILED: ${LINK} is no longer the hard link of ${CACHED}"; continue; }
+  run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "$LINK" "$CACHED" "${ARGV[@]}" &
   LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
   READY=""; i=$((i + 1))
 done

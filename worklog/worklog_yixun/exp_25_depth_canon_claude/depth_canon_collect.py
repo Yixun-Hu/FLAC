@@ -318,10 +318,15 @@ def dump_reasons(dump_dir, row, *, stem, stream, expect, pin, mode="full"):
 
 RECEIPT_SCHEMA_VERSION = 1
 RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_link", "ckpt_target",
-                "ckpt_sha256", "model_config", "model_config_sha256", "dataset_config",
+                "ckpt_sha256", "ckpt_cache", "ckpt_sha256_measured", "model_config", "model_config_sha256", "dataset_config",
                 "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
                 "expect_head", "campaign_digest", "spawn_digest", "post_digest", "lane", "log", "rc")
 DIGEST_KEYS = ("campaign_digest", "spawn_digest", "post_digest")   # rB-F1 B3: the evaluated tree
+
+
+def ckpt_cache_path(link, sha256):
+    """The content-addressed, verified copy a farm entry hard-links (rB-F1 B4)."""
+    return os.path.join(os.path.dirname(os.path.dirname(link)), ".ckpt_cache", f"{sha256}.ckpt")
 
 
 def cell_argv(row, link, dump_root, dump):
@@ -342,7 +347,8 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
         reasons.append(f"receipt keys {list(receipt)} != {list(RECEIPT_KEYS)}")
     want = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": row["cell"], "stem": stem,
             "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": link,
-            "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "model_config": row["model_config"],
+            "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "ckpt_cache": ckpt_cache_path(link, ckpt_sha256),
+            "ckpt_sha256_measured": ckpt_sha256, "model_config": row["model_config"],
             "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
             "dataset_config_sha256": row["dataset_config_sha256"],
             "expected_stream_count": row["expected_stream_count"], "dump": dump,
@@ -477,12 +483,14 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
                                 expect=expect, pin=pin, mode=dump_check)
     elif os.path.lexists(at(paths.dump_dir)) or staging_leftovers(at(paths.dump_dir)):
         reasons.append(f"a dump exists at {paths.dump_dir} for a cell run without one")
-    if check_link:
-        here = at(link)
-        if not os.path.islink(here):
-            reasons.append(f"farm link {link} is not a symlink")
-        elif os.path.realpath(here) != os.path.realpath(target):
-            reasons.append(f"farm link {link} -> {os.path.realpath(here)}, not {target}")
+    if check_link:   # rB-F1 B4: a regular file on the verified cache file's inode, never a symlink
+        here, cache = at(link), at(ckpt_cache_path(link, sha))
+        if os.path.islink(here):
+            reasons.append(f"farm entry {link} is a symlink, not the hard link of the cache file {cache}")
+        elif not os.path.isfile(here):
+            reasons.append(f"farm entry {link} is absent or not a regular file")
+        elif os.path.islink(cache) or not os.path.isfile(cache) or not os.path.samestat(os.stat(here), os.stat(cache)):
+            reasons.append(f"farm entry {link} is not a hard link of the verified cache file {cache}")
     return reasons
 
 
@@ -519,7 +527,7 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
         out.append({"cell": row["cell"], "block": row["block"], "arm": row["arm"], "step": row["step"],
                     "K": row["K"], "seed": row["seed"], "target": target, "sha256": sha,
                     "nas_manifest": ck.get("nas_manifest"), "nas_manifest_key": ck.get("nas_manifest_key"),
-                    "link": link, "metrics": p.metrics, "stream": p.stream,
+                    "link": link, "cache": ckpt_cache_path(link, sha), "metrics": p.metrics, "stream": p.stream,
                     "canon": p.canon if row["canonicalize"] else None, "canon_probe": p.canon,
                     "receipt": p.receipt, "dump": dump, "dump_root": dump_root, "dump_dir": p.dump_dir,
                     "stem": p.stem, "expected_stream_count": row["expected_stream_count"],
@@ -540,7 +548,9 @@ def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, camp
                          f"post {post_digest})")
     rec = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
-           "ckpt_target": entry["target"], "ckpt_sha256": ckpt_sha256, "model_config": row["model_config"],
+           "ckpt_target": entry["target"], "ckpt_sha256": entry["sha256"],
+           "ckpt_cache": ckpt_cache_path(entry["link"], entry["sha256"]), "ckpt_sha256_measured": ckpt_sha256,
+           "model_config": row["model_config"],
            "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
            "dataset_config_sha256": row["dataset_config_sha256"],
            "expected_stream_count": row["expected_stream_count"], "dump": entry["dump"],
