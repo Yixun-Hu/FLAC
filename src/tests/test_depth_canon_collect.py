@@ -407,3 +407,100 @@ def test_receipt_rc_and_wrong_checkpoint_sha_are_refused(tmp_path):
     assert any("ckpt_sha256" in x for x in _receipt_check(tmp_path, rel, r))
     edit_json(os.path.join(str(tmp_path), rel[:-len(".json")] + ".cell.json"), lambda d: d.update(rc=1))
     assert any("rc" in x for x in _receipt_check(tmp_path, rel, r))
+
+
+# ---- cycle 2d: verify_cell (the driver's resume predicate), the CANON index, the CLI ---- #
+def verify(tmp, rel, **kw):
+    for key, value in (("manifest", MANIFEST), ("farm_root", FARM), ("base_dir", str(tmp)),
+                       ("dump_root", os.path.join(str(tmp), "dumps")), ("pin", PIN),
+                       ("canon_index", canon_index()), ("check_link", False)):
+        kw.setdefault(key, value)
+    return C.verify_cell(os.path.basename(rel)[:-len(".json")], **kw)
+
+
+def test_verify_cell_accepts_every_true_cell_class(tmp_path, case_row):
+    rel = write_cell(tmp_path, case_row)
+    assert verify(tmp_path, rel) == [] and verify(tmp_path, rel, dump_check="manifest") == []
+
+
+@pytest.mark.parametrize("victim", ["metrics", "stream", "receipt", "canon"])
+def test_verify_cell_names_a_missing_artifact(tmp_path, victim):
+    r = row("T", K=8, seed=45)
+    rel = write_cell(tmp_path, r)
+    path = {"metrics": rel, "stream": eval_FLAC.stream_sidecar_path(rel),
+            "receipt": rel[:-len(".json")] + ".cell.json", "canon": eval_FLAC.canon_sidecar_path(rel)}[victim]
+    os.unlink(os.path.join(str(tmp_path), path))
+    assert any(victim in x and "missing" in x for x in verify(tmp_path, rel))
+
+
+def test_verify_cell_refusals(tmp_path):
+    r = row("P1-pin", "P1", K=1, seed=45, sub="T")
+    rel = write_cell(tmp_path, r)
+    stem = os.path.basename(rel)[:-len(".json")]
+    assert verify(tmp_path, rel, pin="xyz") and "registered" in " ".join(
+        C.verify_cell("nonsense_metrics_1_1.0_x", manifest=MANIFEST, farm_root=FARM, dump_root="/d",
+                      pin=PIN))
+    canon_name = os.path.basename(eval_FLAC.canon_sidecar_path(rel))
+    open(os.path.join(str(tmp_path), os.path.dirname(rel), canon_name), "w").write("{}")
+    assert any("unexpected canon sidecar" in x for x in verify(tmp_path, rel))
+    t = row("T", K=1, seed=42)
+    rel_t = write_cell(tmp_path, t)
+    assert any("CANON" in x for x in verify(tmp_path, rel_t, canon_index=None))
+    wrong_epoch = os.path.basename(rel_t).replace("epoch=8-", "epoch=7-")[:-len(".json")]
+    assert any("checkpoint" in x for x in C.verify_cell(
+        wrong_epoch, manifest=MANIFEST, farm_root=FARM, dump_root="/d", pin=PIN, canon_index=canon_index()))
+    assert stem.startswith("epoch=8-step=40000_metrics_")
+
+
+def test_verify_cell_without_a_dump(tmp_path):
+    r = row("TRAJ", K=1, deg=0, step=2500)
+    rel = write_cell(tmp_path, r, dump=False)
+    assert verify(tmp_path, rel, expect_dump=False) == []
+    assert any("dump" in x for x in verify(tmp_path, rel))           # the default expects one
+    r2 = row("TRAJ", K=1, deg=90, step=2500)
+    rel2 = write_cell(tmp_path, r2)
+    assert any("dump" in x for x in verify(tmp_path, rel2, expect_dump=False))
+
+
+def test_verify_cell_checks_the_farm_link(tmp_path):
+    r = row("YAW-pin", "YAW", K=1, seed=42, sub="T")
+    rel = write_cell(tmp_path, r)
+    link = os.path.join(str(tmp_path), FARM, "YAW", "epoch=8-step=40000.ckpt")
+    assert any("farm link" in x for x in verify(tmp_path, rel, check_link=True))
+    os.symlink("/elsewhere/epoch=8-step=40000.ckpt", link)
+    assert any("farm link" in x for x in verify(tmp_path, rel, check_link=True))
+    os.unlink(link)
+    os.symlink(MANIFEST["arms"]["YAW"]["ckpt"]["path"], link)
+    assert verify(tmp_path, rel, check_link=True) == []
+
+
+def _canon_manifest_file(tmp, lines=None):
+    path = os.path.join(str(tmp), "depth_canon_x_exp25_CANON_checkpoints.sha256")
+    with open(path, "w") as f:
+        f.writelines(lines if lines is not None else
+                     [f"{sha}  {p}\n" for _, (p, sha) in sorted(canon_index().items())])
+    return path
+
+
+def test_canon_index_from_the_launcher_manifest(tmp_path):
+    ns = MANIFEST["arms"]["CANON"]["ckpt"]["run_ns"]
+    assert C.load_canon_index(_canon_manifest_file(tmp_path), ns) == canon_index()
+    good = f"{'1' * 64}  {ns}/checkpoints/epoch=0-step=2500.ckpt\n"
+    for bad in ([good, good], [f"{'1' * 64}  {ns}/notes.txt\n"], ["nonsense\n"],
+                [f"{'1' * 64}  /other/checkpoints/epoch=0-step=2500.ckpt\n"]):
+        with pytest.raises(ValueError):
+            C.load_canon_index(_canon_manifest_file(tmp_path, bad), ns)
+
+
+def test_cli_verify_cell(tmp_path, capsys):
+    cells = os.path.join(str(tmp_path), "cells.json")
+    with open(cells, "w") as f:
+        json.dump(MANIFEST, f)
+    r = row("C4+45", K=1, deg=270)
+    rel = write_cell(tmp_path, r)
+    argv = ["--verify-cell", os.path.basename(rel)[:-len(".json")], "--pin", PIN, "--cells", cells,
+            "--farm-root", FARM, "--dump-root", os.path.join(str(tmp_path), "dumps"), "--base-dir",
+            str(tmp_path), "--canon-ckpt-manifest", _canon_manifest_file(tmp_path), "--no-link-check"]
+    assert C.main(argv) == 0 and "VALID" in capsys.readouterr().out
+    os.unlink(os.path.join(str(tmp_path), eval_FLAC.stream_sidecar_path(rel)))
+    assert C.main(argv) == 1 and "INVALID" in capsys.readouterr().out
