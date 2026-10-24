@@ -261,3 +261,93 @@ def test_manifest_defaults(manifest):
     assert manifest["dump_root"] == "/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms"
     assert manifest["farm_root"] == "outputs_FLAC/exp25_depth_canon"
     assert manifest["img_w"] == 512 and manifest["schema_version"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# part 2: the driver's data feed -- depth_canon_collect.py --plan / --write-receipt
+# --------------------------------------------------------------------------- #
+C = _load(os.path.join(EXPDIR, "depth_canon_collect.py"), "depth_canon_collect")
+PIN = "a" * 40
+
+
+def _canon_index(manifest):
+    ns = manifest["arms"]["CANON"]["ckpt"]["run_ns"]
+    return {s: (f"{ns}/checkpoints/epoch={s // 4551}-step={s}.ckpt",
+                hashlib.sha256(str(s).encode()).hexdigest()) for s in range(2500, 40001, 2500)}
+
+
+def test_selection_by_blocks_only_and_limit(manifest):
+    sel = C.select_cells(manifest, blocks=["P1-pin", "YAW-pin"])
+    assert [c["block"] for c in sel] == ["P1-pin"] * 28 + ["YAW-pin"] * 38
+    a1_off = C.select_cells(manifest, blocks=[b for b in BLOCKS if b != "YAW-pin"])
+    assert len(a1_off) == 192 and all(c["block"] != "YAW-pin" for c in a1_off)
+    assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]]
+    names = ["exp25_YAW_S_S40000_K8_s46", "exp25_CANON_T_S40000_K1_s42"]
+    assert [c["cell"] for c in C.select_cells(manifest, only=names)] == names[::-1]  # manifest order
+    assert len(C.select_cells(manifest, blocks=["TRAJ"], limit=7)) == 7
+    for kw in (dict(blocks=["T", "nope"]), dict(only=["exp25_nope"]), dict(limit=0), dict(blocks=[])):
+        with pytest.raises(ValueError):
+            C.select_cells(manifest, **kw)
+
+
+def test_plan_entries(manifest):
+    sel = C.select_cells(manifest, blocks=["T", "D-ii", "TRAJ"])
+    plan = C.plan_cells(manifest, sel, farm_root="farm", dump_root="/nas/dumps",
+                        canon_index=_canon_index(manifest), no_dump_blocks=["TRAJ"])
+    assert [e["cell"] for e in plan] == [c["cell"] for c in sel]
+    by = {e["cell"]: e for e in plan}
+    t = by["exp25_CANON_T_S40000_K8_s44"]
+    assert t["target"] == _canon_index(manifest)[40000][0] and t["sha256"] == _canon_index(manifest)[40000][1]
+    assert t["link"] == "farm/CANON/epoch=8-step=40000.ckpt" and t["dump"] is True
+    assert t["metrics"] == f"farm/CANON/epoch=8-step=40000_metrics_{manifest_row(manifest, t['cell'])['metrics_suffix']}.json"
+    assert t["dump_dir"] == "/nas/dumps/" + os.path.basename(t["metrics"])[:-5] == "/nas/dumps/" + t["stem"]
+    assert t["argv"] == manifest_row(manifest, t["cell"])["eval_args"] + [
+        "--ckpt-path", t["link"], "--dump-scored-waveforms", "/nas/dumps"]
+    assert t["canon"] == t["metrics"][:-5] + ".canon.json" and t["receipt"] == t["metrics"][:-5] + ".cell.json"
+    d = by["exp25_P1_Dii_S40000_K1_s42"]
+    assert (d["target"], d["sha256"]) == (manifest["arms"]["P1"]["ckpt"]["path"], manifest["arms"]["P1"]["ckpt"]["sha256"])
+    assert d["nas_manifest_key"] == "P1/epoch=8-step=40000.ckpt" and d["canon"].endswith(".canon.json")
+    traj = [e for e in plan if e["block"] == "TRAJ"]
+    assert traj and all(e["dump"] is False and "--dump-scored-waveforms" not in e["argv"] for e in traj)
+    pins = C.plan_cells(manifest, C.select_cells(manifest, blocks=["P1-pin"]), farm_root="farm",
+                        dump_root="/d", canon_index=None, no_dump_blocks=[])
+    assert all(e["canon"] is None for e in pins)                      # CANON index not needed
+    with pytest.raises(KeyError):
+        C.plan_cells(manifest, sel, farm_root="farm", dump_root="/d", canon_index=None, no_dump_blocks=[])
+    with pytest.raises(ValueError):
+        C.plan_cells(manifest, sel, farm_root="farm", dump_root="/d", canon_index={}, no_dump_blocks=["X"])
+
+
+def manifest_row(manifest, cell):
+    return next(c for c in manifest["cells"] if c["cell"] == cell)
+
+
+def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
+    sel = C.select_cells(manifest, only=["exp25_YAW_C4_S40000_K1_s42_th45"])
+    entry = C.plan_cells(manifest, sel, farm_root="farm", dump_root=str(tmp_path / "d"),
+                         canon_index=None, no_dump_blocks=[])[0]
+    os.makedirs(tmp_path / "farm" / "YAW")
+    path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
+                           log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"])
+    assert path == str(tmp_path / entry["receipt"]) and sorted(os.listdir(tmp_path / "farm" / "YAW")) == [
+        os.path.basename(entry["receipt"])]                            # atomic: no temp left behind
+    rec = json.load(open(path))
+    assert C.receipt_reasons(rec, manifest_row(manifest, entry["cell"]), stem=entry["stem"],
+                             link=entry["link"], target=entry["target"], ckpt_sha256=entry["sha256"],
+                             dump=True, dump_root=str(tmp_path / "d"), pin=PIN) == []
+    with pytest.raises(ValueError, match="sha256"):
+        C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
+                        log="x.log", rc=0, pin=PIN, ckpt_sha256="0" * 64)
+
+
+def test_cli_plan_and_receipt(manifest, tmp_path, capsys):
+    out = str(tmp_path / "plan.json")
+    assert C.main(["--plan", out, "--blocks", "P1-pin", "--limit", "3", "--no-dump-blocks", "",
+                   "--farm-root", "farm", "--dump-root", "/d"]) == 0
+    plan = json.load(open(out))
+    assert [e["cell"] for e in plan["cells"]] == [c["cell"] for c in manifest["cells"] if c["block"] == "P1-pin"][:3]
+    assert (plan["farm_root"], plan["dump_root"], plan["n_selected"]) == ("farm", "/d", 3)
+    assert C.main(["--plan", out, "--blocks", "T", "--canon-ckpt-manifest",
+                   str(tmp_path / "absent.sha256")]) == 2             # CANON cells need it
+    assert "CANON" in capsys.readouterr().out
+    assert C.main(["--plan", out, "--blocks", "T,bogus"]) == 2

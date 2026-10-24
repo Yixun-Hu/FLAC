@@ -475,6 +475,73 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     return reasons
 
 
+def select_cells(manifest, blocks=None, only=None, limit=None):
+    """The rows to run, in the manifest's (priority) order: ``blocks`` (e.g. the A1 switch =
+    every block but YAW-pin), ``only`` (cell names), ``limit`` (first N). Unknown or
+    duplicate names, an empty list and a non-positive limit are ``ValueError``."""
+    for label, names, universe in (("block", blocks, list(manifest["blocks"])),
+                                   ("cell", only, [c["cell"] for c in manifest["cells"]])):
+        if names is not None and (not names or len(set(names)) != len(names)
+                                  or any(n not in universe for n in names)):
+            raise ValueError(f"unknown, duplicate or empty {label} selection {names!r}")
+    if limit is not None and (type(limit) is not int or limit < 1):
+        raise ValueError(f"--limit must be a positive int, got {limit!r}")
+    rows = [c for c in manifest["cells"] if (blocks is None or c["block"] in blocks)
+            and (only is None or c["cell"] in only)]
+    return rows[:limit] if limit else rows
+
+
+def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump_blocks):
+    """One driver entry per selected row: the checkpoint to verify (target + expected
+    sha256 + NAS manifest key), the farm link, every artifact path, whether it dumps
+    (``no_dump_blocks`` deselects a block's dumps, A3), and the exact evaluator argv."""
+    bad = [b for b in no_dump_blocks if b not in manifest["blocks"]]
+    if bad:
+        raise ValueError(f"unknown --no-dump-blocks {bad}")
+    out = []
+    for row in selected:
+        ck = manifest["arms"][row["arm"]]["ckpt"]
+        target, sha = expected_checkpoint(row, manifest, canon_index)
+        link = os.path.join(farm_root, row["arm"], os.path.basename(target))
+        dump = bool(row["dump"]) and row["block"] not in no_dump_blocks
+        p = cell_paths(row, link, dump_root)
+        out.append({"cell": row["cell"], "block": row["block"], "arm": row["arm"], "step": row["step"],
+                    "K": row["K"], "seed": row["seed"], "target": target, "sha256": sha,
+                    "nas_manifest": ck.get("nas_manifest"), "nas_manifest_key": ck.get("nas_manifest_key"),
+                    "link": link, "metrics": p.metrics, "stream": p.stream,
+                    "canon": p.canon if row["canonicalize"] else None, "canon_probe": p.canon,
+                    "receipt": p.receipt, "dump": dump, "dump_root": dump_root, "dump_dir": p.dump_dir,
+                    "stem": p.stem, "expected_stream_count": row["expected_stream_count"],
+                    "argv": cell_argv(row, link, dump_root, dump)})
+    return out
+
+
+def write_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256):
+    """Atomically write the cell's ``.cell.json`` (temp file + ``os.replace``). Refuses a
+    measured checkpoint digest that is not the expected one (the driver must not get here)."""
+    if ckpt_sha256 != entry["sha256"]:
+        raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
+                         f"{entry['sha256']}")
+    rec = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
+           "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
+           "ckpt_target": entry["target"], "ckpt_sha256": ckpt_sha256, "model_config": row["model_config"],
+           "model_config_sha256": row["model_config_sha256"], "dataset_config": row["dataset_config"],
+           "dataset_config_sha256": row["dataset_config_sha256"],
+           "expected_stream_count": row["expected_stream_count"], "dump": entry["dump"],
+           "dump_root": entry["dump_root"] if entry["dump"] else None, "argv": entry["argv"],
+           "expect_head": pin, "lane": lane, "log": log, "rc": rc}
+    path = os.path.join(base_dir, entry["receipt"])
+    tmp = f"{path}.tmp-{os.getpid()}"
+    with open(tmp, "w") as f:
+        json.dump(rec, f, indent=2)
+    os.replace(tmp, path)
+    return path
+
+
+def _csv(value):
+    return None if value is None else [v for v in value.split(",") if v]
+
+
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -488,6 +555,17 @@ def main(argv=None):
     ap.add_argument("--dump-check", choices=("full", "manifest"), default="full")
     ap.add_argument("--no-dump", action="store_true", help="the cell was run without a dump")
     ap.add_argument("--no-link-check", action="store_true")
+    ap.add_argument("--plan", metavar="OUT", help="write the driver's plan JSON; exit 2 if refused")
+    ap.add_argument("--blocks", default=None, help="comma list (default: every block)")
+    ap.add_argument("--only", default=None, help="comma list of cell names")
+    ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--no-dump-blocks", default="", help="comma list of blocks run WITHOUT a dump")
+    ap.add_argument("--write-receipt", metavar="CELL", help="write CELL's receipt from --plan-json")
+    ap.add_argument("--plan-json", default=None)
+    ap.add_argument("--lane", type=int, default=None)
+    ap.add_argument("--log", default=None)
+    ap.add_argument("--rc", type=int, default=None)
+    ap.add_argument("--ckpt-sha", default=None, help="the checkpoint sha256 the driver MEASURED")
     args = ap.parse_args(argv)
     manifest = load_cells(args.cells)
     farm = args.farm_root or manifest["farm_root"]
@@ -507,7 +585,36 @@ def main(argv=None):
         for reason in reasons:
             print("  - " + reason)
         return 0 if not reasons else 1
-    ap.error("nothing to do: pass --verify-cell")
+    if args.plan:
+        try:
+            selected = select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)
+            index = None
+            if any(c["arm"] == "CANON" for c in selected):
+                try:
+                    index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                             manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+                except (OSError, ValueError) as err:
+                    raise ValueError(f"CANON cells need the launcher's checkpoint manifest: {err}") from err
+            entries = plan_cells(manifest, selected, farm_root=farm, dump_root=dump_root,
+                                 canon_index=index, no_dump_blocks=_csv(args.no_dump_blocks))
+        except (ValueError, KeyError, OSError) as err:
+            print(f"PLAN REFUSED: {err}")
+            return 2
+        with open(args.plan, "w") as f:
+            json.dump({"schema_version": 1, "cells_manifest": os.path.abspath(args.cells),
+                       "farm_root": farm, "dump_root": dump_root, "n_selected": len(entries),
+                       "cells": entries}, f, indent=1)
+        print(f"plan: {len(entries)} cell(s) -> {args.plan}")
+        return 0
+    if args.write_receipt:
+        with open(args.plan_json) as f:
+            entry = next(e for e in json.load(f)["cells"] if e["cell"] == args.write_receipt)
+        row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
+        print("receipt: " + write_receipt(entry, row, base_dir=args.base_dir, lane=args.lane,
+                                          log=args.log, rc=args.rc, pin=args.pin,
+                                          ckpt_sha256=args.ckpt_sha))
+        return 0
+    ap.error("nothing to do: pass --verify-cell, --plan or --write-receipt")
     return 2
 
 
