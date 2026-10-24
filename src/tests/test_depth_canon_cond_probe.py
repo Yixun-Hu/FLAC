@@ -336,8 +336,9 @@ def test_the_probe_loads_a_checkpoint_exactly_as_evaluate_model(tmp_path, monkey
 def test_load_reports_the_binding_and_the_weights_source(tmp_path, monkeypatch):
     cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
     _capture(monkeypatch, [], stop=False)
-    module, info = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+    module, info, ckpt_load = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
     assert module.device == "cpu" and info["weights_source"] == "ema"
+    assert ckpt_load == eval_FLAC.read_checkpoint_exact(ckpt_path)[1]          # rB-F3 F3-1
     assert (info["canonicalize_trained"], info["canonicalize_applied"], info["canonicalize_mismatch"],
             info["img_w"]) == (True, True, False, 512)
     cfg = json.load(open(cfg_path))
@@ -351,7 +352,7 @@ def test_a_non_canonical_checkpoint_is_refused_before_the_model_unless_allowed(t
     with pytest.raises(ValueError, match="TRAINED with canonicalize=False"):
         probe.load_probe_module(cfg_path, ckpt_path, "cpu")
     _capture(monkeypatch, [], stop=False)
-    _, info = probe.load_probe_module(cfg_path, ckpt_path, "cpu", allow_canon_mismatch=True)
+    _, info, _ = probe.load_probe_module(cfg_path, ckpt_path, "cpu", allow_canon_mismatch=True)
     assert (info["canonicalize_trained"], info["canonicalize_applied"], info["canonicalize_mismatch"]) == \
         (False, True, True)
 
@@ -361,6 +362,63 @@ def test_an_are_checkpoint_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(eval_FLAC, "resolve_are_from_checkpoint", lambda *a: (0.5, "config", {}))
     monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
     with pytest.raises(ValueError, match="ARE"):
+        probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+
+
+# --------------------------------------------------------------------------- #
+# rB-F3 F3-1 (Codex rA3/rB3 HIGH): the probe names the EXACT bytes torch.load deserialized
+# --------------------------------------------------------------------------- #
+def _torch_load_spy(monkeypatch, ckpt_path, seen):
+    """``torch.load`` spy: logs every call ``("call", type, args, kwargs)``; for a BytesIO also
+    ``("bytes", sha256, length)`` of the bytes handed to it, then APPENDS to ``ckpt_path`` -- the
+    file on disk changes after the probe read it."""
+    import hashlib
+    import io
+    real = torch.load
+
+    def spy(f, *args, **kwargs):
+        seen.append(("call", type(f), args, kwargs))
+        if isinstance(f, io.BytesIO):
+            seen.append(("bytes", hashlib.sha256(f.getvalue()).hexdigest(), len(f.getvalue())))
+            with open(ckpt_path, "ab") as out:
+                out.write(b"appended after the probe read the file")
+        return real(f, *args, **kwargs)
+    monkeypatch.setattr(torch, "load", spy)
+
+
+def test_the_probe_reads_once_and_deserializes_the_buffer_it_hashed(tmp_path, monkeypatch):
+    """One ``eval_FLAC.read_checkpoint_exact`` of the path, one ``torch.load(io.BytesIO(buf),
+    map_location='cpu')`` (no other argument); the returned digest + length are THAT buffer's,
+    not the file's after the read."""
+    import hashlib
+    import io
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+    _capture(monkeypatch, [], stop=False)
+    reads, real_read, seen = [], eval_FLAC.read_checkpoint_exact, []
+    monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact", lambda p: reads.append(p) or real_read(p))
+    _torch_load_spy(monkeypatch, ckpt_path, seen)
+    module, info, ckpt_load = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+    assert reads == [ckpt_path]
+    assert [s for s in seen if s[0] == "call"] == [("call", io.BytesIO, (), {"map_location": "cpu"})]
+    _, sha, n = next(s for s in seen if s[0] == "bytes")
+    assert ckpt_load == {"ckpt_sha256_loaded": sha, "ckpt_bytes_loaded": n}
+    assert list(ckpt_load) == list(eval_FLAC.CKPT_LOAD_KEYS) and type(ckpt_load["ckpt_bytes_loaded"]) is int
+    now = open(ckpt_path, "rb").read()
+    assert len(now) > n and hashlib.sha256(now[:n]).hexdigest() == sha != hashlib.sha256(now).hexdigest()
+    assert info["weights_source"] == "ema" and info["canonicalize_applied"] is True   # the binding unchanged
+
+
+@pytest.mark.parametrize("bad", [dict(ckpt_bytes_loaded=1.0), dict(ckpt_bytes_loaded=True),
+                                 dict(ckpt_bytes_loaded=0), dict(ckpt_sha256_loaded="A" * 64),
+                                 dict(ckpt_sha256_loaded=None), dict(extra=1)])
+def test_a_malformed_load_digest_is_refused_before_the_model(tmp_path, monkeypatch, bad):
+    """Type-strict, through eval_FLAC's own validator: a sha256 hex digest and a positive int."""
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+    real_read = eval_FLAC.read_checkpoint_exact
+    monkeypatch.setattr(eval_FLAC, "read_checkpoint_exact",
+                        lambda p: (real_read(p)[0], dict(real_read(p)[1], **bad)))
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+    with pytest.raises(ValueError, match="ckpt load provenance"):
         probe.load_probe_module(cfg_path, ckpt_path, "cpu")
 
 
@@ -617,3 +675,33 @@ def test_main_publishes_through_build_report_and_write_report(tmp_path, monkeypa
         f"{hashlib.sha256(text.encode()).hexdigest()}  probe.json\n"
     assert [it["position"] for it in rep["items"]] == list(range(5))
     assert all(set(it) >= {"target_id", "context_ids", "dj_A", "offsets"} for it in rep["items"])
+
+
+# --------------------------------------------------------------------------- #
+# rB-F3 F3-1: the published provenance carries the loaded digest + length right after ckpt_sha256
+# --------------------------------------------------------------------------- #
+def test_main_records_the_loaded_digest_after_the_file_digest(tmp_path, monkeypatch, no_flash):
+    import hashlib
+    rc, rep, out, ckpt_path, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
+    prov, data = rep["provenance"], open(ckpt_path, "rb").read()
+    assert rc == 0 and rep["registered"] is True and rep["deviations"] == []
+    assert list(prov)[:5] == ["ckpt_path", "ckpt_sha256", "ckpt_sha256_loaded", "ckpt_bytes_loaded", "model_config"]
+    assert prov["ckpt_path"] == ckpt_path
+    assert prov["ckpt_sha256_loaded"] == prov["ckpt_sha256"] == hashlib.sha256(data).hexdigest()
+    assert type(prov["ckpt_bytes_loaded"]) is int and prov["ckpt_bytes_loaded"] == len(data) > 0
+
+
+def test_main_names_the_deserialized_bytes_not_the_file_afterwards(tmp_path, monkeypatch, no_flash):
+    """The file is rewritten on disk AFTER the probe read it: ``ckpt_sha256`` (the path, hashed at the
+    end, kept for continuity) names the file now; the loaded digest + length name what was deserialized."""
+    import hashlib
+    import io
+    seen = []
+    _torch_load_spy(monkeypatch, str(tmp_path / "toy.ckpt"), seen)
+    rc, rep, out, ckpt_path, _ = _run_main(tmp_path, monkeypatch, diagnostic=False, ema=True, registered=True)
+    prov, now = rep["provenance"], open(ckpt_path, "rb").read()
+    assert rc == 0 and [s for s in seen if s[0] == "call"] == [("call", io.BytesIO, (), {"map_location": "cpu"})]
+    _, sha, n = next(s for s in seen if s[0] == "bytes")
+    assert (prov["ckpt_sha256_loaded"], prov["ckpt_bytes_loaded"]) == (sha, n)
+    assert hashlib.sha256(now[:n]).hexdigest() == sha and len(now) > n
+    assert prov["ckpt_sha256"] == hashlib.sha256(now).hexdigest() != sha
