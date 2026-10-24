@@ -580,3 +580,98 @@ def test_a_pair_with_a_different_input_hash_is_not_a_pair(tmp_path):
     pairs = C.make_pairs(cells)
     p = next(p for p in pairs if p["cell"] == rot)
     assert not p["input_hash_equal"] and not C.tier1(pairs, cells)["pass"]
+
+
+# ---- cycle 5b: Tier 2 against the composition control; the probe artifact ---- #
+CONTROL = {"d64": 1e-3, "d128": 2e-4, "d256": 3e-4, "d384": 4e-4, "random": 5e-4, "pooled": 6e-4}
+
+
+def write_probe(tmp, registered=True, control=CONTROL, ckpt_sha=None, tamper=False):
+    rep = {"schema_version": 1, "registered": registered,
+           "provenance": {"ckpt_sha256": ckpt_sha or canon_index()[40000][1]},
+           "control_p99": {"fp32": dict(control), "eval": dict(control)},
+           "eps_cond": {"value": 1e-7, "threshold": 1e-5, "pass": True}, "verdict": {"pass": True}}
+    text = json.dumps(rep, indent=1) + "\n"
+    path = os.path.join(str(tmp), "depth_canon_cond_probe.json")
+    open(path, "w").write(text)
+    digest = hashlib.sha256(text.encode()).hexdigest() if not tamper else "0" * 64
+    open(path + ".sha256", "w").write(f"{digest}  depth_canon_cond_probe.json\n")
+    return path
+
+
+def test_control_key_mapping():
+    assert [C.control_key(d) for d in (90, 180, 270, 45, None)] == ["d128", "d256", "d384", "d64", "random"]
+
+
+@pytest.mark.parametrize("kw, needle", [(dict(registered=False), "registered"),
+                                        (dict(tamper=True), "sha256"),
+                                        (dict(ckpt_sha="1" * 64), "checkpoint"),
+                                        (dict(control={**CONTROL, "d64": float("nan")}), "d64")])
+def test_only_a_registered_probe_is_a_control(tmp_path, kw, needle):
+    assert C.load_control(write_probe(tmp_path), ckpt_sha256=canon_index()[40000][1])[1] == []
+    reasons = C.load_control(write_probe(tmp_path, **kw), ckpt_sha256=canon_index()[40000][1])[1]
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def _scaled(r, eps, item=None):
+    w = waveforms_for(r)
+    if item is None:
+        return w * (1 + eps)
+    w = w.clone()
+    w[item] *= (1 + eps)
+    return w
+
+
+def _tier2(tmp, waves):
+    write_campaign(tmp, INVARIANCE, waves_fn=lambda r: waves.get(r["cell"]))
+    cells = collect(tmp, INVARIANCE)
+    control, reasons = C.load_control(write_probe(tmp), ckpt_sha256=canon_index()[40000][1])
+    assert reasons == []
+    return C.tier2(C.make_pairs(cells), cells, control)
+
+
+def test_tier2_invariant_campaign_passes(tmp_path):
+    t2 = _tier2(tmp_path, {})
+    assert t2["pass"] and t2["determinism"]["pass"] and not t2["alarm"]["suspended"]
+    assert len(t2["pairs"]) == 18 and all(p["relL2"]["max"] == 0 for p in t2["pairs"])
+    assert t2["pooled"]["control_p99"] == CONTROL["pooled"]
+    assert {p["control_key"] for p in t2["pairs"]} == {"d64", "d128", "d256", "d384", "random"}
+
+
+def test_tier2_matched_rule_cap_and_pooled_rule(tmp_path):
+    th90 = row("C4+45", K=1, deg=90)
+    t2 = _tier2(tmp_path, {th90["cell"]: _scaled(th90, 1e-3)})
+    bad = next(p for p in t2["pairs"] if p["cell"] == th90["cell"])
+    assert abs(bad["relL2"]["p99"] - 1e-3) < 1e-6 and abs(bad["relLinf"]["max"] - 1e-3) < 1e-6
+    assert not bad["pass_matched"] and bad["pass_cap"] and not t2["pass"]   # 1e-3 > 3 x 2e-4
+    assert all(p["pass_matched"] for p in t2["pairs"] if p["cell"] != th90["cell"])
+
+
+def test_tier2_hard_cap(tmp_path, monkeypatch):
+    monkeypatch.setitem(CONTROL, "d64", 1.0)
+    r45 = row("C4+45", K=8, deg=45)
+    t2 = _tier2(tmp_path, {r45["cell"]: _scaled(r45, 2e-2)})
+    bad = next(p for p in t2["pairs"] if p["cell"] == r45["cell"])
+    assert bad["pass_matched"] and not bad["pass_cap"] and not t2["pass"]
+
+
+def test_tier2_alarm_names_the_offending_items(tmp_path):
+    rr = row("R", K=1, seed=45)
+    t2 = _tier2(tmp_path, {rr["cell"]: _scaled(rr, 0.5, item=3)})
+    assert t2["alarm"]["suspended"] and "suspended pending item triage" in t2["alarm"]["note"]
+    assert t2["alarm"]["items"] == {rr["cell"]: [target_ids("unseen")[3]]}
+
+
+def test_tier2_duplicate_cell_must_be_exactly_reproducible(tmp_path):
+    dup = row("T-dup", K=8)
+    t2 = _tier2(tmp_path, {dup["cell"]: _scaled(dup, 1e-7)})
+    assert not t2["determinism"]["pass"] and t2["pass"]          # a separate requirement
+    d = next(p for p in t2["determinism"]["pairs"] if p["cell"] == dup["cell"])
+    assert d["relL2_max"] > 0 and not d["dump_sha_equal"]
+
+
+def test_tier2_without_a_control_is_not_computable(tmp_path):
+    write_campaign(tmp_path, INVARIANCE)
+    cells = collect(tmp_path, INVARIANCE)
+    t2 = C.tier2(C.make_pairs(cells), cells, None)
+    assert t2["pass"] is None and "control" in t2["note"]
