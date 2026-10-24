@@ -53,6 +53,50 @@ make_clone() {   # a fresh clone of the source HEAD + the overlaid launcher file
   ln -s "$SRC_REPO/weights" "$R/weights"
   ( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write )
   commit_clone "guard overlay"
+  write_audit ok
+}
+
+write_audit() {   # write_audit <mode>: a synthetic tie audit of the clone (r3b-F1 fix 1), + sidecar
+  ( cd "$R" && "$REAL_PY" - "$EXPREL" "$1" <<'PY'
+import hashlib, json, sys
+exp, mode = sys.argv[1:3]
+sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
+ar = "src/configs/dataset_configs/custom_metadata/AR_md.py"
+splits = {"train": ("src/configs/dataset_configs/AR/train/acousticroom_train.json", 291210),
+          "unseen": ("src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json", 6337),
+          "seen": ("src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json", 6217)}
+inputs = []
+for name, (cfg, n) in splits.items():
+    j = json.load(open(cfg))["datasets"][0]["json_file_path"]
+    inputs.append({"dataset_config": cfg, "dataset_config_sha256": sha(cfg), "json_file_path": j,
+                   "json_sha256": sha(j), "custom_metadata_module": ar,
+                   "custom_metadata_module_sha256": sha(ar), "split": name, "n_items": n})
+n_maps = 48 if mode == "subset" else 9650
+rep = {"schema_version": 1,
+       "tool": {"script_sha256": "0" * 64 if mode == "script" else sha(f"{exp}/depth_canon_tie_audit.py"),
+                "code_sha256": {"src/data/yaw_rotation.py": sha("src/data/yaw_rotation.py"),
+                                "src/data/dataset.py": sha("src/data/dataset.py"), "custom_metadata_module": sha(ar)}},
+       "inputs": inputs,
+       "coverage": {"splits": ["train", "unseen", "seen"], "limit": 48 if mode == "subset" else None,
+                    "subset": mode == "subset", "n_maps_union": 9650, "n_maps_audited": n_maps,
+                    "complete": mode != "subset"},
+       "gate": {"verdict": {"subset": "REFUSED_SUBSET", "survivor": "FAIL", "error": "INCOMPLETE"}.get(mode, "PASS"),
+                "exit_code": {"subset": 4, "survivor": 1, "error": 3}.get(mode, 0),
+                "n_survivors": int(mode == "survivor"), "n_errors": int(mode == "error")},
+       "survivors": [{"path": "m0"}] if mode == "survivor" else [],
+       "errors": [{"path": "m1", "error": "x"}] if mode == "error" else [],
+       "rows": [{"path": f"m{i}", "error": "x" if (mode == "error" and i == 1) else None,
+                 "survivor": mode == "survivor" and i == 0} for i in range(n_maps)]}
+if mode == "stale":
+    rep["inputs"][1]["json_sha256"] = "0" * 64
+if mode == "counts":
+    rep["inputs"][2]["n_items"] = 6216
+text = json.dumps(rep) + "\n"
+open(f"{exp}/depth_canon_tie_audit.json", "w").write(text)
+digest = "0" * 64 if mode == "tamper" else hashlib.sha256(text.encode()).hexdigest()
+open(f"{exp}/depth_canon_tie_audit.json.sha256", "w").write(f"{digest}  depth_canon_tie_audit.json\n")
+PY
+  )
 }
 
 commit_clone() {   # everything the throwaway clone holds (ignored files stay ignored)
@@ -309,6 +353,20 @@ sed -i 's/"img_w": 512$/"img_w":  512/' "$R/$ARM"
 case_rc "C13 parse-equal but not byte-equal" 2 "not the control's bytes plus the literal insertion" MODE=SMOKE DRY_RUN=1
 make_clone >/dev/null
 case_rc "C14 the genuine arm passes"    0 "config contract OK" MODE=SMOKE DRY_RUN=1
+
+echo "--- T. SMOKE and FULL need the complete PASSING tie audit (r3b-F1 fix 1; plan §7 rung 3) ---"
+rm -f "$R/$EXPREL/depth_canon_tie_audit.json" "$R/$EXPREL/depth_canon_tie_audit.json.sha256"
+AUDIT_NEED="TIE AUDIT GATE FAILED"
+case_rc "T1 no tie audit"                         2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+case_rc "T1b SMOKE refuses without it too"        2 "$AUDIT_NEED" MODE=SMOKE DRY_RUN=1
+write_audit subset;   case_rc "T2 a subset audit (--limit, REFUSED_SUBSET)" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit stale;    case_rc "T3 a stale audit (a split JSON changed since)" 2 "split JSON" MODE=FULL DRY_RUN=1
+write_audit tamper;   case_rc "T4 a tampered audit (sidecar mismatch)" 2 "sha256 sidecar" MODE=FULL DRY_RUN=1
+write_audit survivor; case_rc "T5 an audit holding a survivor" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit error;    case_rc "T6 an audit holding an error" 2 "$AUDIT_NEED" MODE=FULL DRY_RUN=1
+write_audit script;   case_rc "T7 an audit by another audit script" 2 "audit script" MODE=FULL DRY_RUN=1
+write_audit counts;   case_rc "T8 item counts that are not the registered ones" 2 "6216 items" MODE=FULL DRY_RUN=1
+write_audit ok;       case_rc "T9 the complete PASS audit is accepted" 0 "tie audit OK" MODE=SMOKE DRY_RUN=1
 
 echo "--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---"
 write_evidence() {   # write_evidence <name> '<python dict of overrides>'

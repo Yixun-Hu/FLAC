@@ -222,6 +222,70 @@ if not (ctl_raw.endswith(TRAILER) and ctl_raw.count(TRAILER) == 1
 print(f"config contract OK: {arm_p} == {ctl_p} (sha {ctl_sha[:12]}...) + training.canonicalize {block}")
 PY
 
+# --- (rung 3) the complete PASSING tie audit (r3b-F1 fix 1; plan §7 rung 3) -------- #
+# SMOKE and FULL both need it (the smoke evidence binds its sha256): all three registered
+# splits, no --limit, the whole 9,650-map union, zero survivors and errors, PASS, a matching
+# sidecar, the registered item counts (pinned HERE and read from the audit's own ledger), and
+# content hashes that still match the split JSONs, configs, operator, AR_md and audit script.
+TIE_AUDIT="$EXPDIR/depth_canon_tie_audit.json"
+AUDIT_SHA="$("$PY" - "$TIE_AUDIT" "$EXPDIR" <<'PY'
+import hashlib, json, os, sys
+audit, exp = sys.argv[1:3]
+SPLITS = {"train": ("src/configs/dataset_configs/AR/train/acousticroom_train.json", 291210),
+          "unseen": ("src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json", 6337),
+          "seen": ("src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json", 6217)}
+N_MAPS, AR_MD = 9650, "src/configs/dataset_configs/custom_metadata/AR_md.py"
+CODE = {"src/data/yaw_rotation.py": "src/data/yaw_rotation.py", "src/data/dataset.py": "src/data/dataset.py",
+        "custom_metadata_module": AR_MD}
+sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest() if p and os.path.isfile(p) else None
+def fail(why):
+    print("TIE AUDIT GATE FAILED: " + "; ".join(why) + " - abort", file=sys.stderr)
+    sys.exit(1)
+try:
+    raw, side = open(audit, "rb").read(), open(audit + ".sha256").read()
+    rep = json.loads(raw)
+except (OSError, ValueError) as err:
+    fail([f"{audit} (+ .sha256) unreadable ({err}); run depth_canon_tie_audit.py over all three splits"])
+why = []
+if side != f"{hashlib.sha256(raw).hexdigest()}  {os.path.basename(audit)}\n":
+    why.append("the sha256 sidecar does not match the audit's bytes")
+if rep.get("schema_version") != 1:
+    why.append(f"schema_version {rep.get('schema_version')!r}")
+if rep.get("gate") != {"verdict": "PASS", "exit_code": 0, "n_survivors": 0, "n_errors": 0}:
+    why.append(f"gate {rep.get('gate')}")
+if rep.get("survivors") != [] or rep.get("errors") != []:
+    why.append("survivors / errors listed")
+cov = {"splits": list(SPLITS), "limit": None, "subset": False, "n_maps_union": N_MAPS,
+       "n_maps_audited": N_MAPS, "complete": True}
+if rep.get("coverage") != cov:
+    why.append(f"coverage {rep.get('coverage')} != {cov}")
+inputs = rep.get("inputs") or []
+if [r.get("split") for r in inputs] != list(SPLITS):
+    why.append(f"splits {[r.get('split') for r in inputs]} != {list(SPLITS)}")
+for r in inputs:
+    cfg, n = SPLITS.get(r.get("split"), (None, None))
+    if r.get("dataset_config") != cfg or r.get("dataset_config_sha256") != sha(cfg):
+        why.append(f"{r.get('split')}: dataset config {r.get('dataset_config')} stale or not the registered one")
+    if r.get("n_items") != n:
+        why.append(f"{r.get('split')}: {r.get('n_items')} items != the registered {n}")
+    if r.get("json_sha256") != sha(r.get("json_file_path")):
+        why.append(f"{r.get('split')}: the split JSON {r.get('json_file_path')} changed since the audit")
+    if r.get("custom_metadata_module_sha256") != sha(AR_MD):
+        why.append(f"{r.get('split')}: AR_md.py changed since the audit")
+tool = rep.get("tool") or {}
+if tool.get("script_sha256") != sha(os.path.join(exp, "depth_canon_tie_audit.py")):
+    why.append("written by another audit script")
+why += [f"{k} changed since the audit" for k, p in CODE.items() if (tool.get("code_sha256") or {}).get(k) != sha(p)]
+rows = rep.get("rows")
+if not isinstance(rows, list) or len(rows) != N_MAPS or any(r.get("error") or r.get("survivor") for r in rows):
+    why.append(f"rows: not {N_MAPS} clean maps")
+if why:
+    fail(why)
+print(hashlib.sha256(raw).hexdigest())
+PY
+)" || exit 2
+echo "tie audit OK: ${TIE_AUDIT} (sha256 ${AUDIT_SHA}): 9,650 maps, 0 survivors, 0 errors, hashes current"
+
 # --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
 if [ "$MODE" = "FULL" ]; then
   SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
