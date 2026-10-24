@@ -174,3 +174,8 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `51bc8b8` | Coder rB-F1 | NIT b cycle 8b: `split_overlap(summary)` + `REGISTERED_OVERLAP`; mismatch flagged + a problem |
 | `557f3dc` | Coder rB-F1 | NIT c cycle 9 (test-only): golden byte-identity of every pre-exp25 generator row vs `e5902b9` |
 | `356ef98` | Coder rB-F1 | NIT d cycle 10 (test-only): two-cell failure-then-success driver test |
+| `dfbaaef` | Coder rB-F1 | A1 cycle 11a (red): gate harness-contract mode + checkout-portable ledger tests |
+| `6de842f` | Coder rB-F1 | A1 cycle 11b: `--harness-contract` (only under DEPTH_CANON_HARNESS, tagged reports only), `*_abs` ledger fields portable |
+| `268bd22` | Coder rB-F1 | data: the full rung-3 tie audit + sidecar committed unchanged (+ run log, gate re-validation log) |
+| `a5c28fd` | Coder rB-F1 | A1 cycle 11c (red, guard): T section on real tiny harness audits; P1b/M6 48 pins; B4/B5; Q0 |
+| `343bdf1` | Coder rB-F1 | A1 cycle 11d: the launcher calls depth_canon_audit_gate.py; gate sha in the SMOKE->FULL bind; audit + sidecar pinned (48) |
