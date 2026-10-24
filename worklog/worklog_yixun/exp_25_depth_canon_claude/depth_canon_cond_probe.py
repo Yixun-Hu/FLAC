@@ -217,3 +217,62 @@ def compare_stages(test, ref):
     out = {"cond": compare_cond(test["cond"], ref["cond"])}
     out.update({s: stage_rel(test[s], ref[s]) for s in STAGES[1:]})
     return out
+
+
+# --------------------------------------------------------------------------- #
+# loading: eval_FLAC.evaluate_model's checkpoint path
+# --------------------------------------------------------------------------- #
+def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch=False):
+    """``(module, info)`` -- the checkpoint loaded the way ``evaluate_model`` loads it.
+
+    The helpers are eval_FLAC's own (``resolve_weights_source``,
+    ``resolve_are_from_checkpoint``, ``resolve_canonicalize_protocol`` with the
+    ``--canonicalize`` flag set, ``check_load_integrity``, the two factories, all looked
+    up on the ``eval_FLAC`` module). The prefix strip and the EMA re-keying are inline
+    statements in ``evaluate_model``, so they are repeated here verbatim; the tests pin
+    the state dict and both configs this hands the factories against the ones
+    ``evaluate_model`` hands them for the same checkpoint. ARE checkpoints are refused
+    (no add-back bank here); a non-canonical checkpoint needs ``allow_canon_mismatch``."""
+    import copy
+    import json
+    import eval_FLAC as ev
+    with open(model_config_path) as f:
+        model_config = json.load(f)
+    file_model_config = copy.deepcopy(model_config)
+    training_config = model_config.get("training", None)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    state_dict = ckpt["state_dict"]
+    for key in list(state_dict.keys()):                            # verbatim (evaluate_model)
+        if key.startswith("diffusion."):
+            new_key = key.replace("diffusion.", "")
+            state_dict[new_key] = state_dict.pop(key)
+    weights_source = ev.resolve_weights_source(training_config, state_dict.keys())
+    if training_config.get("use_ema", False) and any(k.startswith("diffusion_ema.ema_model.")
+                                                     for k in state_dict.keys()):
+        print("Using EMA model")
+        for key in list(state_dict.keys()):
+            if key.startswith("diffusion_ema.ema_model."):
+                new_key = key.replace("diffusion_ema.ema_model.", "model.")
+                state_dict[new_key] = state_dict.pop(key)
+        training_config["use_ema"] = False
+    are_lambda, _, _ = ev.resolve_are_from_checkpoint(ckpt.get("model_config"), file_model_config, None)
+    if are_lambda is not None:
+        raise ValueError(f"an ARE checkpoint (are_lambda={are_lambda}) is out of this probe's scope: "
+                         "it has no anchor add-back")
+    embedded = ckpt.get("model_config")
+    protocol = ev.resolve_canonicalize_protocol(
+        True, file_model_config.get("training"),
+        embedded.get("training") if isinstance(embedded, dict) else None,
+        allow_canon_mismatch, cond_method="vanilla", file_model_cfg=file_model_config)
+    model = ev.create_model_from_config(model_config)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    ev.check_load_integrity(missing, unexpected, False)
+    model_config["training"] = training_config
+    module = ev.create_training_wrapper_from_config(model_config, model)
+    module.eval().requires_grad_(False)
+    module.to(device)
+    info = {"weights_source": weights_source, "canonicalize_trained": protocol.trained,
+            "canonicalize_applied": protocol.applied, "canonicalize_mismatch": protocol.mismatch,
+            "img_w": protocol.img_w, "model_config_sha256_file": ev.model_config_sha256(file_model_config),
+            "model_config_sha256_embedded": ev.model_config_sha256(embedded)}
+    return module, info

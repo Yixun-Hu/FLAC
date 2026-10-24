@@ -263,3 +263,102 @@ def test_a_non_rectified_flow_objective_is_refused(no_flash):
     a_list, _, noise, reals = _toy_inputs()
     with pytest.raises(ValueError, match="rectified_flow"):
         probe.run_stages(module, a_list, noise, reals, probe.PROTOCOLS["eval"])
+
+
+# --------------------------------------------------------------------------- #
+# loading: the same checkpoint path as eval_FLAC.evaluate_model
+# --------------------------------------------------------------------------- #
+import copy  # noqa: E402
+import json  # noqa: E402
+import types  # noqa: E402
+
+import eval_FLAC  # noqa: E402
+from test_depth_canon_eval import _model_cfg  # noqa: E402
+
+CANON_ON = {"canonicalize": {"enabled": True, "img_w": 512}}
+
+
+class _Stop(Exception):
+    pass
+
+
+def _toy_ckpt(tmp_path, training, embedded="same"):
+    cfg = _model_cfg(training)
+    cfg.update(model_type="diffusion_cond", sample_size=16, sample_rate=22050, audio_channels=1)
+    (tmp_path / "model.json").write_text(json.dumps(cfg))
+    sd = {"diffusion.model.w": torch.ones(2), "diffusion.conditioner.c": torch.zeros(1),
+          "diffusion_ema.ema_model.model.w": torch.full((2,), 3.0), "losses.x": torch.ones(1),
+          "diffusion.pretransform.diffusion.k": torch.ones(1)}   # nested 'diffusion.' (replace-all)
+    ckpt = {"state_dict": sd}
+    if embedded is not None:
+        ckpt["model_config"] = copy.deepcopy(cfg) if embedded == "same" else embedded
+    torch.save(ckpt, str(tmp_path / "toy.ckpt"))
+    return str(tmp_path / "model.json"), str(tmp_path / "toy.ckpt")
+
+
+def _capture(monkeypatch, seen, stop=True):
+    def model_factory(cfg):
+        seen.append(("model_cfg", copy.deepcopy(cfg)))
+        return types.SimpleNamespace(load_state_dict=lambda sd, strict=False: seen.append(
+            ("sd", {k: v.clone() for k, v in sd.items()}, strict)) or ([], []))
+
+    def wrapper_factory(cfg, model):
+        seen.append(("wrapper_cfg", copy.deepcopy(cfg)))
+        if stop:
+            raise _Stop
+        module = types.SimpleNamespace(device="cpu")
+        module.eval = module.requires_grad_ = module.to = lambda *a: module
+        return module
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config", model_factory)
+    monkeypatch.setattr(eval_FLAC, "create_training_wrapper_from_config", wrapper_factory)
+
+
+@pytest.mark.parametrize("use_ema", [True, False])
+def test_the_probe_loads_a_checkpoint_exactly_as_evaluate_model(tmp_path, monkeypatch, use_ema):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=use_ema))
+    via_eval, via_probe = [], []
+    _capture(monkeypatch, via_eval)
+    with pytest.raises(_Stop):
+        eval_FLAC.evaluate_model(cfg_path, str(tmp_path / "unused.json"), ckpt_path, steps=1,
+                                 cfg_scale=1.0, device="cpu", canonicalize=True)
+    _capture(monkeypatch, via_probe)
+    with pytest.raises(_Stop):
+        probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+    assert [s[0] for s in via_eval] == [s[0] for s in via_probe] == ["model_cfg", "sd", "wrapper_cfg"]
+    assert via_eval[0][1] == via_probe[0][1] and via_eval[2][1] == via_probe[2][1]
+    sd_e, sd_p = via_eval[1][1], via_probe[1][1]
+    assert list(sd_e) == list(sd_p) and all(torch.equal(sd_e[k], sd_p[k]) for k in sd_e)
+    assert via_eval[1][2] is via_probe[1][2] is False
+    assert via_probe[2][1]["training"]["use_ema"] is False
+    assert ("model.model.w" in sd_p) is use_ema and "pretransform.k" in sd_p
+
+
+def test_load_reports_the_binding_and_the_weights_source(tmp_path, monkeypatch):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=True))
+    _capture(monkeypatch, [], stop=False)
+    module, info = probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+    assert module.device == "cpu" and info["weights_source"] == "ema"
+    assert (info["canonicalize_trained"], info["canonicalize_applied"], info["canonicalize_mismatch"],
+            info["img_w"]) == (True, True, False, 512)
+    cfg = json.load(open(cfg_path))
+    assert info["model_config_sha256_file"] == info["model_config_sha256_embedded"] == \
+        eval_FLAC.model_config_sha256(cfg)
+
+
+def test_a_non_canonical_checkpoint_is_refused_before_the_model_unless_allowed(tmp_path, monkeypatch):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, {"use_ema": False})
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+    with pytest.raises(ValueError, match="TRAINED with canonicalize=False"):
+        probe.load_probe_module(cfg_path, ckpt_path, "cpu")
+    _capture(monkeypatch, [], stop=False)
+    _, info = probe.load_probe_module(cfg_path, ckpt_path, "cpu", allow_canon_mismatch=True)
+    assert (info["canonicalize_trained"], info["canonicalize_applied"], info["canonicalize_mismatch"]) == \
+        (False, True, True)
+
+
+def test_an_are_checkpoint_is_refused(tmp_path, monkeypatch):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=False))
+    monkeypatch.setattr(eval_FLAC, "resolve_are_from_checkpoint", lambda *a: (0.5, "config", {}))
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config", lambda cfg: pytest.fail("model built"))
+    with pytest.raises(ValueError, match="ARE"):
+        probe.load_probe_module(cfg_path, ckpt_path, "cpu")
