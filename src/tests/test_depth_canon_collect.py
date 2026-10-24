@@ -675,3 +675,51 @@ def test_tier2_without_a_control_is_not_computable(tmp_path):
     cells = collect(tmp_path, INVARIANCE)
     t2 = C.tier2(C.make_pairs(cells), cells, None)
     assert t2["pass"] is None and "control" in t2["note"]
+
+
+# ---- cycle 5c: Tier 3 and the table block, on known numbers ---- #
+SHIFT = {"CANON": {90: 0.005, 180: -0.002, 270: 0.001, 45: 0.003},
+         "P1": {90: 0.5, 180: -0.2, 270: 0.1, 45: 0.3}, "YAW": {90: 0.05, 180: -0.02, 270: 0.01, 45: 0.03}}
+R_SHIFT = {"CANON": 0.001, "P1": 0.4, "YAW": 0.04}
+TIER3 = ["T", "C4+45", "R", "P1-pin", "YAW-pin"]
+
+
+def t3_metrics(r, shift=SHIFT, r_shift=R_SHIFT):
+    v = 5.0 + 0.01 * (r["seed"] - 42) + (0.5 if r["K"] == 1 else 0.0)
+    if r["rotate_mode"] == "random":
+        v += r_shift[r["arm"]]
+    elif r["rotate_deg"]:
+        v += shift[r["arm"]][r["rotate_deg"]]
+    return {k: round(v + j, 6) for j, k in enumerate(EMITTED)}
+
+
+def test_tier3_on_known_numbers(tmp_path):
+    write_campaign(tmp_path, TIER3, metrics_fn=t3_metrics)
+    t3 = C.tier3(collect(tmp_path, TIER3))
+    canon = t3["arms"]["CANON"][1]["item"]["T60"]
+    assert abs(canon["delta_c4"] - 0.007) < 1e-9 and abs(canon["probe45"] - 0.003) < 1e-9
+    assert abs(canon["delta_r"] - 0.001) < 1e-9 and canon["n_r_pairs"] == 5
+    assert abs(canon["sd_z"] - 0.0158113883) < 1e-9
+    assert abs(t3["arms"]["P1"][8]["item"]["EDT"]["delta_c4"] - 0.7) < 1e-9
+    scene = t3["arms"]["CANON"][1]["scene"]["T60"]                    # by_scene = metric + 0.01 i
+    assert abs(scene["delta_c4"] - 0.007) < 1e-9 and abs(scene["mean_z"] - (canon["mean_z"] + 0.045)) < 1e-9
+    assert t3["pass"] is True and len(t3["checks"]) == 2 * len(C.TIER3_KEYS)
+    assert all(c["pass_c4"] and c["pass_r"] for c in t3["checks"])
+
+
+def test_tier3_fails_on_either_rule(tmp_path):
+    weak_p1 = {**SHIFT, "P1": {90: 0.05, 180: -0.01, 270: 0.0, 45: 0.0}}      # 10 % of 0.06 < 0.007
+    write_campaign(tmp_path, TIER3, metrics_fn=lambda r: t3_metrics(r, shift=weak_p1,
+                                                                   r_shift={**R_SHIFT, "CANON": 0.1}))
+    t3 = C.tier3(collect(tmp_path, TIER3))
+    assert t3["pass"] is False
+    assert not any(c["pass_c4"] for c in t3["checks"]) and not any(c["pass_r"] for c in t3["checks"])
+
+
+def test_table_block_mean_and_sample_sd(tmp_path):
+    write_campaign(tmp_path, TIER3, metrics_fn=t3_metrics)
+    tab = C.table_block(collect(tmp_path, TIER3))
+    t60 = tab["CANON"][1]["item"]["T60"]
+    assert t60["n"] == 5 and abs(t60["mean"] - 5.52) < 1e-9 and abs(t60["sd"] - 0.0158113883) < 1e-9
+    assert set(tab) == {"CANON", "P1", "YAW", "seen"} and tab["YAW"][8]["scene"]["C50"]["n"] == 5
+    assert tab["seen"]["YAW"][1]["item"]["T60"]["n"] == 5 and "CANON" not in tab["seen"]  # S not written

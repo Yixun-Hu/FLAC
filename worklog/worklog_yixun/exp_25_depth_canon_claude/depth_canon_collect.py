@@ -754,6 +754,92 @@ def tier2(pairs, cells, control):
                     f"{TIER2_CAP:g}; alarm max > {TIER2_ALARM:g}; T-dup max relL2 == 0"}
 
 
+# Tier 3 (plan v9 §1): Delta_C4 of CANON <= 10 % of P1-pin's on every metric, and |Delta_R| of
+# CANON <= one eval-seed sd of its m_Z; item-weighted (the table's estimand), per-scene reported.
+SEEDS = (42, 43, 44, 45, 46)
+TIER3_FRACTION = 0.10
+AGGS = ("item", "scene")   # flat `metrics` (item-weighted) / mean over the ten by_scene families
+
+
+def _value(entry, key, agg):
+    rec = entry["record"]
+    if agg == "item":
+        return float(rec["metrics"][key])
+    return sum(float(rec["by_scene"][s][key]) for s in SCENE_KEYS) / len(SCENE_KEYS)
+
+
+def _index(cells):
+    """``(arm, kind F|R|S, K, seed, step, deg) -> entry`` over the valid table / rotation cells."""
+    idx = {}
+    for e in cells.values():
+        r = e["row"]
+        if e["valid"] and r["block"] not in ("D-i", "D-ii", "T-dup"):
+            kind = "S" if r["split"] == "seen" else ("R" if r["rotate_mode"] == "random" else "F")
+            idx[(r["arm"], kind, r["K"], r["seed"], r["step"], r["rotate_deg"])] = e
+    return idx
+
+
+def _same_items(a, b):
+    return a is not None and b is not None and a["stream"]["input_hash"] == b["stream"]["input_hash"]
+
+
+def _stats(values):
+    import statistics as st
+    return {"n": len(values), "mean": st.mean(values) if values else None,
+            "sd": st.stdev(values) if len(values) > 1 else None, "values": values}
+
+
+def _arm_tier3(idx, arm, k, agg, key):
+    v = lambda e: _value(e, key, agg)  # noqa: E731
+    z = {s: idx.get((arm, "F", k, s, 40000, 0)) for s in SEEDS}
+    c4 = [idx.get((arm, "F", k, 42, 40000, d)) for d in (0, 90, 180, 270)]
+    p45, rr = idx.get((arm, "F", k, 42, 40000, 45)), {s: idx.get((arm, "R", k, s, 40000, None)) for s in SEEDS}
+    zs = _stats([v(e) for e in z.values() if e])
+    ok_c4 = all(_same_items(e, c4[0]) for e in c4)
+    d = [v(rr[s]) - v(z[s]) for s in SEEDS if _same_items(rr[s], z[s])]
+    return {"n_z": zs["n"], "mean_z": zs["mean"], "sd_z": zs["sd"],
+            "c4_values": [v(e) for e in c4] if ok_c4 else None,
+            "delta_c4": (max(v(e) for e in c4) - min(v(e) for e in c4)) if ok_c4 else None,
+            "probe45": v(p45) - v(c4[0]) if _same_items(p45, c4[0]) else None,
+            "n_r_pairs": len(d), "delta_r": (sum(d) / len(d)) if len(d) == len(SEEDS) else None,
+            "sd_r_pairs": _stats(d)["sd"]}
+
+
+def tier3(cells):
+    """Tier 3 per arm, K, aggregation and metric, plus the CANON-vs-P1 PASS checks
+    (``pass`` None when an input is missing -- never a silent PASS)."""
+    idx = _index(cells)
+    arms = {a: {k: {agg: {key: _arm_tier3(idx, a, k, agg, key) for key in TIER3_KEYS} for agg in AGGS}
+                for k in (1, 8)} for a in ("CANON", "P1", "YAW")}
+    checks = []
+    for k in (1, 8):
+        for key in TIER3_KEYS:
+            c, p = arms["CANON"][k]["item"][key], arms["P1"][k]["item"][key]
+            known = None not in (c["delta_c4"], p["delta_c4"], c["delta_r"], c["sd_z"])
+            checks.append({"K": k, "metric": key, "computable": known,
+                           "pass_c4": known and c["delta_c4"] <= TIER3_FRACTION * p["delta_c4"],
+                           "pass_r": known and abs(c["delta_r"]) <= c["sd_z"]})
+    verdict = None if not all(c["computable"] for c in checks) else all(
+        c["pass_c4"] and c["pass_r"] for c in checks)
+    return {"arms": arms, "checks": checks, "pass": verdict,
+            "rule": f"Delta_C4(CANON) <= {TIER3_FRACTION:g} x Delta_C4(P1-pin) and |Delta_R(CANON)| <= "
+                    "sd(m_Z CANON), every metric, both K, item-weighted"}
+
+
+def table_block(cells):
+    """theta = 0 rows, mean +- sample sd over the five eval seeds: unseen (CANON T, P1-pin T,
+    YAW-pin T) and ``seen`` (CANON S, YAW-pin S); item-weighted and per-scene."""
+    idx = _index(cells)
+    def block(kind, arm):
+        return {k: {agg: {key: _stats([_value(e, key, agg) for e in
+                                       (idx.get((arm, kind, k, s, 40000, 0)) for s in SEEDS) if e])
+                          for key in TIER3_KEYS} for agg in AGGS} for k in (1, 8)}
+    out = {arm: block("F", arm) for arm in ("CANON", "P1", "YAW")}
+    out["seen"] = {arm: block("S", arm) for arm in ("CANON", "YAW")
+                   if any(key[0] == arm and key[1] == "S" for key in idx)}
+    return out
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
