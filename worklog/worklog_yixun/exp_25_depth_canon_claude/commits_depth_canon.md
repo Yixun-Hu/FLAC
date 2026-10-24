@@ -189,3 +189,19 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `999d515` | Coder rB-F1 | A5 cycle 15b: `perf_counter` before the unwrap; pins regenerated (48) |
 | `76de174` | Coder rB-F1 | records: notebook A2–A6 + ledger rows |
 | `5111f4e` | Planner records | Codex code review B (round 3c) REQUEST-CHANGES receipt + artifact; fix round rB-F1 opened |
+| `3688275` | Coder rB-F2 | F2-1a (red, guard + watcher): train.py's exit 7 must come back as the terminal 8 (R9, Z9; R9b passthrough); the watcher makes one attempt on it |
+| `978de18` | Coder rB-F2 | F2-1b: `gpu_refuse` is the only emitter of rc 7; an EXIT trap remaps any other 7 to 8; header lists every exit code |
+| `2998f7e` | Coder rB-F2 | F2-2a (red, guard): strict-only nvidia-smi stub (other queries logged + fail); U12/U12b/U13 |
+| `01cd41a` | Coder rB-F2 | F2-2b: the best-effort disclosure queries removed; the disclosure logs the validated gate answers |
+| `d348bd1` | Coder rB-F2 | F2-3a (red, guard): T15 a must-PASS fixture that is INCOMPLETE fails loudly |
+| `c652249` | Coder rB-F2 | F2-3b (guard repair): Q restores a fresh harness clone; `write_audit ok` asserts a complete PASS + prints the audit's error; tmp root /tmp/depth_canon_guard.XXXXXX validated |
+| `93de567` | Coder rB-F2 | F2-4a (red): re-hash child under a 900 s deadline; hung / failing children fail closed |
+| `84ced81` | Coder rB-F2 | F2-4b: the gate re-hashes in a killable child (`--rehash-worker`), `REHASH_DEADLINE_S = 900`, process group SIGKILLed past it |
+| `0480900` | Coder rB-F2 | F2-5a (red): token with a blank line and no final newline must wait |
+| `8b177d5` | Coder rB-F2 | F2-5b: `token_ok` counts every logical line (== key lines == newlines == 4) |
+| `85c81c2` | Coder rB-F2 | F2-6a (red): eval_FLAC hashes and deserializes one buffer; `ckpt_sha256_loaded` / `ckpt_bytes_loaded` in the record |
+| `8e87d17` | Coder rB-F2 | F2-6b: `read_checkpoint_exact`, `torch.load(io.BytesIO(buf), map_location='cpu')`, `build_metrics_record(ckpt_load=)` |
+| `6885b3c` | Coder rB-F2 | F2-6c (red): receipt binds loaded == measured == manifest; writable cache entry rejected; pre-spawn byte flip refused |
+| `b724af6` | Coder rB-F2 | F2-6d: collector LOAD_KEYS + receipt binding + `--ckpt-bytes`; driver `cache_ok` (0444, size, re-hash) at staging and before each spawn |
+| `39ccdf4` | Coder rB-F2 | F2-7a (red): the retention audit refuses `--dump-check receipt` |
+| `bf7bf38` | Coder rB-F2 | F2-7b: `--nas-retention-audit` accepts only full / manifest |
