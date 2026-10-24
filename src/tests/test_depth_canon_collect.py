@@ -156,7 +156,7 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
                 "stream_sidecar_path": stream_rel, "stream_sidecar_sha256": sha(stream_rel),
                 "canon_sidecar_path": canon_rel, "canon_sidecar_sha256": sha(canon_rel)})
     if receipt:
-        write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha)
+        write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
     return metrics_rel
 
 
@@ -177,9 +177,9 @@ def expected_target(r):
     return canon_index()[r["step"]] if r["arm"] == "CANON" else (ck["path"], ck["sha256"])
 
 
-def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None):
+def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
     target, sha = expected_target(r)
-    dump_root = os.path.join(str(tmp), "dumps")
+    dump_root = dump_root or os.path.join(str(tmp), "dumps")
     argv = list(r["eval_args"]) + ["--ckpt-path", link] + \
         (["--dump-scored-waveforms", dump_root] if dump else [])
     rec = {"schema_version": 1, "cell": r["cell"], "stem": os.path.basename(metrics_rel)[:-len(".json")],
