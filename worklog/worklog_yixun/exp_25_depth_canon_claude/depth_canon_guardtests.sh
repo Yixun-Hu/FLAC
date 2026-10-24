@@ -436,6 +436,7 @@ bind_case "B4 a new (still qualifying) tie audit needs a new SMOKE" 2 "$NEED" \
   'printf " \n" >> "$EXPREL/depth_canon_tie_audit.json" && sha256sum "$EXPREL/depth_canon_tie_audit.json" | sed "s#  .*/#  #" > "$EXPREL/depth_canon_tie_audit.json.sha256"'
 make_clone >/dev/null
 fi
+write_evidence e9 '{}'   # the genuine evidence the N / S / G sections run against (E9's state)
 
 echo "--- N. NAS gate on the save root: identity, free space, write probe ---"
 case_rc "N1 a non-CIFS save root (real findmnt)" 2 "NAS GATE FAILED: identity" MODE=SMOKE DRY_RUN=1 GUARD_FINDMNT=real
