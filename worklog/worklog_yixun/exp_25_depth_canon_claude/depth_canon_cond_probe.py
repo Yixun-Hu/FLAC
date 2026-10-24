@@ -436,3 +436,90 @@ def markdown_summary(report):
         out.append(f"determinism floor ({p}, A twice): max waveform relL2 "
                    f"{d['waveform']['summary']['relL2']['max']:.3e}")
     return "\n".join(out)
+
+
+def main(argv=None):
+    import argparse
+    import json
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--ckpt-path", required=True)
+    ap.add_argument("--model-config", default=DEFAULT_MODEL_CONFIG)
+    ap.add_argument("--dataset-config", default=DEFAULT_DATASET_CONFIG)
+    ap.add_argument("--n-items", type=int, default=64)
+    ap.add_argument("--batch-size", type=int, default=64)
+    ap.add_argument("--num-workers", type=int, default=4)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--device", default="cuda")
+    ap.add_argument("--allow-canon-mismatch", action="store_true",
+                    help="probe a checkpoint NOT trained with canonicalization (labelled diagnostic)")
+    ap.add_argument("--out", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
+    args = ap.parse_args(argv)
+    for name in ("n_items", "batch_size"):
+        if getattr(args, name) < 1:
+            ap.error(f"--{name.replace('_', '-')} must be >= 1")
+    if args.seed < 0 or args.num_workers < 0:
+        ap.error("--seed and --num-workers must be >= 0")
+    if os.path.realpath(os.getcwd()) != os.path.realpath(REPO):
+        raise SystemExit(f"run from the repository root {REPO}: dataset configs hold cwd-relative paths")
+    import pytorch_lightning as pl
+    import eval_FLAC as ev
+    torch.set_float32_matmul_precision("medium")        # as evaluate_model; each protocol sets its own
+    module, load = load_probe_module(args.model_config, args.ckpt_path, args.device,
+                                     args.allow_canon_mismatch)
+    with open(args.model_config) as f:
+        cfg = json.load(f)
+    pl.seed_everything(args.seed, workers=True)          # as evaluate_model, before the loader
+    with open(args.dataset_config) as f:
+        dataset_config = json.load(f)
+    eval_dl = ev.create_dataloader_from_config(
+        dataset_config, batch_size=args.batch_size, num_workers=args.num_workers,
+        sample_rate=cfg["sample_rate"], sample_size=cfg["sample_size"],
+        audio_channels=cfg.get("audio_channels", 1), shuffle=False)
+    reals, mds = collect_items(eval_dl, args.n_items)
+    img_w = load["img_w"]
+    stream = ev.RotationStream()
+    for md in mds:
+        stream.record(md, None, img_w)
+    pre = module.diffusion.pretransform
+    latent_len = cfg["sample_size"] if pre is None else cfg["sample_size"] // pre.downsampling_ratio
+    rep = run_probe(module, reals, mds, img_w, args.seed, args.batch_size, latent_len)
+    rep["items"] = [dict(position=i, target_id=row.target_id, context_ids=row.context_ids, **t)
+                    for i, (row, t) in enumerate(zip(stream.rows, rep["items"]))]
+    split = (dataset_config.get("datasets") or [{}])[0].get("json_file_path")
+    dev = torch.device(args.device)
+    prov = {"ckpt_path": args.ckpt_path, "ckpt_sha256": _sha256_file(args.ckpt_path),
+            "model_config": args.model_config, "model_config_file_sha256": _sha256_file(args.model_config),
+            "dataset_config": args.dataset_config, "dataset_config_sha256": _sha256_file(args.dataset_config),
+            "split_json": split, "split_json_sha256": _sha256_file(split) if split and os.path.exists(split) else None,
+            "source_sha": _git("rev-parse", "HEAD"),
+            "dirty": _git("status", "--porcelain", "--", "eval_FLAC.py", "src", os.path.abspath(__file__)),
+            "device": args.device, "torch": torch.__version__,
+            "cuda_device": torch.cuda.get_device_name(dev) if dev.type == "cuda" else None,
+            "seed": args.seed, "random_offset_seed": args.seed + RANDOM_OFFSET_SEED_SHIFT,
+            "noise": "per item: torch.Generator seeded by numpy SeedSequence([seed, i])",
+            "n_items": args.n_items, "batch_size": args.batch_size, "num_workers": args.num_workers,
+            "img_w": img_w, "latent_shape": [module.diffusion.io_channels, latent_len],
+            "protocols": PROTOCOLS, "load": load, "allow_canon_mismatch": args.allow_canon_mismatch}
+    report = {"schema_version": SCHEMA_VERSION, "provenance": prov,
+              "stream_input_hash": stream.input_hash(), **rep}
+    text = json.dumps(report, indent=1) + "\n"
+    with open(args.out, "w") as f:
+        f.write(text)
+    import hashlib
+    with open(args.out + ".sha256", "w") as f:
+        f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(args.out)}\n")
+    print(markdown_summary(report))
+    print(f"wrote {args.out} (+ .sha256)")
+    return 0 if report["verdict"]["pass"] else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as err:  # noqa: BLE001 -- a crash is never a verdict
+        import traceback
+        traceback.print_exc()
+        print(f"PROBE CRASHED ({type(err).__name__}); no verdict", file=sys.stderr)
+        sys.exit(5)

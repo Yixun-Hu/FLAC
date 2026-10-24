@@ -457,3 +457,63 @@ def test_markdown_summary_reports_every_cell_and_the_verdict(no_flash):
     assert "eps_cond (fp32 conditioning" in text and "Tier 1: 25/25" in text
     assert all(f"| {p} | {k} |" in text for p in probe.PROTOCOLS for k in probe.OFFSET_KEYS)
     assert "control p99 (eval, waveform relL2): d64" in text and "determinism floor (fp32" in text
+
+
+# --------------------------------------------------------------------------- #
+# main(): load -> loader -> probe -> JSON + sidecar + markdown; exit code = verdict
+# --------------------------------------------------------------------------- #
+def _run_main(tmp_path, monkeypatch, n_loader=7, bs=3, extra=()):
+    cfg_path, ckpt_path = _toy_ckpt(tmp_path, dict(CANON_ON, use_ema=False))
+    cfg = dict(json.load(open(cfg_path)), sample_size=64)
+    open(cfg_path, "w").write(json.dumps(cfg))
+    torch.save({"state_dict": {}, "model_config": cfg}, ckpt_path)
+    (tmp_path / "data.json").write_text(json.dumps({"datasets": [{"id": "toy"}]}))
+    toy, loader_kw = _toy_module(), {}
+    monkeypatch.setattr(eval_FLAC, "create_model_from_config",
+                        lambda c: types.SimpleNamespace(load_state_dict=lambda sd, strict=False: ([], [])))
+    monkeypatch.setattr(eval_FLAC, "create_training_wrapper_from_config", lambda c, m: toy)
+    monkeypatch.setattr(eval_FLAC, "create_dataloader_from_config",
+                        lambda *a, **k: loader_kw.update(k) or _ToyLoader(n_loader, bs))
+    out = tmp_path / "probe.json"
+    rc = probe.main(["--model-config", cfg_path, "--ckpt-path", ckpt_path, "--dataset-config",
+                     str(tmp_path / "data.json"), "--device", "cpu", "--n-items", "5", "--batch-size",
+                     str(bs), "--seed", "42", "--out", str(out)] + list(extra))
+    return rc, (json.loads(out.read_text()) if out.exists() else None), out, ckpt_path, loader_kw
+
+
+def test_main_end_to_end_on_cpu(tmp_path, monkeypatch, capsys, no_flash):
+    import hashlib
+    rc, rep, out, ckpt_path, loader_kw = _run_main(tmp_path, monkeypatch)
+    text = capsys.readouterr().out
+    assert rc == 0 and rep["verdict"]["pass"] is True and rep["schema_version"] == probe.SCHEMA_VERSION
+    assert "eps_cond" in text and "control p99" in text and "| eval | d128 |" in text
+    assert (tmp_path / "probe.json.sha256").read_text() == \
+        f"{hashlib.sha256(out.read_bytes()).hexdigest()}  probe.json\n"
+    prov = rep["provenance"]
+    assert prov["ckpt_sha256"] == hashlib.sha256(open(ckpt_path, "rb").read()).hexdigest()
+    assert (prov["n_items"], prov["img_w"], prov["seed"], prov["batch_size"], prov["device"]) == \
+        (5, 512, 42, 3, "cpu")
+    assert prov["random_offset_seed"] == 43 and prov["protocols"] == probe.PROTOCOLS
+    assert prov["load"]["canonicalize_applied"] is True and prov["source_sha"]
+    assert loader_kw["shuffle"] is False and loader_kw["batch_size"] == 3
+    assert [it["target_id"] for it in rep["items"]] == [
+        eval_FLAC.sample_target_id(_probe_md(i)) for i in range(5)]
+    stream = eval_FLAC.RotationStream()
+    for i in range(5):
+        stream.record(_probe_md(i), None, 512)
+    assert rep["stream_input_hash"] == stream.input_hash()
+
+
+def test_main_exit_code_follows_the_verdict(tmp_path, monkeypatch, no_flash):
+    real, calls = yr.canonical_depth_sha256, []
+    monkeypatch.setattr(yr, "canonical_depth_sha256",
+                        lambda d: calls.append(1) or (real(d) if len(calls) != 3 else "0" * 64))
+    rc, rep, _, _, _ = _run_main(tmp_path, monkeypatch)
+    assert rc == 1 and rep["verdict"]["pass"] is False
+
+
+def test_bad_arguments_exit_2_before_anything_loads():
+    import subprocess
+    proc = subprocess.run([sys.executable, _PROBE_PY, "--ckpt-path", "/nonexistent.ckpt", "--n-items", "0"],
+                          capture_output=True, text=True, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+    assert proc.returncode == 2 and "--n-items" in proc.stderr
