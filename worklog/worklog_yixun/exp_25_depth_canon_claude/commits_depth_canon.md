@@ -206,3 +206,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `39ccdf4` | Coder rB-F2 | F2-7a (red): the retention audit refuses `--dump-check receipt` |
 | `bf7bf38` | Coder rB-F2 | F2-7b: `--nas-retention-audit` accepts only full / manifest |
 | `55402de` | Coder rB-F2 | records: notebook F2-1 … F2-7 + closing summary, ledger rows, the round's guard / pytest logs (final regression + full guard) |
+| `20100d7` | Planner records | receipt for rB-F2 (regression 2369/7/1, guard 169/0/0 incl. NAS section, audit gate exit 0, pins unchanged), adjudications of deviations (i)–(v) and questions (a)–(c), plan v12, the Planner's verification logs; Codex A3/B3 launched |
