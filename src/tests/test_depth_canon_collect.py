@@ -1036,6 +1036,7 @@ def write_audit(tmp, monkeypatch, mutate=None, tamper=False, maps=None, limit=No
     if tamper:
         open(path + ".sha256", "w").write("0" * 64 + "  depth_canon_tie_audit.json\n")
     monkeypatch.setattr(C.audit_gate(), "REGISTERED", contract)
+    monkeypatch.setattr(C, "REGISTERED_OVERLAP", {"items": 1, "maps": 3})   # this tree's seen/unseen overlap
     return path
 
 
@@ -1106,11 +1107,38 @@ def test_an_invalid_audit_is_labelled_under_partial(tmp_path, monkeypatch):
     assert len(res["ties"]["mismatches"]) == 40 and "PARTIAL" in md        # T, T-dup, C4+45, R, S
 
 
-def test_the_seen_unseen_overlap_disclosure():
-    ov = C.split_overlap()
+REAL_AUDIT = os.path.join(EXPDIR, "depth_canon_tie_audit.json")
+
+
+def test_the_overlap_without_a_validated_audit_names_no_map_count():
+    """rB-F1 NIT b: the map count is DERIVED from the validated audit, never a constant."""
+    ov = C.split_overlap(None)
     assert (ov["unseen_items"], ov["seen_items"], ov["shared_items"]) == (6337, 6217, 1093)
+    assert ov["shared_maps"] is None and ov["mismatch"] == [] and "not derivable" in ov["disclosure"]
     assert "not be presented as independent estimates" in ov["disclosure"]
-    assert "17.2 %" in ov["disclosure"] and "17.6 %" in ov["disclosure"]
+    assert "17.2 %" in ov["disclosure"] and "17.6 %" in ov["disclosure"] and "112" not in ov["disclosure"]
+
+
+@pytest.mark.skipif(not os.path.exists(REAL_AUDIT), reason="the full rung-3 audit is not in this checkout")
+def test_the_overlap_derived_from_the_real_validated_audit():
+    ok, problems, summary = C.audit_gate().validate_tie_audit(REAL_AUDIT, REPO, rehash=False)
+    assert ok, problems
+    ov = C.split_overlap(summary)
+    assert (ov["shared_items"], ov["shared_maps"], ov["mismatch"]) == (1093, 112, [])
+    assert "112 depth maps (derived from the validated rung-3 tie audit)" in ov["disclosure"]
+
+
+def test_an_overlap_other_than_the_registered_one_is_flagged(tmp_path, monkeypatch, capsys):
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path, monkeypatch)
+    _, summary, _ = C.load_tie_audit(write_audit(tmp_path, monkeypatch))
+    assert C.split_overlap(summary)["mismatch"] == []                  # this tree: 1 item, 3 maps
+    monkeypatch.setattr(C, "REGISTERED_OVERLAP", {"items": 1093, "maps": 112})
+    ov = C.split_overlap(summary)
+    assert (ov["shared_items"], ov["shared_maps"]) == (1, 3) and len(ov["mismatch"]) == 2
+    assert "MISMATCH" in ov["disclosure"]
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    assert rc == 3 and "overlap" in capsys.readouterr().out and not os.path.exists(out + ".json")
 
 
 # ---- cycle 5e: results.{md,json}, the refusal and --partial ---- #
