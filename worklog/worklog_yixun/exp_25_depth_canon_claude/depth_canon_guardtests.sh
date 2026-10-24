@@ -415,6 +415,13 @@ write_audit dup;       case_rc "T10 duplicated rows (sidecar recomputed)" 2 "dup
 write_audit arbitrary; case_rc "T11 arbitrary row paths (sidecar recomputed)" 2 "rows are not the" MODE=FULL DRY_RUN=1
 write_audit map_byte;  case_rc "T12 a depth map changed after the audit" 2 "changed since the audit" MODE=FULL DRY_RUN=1
 write_audit untagged;  case_rc "T13 an untagged report in harness mode" 2 "harness-tagged" MODE=FULL DRY_RUN=1
+fixture_selftest() {   # rB-F2 F2-3 (b): a fixture that must be a complete PASS but is not fails LOUDLY, naming why
+  local out
+  if out="$(write_audit ok_but_error 2>&1)"; then echo "write_audit ok_but_error returned 0"; return 1; fi
+  grep -qF "GUARD FIXTURE FAILED" <<<"$out" && grep -qF "INCOMPLETE" <<<"$out" && grep -qF "non-finite" <<<"$out" \
+    || { echo "no loud reason: ${out}"; return 1; }
+}
+expect "T15 a write_audit fixture that must PASS but came out INCOMPLETE fails loudly with the row error" fixture_selftest
 write_audit ok
 case_rc "T14 the harness report in PRODUCTION mode is refused" 2 "a harness tag is never production" \
   MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS= PATH="$(dirname "$REAL_PY"):$BIN:$PATH"
