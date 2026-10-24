@@ -648,16 +648,57 @@ def test_a_pair_with_a_different_input_hash_is_not_a_pair(tmp_path):
 CONTROL = {"d64": 1e-3, "d128": 2e-4, "d256": 3e-4, "d384": 4e-4, "random": 5e-4, "pooled": 6e-4}
 
 
-def write_probe(tmp, registered=True, control=CONTROL, ckpt_sha=None, tamper=False):
-    rep = {"schema_version": 1, "registered": registered,
-           "provenance": {"ckpt_sha256": ckpt_sha or canon_index()[40000][1]},
-           "control_p99": {"fp32": dict(control), "eval": dict(control)},
-           "eps_cond": {"value": 1e-7, "threshold": 1e-5, "pass": True}, "verdict": {"pass": True}}
-    text = json.dumps(rep, indent=1) + "\n"
+import functools  # noqa: E402
+
+
+@functools.lru_cache(maxsize=1)
+def _toy_probe_run():
+    """The REAL composition probe (``run_probe``) on the CPU toy stack of the probe's tests:
+    5 items x the five registered offsets x both protocols (computed once per session)."""
+    import test_depth_canon_cond_probe as TP
+    with mock.patch("src.models.transformer.flash_attn_func", None):
+        mds = [TP._probe_md(i) for i in range(5)]
+        rep = TP.probe.run_probe(TP._toy_module(), torch.zeros(5, 1, 64), mds, img_w=512, seed=42,
+                                 batch_size=3, latent_len=64)
+    stream = eval_FLAC.RotationStream()
+    for md in mds:
+        stream.record(md, None, 512)
+    return TP.probe, rep, stream
+
+
+def _probe_prov(probe, ckpt_sha, pin):
+    """The provenance main() records, for a registered run of THIS campaign (toy cardinalities)."""
+    canon = MANIFEST["arms"]["CANON"]
+    ds = next(c for c in MANIFEST["cells"] if c["split"] == "unseen" and c["K"] == 8)
+    digest = C.model_config_digest(next(c for c in MANIFEST["cells"] if c["arm"] == "CANON"))
+    return {"ckpt_path": "outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000.ckpt",
+            "ckpt_sha256": ckpt_sha or canon_index()[40000][1],
+            "model_config": os.path.join(REPO, canon["model_config"]),
+            "model_config_file_sha256": canon["model_config_sha256"], "dataset_config": ds["dataset_config"],
+            "dataset_config_sha256": ds["dataset_config_sha256"], "split_json": "data/AR/unseen_eval.json",
+            "split_json_sha256": eval_FLAC._file_sha256(os.path.join(REPO, "data/AR/unseen_eval.json")),
+            "source_sha": pin, "dirty": "", "device": "cuda", "torch": torch.__version__, "cuda_device": "toy",
+            "seed": 42, "random_offset_seed": 43, "noise": "per item", "n_items": 5, "batch_size": 3,
+            "num_workers": 4, "img_w": 512, "latent_shape": [4, 64], "protocols": probe.PROTOCOLS,
+            "load": {"weights_source": "ema", "canonicalize_trained": True, "canonicalize_applied": True,
+                     "canonicalize_mismatch": False, "img_w": 512, "model_config_sha256_file": digest,
+                     "model_config_sha256_embedded": digest},
+            "allow_canon_mismatch": False}
+
+
+def write_probe(tmp, monkeypatch, registered=True, mutate=None, tamper=False, ckpt_sha=None, pin=PIN):
+    """A registered composition-control artifact built and published by the probe's OWN
+    ``run_probe`` / ``build_report`` / ``write_report`` (rB-F1 B5); the collector's probe
+    contract is re-pointed at the toy cardinalities (5 items, batch 3, K = 2 contexts)."""
+    probe, rep, stream = _toy_probe_run()
+    monkeypatch.setattr(C, "PROBE_CONTRACT", dict(C.PROBE_CONTRACT, n_items=5, batch_size=3, K=2))
+    report = probe.build_report(registered, [], _probe_prov(probe, ckpt_sha, pin), stream, copy.deepcopy(rep))
+    if mutate:
+        mutate(report)
     path = os.path.join(str(tmp), "depth_canon_cond_probe.json")
-    open(path, "w").write(text)
-    digest = hashlib.sha256(text.encode()).hexdigest() if not tamper else "0" * 64
-    open(path + ".sha256", "w").write(f"{digest}  depth_canon_cond_probe.json\n")
+    probe.write_report(report, path)
+    if tamper:
+        open(path + ".sha256", "w").write("0" * 64 + "  depth_canon_cond_probe.json\n")
     return path
 
 
@@ -665,14 +706,90 @@ def test_control_key_mapping():
     assert [C.control_key(d) for d in (90, 180, 270, 45, None)] == ["d128", "d256", "d384", "d64", "random"]
 
 
-@pytest.mark.parametrize("kw, needle", [(dict(registered=False), "registered"),
-                                        (dict(tamper=True), "sha256"),
-                                        (dict(ckpt_sha="1" * 64), "checkpoint"),
-                                        (dict(control={**CONTROL, "d64": float("nan")}), "d64")])
-def test_only_a_registered_probe_is_a_control(tmp_path, kw, needle):
-    assert C.load_control(write_probe(tmp_path), ckpt_sha256=canon_index()[40000][1])[1] == []
-    reasons = C.load_control(write_probe(tmp_path, **kw), ckpt_sha256=canon_index()[40000][1])[1]
-    assert reasons and any(needle in x for x in reasons), reasons
+def _load(path):
+    return C.load_control(path, ckpt_sha256=canon_index()[40000][1], pin=PIN, manifest=MANIFEST)
+
+
+def _relabel_eps(r, factor):
+    """Scale the fp32 conditioning relL2 lists and re-derive eps_cond + verdict with the probe's
+    OWN code: an internally consistent artifact (a legitimate result, PASS or FAIL)."""
+    probe = _toy_probe_run()[0]
+    for d in r["results"]["fp32"].values():
+        for pid in d["cond"]["per_id"].values():
+            pid["relL2"] = [v * factor for v in pid["relL2"]]
+    r["eps_cond"] = probe._eps_cond(r["results"])
+    r["verdict"]["eps_cond"] = r["eps_cond"]["pass"]
+    r["verdict"]["pass"] = all(r["verdict"][k] for k in ("eps_cond", "tier1", "masks"))
+
+
+def _ctx(r, i, ids):
+    r["items"][i]["context_ids"] = ids
+
+
+PROBE_EDITS = {
+    "unregistered": (dict(registered=False), "registered"),
+    "deviation": (dict(mutate=lambda r: r["deviations"].append("x")), "deviations"),
+    "tampered_sidecar": (dict(tamper=True), "sidecar"),
+    "other_checkpoint": (dict(ckpt_sha="1" * 64), "ckpt_sha256"),
+    "other_pin": (dict(pin="b" * 40), "source_sha"),
+    "dirty_tree": (dict(mutate=lambda r: r["provenance"].update(dirty=" M src/x.py")), "dirty"),
+    "n_items": (dict(mutate=lambda r: r["provenance"].update(n_items=4)), "n_items"),
+    "seed": (dict(mutate=lambda r: r["provenance"].update(seed=7)), "seed"),
+    "device": (dict(mutate=lambda r: r["provenance"].update(device="cpu")), "device"),
+    "no_bf16_stage": (dict(mutate=lambda r: r["provenance"]["protocols"]["eval"].update(cond_autocast="off")),
+                      "protocols"),
+    "model_config_hash": (dict(mutate=lambda r: r["provenance"].update(model_config_file_sha256="0" * 64)),
+                          "model_config_file_sha256"),
+    "dataset_config_hash": (dict(mutate=lambda r: r["provenance"].update(dataset_config_sha256="0" * 64)),
+                            "dataset_config_sha256"),
+    "split_hash": (dict(mutate=lambda r: r["provenance"].update(split_json_sha256="0" * 64)), "split_json"),
+    "load_not_ema": (dict(mutate=lambda r: r["provenance"]["load"].update(weights_source="online")), "load"),
+    "offsets": (dict(mutate=lambda r: r["offsets"]["random"].__setitem__(0, 7 if r["offsets"]["random"][0] != 7
+                                                                           else 8)), "offsets"),
+    "item_dropped": (dict(mutate=lambda r: r["items"].pop()), "items"),
+    "context_count": (dict(mutate=lambda r: _ctx(r, 1, r["items"][1]["context_ids"][:1])), "context"),
+    "context_empty": (dict(mutate=lambda r: _ctx(r, 2, ["", r["items"][2]["context_ids"][1]])), "context"),
+    "stream_hash": (dict(mutate=lambda r: r.update(stream_input_hash="0" * 64)), "stream_input_hash"),
+    "eps_missing": (dict(mutate=lambda r: r.pop("eps_cond")), "eps_cond"),
+    "eps_nan": (dict(mutate=lambda r: r["eps_cond"].update(value=float("nan"))), "eps_cond"),
+    "eps_inconsistent": (dict(mutate=lambda r: r["eps_cond"].update(value=r["eps_cond"]["value"] / 2)), "eps_cond"),
+    "eps_threshold": (dict(mutate=lambda r: r["eps_cond"].update(threshold=1e-4)), "threshold"),
+    "eps_pass_flipped": (dict(mutate=lambda r: r["eps_cond"].update({"pass": not r["eps_cond"]["pass"]})),
+                         "eps_cond"),
+    "control_inconsistent": (dict(mutate=lambda r: r["control_p99"]["eval"].update(d64=0.5)), "control_p99"),
+    "verdict_inconsistent": (dict(mutate=lambda r: r["verdict"].update(eps_cond=not r["verdict"]["eps_cond"])),
+                             "verdict"),
+}
+
+
+def test_a_registered_probe_of_this_campaign_is_the_control(tmp_path, monkeypatch):
+    control, reasons, eps = _load(write_probe(tmp_path, monkeypatch))
+    assert reasons == [] and set(control) == {"d64", "d128", "d256", "d384", "random", "pooled"}
+    rep = _toy_probe_run()[1]
+    assert control["d128"] == rep["control_p99"]["eval"]["d128"] and control["pooled"] == rep["control_p99"]["eval"]["pooled"]
+    assert eps == {"value": rep["eps_cond"]["value"], "threshold": 1e-5, "verdict": "PASS"}
+
+
+@pytest.mark.parametrize("name", list(PROBE_EDITS))
+def test_an_unbound_or_inconsistent_probe_is_not_a_control(tmp_path, monkeypatch, name):
+    kw, needle = PROBE_EDITS[name]
+    control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, **kw))
+    assert control is None and eps is None and any(needle in x for x in reasons), (name, reasons)
+
+
+def test_a_legitimate_eps_fail_stays_a_scientific_fail(tmp_path, monkeypatch):
+    control, reasons, eps = _load(write_probe(tmp_path, monkeypatch, mutate=lambda r: _relabel_eps(r, 1e9)))
+    assert reasons == [] and control is not None                       # a valid artifact, a valid control
+    assert eps["verdict"] == "FAIL" and eps["value"] > eps["threshold"] == 1e-5
+
+
+def test_the_probe_contract_mirrors_the_probe():
+    probe = _toy_probe_run()[0]
+    P = C.PROBE_CONTRACT
+    assert {k: P[k] for k in ("n_items", "batch_size", "seed", "device")} == {
+        k: probe.REGISTERED[k] for k in ("n_items", "batch_size", "seed", "device")}
+    assert P["protocols"] == probe.PROTOCOLS and tuple(P["offset_keys"]) == probe.OFFSET_KEYS
+    assert P["eps_threshold"] == probe.EPS_COND_THRESHOLD and P["K"] == 8 and P["img_w"] == 512
 
 
 def _scaled(r, eps, item=None):
@@ -685,11 +802,10 @@ def _scaled(r, eps, item=None):
 
 
 def _tier2(tmp, waves):
+    """Tier 2's own rules, against a fixed control (the artifact checks are tested above)."""
     write_campaign(tmp, INVARIANCE, waves_fn=lambda r: waves.get(r["cell"]))
     cells = collect(tmp, INVARIANCE)
-    control, reasons = C.load_control(write_probe(tmp), ckpt_sha256=canon_index()[40000][1])
-    assert reasons == []
-    return C.tier2(C.make_pairs(cells), cells, control)
+    return C.tier2(C.make_pairs(cells), cells, dict(CONTROL))
 
 
 def test_tier2_invariant_campaign_passes(tmp_path):
@@ -885,7 +1001,7 @@ INVARIANCE_S = ["T", "T-dup", "C4+45", "R", "S"]
 
 def test_a_genuine_audit_lets_full_collection_through(tmp_path, monkeypatch, capsys):
     write_campaign(tmp_path, INVARIANCE_S)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
     assert rc == 0, capsys.readouterr().out
@@ -896,7 +1012,7 @@ def test_a_genuine_audit_lets_full_collection_through(tmp_path, monkeypatch, cap
 @pytest.mark.parametrize("name", list(AUDIT_CASES))
 def test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection(tmp_path, monkeypatch, capsys, name):
     write_campaign(tmp_path, INVARIANCE_S)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch, **AUDIT_CASES[name])
     rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
     text = capsys.readouterr().out
@@ -906,7 +1022,7 @@ def test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection(tmp_path
 
 def test_an_invalid_audit_is_labelled_under_partial(tmp_path, monkeypatch):
     write_campaign(tmp_path, INVARIANCE_S)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch, maps={SAME_MAP: _plain_map()})
     rc, out = _collect_cli(tmp_path, "--partial", blocks=",".join(INVARIANCE_S))
     res, md = json.load(open(out + ".json")), open(out + ".md").read()
@@ -941,7 +1057,7 @@ ALL_BLOCKS = list(MANIFEST["blocks"])
 
 def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys):
     write_campaign(tmp_path, ALL_BLOCKS, metrics_fn=t3_metrics)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path)
     assert rc == 0, capsys.readouterr().out
@@ -951,6 +1067,7 @@ def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys
     assert res["tier1"]["pass"] and res["tier2"]["pass"] and res["tier3"]["pass"] is True
     assert len(res["traj"]["grid"]) == 32 and res["table"]["CANON"]["1"]["item"]["T60"]["n"] == 5
     assert "PARTIAL" not in md and "not be presented as independent estimates" in md
+    assert "eps_cond (fp32 conditioning, max relL2) = " in md and "registered threshold 1e-05: PASS" in md
     for needle in ("Tier 1", "Tier 2", "Tier 3", "eps_cond", "B-F", "re-measured at the exp_25 pin",
                    "TRAJ", "tie classes", "D-i", "D-ii", "item-weighted", "per-scene"):
         assert needle in md, needle
@@ -959,7 +1076,7 @@ def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys
 def test_missing_cells_refuse_the_table_unless_partial(tmp_path, monkeypatch, capsys):
     gone = "exp25_YAW_C4_S40000_K8_s42_th45"
     write_campaign(tmp_path, ALL_BLOCKS, skip={gone})
-    write_probe(tmp_path, registered=False)
+    write_probe(tmp_path, monkeypatch, registered=False)
     write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path)
     assert rc == 3 and not os.path.exists(out + ".md") and not os.path.exists(out + ".json")
@@ -977,7 +1094,7 @@ def test_cells_of_two_campaign_digests_refuse_full_collection(tmp_path, monkeypa
     """rB-F1 B3: one campaign = one evaluated tree; a cell measured under another digest is
     individually consistent but the collection is not."""
     write_campaign(tmp_path, INVARIANCE_S)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch)
     odd = row("R", K=8, seed=45)
     rel = C.cell_paths(odd, os.path.join(FARM, "CANON", ckpt_base(odd) + ".ckpt"), "d").receipt
@@ -991,7 +1108,7 @@ def test_cells_of_two_campaign_digests_refuse_full_collection(tmp_path, monkeypa
 def test_a_block_selection_defines_the_required_set(tmp_path, monkeypatch, capsys):
     blocks = [b for b in ALL_BLOCKS if b != "YAW-pin"]                       # the A1 switch off
     write_campaign(tmp_path, blocks, metrics_fn=t3_metrics)
-    write_probe(tmp_path)
+    write_probe(tmp_path, monkeypatch)
     write_audit(tmp_path, monkeypatch)
     rc, out = _collect_cli(tmp_path, blocks=",".join(blocks))
     assert rc == 0, capsys.readouterr().out
