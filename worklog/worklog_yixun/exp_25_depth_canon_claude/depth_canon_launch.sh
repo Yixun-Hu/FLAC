@@ -110,6 +110,14 @@ ARGV=(python train.py
   --logger wandb --name "$NAME" --experiment-name "$EXPNAME" --save-dir "$SAVE_ROOT")
 echo "ARGV: ${ARGV[*]}"
 
+# --- (1) reviewed-tree binding: HEAD ----------------------------------------- #
+if ! [[ "$EXPECT_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "EXPECT_HEAD must be the full 40-hex reviewed pin commit (got '${EXPECT_HEAD}') - abort"; exit 2
+fi
+[ "$HEAD_SHA" = "$EXPECT_HEAD" ] || {
+  echo "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"; exit 2; }
+echo "HEAD pin OK: ${HEAD_SHA}"
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi

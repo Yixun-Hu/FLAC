@@ -136,6 +136,12 @@ case_rc "A7 non-numeric rung"    2 "only the BN-compliant rung"          MODE=FU
 case_rc "A8 harness outside /tmp" 2 "must be a directory under /tmp"     MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$HOME"
 case_rc "A9 harness without its marker" 2 "lacks the .depth_canon_harness marker" MODE=SMOKE DRY_RUN=1 DEPTH_CANON_HARNESS="$BIN"
 
+echo "--- K. HEAD pin ---"
+case_rc "K1 EXPECT_HEAD unset"   2 "EXPECT_HEAD must be the full 40-hex"  MODE=SMOKE DRY_RUN=1 EXPECT_HEAD=
+case_rc "K2 short EXPECT_HEAD"   2 "EXPECT_HEAD must be the full 40-hex"  MODE=SMOKE DRY_RUN=1 EXPECT_HEAD="$(git -C "$R" rev-parse --short HEAD)"
+case_rc "K3 wrong EXPECT_HEAD"   2 "HEAD PIN FAILED"  MODE=SMOKE DRY_RUN=1 EXPECT_HEAD=0000000000000000000000000000000000000000
+case_rc "K4 the pin passes"      0 "HEAD pin OK: $(git -C "$R" rev-parse HEAD)"  MODE=SMOKE DRY_RUN=1
+
 echo "--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---"
 launch MODE=FULL DRY_RUN=1; FULL_ARGV="$(argv_of "$OUT")"
 launch MODE=SMOKE DRY_RUN=1; SMOKE_ARGV="$(argv_of "$OUT")"
