@@ -151,10 +151,16 @@ stamp() { local t; t="$(python -c "print(int(2 + $1 * $rate))")"
 [ "$sc" = no_banner ] || echo "canonicalize ENABLED img_w=512 tiebreak=image"
 if [ "$steps" -le 25 ]; then ns_list="$(seq 1 "$steps")"; else ns_list="1 10 2500 20000 $steps"; fi
 for n in $ns_list; do
-  loss=0.123; [ "$sc" = nan ] && [ "$n" = "$steps" ] && loss=nan
-  [ "$sc" = no_stamps ] || printf '\rEpoch 0:   0%%|          | %s/4550 [%s<1:00:00,  %ss/it, v_num=ab12, train/loss=%s]' "$n" "$(stamp "$n")" "$rate" "$loss"
+  loss=0.123; [ "$sc" = nan ] && [ "$n" = "$steps" ] && loss=nan; [ "$sc" = text_loss ] && loss=abc
+  post=", train/loss=${loss}"; [ "$sc" = no_loss ] && post=""
+  [ "$sc" = no_stamps ] || printf '\rEpoch 0:   0%%|          | %s/4550 [%s<1:00:00,  %ss/it, v_num=ab12%s]' "$n" "$(stamp "$n")" "$rate" "$post"
 done
 echo
+case "$sc" in   # src/training/diffusion.py on_fit_end, rank 0 (r3b-F1 fix 2)
+  no_latency) ;;
+  bad_latency) echo "canonicalize latency rank0 batches=0 samples=0 total_s=0.000000 mean_ms_per_batch=0.000" ;;
+  *) echo "canonicalize latency rank0 batches=${steps} samples=$((steps * 32)) total_s=0.087500 mean_ms_per_batch=3.500" ;;
+esac
 if [ "$cad" -le "$steps" ] || [ "$sc" = smoke_ckpt ]; then
   mkdir -p "$ns"
   for ((s = cad; s <= steps; s += cad)); do
@@ -380,6 +386,7 @@ man = hashlib.sha256(open(f"{exp}/depth_canon_pins.sha256", "rb").read()).hexdig
 ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
       "manifest_sha256": man, "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
+      "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
       "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
 ev.update(eval(over))
 json.dump(ev, open(f"{exp}/depth_canon_smoke_evidence_{name}.json", "w"))
@@ -477,6 +484,28 @@ rm -rf "$H/save/FLAC_exp25_CANON_smoke"
 case_rc "R9 train.py failed"                 7 "train.py exited rc=7" MODE=SMOKE GUARD_TRAIN_RC=7
 expect "R10 only R1 left PASS evidence" bash -c '
   cd "$1" && [ "$(grep -l "\"verdict\": \"PASS\"" "$2"/depth_canon_smoke_evidence_*.json | wc -l)" = 1 ]' _ "$R" "$EXPREL"
+
+echo "--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---"
+expect "L1 R1's evidence carries the latency and a finite loss" bash -c '
+  "$2" - "$1" <<PY
+import json, math, sys
+ev = json.load(open(sys.argv[1]))
+assert ev["verdict"] == "PASS" and ev["finite_loss_seen"] is True and ev["last_train_loss"] == 0.123, ev
+lat = ev["canonicalization_latency_ms"]
+assert type(lat) is float and math.isfinite(lat) and lat == 3.5, ev
+assert ev["canonicalization_latency"] == {"batches": 25, "samples": 800, "total_s": 0.0875, "mean_ms_per_batch": 3.5}
+PY' _ "$R/$EXPREL/$(basename "$EV")" "$REAL_PY"
+case_rc "L2 no latency line"        4 "SMOKE VERDICT: FAIL - the 'canonicalize latency" MODE=SMOKE GUARD_SCENARIO=no_latency
+case_rc "L3 an invalid latency"     4 "SMOKE VERDICT: FAIL - the 'canonicalize latency" MODE=SMOKE GUARD_SCENARIO=bad_latency
+case_rc "L4 no training loss"       4 "SMOKE VERDICT: FAIL - no parseable finite training loss" MODE=SMOKE GUARD_SCENARIO=no_loss
+case_rc "L5 a non-numeric loss"     4 "SMOKE VERDICT: FAIL - no parseable finite training loss" MODE=SMOKE GUARD_SCENARIO=text_loss
+clear_evidence
+write_evidence l6 '{"canonicalization_latency_ms": None}'
+case_rc "L6 FULL refuses evidence without the latency" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence l7 '{"canonicalization_latency_ms": -1.0}'
+case_rc "L7 FULL refuses a non-positive latency" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence l8 '{"finite_loss_seen": False}'
+case_rc "L8 FULL refuses evidence without a finite loss" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 
 echo "--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---"
 full_case() { rm -rf "$H/save/FLAC_exp25_CANON"; case_rc "$@"; }

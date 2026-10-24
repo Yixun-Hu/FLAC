@@ -289,18 +289,21 @@ echo "tie audit OK: ${TIE_AUDIT} (sha256 ${AUDIT_SHA}): 9,650 maps, 0 survivors,
 # --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
 if [ "$MODE" = "FULL" ]; then
   SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" <<'PY' || true
-import glob, hashlib, json, os, sys
+import glob, hashlib, json, math, os, sys
 exp, head, manifest, harness = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "true"
 NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
         "manifest_sha256": manifest, "harness": harness, "config_contract_ok": True,
         "banner_seen": True, "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False,
-        "smoke_checkpoints": 0}
+        "smoke_checkpoints": 0, "finite_loss_seen": True}
 def qualifies(path):
     try:
         ev = json.load(open(path))
     except (OSError, ValueError):
         return False
     if any(type(ev.get(k)) is not type(v) or ev.get(k) != v for k, v in NEED.items()):
+        return False
+    lat = ev.get("canonicalization_latency_ms")      # r3b-F1 fix 2: measured, positive, finite
+    if type(lat) is not float or not math.isfinite(lat) or lat <= 0:
         return False
     log = ev.get("log")      # the evidence is bound to the bytes of the log it summarizes
     return (isinstance(log, str) and os.path.isfile(log)
@@ -544,7 +547,7 @@ if [ "$MODE" = "SMOKE" ]; then
   "$PY" - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
       "$MAX_PROJECTED_HOURS" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" "$BANNER_SEEN" "$ENDPOINT_SEEN" \
       "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" <<'PY' || fail 4
-import json, re, sys
+import json, math, re, sys
 (out, log, rc, elapsed, steps, endpoint, max_h, head, manifest, harness, banner, endpoint_seen,
  ranks, nonfinite, ckpt_rc, argv) = sys.argv[1:17]
 rc, elapsed, steps, endpoint, max_h = int(rc), float(elapsed), int(steps), int(endpoint), float(max_h)
@@ -562,14 +565,41 @@ upper = elapsed / steps * endpoint / 3600
 print(f"SMOKE: {steps} steps in {elapsed:.0f} s wall (startup included -> {upper:.1f} h, descriptive); "
       f"steady state {'n/a' if rate is None else f'{rate:.3f} s/step'} -> "
       f"{'n/a' if proj is None else f'{proj:.1f} h'} for {endpoint} steps")
-print("NOTE: the per-step rate includes canonicalization (CPU, inside the step); the training log "
-      "prints no separate canonicalization timing")
+def num(v):
+    try:
+        f = float(v)
+    except ValueError:
+        return None
+    return f if math.isfinite(f) else None
+# r3b-F1 fix 2: a finite train/loss after a completed step (tqdm '| n/total [' with n >= 1; the
+# value is bounded by [\s,[] on the left so '/pretrain/loss=' and 'mse_loss=' never count) ...
+LOSS, STEP = re.compile(r"(?:^|[\s,\[])train/loss=([^,\]\s]+)"), re.compile(r"\| (\d+)/\d+ \[")
+losses = [v for line in text.split("\n") for m in [STEP.search(line)] if m and int(m.group(1)) >= 1
+          for v in LOSS.findall(line)]
+parsed = [num(v) for v in losses]
+finite_loss = bool(parsed) and all(p is not None for p in parsed)
+# ... and rank 0's measured canonicalization latency (src/training/diffusion.py on_fit_end)
+LAT = re.compile(r"^canonicalize latency rank0 batches=(\d+) samples=(\d+) total_s=(\S+) "
+                 r"mean_ms_per_batch=(\S+)$", re.M)
+found = LAT.findall(text)
+latency = None
+if len(found) == 1:
+    b, n, t, ms = int(found[0][0]), int(found[0][1]), num(found[0][2]), num(found[0][3])
+    if b >= 1 and n >= b and t and t > 0 and ms and ms > 0:
+        latency = {"batches": b, "samples": n, "total_s": t, "mean_ms_per_batch": ms}
+print(f"SMOKE: {len(losses)} train/loss value(s) after completed steps, all finite: {finite_loss}; "
+      f"canonicalization latency: {latency}")
 if rc != 0:
     verdict, why = "FAIL", f"an earlier check or train.py failed (rc {rc})"
 elif proj is None:
     verdict, why = "FAIL", "the projection could not be computed (no tqdm rate stamps at n >= 10)"
 elif proj > max_h:
     verdict, why = "FAIL", f"projected {proj:.1f} h > MAX_PROJECTED_HOURS={max_h:.0f}"
+elif not finite_loss:
+    verdict, why = "FAIL", f"no parseable finite training loss after a completed step (values {losses[:5]})"
+elif latency is None:
+    verdict, why = "FAIL", (f"the 'canonicalize latency rank0 ...' line is missing or invalid "
+                            f"({len(found)} found)")
 else:
     verdict, why = "PASS", f"projected {proj:.1f} h <= {max_h:.0f} h"
 print(f"SMOKE VERDICT: {verdict} - {why}")
@@ -580,7 +610,10 @@ ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": verd
       "nonfinite_seen": b(nonfinite), "smoke_checkpoints": 0 if ckpt_rc == "0" else -1,
       "elapsed_s": elapsed, "startup_inclusive_projection_h": upper,
       "steady_state_s_per_step": rate, "steps_per_s": None if not rate else 1.0 / rate,
-      "projection_h": proj, "max_projected_hours": int(max_h), "canonicalization_latency": None,
+      "projection_h": proj, "max_projected_hours": int(max_h), "finite_loss_seen": finite_loss,
+      "train_loss_values_seen": len(losses), "last_train_loss": parsed[-1] if parsed else None,
+      "canonicalization_latency": latency,
+      "canonicalization_latency_ms": latency["mean_ms_per_batch"] if latency else None,
       "train_rc": rc, "argv": argv, "log": log}
 json.dump(ev, open(out, "w"), indent=1)
 sys.exit(0 if verdict == "PASS" else 4)
