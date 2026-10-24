@@ -55,11 +55,17 @@ SEED = 42
 # HF_HOME/HF_HUB_CACHE exactly like the transformers loader does).
 VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
 VIT_SHA256 = "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"
+# exp_25 rB-F1 A2 (Codex rA H5): EVERY file AutoModel.from_pretrained consumes from the snapshot is
+# pinned -- config.json too (a compatible edit, e.g. dropout or layer_norm_eps, would keep the weights
+# loadable and change the run); any other file in the snapshot refuses.
+VIT_FILES = {"config.json": "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b",
+             "model.safetensors": VIT_SHA256}
 
 
-def assert_vit_pin():
+def assert_vit_pin(hub_cache=None):
     from huggingface_hub.constants import HF_HUB_CACHE  # env-resolved cache root
-    hub = os.path.join(HF_HUB_CACHE, "models--facebook--dinov3-vits16-pretrain-lvd1689m")
+    cache = hub_cache or HF_HUB_CACHE
+    hub = os.path.join(cache, "models--facebook--dinov3-vits16-pretrain-lvd1689m")
     snap_dir = os.path.join(hub, "snapshots")
     if not os.path.isdir(snap_dir):
         raise RuntimeError(f"DINOv3 cache missing at {snap_dir} — refuse to launch")
@@ -67,16 +73,22 @@ def assert_vit_pin():
     if snaps != [VIT_REV]:
         raise RuntimeError(
             f"DINOv3 cache snapshots {snaps} != pinned [{VIT_REV!r}] — refuse to launch")
-    st = os.path.join(snap_dir, VIT_REV, "model.safetensors")
-    h = hashlib.sha256()
-    with open(st, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    if h.hexdigest() != VIT_SHA256:
-        raise RuntimeError(
-            f"DINOv3 model.safetensors sha256 {h.hexdigest()} != pinned {VIT_SHA256}")
-    print(f"ViT pin OK: cache {HF_HUB_CACHE}, single snapshot {VIT_REV[:12]}…, "
-          f"sha256 {VIT_SHA256[:12]}… (launch with HF_HUB_OFFLINE=1)")
+    snap = os.path.join(snap_dir, VIT_REV)
+    files = sorted(os.path.relpath(os.path.join(d, f), snap) for d, _, fs in os.walk(snap) for f in fs)
+    if files != sorted(VIT_FILES):
+        raise RuntimeError(f"DINOv3 snapshot files {files} != the pinned {sorted(VIT_FILES)} — refuse to launch")
+    for name, want in sorted(VIT_FILES.items()):
+        path = os.path.join(snap, name)
+        if not os.path.isfile(path):
+            raise RuntimeError(f"DINOv3 {name} is not a readable regular file (dangling link?) — refuse to launch")
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        if h.hexdigest() != want:
+            raise RuntimeError(f"DINOv3 {name} sha256 {h.hexdigest()} != pinned {want}")
+    print(f"ViT pin OK: cache {cache}, single snapshot {VIT_REV[:12]}…, every file pinned "
+          f"({', '.join(f'{n} {s[:12]}…' for n, s in sorted(VIT_FILES.items()))}; launch with HF_HUB_OFFLINE=1)")
 
 
 def build(name):
