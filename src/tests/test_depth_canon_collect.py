@@ -782,3 +782,66 @@ def test_the_seen_unseen_overlap_disclosure():
     assert (ov["unseen_items"], ov["seen_items"], ov["shared_items"]) == (6337, 6217, 1093)
     assert "not be presented as independent estimates" in ov["disclosure"]
     assert "17.2 %" in ov["disclosure"] and "17.6 %" in ov["disclosure"]
+
+
+# ---- cycle 5e: results.{md,json}, the refusal and --partial ---- #
+def _collect_cli(tmp, *extra, blocks=None):
+    cells_json = os.path.join(str(tmp), "cells.json")
+    with open(cells_json, "w") as f:
+        json.dump(MANIFEST, f)
+    out = os.path.join(str(tmp), "results")
+    argv = ["--collect", "--pin", PIN, "--cells", cells_json, "--farm-root", FARM,
+            "--dump-root", os.path.join(str(tmp), "dumps"), "--base-dir", str(tmp),
+            "--canon-ckpt-manifest", _canon_manifest_file(tmp), "--no-link-check",
+            "--probe-json", os.path.join(str(tmp), "depth_canon_cond_probe.json"),
+            "--tie-audit-json", os.path.join(str(tmp), "depth_canon_tie_audit.json"),
+            "--out-md", out + ".md", "--out-json", out + ".json"] + (["--blocks", blocks] if blocks else [])
+    return C.main(argv + list(extra)), out
+
+
+ALL_BLOCKS = list(MANIFEST["blocks"])
+
+
+def test_full_collection_writes_both_results_files(tmp_path, capsys):
+    write_campaign(tmp_path, ALL_BLOCKS, metrics_fn=t3_metrics)
+    write_probe(tmp_path)
+    write_audit(tmp_path)
+    rc, out = _collect_cli(tmp_path)
+    assert rc == 0, capsys.readouterr().out
+    res = json.load(open(out + ".json"))
+    md = open(out + ".md").read()
+    assert res["partial"] is False and res["missing"] == [] and res["pin"] == PIN
+    assert res["tier1"]["pass"] and res["tier2"]["pass"] and res["tier3"]["pass"] is True
+    assert len(res["traj"]["grid"]) == 32 and res["table"]["CANON"]["1"]["item"]["T60"]["n"] == 5
+    assert "PARTIAL" not in md and "not be presented as independent estimates" in md
+    for needle in ("Tier 1", "Tier 2", "Tier 3", "eps_cond", "B-F", "re-measured at the exp_25 pin",
+                   "TRAJ", "tie classes", "D-i", "D-ii", "item-weighted", "per-scene"):
+        assert needle in md, needle
+
+
+def test_missing_cells_refuse_the_table_unless_partial(tmp_path, capsys):
+    gone = "exp25_YAW_C4_S40000_K8_s42_th45"
+    write_campaign(tmp_path, ALL_BLOCKS, skip={gone})
+    write_probe(tmp_path, registered=False)
+    write_audit(tmp_path)
+    rc, out = _collect_cli(tmp_path)
+    assert rc == 3 and not os.path.exists(out + ".md") and not os.path.exists(out + ".json")
+    text = capsys.readouterr().out
+    assert gone in text and "registered" in text
+    rc, out = _collect_cli(tmp_path, "--partial")
+    assert rc == 0
+    md, res = open(out + ".md").read(), json.load(open(out + ".json"))
+    assert res["partial"] is True and res["missing"] == [gone]
+    headings = [ln for ln in md.splitlines() if ln.startswith("## ")]
+    assert headings and all("PARTIAL" in h for h in headings) and gone in md
+
+
+def test_a_block_selection_defines_the_required_set(tmp_path, capsys):
+    blocks = [b for b in ALL_BLOCKS if b != "YAW-pin"]                       # the A1 switch off
+    write_campaign(tmp_path, blocks, metrics_fn=t3_metrics)
+    write_probe(tmp_path)
+    write_audit(tmp_path)
+    rc, out = _collect_cli(tmp_path, blocks=",".join(blocks))
+    assert rc == 0, capsys.readouterr().out
+    res = json.load(open(out + ".json"))
+    assert res["blocks"] == blocks and res["partial"] is False
