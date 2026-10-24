@@ -92,3 +92,35 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `2d1c15b` | Coder r3a-F1 | fix 7: `cond_method` / `file_model_cfg` keyword-only; `file_model_cfg` required in play |
 | `0b21c12` | Coder r3a-F1 | fix 8: a dump requires `--record-stream` (published stream sidecar) |
 | `1d28e41` | Coder r3a-F1 | fix 9: routing test spies on the real functions (replaces `inspect.getsource`) |
+| `958bc9f` | Coder r3a-F1 | records: lab-notebook entries (F1 start, fixes 1–9, round summary + final 3b/F1 regression) + ledger rows |
+| `9afeb9e` | Planner | records: receipt for rounds 3b + r3a-F1 (part 1) — regression 1911 passed / 7 skipped / 1 xfailed at `958bc9f`; Codex F1 re-verification requested |
+| `0e60b57` | Planner | records: Codex r3a-F1 re-verification SHIP — round 3a closed; 2 non-blocking NITs queued |
+| `1d438c7` | Planner | records: guard-suite receipt (118 passed incl. read-only NAS production cases); Codex code review r3b requested |
+| `5bd522b` | Coder r3c | cycle 0a: `is_complete` `schema_version` type-strict (true / 1.0 / "1" refused) |
+| `2bd0aa3` | Coder r3c | cycle 0b: toy-loop spy pins the ARE add-back to the post-rotation, pre-canonical list (test only) |
+| `a768604` | Coder r3c | cycle 1a (red by design): cell-manifest tests — counts, order, injective names/stems, canon tokens, common flags |
+| `c9e7918` | Coder r3c | cycle 1b: `depth_canon_make_cells.py` — the deterministic 230-cell manifest generator |
+| `c22fca5` | Coder r3c | cycle 1c: manifest tests per block class, canon protocol, configs / split counts / checkpoint pins (mutation-red) |
+| `a13154f` | Coder r3c | cycle 1d: `depth_canon_cells.json` (generated data) + drift tests |
+| `4ab894b` | Coder r3c | cycle 2a-i (red by design): collector fixtures (real evaluator functions) + `record_reasons` tests |
+| `b8bbf06` | Coder r3c | cycle 2a-ii: `depth_canon_collect.py` — `record_reasons` |
+| `bb70812` | Coder r3c | cycle 2b: `stream_reasons` + `canon_reasons` |
+| `c50d5bd` | Coder r3c | cycle 2c-i (red by design): dump + receipt tests |
+| `d9744f8` | Coder r3c | cycle 2c-ii: `dump_reasons` (is_complete once / manifest mode) + `receipt_reasons` + `cell_argv` |
+| `199d80f` | Coder r3c | cycle 2d-i (red by design): `verify_cell` / CANON index / CLI tests |
+| `89713cd` | Coder r3c | cycle 2d-ii: `verify_cell`, `cell_paths`, `load_canon_index`, `--verify-cell` |
+| `f5c768f` | Coder r3c | cycle 3: `select_cells` / `plan_cells` / `write_receipt`; `--plan` / `--write-receipt` |
+| `3d196bd` | Coder r3c | cycle 3b: `--write-receipt --verify-after` |
+| `639d186` | Coder r3c | cycle 4a-i (red by design): driver tests — throwaway clone + harness, DRY_RUN argv, refusals (206 changed lines, disclosed) |
+| `7ac11d0` | Coder r3c | cycle 4a-ii: `depth_canon_eval_run.sh` skeleton — gates, plan, checkpoint sha, DRY_RUN |
+| `eacf3b7` | Coder r3c | cycle 4b-i (red by design): run-path tests — lanes, skip, four quarantine states, failure, busy GPU, no-dump block |
+| `ee42356` | Coder r3c | cycle 4b-ii: the driver's run path — predicate, quarantine, GPU lanes, receipt + verify, summary |
+| `d4a1184` | Coder r3c | cycle 5a: full mode — `collect_cells`, completeness, `make_pairs`, Tier 1 |
+| `d31adca` | Coder r3c | cycle 5b-i (red by design): Tier 2 tests |
+| `e07283b` | Coder r3c | cycle 5b-ii: Tier 2 + `load_control` (registered probes only) |
+| `46cba20` | Coder r3c | cycle 5c: Tier 3 + the table block |
+| `4c3eaa4` | Coder r3c | cycle 5d: TRAJ grid, B-F historical quote, tie counts, seen/unseen overlap disclosure |
+| `fd646b0` | Coder r3c | cycle 5e-i (red by design): results / refusal / `--partial` tests |
+| `2929e12` | Coder r3c | cycle 5e-ii: `build_results`, `render_md`, `--collect` |
+| `d9fa986` | Coder r3c | cycle 6-i (red by design): generator exp25 tests |
+| `e93c42a` | Coder r3c | cycle 6-ii: `gen_model_comparison.py` exp25 rows + contract (additive) |
