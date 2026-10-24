@@ -177,21 +177,21 @@ def expected_target(r):
     return canon_index()[r["step"]] if r["arm"] == "CANON" else (ck["path"], ck["sha256"])
 
 
+DIGEST = "d" * 64   # the campaign's relevant-tree content digest (rB-F1 B3)
+
+
 def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
-    target, sha = expected_target(r)
+    """The driver's receipt, written by the REAL writer (``depth_canon_collect.write_receipt``)
+    from a real plan entry; ``ckpt_sha`` tampers the written file afterwards."""
     dump_root = dump_root or os.path.join(str(tmp), "dumps")
-    argv = list(r["eval_args"]) + ["--ckpt-path", link] + \
-        (["--dump-scored-waveforms", dump_root] if dump else [])
-    rec = {"schema_version": 1, "cell": r["cell"], "stem": os.path.basename(metrics_rel)[:-len(".json")],
-           "block": r["block"], "arm": r["arm"], "step": r["step"], "ckpt_link": link,
-           "ckpt_target": target, "ckpt_sha256": ckpt_sha or sha, "model_config": r["model_config"],
-           "model_config_sha256": r["model_config_sha256"], "dataset_config": r["dataset_config"],
-           "dataset_config_sha256": r["dataset_config_sha256"],
-           "expected_stream_count": r["expected_stream_count"], "dump": dump,
-           "dump_root": dump_root if dump else None, "argv": argv, "expect_head": pin, "lane": 0,
-           "log": "logs/x.log", "rc": 0}
-    with open(os.path.join(str(tmp), metrics_rel[:-len(".json")] + ".cell.json"), "w") as f:
-        json.dump(rec, f, indent=2)
+    entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
+                         canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
+    assert entry["link"] == link and entry["metrics"] == metrics_rel
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+                           ckpt_sha256=entry["sha256"], campaign_digest=DIGEST, spawn_digest=DIGEST,
+                           post_digest=DIGEST)
+    if ckpt_sha:
+        edit_json(path, lambda d: d.update(ckpt_sha256=ckpt_sha))
 
 
 # ---- cycle 2a: the metrics record (and, next, the stream sidecar) vs the cell class ---- #
@@ -400,6 +400,45 @@ def test_receipt_violations_are_named(tmp_path, over, needle):
     r = row("P1-pin", "P1", K=8, seed=44, sub="R")
     reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
     assert reasons and any(needle in x for x in reasons), reasons
+
+
+def _receipt_path(tmp, rel):
+    return os.path.join(str(tmp), rel[:-len(".json")] + ".cell.json")
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda d: d.update(spawn_digest="e" * 64), "spawn_digest"),
+    (lambda d: d.update(post_digest="e" * 64), "post_digest"),
+    (lambda d: d.update(campaign_digest="nope", spawn_digest="nope", post_digest="nope"), "campaign_digest"),
+    (lambda d: d.pop("post_digest"), "receipt keys")], ids=["spawn", "post", "malformed", "absent"])
+def test_a_receipt_whose_tree_digest_moved_is_refused(tmp_path, edit, needle):
+    """rB-F1 B3: the receipt binds the relevant-tree digest at campaign start, at the spawn and
+    after the evaluator exited; all three must be one sha256."""
+    r = row("C4+45", K=1, deg=180)
+    rel = write_cell(tmp_path, r)
+    edit_json(_receipt_path(tmp_path, rel), edit)
+    reasons = _receipt_check(tmp_path, rel, r)
+    assert reasons and any(needle in x for x in reasons), reasons
+
+
+def test_the_skip_predicate_binds_this_campaigns_digest(tmp_path):
+    r = row("T", K=8, seed=43)
+    rel = write_cell(tmp_path, r)
+    assert verify(tmp_path, rel, expect_digest=DIGEST) == []
+    assert any("campaign_digest" in x for x in verify(tmp_path, rel, expect_digest="f" * 64))
+
+
+def test_write_receipt_refuses_a_moved_tree(tmp_path):
+    r = row("T", K=1, seed=44)
+    entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=str(tmp_path), canon_index=canon_index(),
+                         no_dump_blocks=[])[0]
+    os.makedirs(os.path.join(str(tmp_path), os.path.dirname(entry["receipt"])))
+    for spawn, post in ((DIGEST, "e" * 64), ("e" * 64, DIGEST)):
+        with pytest.raises(ValueError, match="digest"):
+            C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                            ckpt_sha256=entry["sha256"], campaign_digest=DIGEST, spawn_digest=spawn,
+                            post_digest=post)
+    assert not os.path.exists(os.path.join(str(tmp_path), entry["receipt"]))
 
 
 def test_receipt_rc_and_wrong_checkpoint_sha_are_refused(tmp_path):
@@ -909,6 +948,21 @@ def test_missing_cells_refuse_the_table_unless_partial(tmp_path, monkeypatch, ca
     assert res["partial"] is True and res["missing"] == [gone]
     headings = [ln for ln in md.splitlines() if ln.startswith("## ")]
     assert headings and all("PARTIAL" in h for h in headings) and gone in md
+
+
+def test_cells_of_two_campaign_digests_refuse_full_collection(tmp_path, monkeypatch, capsys):
+    """rB-F1 B3: one campaign = one evaluated tree; a cell measured under another digest is
+    individually consistent but the collection is not."""
+    write_campaign(tmp_path, INVARIANCE_S)
+    write_probe(tmp_path)
+    write_audit(tmp_path, monkeypatch)
+    odd = row("R", K=8, seed=45)
+    rel = C.cell_paths(odd, os.path.join(FARM, "CANON", ckpt_base(odd) + ".ckpt"), "d").receipt
+    edit_json(os.path.join(str(tmp_path), rel),
+              lambda d: d.update(campaign_digest="e" * 64, spawn_digest="e" * 64, post_digest="e" * 64))
+    rc, out = _collect_cli(tmp_path, blocks=",".join(INVARIANCE_S))
+    text = capsys.readouterr().out
+    assert rc == 3 and "campaign digest" in text and not os.path.exists(out + ".json"), text
 
 
 def test_a_block_selection_defines_the_required_set(tmp_path, monkeypatch, capsys):

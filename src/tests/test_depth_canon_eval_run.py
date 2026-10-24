@@ -268,6 +268,7 @@ def test_manifest_defaults(manifest):
 # --------------------------------------------------------------------------- #
 C = _load(os.path.join(EXPDIR, "depth_canon_collect.py"), "depth_canon_collect")
 PIN = "a" * 40
+DIGESTS = dict(campaign_digest="d" * 64, spawn_digest="d" * 64, post_digest="d" * 64)   # rB-F1 B3
 
 
 def _canon_index(manifest):
@@ -328,23 +329,26 @@ def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
                          canon_index=None, no_dump_blocks=[])[0]
     os.makedirs(tmp_path / "farm" / "YAW")
     path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
-                           log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"])
+                           log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], **DIGESTS)
     assert path == str(tmp_path / entry["receipt"]) and sorted(os.listdir(tmp_path / "farm" / "YAW")) == [
         os.path.basename(entry["receipt"])]                            # atomic: no temp left behind
     rec = json.load(open(path))
     assert C.receipt_reasons(rec, manifest_row(manifest, entry["cell"]), stem=entry["stem"],
                              link=entry["link"], target=entry["target"], ckpt_sha256=entry["sha256"],
-                             dump=True, dump_root=str(tmp_path / "d"), pin=PIN) == []
+                             dump=True, dump_root=str(tmp_path / "d"), pin=PIN, expect_digest="d" * 64) == []
     with pytest.raises(ValueError, match="sha256"):
         C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
-                        log="x.log", rc=0, pin=PIN, ckpt_sha256="0" * 64)
+                        log="x.log", rc=0, pin=PIN, ckpt_sha256="0" * 64, **DIGESTS)
 
 
 def test_cli_plan_and_receipt(manifest, tmp_path, capsys):
     out = str(tmp_path / "plan.json")
     assert C.main(["--plan", out, "--blocks", "P1-pin", "--limit", "3", "--no-dump-blocks", "",
-                   "--farm-root", "farm", "--dump-root", "/d"]) == 0
+                   "--farm-root", "farm", "--dump-root", "/d"]) == 2          # rB-F1 B3: the digest is required
+    assert C.main(["--plan", out, "--blocks", "P1-pin", "--limit", "3", "--no-dump-blocks", "",
+                   "--farm-root", "farm", "--dump-root", "/d", "--campaign-digest", "d" * 64]) == 0
     plan = json.load(open(out))
+    assert plan["campaign_digest"] == "d" * 64
     assert [e["cell"] for e in plan["cells"]] == [c["cell"] for c in manifest["cells"] if c["block"] == "P1-pin"][:3]
     assert (plan["farm_root"], plan["dump_root"], plan["n_selected"]) == ("farm", "/d", 3)
     assert C.main(["--plan", out, "--blocks", "T", "--canon-ckpt-manifest",
@@ -357,12 +361,13 @@ def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, ca
     """One interpreter start (~5 s of imports) per finished cell instead of two."""
     out = str(tmp_path / "plan.json")
     assert C.main(["--plan", out, "--only", "exp25_P1_T_S40000_K1_s42", "--farm-root", "farm",
-                   "--dump-root", str(tmp_path / "d")]) == 0
+                   "--dump-root", str(tmp_path / "d"), "--campaign-digest", "d" * 64]) == 0
     os.makedirs(tmp_path / "farm" / "P1")
     sha = manifest["arms"]["P1"]["ckpt"]["sha256"]
     argv = ["--write-receipt", "exp25_P1_T_S40000_K1_s42", "--plan-json", out, "--base-dir", str(tmp_path),
             "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha,
-            "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check"]
+            "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check",
+            "--spawn-digest", "d" * 64, "--post-digest", "d" * 64]
     assert C.main(argv + ["--verify-after"]) == 1           # nothing but the receipt exists yet
     text = capsys.readouterr().out
     assert "receipt:" in text and "INVALID" in text and "missing or unreadable metrics" in text
