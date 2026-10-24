@@ -556,7 +556,10 @@ case_rc "R6 too slow: 6 s/step"              4 "SMOKE VERDICT: FAIL - projected"
 case_rc "R7 no rate stamps"                  4 "SMOKE VERDICT: FAIL - the projection could not be computed" MODE=SMOKE GUARD_SCENARIO=no_stamps
 case_rc "R8 a smoke that wrote a checkpoint" 5 "SMOKE WROTE 1 CHECKPOINT" MODE=SMOKE GUARD_SCENARIO=smoke_ckpt
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
-case_rc "R9 train.py failed"                 7 "train.py exited rc=7" MODE=SMOKE GUARD_TRAIN_RC=7
+case_rc "R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1)" 8 \
+  "is remapped to the terminal 8" MODE=SMOKE GUARD_TRAIN_RC=7
+rm -rf "$H/save/FLAC_exp25_CANON_smoke"
+case_rc "R9b another train.py failure passes through unchanged" 3 "train.py exited rc=3" MODE=SMOKE GUARD_TRAIN_RC=3
 expect "R10 only R1 left PASS evidence" bash -c '
   cd "$1" && [ "$(grep -l "\"verdict\": \"PASS\"" "$2"/depth_canon_smoke_evidence_*.json | wc -l)" = 1 ]' _ "$R" "$EXPREL"
 
@@ -595,6 +598,7 @@ full_case "Z5 a non-finite loss in FULL"     4 "NON-FINITE VALUES" MODE=FULL GUA
 full_case "Z6 a foreign file"                5 "CHECKPOINT SET REJECTED: foreign files" MODE=FULL GUARD_SCENARIO=foreign
 full_case "Z7 a stale checkpoint"            5 "older than the launch marker" MODE=FULL GUARD_SCENARIO=stale
 full_case "Z8 off-cadence checkpoint"        5 "cadence set" MODE=FULL GUARD_SCENARIO=wrong_cadence
+full_case "Z9 FULL: train.py exited 7 is remapped to the terminal 8" 8 "is remapped to the terminal 8" MODE=FULL GUARD_TRAIN_RC=7
 
 echo "--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---"
 if [ "${GUARD_NAS_READONLY:-0}" = 1 ]; then

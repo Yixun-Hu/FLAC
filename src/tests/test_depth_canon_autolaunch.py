@@ -388,6 +388,28 @@ def test_only_rc_7_is_a_transient_gpu_refusal(rig):
     assert "GPU_GATE_STR" not in open(WATCHER).read()
 
 
+def _launcher_rc7_remap():
+    """The launcher's terminal code for a NON-GPU-gate exit 7 (train.py's own status), from its source."""
+    import re
+    src = open(os.path.join(REPO, EXPREL, "depth_canon_launch.sh")).read()
+    m = re.search(r"^RC_TRAINER7=(\d+)\b", src, re.M)
+    assert m, "the launcher defines no RC_TRAINER7 (rB-F2 F2-1: rc 7 is reserved for the GPU gate)"
+    return int(m.group(1)), src
+
+
+def test_a_trainer_exit_7_remapped_by_the_launcher_is_final(rig):
+    """rB-F2 F2-1 (Codex A2 HIGH 1): train.py exiting 7 must never look like the GPU gate's
+    transient refusal -- the launcher remaps it to a terminal code, documented in its header,
+    and the watcher makes ONE attempt and enters FAILED."""
+    remap, src = _launcher_rc7_remap()
+    assert remap not in (0, 7) and f"{remap} " in src.split("set -euo pipefail")[0]
+    token(rig)
+    launches(rig, [f"SMOKE {remap} train.py exited rc=7; exit 7 is reserved for the GPU gate"])
+    rc, _ = run(rig, max_polls=20)
+    st = state(rig)
+    assert rc == 1 and len(calls(rig)) == 1 and (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", remap, None)
+
+
 def test_a_near_matching_interpreter_is_refused(rig, tmp_path):
     """A6a: the resolved path must BE the launcher's pinned interpreter, not match a glob."""
     fake = tmp_path / "x" / "envs" / "flac" / "bin"
