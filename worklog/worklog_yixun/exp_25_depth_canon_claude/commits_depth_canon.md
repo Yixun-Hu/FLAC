@@ -160,3 +160,17 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | `c7ef06b` | Coder rB-F1 | B3 cycle 3c: relevant-tree digest at start / before every spawn / after every cell, PIN DRIFT exit 4, receipt binds the three digests, verify_cell + collection check them |
 | `8d0335f` | Coder rB-F1 | B4 cycle 4a (red): checkpoint TOCTOU tests — verified cache + hard link, measured digest, space gate, symlink/foreign entry, tampered cache, bytes changed during the cell |
 | `00ac606` | Coder rB-F1 | B4 cycle 4b: content-addressed verified checkpoint cache, free-space gate, hard-linked farm entries re-checked before the spawn, post-run measured sha256 in the receipt |
+| `7338ceb` | Coder rB-F1 | B5 cycle 5a (red): probe tests — dirty tree = registered deviation; main() publishes via build_report / write_report |
+| `2d427a1` | Coder rB-F1 | B5 cycle 5b: probe `tree_deviations` (checked before loading) + `build_report` / `write_report` |
+| `69ee428` | Coder rB-F1 | B5 cycle 5c (red): collector probe-binding tests on a real toy probe artifact (26 refusals, legitimate FAIL, contract mirror) |
+| `55c835d` | Coder rB-F1 | B5 cycle 5d: `PROBE_CONTRACT` + `probe_reasons`; `load_control` -> (control, reasons, eps); eps_cond threshold + PASS/FAIL rendered |
+| `56cad9b` | Coder rB-F1 | B6 cycle 6a (red): offline-verifiable receipt tests (artifact digests, dump evidence, receipt mode, written only after the full verification) |
+| `e126fe7` | Coder rB-F1 | B6 cycle 6b: `build_receipt` + `dump_evidence` + `evidence_reasons`, `verify_cell(dump_check='receipt', receipt_doc=)`, verify-then-write receipts |
+| `0662305` | Coder rB-F1 | B6 cycle 6c (red): generator offline validation + NAS retention audit tests |
+| `e24c9f2` | Coder rB-F1 | B6 cycle 6d: generator validates offline (receipt mode) with one campaign digest per row / round; `--nas-retention-audit` |
+| `b6de552` | Coder rB-F1 | NIT a cycle 7a (red): K nonempty context ids; the registered repetition rule; the pairing note |
+| `57cf336` | Coder rB-F1 | NIT a cycle 7b: `stream_reasons` K ids, `context_replacement` (same repeated targets per split and K), `PAIRING_NOTE` |
+| `cf14d57` | Coder rB-F1 | NIT b cycle 8a (red): overlap derived from the validated audit, compared with the registered 1,093 / 112 |
+| `51bc8b8` | Coder rB-F1 | NIT b cycle 8b: `split_overlap(summary)` + `REGISTERED_OVERLAP`; mismatch flagged + a problem |
+| `557f3dc` | Coder rB-F1 | NIT c cycle 9 (test-only): golden byte-identity of every pre-exp25 generator row vs `e5902b9` |
+| `356ef98` | Coder rB-F1 | NIT d cycle 10 (test-only): two-cell failure-then-success driver test |
