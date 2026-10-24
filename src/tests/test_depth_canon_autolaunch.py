@@ -59,7 +59,7 @@ FAKE_LAUNCHER = r'''#!/usr/bin/env bash
 # fake launcher: records MODE / EXPECT_HEAD; behaviour = the next "MODE rc text" scenario line
 H="$DEPTH_CANON_HARNESS"
 echo "MODE=${MODE} EXPECT_HEAD=${EXPECT_HEAD} DRY_RUN=${DRY_RUN:-unset} MB=${MB:-unset} ACC=${ACC:-unset}" >> "$H/launch_calls"
-env | grep -E '^(GO_TOKEN|AUTOLAUNCH_)' >> "$H/launch_env" || true
+env | grep -E '^(GO_TOKEN|AUTOLAUNCH_(LAUNCHER|POLL_S|STABLE_POLLS|MAX_POLLS))=' >> "$H/launch_env" || true
 n="$(( $(cat "$H/launch_n" 2>/dev/null || echo 0) + 1 ))"; echo "$n" > "$H/launch_n"
 total="$(wc -l < "$H/launch_scenario")"; [ "$n" -le "$total" ] || n="$total"
 read -r mode rc text <<<"$(sed -n "${n}p" "$H/launch_scenario")"

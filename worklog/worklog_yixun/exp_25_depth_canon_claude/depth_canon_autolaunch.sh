@@ -6,17 +6,20 @@
 #
 #   GO token   $EXPDIR/depth_canon_GO.token, written by the Planner, never by this watcher:
 #              head=<40 hex> / manifest_sha256=<sha256 of depth_canon_pins.sha256's bytes> /
-#              issued=<ISO-8601> / by=planner, one key=value per line. Valid only while head ==
-#              `git rev-parse HEAD` and manifest_sha256 == the pins file's sha256, re-checked on
-#              every poll AND immediately before each launcher call (a commit after arming refuses).
+#              issued=<full ISO-8601 with offset> / by=planner: exactly four non-blank key=value
+#              lines. Valid only while head == `git rev-parse HEAD`, manifest_sha256 == the pins
+#              file's sha256 and the pinned paths + launcher kit are clean (else WAITING_TOKEN),
+#              re-checked on every poll AND immediately before each launcher call.
 #   GPUs       GPU 0 and GPU 1 each: ZERO compute processes (uuid -> index mapped) AND >= 23040 MiB
-#              free; any nvidia-smi failure or unparsable output is DIRTY. Fire after 3 consecutive
+#              free; any nonzero nvidia-smi status (even after plausible output), a malformed row,
+#              a process on an unknown uuid, or not exactly one memory row is DIRTY. Fire after 3 consecutive
 #              clean polls (60 s apart); a dirty poll resets the count. Foreign processes are logged
 #              once per change (pid, used memory, readlink /proc/<pid>/cwd); a heartbeat every 30 min.
-#   Fire       SMOKE (output tee'd into the watcher log) -> rc 0 -> FULL -> rc 0: DONE (exit 0); FULL
-#              rc != 0: FAILED (exit 1). SMOKE refused by the launcher's own GPU gates (the two
-#              strings below) is transient: back to WAITING_GPU, at most 5 retries; any other SMOKE
-#              failure is FAILED (exit 1) and FULL is never attempted.
+#   Fire       `MB=32 ACC=1 DRY_RUN=0 MODE=SMOKE` (literal; harness-only state scrubbed in production)
+#              -> rc 0 -> FULL -> rc 0: DONE (exit 0); FULL rc != 0: FAILED (exit 1). A SMOKE refused
+#              by the launcher's GPU gate -- its DEDICATED rc 7 (rA A6e), never a text match -- is
+#              transient: back to WAITING_GPU, at most 5 retries; any other SMOKE failure is FAILED
+#              (exit 1) and FULL is never attempted.
 #   State      $EXPDIR/depth_canon_autolaunch_state.json, replaced atomically (tmp + mv) on every
 #              change; log $EXPDIR/depth_canon_<TS>_autolaunch.log.
 #   Never      terminates or signals any process, writes outside $EXPDIR, or touches the NAS (the
@@ -41,11 +44,8 @@ STATE="$EXPDIR/depth_canon_autolaunch_state.json"
 MIN_GPU_FREE_MIB=23040           # = depth_canon_launch.sh MIN_GPU_FREE_MIB (22.5 GiB)
 POLL_S=60; STABLE_POLLS=3; MAX_POLLS=0; HEARTBEAT_S=1800
 MAX_GPU_RETRIES=5                # fixed
-# The launcher's two transient GPU refusals (depth_canon_launch.sh): the memory floor
-# ("GPU GATE FAILED: GPU <g> free ...", gate (8)) and the occupancy gate of r3b-F1 fix 7
-# ("GPU OCCUPIED: foreign compute process(es) on GPU 0/1 ..."). Defined ONCE, here.
-GPU_GATE_STR="GPU GATE FAILED"
-GPU_OCCUPIED_STR="GPU OCCUPIED: foreign compute process"
+GPU_REFUSAL_RC=7                 # depth_canon_launch.sh: every GPU-gate refusal (rA A6e), the one transient class
+PY_PIN="/home/yixunhu/miniconda3/envs/flac/bin/python"   # = depth_canon_launch.sh PY_PIN (rA A6a)
 
 die() { echo "$*"; exit 2; }
 
@@ -73,13 +73,27 @@ fi
 exec 8>"$EXPDIR/.depth_canon_autolaunch.lock" || die "cannot open ${EXPDIR}/.depth_canon_autolaunch.lock - abort"
 flock -n 8 || die "another autolaunch watcher holds ${EXPDIR}/.depth_canon_autolaunch.lock - abort"
 PY="$(command -v python 2>/dev/null || true)"
-case "$PY" in */envs/flac/bin/python*) ;; *) die "'python' on PATH is '${PY:-absent}', not the flac env (*/envs/flac/bin/python) - abort" ;; esac
+[ -n "$PY" ] && [ "$(readlink -f -- "$PY")" = "$(readlink -f -- "$PY_PIN")" ] \
+  || die "'python' on PATH is '${PY:-absent}', not the launcher's pinned flac interpreter ${PY_PIN} - abort"
 [ -f "$LAUNCHER" ] || die "the launcher ${LAUNCHER} is missing - abort"
 command -v nvidia-smi >/dev/null || die "nvidia-smi is not on PATH - abort"
 
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 LOG="$EXPDIR/depth_canon_${TS}_autolaunch.log"
+exec 3>&1 4>&2
 exec > >(tee -a "$LOG") 2>&1
+TEE_PID=$!
+drain() {   # rA A6f: at exit, close our ends of the tee and wait (bounded, signal-free) for it to finish
+  local rc=$? i st
+  exec 1>&3 2>&4
+  for ((i = 0; i < 600; i++)); do
+    st="$(cut -d' ' -f3 "/proc/${TEE_PID}/stat" 2>/dev/null)" || break
+    [ -n "$st" ] && [ "$st" != Z ] || break
+    sleep 0.1
+  done
+  exit "$rc"
+}
+trap drain EXIT
 STARTED="$(date -Iseconds)"
 echo "=== exp_25 depth_canon autolaunch -- ${TS} -- pid $$ -- launcher ${LAUNCHER} -- harness=${HARNESS:-none} ==="
 echo "poll ${POLL_S} s, fire after ${STABLE_POLLS} clean polls, <= ${MAX_GPU_RETRIES} GPU-gate retries, min free ${MIN_GPU_FREE_MIB} MiB"
@@ -124,50 +138,69 @@ token_ok() {   # 0 = valid (TOKEN_HEAD set); 1 = invalid (TOKEN_WHY set)
     esac
     n=$((n + 1))
   done < "$TOKEN"
-  [ "$n" -eq 4 ] || { TOKEN_WHY="GO token must hold exactly head, manifest_sha256, issued, by (got ${n} lines)"; return 1; }
-  [[ "$head" =~ ^[0-9a-f]{40}$ && "$man" =~ ^[0-9a-f]{64}$ && "$issued" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] \
-    && [ "$by" = planner ] || { TOKEN_WHY="GO token is malformed (head / manifest_sha256 / issued / by)"; return 1; }
+  [ "$n" -eq 4 ] && [ "$(wc -l < "$TOKEN")" -eq 4 ] \
+    || { TOKEN_WHY="GO token must be exactly the four lines head, manifest_sha256, issued, by (got ${n} keys, $(wc -l < "$TOKEN") lines)"; return 1; }
+  [[ "$head" =~ ^[0-9a-f]{40}$ && "$man" =~ ^[0-9a-f]{64}$ ]] && [ "$by" = planner ] \
+    && [[ "$issued" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2}|Z)$ ]] \
+    || { TOKEN_WHY="GO token is malformed (head / manifest_sha256 / issued as full ISO-8601 with offset / by)"; return 1; }
   cur="$(git rev-parse HEAD)"
   [ "$head" = "$cur" ] || { TOKEN_WHY="GO token head ${head} != HEAD ${cur} (re-issue the token at this HEAD)"; return 1; }
   cur="$(sha256sum "$PINS" 2>/dev/null | awk '{print $1}')"
   [ "$man" = "$cur" ] || { TOKEN_WHY="GO token manifest_sha256 ${man} != ${PINS} sha256 ${cur:-unreadable}"; return 1; }
+  mapfile -t pinned < <(awk '{print $2}' "$PINS")   # rA A6d: the launcher refuses a dirty pinned tree
+  cur="$(git status --porcelain --untracked-files=all -- "${pinned[@]}" "$PINS" "$EXPDIR/depth_canon_launch.sh" \
+    "$EXPDIR/depth_canon_make_pins.sh" "$EXPDIR/depth_canon_audit_gate.py" 2>&1)" \
+    || { TOKEN_WHY="git status of the pinned paths failed (${cur//$'\n'/; })"; return 1; }
+  [ -z "$cur" ] || { TOKEN_WHY="pinned paths are dirty (commit or restore, then re-issue the token): ${cur//$'\n'/; }"; return 1; }
   TOKEN_HEAD="$head"
 }
 
 # --- the GPUs ---------------------------------------------------------------------------- #
-gpu_clean() {   # 0 = both cards idle with enough memory; 1 = dirty (GPU_WHY set)
-  local uuids apps g u line uuid pid pname mem free busy=""
-  declare -A IDX=()
+gpu_clean() {   # 0 = both cards idle with enough memory; 1 = dirty (GPU_WHY set). rA A3: strict
+  local out rc line g pid uuid busy=""
+  local -A IDX=()
   GPU_WHY=""
-  uuids="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)" \
-    || { GPU_WHY="nvidia-smi --query-gpu=index,uuid failed"; return 1; }
+  rc=0; out="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)" || rc=$?
+  [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi --query-gpu=index,uuid exited ${rc}"; return 1; }
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$ ]] || { GPU_WHY="malformed index,uuid row '${line}'"; return 1; }
+    [ -z "${IDX[${BASH_REMATCH[2]}]:-}" ] || { GPU_WHY="duplicate uuid ${BASH_REMATCH[2]}"; return 1; }
+    IDX[${BASH_REMATCH[2]}]="${BASH_REMATCH[1]}"
+  done <<<"$out"
   for g in 0 1; do
-    u="$(awk -F', *' -v g="$g" '$1 == g {print $2}' <<<"$uuids")"
-    [ -n "$u" ] || { GPU_WHY="no uuid for GPU ${g} in nvidia-smi output"; return 1; }
-    IDX[$u]="$g"
+    printf '%s\n' "${IDX[@]}" | grep -qx "$g" || { GPU_WHY="no uuid for GPU ${g} in nvidia-smi output"; return 1; }
   done
-  apps="$(nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null)" \
-    || { GPU_WHY="nvidia-smi --query-compute-apps failed"; return 1; }
+  rc=0; out="$(nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null)" || rc=$?
+  [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi --query-compute-apps exited ${rc}"; return 1; }
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    IFS=',' read -r uuid pid pname mem <<<"$line"
-    uuid="${uuid// /}"; pid="${pid// /}"; pname="${pname# }"; mem="${mem# }"
-    [[ "$pid" =~ ^[0-9]+$ && -n "$uuid" ]] || { GPU_WHY="unparsable compute-apps line '${line}'"; return 1; }
-    [ -n "${IDX[$uuid]:-}" ] || continue                                   # another card
-    busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${pname}, ${mem}, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); "
-  done <<<"$apps"
+    [[ "$line" =~ ^(GPU-[0-9A-Za-z-]+),[[:space:]]*([0-9]+),[[:space:]]*([^,]*),[[:space:]]*([^,]*)$ ]] \
+      || { GPU_WHY="unparsable compute-apps line '${line}'"; return 1; }
+    uuid="${BASH_REMATCH[1]}"; pid="${BASH_REMATCH[2]}"
+    [ -n "${IDX[$uuid]:-}" ] || { GPU_WHY="compute process ${pid} on an unknown uuid ${uuid}"; return 1; }
+    case "${IDX[$uuid]}" in 0|1)
+      busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]}, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); " ;;
+    esac
+  done <<<"$out"
   [ -z "$busy" ] || { GPU_WHY="foreign compute process(es): ${busy}"; return 1; }
   for g in 0 1; do
-    free="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$g" 2>/dev/null | head -n1 | tr -d ' ')" || true
-    [[ "$free" =~ ^[0-9]+$ ]] || { GPU_WHY="memory.free of GPU ${g} unparsable ('${free}')"; return 1; }
-    [ "$free" -ge "$MIN_GPU_FREE_MIB" ] || { GPU_WHY="GPU ${g} has ${free} MiB free < ${MIN_GPU_FREE_MIB} MiB"; return 1; }
+    rc=0; out="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$g" 2>/dev/null)" || rc=$?
+    [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi memory.free of GPU ${g} exited ${rc}"; return 1; }
+    [[ "$out" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] || { GPU_WHY="memory.free of GPU ${g} is not exactly one number ('${out//$'\n'/|}')"; return 1; }
+    [ "${BASH_REMATCH[1]}" -ge "$MIN_GPU_FREE_MIB" ] || { GPU_WHY="GPU ${g} has ${BASH_REMATCH[1]} MiB free < ${MIN_GPU_FREE_MIB} MiB"; return 1; }
   done
 }
 
 run_launcher() {   # run_launcher <MODE> <capture file>; returns the launcher's rc
   local rc
-  set +e
-  MODE="$1" EXPECT_HEAD="$TOKEN_HEAD" DRY_RUN=0 bash "$LAUNCHER" 2>&1 | tee "$2"
+  set +e   # rA A4: the literal rung, and no harness-only state reaches the launcher
+  if [ -n "$HARNESS" ]; then   # (the harness keeps DEPTH_CANON_HARNESS: its fake launcher reads it)
+    env -u GO_TOKEN -u AUTOLAUNCH_LAUNCHER -u AUTOLAUNCH_POLL_S -u AUTOLAUNCH_STABLE_POLLS -u AUTOLAUNCH_MAX_POLLS \
+      MB=32 ACC=1 DRY_RUN=0 MODE="$1" EXPECT_HEAD="$TOKEN_HEAD" bash "$LAUNCHER" 2>&1 | tee "$2"
+  else
+    env -u DEPTH_CANON_HARNESS -u GO_TOKEN -u AUTOLAUNCH_LAUNCHER -u AUTOLAUNCH_POLL_S -u AUTOLAUNCH_STABLE_POLLS \
+      -u AUTOLAUNCH_MAX_POLLS MB=32 ACC=1 DRY_RUN=0 MODE="$1" EXPECT_HEAD="$TOKEN_HEAD" bash "$LAUNCHER" 2>&1 | tee "$2"
+  fi
   rc="${PIPESTATUS[0]}"
   set -e
   return "$rc"
@@ -201,7 +234,7 @@ while :; do
   rc=0; run_launcher SMOKE "$CAP" || rc=$?
   SMOKE_RC="$rc"
   if [ "$rc" -ne 0 ]; then
-    if grep -qF -- "$GPU_GATE_STR" "$CAP" || grep -qF -- "$GPU_OCCUPIED_STR" "$CAP"; then
+    if [ "$rc" -eq "$GPU_REFUSAL_RC" ]; then   # rA A6e: the launcher's dedicated rc, never a text match
       RETRIES=$((RETRIES + 1)); CLEAN=0
       if [ "$RETRIES" -gt "$MAX_GPU_RETRIES" ]; then
         write_state FAILED "stage=SMOKE rc=${rc}: the launcher's GPU gate refused ${RETRIES} times (> ${MAX_GPU_RETRIES} retries)"
