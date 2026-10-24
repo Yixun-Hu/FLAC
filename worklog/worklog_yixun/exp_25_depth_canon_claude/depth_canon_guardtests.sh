@@ -566,6 +566,8 @@ else
   skip "Q1-Q2 production-path dry runs" "set GUARD_NAS_READONLY=1 to read the real NAS"
 fi
 
+expect "W1 the launcher header documents W&B's repo-local wandb/ write target (r3b-F1 fix 10)" \
+  bash -c 'sed -n "1,/^set -euo pipefail/p" "$1" | grep -q "repo-local .wandb/."' _ "$R/$EXPREL/depth_canon_launch.sh"
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo

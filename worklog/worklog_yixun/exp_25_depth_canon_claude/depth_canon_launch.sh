@@ -26,6 +26,12 @@
 # (5) run-owned checkpoints, (6) NAS identity / write probe / free space,
 # (7) projection <= 60 h, and (8) GPU free memory. It never kills anything.
 #
+# Write targets: the NAS save root (checkpoints, launch marker, write probe), this experiment
+# folder (logs, smoke evidence, checkpoint manifest) and -- the one expected extra target --
+# W&B's run metadata in the checkout's repo-local `wandb/` (train.py's WandbLogger is built
+# without a save_dir). r3b-F1 (Codex r3b review) added: the flac interpreter pin, the tie-audit
+# gate, the GPU-occupancy gate, finite-loss + latency smoke evidence, content-scoped binding.
+#
 # Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md v8 §4.
 # ============================================================================
 set -euo pipefail
