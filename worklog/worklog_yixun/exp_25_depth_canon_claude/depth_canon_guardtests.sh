@@ -49,8 +49,8 @@ make_clone() {   # a fresh clone of the source HEAD + the overlaid launcher file
   commit_clone "guard overlay"
 }
 
-commit_clone() {
-  git -C "$R" add -A "$EXPREL" src
+commit_clone() {   # everything the throwaway clone holds (ignored files stay ignored)
+  git -C "$R" add -A
   git -C "$R" -c user.name=guard -c user.email=guard@localhost commit -q --allow-empty -m "$1"
 }
 
@@ -113,8 +113,8 @@ expect "P2 the manifest is deterministic and lists exactly the --list paths" \
   bash -c '[ "$1" = "$2" ] && [ "$(awk "{print \$2}" <<<"$1")" = "$3" ]' _ "$M1" "$M2" "$LIST"
 expect "P3 --write produces a manifest sha256sum verifies" \
   bash -c 'cd "$1" && sha256sum -c --strict --quiet "$2/depth_canon_pins.sha256"' _ "$R" "$EXPREL"
-expect "P3b the source repo's committed manifest is current" \
-  bash -c 'cd "$1" && [ "$(bash "$2/depth_canon_make_pins.sh")" = "$(cat "$2/depth_canon_pins.sha256")" ]' \
+expect "P3b the source repo's COMMITTED manifest is current" \
+  bash -c 'cd "$1" && [ "$(bash "$2/depth_canon_make_pins.sh")" = "$(git show "HEAD:$2/depth_canon_pins.sha256")" ]' \
   _ "$SRC_REPO" "$EXPREL"
 touch "$R/src/models/zz_guard_new_module.py"
 expect "P4 a new src/models/*.py is covered automatically" \
@@ -166,6 +166,74 @@ expect "F5 every emitted flag is a defaults.ini key (prefigure)" bash -c '
   [ -n "$1" ] || exit 1
   for f in $(grep -o -- "--[a-z-]*" <<<"$1"); do k="${f#--}"; grep -qE "^${k//-/_} *=" "$2/defaults.ini" || { echo "unknown $f"; exit 1; }; done' \
   _ "$FULL_ARGV" "$R"
+echo "--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---"
+printf '\n# guard tamper\n' >> "$R/src/data/utils.py"
+case_rc "M1 a tampered pinned file"  2 "PIN MANIFEST FAILED: content"  MODE=SMOKE DRY_RUN=1
+git -C "$R" checkout -q -- src/data/utils.py
+touch "$R/src/models/zz_guard_new_module.py"
+case_rc "M2 an unpinned new module"  2 "PIN MANIFEST FAILED: coverage" MODE=SMOKE DRY_RUN=1
+rm -f "$R/src/models/zz_guard_new_module.py"
+printf '\n# guard edit\n' >> "$R/src/data/utils.py"
+( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null )
+case_rc "M3 consistent but uncommitted" 2 "PINNED TREE NOT COMMITTED"  MODE=SMOKE DRY_RUN=1
+git -C "$R" checkout -q -- src/data/utils.py "$EXPREL/depth_canon_pins.sha256"
+printf '\n# guard edit\n' >> "$R/$EXPREL/depth_canon_launch.sh"
+case_rc "M4 an uncommitted launcher edit" 2 "PINNED TREE NOT COMMITTED"  MODE=SMOKE DRY_RUN=1
+git -C "$R" checkout -q -- "$EXPREL/depth_canon_launch.sh"
+mkdir -p "$H/otherweights/FLAC"; printf 'not the VAE' > "$H/otherweights/FLAC/VAE.safetensors"
+rm "$R/weights"; ln -s "$H/otherweights" "$R/weights"
+case_rc "M5 another VAE behind the (gitignored) weights link" 2 "PIN MANIFEST FAILED: content"  MODE=SMOKE DRY_RUN=1
+rm "$R/weights"; ln -s "$SRC_REPO/weights" "$R/weights"
+printf '\n# guard edit\n' >> "$R/src/data/utils.py"
+( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null ); commit_clone "guard: new pin commit"
+case_rc "M6 a committed change with its regenerated manifest is a new valid pin" 0 "pin manifest OK: 44 files" MODE=SMOKE DRY_RUN=1
+make_clone >/dev/null
+
+echo "--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---"
+mutate() {   # mutate <file> '<python on cfg>': rewrite in the clone, regenerate pins, commit
+  make_clone >/dev/null
+  ( cd "$R" && python - "$1" "$2" <<'PY'
+import json, sys
+path, expr = sys.argv[1], sys.argv[2]
+cfg = json.load(open(path))
+exec(expr, {"cfg": cfg})
+open(path, "w").write(json.dumps(cfg, indent=4))
+PY
+    bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null )
+  commit_clone "guard: mutated $1"
+}
+ARM="$EXPREL/FLAC_AR_CANON.json"; CTL="worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json"
+mutate "$ARM" 'cfg["training"]["canonicalize"]["img_w"] = 256'
+case_rc "C1 block width 256"            2 "canonicalize block is not the registered treatment" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["canonicalize"]["enabled"] = 1'
+case_rc "C2 enabled as int 1"           2 "wrong TYPES" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["canonicalize"]["img_w"] = 512.0'
+case_rc "C3 width as float"             2 "wrong TYPES" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"].pop("canonicalize")'
+case_rc "C4 treatment missing"          2 "canonicalize block is not the registered treatment" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["cond_method"] = "fa_invariant"'
+case_rc "C5 FA conditioning added"      2 "must be vanilla-conditioned" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["yaw_aug"] = {"enabled": False, "img_w": 512, "seed": 42}'
+case_rc "C6 a yaw_aug block added"      2 "yaw_aug must be absent" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["model"]["conditioning"]["configs"][1]["config"]["gradient_checkpointing"] = False'
+case_rc "C7 grad-ckpt off on one ViT"   2 "gradient_checkpointing must be true" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" '[c["config"]["ViT"].update(img_w=256) for c in cfg["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]'
+case_rc "C8 ViT widths 256"             2 "ViT widths" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["cfg_dropout_prob"] = 0.2'
+case_rc "C9 a second, silent delta"     2 "NOT the control plus the one registered delta" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'b = cfg["training"].pop("canonicalize"); u = cfg["training"].pop("use_ema"); cfg["training"].update(canonicalize=b, use_ema=u)'
+case_rc "C10 block not the last training key" 2 "last key of training" MODE=SMOKE DRY_RUN=1
+mutate "$ARM" 'cfg["training"]["use_ema"] = False'
+case_rc "C11 EMA off"                   2 "use_ema must be true" MODE=SMOKE DRY_RUN=1
+mutate "$CTL" 'cfg["training"]["cfg_dropout_prob"] = 0.2'
+case_rc "C12 the control itself moved"  2 "control config sha256" MODE=SMOKE DRY_RUN=1
+make_clone >/dev/null
+sed -i 's/"img_w": 512$/"img_w":  512/' "$R/$ARM"
+( cd "$R" && bash "$EXPREL/depth_canon_make_pins.sh" --write >/dev/null ); commit_clone "guard: whitespace"
+case_rc "C13 parse-equal but not byte-equal" 2 "not the control's bytes plus the literal insertion" MODE=SMOKE DRY_RUN=1
+make_clone >/dev/null
+case_rc "C14 the genuine arm passes"    0 "config contract OK" MODE=SMOKE DRY_RUN=1
+
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo

@@ -118,6 +118,92 @@ fi
   echo "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"; exit 2; }
 echo "HEAD pin OK: ${HEAD_SHA}"
 
+# --- (1) content pins: coverage, bytes, committed ---------------------------- #
+# The manifest's path column must equal the generator's list (so a new module on
+# the training path cannot go unpinned), every byte must match (sha256sum -c also
+# covers the gitignored VAE), and every pinned path plus the launcher kit must be
+# committed at HEAD (so HEAD names exactly this content).
+EXPECTED_LIST="$(bash "$MAKE_PINS" --list)" || {
+  echo "PIN MANIFEST FAILED: the generator could not list the training path - abort"; exit 2; }
+[ -f "$PIN_MANIFEST" ] || { echo "PIN MANIFEST FAILED: ${PIN_MANIFEST} is missing - abort"; exit 2; }
+MANIFEST_LIST="$(awk '{print $2}' "$PIN_MANIFEST")"
+if [ "$EXPECTED_LIST" != "$MANIFEST_LIST" ]; then
+  echo "PIN MANIFEST FAILED: coverage -- the manifest's paths differ from the training path (regenerate it at the pin commit):"
+  diff <(printf '%s\n' "$MANIFEST_LIST") <(printf '%s\n' "$EXPECTED_LIST") | head -20 || true
+  exit 2
+fi
+sha256sum -c --strict --quiet "$PIN_MANIFEST" || {
+  echo "PIN MANIFEST FAILED: content -- a pinned file differs from ${PIN_MANIFEST} - abort"; exit 2; }
+mapfile -t PINNED <<<"$EXPECTED_LIST"
+DIRTY="$(git status --porcelain --untracked-files=all -- "${PINNED[@]}" "$PIN_MANIFEST" "$MAKE_PINS" "$SELF")"
+if [ -n "$DIRTY" ]; then
+  echo "PINNED TREE NOT COMMITTED at HEAD (commit or restore, then regenerate the manifest):"
+  printf '%s\n' "$DIRTY" | head -20 || true
+  exit 2
+fi
+MANIFEST_SHA="$(sha256sum "$PIN_MANIFEST" | awk '{print $1}')"
+echo "pin manifest OK: ${#PINNED[@]} files match ${PIN_MANIFEST} (sha256 ${MANIFEST_SHA}); pinned paths + launcher kit committed at HEAD"
+
+# --- config contract: the P1 control plus exactly training.canonicalize -------- #
+python - "$ARM_CFG" "$CONTROL_CFG" "$CONTROL_SHA" <<'PY' || { echo "CONFIG CONTRACT FAILED - abort"; exit 2; }
+import hashlib, json, sys
+arm_p, ctl_p, ctl_sha = sys.argv[1:4]
+ctl_raw, arm_raw = open(ctl_p, "rb").read(), open(arm_p, "rb").read()
+got = hashlib.sha256(ctl_raw).hexdigest()
+if got != ctl_sha:
+    sys.exit(f"control config sha256 {got} != the pinned P1 config {ctl_sha}")
+arm, ctl = json.loads(arm_raw), json.loads(ctl_raw)
+
+def strict(a, b, path="root"):   # type-strict, key ORDER included (1 == True, 0 == 0.0 in Python)
+    if type(a) is not type(b):
+        return f"{path}: type {type(a).__name__} != {type(b).__name__}"
+    if isinstance(a, dict):
+        if list(a) != list(b):
+            return f"{path}: keys {list(a)} != {list(b)}"
+        return next((r for k in a for r in [strict(a[k], b[k], f"{path}.{k}")] if r), None)
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return f"{path}: length {len(a)} != {len(b)}"
+        return next((r for i, (x, y) in enumerate(zip(a, b)) for r in [strict(x, y, f"{path}[{i}]")] if r), None)
+    return None if a == b else f"{path}: {a!r} != {b!r}"
+
+t = arm["training"]
+block = t.get("canonicalize")
+if block != {"enabled": True, "img_w": 512}:
+    sys.exit(f"canonicalize block is not the registered treatment: {block!r}")
+if type(block["enabled"]) is not bool or type(block["img_w"]) is not int:
+    sys.exit(f"canonicalize block has the wrong TYPES: {block!r}")
+if "cond_method" in t:
+    sys.exit("this arm must be vanilla-conditioned; cond_method is present")
+if "yaw_aug" in t:
+    sys.exit("yaw_aug must be absent (a second treatment)")
+if t.get("use_ema") is not True:
+    sys.exit("use_ema must be true (matched to P1)")
+if list(t)[-1] != "canonicalize":
+    sys.exit(f"canonicalize must be the last key of training (got {list(t)[-1]!r})")
+vits = [c for c in arm["model"]["conditioning"]["configs"] if c["type"] == "ViTCoordinates"]
+if len(vits) != 2:
+    sys.exit(f"expected 2 ViT conditioners, found {len(vits)}")
+for c in vits:
+    if c["config"].get("gradient_checkpointing") is not True:
+        sys.exit(f"gradient_checkpointing must be true on {c['id']} (P1's recipe)")
+widths = {c["config"]["ViT"]["img_w"] for c in vits}
+if widths != {block["img_w"]}:
+    sys.exit(f"ViT widths {widths} != canonicalize.img_w {block['img_w']}: the canonical shift "
+             "would be computed on the wrong column grid")
+stripped = json.loads(arm_raw)
+stripped["training"].pop("canonicalize")
+d = strict(stripped, ctl)
+if d:
+    sys.exit(f"arm config is NOT the control plus the one registered delta - {d}")
+INSERT = (b',\n        "canonicalize": {\n            "enabled": true,\n            "img_w": 512\n        }')
+TRAILER = b'\n    }\n}'
+if not (ctl_raw.endswith(TRAILER) and ctl_raw.count(TRAILER) == 1
+        and arm_raw == ctl_raw[:-len(TRAILER)] + INSERT + TRAILER):
+    sys.exit("arm config is not the control's bytes plus the literal insertion (formatting / newline drift)")
+print(f"config contract OK: {arm_p} == {ctl_p} (sha {ctl_sha[:12]}...) + training.canonicalize {block}")
+PY
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN: all gates passed; train.py NOT launched"; exit 0
 fi
