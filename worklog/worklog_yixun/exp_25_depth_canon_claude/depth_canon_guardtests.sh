@@ -437,10 +437,14 @@ case_rc "T14 the harness report in PRODUCTION mode is refused" 2 "a harness tag 
 case_rc "T9 the complete PASS audit is accepted"  0 "tie audit OK" MODE=SMOKE DRY_RUN=1
 
 echo "--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---"
-write_evidence() {   # write_evidence <name> '<python dict of overrides>'
+write_evidence() {   # write_evidence <name> '<python dict of overrides>' (DROP deletes a key; cot(**kw) = a co-tenant record)
   ( cd "$R" && python - "$EXPREL" "$1" "$2" <<'PY'
 import hashlib, json, subprocess, sys
 exp, name, over = sys.argv[1:4]
+DROP = object()                   # rC-F2: an override value that DELETES the key
+COT = {"gpu": 0, "pid": 4242, "used_mib": 30000, "cwd": "/tmp/guard_cotenant"}   # a valid co-tenant record
+def cot(**kw):
+    return {k: v for k, v in dict(COT, **kw).items() if v is not DROP}
 log = f"{exp}/depth_canon_guard_{name}_smoke_train.log"
 open(log, "w").write("synthetic smoke log\n")
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
@@ -456,9 +460,12 @@ ev = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": "PAS
       "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
       "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
-      "gpu_policy": "shared", "min_gpu_free_mib": 12288, "free_mib_at_launch": {"0": 40000, "1": 40000},
+      "gpu_policy": "shared", "min_gpu_free_mib": 12288, "max_projected_hours": 120,
+      "free_mib_at_launch": {"0": 40000, "1": 40000},
       "co_tenants_at_launch": [], "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
 ev.update(eval(over))
+for k in [k for k, v in ev.items() if v is DROP]:
+    del ev[k]
 json.dump(ev, open(f"{exp}/depth_canon_smoke_evidence_{name}.json", "w"))
 PY
   )
@@ -466,6 +473,8 @@ PY
 clear_evidence() { rm -f "$R/$EXPREL"/depth_canon_smoke_evidence_*.json; }
 NEED="FULL requires a PASSING smoke evidence"
 case_rc "E1 no evidence"                    2 "$NEED" MODE=FULL DRY_RUN=1
+expect "E1b ... and the line after the headline says there is no candidate (rC-F2)" \
+  grep -qxF "evidence check: no depth_canon_smoke_evidence_*.json in $EXPREL" <<<"$OUT"
 write_evidence e2 '{"launcher_sha256": "1" * 64}'
 case_rc "E2 evidence of another launcher"   2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e3 '{"manifest_sha256": "2" * 64}'
@@ -482,6 +491,42 @@ write_evidence e8 '{"banner_seen": 1}'
 case_rc "E8 a truthy non-bool field"        2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e10 '{"schema_version": 1}'
 case_rc "E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1)" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+# rC-F2 1 (Codex rC HIGH, C3): FULL enforces the schema-2 GPU provenance. Each case takes E9's PASSING schema-2
+# evidence and changes ONE thing: FULL refuses (rc 2, the headline once) and the NEXT line names the key + the value seen.
+EVWHY="evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: "
+ev_refused() {   # ev_refused <name> '<key> = <value seen>' '<python dict of overrides>'
+  local name="$1" why="$2" nxt; want "$name" || return 0
+  clear_evidence; write_evidence ev "$3"
+  launch MODE=FULL DRY_RUN=1
+  nxt="$(grep -A1 -F -- "$NEED" <<<"$OUT" | sed -n 2p || true)"
+  if [ "$RC" = 2 ] && [ "$(grep -cF -- "$NEED" <<<"$OUT" || true)" = 1 ] && [[ "$nxt" == "${EVWHY}${why} (want "* ]]; then
+    ok "$name (rc=$RC)"
+  else bad "$name" "want rc=2 + '$NEED' + next line '${EVWHY}${why} (want ...'; got rc=$RC; next: ${nxt:-$(tail -1 <<<"$OUT")}"; fi
+  clear_evidence
+}
+ev_refused "E11a gpu_policy deleted"            'gpu_policy = <missing>'            '{"gpu_policy": DROP}'
+ev_refused "E11b min_gpu_free_mib deleted"      'min_gpu_free_mib = <missing>'      '{"min_gpu_free_mib": DROP}'
+ev_refused "E11c max_projected_hours deleted"   'max_projected_hours = <missing>'   '{"max_projected_hours": DROP}'
+ev_refused "E11d free_mib_at_launch deleted"    'free_mib_at_launch = <missing>'    '{"free_mib_at_launch": DROP}'
+ev_refused "E11e co_tenants_at_launch deleted"  'co_tenants_at_launch = <missing>'  '{"co_tenants_at_launch": DROP}'
+ev_refused "E12 gpu_policy idle (not the pinned shared)" 'gpu_policy = "idle"'      '{"gpu_policy": "idle"}'
+ev_refused "E13 the v13 floor 23040"            'min_gpu_free_mib = 23040'          '{"min_gpu_free_mib": 23040}'
+ev_refused "E14 the v13 cap 60 h"               'max_projected_hours = 60'          '{"max_projected_hours": 60}'
+ev_refused "E15 free_mib_at_launch null (the writer's no-gate form)" 'free_mib_at_launch = null' '{"free_mib_at_launch": None}'
+ev_refused "E16 a card missing"                 'free_mib_at_launch = {"0": 20000}' '{"free_mib_at_launch": {"0": 20000}}'
+ev_refused "E17 GPU 1 below the floor"          'free_mib_at_launch["1"] = 12287'   '{"free_mib_at_launch": {"0": 20000, "1": 12287}}'
+ev_refused "E18 a free value as a string"       'free_mib_at_launch["0"] = "20000"' '{"free_mib_at_launch": {"0": "20000", "1": 20000}}'
+ev_refused "E19 a co-tenant record without cwd" 'co_tenants_at_launch[0].cwd = <missing>' '{"co_tenants_at_launch": [cot(cwd=DROP)]}'
+ev_refused "E20 a co-tenant pid 0"              'co_tenants_at_launch[0].pid = 0'   '{"co_tenants_at_launch": [cot(pid=0)]}'
+ev_refused "E21 a co-tenant on GPU 2"           'co_tenants_at_launch[0].gpu = 2'   '{"co_tenants_at_launch": [cot(gpu=2)]}'
+ev_refused "E22 a co-tenant used_mib -1"        'co_tenants_at_launch[0].used_mib = -1' '{"co_tenants_at_launch": [cot(used_mib=-1)]}'
+ev_refused "E23 a co-tenant with an empty cwd"  'co_tenants_at_launch[0].cwd = ""'  '{"co_tenants_at_launch": [cot(cwd="")]}'
+ev_refused "E24 a bool smuggled as the pid"     'co_tenants_at_launch[0].pid = true' '{"co_tenants_at_launch": [cot(pid=True)]}'
+write_evidence e25 '{"co_tenants_at_launch": [cot(), cot(gpu=1, pid=4243, used_mib=0, cwd="?")]}'
+case_rc "E25 valid co-tenant records (incl. cwd '?', 0 MiB) are accepted" 0 \
+  "smoke evidence: $EXPREL/depth_canon_smoke_evidence_e25.json" MODE=FULL DRY_RUN=1; clear_evidence
+clear_evidence; printf 'not json\n' > "$R/$EXPREL/depth_canon_smoke_evidence_ev.json"
+case_rc "E26 an unreadable evidence file is refused" 2 "${EVWHY}not a JSON object" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e9 '{}'
 case_rc "E9 genuine evidence accepted"      0 "smoke evidence: $EXPREL/depth_canon_smoke_evidence_e9.json" MODE=FULL DRY_RUN=1
 
@@ -622,10 +667,13 @@ assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projec
 assert ev["schema_version"] == 2 and ev["gpu_policy"] == "shared" and type(ev["min_gpu_free_mib"]) is int
 assert ev["min_gpu_free_mib"] == 12288 and ev["free_mib_at_launch"] == {"0": 40000, "1": 40000}, ev
 assert ev["co_tenants_at_launch"] == [], ev
+fm = ev["free_mib_at_launch"]   # rC-F2: the typed keys FULL now requires (R1c = the launcher round trip)
+assert type(ev["max_projected_hours"]) is int and type(fm) is dict and sorted(fm) == ["0", "1"], ev
+assert all(type(fm[g]) is int and fm[g] >= ev["min_gpu_free_mib"] for g in fm), ev
 assert abs(ev["steady_state_s_per_step"] - 3.9) < 0.1 and 40 < ev["projection_h"] < 46, ev
 assert hashlib.sha256(open(ev["log"], "rb").read()).hexdigest() == ev["log_sha256"]
 PY' _ "$R" "$EV" "$EXPREL"
-case_rc "R1c FULL accepts that evidence"     0 "smoke evidence: $EXPREL/$(basename "$EV")" MODE=FULL DRY_RUN=1
+case_rc "R1c FULL accepts that evidence (the writer -> FULL predicate round trip)" 0 "smoke evidence: $EXPREL/$(basename "$EV")" MODE=FULL DRY_RUN=1
 case_rc "R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1)" 0 "SMOKE VERDICT: PASS" \
   MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n4244, GPU-guard-2, 100\n'
 EV2="$(ls "$R/$EXPREL"/depth_canon_smoke_evidence_*.json 2>/dev/null | tail -1 || true)"
