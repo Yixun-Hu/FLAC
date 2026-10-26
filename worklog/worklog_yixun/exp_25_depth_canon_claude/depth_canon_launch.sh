@@ -68,7 +68,10 @@ ENDPOINT_STEPS=40000
 FULL_CADENCE=2500
 SMOKE_STEPS=25
 SMOKE_CADENCE=1000000             # >> SMOKE_STEPS: a smoke never writes a checkpoint
-MAX_PROJECTED_HOURS=120           # plan §4 gate (7), v14: a shared card roughly halves the uncontended 0.259 opt-steps/s; a sanity cap only
+MAX_PROJECTED_HOURS=300           # plan §4 gate (7), v15: a sanity cap only (~7x the uncontended 43 h). v14 (120 h) assumed a shared card halves the
+                                  # uncontended 0.259 opt-steps/s; SMOKE 2 (2026-10-26 05:38) measured 19.27 s/step (~5x) next to two 100 %-utilization
+                                  # co-tenants -> 214.1 h, refused. Under shared the projection measures the co-tenants' load at that moment (it relaxes as
+                                  # they finish); the contended rate is disclosed in the evidence as speed-only.
 MIN_NAS_FREE_GIB=30               # plan §4 gate (6)
 # gate (8), v14: 12 GiB per card = the measured need of the identical --batch-size 32 --num-gpus 2 recipe on this
 # box (5.9-6.6 GiB per rank in exp_14's smoke, ~10.3 GiB per card for the exp_13 vanilla-B arm); was 22.5 GiB
@@ -662,7 +665,7 @@ print(f"checkpoint set OK: exactly the {len(want)} cadence checkpoints, all newe
 PY
 [ "$ckpt_rc" -eq 0 ] || fail "$ckpt_rc"
 
-# --- (7) SMOKE: steady-state projection <= 120 h (v14), then the evidence --------- #
+# --- (7) SMOKE: steady-state projection <= 300 h (v15; v14 120 h), then the evidence --------- #
 if [ "$MODE" = "SMOKE" ]; then
   EVIDENCE="$EXPDIR/depth_canon_smoke_evidence_${TS}.json"
   "$PY" - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
