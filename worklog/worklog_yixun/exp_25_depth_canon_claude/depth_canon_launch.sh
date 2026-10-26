@@ -10,7 +10,8 @@
 #             10^6 (writes none); projects the 40k wall clock; writes the
 #             smoke-evidence JSON that FULL requires.
 # MODE=FULL   the registered 40,000-step run; needs a PASSING smoke evidence
-#             with the SAME HEAD and pin-manifest sha256.
+#             with the SAME HEAD and pin-manifest sha256 (+ the schema-2 GPU
+#             provenance under this launcher's literals, rC-F2).
 # DRY_RUN=1   every gate except the side-effecting / GPU ones (write probe,
 #             GPU memory, W&B identity), prints the exact argv, exits 0.
 # EXPECT_HEAD the full reviewed pin commit; HEAD must equal it (required).
@@ -288,39 +289,104 @@ AUDIT_GATE_SHA="$(sha256sum "$AUDIT_GATE" | awk '{print $1}')"
 echo "evidence binding: manifest ${MANIFEST_SHA} launcher ${LAUNCHER_SHA} pins-generator ${MAKE_PINS_SHA} contract ${CONTRACT_SHA} audit ${AUDIT_SHA} audit-gate ${AUDIT_GATE_SHA}"
 
 # --- (2) FULL requires a PASSING smoke evidence of this HEAD + manifest ------- #
+# rC-F2 (Codex rC HIGH, C3): the schema-2 GPU provenance is part of the predicate -- gpu_policy, min_gpu_free_mib
+# and max_projected_hours must be THIS launcher's literals (argv), free_mib_at_launch exactly {"0": int, "1": int}
+# both >= the floor (the writer's `null` no-gate form -- unreachable, DRY_RUN exits before the writer -- is refused),
+# every co-tenant record exactly {gpu: 0|1, pid: int > 0, used_mib: int >= 0, cwd: non-empty str} (a bool is not an
+# int). The checker prints ONE line, "OK <path>" or "NO <why>"; a refusal prints the headline, then
+# "evidence check: <why>" = the newest candidate's first offending key and the value seen.
 if [ "$MODE" = "FULL" ]; then
-  SMOKE_EVIDENCE="$("$PY" - "$EXPDIR" "$MANIFEST_SHA" "$HARNESS_FLAG" "$LAUNCHER_SHA" "$MAKE_PINS_SHA" \
-      "$CONTRACT_SHA" "$AUDIT_SHA" "$AUDIT_GATE_SHA" <<'PY' || true
+  EV_CHECK="$("$PY" - "$EXPDIR" "$MANIFEST_SHA" "$HARNESS_FLAG" "$LAUNCHER_SHA" "$MAKE_PINS_SHA" \
+      "$CONTRACT_SHA" "$AUDIT_SHA" "$AUDIT_GATE_SHA" "$GPU_OCCUPANCY_POLICY" "$MIN_GPU_FREE_MIB" \
+      "$MAX_PROJECTED_HOURS" <<'PY' || true
 import glob, hashlib, json, math, os, sys
-exp, manifest, harness, launcher, make_pins, contract, audit, audit_gate = sys.argv[1:9]
+exp, manifest, harness, launcher, make_pins, contract, audit, audit_gate, policy, floor, max_h = sys.argv[1:12]
+floor, max_h = int(floor), int(max_h)
 NEED = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": "PASS",
         "manifest_sha256": manifest, "launcher_sha256": launcher, "make_pins_sha256": make_pins,
         "contract_sha256": contract, "audit_sha256": audit, "audit_gate_sha256": audit_gate,
         "harness": harness == "true",
         "config_contract_ok": True,
         "banner_seen": True, "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False,
-        "smoke_checkpoints": 0, "finite_loss_seen": True}
-def qualifies(path):
+        "smoke_checkpoints": 0, "finite_loss_seen": True,
+        "gpu_policy": policy, "min_gpu_free_mib": floor, "max_projected_hours": max_h}   # rC-F2
+ABSENT = object()
+INTS = (("gpu", lambda v: v in (0, 1), "an int, 0 or 1"), ("pid", lambda v: v > 0, "an int > 0"),
+        ("used_mib", lambda v: v >= 0, "an int >= 0"))
+REC = "exactly {gpu: 0|1, pid: int > 0, used_mib: int >= 0, cwd: non-empty str}"
+def show(v):          # the value seen, as JSON (one line)
+    return "<missing>" if v is ABSENT else json.dumps(v)
+def gpu_why(ev):      # rC-F2: the typed GPU disclosure; None = clean
+    fm = ev.get("free_mib_at_launch", ABSENT)
+    if type(fm) is not dict or sorted(fm) != ["0", "1"]:
+        return f'free_mib_at_launch = {show(fm)} (want exactly {{"0": int >= {floor}, "1": int >= {floor}}})'
+    for g in ("0", "1"):
+        if type(fm[g]) is not int or fm[g] < floor:
+            return f'free_mib_at_launch["{g}"] = {show(fm[g])} (want an int >= {floor})'
+    cot = ev.get("co_tenants_at_launch", ABSENT)
+    if type(cot) is not list:
+        return f"co_tenants_at_launch = {show(cot)} (want a list of records {REC})"
+    for i, rec in enumerate(cot):
+        at = f"co_tenants_at_launch[{i}]"
+        if type(rec) is not dict:
+            return f"{at} = {show(rec)} (want {REC})"
+        extra = [k for k in rec if k not in ("gpu", "pid", "used_mib", "cwd")]
+        if extra:
+            return f"{at}.{extra[0]} = {show(rec[extra[0]])} (want {REC}; unexpected key)"
+        for k, good, want in INTS:
+            v = rec.get(k, ABSENT)
+            if type(v) is not int or not good(v):
+                return f"{at}.{k} = {show(v)} (want {want})"
+        v = rec.get("cwd", ABSENT)
+        if type(v) is not str or not v:
+            return f"{at}.cwd = {show(v)} (want a non-empty str)"
+    return None
+def why_not(path):    # None = qualifies; else the first offending key and the value seen
     try:
         ev = json.load(open(path))
-    except (OSError, ValueError):
-        return False
-    if any(type(ev.get(k)) is not type(v) or ev.get(k) != v for k, v in NEED.items()):
-        return False
-    lat = ev.get("canonicalization_latency_ms")      # r3b-F1 fix 2: measured, positive, finite
+    except (OSError, ValueError) as e:
+        return f"not a JSON object ({type(e).__name__}: {e})"
+    if type(ev) is not dict:
+        return f"not a JSON object (top level {type(ev).__name__})"
+    for k, v in NEED.items():
+        got = ev.get(k, ABSENT)
+        if type(got) is not type(v) or got != v:
+            return f"{k} = {show(got)} (want {json.dumps(v)})"
+    lat = ev.get("canonicalization_latency_ms", ABSENT)      # r3b-F1 fix 2: measured, positive, finite
     if type(lat) is not float or not math.isfinite(lat) or lat <= 0:
-        return False
-    log = ev.get("log")      # the evidence is bound to the bytes of the log it summarizes
-    return (isinstance(log, str) and os.path.isfile(log)
-            and hashlib.sha256(open(log, "rb").read()).hexdigest() == ev.get("log_sha256"))
+        return f"canonicalization_latency_ms = {show(lat)} (want a positive finite float)"
+    why = gpu_why(ev)
+    if why:
+        return why
+    log = ev.get("log", ABSENT)      # the evidence is bound to the bytes of the log it summarizes
+    if not (isinstance(log, str) and os.path.isfile(log)):
+        return f"log = {show(log)} (want an existing log file)"
+    try:
+        digest = hashlib.sha256(open(log, "rb").read()).hexdigest()
+    except OSError as e:
+        return f"log = {show(log)} (unreadable: {type(e).__name__})"
+    if digest != ev.get("log_sha256"):
+        return f"log_sha256 = {show(ev.get('log_sha256', ABSENT))} (want {digest}, the log's current sha256)"
+    return None
+first = None
 for p in sorted(glob.glob(os.path.join(exp, "depth_canon_smoke_evidence_*.json")), reverse=True):
-    if qualifies(p):
-        print(p)
-        break
+    why = why_not(p)
+    if why is None:
+        print(f"OK {p}")
+        sys.exit(0)
+    first = first or f"newest candidate {os.path.basename(p)} refused: {why}"
+print("NO " + (first or f"no depth_canon_smoke_evidence_*.json in {exp}").replace("\r", " ").replace("\n", " "))
 PY
 )"
+  SMOKE_EVIDENCE=""
+  case "$EV_CHECK" in "OK "?*) SMOKE_EVIDENCE="${EV_CHECK#OK }" ;; esac
   [ -n "$SMOKE_EVIDENCE" ] || {
-    echo "FULL requires a PASSING smoke evidence bound to this content (manifest ${MANIFEST_SHA}, launcher ${LAUNCHER_SHA}, pins generator ${MAKE_PINS_SHA}, contract ${CONTRACT_SHA}, audit ${AUDIT_SHA}, audit gate ${AUDIT_GATE_SHA}; harness=${HARNESS_FLAG}) in ${EXPDIR} - none qualifies - run MODE=SMOKE first - abort"; exit 2; }
+    echo "FULL requires a PASSING smoke evidence bound to this content (manifest ${MANIFEST_SHA}, launcher ${LAUNCHER_SHA}, pins generator ${MAKE_PINS_SHA}, contract ${CONTRACT_SHA}, audit ${AUDIT_SHA}, audit gate ${AUDIT_GATE_SHA}; harness=${HARNESS_FLAG}) in ${EXPDIR} - none qualifies - run MODE=SMOKE first - abort"
+    case "$EV_CHECK" in
+      "NO "?*) echo "evidence check: ${EV_CHECK#NO }" ;;
+      *) echo "evidence check: the checker printed no verdict ('${EV_CHECK//$'\n'/|}'; its error is above)" ;;
+    esac
+    exit 2; }
   echo "smoke evidence: ${SMOKE_EVIDENCE}"
 fi
 
