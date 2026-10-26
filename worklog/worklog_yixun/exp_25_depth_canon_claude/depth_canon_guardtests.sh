@@ -148,6 +148,10 @@ cat > "$BIN/python" <<STUB
 #!/usr/bin/env bash
 # guard stub: 'python train.py ...' runs the fake trainer; everything else is the real python
 if [ "\${1:-}" = "train.py" ]; then shift; exec bash "$H/fake_train.sh" "\$@"; fi
+# rC-F3: GUARD_NO_WANDB=1 fails the launcher's W&B SDK version read like an interpreter without wandb
+if [ "\${GUARD_NO_WANDB:-0}" = 1 ] && [ "\${1:-}" = "-c" ] && [[ "\${2:-}" == *"import wandb"* ]]; then
+  echo "ModuleNotFoundError: No module named 'wandb' (guard stub, GUARD_NO_WANDB=1)" >&2; exit 1
+fi
 exec "$REAL_PY" "\$@"
 STUB
 cat > "$BIN/findmnt" <<'STUB'
@@ -187,6 +191,8 @@ cat > "$H/fake_train.sh" <<'FAKE'
 #!/usr/bin/env bash
 # guard fake trainer: prints what a real run prints and writes what it writes, per GUARD_SCENARIO
 set -euo pipefail
+# rC-F3: record the W&B mode this trainer was started with -- that ONE variable, never the environment (a key may be in it)
+printf 'WANDB_MODE=%s\n' "${WANDB_MODE-<unset>}" > "$(dirname "$(readlink -f "$0")")/fake_train_wandb_mode"
 declare -A A
 while [ $# -gt 0 ]; do case "$1" in --*) A["${1#--}"]="${2:-}"; shift 2 ;; *) shift ;; esac; done
 sc="${GUARD_SCENARIO:-ok}"; steps="${A[max-steps]}"; cad="${A[checkpoint-every]}"; rate="${GUARD_RATE:-3.9}"
@@ -787,8 +793,65 @@ else
   skip "Q1-Q2 production-path dry runs" "set GUARD_NAS_READONLY=1 to read the real NAS"
 fi
 
+echo "--- W. W&B: train.py always runs with the pinned WANDB_MODE offline (rC-F3: SDK 0.15.4 cannot create online runs) ---"
 expect "W1 the launcher header documents W&B's repo-local wandb/ write target (r3b-F1 fix 10)" \
   bash -c 'sed -n "1,/^set -euo pipefail/p" "$1" | grep -q "repo-local .wandb/."' _ "$R/$EXPREL/depth_canon_launch.sh"
+expect "W1b ... naming the OFFLINE run directory wandb/offline-run-* (rC-F3)" \
+  bash -c 'sed -n "1,/^set -euo pipefail/p" "$1" | grep -qF "repo-local \`wandb/offline-run-*\`"' _ "$R/$EXPREL/depth_canon_launch.sh"
+unset WANDB_MODE                  # the guard's own environment: W2 / W5 pass no WANDB_MODE at all
+WREC="$H/fake_train_wandb_mode"   # the fake trainer's record of the WANDB_MODE it was started with
+WSDK="$("$REAL_PY" -c 'import wandb; print(wandb.__version__)' 2>/dev/null)"
+WLINE="W&B mode: offline (pinned WANDB_MODE_PIN; SDK ${WSDK} cannot create online runs against the current server - offline runs in $R/wandb/offline-run-*, sync later)"
+wseen() {   # wseen <mode>: the LAST fake-trainer start saw exactly WANDB_MODE=<mode>
+  [ -f "$WREC" ] && [ "$(cat "$WREC")" = "WANDB_MODE=$1" ] || { echo "the trainer saw '$(cat "$WREC" 2>/dev/null || echo 'no record')'"; return 1; }
+}
+wline() {   # wline <text>: the exact W&B mode line, exactly once as a whole line, before the (first) ARGV line
+  local t n w a; t="$(tr '\r' '\n' <<<"$1")"
+  n="$(grep -cxF -- "$WLINE" <<<"$t" || true)"
+  w="$(grep -nxF -- "$WLINE" <<<"$t" | head -1 | cut -d: -f1)"; a="$(grep -n '^ARGV: ' <<<"$t" | head -1 | cut -d: -f1)"
+  [ "$n" = 1 ] && [ -n "$a" ] && [ "$w" -lt "$a" ] || { echo "W&B mode line x${n} at line ${w:-none}, ARGV at ${a:-none}"; return 1; }
+}
+wlog() {    # wlog <expname>: wline over the train log of the LAST launch (its TS from the launcher's first line)
+  local ts; ts="$(sed -n 's/^=== exp_25 depth_canon [A-Z]* -- \([0-9_-]*\) -- HEAD .*/\1/p' <<<"$OUT" | head -1)"
+  [ -n "$ts" ] && [ -f "$R/$EXPREL/depth_canon_${ts}_$1_train.log" ] || { echo "no train log of the last launch (ts '${ts}')"; return 1; }
+  wline "$(cat "$R/$EXPREL/depth_canon_${ts}_$1_train.log")"
+}
+clear_evidence; rm -rf "$H/save"; rm -f "$WREC"
+case_rc "W2 a SMOKE with no WANDB_MODE in the caller's environment passes" 0 "SMOKE VERDICT: PASS" MODE=SMOKE
+expect "W2b ... train.py ran with WANDB_MODE=offline in its environment" wseen offline
+expect "W2c ... the SMOKE log carries the W&B mode line once, before the ARGV" wlog exp25_CANON_smoke
+rm -f "$WREC"
+case_rc "W3 a SMOKE with the caller's WANDB_MODE=online passes" 0 "SMOKE VERDICT: PASS" MODE=SMOKE WANDB_MODE=online
+expect "W3b ... train.py saw WANDB_MODE=offline: the caller's online is overridden" wseen offline
+rm -f "$WREC"
+case_rc "W4 a SMOKE with the caller's WANDB_MODE=disabled passes" 0 "SMOKE VERDICT: PASS" MODE=SMOKE WANDB_MODE=disabled
+expect "W4b ... train.py saw WANDB_MODE=offline: the caller's disabled is overridden" wseen offline
+clear_evidence; write_evidence w '{}'; rm -rf "$H/save/FLAC_exp25_CANON"; rm -f "$WREC"
+case_rc "W5 a FULL with no WANDB_MODE in the caller's environment passes" 0 \
+  "checkpoint set OK: exactly the 16 cadence checkpoints" MODE=FULL
+expect "W5b ... train.py ran with WANDB_MODE=offline in its environment" wseen offline
+expect "W5c ... the FULL log carries the W&B mode line once, before the ARGV" wlog exp25_CANON
+rm -rf "$H/save/FLAC_exp25_CANON"; rm -f "$WREC"
+case_rc "W6 a FULL with the caller's WANDB_MODE=online passes" 0 \
+  "checkpoint set OK: exactly the 16 cadence checkpoints" MODE=FULL WANDB_MODE=online
+expect "W6b ... train.py saw WANDB_MODE=offline: the caller's online is overridden" wseen offline
+rm -rf "$H/save/FLAC_exp25_CANON"; clear_evidence
+case_rc "W7 a SMOKE dry run passes" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
+expect "W7b ... and prints the W&B mode line once, before the ARGV" wline "$OUT"
+w8() {   # the pinned literal exactly once + the one export of it -- read as the CLONE's committed launcher (as U15)
+  local l="$H/w8_launcher.sh"
+  git -C "$R" show "HEAD:$EXPREL/depth_canon_launch.sh" > "$l" || { echo "the clone holds no committed launcher"; return 1; }
+  [ "$(grep -cF 'WANDB_MODE_PIN="offline"' "$l")" = 1 ] || { echo "the literal is not present exactly once"; return 1; }
+  [ "$(grep -cE '^WANDB_MODE_PIN=' "$l")" = 1 ] && grep -qE '^WANDB_MODE_PIN="offline"([[:space:]]+#.*)?$' "$l" \
+    || { echo "not exactly one top-level WANDB_MODE_PIN assignment"; return 1; }
+  [ "$(grep -cE '(^|[^A-Za-z0-9_])WANDB_MODE=' "$l")" = 1 ] && grep -qE '^export WANDB_MODE="\$WANDB_MODE_PIN"([[:space:]]+#.*)?$' "$l" \
+    || { echo "not exactly one WANDB_MODE assignment, the export of the pin"; return 1; }
+}
+expect "W8 the literal WANDB_MODE_PIN=\"offline\" exactly once + one WANDB_MODE assignment, its export" w8
+case_rc "W9 an interpreter that cannot import wandb refuses (rc 2) before the ARGV" 2 "cannot import wandb" \
+  MODE=SMOKE DRY_RUN=1 GUARD_NO_WANDB=1
+expect "W9b ... and prints no ARGV" bash -c '! grep -q "^ARGV: " <<<"$1"' _ "$OUT"
+
 case_rc "D1 SMOKE dry run reaches the boundary" 0 "DRY_RUN: all gates passed" MODE=SMOKE DRY_RUN=1
 
 echo
