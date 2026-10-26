@@ -40,7 +40,8 @@
 #
 # Write targets: the NAS save root (checkpoints, launch marker, write probe), this experiment
 # folder (logs, smoke evidence, checkpoint manifest) and -- the one expected extra target --
-# W&B's run metadata in the checkout's repo-local `wandb/` (train.py's WandbLogger is built
+# W&B's OFFLINE run record in the checkout's repo-local `wandb/offline-run-*` (the W&B mode is
+# pinned offline, rC-F3, to be synced later with a newer SDK; train.py's WandbLogger is built
 # without a save_dir). r3b-F1 (Codex r3b review) added: the flac interpreter pin, the tie-audit
 # gate, the GPU-occupancy gate, finite-loss + latency smoke evidence, content-scoped binding.
 #
@@ -80,6 +81,13 @@ PY_PIN="/home/yixunhu/miniconda3/envs/flac/bin/python"   # the flac env, REQUIRE
 NAS_FSTYPE="cifs"
 NAS_SOURCE="//10.249.7.28/shared_data"
 WANDB_IDENTITY="yh4742@princeton.edu"
+# rC-F3: W&B runs OFFLINE, always. The flac env's wandb SDK 0.15.4 cannot create an online run against the current
+# W&B server -- upsert_run -> server_settings_introspection() gets None back ("'NoneType' object has no attribute
+# 'get'") -- so the first real SMOKE (2026-10-26 03:45 EDT) died at train.py's logger.watch -> wandb.init. The env is
+# pinned (no upgrade): train.py gets WANDB_MODE exported from this literal right before it starts (a caller's own value
+# is overridden, never honoured); its run lands in the checkout's repo-local wandb/offline-run-*, to be synced later
+# with a newer SDK. The W&B identity gate below still runs: it proves the key / account that later sync will use.
+WANDB_MODE_PIN="offline"
 CONTROL_SHA="733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"
 BANNER="canonicalize ENABLED img_w=512 tiebreak=image"   # src/training/diffusion.py, exact
 RC_GPU_REFUSAL=7                  # the watcher's one transient class: emitted ONLY by gpu_refuse
@@ -159,6 +167,9 @@ else
   PY="$PY_PIN"
 fi
 echo "interpreter OK: ${PY}"
+# rC-F3: the SDK version the W&B mode line names -- an import with the pinned interpreter, no server contact
+WANDB_SDK="$("$PY" -c 'import wandb; print(wandb.__version__)')" || {
+  echo "W&B SDK CHECK FAILED: ${PY} cannot import wandb (its error is above) - abort"; exit 2; }
 # P1's recipe exactly (p1_ddp_launch.sh): no --val-dataset-config, no resume, no
 # pretrained init; --precision bf16-mixed is defaults.ini's value, passed explicitly.
 ARGV=("$PY" train.py
@@ -167,6 +178,7 @@ ARGV=("$PY" train.py
   --batch-size "$MB" --accum-batches "$ACC" --num-gpus 2 --sync-batchnorm true
   --strategy ddp_find_unused_parameters_true --precision bf16-mixed --seed 42 --num-workers 6
   --logger wandb --name "$NAME" --experiment-name "$EXPNAME" --save-dir "$SAVE_ROOT")
+echo "W&B mode: ${WANDB_MODE_PIN} (pinned WANDB_MODE_PIN; SDK ${WANDB_SDK} cannot create online runs against the current server - offline runs in ${REPO}/wandb/offline-run-*, sync later)"
 echo "ARGV: ${ARGV[*]}"
 
 # --- (1) reviewed-tree binding: HEAD ----------------------------------------- #
@@ -555,6 +567,7 @@ LAUNCH_MARK="$SAVE_ROOT/.depth_canon_launch_${EXPNAME}_${TS}"
 echo "launch marker: ${LAUNCH_MARK} (its filesystem mtime is this run's ownership epoch)"
 START_EPOCH="$(date +%s)"
 rc=0
+export WANDB_MODE="$WANDB_MODE_PIN"   # rC-F3: the pin, overriding any caller value (see the PINNED block)
 HF_HUB_OFFLINE=1 CUDA_VISIBLE_DEVICES=0,1 "${ARGV[@]}" || rc=$?
 END_EPOCH="$(date +%s)"
 echo "=== exp_25 depth_canon ${MODE}: train.py exited rc=${rc} after $((END_EPOCH - START_EPOCH)) s ==="
