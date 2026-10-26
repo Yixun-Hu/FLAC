@@ -166,7 +166,8 @@ cat > "$BIN/nvidia-smi" <<'STUB'
 #!/usr/bin/env bash
 # guard stub: memory.free -> GUARD_GPU_FREE (MiB, printf %b), exit GUARD_GPU_MEM_RC; index,uuid -> three
 # fixed uuids (GPU 2 is another card), exit GUARD_GPU_UUID_RC; the compute-app query -> GUARD_GPU_APPS
-# ('pid, uuid' lines, printf %b), exit GUARD_GPU_APPS_RC (GUARD_GPU_APPS_FAIL=1: no output, exit 1).
+# ('pid, uuid, MiB' lines, printf %b -- rC-F1: the v14 3-column query), exit GUARD_GPU_APPS_RC
+# (GUARD_GPU_APPS_FAIL=1: no output, exit 1).
 # A nonzero exit AFTER plausible output is the rA A3 case: it must still refuse.
 # rB-F2 F2-2: ONLY the launcher's three strict gate queries are answered; any other query (e.g. a
 # best-effort disclosure query) is logged to $H/nvsmi_unexpected and FAILS (exit 9).
@@ -176,7 +177,7 @@ case "$*" in
     printf '%b\n' "${GUARD_GPU_FREE:-40000}"; exit "${GUARD_GPU_MEM_RC:-0}" ;;
   "--query-gpu=index,uuid --format=csv,noheader")
     printf '0, GPU-guard-0\n1, GPU-guard-1\n2, GPU-guard-2\n'; exit "${GUARD_GPU_UUID_RC:-0}" ;;
-  "--query-compute-apps=pid,gpu_uuid --format=csv,noheader")
+  "--query-compute-apps=pid,gpu_uuid,used_memory --format=csv,noheader,nounits")
     [ "${GUARD_GPU_APPS_FAIL:-0}" = 1 ] && exit 1
     printf '%b' "${GUARD_GPU_APPS:-}"; exit "${GUARD_GPU_APPS_RC:-0}" ;;
   *) printf '%s\n' "$*" >> "$H/nvsmi_unexpected"; echo "guard stub: unexpected nvidia-smi query"; exit 9 ;;
@@ -445,7 +446,7 @@ open(log, "w").write("synthetic smoke log\n")
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 sha = lambda *ps: hashlib.sha256(b"".join(open(p, "rb").read() for p in ps)).hexdigest()
 man = sha(f"{exp}/depth_canon_pins.sha256")
-ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
+ev = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": "PASS", "head": head,
       "manifest_sha256": man, "launcher_sha256": sha(f"{exp}/depth_canon_launch.sh"),
       "make_pins_sha256": sha(f"{exp}/depth_canon_make_pins.sh"),
       "contract_sha256": sha(f"{exp}/FLAC_AR_CANON.json",
@@ -455,7 +456,8 @@ ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PAS
       "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
       "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
-      "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
+      "gpu_policy": "shared", "min_gpu_free_mib": 12288, "free_mib_at_launch": {"0": 40000, "1": 40000},
+      "co_tenants_at_launch": [], "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
 ev.update(eval(over))
 json.dump(ev, open(f"{exp}/depth_canon_smoke_evidence_{name}.json", "w"))
 PY
@@ -478,6 +480,8 @@ write_evidence e7 '{"smoke_checkpoints": 1}'
 case_rc "E7 a smoke that wrote a checkpoint" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e8 '{"banner_seen": 1}'
 case_rc "E8 a truthy non-bool field"        2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
+write_evidence e10 '{"schema_version": 1}'
+case_rc "E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1)" 2 "$NEED" MODE=FULL DRY_RUN=1; clear_evidence
 write_evidence e9 '{}'
 case_rc "E9 genuine evidence accepted"      0 "smoke evidence: $EXPREL/depth_canon_smoke_evidence_e9.json" MODE=FULL DRY_RUN=1
 
@@ -527,32 +531,75 @@ mkdir -p "$H/emptyhub"
 case_rc "G4 a missing DINOv3 snapshot refuses" 2 "DINOv3/init-identity GATE FAILED" MODE=SMOKE DRY_RUN=1 HF_HUB_CACHE="$H/emptyhub"
 case_rc "G5 the gate imports THIS checkout's src" 0 "src imported from $R/src" MODE=SMOKE DRY_RUN=1
 
-echo "--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7); strict queries (rA A3) ---"
-case_rc "U1 a foreign compute process on GPU 0" 7 "GPU OCCUPIED: foreign compute process" \
-  MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0\n'
-case_rc "U2 a foreign compute process on GPU 1 is named with its cwd" 7 "pid 4243 on GPU-guard-1 (cwd" \
-  MODE=SMOKE GUARD_GPU_APPS='4243, GPU-guard-1\n'
+echo "--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---"
+COT="GPU occupancy gate: policy=shared -"
+case_rc "U1 a co-tenant on GPU 0 is disclosed, not refused (policy=shared)" 0 \
+  "$COT 1 co-tenant compute process(es) on GPU 0/1 disclosed, not refused:" MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, 32256\n'
+expect "U1b ... naming its pid, card, uuid, MiB and cwd" grep -qE '^  pid 4242 on GPU 0 \(GPU-guard-0\): 32256 MiB, cwd .+$' <<<"$OUT"
+case_rc "U2 a co-tenant on GPU 1 is named with its card, MiB and cwd" 0 "pid 4243 on GPU 1 (GPU-guard-1): 4806 MiB, cwd " \
+  MODE=SMOKE GUARD_GPU_APPS='4243, GPU-guard-1, 4806\n'
 case_rc "U3 a failed compute-process query refuses" 7 "query-compute-apps" \
   MODE=SMOKE GUARD_GPU_APPS_FAIL=1
-case_rc "U4 a process on another (known) card does not block" 0 "GPU occupancy gate OK" \
-  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n'
+case_rc "U4 a process on another (known) card is not a co-tenant" 0 "$COT no compute process on GPU 0 or GPU 1" \
+  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2, 100\n'
 rm -f "$H/nvsmi_unexpected"
 case_rc "U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2)" 0 \
-  "GPU 1 GPU-guard-1: 40000 MiB free, no compute process" MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n'
+  "GPU 1 GPU-guard-1: 40000 MiB free, 0 co-tenant process(es)" MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2, 100\n'
 expect "U12b ... and names the compute process seen on another card" grep -qF "pid 4244 on GPU 2 (GPU-guard-2)" <<<"$OUT"
+case_rc "U12c the per-card co-tenant counts" 0 "GPU 0 GPU-guard-0: 40000 MiB free, 1 co-tenant process(es)" \
+  MODE=SMOKE GUARD_GPU_APPS='4245, GPU-guard-1, 100\n4246, GPU-guard-1, 200\n4247, GPU-guard-0, 300\n'
+expect "U12d ... GPU 1 holds two, three in all" bash -c 'grep -qF "GPU 1 GPU-guard-1: 40000 MiB free, 2 co-tenant process(es)" <<<"$1" &&
+  grep -qF "$2 3 co-tenant compute process(es) on GPU 0/1 disclosed, not refused:" <<<"$1"' _ "$OUT" "$COT"
 expect "U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)" \
   test ! -e "$H/nvsmi_unexpected"
 case_rc "U6 a process on an UNKNOWN uuid refuses" 7 "unknown uuid" \
-  MODE=SMOKE GUARD_GPU_APPS='4245, GPU-guard-9\n'
+  MODE=SMOKE GUARD_GPU_APPS='4245, GPU-guard-9, 100\n'
 case_rc "U7 a numeric memory answer with a nonzero exit refuses" 7 "exited 3" MODE=SMOKE GUARD_GPU_MEM_RC=3
 case_rc "U8 two memory rows for one card refuse" 7 "not exactly one number" MODE=SMOKE GUARD_GPU_FREE='40000\n40000'
 case_rc "U9 a malformed compute-app row refuses" 7 "malformed compute-app row" MODE=SMOKE GUARD_GPU_APPS='garbage\n'
 case_rc "U10 a plausible uuid map with a nonzero exit refuses" 7 "exited 4" MODE=SMOKE GUARD_GPU_UUID_RC=4
 case_rc "U11 plausible compute-app rows with a nonzero exit refuse" 7 "exited 5" \
-  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2\n' GUARD_GPU_APPS_RC=5
+  MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2, 100\n' GUARD_GPU_APPS_RC=5
+case_rc "U14 a co-tenant AND free memory below the floor: the floor refuses (rc 7)" 7 \
+  "GPU GATE FAILED: GPU 0 free 12287 MiB < 12288 MiB (12 GiB) - abort" MODE=SMOKE GUARD_GPU_FREE=12287 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
+case_rc "U14b exactly the floor beside a co-tenant passes" 0 "GPU memory gate OK: GPU 0 and GPU 1 each >= 12288 MiB free" \
+  MODE=SMOKE GUARD_GPU_FREE=12288 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
+u15() {   # the v14 pinned literals, equal in the launcher (clone = the overlaid working tree) and the watcher
+  local l="$R/$EXPREL/depth_canon_launch.sh" w="$SRC_REPO/$EXPREL/depth_canon_autolaunch.sh" n v
+  grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$l" && grep -qE '^MAX_PROJECTED_HOURS=120([^0-9]|$)' "$l" \
+    && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$l" || { echo "launcher literals"; return 1; }
+  grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$w" && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$w" || { echo "watcher literals"; return 1; }
+  for n in MIN_GPU_FREE_MIB GPU_OCCUPANCY_POLICY; do
+    v="$(grep -E "^${n}=" "$l" | sed -E "s/^${n}=([^[:space:]]*).*/\1/")"
+    [ "$(grep -cE "^${n}=" "$l")" = 1 ] && [ "$(grep -cE "^${n}=" "$w")" = 1 ] \
+      && [ "$v" = "$(grep -E "^${n}=" "$w" | sed -E "s/^${n}=([^[:space:]]*).*/\1/")" ] || { echo "${n} differs"; return 1; }
+  done
+}
+expect "U15 the pinned literals 12288 / 120 / shared, mirrored by the watcher" u15
+case_rc "U16 a 2-field compute-app row (the v13 query's shape) is malformed" 7 "malformed compute-app row" \
+  MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0\n'
+case_rc "U16b a non-numeric used_memory refuses" 7 "malformed compute-app row" MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, [N/A]\n'
+set_policy() {   # set_policy <literal>: the clone's launcher with another policy literal, committed
+  sed -i "s/^GPU_OCCUPANCY_POLICY=shared\$/GPU_OCCUPANCY_POLICY=$1/" "$R/$EXPREL/depth_canon_launch.sh"
+  grep -qx "GPU_OCCUPANCY_POLICY=$1" "$R/$EXPREL/depth_canon_launch.sh" && commit_clone "guard: policy $1"
+}
+if want U; then
+  if set_policy idle; then
+    case_rc "U17 GPU_OCCUPANCY_POLICY=idle restores the v10 refusal (rc 7)" 7 "GPU OCCUPIED: foreign compute process(es) on GPU 0/1" \
+      MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, 100\n'
+    case_rc "U17b idle: a process on another card does not block" 0 "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1" \
+      MODE=SMOKE GUARD_GPU_APPS='4244, GPU-guard-2, 100\n'
+  else bad "U17 / U17b" "the launcher has no 'GPU_OCCUPANCY_POLICY=shared' line to flip"; fi
+  make_clone >/dev/null
+  if set_policy relaxed; then
+    case_rc "U18 any other policy literal is a CONFIG ERROR (rc 2)" 2 "CONFIG ERROR: GPU_OCCUPANCY_POLICY must be idle or shared" \
+      MODE=SMOKE DRY_RUN=1
+  else bad "U18" "the launcher has no 'GPU_OCCUPANCY_POLICY=shared' line to flip"; fi
+  make_clone >/dev/null
+fi
 clear_evidence; rm -rf "$H/save"
 case_rc "U5 the occupancy gate is skipped under DRY_RUN" 0 "GPU memory gate SKIPPED under DRY_RUN" \
-  MODE=SMOKE DRY_RUN=1 GUARD_GPU_APPS='4242, GPU-guard-0\n'
+  MODE=SMOKE DRY_RUN=1 GUARD_GPU_APPS='4242, GPU-guard-0, 100\n'
 
 echo "--- X. the preflight cannot satisfy the post-run scans ---"
 launch MODE=SMOKE DRY_RUN=1; PRE="$OUT"
@@ -571,16 +618,39 @@ ev = json.load(open(sys.argv[1]))
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 man = hashlib.sha256(open("$3/depth_canon_pins.sha256", "rb").read()).hexdigest()
 assert ev["verdict"] == "PASS" and ev["head"] == head and ev["manifest_sha256"] == man, ev
-assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projected_hours"] == 60
+assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projected_hours"] == 120
+assert ev["schema_version"] == 2 and ev["gpu_policy"] == "shared" and type(ev["min_gpu_free_mib"]) is int
+assert ev["min_gpu_free_mib"] == 12288 and ev["free_mib_at_launch"] == {"0": 40000, "1": 40000}, ev
+assert ev["co_tenants_at_launch"] == [], ev
 assert abs(ev["steady_state_s_per_step"] - 3.9) < 0.1 and 40 < ev["projection_h"] < 46, ev
 assert hashlib.sha256(open(ev["log"], "rb").read()).hexdigest() == ev["log_sha256"]
 PY' _ "$R" "$EV" "$EXPREL"
 case_rc "R1c FULL accepts that evidence"     0 "smoke evidence: $EXPREL/$(basename "$EV")" MODE=FULL DRY_RUN=1
+case_rc "R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1)" 0 "SMOKE VERDICT: PASS" \
+  MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n4244, GPU-guard-2, 100\n'
+EV2="$(ls "$R/$EXPREL"/depth_canon_smoke_evidence_*.json 2>/dev/null | tail -1 || true)"
+expect "R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory" bash -c '
+  [ "$1" != "$2" ] && "$3" - "$1" <<PY
+import json, sys
+ev = json.load(open(sys.argv[1]))
+cot = ev["co_tenants_at_launch"]
+assert ev["verdict"] == "PASS" and ev["gpu_policy"] == "shared" and len(cot) == 1, ev
+c = cot[0]
+assert sorted(c) == ["cwd", "gpu", "pid", "used_mib"] and type(c["cwd"]) is str and c["cwd"], c
+assert (type(c["gpu"]), type(c["pid"]), type(c["used_mib"])) == (int, int, int), c
+assert (c["gpu"], c["pid"], c["used_mib"]) == (0, 4242, 30000), c
+assert ev["free_mib_at_launch"] == {"0": 40000, "1": 40000}, ev
+PY' _ "$EV2" "$EV" "$REAL_PY"
+case_rc "R1f FULL accepts the co-tenant SMOKE's evidence" 0 "smoke evidence: $EXPREL/$(basename "$EV2")" MODE=FULL DRY_RUN=1
+[ -n "$EV2" ] && [ "$EV2" != "$EV" ] && rm -f -- "${EV2:?}"   # R10 / L1 below count and read R1's evidence only
 case_rc "R2 no banner"                       3 "TREATMENT BANNER NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_banner
 case_rc "R3 no endpoint marker"              6 "ENDPOINT NOT REACHED" MODE=SMOKE GUARD_SCENARIO=no_endpoint
 case_rc "R4 no two-rank start"               6 "TWO-RANK DDP START NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_ranks
 case_rc "R5 a non-finite loss"               4 "NON-FINITE VALUES" MODE=SMOKE GUARD_SCENARIO=nan
-case_rc "R6 too slow: 6 s/step"              4 "SMOKE VERDICT: FAIL - projected" MODE=SMOKE GUARD_RATE=6
+case_rc "R6 too slow: 12 s/step (133 h > 120 h)" 4 "SMOKE VERDICT: FAIL - projected 133.3 h > MAX_PROJECTED_HOURS=120" MODE=SMOKE GUARD_RATE=12
+case_rc "R6b 6 s/step (66.7 h) passes under the v14 120 h cap" 0 "SMOKE VERDICT: PASS - projected 66.7 h <= 120 h" MODE=SMOKE GUARD_RATE=6
+EV6="$(grep -oE 'smoke evidence \(PASS\): [^ ]+' <<<"$OUT" | sed 's/^smoke evidence (PASS): //' || true)"
+[ -n "$EV6" ] && rm -f -- "${R:?}/${EV6:?}"   # R10 counts R1's PASS evidence only
 case_rc "R7 no rate stamps"                  4 "SMOKE VERDICT: FAIL - the projection could not be computed" MODE=SMOKE GUARD_SCENARIO=no_stamps
 case_rc "R8 a smoke that wrote a checkpoint" 5 "SMOKE WROTE 1 CHECKPOINT" MODE=SMOKE GUARD_SCENARIO=smoke_ckpt
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
