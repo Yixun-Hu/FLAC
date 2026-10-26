@@ -30,6 +30,8 @@ STUB_NVSMI = r'''#!/usr/bin/env bash
 # stub: one scenario line per POLL (the index,uuid query opens a poll); the last line repeats.
 # rA A3 scenarios exit NONZERO after plausible output (uuidrc / memrc / appsrc), print two memory
 # rows (memtwo), or name a process on a uuid outside the map (unknown); GPU 2 is a known other card.
+# rC-F2: ONLY the nounits compute-app query is answered (bare MiB numbers; na / na_other = a
+# non-numeric used_memory); any other compute-app query is logged to $H/nvsmi_unexpected and exits 9.
 H="$DEPTH_CANON_HARNESS"; n="$(cat "$H/poll_n" 2>/dev/null || echo 0)"
 case "$*" in *index,uuid*) n=$((n + 1)); echo "$n" > "$H/poll_n" ;; esac
 total="$(wc -l < "$H/gpu_scenario")"; [ "$n" -le "$total" ] || n="$total"; [ "$n" -ge 1 ] || n=1
@@ -42,13 +44,17 @@ case "$line" in
 esac
 case "$*" in
   *index,uuid*) printf '0, GPU-test-0\n1, GPU-test-1\n2, GPU-test-2\n'; [ "$line" = uuidrc ] && exit 4; true ;;
-  *query-compute-apps*) [ "$line" = busy ] && echo "GPU-test-0, 4242, python, 32470 MiB"
-                        [ "$line" = busy1 ] && echo "GPU-test-1, 4343, python, 16000 MiB"
-                        [ "$line" = other ] && echo "GPU-test-2, 4444, python, 100 MiB"
-                        [ "$line" = unknown ] && echo "GPU-test-9, 4545, python, 100 MiB"
+  "--query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader,nounits")
+                        [ "$line" = busy ] && echo "GPU-test-0, 4242, python, 32470"
+                        [ "$line" = busy1 ] && echo "GPU-test-1, 4343, python, 16000"
+                        [ "$line" = other ] && echo "GPU-test-2, 4444, python, 100"
+                        [ "$line" = unknown ] && echo "GPU-test-9, 4545, python, 100"
                         [ "$line" = garbage ] && echo "garbage"
+                        [ "$line" = na ] && echo "GPU-test-0, 4242, python, [N/A]"
+                        [ "$line" = na_other ] && echo "GPU-test-2, 4444, python, [N/A]"
                         [ "$line" = appsrc ] && exit 5
                         true ;;
+  *query-compute-apps*) echo "$*" >> "$H/nvsmi_unexpected"; echo "stub: unexpected compute-app query"; exit 9 ;;
   *memory.free*) [ "$line" = lowmem ] && echo 1000 || echo 40000
                  [ "$line" = memtwo ] && echo 40000
                  [ "$line" = memrc ] && exit 3
@@ -220,6 +226,7 @@ def test_f_three_clean_polls_fire_smoke_then_full(rig):
     assert st["clean_polls"] >= 3 and st["watcher_pid"] > 0 and st["log"].endswith("_autolaunch.log")
     assert "smoke ok" in open(os.path.join(rig["repo"], st["log"])).read()     # launcher output tee'd
     assert len((rig["h"] / "nvsmi_calls").read_text().splitlines()) >= 3
+    assert not (rig["h"] / "nvsmi_unexpected").exists()        # rC-F2: only the nounits query was asked
 
 
 def test_another_card_and_low_memory(rig):
@@ -277,6 +284,23 @@ def test_j_an_unusable_nvidia_smi_is_dirty_and_never_fires(rig, scenario):
     gpu(rig, [scenario])
     rc, _ = run(rig, max_polls=5)
     assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
+
+
+@pytest.mark.parametrize("scenario, row", [("na", "GPU-test-0, 4242, python, [N/A]"),
+                                           ("na_other", "GPU-test-2, 4444, python, [N/A]")])
+def test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits(rig, scenario, row):
+    """rC-F2 (Codex rC NIT, C4/C5): the launcher refuses a non-numeric used_memory on ANY row (rc 7);
+    the watcher mirrors it -- a DIRTY poll whose reason names the row, the clean counter reset, no
+    launcher call (no retry burnt), phase WAITING_GPU, never SMOKE, never FAILED."""
+    token(rig)
+    gpu(rig, ["free", "free", scenario, "free"])
+    rc, out = run(rig, max_polls=4)
+    st = state(rig)
+    why = f"non-numeric used_memory in compute-app row '{row}' - waiting"
+    assert rc == 3 and calls(rig) == [] and "SMOKE_RUNNING" not in out and "FAILED" not in out, out
+    assert (st["phase"], st["clean_polls"], st["gpu_retries"]) == ("WAITING_GPU", 1, 0), st
+    assert f"phase WAITING_GPU: GPUs not free: {why}" in out, out
+    assert why in open(os.path.join(rig["repo"], st["log"])).read()
 
 
 def test_k_a_commit_after_arming_is_refused(rig):
