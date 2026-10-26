@@ -24,7 +24,7 @@ set -euo pipefail
 SRC_REPO="$(git -C "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" rev-parse --show-toplevel)"
 EXPREL="worklog/worklog_yixun/exp_25_depth_canon_claude"
 OVERLAY=(depth_canon_launch.sh depth_canon_guardtests.sh depth_canon_make_pins.sh depth_canon_pins.sha256
-         depth_canon_audit_gate.py)
+         depth_canon_audit_gate.py depth_canon_autolaunch.sh)   # rC-F2 3: the watcher too (U15 reads the clone)
 H="$(mktemp -d /tmp/depth_canon_guard.XXXXXX)"   # rB-F2 F2-3 (c): /tmp, never $TMPDIR
 case "$(readlink -f -- "$H")" in /tmp/depth_canon_guard.??????) ;;
   *) echo "GUARD ABORTED: the tmp root '${H}' does not resolve under /tmp/depth_canon_guard.*"; exit 2 ;; esac
@@ -609,8 +609,11 @@ case_rc "U14 a co-tenant AND free memory below the floor: the floor refuses (rc 
   "GPU GATE FAILED: GPU 0 free 12287 MiB < 12288 MiB (12 GiB) - abort" MODE=SMOKE GUARD_GPU_FREE=12287 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
 case_rc "U14b exactly the floor beside a co-tenant passes" 0 "GPU memory gate OK: GPU 0 and GPU 1 each >= 12288 MiB free" \
   MODE=SMOKE GUARD_GPU_FREE=12288 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
-u15() {   # the v14 pinned literals, equal in the launcher (clone = the overlaid working tree) and the watcher
-  local l="$R/$EXPREL/depth_canon_launch.sh" w="$SRC_REPO/$EXPREL/depth_canon_autolaunch.sh" n v
+u15() {   # the v14 pinned literals, equal in the launcher and the watcher -- both read as the CLONE's committed
+          # content (make_clone overlays + commits them; rC-F2 3, Codex rC NIT C5: never the source working tree)
+  local l="$H/u15_launcher.sh" w="$H/u15_watcher.sh" n v
+  git -C "$R" show "HEAD:$EXPREL/depth_canon_launch.sh" > "$l" && git -C "$R" show "HEAD:$EXPREL/depth_canon_autolaunch.sh" > "$w" \
+    || { echo "the clone holds no committed launcher / watcher"; return 1; }
   grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$l" && grep -qE '^MAX_PROJECTED_HOURS=120([^0-9]|$)' "$l" \
     && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$l" || { echo "launcher literals"; return 1; }
   grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$w" && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$w" || { echo "watcher literals"; return 1; }
