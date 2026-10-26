@@ -1,0 +1,190 @@
+=== exp_25 depth_canon guard suite -- source HEAD 234bc81 -- tmp /tmp/depth_canon_guard.xS9l25 ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+  PASS  E1 no evidence (rc=2)
+  PASS  E2 evidence of another launcher (rc=2)
+  PASS  E3 evidence of another manifest (rc=2)
+  PASS  E4 a failed smoke (rc=2)
+  PASS  E5 production evidence in harness mode (rc=2)
+  PASS  E6 evidence whose log was edited (rc=2)
+  PASS  E7 a smoke that wrote a checkpoint (rc=2)
+  PASS  E8 a truthy non-bool field (rc=2)
+  FAIL  E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1) -- want rc=2 + 'FULL requires a PASSING smoke evidence'; got rc=0; last: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E9 genuine evidence accepted -- want rc=0 + 'smoke evidence: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_e9.json'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest e42cabba7d7854cff56c85490ecc53138ccd345edbc62ebd2f93be6c27457037, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit d30a7748492ecdb877954b9c8de6db38c32eec3e26c91571878858033ade58d7, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+  FAIL  B1 a record-only commit between SMOKE and FULL is accepted -- want rc=0 + 'smoke evidence:'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 097f75a5644a3e29b5b9e4af6581a184a545bb56a4c744bc9a07d7a7d781b6f6, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 4030e0e0b38c2fbedd3784951009e75a0dd134ee4e0b6d877253b1fdcea29340, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  PASS  B2 a training-closure change (+ its regenerated manifest) needs a new SMOKE (rc=2)
+  PASS  B3 a committed launcher change needs a new SMOKE (rc=2)
+  PASS  B4 a new (still qualifying) tie audit needs a new SMOKE (rc=2)
+  PASS  B5 a committed change to the audit gate needs a new SMOKE (rc=2)
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+  PASS  G1 a busy card refuses (rc 7: the watcher's transient class) (rc=7)
+  PASS  G2 the GPU gate is skipped under DRY_RUN (rc=0)
+  FAIL  G3 the W&B identity gate is skipped in harness mode -- want rc=0 + 'W&B identity gate SKIPPED (harness)'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  PASS  G4 a missing DINOv3 snapshot refuses (rc=2)
+  PASS  G5 the gate imports THIS checkout's src (rc=0)
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+  FAIL  U1 a co-tenant on GPU 0 is disclosed, not refused (policy=shared) -- want rc=0 + 'GPU occupancy gate: policy=shared - 1 co-tenant compute process(es) on GPU 0/1 disclosed, not refused:'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U1b ... naming its pid, card, uuid, MiB and cwd
+  FAIL  U2 a co-tenant on GPU 1 is named with its card, MiB and cwd -- want rc=0 + 'pid 4243 on GPU 1 (GPU-guard-1): 4806 MiB, cwd '; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  PASS  U3 a failed compute-process query refuses (rc=7)
+  FAIL  U4 a process on another (known) card is not a co-tenant -- want rc=0 + 'GPU occupancy gate: policy=shared - no compute process on GPU 0 or GPU 1'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2) -- want rc=0 + 'GPU 1 GPU-guard-1: 40000 MiB free, 0 co-tenant process(es)'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U12b ... and names the compute process seen on another card
+  FAIL  U12c the per-card co-tenant counts -- want rc=0 + 'GPU 0 GPU-guard-0: 40000 MiB free, 1 co-tenant process(es)'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U12d ... GPU 1 holds two, three in all
+  FAIL  U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)
+  FAIL  U6 a process on an UNKNOWN uuid refuses -- want rc=7 + 'unknown uuid'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  PASS  U7 a numeric memory answer with a nonzero exit refuses (rc=7)
+  PASS  U8 two memory rows for one card refuse (rc=7)
+  FAIL  U9 a malformed compute-app row refuses -- want rc=7 + 'malformed compute-app row'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  PASS  U10 a plausible uuid map with a nonzero exit refuses (rc=7)
+  FAIL  U11 plausible compute-app rows with a nonzero exit refuse -- want rc=7 + 'exited 5'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U14 a co-tenant AND free memory below the floor: the floor refuses (rc 7) -- want rc=7 + 'GPU GATE FAILED: GPU 0 free 12287 MiB < 12288 MiB (12 GiB) - abort'; got rc=7; last: GPU GATE FAILED: GPU 0 free 12287 MiB < 23040 MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing
+  FAIL  U14b exactly the floor beside a co-tenant passes -- want rc=0 + 'GPU memory gate OK: GPU 0 and GPU 1 each >= 12288 MiB free'; got rc=7; last: GPU GATE FAILED: GPU 0 free 12288 MiB < 23040 MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing
+launcher literals
+  FAIL  U15 the pinned literals 12288 / 120 / shared, mirrored by the watcher
+  FAIL  U16 a 2-field compute-app row (the v13 query's shape) is malformed -- want rc=7 + 'malformed compute-app row'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U16b a non-numeric used_memory refuses -- want rc=7 + 'malformed compute-app row'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  U17 / U17b -- the launcher has no 'GPU_OCCUPANCY_POLICY=shared' line to flip
+  FAIL  U18 -- the launcher has no 'GPU_OCCUPANCY_POLICY=shared' line to flip
+  PASS  U5 the occupancy gate is skipped under DRY_RUN (rc=0)
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+  FAIL  R1 a healthy smoke passes -- want rc=0 + 'SMOKE VERDICT: PASS'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: ''
+  FAIL  R1b it wrote evidence bound to HEAD, manifest and its final log
+  FAIL  R1c FULL accepts that evidence -- want rc=0 + 'smoke evidence: worklog/worklog_yixun/exp_25_depth_canon_claude/'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1) -- want rc=0 + 'SMOKE VERDICT: PASS'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory
+  FAIL  R1f FULL accepts the co-tenant SMOKE's evidence -- want rc=0 + 'smoke evidence: worklog/worklog_yixun/exp_25_depth_canon_claude/'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  R2 no banner -- want rc=3 + 'TREATMENT BANNER NOT FOUND'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R3 no endpoint marker -- want rc=6 + 'ENDPOINT NOT REACHED'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R4 no two-rank start -- want rc=6 + 'TWO-RANK DDP START NOT FOUND'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R5 a non-finite loss -- want rc=4 + 'NON-FINITE VALUES'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R6 too slow: 12 s/step (133 h > 120 h) -- want rc=4 + 'SMOKE VERDICT: FAIL - projected 133.3 h > MAX_PROJECTED_HOURS=120'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R6b 6 s/step (66.7 h) passes under the v14 120 h cap -- want rc=0 + 'SMOKE VERDICT: PASS - projected 66.7 h <= 120 h'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R7 no rate stamps -- want rc=4 + 'SMOKE VERDICT: FAIL - the projection could not be computed'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R8 a smoke that wrote a checkpoint -- want rc=5 + 'SMOKE WROTE 1 CHECKPOINT'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1) -- want rc=8 + 'is remapped to the terminal 8'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  R9b another train.py failure passes through unchanged -- want rc=3 + 'train.py exited rc=3'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+grep: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_*.json: No such file or directory
+  FAIL  R10 only R1 left PASS evidence
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+IsADirectoryError: [Errno 21] Is a directory: '/tmp/depth_canon_guard.xS9l25/repo/worklog/worklog_yixun/exp_25_depth_canon_claude/'
+  FAIL  L1 R1's evidence carries the latency and a finite loss
+  FAIL  L2 no latency line -- want rc=4 + 'SMOKE VERDICT: FAIL - the 'canonicalize latency'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  L3 an invalid latency -- want rc=4 + 'SMOKE VERDICT: FAIL - the 'canonicalize latency'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  L4 no training loss -- want rc=4 + 'SMOKE VERDICT: FAIL - no parseable finite training loss'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  FAIL  L5 a non-numeric loss -- want rc=4 + 'SMOKE VERDICT: FAIL - no parseable finite training loss'; got rc=7; last: GPU GATE FAILED: nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader exited 9 (stdout 'guard stub: unexpected nvidia-smi query') - refusing to launch blind
+  PASS  L6 FULL refuses evidence without the latency (rc=2)
+  PASS  L7 FULL refuses a non-positive latency (rc=2)
+  PASS  L8 FULL refuses evidence without a finite loss (rc=2)
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+  FAIL  Z1 a healthy FULL passes -- want rc=0 + 'checkpoint set OK: exactly the 16 cadence checkpoints'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z1b the checkpoint manifest hashes all 16 files
+  FAIL  Z2 no banner -- want rc=3 + 'TREATMENT BANNER NOT FOUND'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z3 the endpoint checkpoint is missing -- want rc=6 + 'ENDPOINT CHECKPOINT MISSING'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z4 no endpoint marker -- want rc=6 + 'ENDPOINT NOT REACHED'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z5 a non-finite loss in FULL -- want rc=4 + 'NON-FINITE VALUES'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z6 a foreign file -- want rc=5 + 'CHECKPOINT SET REJECTED: foreign files'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z7 a stale checkpoint -- want rc=5 + 'older than the launch marker'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z8 off-cadence checkpoint -- want rc=5 + 'cadence set'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  FAIL  Z9 FULL: train.py exited 7 is remapped to the terminal 8 -- want rc=8 + 'is remapped to the terminal 8'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest 06c0737bc9adaf875a752433f4be82fa8b7521940aa988cac436d2594c9e013b, launcher 2068af009104e4c4610cbf881335ac6e7a1a6f58741348c63dfa188a68bc1625, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit 0ca64c6dac7e4d25e3620a2ab6e46f121f8c9996be80d8ababf1170474f2bd3a, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(98 case(s) not run: GUARD_ONLY=E,B,G,U,R,L,Z)
+=== 24 passed, 55 failed, 1 skipped ===

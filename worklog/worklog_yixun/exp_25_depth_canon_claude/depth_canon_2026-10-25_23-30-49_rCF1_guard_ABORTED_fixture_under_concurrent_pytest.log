@@ -1,0 +1,76 @@
+=== exp_25 depth_canon guard suite -- source HEAD 42e6829 -- tmp /tmp/depth_canon_guard.cFGQYP ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+  PASS  P1 the list is LC_ALL=C sorted and unique
+  PASS  P1b the list covers the training path
+  PASS  P2 the manifest is deterministic and lists exactly the --list paths
+  PASS  P3 --write produces a manifest sha256sum verifies
+  PASS  P3b the source repo's COMMITTED manifest is current
+  PASS  P4 a new src/models/*.py is covered automatically
+  PASS  P5 a missing pinned file fails the generator
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+  PASS  A1 MODE unset (rc=2)
+  PASS  A2 MODE lowercase (rc=2)
+  PASS  A3 MODE near-miss (rc=2)
+  PASS  A4 DRY_RUN not 0/1 (rc=2)
+  PASS  A5 accumulation smuggled (rc=2)
+  PASS  A6 micro-batch halved (rc=2)
+  PASS  A7 non-numeric rung (rc=2)
+  PASS  A8 harness outside /tmp (rc=2)
+  PASS  A9 harness without its marker (rc=2)
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+  PASS  I1 production mode with another python first on PATH (rc=2)
+  PASS  I2 harness mode with a python outside the harness first on PATH (rc=2)
+  PASS  I3 the harness stub is accepted and named (rc=0)
+--- K. HEAD pin ---
+  PASS  K1 EXPECT_HEAD unset (rc=2)
+  PASS  K2 short EXPECT_HEAD (rc=2)
+  PASS  K3 wrong EXPECT_HEAD (rc=2)
+  PASS  K4 the pin passes (rc=0)
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+  PASS  F1 argv starts with the pinned interpreter + train.py
+  PASS  F2 FULL --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json
+  PASS  F2 FULL --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+  PASS  F2 FULL --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+  PASS  F2 FULL --max-steps 40000
+  PASS  F2 FULL --checkpoint-every 2500
+  PASS  F2 FULL --batch-size 32
+  PASS  F2 FULL --accum-batches 1
+  PASS  F2 FULL --num-gpus 2
+  PASS  F2 FULL --sync-batchnorm true
+  PASS  F2 FULL --strategy ddp_find_unused_parameters_true
+  PASS  F2 FULL --precision bf16-mixed
+  PASS  F2 FULL --seed 42
+  PASS  F2 FULL --num-workers 6
+  PASS  F2 FULL --logger wandb
+  PASS  F2 FULL --name FLAC_exp25_CANON
+  PASS  F2 FULL --experiment-name exp25_CANON
+  PASS  F2 FULL --save-dir /tmp/depth_canon_guard.cFGQYP/save
+  PASS  F3 SMOKE --max-steps 25
+  PASS  F3 SMOKE --checkpoint-every 1000000
+  PASS  F3 SMOKE --name FLAC_exp25_CANON_smoke
+  PASS  F3 SMOKE --experiment-name exp25_CANON_smoke
+  PASS  F3 SMOKE --save-dir /tmp/depth_canon_guard.cFGQYP/save
+  PASS  F3 SMOKE --sync-batchnorm true
+  PASS  F4 no validation set, no resume, no pretrained init (P1 passed none)
+  PASS  F5 every emitted flag is a defaults.ini key (prefigure)
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+  PASS  M1 a tampered pinned file (rc=2)
+  PASS  M2 an unpinned new module (rc=2)
+  PASS  M3 consistent but uncommitted (rc=2)
+  PASS  M4 an uncommitted launcher edit (rc=2)
+  PASS  M5 another VAE behind the (gitignored) weights link (rc=2)
+  PASS  M6 a committed change with its regenerated manifest is a new valid pin (rc=0)
+  PASS  M7 an edit to a config the DINOv3 gate opens (FLAC_AR_BF.json) is caught (rc=2)
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+  PASS  C1 block width 256 (rc=2)
+  PASS  C2 enabled as int 1 (rc=2)
+  PASS  C3 width as float (rc=2)
+GUARD FIXTURE FAILED: write_audit(ok) is not a complete PASS: gate {'verdict': 'INCOMPLETE', 'exit_code': 3, 'n_survivors': 0, 'n_errors': 1}; errors [{'path': 'depth_map/Cafe/Cafe_idx_0/1.npy', 'error': "RuntimeError: the cloud AR_md built differs from the resolved file's content"}]; survivors []
+GUARD ABORTED: make_clone could not build the harness tie-audit fixture (reason above)

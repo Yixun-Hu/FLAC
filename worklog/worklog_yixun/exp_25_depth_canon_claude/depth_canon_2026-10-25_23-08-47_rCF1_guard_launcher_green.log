@@ -1,0 +1,179 @@
+=== exp_25 depth_canon guard suite -- source HEAD 398e36c -- tmp /tmp/depth_canon_guard.uXYMLQ ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+  PASS  E1 no evidence (rc=2)
+  PASS  E2 evidence of another launcher (rc=2)
+  PASS  E3 evidence of another manifest (rc=2)
+  PASS  E4 a failed smoke (rc=2)
+  PASS  E5 production evidence in harness mode (rc=2)
+  PASS  E6 evidence whose log was edited (rc=2)
+  PASS  E7 a smoke that wrote a checkpoint (rc=2)
+  PASS  E8 a truthy non-bool field (rc=2)
+  PASS  E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1) (rc=2)
+  PASS  E9 genuine evidence accepted (rc=0)
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+  PASS  G1 a busy card refuses (rc 7: the watcher's transient class) (rc=7)
+  PASS  G2 the GPU gate is skipped under DRY_RUN (rc=0)
+  PASS  G3 the W&B identity gate is skipped in harness mode (rc=0)
+  PASS  G4 a missing DINOv3 snapshot refuses (rc=2)
+  PASS  G5 the gate imports THIS checkout's src (rc=0)
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+  PASS  U1 a co-tenant on GPU 0 is disclosed, not refused (policy=shared) (rc=0)
+  PASS  U1b ... naming its pid, card, uuid, MiB and cwd
+  PASS  U2 a co-tenant on GPU 1 is named with its card, MiB and cwd (rc=0)
+  PASS  U3 a failed compute-process query refuses (rc=7)
+  PASS  U4 a process on another (known) card is not a co-tenant (rc=0)
+  PASS  U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2) (rc=0)
+  PASS  U12b ... and names the compute process seen on another card
+  PASS  U12c the per-card co-tenant counts (rc=0)
+  PASS  U12d ... GPU 1 holds two, three in all
+  PASS  U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)
+  PASS  U6 a process on an UNKNOWN uuid refuses (rc=7)
+  PASS  U7 a numeric memory answer with a nonzero exit refuses (rc=7)
+  PASS  U8 two memory rows for one card refuse (rc=7)
+  PASS  U9 a malformed compute-app row refuses (rc=7)
+  PASS  U10 a plausible uuid map with a nonzero exit refuses (rc=7)
+  PASS  U11 plausible compute-app rows with a nonzero exit refuse (rc=7)
+  PASS  U14 a co-tenant AND free memory below the floor: the floor refuses (rc 7) (rc=7)
+  PASS  U14b exactly the floor beside a co-tenant passes (rc=0)
+watcher literals
+  FAIL  U15 the pinned literals 12288 / 120 / shared, mirrored by the watcher
+  PASS  U16 a 2-field compute-app row (the v13 query's shape) is malformed (rc=7)
+  PASS  U16b a non-numeric used_memory refuses (rc=7)
+  PASS  U17 GPU_OCCUPANCY_POLICY=idle restores the v10 refusal (rc 7) (rc=7)
+  PASS  U17b idle: a process on another card does not block (rc=0)
+  PASS  U18 any other policy literal is a CONFIG ERROR (rc 2) (rc=2)
+  PASS  U5 the occupancy gate is skipped under DRY_RUN (rc=0)
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+  PASS  R1 a healthy smoke passes (rc=0)
+  PASS  R1b it wrote evidence bound to HEAD, manifest and its final log
+  PASS  R1c FULL accepts that evidence (rc=0)
+  PASS  R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1) (rc=0)
+  PASS  R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory
+  PASS  R1f FULL accepts the co-tenant SMOKE's evidence (rc=0)
+  PASS  R2 no banner (rc=3)
+  PASS  R3 no endpoint marker (rc=6)
+  PASS  R4 no two-rank start (rc=6)
+  PASS  R5 a non-finite loss (rc=4)
+  PASS  R6 too slow: 12 s/step (133 h > 120 h) (rc=4)
+  PASS  R6b 6 s/step (66.7 h) passes under the v14 120 h cap (rc=0)
+  PASS  R7 no rate stamps (rc=4)
+  PASS  R8 a smoke that wrote a checkpoint (rc=5)
+  PASS  R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1) (rc=8)
+  PASS  R9b another train.py failure passes through unchanged (rc=3)
+  PASS  R10 only R1 left PASS evidence
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+  PASS  L1 R1's evidence carries the latency and a finite loss
+  PASS  L2 no latency line (rc=4)
+  PASS  L3 an invalid latency (rc=4)
+  PASS  L4 no training loss (rc=4)
+  PASS  L5 a non-numeric loss (rc=4)
+  PASS  L6 FULL refuses evidence without the latency (rc=2)
+  PASS  L7 FULL refuses a non-positive latency (rc=2)
+  PASS  L8 FULL refuses evidence without a finite loss (rc=2)
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+  PASS  Z1 a healthy FULL passes (rc=0)
+  PASS  Z1b the checkpoint manifest hashes all 16 files
+  PASS  Z2 no banner (rc=3)
+  PASS  Z3 the endpoint checkpoint is missing (rc=6)
+  PASS  Z4 no endpoint marker (rc=6)
+  PASS  Z5 a non-finite loss in FULL (rc=4)
+  PASS  Z6 a foreign file (rc=5)
+  PASS  Z7 a stale checkpoint (rc=5)
+  PASS  Z8 off-cadence checkpoint (rc=5)
+  PASS  Z9 FULL: train.py exited 7 is remapped to the terminal 8 (rc=8)
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(99 case(s) not run: GUARD_ONLY=E,G,U,R,L,Z)
+=== 74 passed, 1 failed, 1 skipped ===
