@@ -629,6 +629,15 @@ set_policy() {   # set_policy <literal>: the clone's launcher with another polic
   grep -qx "GPU_OCCUPANCY_POLICY=$1" "$R/$EXPREL/depth_canon_launch.sh" && commit_clone "guard: policy $1"
 }
 if want U; then
+  u15b() {   # rC-F2 3 (Codex rC NIT, C5): U15 must read the CLONE's committed watcher -- a clone watcher whose floor
+             # literal differs (committed in the clone only; the source repo untouched) fails it, on the watcher half
+    sed -i 's/^MIN_GPU_FREE_MIB=12288/MIN_GPU_FREE_MIB=23040/' "$R/$EXPREL/depth_canon_autolaunch.sh"
+    grep -qE '^MIN_GPU_FREE_MIB=23040([^0-9]|$)' "$R/$EXPREL/depth_canon_autolaunch.sh" || { echo "no floor literal to flip"; return 1; }
+    commit_clone "guard: watcher floor 23040"
+    local msg; msg="$(u15)" && { echo "U15 still passed: it did not read the clone's watcher"; return 1; }
+    [ "$msg" = "watcher literals" ] || { echo "U15 failed for another reason: ${msg}"; return 1; }
+  }
+  expect "U15b U15 reads the clone's committed watcher: a clone watcher with floor 23040 fails it (rC-F2)" u15b
   if set_policy idle; then
     case_rc "U17 GPU_OCCUPANCY_POLICY=idle restores the v10 refusal (rc 7)" 7 "GPU OCCUPIED: foreign compute process(es) on GPU 0/1" \
       MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, 100\n'
