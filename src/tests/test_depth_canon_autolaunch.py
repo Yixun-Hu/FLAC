@@ -174,17 +174,37 @@ def test_a_malformed_token_is_not_a_token(rig, text):
 # --------------------------------------------------------------------------- #
 # the GPU condition
 # --------------------------------------------------------------------------- #
-def test_d_busy_gpus_wait_and_the_foreign_process_is_logged(rig):
+def test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged(rig):
+    """rC-F1 (plan v14, Yixun 2026-10-25 shared launch): a foreign compute process on GPU 0 does
+    not make the poll dirty -- the memory floor decides; the co-tenant is logged ONCE, as one
+    `co-tenants:` log line per change of the pid set, never through write_state."""
     token(rig)
     gpu(rig, ["busy"])
-    rc, out = run(rig, max_polls=4)
-    assert rc == 3 and calls(rig) == [] and state(rig)["phase"] == "WAITING_GPU"
-    assert "pid 4242" in out and "32470 MiB" in out and out.count("pid 4242") == 1  # once per change
+    rc, out = run(rig, max_polls=12)
+    st = state(rig)
+    assert rc == 0, out
+    assert [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE", "MODE=FULL"] and st["phase"] == "DONE"
+    assert out.count("pid 4242") == 1 and "32470 MiB" in out                  # once per change
+    line = next(ln for ln in out.splitlines() if "pid 4242" in ln)
+    assert "co-tenants: " in line and "GPU 0" in line and "cwd " in line, line
+    log = open(os.path.join(rig["repo"], st["log"])).read()
+    assert log.count("pid 4242") == 1 and "4242" not in st["reason"]
+
+
+def test_d2_a_changed_cotenant_set_is_logged_once_per_change(rig):
+    """rC-F1: the `co-tenants:` line is printed when the set of pids changes between polls,
+    not on every poll (and the changed set is still a clean poll)."""
+    token(rig)
+    gpu(rig, ["busy", "busy", "busy1"])
+    rc, out = run(rig, max_polls=12)
+    assert rc == 0, out
+    assert out.count("pid 4242") == 1 and out.count("pid 4343") == 1
+    assert len([ln for ln in out.splitlines() if "co-tenants: " in ln]) == 2
 
 
 def test_e_a_dirty_poll_resets_the_counter(rig):
     token(rig)
-    gpu(rig, ["free", "free", "busy1", "free", "free"])
+    gpu(rig, ["free", "free", "lowmem", "free", "free"])                # rC-F1: lowmem is the dirty poll
     rc, _ = run(rig, max_polls=5)
     assert rc == 3 and calls(rig) == [] and state(rig)["clean_polls"] == 2
 
@@ -215,7 +235,7 @@ def test_another_card_and_low_memory(rig):
 
 def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
     token(rig)
-    launches(rig, ["SMOKE 7 GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - wait",
+    launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 1 free 11289 MiB < 12288 MiB (12 GiB) - abort",
                    "SMOKE 0 smoke ok", "FULL 0 full ok"])
     rc, out = run(rig, max_polls=20)
     assert rc == 0 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE", "MODE=SMOKE", "MODE=FULL"]
@@ -226,7 +246,7 @@ def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
 
 def test_g2_five_retries_then_failed(rig):
     token(rig)
-    launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
+    launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 0 free 100 MiB < 12288 MiB (12 GiB) - abort"])
     rc, out = run(rig, max_polls=60)
     st = state(rig)
     assert rc == 1 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE"] * 6
@@ -235,7 +255,7 @@ def test_g2_five_retries_then_failed(rig):
 
 def test_h_any_other_smoke_failure_is_final(rig):
     token(rig)
-    launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 70.0 h > MAX_PROJECTED_HOURS=60"])
+    launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 130.0 h > MAX_PROJECTED_HOURS=120"])
     rc, _ = run(rig)
     st = state(rig)
     assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1"]
@@ -382,7 +402,7 @@ def test_only_rc_7_is_a_transient_gpu_refusal(rig):
     """A6e: the launcher's dedicated rc 7 is the ONE transient class; the old text match is gone
     (rc 2 carrying a GPU string is a final failure)."""
     token(rig)
-    launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 23040 MiB (22.5 GiB) - abort"])
+    launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 12288 MiB (12 GiB) - abort"])
     rc, _ = run(rig, max_polls=20)
     assert rc == 1 and len(calls(rig)) == 1 and state(rig)["phase"] == "FAILED"
     assert "GPU_GATE_STR" not in open(WATCHER).read()
@@ -460,3 +480,52 @@ def test_the_log_is_complete_when_the_watcher_exits(rig):
     rc, _ = run(rig)
     text = open(os.path.join(rig["repo"], state(rig)["log"])).read()
     assert rc == 0 and "full ok" in text and text.rstrip().endswith("phase DONE: SMOKE and FULL both exited 0")
+
+
+# --------------------------------------------------------------------------- #
+# rC-F1 (plan v14): the shared-GPU policy, mirrored from the launcher
+# --------------------------------------------------------------------------- #
+def _literal(text, name):
+    import re
+    found = re.findall(rf"^{name}=(\S+)", text, re.M)
+    assert len(found) == 1, f"{name}: expected exactly one top-level assignment, found {found}"
+    return found[0]
+
+
+def test_constants_mirror_the_launcher():
+    """The watcher's floor and policy are the launcher's pinned literals (12 GiB, shared)."""
+    watcher = open(WATCHER).read()
+    launcher = open(os.path.join(REPO, EXPREL, "depth_canon_launch.sh")).read()
+    for name, want in (("MIN_GPU_FREE_MIB", "12288"), ("GPU_OCCUPANCY_POLICY", "shared")):
+        assert _literal(watcher, name) == _literal(launcher, name) == want, name
+
+
+def _watcher_with_policy(r, policy):
+    """Commit a copy of the watcher whose policy literal is <policy> into the rig's repo."""
+    path = r["exp"] / "depth_canon_autolaunch.sh"
+    text = path.read_text()
+    assert text.count("\nGPU_OCCUPANCY_POLICY=shared\n") == 1
+    path.write_text(text.replace("\nGPU_OCCUPANCY_POLICY=shared\n", f"\nGPU_OCCUPANCY_POLICY={policy}\n"))
+    _git(r["repo"], "add", "-A")
+    _git(r["repo"], "commit", "-q", "-m", f"policy {policy}")
+    r["head"] = _git(r["repo"], "rev-parse", "HEAD")
+
+
+def test_idle_policy_still_refuses_occupied_cards(rig):
+    """GPU_OCCUPANCY_POLICY=idle restores the v10 predicate: any compute process on GPU 0/1 is dirty."""
+    _watcher_with_policy(rig, "idle")
+    token(rig)
+    gpu(rig, ["busy"])
+    rc, out = run(rig, max_polls=4)
+    st = state(rig)
+    assert rc == 3 and calls(rig) == [] and st["phase"] == "WAITING_GPU", out
+    assert "foreign compute process" in st["reason"] and "pid 4242" in st["reason"]
+    assert out.count("pid 4242") == 1 and "co-tenants: " not in out
+
+
+def test_an_unknown_policy_literal_is_refused(rig):
+    """Only idle | shared exist: any other literal is a precondition refusal (exit 2), never a launch."""
+    _watcher_with_policy(rig, "relaxed")
+    token(rig)
+    rc, out = run(rig, max_polls=4)
+    assert rc == 2 and "GPU_OCCUPANCY_POLICY" in out and calls(rig) == []
