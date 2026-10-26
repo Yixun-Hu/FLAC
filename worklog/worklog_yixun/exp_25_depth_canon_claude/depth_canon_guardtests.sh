@@ -478,9 +478,11 @@ PY
 }
 clear_evidence() { rm -f "$R/$EXPREL"/depth_canon_smoke_evidence_*.json; }
 NEED="FULL requires a PASSING smoke evidence"
-# v15 1c: committed evidence RECORDS live in the exp folder (the SMOKE-1 / SMOKE-2 FAIL evidence since d28afcf), so a fresh clone
-# is not evidence-free; E1 clears the candidates like every other FULL case (production is unaffected: the launcher walks all
-# candidates newest-first and accepts the first PASS of this HEAD -- an old committed FAIL only changes the refusal wording)
+# v15 1c/1d: committed evidence RECORDS live in the exp folder (the SMOKE-1 / SMOKE-2 FAIL evidence since d28afcf, later the PASS
+# evidence of the launched FULL), so a fresh clone is not evidence-free; E1 -- and Q2 below -- clear the candidates like the other
+# evidence-focused FULL fixtures (production is unaffected: the launcher walks all candidates newest-name-first and accepts the
+# first content-bound PASS -- manifest / launcher / pins generator / contract, never the HEAD -- so a committed FAIL only changes
+# the refusal wording and a committed qualifying PASS intentionally authorizes FULL)
 clear_evidence
 case_rc "E1 no evidence"                    2 "$NEED" MODE=FULL DRY_RUN=1
 expect "E1b ... and the line after the headline says there is no candidate (rC-F2)" \
@@ -792,8 +794,10 @@ if [ "${GUARD_NAS_READONLY:-0}" = 1 ]; then
     bash -c '[ "$1" = 0 ] && grep -qF "tie audit OK" <<<"$2"' _ "$RC" "$OUT"
   expect "Q1 production SMOKE dry run passes the real NAS gate" bash -c '[ "$1" = 0 ] && grep -qF "NAS gate OK: /media/diskstation/yixunhu/FLAC/checkpoints" <<<"$2"' _ "$RC" "$OUT"
   expect "Q1b production argv saves to the NAS pin" has_value "$(argv_of "$OUT")" --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon
+  clear_evidence   # v15 1d (Codex rC4b HIGH): the fresh clone carries the committed evidence records; Q2 must prove the EVIDENCE refusal
   launch_prod MODE=FULL DRY_RUN=1
-  expect "Q2 production FULL refuses without production evidence" bash -c '[ "$1" = 2 ] && grep -qF "harness=false" <<<"$2"' _ "$RC" "$OUT"
+  expect "Q2 production FULL refuses without production evidence (headline + no candidate, harness=false)" bash -c '[ "$1" = 2 ] && grep -qF "harness=false" <<<"$2" \
+    && grep -qF "$3" <<<"$2" && grep -qxF "evidence check: no depth_canon_smoke_evidence_*.json in $4" <<<"$2"' _ "$RC" "$OUT" "$NEED" "$EXPREL"
   for fv in "--save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon" "--max-steps 40000" "--checkpoint-every 2500"; do
     expect "Q2b production FULL argv ${fv}" has_value "$(argv_of "$OUT")" "${fv%% *}" "${fv#* }"
   done
