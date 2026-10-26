@@ -1,0 +1,218 @@
+Planner v15 full guard (GREEN, post-1c) at HEAD 8025475b432cf978a4f868cae623b3b4ef2e2c4d start 2026-10-26T06:45:30-04:00 GUARD_NAS_READONLY=1
+=== exp_25 depth_canon guard suite -- source HEAD 8025475 -- tmp /tmp/depth_canon_guard.bPWpRq ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+  PASS  P1 the list is LC_ALL=C sorted and unique
+  PASS  P1b the list covers the training path
+  PASS  P2 the manifest is deterministic and lists exactly the --list paths
+  PASS  P3 --write produces a manifest sha256sum verifies
+  PASS  P3b the source repo's COMMITTED manifest is current
+  PASS  P4 a new src/models/*.py is covered automatically
+  PASS  P5 a missing pinned file fails the generator
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+  PASS  A1 MODE unset (rc=2)
+  PASS  A2 MODE lowercase (rc=2)
+  PASS  A3 MODE near-miss (rc=2)
+  PASS  A4 DRY_RUN not 0/1 (rc=2)
+  PASS  A5 accumulation smuggled (rc=2)
+  PASS  A6 micro-batch halved (rc=2)
+  PASS  A7 non-numeric rung (rc=2)
+  PASS  A8 harness outside /tmp (rc=2)
+  PASS  A9 harness without its marker (rc=2)
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+  PASS  I1 production mode with another python first on PATH (rc=2)
+  PASS  I2 harness mode with a python outside the harness first on PATH (rc=2)
+  PASS  I3 the harness stub is accepted and named (rc=0)
+--- K. HEAD pin ---
+  PASS  K1 EXPECT_HEAD unset (rc=2)
+  PASS  K2 short EXPECT_HEAD (rc=2)
+  PASS  K3 wrong EXPECT_HEAD (rc=2)
+  PASS  K4 the pin passes (rc=0)
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+  PASS  F1 argv starts with the pinned interpreter + train.py
+  PASS  F2 FULL --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json
+  PASS  F2 FULL --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json
+  PASS  F2 FULL --pretransform-ckpt-path weights/FLAC/VAE.safetensors
+  PASS  F2 FULL --max-steps 40000
+  PASS  F2 FULL --checkpoint-every 2500
+  PASS  F2 FULL --batch-size 32
+  PASS  F2 FULL --accum-batches 1
+  PASS  F2 FULL --num-gpus 2
+  PASS  F2 FULL --sync-batchnorm true
+  PASS  F2 FULL --strategy ddp_find_unused_parameters_true
+  PASS  F2 FULL --precision bf16-mixed
+  PASS  F2 FULL --seed 42
+  PASS  F2 FULL --num-workers 6
+  PASS  F2 FULL --logger wandb
+  PASS  F2 FULL --name FLAC_exp25_CANON
+  PASS  F2 FULL --experiment-name exp25_CANON
+  PASS  F2 FULL --save-dir /tmp/depth_canon_guard.bPWpRq/save
+  PASS  F3 SMOKE --max-steps 25
+  PASS  F3 SMOKE --checkpoint-every 1000000
+  PASS  F3 SMOKE --name FLAC_exp25_CANON_smoke
+  PASS  F3 SMOKE --experiment-name exp25_CANON_smoke
+  PASS  F3 SMOKE --save-dir /tmp/depth_canon_guard.bPWpRq/save
+  PASS  F3 SMOKE --sync-batchnorm true
+  PASS  F4 no validation set, no resume, no pretrained init (P1 passed none)
+  PASS  F5 every emitted flag is a defaults.ini key (prefigure)
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+  PASS  M1 a tampered pinned file (rc=2)
+  PASS  M2 an unpinned new module (rc=2)
+  PASS  M3 consistent but uncommitted (rc=2)
+  PASS  M4 an uncommitted launcher edit (rc=2)
+  PASS  M5 another VAE behind the (gitignored) weights link (rc=2)
+  PASS  M6 a committed change with its regenerated manifest is a new valid pin (rc=0)
+  PASS  M7 an edit to a config the DINOv3 gate opens (FLAC_AR_BF.json) is caught (rc=2)
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+  PASS  C1 block width 256 (rc=2)
+  PASS  C2 enabled as int 1 (rc=2)
+  PASS  C3 width as float (rc=2)
+  PASS  C4 treatment missing (rc=2)
+  PASS  C5 FA conditioning added (rc=2)
+  PASS  C6 a yaw_aug block added (rc=2)
+  PASS  C7 grad-ckpt off on one ViT (rc=2)
+  PASS  C8 ViT widths 256 (rc=2)
+  PASS  C9 a second, silent delta (rc=2)
+  PASS  C10 block not the last training key (rc=2)
+  PASS  C11 EMA off (rc=2)
+  PASS  C12 the control itself moved (rc=2)
+  PASS  C13 parse-equal but not byte-equal (rc=2)
+  PASS  C14 the genuine arm passes (rc=0)
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+  PASS  T1 no tie audit (a pinned file): the pin gate refuses (rc=2)
+  PASS  T1b SMOKE refuses without it too (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T2 a --limit audit (REFUSED_SUBSET) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T3 a split JSON changed after the audit (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T4 a tampered sidecar (re-pinned) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T5 an audit that found a survivor (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T6 an audit with an unprocessed map (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T7 an audit by another audit script (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T8 item counts that are not the census (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T10 duplicated rows (sidecar recomputed) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T11 arbitrary row paths (sidecar recomputed) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T12 a depth map changed after the audit (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T13 an untagged report in harness mode (rc=2)
+  PASS  T15 a write_audit fixture that must PASS but came out INCOMPLETE fails loudly with the row error
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T14 the harness report in PRODUCTION mode is refused (rc=2)
+  PASS  T9 the complete PASS audit is accepted (rc=0)
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+  PASS  E1 no evidence (rc=2)
+  PASS  E1b ... and the line after the headline says there is no candidate (rC-F2)
+  PASS  E2 evidence of another launcher (rc=2)
+  PASS  E3 evidence of another manifest (rc=2)
+  PASS  E4 a failed smoke (rc=2)
+  PASS  E5 production evidence in harness mode (rc=2)
+  PASS  E6 evidence whose log was edited (rc=2)
+  PASS  E7 a smoke that wrote a checkpoint (rc=2)
+  PASS  E8 a truthy non-bool field (rc=2)
+  PASS  E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1) (rc=2)
+  PASS  E11a gpu_policy deleted (rc=2)
+  PASS  E11b min_gpu_free_mib deleted (rc=2)
+  PASS  E11c max_projected_hours deleted (rc=2)
+  PASS  E11d free_mib_at_launch deleted (rc=2)
+  PASS  E11e co_tenants_at_launch deleted (rc=2)
+  PASS  E12 gpu_policy idle (not the pinned shared) (rc=2)
+  PASS  E13 the v13 floor 23040 (rc=2)
+  PASS  E14 the v13 cap 60 h (rc=2)
+  PASS  E15 free_mib_at_launch null (the writer's no-gate form) (rc=2)
+  PASS  E16 a card missing (rc=2)
+  PASS  E17 GPU 1 below the floor (rc=2)
+  PASS  E18 a free value as a string (rc=2)
+  PASS  E19 a co-tenant record without cwd (rc=2)
+  PASS  E20 a co-tenant pid 0 (rc=2)
+  PASS  E21 a co-tenant on GPU 2 (rc=2)
+  PASS  E22 a co-tenant used_mib -1 (rc=2)
+  PASS  E23 a co-tenant with an empty cwd (rc=2)
+  PASS  E24 a bool smuggled as the pid (rc=2)
+  PASS  E25 valid co-tenant records (incl. cwd '?', 0 MiB) are accepted (rc=0)
+  PASS  E26 an unreadable evidence file is refused (rc=2)
+  PASS  E9 genuine evidence accepted (rc=0)
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+  PASS  B1 a record-only commit between SMOKE and FULL is accepted (rc=0)
+  PASS  B2 a training-closure change (+ its regenerated manifest) needs a new SMOKE (rc=2)
+  PASS  B3 a committed launcher change needs a new SMOKE (rc=2)
+  PASS  B4 a new (still qualifying) tie audit needs a new SMOKE (rc=2)
+  PASS  B5 a committed change to the audit gate needs a new SMOKE (rc=2)
+--- N. NAS gate on the save root: identity, free space, write probe ---
+  PASS  N1 a non-CIFS save root (real findmnt) (rc=2)
+  PASS  N2 another CIFS share (rc=2)
+  PASS  N3 under 30 GiB free (rc=2)
+KILLED by the Planner at 2026-10-26T06:55:57-04:00 at   PASS  N3 under 30 GiB free (rc=2) to apply the Q2 fixture fix (Codex rC4b HIGH); superseded by the post-1d full run

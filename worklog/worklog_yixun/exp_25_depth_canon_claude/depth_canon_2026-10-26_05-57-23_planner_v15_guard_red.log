@@ -1,0 +1,155 @@
+Planner v15 RED: GUARD_ONLY=R,U at HEAD 18ca5d4f16fed27964ecda074c320f209e61632b (launcher still MAX_PROJECTED_HOURS=120) start 2026-10-26T05:57:23-04:00
+=== exp_25 depth_canon guard suite -- source HEAD 18ca5d4 -- tmp /tmp/depth_canon_guard.vSMUhX ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+  PASS  U1 a co-tenant on GPU 0 is disclosed, not refused (policy=shared) (rc=0)
+  PASS  U1b ... naming its pid, card, uuid, MiB and cwd
+  PASS  U2 a co-tenant on GPU 1 is named with its card, MiB and cwd (rc=0)
+  PASS  U3 a failed compute-process query refuses (rc=7)
+  PASS  U4 a process on another (known) card is not a co-tenant (rc=0)
+  PASS  U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2) (rc=0)
+  PASS  U12b ... and names the compute process seen on another card
+  PASS  U12c the per-card co-tenant counts (rc=0)
+  PASS  U12d ... GPU 1 holds two, three in all
+  PASS  U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)
+  PASS  U6 a process on an UNKNOWN uuid refuses (rc=7)
+  PASS  U7 a numeric memory answer with a nonzero exit refuses (rc=7)
+  PASS  U8 two memory rows for one card refuse (rc=7)
+  PASS  U9 a malformed compute-app row refuses (rc=7)
+  PASS  U10 a plausible uuid map with a nonzero exit refuses (rc=7)
+  PASS  U11 plausible compute-app rows with a nonzero exit refuse (rc=7)
+  PASS  U14 a co-tenant AND free memory below the floor: the floor refuses (rc 7) (rc=7)
+  PASS  U14b exactly the floor beside a co-tenant passes (rc=0)
+launcher literals
+  FAIL  U15 the pinned literals 12288 / 300 (v15) / shared, mirrored by the watcher
+  PASS  U16 a 2-field compute-app row (the v13 query's shape) is malformed (rc=7)
+  PASS  U16b a non-numeric used_memory refuses (rc=7)
+U15 failed for another reason: launcher literals
+  FAIL  U15b U15 reads the clone's committed watcher: a clone watcher with floor 23040 fails it (rC-F2)
+  PASS  U17 GPU_OCCUPANCY_POLICY=idle restores the v10 refusal (rc 7) (rc=7)
+  PASS  U17b idle: a process on another card does not block (rc=0)
+  PASS  U18 any other policy literal is a CONFIG ERROR (rc 2) (rc=2)
+  PASS  U5 the occupancy gate is skipped under DRY_RUN (rc=0)
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+  PASS  R1 a healthy smoke passes (rc=0)
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+AssertionError
+  FAIL  R1b it wrote evidence bound to HEAD, manifest and its final log
+  PASS  R1c FULL accepts that evidence (the writer -> FULL predicate round trip) (rc=0)
+  PASS  R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1) (rc=0)
+  PASS  R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory
+  PASS  R1f FULL accepts the co-tenant SMOKE's evidence (rc=0)
+  PASS  R2 no banner (rc=3)
+  PASS  R3 no endpoint marker (rc=6)
+  PASS  R4 no two-rank start (rc=6)
+  PASS  R5 a non-finite loss (rc=4)
+  FAIL  R6 too slow: 30 s/step (333 h > 300 h, v15) -- want rc=4 + 'SMOKE VERDICT: FAIL - projected 333.3 h > MAX_PROJECTED_HOURS=300'; got rc=4; last: smoke evidence (FAIL): worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_2026-10-26_06-07-57.json
+  FAIL  R6b 6 s/step (66.7 h) passes under the v15 300 h cap -- want rc=0 + 'SMOKE VERDICT: PASS - projected 66.7 h <= 300 h'; got rc=0; last: smoke evidence (PASS): worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_2026-10-26_06-08-23.json
+  FAIL  R6c the measured contended rate 19.267 s/step (214.1 h) passes under the v15 300 h cap -- want rc=0 + 'SMOKE VERDICT: PASS - projected 214.1 h <= 300 h'; got rc=4; last: smoke evidence (FAIL): worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_2026-10-26_06-08-49.json
+  FAIL  R6d 27.1 s/step (300.7 h from the integer stamps) is refused just above the v15 cap -- want rc=4 + 'SMOKE VERDICT: FAIL - projected 300.7 h > MAX_PROJECTED_HOURS=300'; got rc=4; last: smoke evidence (FAIL): worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_2026-10-26_06-09-15.json
+  PASS  R7 no rate stamps (rc=4)
+  PASS  R8 a smoke that wrote a checkpoint (rc=5)
+  PASS  R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1) (rc=8)
+  PASS  R9b another train.py failure passes through unchanged (rc=3)
+  PASS  R10 only R1 left PASS evidence
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+--- W. W&B: train.py always runs with the pinned WANDB_MODE offline (rC-F3: SDK 0.15.4 cannot create online runs) ---
+
+(178 case(s) not run: GUARD_ONLY=R,U)
+=== 38 passed, 7 failed, 0 skipped ===
+GUARD_RC=1 end 2026-10-26T06:15:34-04:00

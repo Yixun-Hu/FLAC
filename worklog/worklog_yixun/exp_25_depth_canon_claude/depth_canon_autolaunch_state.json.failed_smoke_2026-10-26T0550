@@ -1,0 +1,15 @@
+{
+ "schema_version": 1,
+ "kind": "depth_canon_autolaunch_state",
+ "phase": "FAILED",
+ "reason": "stage=SMOKE rc=4 (see worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_05-36-07_autolaunch_smoke_1.out); FULL not attempted",
+ "watcher_pid": 293774,
+ "started": "2026-10-26T05:36:07-04:00",
+ "updated": "2026-10-26T05:50:33-04:00",
+ "token_head": "d838c8e3e0dedf7972e1f8d5f648585bae6c6e4a",
+ "clean_polls": 3,
+ "gpu_retries": 0,
+ "smoke_rc": 4,
+ "full_rc": null,
+ "log": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_05-36-07_autolaunch.log"
+}

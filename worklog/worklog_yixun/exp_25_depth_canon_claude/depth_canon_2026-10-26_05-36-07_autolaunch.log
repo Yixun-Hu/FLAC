@@ -1,0 +1,193 @@
+=== exp_25 depth_canon autolaunch -- 2026-10-26_05-36-07 -- pid 293774 -- launcher worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_launch.sh -- harness=none ===
+poll 60 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 12288 MiB, GPU occupancy policy shared
+[2026-10-26T05:36:07-04:00] phase WAITING_TOKEN: starting
+[2026-10-26T05:36:07-04:00] co-tenants: GPU 0: pid 2750798 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32256 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt13); GPU 1: pid 2914825 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28); 
+[2026-10-26T05:36:07-04:00] phase WAITING_GPU: clean poll 1/3
+[2026-10-26T05:37:07-04:00] phase WAITING_GPU: clean poll 2/3
+[2026-10-26T05:38:07-04:00] phase WAITING_GPU: clean poll 3/3
+[2026-10-26T05:38:07-04:00] phase SMOKE_RUNNING: MODE=SMOKE EXPECT_HEAD=d838c8e3e0dedf7972e1f8d5f648585bae6c6e4a
+=== exp_25 depth_canon SMOKE -- 2026-10-26_05-38-08 -- HEAD d838c8e3e0dedf7972e1f8d5f648585bae6c6e4a -- dry_run=0 -- harness=false ===
+identity: project=FLAC_exp25_CANON_smoke | run=exp25_CANON_smoke | save-root=/media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon (production pin /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon)
+budget: mode=SMOKE | endpoint=25 | cadence=1000000
+interpreter OK: /home/yixunhu/miniconda3/envs/flac/bin/python
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/apis/public.py:3080: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+W&B mode: offline (pinned WANDB_MODE_PIN; SDK 0.15.4 cannot create online runs against the current server - offline runs in /home/yixunhu/codespace/exp-25-depth-canon/wandb/offline-run-*, sync later)
+ARGV: /home/yixunhu/miniconda3/envs/flac/bin/python train.py --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 25 --checkpoint-every 1000000 --batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true --strategy ddp_find_unused_parameters_true --precision bf16-mixed --seed 42 --num-workers 6 --logger wandb --name FLAC_exp25_CANON_smoke --experiment-name exp25_CANON_smoke --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon
+HEAD pin OK: d838c8e3e0dedf7972e1f8d5f648585bae6c6e4a
+pin manifest OK: 48 files match worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (sha256 631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb); pinned paths + launcher kit committed at HEAD
+config contract OK: worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json (sha 733ca52b66c4...) + training.canonicalize {'enabled': True, 'img_w': 512}
+tie audit OK: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json (sha256 b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e) via worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_audit_gate.py: the registered census, 0 survivors, 0 errors, hashes current, map bytes re-hashed
+evidence binding: manifest 631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb launcher 2c3453e826ba89ef2ae97e73fb6847f164a583d4eff497472f9943401c33a9c1 pins-generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2 contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115 audit b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e audit-gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d
+NAS gate OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon is cifs //10.249.7.28/shared_data, 16435512938496 bytes free, write probe created + removed
+run namespace OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON_smoke/exp25_CANON_smoke
+GPU memory gate OK: GPU 0 and GPU 1 each >= 12288 MiB free
+GPU occupancy gate: policy=shared - 2 co-tenant compute process(es) on GPU 0/1 disclosed, not refused:
+  pid 2750798 on GPU 0 (GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e): 32256 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt13
+  pid 2914825 on GPU 1 (GPU-6ac2604a-e84e-0615-1221-ccbed7c268da): 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28
+--- co-tenancy disclosure at launch (the validated gate answers above) ---
+GPU 0 GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e: 16264 MiB free, 1 co-tenant process(es)
+GPU 1 GPU-6ac2604a-e84e-0615-1221-ccbed7c268da: 16074 MiB free, 1 co-tenant process(es)
+compute processes on other cards: none
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/apis/public.py:3080: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+wandb identity: yh4742@princeton.edu
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+src imported from /home/yixunhu/codespace/exp-25-depth-canon/src
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, every file pinned (config.json 9481247be9f9…, model.safetensors 4610ad75edef…; launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+--- env manifest ---
+python: /home/yixunhu/miniconda3/envs/flac/bin/python
+torch 2.7.0+cu126 cuda 12.6
+pip-freeze sha256: e896c48f61ce6f67e3520a5a9b6b145aeab938e846687051056aad30571ddec1
+launch marker: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/.depth_canon_launch_exp25_CANON_smoke_2026-10-26_05-38-08 (its filesystem mtime is this run's ownership epoch)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/apis/public.py:3080: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+wandb: WARNING `resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id nb4eiif0.
+wandb: Tracking run with wandb version 0.15.4
+wandb: W&B syncing is set to `offline` in this directory.  
+wandb: Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: logging graph, to disable use `wandb.watch(log_graph=False)`
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+[rank: 0] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+[rank: 1] Seed set to 42
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+[rank: 1] Seed set to 42
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+LOCAL_RANK: 1 - CUDA_VISIBLE_DEVICES: [0,1]
+
+  | Name          | Type                             | Params
+-------------------------------------------------------------------
+0 | diffusion     | ConditionedDiffusionModelWrapper | 64.5 M
+1 | diffusion_ema | EMA                              | 16.7 M
+2 | losses        | MultiLoss                        | 0     
+-------------------------------------------------------------------
+50.3 M    Trainable params
+30.9 M    Non-trainable params
+81.2 M    Total params
+324.893   Total estimated model params size (MB)
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+canonicalize ENABLED img_w=512 tiebreak=image
+Using Augmentations: Random Time Shift, Add Noise
+Running json scandir...
+Found 291210 files in 243 subfolders
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/4550 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/4550 [00:00<?, ?it/s] Epoch 0:   0%|          | 1/4550 [02:11<166:19:48,  0.01it/s]Epoch 0:   0%|          | 1/4550 [02:11<166:20:13,  0.01it/s, v_num=iif0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360]Epoch 0:   0%|          | 2/4550 [02:25<92:13:08,  0.01it/s, v_num=iif0, train/loss=2.360, train/std_data=1.140, train/lr=5e-7, train/mse_loss=2.360] Epoch 0:   0%|          | 2/4550 [02:25<92:13:09,  0.01it/s, v_num=iif0, train/loss=2.670, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.670]Epoch 0:   0%|          | 3/4550 [02:29<62:59:10,  0.02it/s, v_num=iif0, train/loss=2.670, train/std_data=1.230, train/lr=9.95e-7, train/mse_loss=2.670]Epoch 0:   0%|          | 3/4550 [02:29<62:59:26,  0.02it/s, v_num=iif0, train/loss=2.400, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 4/4550 [02:33<48:29:20,  0.03it/s, v_num=iif0, train/loss=2.400, train/std_data=1.160, train/lr=1.49e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 4/4550 [02:33<48:29:24,  0.03it/s, v_num=iif0, train/loss=2.320, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.320]Epoch 0:   0%|          | 5/4550 [02:37<39:46:02,  0.03it/s, v_num=iif0, train/loss=2.320, train/std_data=1.130, train/lr=1.97e-6, train/mse_loss=2.320]Epoch 0:   0%|          | 5/4550 [02:37<39:46:05,  0.03it/s, v_num=iif0, train/loss=2.410, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.410]Epoch 0:   0%|          | 6/4550 [02:41<33:55:44,  0.04it/s, v_num=iif0, train/loss=2.410, train/std_data=1.160, train/lr=2.45e-6, train/mse_loss=2.410]Epoch 0:   0%|          | 6/4550 [02:41<33:55:45,  0.04it/s, v_num=iif0, train/loss=2.470, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.470]Epoch 0:   0%|          | 7/4550 [04:06<44:28:12,  0.03it/s, v_num=iif0, train/loss=2.470, train/std_data=1.180, train/lr=2.93e-6, train/mse_loss=2.470]Epoch 0:   0%|          | 7/4550 [04:06<44:28:14,  0.03it/s, v_num=iif0, train/loss=2.500, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.500] Epoch 0:   0%|          | 8/4550 [04:21<41:12:07,  0.03it/s, v_num=iif0, train/loss=2.500, train/std_data=1.190, train/lr=3.4e-6, train/mse_loss=2.500]Epoch 0:   0%|          | 8/4550 [04:21<41:12:10,  0.03it/s, v_num=iif0, train/loss=2.280, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.280]Epoch 0:   0%|          | 9/4550 [04:24<37:05:59,  0.03it/s, v_num=iif0, train/loss=2.280, train/std_data=1.080, train/lr=3.86e-6, train/mse_loss=2.280]Epoch 0:   0%|          | 9/4550 [04:24<37:06:00,  0.03it/s, v_num=iif0, train/loss=2.580, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.580]Epoch 0:   0%|          | 10/4550 [04:28<33:49:24,  0.04it/s, v_num=iif0, train/loss=2.580, train/std_data=1.220, train/lr=4.32e-6, train/mse_loss=2.580]Epoch 0:   0%|          | 10/4550 [04:28<33:49:25,  0.04it/s, v_num=iif0, train/loss=2.510, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.510]Epoch 0:   0%|          | 11/4550 [04:32<31:11:43,  0.04it/s, v_num=iif0, train/loss=2.510, train/std_data=1.160, train/lr=4.78e-6, train/mse_loss=2.510]Epoch 0:   0%|          | 11/4550 [04:32<31:11:43,  0.04it/s, v_num=iif0, train/loss=2.340, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.340]Epoch 0:   0%|          | 12/4550 [04:36<29:00:19,  0.04it/s, v_num=iif0, train/loss=2.340, train/std_data=1.140, train/lr=5.23e-6, train/mse_loss=2.340]Epoch 0:   0%|          | 12/4550 [04:36<29:00:21,  0.04it/s, v_num=iif0, train/loss=2.460, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 13/4550 [05:51<34:06:36,  0.04it/s, v_num=iif0, train/loss=2.460, train/std_data=1.180, train/lr=5.68e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 13/4550 [05:51<34:06:36,  0.04it/s, v_num=iif0, train/loss=2.350, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 14/4550 [06:05<32:55:56,  0.04it/s, v_num=iif0, train/loss=2.350, train/std_data=1.120, train/lr=6.12e-6, train/mse_loss=2.350]Epoch 0:   0%|          | 14/4550 [06:05<32:55:57,  0.04it/s, v_num=iif0, train/loss=2.270, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.270]Epoch 0:   0%|          | 15/4550 [06:09<31:02:43,  0.04it/s, v_num=iif0, train/loss=2.270, train/std_data=1.120, train/lr=6.56e-6, train/mse_loss=2.270]Epoch 0:   0%|          | 15/4550 [06:09<31:02:44,  0.04it/s, v_num=iif0, train/loss=2.540, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.540]   Epoch 0:   0%|          | 16/4550 [06:13<29:24:30,  0.04it/s, v_num=iif0, train/loss=2.540, train/std_data=1.180, train/lr=7e-6, train/mse_loss=2.540]Epoch 0:   0%|          | 16/4550 [06:13<29:24:31,  0.04it/s, v_num=iif0, train/loss=2.430, train/std_data=1.190, train/lr=7.43e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 17/4550 [06:17<27:57:24,  0.05it/s, v_num=iif0, train/loss=2.430, train/std_data=1.190, train/lr=7.43e-6, train/mse_loss=2.430]Epoch 0:   0%|          | 17/4550 [06:17<27:57:25,  0.05it/s, v_num=iif0, train/loss=2.460, train/std_data=1.180, train/lr=7.85e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 18/4550 [06:20<26:38:38,  0.05it/s, v_num=iif0, train/loss=2.460, train/std_data=1.180, train/lr=7.85e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 18/4550 [06:20<26:38:38,  0.05it/s, v_num=iif0, train/loss=2.710, train/std_data=1.270, train/lr=8.27e-6, train/mse_loss=2.710]Epoch 0:   0%|          | 19/4550 [07:43<30:42:53,  0.04it/s, v_num=iif0, train/loss=2.710, train/std_data=1.270, train/lr=8.27e-6, train/mse_loss=2.710]Epoch 0:   0%|          | 19/4550 [07:43<30:42:53,  0.04it/s, v_num=iif0, train/loss=2.400, train/std_data=1.150, train/lr=8.69e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 20/4550 [07:47<29:25:26,  0.04it/s, v_num=iif0, train/loss=2.400, train/std_data=1.150, train/lr=8.69e-6, train/mse_loss=2.400]Epoch 0:   0%|          | 20/4550 [07:47<29:25:27,  0.04it/s, v_num=iif0, train/loss=2.410, train/std_data=1.170, train/lr=9.1e-6, train/mse_loss=2.410] Epoch 0:   0%|          | 21/4550 [07:51<28:14:14,  0.04it/s, v_num=iif0, train/loss=2.410, train/std_data=1.170, train/lr=9.1e-6, train/mse_loss=2.410]Epoch 0:   0%|          | 21/4550 [07:51<28:14:14,  0.04it/s, v_num=iif0, train/loss=2.460, train/std_data=1.160, train/lr=9.51e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 22/4550 [07:54<27:08:55,  0.05it/s, v_num=iif0, train/loss=2.460, train/std_data=1.160, train/lr=9.51e-6, train/mse_loss=2.460]Epoch 0:   0%|          | 22/4550 [07:54<27:08:55,  0.05it/s, v_num=iif0, train/loss=2.360, train/std_data=1.180, train/lr=9.92e-6, train/mse_loss=2.360]Epoch 0:   1%|          | 23/4550 [08:01<26:20:21,  0.05it/s, v_num=iif0, train/loss=2.360, train/std_data=1.180, train/lr=9.92e-6, train/mse_loss=2.360]Epoch 0:   1%|          | 23/4550 [08:01<26:20:22,  0.05it/s, v_num=iif0, train/loss=2.460, train/std_data=1.190, train/lr=1.03e-5, train/mse_loss=2.460]Epoch 0:   1%|          | 24/4550 [08:05<25:25:35,  0.05it/s, v_num=iif0, train/loss=2.460, train/std_data=1.190, train/lr=1.03e-5, train/mse_loss=2.460]Epoch 0:   1%|          | 24/4550 [08:05<25:25:35,  0.05it/s, v_num=iif0, train/loss=2.310, train/std_data=1.130, train/lr=1.07e-5, train/mse_loss=2.310]Epoch 0:   1%|          | 25/4550 [09:17<28:02:15,  0.04it/s, v_num=iif0, train/loss=2.310, train/std_data=1.130, train/lr=1.07e-5, train/mse_loss=2.310]Epoch 0:   1%|          | 25/4550 [09:17<28:02:16,  0.04it/s, v_num=iif0, train/loss=2.470, train/std_data=1.200, train/lr=1.11e-5, train/mse_loss=2.470]Epoch 0:   1%|          | 25/4550 [09:17<28:02:16,  0.04it/s, v_num=iif0, train/loss=2.470, train/std_data=1.200, train/lr=1.11e-5, train/mse_loss=2.470]`Trainer.fit` stopped: `max_steps=25` reached.
+Epoch 0:   1%|          | 25/4550 [09:17<28:02:16,  0.04it/s, v_num=iif0, train/loss=2.470, train/std_data=1.200, train/lr=1.11e-5, train/mse_loss=2.470]
+canonicalize tie_counts rank0 none=770 same_column=5 cross_column_image=25
+canonicalize latency rank0 batches=25 samples=800 total_s=7.401486 mean_ms_per_batch=296.059
+wandb: Waiting for W&B process to finish... (success).
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync ./wandb/offline-run-20261026_054029-nb4eiif0
+wandb: Find logs at: ./wandb/offline-run-20261026_054029-nb4eiif0/logs
+=== exp_25 depth_canon SMOKE: train.py exited rc=0 after 608 s ===
+[rank1]:[W1026 05:50:28.429811764 TCPStore.cpp:125] [c10d] recvValue failed on SocketImpl(fd=22, addr=[localhost]:49284, remote=[localhost]:49237): failed to recv, got 0 bytes
+Exception raised from recvBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:678 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x70454db785e8 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8afe (0x7045367a8afe in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baae40 (0x7045367aae40 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5bab74a (0x7045367ab74a in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x2a9 (0x7045367a51a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7044f37e09a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x70454d6ea0e6 in /home/yixunhu/miniconda3/envs/flac/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x9cb84 (0x70454ec9cb84 in /lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x129ecc (0x70454ed29ecc in /lib/x86_64-linux-gnu/libc.so.6)
+
+[rank1]:[W1026 05:50:28.435942285 ProcessGroupNCCL.cpp:1659] [PG ID 0 PG GUID 0(default_pg) Rank 1] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: failed to recv, got 0 bytes
+[rank1]:[W1026 05:50:29.436213749 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=22, addr=[localhost]:49284, remote=[localhost]:49237): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x70454db785e8 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8afe (0x7045367a8afe in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa358 (0x7045367aa358 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babb3e (0x7045367abb3e in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7045367a5198 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7044f37e09a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x70454d6ea0e6 in /home/yixunhu/miniconda3/envs/flac/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x9cb84 (0x70454ec9cb84 in /lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x129ecc (0x70454ed29ecc in /lib/x86_64-linux-gnu/libc.so.6)
+
+[rank1]:[W1026 05:50:29.442807385 ProcessGroupNCCL.cpp:1659] [PG ID 0 PG GUID 0(default_pg) Rank 1] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank1]:[W1026 05:50:30.443024759 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=22, addr=[localhost]:49284, remote=[localhost]:49237): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x70454db785e8 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8afe (0x7045367a8afe in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa358 (0x7045367aa358 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babb3e (0x7045367abb3e in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7045367a5198 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7044f37e09a9 in /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x70454d6ea0e6 in /home/yixunhu/miniconda3/envs/flac/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x9cb84 (0x70454ec9cb84 in /lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x129ecc (0x70454ed29ecc in /lib/x86_64-linux-gnu/libc.so.6)
+
+[rank1]:[W1026 05:50:30.448859624 ProcessGroupNCCL.cpp:1659] [PG ID 0 PG GUID 0(default_pg) Rank 1] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+treatment banner: FOUND (whole line 'canonicalize ENABLED img_w=512 tiebreak=image')
+non-finite scan: clean
+smoke checkpoints: 0 under /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON_smoke/exp25_CANON_smoke (cadence 1000000 >> 25 steps)
+SMOKE: 25 steps in 608 s wall (startup included -> 270.2 h, descriptive); steady state 19.267 s/step -> 214.1 h for 40000 steps
+SMOKE: 51 train/loss value(s) after completed steps, all finite: True; canonicalization latency: {'batches': 25, 'samples': 800, 'total_s': 7.401486, 'mean_ms_per_batch': 296.059}
+SMOKE VERDICT: FAIL - projected 214.1 h > MAX_PROJECTED_HOURS=120
+=== exp_25 depth_canon SMOKE finished: exit 4 ===
+smoke evidence (FAIL): worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_smoke_evidence_2026-10-26_05-38-08.json
+[2026-10-26T05:50:33-04:00] phase FAILED: stage=SMOKE rc=4 (see worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_05-36-07_autolaunch_smoke_1.out); FULL not attempted

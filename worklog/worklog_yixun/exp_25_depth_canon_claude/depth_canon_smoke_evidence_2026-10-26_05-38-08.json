@@ -1,0 +1,60 @@
+{
+ "schema_version": 2,
+ "kind": "depth_canon_smoke_evidence",
+ "verdict": "FAIL",
+ "why": "projected 214.1 h > MAX_PROJECTED_HOURS=120",
+ "head": "d838c8e3e0dedf7972e1f8d5f648585bae6c6e4a",
+ "manifest_sha256": "631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb",
+ "launcher_sha256": "2c3453e826ba89ef2ae97e73fb6847f164a583d4eff497472f9943401c33a9c1",
+ "make_pins_sha256": "8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2",
+ "contract_sha256": "ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115",
+ "audit_sha256": "b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e",
+ "audit_gate_sha256": "452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d",
+ "harness": false,
+ "config_contract_ok": true,
+ "banner_seen": true,
+ "endpoint_seen": true,
+ "ranks_seen": true,
+ "nonfinite_seen": false,
+ "smoke_checkpoints": 0,
+ "elapsed_s": 608.0,
+ "startup_inclusive_projection_h": 270.22222222222223,
+ "steady_state_s_per_step": 19.266666666666666,
+ "steps_per_s": 0.051903114186851215,
+ "projection_h": 214.07407407407408,
+ "max_projected_hours": 120,
+ "finite_loss_seen": true,
+ "train_loss_values_seen": 51,
+ "last_train_loss": 2.47,
+ "canonicalization_latency": {
+  "batches": 25,
+  "samples": 800,
+  "total_s": 7.401486,
+  "mean_ms_per_batch": 296.059
+ },
+ "canonicalization_latency_ms": 296.059,
+ "gpu_policy": "shared",
+ "min_gpu_free_mib": 12288,
+ "free_mib_at_launch": {
+  "0": 16264,
+  "1": 16074
+ },
+ "co_tenants_at_launch": [
+  {
+   "gpu": 0,
+   "pid": 2750798,
+   "used_mib": 32256,
+   "cwd": "/home/yixunhu/codespace/xRIR_code_wt13"
+  },
+  {
+   "gpu": 1,
+   "pid": 2914825,
+   "used_mib": 32266,
+   "cwd": "/home/yixunhu/codespace/xRIR_code_wt28"
+  }
+ ],
+ "train_rc": 0,
+ "argv": "/home/yixunhu/miniconda3/envs/flac/bin/python train.py --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 25 --checkpoint-every 1000000 --batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true --strategy ddp_find_unused_parameters_true --precision bf16-mixed --seed 42 --num-workers 6 --logger wandb --name FLAC_exp25_CANON_smoke --experiment-name exp25_CANON_smoke --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon",
+ "log": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_05-38-08_exp25_CANON_smoke_train.log",
+ "log_sha256": "7d33aec788b9c466d159074d9def2600424947724086b3cb7e6ce6a1a32ce40c"
+}
