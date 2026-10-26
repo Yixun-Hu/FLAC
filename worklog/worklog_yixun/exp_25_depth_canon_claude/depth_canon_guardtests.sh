@@ -478,6 +478,10 @@ PY
 }
 clear_evidence() { rm -f "$R/$EXPREL"/depth_canon_smoke_evidence_*.json; }
 NEED="FULL requires a PASSING smoke evidence"
+# v15 1c: committed evidence RECORDS live in the exp folder (the SMOKE-1 / SMOKE-2 FAIL evidence since d28afcf), so a fresh clone
+# is not evidence-free; E1 clears the candidates like every other FULL case (production is unaffected: the launcher walks all
+# candidates newest-first and accepts the first PASS of this HEAD -- an old committed FAIL only changes the refusal wording)
+clear_evidence
 case_rc "E1 no evidence"                    2 "$NEED" MODE=FULL DRY_RUN=1
 expect "E1b ... and the line after the headline says there is no candidate (rC-F2)" \
   grep -qxF "evidence check: no depth_canon_smoke_evidence_*.json in $EXPREL" <<<"$OUT"
