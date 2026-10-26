@@ -262,7 +262,7 @@ def test_g2_five_retries_then_failed(rig):
 
 def test_h_any_other_smoke_failure_is_final(rig):
     token(rig)
-    launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 130.0 h > MAX_PROJECTED_HOURS=120"])
+    launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 330.0 h > MAX_PROJECTED_HOURS=300"])
     rc, _ = run(rig)
     st = state(rig)
     assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1"]

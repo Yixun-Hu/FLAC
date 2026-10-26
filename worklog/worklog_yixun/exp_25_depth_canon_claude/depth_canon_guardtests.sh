@@ -466,7 +466,7 @@ ev = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": "PAS
       "harness": True, "config_contract_ok": True, "banner_seen": True,
       "endpoint_seen": True, "ranks_seen": True, "nonfinite_seen": False, "smoke_checkpoints": 0,
       "finite_loss_seen": True, "canonicalization_latency_ms": 3.5,
-      "gpu_policy": "shared", "min_gpu_free_mib": 12288, "max_projected_hours": 120,
+      "gpu_policy": "shared", "min_gpu_free_mib": 12288, "max_projected_hours": 300,
       "free_mib_at_launch": {"0": 40000, "1": 40000},
       "co_tenants_at_launch": [], "log": log, "log_sha256": hashlib.sha256(open(log, "rb").read()).hexdigest()}
 ev.update(eval(over))
@@ -615,12 +615,12 @@ case_rc "U14 a co-tenant AND free memory below the floor: the floor refuses (rc 
   "GPU GATE FAILED: GPU 0 free 12287 MiB < 12288 MiB (12 GiB) - abort" MODE=SMOKE GUARD_GPU_FREE=12287 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
 case_rc "U14b exactly the floor beside a co-tenant passes" 0 "GPU memory gate OK: GPU 0 and GPU 1 each >= 12288 MiB free" \
   MODE=SMOKE GUARD_GPU_FREE=12288 GUARD_GPU_APPS='4242, GPU-guard-0, 30000\n'
-u15() {   # the v14 pinned literals, equal in the launcher and the watcher -- both read as the CLONE's committed
+u15() {   # the v14/v15 pinned literals, equal in the launcher and the watcher -- both read as the CLONE's committed
           # content (make_clone overlays + commits them; rC-F2 3, Codex rC NIT C5: never the source working tree)
   local l="$H/u15_launcher.sh" w="$H/u15_watcher.sh" n v
   git -C "$R" show "HEAD:$EXPREL/depth_canon_launch.sh" > "$l" && git -C "$R" show "HEAD:$EXPREL/depth_canon_autolaunch.sh" > "$w" \
     || { echo "the clone holds no committed launcher / watcher"; return 1; }
-  grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$l" && grep -qE '^MAX_PROJECTED_HOURS=120([^0-9]|$)' "$l" \
+  grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$l" && grep -qE '^MAX_PROJECTED_HOURS=300([^0-9]|$)' "$l" \
     && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$l" || { echo "launcher literals"; return 1; }
   grep -qE '^MIN_GPU_FREE_MIB=12288([^0-9]|$)' "$w" && grep -qx 'GPU_OCCUPANCY_POLICY=shared' "$w" || { echo "watcher literals"; return 1; }
   for n in MIN_GPU_FREE_MIB GPU_OCCUPANCY_POLICY; do
@@ -629,7 +629,7 @@ u15() {   # the v14 pinned literals, equal in the launcher and the watcher -- bo
       && [ "$v" = "$(grep -E "^${n}=" "$w" | sed -E "s/^${n}=([^[:space:]]*).*/\1/")" ] || { echo "${n} differs"; return 1; }
   done
 }
-expect "U15 the pinned literals 12288 / 120 / shared, mirrored by the watcher" u15
+expect "U15 the pinned literals 12288 / 300 (v15) / shared, mirrored by the watcher" u15
 case_rc "U16 a 2-field compute-app row (the v13 query's shape) is malformed" 7 "malformed compute-app row" \
   MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0\n'
 case_rc "U16b a non-numeric used_memory refuses" 7 "malformed compute-app row" MODE=SMOKE GUARD_GPU_APPS='4242, GPU-guard-0, [N/A]\n'
@@ -681,7 +681,7 @@ ev = json.load(open(sys.argv[1]))
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 man = hashlib.sha256(open("$3/depth_canon_pins.sha256", "rb").read()).hexdigest()
 assert ev["verdict"] == "PASS" and ev["head"] == head and ev["manifest_sha256"] == man, ev
-assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projected_hours"] == 120
+assert ev["harness"] is True and ev["smoke_checkpoints"] == 0 and ev["max_projected_hours"] == 300
 assert ev["schema_version"] == 2 and ev["gpu_policy"] == "shared" and type(ev["min_gpu_free_mib"]) is int
 assert ev["min_gpu_free_mib"] == 12288 and ev["free_mib_at_launch"] == {"0": 40000, "1": 40000}, ev
 assert ev["co_tenants_at_launch"] == [], ev
@@ -713,10 +713,15 @@ case_rc "R2 no banner"                       3 "TREATMENT BANNER NOT FOUND" MODE
 case_rc "R3 no endpoint marker"              6 "ENDPOINT NOT REACHED" MODE=SMOKE GUARD_SCENARIO=no_endpoint
 case_rc "R4 no two-rank start"               6 "TWO-RANK DDP START NOT FOUND" MODE=SMOKE GUARD_SCENARIO=no_ranks
 case_rc "R5 a non-finite loss"               4 "NON-FINITE VALUES" MODE=SMOKE GUARD_SCENARIO=nan
-case_rc "R6 too slow: 12 s/step (133 h > 120 h)" 4 "SMOKE VERDICT: FAIL - projected 133.3 h > MAX_PROJECTED_HOURS=120" MODE=SMOKE GUARD_RATE=12
-case_rc "R6b 6 s/step (66.7 h) passes under the v14 120 h cap" 0 "SMOKE VERDICT: PASS - projected 66.7 h <= 120 h" MODE=SMOKE GUARD_RATE=6
+case_rc "R6 too slow: 30 s/step (333 h > 300 h, v15)" 4 "SMOKE VERDICT: FAIL - projected 333.3 h > MAX_PROJECTED_HOURS=300" MODE=SMOKE GUARD_RATE=30
+case_rc "R6b 6 s/step (66.7 h) passes under the v15 300 h cap" 0 "SMOKE VERDICT: PASS - projected 66.7 h <= 300 h" MODE=SMOKE GUARD_RATE=6
 EV6="$(grep -oE 'smoke evidence \(PASS\): [^ ]+' <<<"$OUT" | sed 's/^smoke evidence (PASS): //' || true)"
 [ -n "$EV6" ] && rm -f -- "${R:?}/${EV6:?}"   # R10 counts R1's PASS evidence only
+# v15: the rate SMOKE 2 measured next to two 100 %-utilization co-tenants (2026-10-26 05:38, 19.267 s/step -> 214.1 h) is accepted; v14's 120 h refused it
+case_rc "R6c the measured contended rate 19.267 s/step (214.1 h) passes under the v15 300 h cap" 0 "SMOKE VERDICT: PASS - projected 214.1 h <= 300 h" MODE=SMOKE GUARD_RATE=19.267
+EV6="$(grep -oE 'smoke evidence \(PASS\): [^ ]+' <<<"$OUT" | sed 's/^smoke evidence (PASS): //' || true)"
+[ -n "$EV6" ] && rm -f -- "${R:?}/${EV6:?}"
+case_rc "R6d 27.1 s/step (300.7 h from the integer stamps) is refused just above the v15 cap" 4 "SMOKE VERDICT: FAIL - projected 300.7 h > MAX_PROJECTED_HOURS=300" MODE=SMOKE GUARD_RATE=27.1
 case_rc "R7 no rate stamps"                  4 "SMOKE VERDICT: FAIL - the projection could not be computed" MODE=SMOKE GUARD_SCENARIO=no_stamps
 case_rc "R8 a smoke that wrote a checkpoint" 5 "SMOKE WROTE 1 CHECKPOINT" MODE=SMOKE GUARD_SCENARIO=smoke_ckpt
 rm -rf "$H/save/FLAC_exp25_CANON_smoke"
