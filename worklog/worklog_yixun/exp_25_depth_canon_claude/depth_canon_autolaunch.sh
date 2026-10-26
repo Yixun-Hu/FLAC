@@ -10,11 +10,13 @@
 #              key=value lines and nothing else (every line counts, blank ones too). Valid only while head == `git rev-parse HEAD`, manifest_sha256 == the pins
 #              file's sha256 and the pinned paths + launcher kit are clean (else WAITING_TOKEN),
 #              re-checked on every poll AND immediately before each launcher call.
-#   GPUs       GPU 0 and GPU 1 each: ZERO compute processes (uuid -> index mapped) AND >= 23040 MiB
-#              free; any nonzero nvidia-smi status (even after plausible output), a malformed row,
-#              a process on an unknown uuid, or not exactly one memory row is DIRTY. Fire after 3 consecutive
-#              clean polls (60 s apart); a dirty poll resets the count. Foreign processes are logged
-#              once per change (pid, used memory, readlink /proc/<pid>/cwd); a heartbeat every 30 min.
+#   GPUs       GPU 0 and GPU 1 each >= 12288 MiB free (12 GiB, v14), and compute processes on them (uuid ->
+#              index mapped) per GPU_OCCUPANCY_POLICY (= the launcher's): `shared` (pinned, plan v14) -- they
+#              are co-tenants, NOT dirty, logged as ONE `co-tenants:` line whenever their pid set changes (pid,
+#              used memory, readlink /proc/<pid>/cwd); `idle` -- any one is DIRTY and logged once per change
+#              through the state reason (v10). Any nonzero nvidia-smi status (even after plausible output), a
+#              malformed row, a process on an unknown uuid, or not exactly one memory row is DIRTY. Fire after
+#              3 consecutive clean polls (60 s apart); a dirty poll resets the count; a heartbeat every 30 min.
 #   Fire       `MB=32 ACC=1 DRY_RUN=0 MODE=SMOKE` (literal; harness-only state scrubbed in production)
 #              -> rc 0 -> FULL -> rc 0: DONE (exit 0); FULL rc != 0: FAILED (exit 1). A SMOKE refused
 #              by the launcher's GPU gate -- its DEDICATED rc 7 (rA A6e), never a text match -- is
@@ -41,13 +43,17 @@ LAUNCHER="$EXPDIR/depth_canon_launch.sh"
 PINS="$EXPDIR/depth_canon_pins.sha256"
 TOKEN="$EXPDIR/depth_canon_GO.token"
 STATE="$EXPDIR/depth_canon_autolaunch_state.json"
-MIN_GPU_FREE_MIB=23040           # = depth_canon_launch.sh MIN_GPU_FREE_MIB (22.5 GiB)
+MIN_GPU_FREE_MIB=12288           # = depth_canon_launch.sh MIN_GPU_FREE_MIB (12 GiB, v14)
+# = depth_canon_launch.sh GPU_OCCUPANCY_POLICY (v14): shared = co-tenants logged, not dirty; idle = dirty
+GPU_OCCUPANCY_POLICY=shared
 POLL_S=60; STABLE_POLLS=3; MAX_POLLS=0; HEARTBEAT_S=1800
 MAX_GPU_RETRIES=5                # fixed
 GPU_REFUSAL_RC=7                 # depth_canon_launch.sh: every GPU-gate refusal (rA A6e), the one transient class
 PY_PIN="/home/yixunhu/miniconda3/envs/flac/bin/python"   # = depth_canon_launch.sh PY_PIN (rA A6a)
 
 die() { echo "$*"; exit 2; }
+case "$GPU_OCCUPANCY_POLICY" in idle|shared) ;;   # = the launcher's self-check (rC-F1)
+  *) die "CONFIG ERROR: GPU_OCCUPANCY_POLICY must be idle or shared" ;; esac
 
 # --- preconditions -------------------------------------------------------------------- #
 HARNESS="${DEPTH_CANON_HARNESS:-}"
@@ -96,10 +102,11 @@ drain() {   # rA A6f: at exit, close our ends of the tee and wait (bounded, sign
 trap drain EXIT
 STARTED="$(date -Iseconds)"
 echo "=== exp_25 depth_canon autolaunch -- ${TS} -- pid $$ -- launcher ${LAUNCHER} -- harness=${HARNESS:-none} ==="
-echo "poll ${POLL_S} s, fire after ${STABLE_POLLS} clean polls, <= ${MAX_GPU_RETRIES} GPU-gate retries, min free ${MIN_GPU_FREE_MIB} MiB"
+echo "poll ${POLL_S} s, fire after ${STABLE_POLLS} clean polls, <= ${MAX_GPU_RETRIES} GPU-gate retries, min free ${MIN_GPU_FREE_MIB} MiB, GPU occupancy policy ${GPU_OCCUPANCY_POLICY}"
 
 # --- state (atomic: tmp + mv) ------------------------------------------------------------ #
 PHASE=""; REASON=""; TOKEN_HEAD=""; CLEAN=0; RETRIES=0; SMOKE_RC=""; FULL_RC=""; LAST_STATE=""
+GPU_COTENANTS=""; LAST_COTENANT_PIDS=""   # rC-F1: the co-tenants of the last poll / the pid set last logged
 write_state() {   # write_state <phase> <reason>: only when something changed
   PHASE="$1"; REASON="$2"
   local key="${PHASE}|${REASON}|${TOKEN_HEAD}|${CLEAN}|${RETRIES}|${SMOKE_RC}|${FULL_RC}"
@@ -157,10 +164,10 @@ token_ok() {   # 0 = valid (TOKEN_HEAD set); 1 = invalid (TOKEN_WHY set)
 }
 
 # --- the GPUs ---------------------------------------------------------------------------- #
-gpu_clean() {   # 0 = both cards idle with enough memory; 1 = dirty (GPU_WHY set). rA A3: strict
-  local out rc line g pid uuid busy=""
+gpu_clean() {   # 0 = both cards usable (memory floor; occupancy per GPU_OCCUPANCY_POLICY); 1 = dirty (GPU_WHY set). rA A3: strict
+  local out rc line g pid uuid busy="" pids=""
   local -A IDX=()
-  GPU_WHY=""
+  GPU_WHY=""; GPU_COTENANTS=""
   rc=0; out="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)" || rc=$?
   [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi --query-gpu=index,uuid exited ${rc}"; return 1; }
   while IFS= read -r line; do
@@ -180,10 +187,20 @@ gpu_clean() {   # 0 = both cards idle with enough memory; 1 = dirty (GPU_WHY set
     uuid="${BASH_REMATCH[1]}"; pid="${BASH_REMATCH[2]}"
     [ -n "${IDX[$uuid]:-}" ] || { GPU_WHY="compute process ${pid} on an unknown uuid ${uuid}"; return 1; }
     case "${IDX[$uuid]}" in 0|1)
-      busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]}, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); " ;;
+      busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]}, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); "
+      pids="${pids}${pid}"$'\n' ;;
     esac
   done <<<"$out"
-  [ -z "$busy" ] || { GPU_WHY="foreign compute process(es): ${busy}"; return 1; }
+  if [ "$GPU_OCCUPANCY_POLICY" = idle ]; then
+    [ -z "$busy" ] || { GPU_WHY="foreign compute process(es): ${busy}"; return 1; }
+  else   # shared (rC-F1): co-tenants never make the poll dirty; ONE log line per change of their pid set
+    GPU_COTENANTS="$busy"
+    pids="$(printf '%s' "$pids" | sort -nu | tr '\n' ' ')"
+    if [ "$pids" != "$LAST_COTENANT_PIDS" ]; then
+      LAST_COTENANT_PIDS="$pids"
+      echo "[$(date -Iseconds)] co-tenants: ${GPU_COTENANTS:-none on GPU 0/1}"
+    fi
+  fi
   for g in 0 1; do
     rc=0; out="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$g" 2>/dev/null)" || rc=$?
     [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi memory.free of GPU ${g} exited ${rc}"; return 1; }
