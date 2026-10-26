@@ -24,14 +24,18 @@
 # manifest, no pipefail around tr|grep -- the log is read ONCE into a variable
 # after the tee is drained, a non-finite scan in FULL too) plus plan §4 gates
 # (5) run-owned checkpoints, (6) NAS identity / write probe / free space,
-# (7) projection <= 60 h, and (8) GPU free memory. It never kills anything.
-# Exit codes: 0 ok (DRY_RUN: every gate passed) | 2 a gate refused | 3 treatment banner missing |
-#   4 non-finite values / the smoke verdict FAILED | 5 the checkpoint set is wrong | 6 endpoint or
-#   two-rank start missing | 7 a GPU-gate refusal (memory floor, occupancy, or an nvidia-smi answer
-#   that is not clean), RESERVED: only gpu_refuse emits it -- the ONE transient class the watcher
-#   retries (rA A6e) | 8 any OTHER exit 7, e.g. train.py's own status 7, remapped by the EXIT trap so a
-#   trainer failure is never retried (rB-F2 F2-1, Codex A2 HIGH 1) | anything else: train.py's own
-#   nonzero status, passed through (terminal).
+# (7) projection <= 120 h (v14; was 60 h), and (8) the GPU gate: >= 12 GiB free on each card (v14;
+# was 22.5 GiB) with compute processes on GPU 0/1 handled per GPU_OCCUPANCY_POLICY -- `shared`
+# (pinned, plan v14, ordered by Yixun 2026-10-25): co-tenants DISCLOSED (pid, card, used MiB, cwd)
+# in the log and the SMOKE evidence, never refused; `idle`: refused (v10). It never kills anything.
+# Exit codes: 0 ok (DRY_RUN: every gate passed) | 2 a gate refused (CONFIG ERROR included) | 3 treatment
+#   banner missing | 4 non-finite values / the smoke verdict FAILED | 5 the checkpoint set is wrong | 6 endpoint
+#   or two-rank start missing | 7 a GPU-gate refusal (the memory floor, or an nvidia-smi answer that is not
+#   clean; occupancy only under GPU_OCCUPANCY_POLICY=idle -- under `shared` co-tenants are disclosed, not
+#   refused), RESERVED: only gpu_refuse emits it -- the ONE transient class the watcher retries (rA A6e) |
+#   8 any OTHER exit 7, e.g. train.py's own status 7, remapped by the EXIT trap so a trainer failure is
+#   never retried (rB-F2 F2-1, Codex A2 HIGH 1) | anything else: train.py's own nonzero status, passed
+#   through (terminal).
 #
 # Write targets: the NAS save root (checkpoints, launch marker, write probe), this experiment
 # folder (logs, smoke evidence, checkpoint manifest) and -- the one expected extra target --
@@ -62,9 +66,14 @@ ENDPOINT_STEPS=40000
 FULL_CADENCE=2500
 SMOKE_STEPS=25
 SMOKE_CADENCE=1000000             # >> SMOKE_STEPS: a smoke never writes a checkpoint
-MAX_PROJECTED_HOURS=60            # plan §4 gate (7)
+MAX_PROJECTED_HOURS=120           # plan §4 gate (7), v14: a shared card roughly halves the uncontended 0.259 opt-steps/s; a sanity cap only
 MIN_NAS_FREE_GIB=30               # plan §4 gate (6)
-MIN_GPU_FREE_MIB=23040            # 22.5 GiB per card (gate (8))
+# gate (8), v14: 12 GiB per card = the measured need of the identical --batch-size 32 --num-gpus 2 recipe on this
+# box (5.9-6.6 GiB per rank in exp_14's smoke, ~10.3 GiB per card for the exp_13 vanilla-B arm); was 22.5 GiB
+MIN_GPU_FREE_MIB=12288            # 12 GiB per card (gate (8), v14)
+# gate (8) occupancy, v14 (Yixun 2026-10-25: "Relax the gates and launch shared now"): shared = compute processes
+# on GPU 0/1 are co-tenants, disclosed and never refused (the memory floor decides); idle = they refuse (rc 7, v10)
+GPU_OCCUPANCY_POLICY=shared
 SAVE_ROOT_PIN="/media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon"
 PY_PIN="/home/yixunhu/miniconda3/envs/flac/bin/python"   # the flac env, REQUIRED (r3b-F1 fix 6)
 NAS_FSTYPE="cifs"
@@ -74,6 +83,8 @@ CONTROL_SHA="733ca52b66c43538e1b9e603e979678af95ac05d89fd1d481ebb472a285a49d8"
 BANNER="canonicalize ENABLED img_w=512 tiebreak=image"   # src/training/diffusion.py, exact
 RC_GPU_REFUSAL=7                  # the watcher's one transient class: emitted ONLY by gpu_refuse
 RC_TRAINER7=8                     # any other exit 7 (train.py's own status 7) becomes this terminal code
+case "$GPU_OCCUPANCY_POLICY" in idle|shared) ;;   # self-check of the pinned literal (rC-F1)
+  *) echo "CONFIG ERROR: GPU_OCCUPANCY_POLICY must be idle or shared"; exit 2 ;; esac
 
 GPU_REFUSED=0
 gpu_refuse() {   # gpu_refuse <message>: the ONE emitter of exit 7 (RC_GPU_REFUSAL)
@@ -282,7 +293,7 @@ if [ "$MODE" = "FULL" ]; then
       "$CONTRACT_SHA" "$AUDIT_SHA" "$AUDIT_GATE_SHA" <<'PY' || true
 import glob, hashlib, json, math, os, sys
 exp, manifest, harness, launcher, make_pins, contract, audit, audit_gate = sys.argv[1:9]
-NEED = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": "PASS",
+NEED = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": "PASS",
         "manifest_sha256": manifest, "launcher_sha256": launcher, "make_pins_sha256": make_pins,
         "contract_sha256": contract, "audit_sha256": audit, "audit_gate_sha256": audit_gate,
         "harness": harness == "true",
@@ -354,7 +365,10 @@ elif [ -n "$(find "$RUN_NS" -name '*.ckpt' -print -quit 2>/dev/null)" ]; then
 fi
 echo "run namespace OK: ${RUN_NS}"
 
-# --- (8) GPU free memory on both cards (never kills anything) ------------------- #
+# --- (8) GPU free memory on both cards + occupancy per GPU_OCCUPANCY_POLICY (never kills anything) --- #
+declare -A FREE_OF=()
+COT_N=(0 0)                       # co-tenant compute processes on GPU 0 / GPU 1
+COTENANTS=()                      # gpu pid used_mib cwd -- four words per co-tenant, for the SMOKE evidence
 if [ "$DRY_RUN" = "1" ]; then
   echo "GPU memory gate SKIPPED under DRY_RUN"
 else
@@ -366,18 +380,18 @@ else
     GPU_OUT="$(nvidia-smi "$@" 2>/dev/null)" || rc=$?
     [ "$rc" -eq 0 ] || gpu_refuse "GPU GATE FAILED: nvidia-smi $* exited ${rc} (stdout '${GPU_OUT//$'\n'/|}') - refusing to launch blind"
   }
-  declare -A FREE_OF=()
   for G in 0 1; do
     gpu_query -i "$G" --query-gpu=memory.free --format=csv,noheader,nounits
     [[ "$GPU_OUT" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] || gpu_refuse \
       "GPU GATE FAILED: the free memory of GPU ${G} is not exactly one number ('${GPU_OUT//$'\n'/|}') - refusing to launch blind"
     FREE="${BASH_REMATCH[1]}"; FREE_OF[$G]="$FREE"
     [ "$FREE" -ge "$MIN_GPU_FREE_MIB" ] || gpu_refuse \
-      "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (22.5 GiB) - abort; wait for the card, this launcher kills nothing"
+      "GPU GATE FAILED: GPU ${G} free ${FREE} MiB < ${MIN_GPU_FREE_MIB} MiB (12 GiB) - abort; wait for the card, this launcher kills nothing"
   done
   echo "GPU memory gate OK: GPU 0 and GPU 1 each >= ${MIN_GPU_FREE_MIB} MiB free"
-  # r3b-F1 fix 7 (Codex r3b HIGH 7): free memory is not an idle card -- ANY compute process
-  # on GPU 0 / GPU 1 refuses (read-only: its pid and cwd are printed; nothing is signalled).
+  # r3b-F1 fix 7 (Codex r3b HIGH 7) made ANY compute process on GPU 0 / GPU 1 refuse -- now policy `idle`.
+  # rC-F1 (plan v14): under the pinned `shared` they are co-tenants, disclosed (pid, card, used MiB, cwd) and
+  # never refused; the strict parsing below refuses either way. Read-only: nothing is signalled.
   declare -A UUID_OF=() IDX_OF=()
   gpu_query --query-gpu=index,uuid --format=csv,noheader
   while IFS= read -r line; do
@@ -390,29 +404,39 @@ else
   for G in 0 1; do
     [ -n "${UUID_OF[$G]:-}" ] || gpu_refuse "GPU GATE FAILED: no uuid for GPU ${G} - refusing to launch blind"
   done
-  gpu_query --query-compute-apps=pid,gpu_uuid --format=csv,noheader
+  gpu_query --query-compute-apps=pid,gpu_uuid,used_memory --format=csv,noheader,nounits
   BUSY=""; OTHER=""
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$ ]] || gpu_refuse \
-      "GPU GATE FAILED: malformed compute-app row '${line}' - refusing to launch blind"
-    APID="${BASH_REMATCH[1]}"; AUUID="${BASH_REMATCH[2]}"
+    [[ "$line" =~ ^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+),[[:space:]]*([0-9]+)$ ]] || gpu_refuse \
+      "GPU GATE FAILED: malformed compute-app row '${line}' (want 'pid, uuid, MiB') - refusing to launch blind"
+    APID="${BASH_REMATCH[1]}"; AUUID="${BASH_REMATCH[2]}"; AMIB="${BASH_REMATCH[3]}"
     [ -n "${IDX_OF[$AUUID]:-}" ] || gpu_refuse \
       "GPU GATE FAILED: compute process ${APID} is on an unknown uuid ${AUUID} - refusing to launch blind"
-    case "${IDX_OF[$AUUID]}" in
-      0|1) BUSY="${BUSY}  pid ${APID} on ${AUUID} (cwd $(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?'))"$'\n' ;;
-      *) OTHER="${OTHER}  pid ${APID} on GPU ${IDX_OF[$AUUID]} (${AUUID})"$'\n' ;;
+    AIDX="${IDX_OF[$AUUID]}"
+    case "$AIDX" in
+      0|1) ACWD="$(readlink "/proc/${APID}/cwd" 2>/dev/null || echo '?')"
+           BUSY="${BUSY}  pid ${APID} on GPU ${AIDX} (${AUUID}): ${AMIB} MiB, cwd ${ACWD}"$'\n'
+           COT_N[AIDX]=$((COT_N[AIDX] + 1)); COTENANTS+=("$AIDX" "$APID" "$AMIB" "$ACWD") ;;
+      *) OTHER="${OTHER}  pid ${APID} on GPU ${AIDX} (${AUUID})"$'\n' ;;
     esac
   done <<<"$GPU_OUT"
-  if [ -n "$BUSY" ]; then
-    echo "GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - this launcher never signals another process; wait for them to end:"
-    gpu_refuse "$(printf '%s' "$BUSY")"
+  if [ "$GPU_OCCUPANCY_POLICY" = idle ]; then
+    if [ -n "$BUSY" ]; then
+      echo "GPU OCCUPIED: foreign compute process(es) on GPU 0/1 - this launcher never signals another process; wait for them to end:"
+      gpu_refuse "$(printf '%s' "$BUSY")"
+    fi
+    echo "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1"
+  elif [ -n "$BUSY" ]; then
+    echo "GPU occupancy gate: policy=shared - $((COT_N[0] + COT_N[1])) co-tenant compute process(es) on GPU 0/1 disclosed, not refused:"
+    printf '%s' "$BUSY"
+  else
+    echo "GPU occupancy gate: policy=shared - no compute process on GPU 0 or GPU 1"
   fi
-  echo "GPU occupancy gate OK: no compute process on GPU 0 or GPU 1"
   # rB-F2 F2-2 (Codex A2 HIGH 2): no further, best-effort nvidia-smi query -- the disclosure is the
   # strict gate's own validated answers
   echo "--- co-tenancy disclosure at launch (the validated gate answers above) ---"
-  for G in 0 1; do echo "GPU ${G} ${UUID_OF[$G]}: ${FREE_OF[$G]} MiB free, no compute process"; done
+  for G in 0 1; do echo "GPU ${G} ${UUID_OF[$G]}: ${FREE_OF[$G]} MiB free, ${COT_N[G]} co-tenant process(es)"; done
   if [ -n "$OTHER" ]; then echo "compute processes on other cards:"; printf '%s' "$OTHER"
   else echo "compute processes on other cards: none"; fi
 fi
@@ -559,16 +583,24 @@ print(f"checkpoint set OK: exactly the {len(want)} cadence checkpoints, all newe
 PY
 [ "$ckpt_rc" -eq 0 ] || fail "$ckpt_rc"
 
-# --- (7) SMOKE: steady-state projection <= 60 h, then the evidence --------------- #
+# --- (7) SMOKE: steady-state projection <= 120 h (v14), then the evidence --------- #
 if [ "$MODE" = "SMOKE" ]; then
   EVIDENCE="$EXPDIR/depth_canon_smoke_evidence_${TS}.json"
   "$PY" - "$EVIDENCE.partial" "$LOG" "$rc" "$((END_EPOCH - START_EPOCH))" "$SMOKE_STEPS" "$ENDPOINT_STEPS" \
       "$MAX_PROJECTED_HOURS" "$HEAD_SHA" "$MANIFEST_SHA" "$HARNESS_FLAG" "$BANNER_SEEN" "$ENDPOINT_SEEN" \
       "$RANKS_SEEN" "$NONFINITE" "$ckpt_rc" "${ARGV[*]}" "$LAUNCHER_SHA" "$MAKE_PINS_SHA" "$CONTRACT_SHA" \
-      "$AUDIT_SHA" "$AUDIT_GATE_SHA" <<'PY' || fail 4
+      "$AUDIT_SHA" "$AUDIT_GATE_SHA" "$GPU_OCCUPANCY_POLICY" "$MIN_GPU_FREE_MIB" "${FREE_OF[0]:-}" "${FREE_OF[1]:-}" \
+      "${COTENANTS[@]}" <<'PY' || fail 4
 import json, math, re, sys
 (out, log, rc, elapsed, steps, endpoint, max_h, head, manifest, harness, banner, endpoint_seen,
- ranks, nonfinite, ckpt_rc, argv, launcher, make_pins, contract, audit, audit_gate) = sys.argv[1:22]
+ ranks, nonfinite, ckpt_rc, argv, launcher, make_pins, contract, audit, audit_gate,
+ gpu_policy, min_free, free0, free1) = sys.argv[1:26]
+cot = sys.argv[26:]               # rC-F1: the gate's validated co-tenants, four words each (none under DRY_RUN)
+if len(cot) % 4:
+    sys.exit(f"the co-tenant record has {len(cot)} words, not four per process")
+co_tenants = [{"gpu": int(g), "pid": int(p), "used_mib": int(m), "cwd": c}
+              for g, p, m, c in zip(cot[0::4], cot[1::4], cot[2::4], cot[3::4])]
+free_at_launch = None if free0 == free1 == "" else {"0": int(free0), "1": int(free1)}
 rc, elapsed, steps, endpoint, max_h = int(rc), float(elapsed), int(steps), int(endpoint), float(max_h)
 text = open(log, encoding="utf-8", errors="replace").read().replace("\r", "\n")
 stamps = {}   # tqdm '<n>/<total> [<elapsed><' stamps of the training progress bar
@@ -623,7 +655,7 @@ else:
     verdict, why = "PASS", f"projected {proj:.1f} h <= {max_h:.0f} h"
 print(f"SMOKE VERDICT: {verdict} - {why}")
 b = lambda s: s == "true"  # noqa: E731
-ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": verdict, "why": why,
+ev = {"schema_version": 2, "kind": "depth_canon_smoke_evidence", "verdict": verdict, "why": why,
       "head": head, "manifest_sha256": manifest, "launcher_sha256": launcher,
       "make_pins_sha256": make_pins, "contract_sha256": contract, "audit_sha256": audit,
       "audit_gate_sha256": audit_gate, "harness": b(harness), "config_contract_ok": True,
@@ -635,7 +667,8 @@ ev = {"schema_version": 1, "kind": "depth_canon_smoke_evidence", "verdict": verd
       "train_loss_values_seen": len(losses), "last_train_loss": parsed[-1] if parsed else None,
       "canonicalization_latency": latency,
       "canonicalization_latency_ms": latency["mean_ms_per_batch"] if latency else None,
-      "train_rc": rc, "argv": argv, "log": log}
+      "gpu_policy": gpu_policy, "min_gpu_free_mib": int(min_free), "free_mib_at_launch": free_at_launch,
+      "co_tenants_at_launch": co_tenants, "train_rc": rc, "argv": argv, "log": log}
 json.dump(ev, open(out, "w"), indent=1)
 sys.exit(0 if verdict == "PASS" else 4)
 PY
