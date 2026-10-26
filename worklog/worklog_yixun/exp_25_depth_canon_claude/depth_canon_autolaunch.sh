@@ -15,7 +15,8 @@
 #              are co-tenants, NOT dirty, logged as ONE `co-tenants:` line whenever their pid set changes (pid,
 #              used memory, readlink /proc/<pid>/cwd); `idle` -- any one is DIRTY and logged once per change
 #              through the state reason (v10). Any nonzero nvidia-smi status (even after plausible output), a
-#              malformed row, a process on an unknown uuid, or not exactly one memory row is DIRTY. Fire after
+#              malformed row, a non-numeric used_memory on ANY row (the nounits query; the launcher refuses it
+#              with rc 7 -- rC-F2), a process on an unknown uuid, or not exactly one memory row is DIRTY. Fire after
 #              3 consecutive clean polls (60 s apart); a dirty poll resets the count; a heartbeat every 30 min.
 #   Fire       `MB=32 ACC=1 DRY_RUN=0 MODE=SMOKE` (literal; harness-only state scrubbed in production)
 #              -> rc 0 -> FULL -> rc 0: DONE (exit 0); FULL rc != 0: FAILED (exit 1). A SMOKE refused
@@ -165,7 +166,7 @@ token_ok() {   # 0 = valid (TOKEN_HEAD set); 1 = invalid (TOKEN_WHY set)
 
 # --- the GPUs ---------------------------------------------------------------------------- #
 gpu_clean() {   # 0 = both cards usable (memory floor; occupancy per GPU_OCCUPANCY_POLICY); 1 = dirty (GPU_WHY set). rA A3: strict
-  local out rc line g pid uuid busy="" pids=""
+  local out rc line g pid uuid name mib busy="" pids=""
   local -A IDX=()
   GPU_WHY=""; GPU_COTENANTS=""
   rc=0; out="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)" || rc=$?
@@ -178,16 +179,18 @@ gpu_clean() {   # 0 = both cards usable (memory floor; occupancy per GPU_OCCUPAN
   for g in 0 1; do
     printf '%s\n' "${IDX[@]}" | grep -qx "$g" || { GPU_WHY="no uuid for GPU ${g} in nvidia-smi output"; return 1; }
   done
-  rc=0; out="$(nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader 2>/dev/null)" || rc=$?
+  # rC-F2 (Codex rC NIT): nounits -> used_memory is a bare MiB number, required to be [0-9]+ like the launcher's
+  rc=0; out="$(nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader,nounits 2>/dev/null)" || rc=$?
   [ "$rc" -eq 0 ] || { GPU_WHY="nvidia-smi --query-compute-apps exited ${rc}"; return 1; }
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     [[ "$line" =~ ^(GPU-[0-9A-Za-z-]+),[[:space:]]*([0-9]+),[[:space:]]*([^,]*),[[:space:]]*([^,]*)$ ]] \
       || { GPU_WHY="unparsable compute-apps line '${line}'"; return 1; }
-    uuid="${BASH_REMATCH[1]}"; pid="${BASH_REMATCH[2]}"
+    uuid="${BASH_REMATCH[1]}"; pid="${BASH_REMATCH[2]}"; name="${BASH_REMATCH[3]}"; mib="${BASH_REMATCH[4]}"
+    [[ "$mib" =~ ^[0-9]+$ ]] || { GPU_WHY="non-numeric used_memory in compute-app row '${line}' - waiting"; return 1; }
     [ -n "${IDX[$uuid]:-}" ] || { GPU_WHY="compute process ${pid} on an unknown uuid ${uuid}"; return 1; }
     case "${IDX[$uuid]}" in 0|1)
-      busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]}, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); "
+      busy="${busy}GPU ${IDX[$uuid]}: pid ${pid} (${name}, ${mib} MiB, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?')); "
       pids="${pids}${pid}"$'\n' ;;
     esac
   done <<<"$out"
