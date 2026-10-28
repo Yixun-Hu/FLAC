@@ -247,3 +247,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | 21e857d3 | Planner records | worklog: FULL watch 06:58–08:48 EDT Oct 27 (step 13,657, 12.2–12.8 s/step, 5/16 ckpts); 00:26 slowdown cause corrected; exp_28 seed 0 ≈ 11:50 EDT / seed 1 ≈ Oct 30 17:00; endpoint ≈ Oct 31 03:30 EDT |
 | 99041315 | Planner records | worklog: FULL watch 10:38–12:29 EDT Oct 27 (step 14,723, 5/16 ckpts); GPU 1 turnover — exp_28 seed 0 done, eval queue then E_Prog3 seed 0; 9.7 s/step for ≈ 2 h; endpoint ≈ Oct 31 02:00 EDT |
 | 06ef819f | Planner records | worklog: FULL watch 12:29–18:01 EDT Oct 27 (step 16,899, 6/16 ckpts; checkpoint 6 13:27:30); GPU 1 light ≈ 5 h then E_Prog3 seed 0 started 17:17:27; endpoint ≈ Oct 30 10:15 EDT at 10 s/step |
+| 76db6115 | Planner records | worklog: checkpoint 8 (20,000) verified (sha 5a2ab1a1…, finite, lr on schedule); checkpoint 7 landed; 8/16 ckpts, 50 %; 5.7–6.1 s/step; endpoint ≈ Oct 29 09:00 EDT at 6 s/step |
