@@ -249,3 +249,5 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | 06ef819f | Planner records | worklog: FULL watch 12:29–18:01 EDT Oct 27 (step 16,899, 6/16 ckpts; checkpoint 6 13:27:30); GPU 1 light ≈ 5 h then E_Prog3 seed 0 started 17:17:27; endpoint ≈ Oct 30 10:15 EDT at 10 s/step |
 | 76db6115 | Planner records | worklog: checkpoint 8 (20,000) verified (sha 5a2ab1a1…, finite, lr on schedule); checkpoint 7 landed; 8/16 ckpts, 50 %; 5.7–6.1 s/step; endpoint ≈ Oct 29 09:00 EDT at 6 s/step |
 | c317e806 | Planner records | worklog: checkpoints 9 + 10 landed (10/16, step 25,294 at 08:48 EDT Oct 28); ≈ 15-min NAS/CIFS hiccup 07:02–07:18 stalled the loaders, self-recovered (exposure disclosed); endpoint ≈ Oct 29 09:20 EDT |
+| 23a86278 | Planner records | ledger: record the 08:50 EDT Oct 28 worklog commit (c317e806) |
+| e020cd78 | Planner records | worklog: FULL watch 12:30 EDT Oct 28 — checkpoint 11 (27,500) landed 12:25:42 (11/16), step 27,530 (69 %), 5.7–6.1 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 22:30, GPU 1 ≈ Oct 30 02:45), watch re-armed bsjg1qknq; nothing to act on |
