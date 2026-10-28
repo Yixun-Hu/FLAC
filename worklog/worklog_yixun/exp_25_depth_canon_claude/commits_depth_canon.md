@@ -251,3 +251,4 @@ Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut fro
 | c317e806 | Planner records | worklog: checkpoints 9 + 10 landed (10/16, step 25,294 at 08:48 EDT Oct 28); ≈ 15-min NAS/CIFS hiccup 07:02–07:18 stalled the loaders, self-recovered (exposure disclosed); endpoint ≈ Oct 29 09:20 EDT |
 | 23a86278 | Planner records | ledger: record the 08:50 EDT Oct 28 worklog commit (c317e806) |
 | e020cd78 | Planner records | worklog: FULL watch 12:30 EDT Oct 28 — checkpoint 11 (27,500) landed 12:25:42 (11/16), step 27,530 (69 %), 5.7–6.1 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 22:30, GPU 1 ≈ Oct 30 02:45), watch re-armed bsjg1qknq; nothing to act on |
+| 9d9b19fc | Planner records | worklog: FULL watch 18:02 EDT Oct 28 — checkpoint 12 (30,000) landed 16:43:01 (12/16), step 30,791 (77 %), 5.7–6.2 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 18:50, GPU 1 ≈ Oct 29 22:15), watch re-armed bxiym1xep; nothing to act on |
