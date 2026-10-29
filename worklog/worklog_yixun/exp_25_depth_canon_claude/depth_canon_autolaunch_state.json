@@ -1,0 +1,15 @@
+{
+ "schema_version": 1,
+ "kind": "depth_canon_autolaunch_state",
+ "phase": "DONE",
+ "reason": "SMOKE and FULL both exited 0",
+ "watcher_pid": 594085,
+ "started": "2026-10-26T07:36:35-04:00",
+ "updated": "2026-10-29T10:34:13-04:00",
+ "token_head": "b3c43fb8e75cf115c8afb050d89e3ff7ecc8fc11",
+ "clean_polls": 3,
+ "gpu_retries": 0,
+ "smoke_rc": 0,
+ "full_rc": 0,
+ "log": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_07-36-35_autolaunch.log"
+}
