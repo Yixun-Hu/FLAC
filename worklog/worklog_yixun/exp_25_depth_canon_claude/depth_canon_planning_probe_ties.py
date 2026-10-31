@@ -31,6 +31,7 @@ N_SAMPLE = 400
 N_ROT = 60
 
 allf = sorted(glob.glob("AcousticRooms/depth_map/*/*/*.npy"))
+assert len(allf) >= N_SAMPLE, f"only {len(allf)} depth maps found; need >= {N_SAMPLE}"
 random.seed(1)
 fs = random.sample(allf, N_SAMPLE)
 
@@ -40,7 +41,7 @@ dists, examples = [], []
 gaps = []
 for f in fs:
     d = np.load(f)
-    assert d.shape == (H, W) and np.isfinite(d).all()
+    assert d.shape == (H, W) and d.dtype == np.float64 and np.isfinite(d).all()
     m = d.max()
     idx = np.argwhere(d == m)
     cm = np.sort(d.max(axis=0))[::-1]

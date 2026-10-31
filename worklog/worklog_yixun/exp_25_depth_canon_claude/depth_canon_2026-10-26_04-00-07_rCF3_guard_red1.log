@@ -1,0 +1,134 @@
+CODER rC-F3 RED -- HEAD 62dc642b243a5b3dc079feb951c20dd76a2950f0 -- 2026-10-26T04:00:07-04:00 -- GUARD_ONLY=W -- CUDA_VISIBLE_DEVICES="" -- launcher sha 7288e6b4c5a0 (unchanged)
+=== exp_25 depth_canon guard suite -- source HEAD 62dc642 -- tmp /tmp/depth_canon_guard.TTnI5F ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+--- W. W&B: train.py always runs with the pinned WANDB_MODE offline (rC-F3: SDK 0.15.4 cannot create online runs) ---
+  PASS  W1 the launcher header documents W&B's repo-local wandb/ write target (r3b-F1 fix 10)
+  FAIL  W1b ... naming the OFFLINE run directory wandb/offline-run-* (rC-F3)
+  PASS  W2 a SMOKE with no WANDB_MODE in the caller's environment passes (rc=0)
+the trainer saw 'WANDB_MODE=<unset>'
+  FAIL  W2b ... train.py ran with WANDB_MODE=offline in its environment
+W&B mode line x0 at line none, ARGV at 6
+  FAIL  W2c ... the SMOKE log carries the W&B mode line once, before the ARGV
+  PASS  W3 a SMOKE with the caller's WANDB_MODE=online passes (rc=0)
+the trainer saw 'WANDB_MODE=online'
+  FAIL  W3b ... train.py saw WANDB_MODE=offline: the caller's online is overridden
+  PASS  W4 a SMOKE with the caller's WANDB_MODE=disabled passes (rc=0)
+the trainer saw 'WANDB_MODE=disabled'
+  FAIL  W4b ... train.py saw WANDB_MODE=offline: the caller's disabled is overridden
+  PASS  W5 a FULL with no WANDB_MODE in the caller's environment passes (rc=0)
+the trainer saw 'WANDB_MODE=<unset>'
+  FAIL  W5b ... train.py ran with WANDB_MODE=offline in its environment
+W&B mode line x0 at line none, ARGV at 6
+  FAIL  W5c ... the FULL log carries the W&B mode line once, before the ARGV
+  PASS  W6 a FULL with the caller's WANDB_MODE=online passes (rc=0)
+the trainer saw 'WANDB_MODE=online'
+  FAIL  W6b ... train.py saw WANDB_MODE=offline: the caller's online is overridden
+  PASS  W7 a SMOKE dry run passes (rc=0)
+W&B mode line x0 at line none, ARGV at 6
+  FAIL  W7b ... and prints the W&B mode line once, before the ARGV
+the literal is not present exactly once
+  FAIL  W8 the literal WANDB_MODE_PIN="offline" exactly once + one WANDB_MODE assignment, its export
+  FAIL  W9 an interpreter that cannot import wandb refuses (rc 2) before the ARGV -- want rc=2 + 'cannot import wandb'; got rc=0; last: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  W9b ... and prints no ARGV
+
+(192 case(s) not run: GUARD_ONLY=W)
+=== 7 passed, 12 failed, 1 skipped ===
+guard rc=1

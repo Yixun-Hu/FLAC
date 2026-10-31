@@ -1,0 +1,350 @@
+CODER rC-F2 2a RED -- HEAD 84661faff6a275d79e4a0280d76f2af5bcf4c123 -- 2026-10-26T01:44:58-04:00 -- watcher unchanged (sha 8544935a4f4b); CUDA_VISIBLE_DEVICES=''
+......FFFFFFFFF.......FF..........FFFFFF........F.F.                     [100%]
+=================================== FAILURES ===================================
+_____ test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged ______
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_d_shared_policy_busy_gpus0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_d_shared_policy_busy_gpus0/h'), 'head': '50e549d1fd7b07c2193bc3973069998c20248b2f'}
+
+    def test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged(rig):
+        """rC-F1 (plan v14, Yixun 2026-10-25 shared launch): a foreign compute process on GPU 0 does
+        not make the poll dirty -- the memory floor decides; the co-tenant is logged ONCE, as one
+        `co-tenants:` log line per change of the pid set, never through write_state."""
+        token(rig)
+        gpu(rig, ["busy"])
+        rc, out = run(rig, max_polls=12)
+        st = state(rig)
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-26_01-45-02 -- pid 3868050 -- launcher /tmp/pytest-of-yixunhu/pytest-1840/test_d_shared_policy_busy_gpus0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1840/test_d_shared_policy_busy_gpus0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 12288 MiB, GPU occupancy policy shared
+E         [2026-10-26T01:45:03-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-26T01:45:03-04:00] phase WAITING_GPU: GPUs not free: nvidia-smi --query-compute-apps exited 9
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:191: AssertionError
+___________ test_d2_a_changed_cotenant_set_is_logged_once_per_change ___________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_d2_a_changed_cotenant_set0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_d2_a_changed_cotenant_set0/h'), 'head': '2594231f6af414e7bf9579a213e582a9d1dce312'}
+
+    def test_d2_a_changed_cotenant_set_is_logged_once_per_change(rig):
+        """rC-F1: the `co-tenants:` line is printed when the set of pids changes between polls,
+        not on every poll (and the changed set is still a clean poll)."""
+        token(rig)
+        gpu(rig, ["busy", "busy", "busy1"])
+        rc, out = run(rig, max_polls=12)
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-26_01-45-03 -- pid 3868535 -- launcher /tmp/pytest-of-yixunhu/pytest-1840/test_d2_a_changed_cotenant_set0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1840/test_d2_a_changed_cotenant_set0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 12288 MiB, GPU occupancy policy shared
+E         [2026-10-26T01:45:03-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-26T01:45:03-04:00] phase WAITING_GPU: GPUs not free: nvidia-smi --query-compute-apps exited 9
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:206: AssertionError
+____________________ test_e_a_dirty_poll_resets_the_counter ____________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_e_a_dirty_poll_resets_the0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_e_a_dirty_poll_resets_the0/h'), 'head': '2594231f6af414e7bf9579a213e582a9d1dce312'}
+
+    def test_e_a_dirty_poll_resets_the_counter(rig):
+        token(rig)
+        gpu(rig, ["free", "free", "lowmem", "free", "free"])                # rC-F1: lowmem is the dirty poll
+        rc, _ = run(rig, max_polls=5)
+>       assert rc == 3 and calls(rig) == [] and state(rig)["clean_polls"] == 2
+E       assert (3 == 3 and [] == []
+E         
+E         Use -v to get more diff and 0 == 2)
+
+src/tests/test_depth_canon_autolaunch.py:215: AssertionError
+________________ test_f_three_clean_polls_fire_smoke_then_full _________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_f_three_clean_polls_fire_0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_f_three_clean_polls_fire_0/h'), 'head': '5cd33d299e1258419415c17d44d54475fde60fd2'}
+
+    def test_f_three_clean_polls_fire_smoke_then_full(rig):
+        token(rig)
+        rc, out = run(rig)
+        st = state(rig)
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-26_01-45-04 -- pid 3869238 -- launcher /tmp/pytest-of-yixunhu/pytest-1840/test_f_three_clean_polls_fire_0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1840/test_f_three_clean_polls_fire_0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 12288 MiB, GPU occupancy policy shared
+E         [2026-10-26T01:45:04-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-26T01:45:04-04:00] phase WAITING_GPU: GPUs not free: nvidia-smi --query-compute-apps exited 9
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:222: AssertionError
+_______________________ test_another_card_and_low_memory _______________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_another_card_and_low_memo0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_another_card_and_low_memo0/h'), 'head': '5cd33d299e1258419415c17d44d54475fde60fd2'}
+
+    def test_another_card_and_low_memory(rig):
+        token(rig)
+        gpu(rig, ["other", "other", "other"])
+>       assert run(rig)[0] == 0                                    # a process on GPU 9 does not block
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:235: AssertionError
+__________ test_g_a_transient_gpu_refusal_retries_after_restabilizing __________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_g_a_transient_gpu_refusal0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_g_a_transient_gpu_refusal0/h'), 'head': 'dfa5c16b9896ce0261e46d5d7584b62138b3cf1e'}
+
+    def test_g_a_transient_gpu_refusal_retries_after_restabilizing(rig):
+        token(rig)
+        launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 1 free 11289 MiB < 12288 MiB (12 GiB) - abort",
+                       "SMOKE 0 smoke ok", "FULL 0 full ok"])
+        rc, out = run(rig, max_polls=20)
+>       assert rc == 0 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE", "MODE=SMOKE", "MODE=FULL"]
+E       assert (3 == 0)
+
+src/tests/test_depth_canon_autolaunch.py:248: AssertionError
+_______________________ test_g2_five_retries_then_failed _______________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_g2_five_retries_then_fail0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_g2_five_retries_then_fail0/h'), 'head': '5882d64cc4429f2b1fdd11556c4af2bb3d2cb7f9'}
+
+    def test_g2_five_retries_then_failed(rig):
+        token(rig)
+        launches(rig, ["SMOKE 7 GPU GATE FAILED: GPU 0 free 100 MiB < 12288 MiB (12 GiB) - abort"])
+        rc, out = run(rig, max_polls=60)
+        st = state(rig)
+>       assert rc == 1 and [c.split()[0] for c in calls(rig)] == ["MODE=SMOKE"] * 6
+E       assert (3 == 1)
+
+src/tests/test_depth_canon_autolaunch.py:259: AssertionError
+___________________ test_h_any_other_smoke_failure_is_final ____________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_h_any_other_smoke_failure0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_h_any_other_smoke_failure0/h'), 'head': '0a42f8e95f8e89faee5cd8dcf73dbecd5183e56c'}
+
+    def test_h_any_other_smoke_failure_is_final(rig):
+        token(rig)
+        launches(rig, ["SMOKE 4 SMOKE VERDICT: FAIL - projected 130.0 h > MAX_PROJECTED_HOURS=120"])
+        rc, _ = run(rig)
+        st = state(rig)
+>       assert rc == 1 and calls(rig) == [f"MODE=SMOKE EXPECT_HEAD={rig['head']} DRY_RUN=0 MB=32 ACC=1"]
+E       assert (3 == 1)
+
+src/tests/test_depth_canon_autolaunch.py:268: AssertionError
+________________________ test_i_a_full_failure_is_final ________________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_i_a_full_failure_is_final0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_i_a_full_failure_is_final0/h'), 'head': '0a42f8e95f8e89faee5cd8dcf73dbecd5183e56c'}
+
+    def test_i_a_full_failure_is_final(rig):
+        token(rig)
+        launches(rig, ["SMOKE 0 smoke ok", "FULL 6 ENDPOINT NOT REACHED"])
+        rc, _ = run(rig)
+        st = state(rig)
+>       assert rc == 1 and (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", 0, 6)
+E       assert (3 == 1)
+
+src/tests/test_depth_canon_autolaunch.py:277: AssertionError
+_ test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits[na-GPU-test-0, 4242, python, [N/A]] _
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_j2_a_non_numeric_used_mem0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_j2_a_non_numeric_used_mem0/h'), 'head': '324217983d433ba260af30b781f0751fb551c55a'}
+scenario = 'na', row = 'GPU-test-0, 4242, python, [N/A]'
+
+    @pytest.mark.parametrize("scenario, row", [("na", "GPU-test-0, 4242, python, [N/A]"),
+                                               ("na_other", "GPU-test-2, 4444, python, [N/A]")])
+    def test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits(rig, scenario, row):
+        """rC-F2 (Codex rC NIT, C4/C5): the launcher refuses a non-numeric used_memory on ANY row (rc 7);
+        the watcher mirrors it -- a DIRTY poll whose reason names the row, the clean counter reset, no
+        launcher call (no retry burnt), phase WAITING_GPU, never SMOKE, never FAILED."""
+        token(rig)
+        gpu(rig, ["free", "free", scenario, "free"])
+        rc, out = run(rig, max_polls=4)
+        st = state(rig)
+        why = f"non-numeric used_memory in compute-app row '{row}' - waiting"
+        assert rc == 3 and calls(rig) == [] and "SMOKE_RUNNING" not in out and "FAILED" not in out, out
+>       assert (st["phase"], st["clean_polls"], st["gpu_retries"]) == ("WAITING_GPU", 1, 0), st
+E       AssertionError: {'schema_version': 1, 'kind': 'depth_canon_autolaunch_state', 'phase': 'WAITING_GPU', 'reason': 'GPUs not free: nvidia-smi --query-compute-apps exited 9', ...}
+E       assert ('WAITING_GPU', 0, 0) == ('WAITING_GPU', 1, 0)
+E         
+E         At index 1 diff: 0 != 1
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_autolaunch.py:301: AssertionError
+_ test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits[na_other-GPU-test-2, 4444, python, [N/A]] _
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_j2_a_non_numeric_used_mem1/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_j2_a_non_numeric_used_mem1/h'), 'head': '324217983d433ba260af30b781f0751fb551c55a'}
+scenario = 'na_other', row = 'GPU-test-2, 4444, python, [N/A]'
+
+    @pytest.mark.parametrize("scenario, row", [("na", "GPU-test-0, 4242, python, [N/A]"),
+                                               ("na_other", "GPU-test-2, 4444, python, [N/A]")])
+    def test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits(rig, scenario, row):
+        """rC-F2 (Codex rC NIT, C4/C5): the launcher refuses a non-numeric used_memory on ANY row (rc 7);
+        the watcher mirrors it -- a DIRTY poll whose reason names the row, the clean counter reset, no
+        launcher call (no retry burnt), phase WAITING_GPU, never SMOKE, never FAILED."""
+        token(rig)
+        gpu(rig, ["free", "free", scenario, "free"])
+        rc, out = run(rig, max_polls=4)
+        st = state(rig)
+        why = f"non-numeric used_memory in compute-app row '{row}' - waiting"
+        assert rc == 3 and calls(rig) == [] and "SMOKE_RUNNING" not in out and "FAILED" not in out, out
+>       assert (st["phase"], st["clean_polls"], st["gpu_retries"]) == ("WAITING_GPU", 1, 0), st
+E       AssertionError: {'schema_version': 1, 'kind': 'depth_canon_autolaunch_state', 'phase': 'WAITING_GPU', 'reason': 'GPUs not free: nvidia-smi --query-compute-apps exited 9', ...}
+E       assert ('WAITING_GPU', 0, 0) == ('WAITING_GPU', 1, 0)
+E         
+E         At index 1 diff: 0 != 1
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_autolaunch.py:301: AssertionError
+_______________________ test_a_harness_go_token_override _______________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_a_harness_go_token_overri0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_a_harness_go_token_overri0/h'), 'head': '2baee586a99601fa0f2ba2cd8e794c12d6c46e14'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_a_harness_go_token_overri0')
+
+    def test_a_harness_go_token_override(rig, tmp_path):
+        tok = tmp_path / "GO.token"
+        token(rig, path=tok)
+        rc, _ = run(rig, env={"GO_TOKEN": str(tok)})
+>       assert rc == 0 and len(calls(rig)) == 2
+E       assert (3 == 0)
+
+src/tests/test_depth_canon_autolaunch.py:363: AssertionError
+__________________ test_o_the_state_file_is_always_whole_json __________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_o_the_state_file_is_alway0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_o_the_state_file_is_alway0/h'), 'head': '2baee586a99601fa0f2ba2cd8e794c12d6c46e14'}
+
+    def test_o_the_state_file_is_always_whole_json(rig):
+        token(rig)
+        path = rig["exp"] / "depth_canon_autolaunch_state.json"
+        seen, bad, stop = [], [], threading.Event()
+    
+        def reader():
+            while not stop.is_set():
+                try:
+                    text = path.read_text()
+                except FileNotFoundError:
+                    continue
+                try:
+                    seen.append(json.loads(text)["phase"])
+                except ValueError:
+                    bad.append(text)
+        t = threading.Thread(target=reader)
+        t.start()
+        try:
+            rc, _ = run(rig, env={"AUTOLAUNCH_POLL_S": "0.05", "FAKE_SLEEP": "0.3"})
+        finally:
+            stop.set()
+            t.join()
+>       assert rc == 0 and bad == []
+E       assert (3 == 0)
+
+src/tests/test_depth_canon_autolaunch.py:391: AssertionError
+_________ test_the_watcher_never_signals_and_writes_only_inside_expdir _________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_the_watcher_never_signals0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_the_watcher_never_signals0/h'), 'head': '3c3a1fe90caab838ef15948983609b5bb18325e8'}
+
+    def test_the_watcher_never_signals_and_writes_only_inside_expdir(rig):
+        """Contract: no `kill` anywhere in the script; a complete run leaves new files only in $EXPDIR."""
+        text = open(WATCHER).read()
+        assert "kill" not in text and "pkill" not in text and "/media/diskstation" not in text
+        token(rig)
+>       assert run(rig)[0] == 0
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:402: AssertionError
+_______ test_the_launcher_gets_the_literal_rung_and_no_harness_overrides _______
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_the_launcher_gets_the_lit0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_the_launcher_gets_the_lit0/h'), 'head': '3c3a1fe90caab838ef15948983609b5bb18325e8'}
+
+    def test_the_launcher_gets_the_literal_rung_and_no_harness_overrides(rig):
+        """A4: an inherited MB / ACC / DRY_RUN can never reach the launcher (a stray shell variable
+        must not turn the unattended window into a final failure), nor any harness-only override."""
+        token(rig)
+        rc, out = run(rig, env={"MB": "8", "ACC": "4", "DRY_RUN": "1"})
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-26_01-45-14 -- pid 3876147 -- launcher /tmp/pytest-of-yixunhu/pytest-1840/test_the_launcher_gets_the_lit0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1840/test_the_launcher_gets_the_lit0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 12288 MiB, GPU occupancy policy shared
+E         [2026-10-26T01:45:14-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-26T01:45:14-04:00] phase WAITING_GPU: GPUs not free: nvidia-smi --query-compute-apps exited 9
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:418: AssertionError
+__________________ test_only_rc_7_is_a_transient_gpu_refusal ___________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_only_rc_7_is_a_transient_0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_only_rc_7_is_a_transient_0/h'), 'head': '3d5e8d44c30763d49a06f00df9c0ca63ab190ff3'}
+
+    def test_only_rc_7_is_a_transient_gpu_refusal(rig):
+        """A6e: the launcher's dedicated rc 7 is the ONE transient class; the old text match is gone
+        (rc 2 carrying a GPU string is a final failure)."""
+        token(rig)
+        launches(rig, ["SMOKE 2 GPU GATE FAILED: GPU 0 free 100 MiB < 12288 MiB (12 GiB) - abort"])
+        rc, _ = run(rig, max_polls=20)
+>       assert rc == 1 and len(calls(rig)) == 1 and state(rig)["phase"] == "FAILED"
+E       assert (3 == 1)
+
+src/tests/test_depth_canon_autolaunch.py:431: AssertionError
+___________ test_a_trainer_exit_7_remapped_by_the_launcher_is_final ____________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_a_trainer_exit_7_remapped0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_a_trainer_exit_7_remapped0/h'), 'head': '3d5e8d44c30763d49a06f00df9c0ca63ab190ff3'}
+
+    def test_a_trainer_exit_7_remapped_by_the_launcher_is_final(rig):
+        """rB-F2 F2-1 (Codex A2 HIGH 1): train.py exiting 7 must never look like the GPU gate's
+        transient refusal -- the launcher remaps it to a terminal code, documented in its header,
+        and the watcher makes ONE attempt and enters FAILED."""
+        remap, src = _launcher_rc7_remap()
+        assert remap not in (0, 7) and f"{remap} " in src.split("set -euo pipefail")[0]
+        token(rig)
+        launches(rig, [f"SMOKE {remap} train.py exited rc=7; exit 7 is reserved for the GPU gate"])
+        rc, _ = run(rig, max_polls=20)
+        st = state(rig)
+>       assert rc == 1 and len(calls(rig)) == 1 and (st["phase"], st["smoke_rc"], st["full_rc"]) == ("FAILED", remap, None)
+E       assert (3 == 1)
+
+src/tests/test_depth_canon_autolaunch.py:454: AssertionError
+_______________ test_the_log_is_complete_when_the_watcher_exits ________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_the_log_is_complete_when_0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_the_log_is_complete_when_0/h'), 'head': 'b894b1f41a3111e4f896322161db9b08d5205f27'}
+
+    def test_the_log_is_complete_when_the_watcher_exits(rig):
+        """A6f: the outer tee is drained before exit (the last state line and FULL's output are in
+        the log the moment the watcher returns)."""
+        token(rig)
+        launches(rig, ["SMOKE 0 smoke ok", "FULL 0 full ok " + "x" * 2000])
+        rc, _ = run(rig)
+        text = open(os.path.join(rig["repo"], state(rig)["log"])).read()
+>       assert rc == 0 and "full ok" in text and text.rstrip().endswith("phase DONE: SMOKE and FULL both exited 0")
+E       assert (3 == 0)
+
+src/tests/test_depth_canon_autolaunch.py:506: AssertionError
+________________ test_idle_policy_still_refuses_occupied_cards _________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1840/test_idle_policy_still_refuses0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1840/test_idle_policy_still_refuses0/h'), 'head': '3cb790afb787707a7c22806c8806075774c188d7'}
+
+    def test_idle_policy_still_refuses_occupied_cards(rig):
+        """GPU_OCCUPANCY_POLICY=idle restores the v10 predicate: any compute process on GPU 0/1 is dirty."""
+        _watcher_with_policy(rig, "idle")
+        token(rig)
+        gpu(rig, ["busy"])
+        rc, out = run(rig, max_polls=4)
+        st = state(rig)
+        assert rc == 3 and calls(rig) == [] and st["phase"] == "WAITING_GPU", out
+>       assert "foreign compute process" in st["reason"] and "pid 4242" in st["reason"]
+E       AssertionError: assert ('foreign compute process' in 'GPUs not free: nvidia-smi --query-compute-apps exited 9')
+
+src/tests/test_depth_canon_autolaunch.py:546: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_autolaunch.py::test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged
+FAILED src/tests/test_depth_canon_autolaunch.py::test_d2_a_changed_cotenant_set_is_logged_once_per_change
+FAILED src/tests/test_depth_canon_autolaunch.py::test_e_a_dirty_poll_resets_the_counter
+FAILED src/tests/test_depth_canon_autolaunch.py::test_f_three_clean_polls_fire_smoke_then_full
+FAILED src/tests/test_depth_canon_autolaunch.py::test_another_card_and_low_memory
+FAILED src/tests/test_depth_canon_autolaunch.py::test_g_a_transient_gpu_refusal_retries_after_restabilizing
+FAILED src/tests/test_depth_canon_autolaunch.py::test_g2_five_retries_then_failed
+FAILED src/tests/test_depth_canon_autolaunch.py::test_h_any_other_smoke_failure_is_final
+FAILED src/tests/test_depth_canon_autolaunch.py::test_i_a_full_failure_is_final
+FAILED src/tests/test_depth_canon_autolaunch.py::test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits[na-GPU-test-0, 4242, python, [N/A]]
+FAILED src/tests/test_depth_canon_autolaunch.py::test_j2_a_non_numeric_used_memory_is_a_dirty_poll_that_waits[na_other-GPU-test-2, 4444, python, [N/A]]
+FAILED src/tests/test_depth_canon_autolaunch.py::test_a_harness_go_token_override
+FAILED src/tests/test_depth_canon_autolaunch.py::test_o_the_state_file_is_always_whole_json
+FAILED src/tests/test_depth_canon_autolaunch.py::test_the_watcher_never_signals_and_writes_only_inside_expdir
+FAILED src/tests/test_depth_canon_autolaunch.py::test_the_launcher_gets_the_literal_rung_and_no_harness_overrides
+FAILED src/tests/test_depth_canon_autolaunch.py::test_only_rc_7_is_a_transient_gpu_refusal
+FAILED src/tests/test_depth_canon_autolaunch.py::test_a_trainer_exit_7_remapped_by_the_launcher_is_final
+FAILED src/tests/test_depth_canon_autolaunch.py::test_the_log_is_complete_when_the_watcher_exits
+FAILED src/tests/test_depth_canon_autolaunch.py::test_idle_policy_still_refuses_occupied_cards
+19 failed, 33 passed in 18.87s
+pytest rc=1

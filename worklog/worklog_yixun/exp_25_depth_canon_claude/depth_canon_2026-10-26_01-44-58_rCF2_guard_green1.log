@@ -1,0 +1,176 @@
+CODER rC-F2 1b GREEN -- HEAD 84661faff6a275d79e4a0280d76f2af5bcf4c123 -- 2026-10-26T01:44:58-04:00 -- GUARD_ONLY=E,B,R,L,Z (launcher sha 7288e6b4c5a0)
+=== exp_25 depth_canon guard suite -- source HEAD 84661fa -- tmp /tmp/depth_canon_guard.Tdldu7 ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+  PASS  E1 no evidence (rc=2)
+  PASS  E1b ... and the line after the headline says there is no candidate (rC-F2)
+  PASS  E2 evidence of another launcher (rc=2)
+  PASS  E3 evidence of another manifest (rc=2)
+  PASS  E4 a failed smoke (rc=2)
+  PASS  E5 production evidence in harness mode (rc=2)
+  PASS  E6 evidence whose log was edited (rc=2)
+  PASS  E7 a smoke that wrote a checkpoint (rc=2)
+  PASS  E8 a truthy non-bool field (rc=2)
+  PASS  E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1) (rc=2)
+  PASS  E11a gpu_policy deleted (rc=2)
+  PASS  E11b min_gpu_free_mib deleted (rc=2)
+  PASS  E11c max_projected_hours deleted (rc=2)
+  PASS  E11d free_mib_at_launch deleted (rc=2)
+  PASS  E11e co_tenants_at_launch deleted (rc=2)
+  PASS  E12 gpu_policy idle (not the pinned shared) (rc=2)
+  PASS  E13 the v13 floor 23040 (rc=2)
+  PASS  E14 the v13 cap 60 h (rc=2)
+  PASS  E15 free_mib_at_launch null (the writer's no-gate form) (rc=2)
+  PASS  E16 a card missing (rc=2)
+  PASS  E17 GPU 1 below the floor (rc=2)
+  PASS  E18 a free value as a string (rc=2)
+  PASS  E19 a co-tenant record without cwd (rc=2)
+  PASS  E20 a co-tenant pid 0 (rc=2)
+  PASS  E21 a co-tenant on GPU 2 (rc=2)
+  PASS  E22 a co-tenant used_mib -1 (rc=2)
+  PASS  E23 a co-tenant with an empty cwd (rc=2)
+  PASS  E24 a bool smuggled as the pid (rc=2)
+  PASS  E25 valid co-tenant records (incl. cwd '?', 0 MiB) are accepted (rc=0)
+  PASS  E26 an unreadable evidence file is refused (rc=2)
+  PASS  E9 genuine evidence accepted (rc=0)
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+  PASS  B1 a record-only commit between SMOKE and FULL is accepted (rc=0)
+  PASS  B2 a training-closure change (+ its regenerated manifest) needs a new SMOKE (rc=2)
+  PASS  B3 a committed launcher change needs a new SMOKE (rc=2)
+  PASS  B4 a new (still qualifying) tie audit needs a new SMOKE (rc=2)
+  PASS  B5 a committed change to the audit gate needs a new SMOKE (rc=2)
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+  PASS  R1 a healthy smoke passes (rc=0)
+  PASS  R1b it wrote evidence bound to HEAD, manifest and its final log
+  PASS  R1c FULL accepts that evidence (the writer -> FULL predicate round trip) (rc=0)
+  PASS  R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1) (rc=0)
+  PASS  R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory
+  PASS  R1f FULL accepts the co-tenant SMOKE's evidence (rc=0)
+  PASS  R2 no banner (rc=3)
+  PASS  R3 no endpoint marker (rc=6)
+  PASS  R4 no two-rank start (rc=6)
+  PASS  R5 a non-finite loss (rc=4)
+  PASS  R6 too slow: 12 s/step (133 h > 120 h) (rc=4)
+  PASS  R6b 6 s/step (66.7 h) passes under the v14 120 h cap (rc=0)
+  PASS  R7 no rate stamps (rc=4)
+  PASS  R8 a smoke that wrote a checkpoint (rc=5)
+  PASS  R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1) (rc=8)
+  PASS  R9b another train.py failure passes through unchanged (rc=3)
+  PASS  R10 only R1 left PASS evidence
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+  PASS  L1 R1's evidence carries the latency and a finite loss
+  PASS  L2 no latency line (rc=4)
+  PASS  L3 an invalid latency (rc=4)
+  PASS  L4 no training loss (rc=4)
+  PASS  L5 a non-numeric loss (rc=4)
+  PASS  L6 FULL refuses evidence without the latency (rc=2)
+  PASS  L7 FULL refuses a non-positive latency (rc=2)
+  PASS  L8 FULL refuses evidence without a finite loss (rc=2)
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+  PASS  Z1 a healthy FULL passes (rc=0)
+  PASS  Z1b the checkpoint manifest hashes all 16 files
+  PASS  Z2 no banner (rc=3)
+  PASS  Z3 the endpoint checkpoint is missing (rc=6)
+  PASS  Z4 no endpoint marker (rc=6)
+  PASS  Z5 a non-finite loss in FULL (rc=4)
+  PASS  Z6 a foreign file (rc=5)
+  PASS  Z7 a stale checkpoint (rc=5)
+  PASS  Z8 off-cadence checkpoint (rc=5)
+  PASS  Z9 FULL: train.py exited 7 is remapped to the terminal 8 (rc=8)
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(126 case(s) not run: GUARD_ONLY=E,B,R,L,Z)
+=== 71 passed, 0 failed, 1 skipped ===
+guard rc=0

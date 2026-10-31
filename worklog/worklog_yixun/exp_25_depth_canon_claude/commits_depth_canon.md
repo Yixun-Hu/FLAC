@@ -1,0 +1,262 @@
+# exp_25 depth_canon — commits
+
+Branch `exp-25-depth-canon` (worktree `~/codespace/exp-25-depth-canon`), cut from `localization-exp` @ `6eb2b5e`.
+
+| SHA | Author seat | One line |
+|---|---|---|
+| `6eb2b5e` | Planner | scaffold + plan v1 + Codex plan review r1 (REVISE) + tie-prevalence probe |
+| `08ac314` | Planner | plan v2 — Codex r1 findings addressed; Yixun decisions D1–D6 recorded (base of TDD round 1) |
+| `a385250` | Coder r1 | cycle 1: `recover_depth_proxy` + `column_profile` (bitwise yaw-stable proxy; contract rejections) |
+| `f5476cf` | Coder r1 | cycle 2a: `canonical_column` single-candidate classes (`none`/`same_column`) + fail-closed `StabilizedTieError`, `TIE_CLASSES` |
+| `33deb59` | Coder r1 | cycle 2b: rooted-image tie-break key (C-1) → `cross_column_image`; Option-A strict xfail |
+| `517fe82` | Coder r1 | cycle 3: source key (C-2) + ordered pair-preserving context key (C-3); stabilized all-roll raise |
+| `5dee91f` | Coder r1 | cycle 4: `canonical_shift` + `canonicalize_scene_metadata` (input contract, post-condition, raise propagation) |
+| `649f98e` | Coder r1 | cycle 5: `canonical_depth_sha256` (float64, signed-zero normalized) + canonical-output invariance test 7 |
+| `551d537` | Coder r1 | docstring precision: the 1e-6 radius is a degeneracy threshold, not a comparison tolerance |
+| `fbd00c8` | Coder r1 | records: round-1 lab-notebook entries + this file |
+| `518e03a` | Planner | plan v3→v5 (Codex plan r2 REVISE → r3 → r4 → r5 APPROVE) + plan reviews r2–r5, comparator ledger, training-path diff audit rev. 2 (P1 legs `e50d098`/`1b56e7a`), worklog |
+| `c1d229b` | Coder r1 fix | F1 (red by design): tests for proxy-only selection + fail-closed periodic ties whatever the poses (code review r1 BLOCKING) |
+| `f85c412` | Coder r1 fix | F2a (still red by design): retire the v3–v5 pose-key tests and fixtures |
+| `c8a58b0` | Coder r1 fix | F2b: proxy-only `canonical_column`; any rooted-image tie → `StabilizedTieError`; 3 tie classes; wording without stabilizer claims |
+| `1b1a47e` | Coder r1 fix | F3: all four pose fields required; `canonicalize_scene_metadata` has no `pose_keys` (all of `POSE_KEYS` rotated) |
+| `6cad8a6` | Coder r1 fix | F4: `StabilizedTieError` carries the loader sample identifier (`idx`/`path`/`relpath`), picklable |
+| `f734c67` | Coder r1 fix | F5: planning probe asserts map count + float64; read-only re-run reproduces every recorded number |
+| `054b986` | Coder r1 fix | F6: docstrings — hash formula names the `+ 0.0`; re-wrap a long line |
+| `de6e774` | Coder r1 fix | records: lab-notebook entries F1–F6 + this file (round-1 fix round) |
+| `be7c1d0` | Planner | plan v6 (image-only tie-break, fail-closed survivors, round-2 CPU-float64 contract) after Codex code review r1; worklog |
+| `71670d9` | Planner | plan v7 (stale v5 wording removed; round-2 transfer-hook tests 12b/12c) — round 1 closed after Codex re-verification; worklog |
+| `a08254b` | Coder r2 | cycle 1: `_parse_canonicalize_config` (`CANON_KEYS`; fail-closed; yaw_aug / fa_invariant exclusions) + `**canon_kwargs` splice into the `diffusion_cond` wrapper call (test 10) |
+| `5d8b893` | Coder r2 | cycle 2: wrapper `canonicalize_enabled` / `canonicalize_img_w` raw validation + exclusions, `canon_tie_counts`, rank-0 banner `canonicalize ENABLED img_w=<w> tiebreak=image`, `on_fit_end` tie totals (tests 11, 13, 14) |
+| `c9ddb92` | Coder r2 | cycle 3a-i: `_check_canon_metadata` — yaw_aug schema rules under `canonicalize:` + depth CPU / float64 contract (tests 13, 12c) |
+| `4ccf54b` | Coder r2 | cycle 3a-ii: `_canonicalize_batch` — per-sample operator, atomic tie counters, training-path `self.log`, `StabilizedTieError` propagates (tests 13, 12c) |
+| `1b43d34` | Coder r2 | cycle 3b: canonicalization hook first in `training_step` / `validation_step` / `test_step` (test 12) |
+| `3a60e9c` | Coder r2 | cycle 4: `transfer_batch_to_device` override — metadata left on the CPU when enabled, parent otherwise; meta-device + CUDA + real-fit order tests (12b, 12c) |
+| `aab5164` | Coder r2 | cycle 5a (red by design): arm-config contract test 22 |
+| `e72142c` | Coder r2 | cycle 5b: `FLAC_AR_CANON.json` = `FLAC_AR_BVp1.json` bytes + `training.canonicalize {enabled: true, img_w: 512}` (sha `aba94032…`) |
+| `9350054` | Coder r2 | records: lab-notebook entries (device-consumer verification, cycles 1–5b, round summary) + this file |
+| `a7f8893` | Planner | round-2 receipt: independent verification (576 passed, 1 xfailed), ledger rows for the Planner commits, worklog |
+| `1adda49` | Planner | plan v8: DDP-opaque metadata carrier (Codex code review r2 BLOCKING), tests 12b/12c amended |
+| `c7771ec` | Coder r2 fix | F1 (code review r2 BLOCKING): `_CpuMetadataCarrier` — enabled `transfer_batch_to_device` hands the untouched metadata on in an opaque `__slots__` carrier that DDP's `_to_kwargs`/`_recursive_to` does not descend into; `_canonicalize_batch` unwraps it first; real-`_to_kwargs` regression tests (meta + CUDA) |
+| `8f16dfb` | Coder r2 fix | F2 (NIT): operator `ValueError`s re-raised as `canonicalize: metadata[i]: …` (`StabilizedTieError` untouched) |
+| `b424969` | Coder r2 fix | F3 + records: ledger one row per SHA (chronological; dup `518e03a` merged; `de6e774`/`9350054`/`a7f8893`/`1adda49`/`c7771ec`/`8f16dfb` added) + fix-round notebook entries |
+| `df31f44` | Coder r2 fix | records: F3 notebook-entry timestamp corrected to the `date(1)` value (18:57:13, was hand-typed 18:58:24) |
+| `cd31610` | Planner | round-2 fix-round receipt (Planner verification 586 passed, 1 xfailed); worklog |
+| `2be08f6` | Planner | round 2 closed (Codex re-verification SHIP); round-3 split (3a / 3b / 3c) recorded; worklog — base of TDD round 3a |
+| `83504a0` | Coder r3a | cycle 1a: `canon_suffix` + `build_output_paths(..., canonicalize, canon_mismatch)` tokens after the method suffix, before rotation (test 16; golden + exp_01 names byte-identical; 72-combo injectivity) |
+| `3904928` | Coder r3a | cycle 1b: `build_metrics_record(..., canon_provenance=None)` → `_canon_provenance`, `CANON_RECORD_KEYS` (8 fields, validated fail-closed, appended last) (test 17) |
+| `d9148b3` | Coder r3a | cycle 2a: `CanonProtocol` / `LEGACY_CANON_PROTOCOL`, `_canon_strict_diff`, `canon_vit_img_w`, `model_config_sha256` (test 18 helpers) |
+| `1428ba8` | Coder r3a | cycle 2b: `resolve_canonicalize_protocol` — fail-closed checkpoint binding, every plan §2.2 rule (test 18) |
+| `f9e0e3c` | Coder r3a | cycle 3a: `CanonStream`, `canon_sidecar_path`, `build_canon_record` (`.canon.json`) (test 20) |
+| `2981bf8` | Coder r3a | cycle 3b-i: `prepare_eval_metadata` — rotation, then per-sample canonicalization on the CPU float64 cloud (test 19) |
+| `46521f9` | Coder r3a | cycle 3b-ii: `build_canon_provenance` (record fields from the protocol + stream + both config digests) |
+| `0f5d100` | Coder r3a | cycle 4a: `ScoredWaveformDump` construction refusals + `append`; `scored_waveform_dir` (test 21) |
+| `6eb790b` | Coder r3a | cycle 4b: `ScoredWaveformDump.finalize` (staging → verify → `COMPLETE` → atomic rename) + `is_complete` (test 21) |
+| `c62ac96` | Coder r3a | cycle 5a: `evaluate_model` canonicalization wiring — binding before model construction, one early `build_output_paths`, `prepare_eval_metadata` in the loop, canon checks, provenance, `.canon.json` (toy-stack drive of the real loop) |
+| `bd38095` | Coder r3a | cycle 5b: `evaluate_model` scored-waveform dump wiring — stream required, target refused before the model, `append` right before `update_metrics` (spied), `finalize` last |
+| `7e51b11` | Coder r3a | cycle 5c: CLI `--canonicalize` / `--allow-canon-mismatch` / `--dump-scored-waveforms` threaded into `evaluate_model` (behavioural subprocess tests) |
+| `bd6bddc` | Coder r3a | cycle 5d: `src/tools/depth_canon_stats.py` — `rel_l2` / `rel_linf` / `paired_summary` with the pinned denominators (test 21b) |
+| `666e0f9` | Coder r3a | cycle 5e: dump verification compares bits through a `uint32` view (no 2×260 MB `tobytes` copies) + one-bit / dtype / length corruption test |
+| `9efcf13` | Coder r3a | records: lab-notebook entries (start, cycles 1a-5e, round summary) + ledger rows |
+| `e0bcae0` | Planner | r3a receipt — independent regression 1755 passed / 7 skipped / 1 xfailed at `9efcf13`, static checks, provisional positions on the Coder's open questions; Codex r3a requested |
+| `180fea4` | Planner | Codex code review r3a (REQUEST-CHANGES: BLOCKING metric geometry frame = A4, 2 HIGH, 3 NIT) + Planner receipt |
+| `503a2da` | Planner | plan v9: arm-independent metric path (A4), verified completion predicate, `canonical_depth_hash`, dump ROOT semantics, p99 definition pinned |
+| `5e99cad` | Coder r3b | cycle 1a: tie audit — raw-side selector (numpy rooted-image key) + circular candidate separation |
+| `92c0372` | Coder r3b | cycle 1b: tie audit — split item -> depth map via AR_md's own path logic (np.load spy test) |
+| `4bdc9a3` | Coder r3b | cycle 2: tie audit — split configs -> loader items (`get_audio_filenames`) -> unique maps + inputs ledger |
+| `1a18bab` | Coder r3b | cycle 3: tie audit — per-map row: AR_md cloud -> `canonicalize_scene_metadata` vs the raw selector |
+| `3bfc2d6` | Coder r3b | cycle 4a: tie audit — ordered (multi-)worker run, per-split summaries, gate (exit 0/1/3/4), deterministic JSON + sha256 sidecar |
+| `c879ba7` | Coder r3b | cycle 4b: tie audit — CLI (`--out --workers --limit --splits`), markdown summary, throughput projection |
+| `af8f02b` | Coder r3b | cycle 5a: composition probe — registered offsets + fixed per-item noise (test 21b) |
+| `fbae181` | Coder r3b | cycle 5b: composition probe — stagewise relL2 / relL∞ via `depth_canon_stats` (test 21b) |
+| `91ba965` | Coder r3b | cycle 6a: composition probe — A = canon(md), B = canon(rot_d(md)) + the probe items' Tier-1 record |
+| `3212b91` | Coder r3b | cycle 6b: composition probe — stage runner mirroring eval_FLAC's 1-step loop (fp32 / eval protocols) |
+| `408553e` | Coder r3b | cycle 7: composition probe — checkpoint load through `evaluate_model`'s path (equivalence test) |
+| `1da0f34` | Coder r3b | cycle 8a: composition probe — the probe loop: stage records, determinism floor, ε_cond, control p99, Tier 1, verdict |
+| `2ad63ee` | Coder r3b | cycle 8b-i: composition probe — first-n loader items, markdown summary, provenance helpers |
+| `881575a` | Coder r3b | cycle 8b-ii: composition probe — CLI `main` (load, seeded loader, probe, JSON + sidecar, exit = verdict) |
+| `0a271e4` | Coder r3b | cycle 9: launcher kit — pin generator + `depth_canon_pins.sha256` (44 files) + guard-suite skeleton (P cases, throwaway clone) |
+| `5e1c181` | Coder r3b | cycle 10a-i: launcher skeleton — mode, string-pinned rung, harness location, teed log, the exact argv (P1 recipe) |
+| `417e1ed` | Coder r3b | cycle 10a-ii: launcher — HEAD pin (`EXPECT_HEAD`) |
+| `cce2a34` | Coder r3b | cycle 10b: launcher — content pins (coverage + bytes + committed) and the config contract |
+| `e7e8902` | Coder r3b | cycle 11a: launcher — smoke-evidence prerequisite, NAS gate, run-owned namespaces |
+| `7048ccf` | Coder r3b | cycle 11b: launcher — GPU free-memory gate, W&B identity gate, DINOv3 gate on this checkout's src |
+| `e490a88` | Coder r3b | cycle 12a: launcher — the launch path: marker, drained single log read, scans, run-owned checkpoint set + manifest |
+| `84d7403` | Coder r3b | cycle 12b: launcher — steady-state smoke projection + the smoke evidence bound to the final log; opt-in production guard section |
+| `58c296f` | Coder r3b | records: lab-notebook entries (start, cycles 1a-12b, real-data throughput, round summary) + ledger rows |
+| `b9f83b9` | Coder r3a-F1 | fix 1 (BLOCKING, A4): `PreparedMetadata(cond, metric)` — only the conditioner sees the canonical frame; metric inputs + ARE add-back from the post-rotation, pre-canonicalization list |
+| `f50a436` | Coder r3a-F1 | fix 2 (HIGH): `finalize` reads the checksum sidecar back; `is_complete(final_dir, expected_n=None)` verifies the whole cell |
+| `bb6bbfa` | Coder r3a-F1 | fix 3 (HIGH 2): `.canon.json` gains the rotation-invariant `canonical_depth_hash` |
+| `b2e59da` | Coder r3a-F1 | fix 4 (NIT): `canon_vit_img_w` refuses duplicate conditioner ids |
+| `fdf5267` | Coder r3a-F1 | fix 5 (NIT): dump target — refuse ANY existing final path (never remove one) and reserved `.staging-` components |
+| `f42ffa9` | Coder r3a-F1 | fix 6 (NIT): `append` fails closed on non-float32 |
+| `2d1c15b` | Coder r3a-F1 | fix 7: `cond_method` / `file_model_cfg` keyword-only; `file_model_cfg` required in play |
+| `0b21c12` | Coder r3a-F1 | fix 8: a dump requires `--record-stream` (published stream sidecar) |
+| `1d28e41` | Coder r3a-F1 | fix 9: routing test spies on the real functions (replaces `inspect.getsource`) |
+| `958bc9f` | Coder r3a-F1 | records: lab-notebook entries (F1 start, fixes 1–9, round summary + final 3b/F1 regression) + ledger rows |
+| `9afeb9e` | Planner | records: receipt for rounds 3b + r3a-F1 (part 1) — regression 1911 passed / 7 skipped / 1 xfailed at `958bc9f`; Codex F1 re-verification requested |
+| `0e60b57` | Planner | records: Codex r3a-F1 re-verification SHIP — round 3a closed; 2 non-blocking NITs queued |
+| `1d438c7` | Planner | records: guard-suite receipt (118 passed incl. read-only NAS production cases); Codex code review r3b requested |
+| `5bd522b` | Coder r3c | cycle 0a: `is_complete` `schema_version` type-strict (true / 1.0 / "1" refused) |
+| `2bd0aa3` | Coder r3c | cycle 0b: toy-loop spy pins the ARE add-back to the post-rotation, pre-canonical list (test only) |
+| `a768604` | Coder r3c | cycle 1a (red by design): cell-manifest tests — counts, order, injective names/stems, canon tokens, common flags |
+| `c9e7918` | Coder r3c | cycle 1b: `depth_canon_make_cells.py` — the deterministic 230-cell manifest generator |
+| `c22fca5` | Coder r3c | cycle 1c: manifest tests per block class, canon protocol, configs / split counts / checkpoint pins (mutation-red) |
+| `a13154f` | Coder r3c | cycle 1d: `depth_canon_cells.json` (generated data) + drift tests |
+| `4ab894b` | Coder r3c | cycle 2a-i (red by design): collector fixtures (real evaluator functions) + `record_reasons` tests |
+| `b8bbf06` | Coder r3c | cycle 2a-ii: `depth_canon_collect.py` — `record_reasons` |
+| `bb70812` | Coder r3c | cycle 2b: `stream_reasons` + `canon_reasons` |
+| `c50d5bd` | Coder r3c | cycle 2c-i (red by design): dump + receipt tests |
+| `d9744f8` | Coder r3c | cycle 2c-ii: `dump_reasons` (is_complete once / manifest mode) + `receipt_reasons` + `cell_argv` |
+| `199d80f` | Coder r3c | cycle 2d-i (red by design): `verify_cell` / CANON index / CLI tests |
+| `89713cd` | Coder r3c | cycle 2d-ii: `verify_cell`, `cell_paths`, `load_canon_index`, `--verify-cell` |
+| `f5c768f` | Coder r3c | cycle 3: `select_cells` / `plan_cells` / `write_receipt`; `--plan` / `--write-receipt` |
+| `3d196bd` | Coder r3c | cycle 3b: `--write-receipt --verify-after` |
+| `639d186` | Coder r3c | cycle 4a-i (red by design): driver tests — throwaway clone + harness, DRY_RUN argv, refusals (206 changed lines, disclosed) |
+| `7ac11d0` | Coder r3c | cycle 4a-ii: `depth_canon_eval_run.sh` skeleton — gates, plan, checkpoint sha, DRY_RUN |
+| `eacf3b7` | Coder r3c | cycle 4b-i (red by design): run-path tests — lanes, skip, four quarantine states, failure, busy GPU, no-dump block |
+| `ee42356` | Coder r3c | cycle 4b-ii: the driver's run path — predicate, quarantine, GPU lanes, receipt + verify, summary |
+| `d4a1184` | Coder r3c | cycle 5a: full mode — `collect_cells`, completeness, `make_pairs`, Tier 1 |
+| `d31adca` | Coder r3c | cycle 5b-i (red by design): Tier 2 tests |
+| `e07283b` | Coder r3c | cycle 5b-ii: Tier 2 + `load_control` (registered probes only) |
+| `46cba20` | Coder r3c | cycle 5c: Tier 3 + the table block |
+| `4c3eaa4` | Coder r3c | cycle 5d: TRAJ grid, B-F historical quote, tie counts, seen/unseen overlap disclosure |
+| `fd646b0` | Coder r3c | cycle 5e-i (red by design): results / refusal / `--partial` tests |
+| `2929e12` | Coder r3c | cycle 5e-ii: `build_results`, `render_md`, `--collect` |
+| `d9fa986` | Coder r3c | cycle 6-i (red by design): generator exp25 tests |
+| `e93c42a` | Coder r3c | cycle 6-ii: `gen_model_comparison.py` exp25 rows + contract (additive) |
+| `6c92209` | Coder r3c | records: lab-notebook entries (start, cycles 0a–6-ii, round summary) + ledger rows |
+| `c6feecf` | Coder r3b-F1 | fix 3 (HIGH 3): tie audit enforces the training input contract (float64 (256,512) raw, float64 cpu (3,256,512) cloud, depth modality) |
+| `ef43d03` | Coder r3b-F1 | fix 8 (NIT 8): tie-audit precedence INCOMPLETE > FAIL > REFUSED_SUBSET > PASS |
+| `7333a57` | Coder r3b-F1 | fix 2a (BLOCKING 2): `_canonicalize_batch` latency (perf_counter), `canon/latency_ms`, the rank-0 latency line at fit end |
+| `dc52861` | Coder r3b-F1 | fix 4 (HIGH 4): probe registered contract vs `--diagnostic` (registered:false, exit 6) |
+| `ddea813` | Coder r3b-F1 | fix 5 (HIGH 5): pin closure (+ FLAC_AR_BV / FLAC_AR_BF), manifest regenerated (46); guard `GUARD_ONLY` filter |
+| `22d520c` | Coder r3b-F1 | fix 6 (HIGH 6): the launcher requires the flac interpreter for every gate and train.py |
+| `ce92947` | Coder r3b-F1 | fix 7 (HIGH 7): GPU occupancy gate (no compute process on GPU 0/1; pid + cwd printed, never signalled) |
+| `f8db9dc` | Coder r3b-F1 | fix 1 (BLOCKING 1): SMOKE and FULL gated by the complete PASS tie audit (+ sidecar, counts, hashes) |
+| `4256fc7` | Coder r3b-F1 | fix 2b (BLOCKING 2): smoke evidence requires finite train/loss + the measured canonicalization latency; FULL checks both |
+| `8404388` | Coder r3b-F1 | fix 9 (NIT 9): content-scoped SMOKE->FULL binding (manifest, launcher, pin generator, contract, audit; HEAD provenance) |
+| `f8dcb5f` | Coder r3b-F1 | fix 10 (NIT 10): launcher header documents its write targets incl. repo-local `wandb/` |
+| `5408a68` | Coder r3b-F1 | fix 9b: guard state — re-write the E9 evidence after section B |
+| `929576d` | Coder r3d | cycle 1a (red by design): autolaunch watcher tests — token + GPU waits |
+| `827548d` | Coder r3d | cycle 1b: `depth_canon_autolaunch.sh` — preconditions, GO token, GPU condition, atomic state (fire point refuses) |
+| `0ba37ac` | Coder r3d | cycle 1c: precondition tests (mutation-red) |
+| `0f22293` | Coder r3d | cycle 2a (red by design): fire-sequence + state tests |
+| `33a8d72` | Coder r3d | cycle 2b: the fire sequence (SMOKE -> FULL, transient GPU-gate retries <= 5, final failures) |
+| `dff44c8` | Planner records | Codex code-review artifacts r1 / r1 re-verify / r2 / r2 re-verify / r3b committed (previously untracked) |
+| `1c0f6fb` | Planner records | plan v10: Codex r3b amendments, round 3c as built, round 3d watcher, A4/A5 resolved (Yixun's pre-approved GO, freeze rule), A6 eval GPU policy, schedule |
+| `dbbe07f` | Planner records | receipt for rounds 3c + r3b-F1 + 3d (regression 2155/7/1, guard 150/0/0), Codex r3b verdict, pre-approved GO, adjudications Q1–Q6 + A6, reviews A/B launched |
+| `84f0a9e` | Coder rB-F1 | B1 cycle 1a-i (red by design): tie-audit gate tests on a real tiny audit — structural mutations, sidecar, non-JSON |
+| `dcdd945` | Coder rB-F1 | B1 cycle 1a-ii (red by design): gate tests — limit/subset/survivor runs, stale split JSON, cardinalities, the registered contract vs the real splits, real audit, CLI |
+| `6780dc9` | Coder rB-F1 | B1 cycle 1b: `depth_canon_audit_gate.py` part A — sidecar, exact schema, tool hashes + clean tree, inputs ledger recomputed by the audit's own code, cardinalities |
+| `6178158` | Coder rB-F1 | B1 cycle 1c (red): gate row tests — census, per-row contract, recomputed summaries, re-hashed map bytes |
+| `9134922` | Coder rB-F1 | B1 cycle 1d: gate part B — exact census, per-row contract, per_split/agreement recomputed, current map bytes re-hashed |
+| `de8981a` | Coder rB-F1 | B1 cycle 1e (red): collector tests on a REAL audit — every invalid audit / disagreeing cell refuses full collection (exit 3, nothing written) |
+| `6434db7` | Coder rB-F1 | B1 cycle 1f: collector `load_tie_audit` = the shared gate; `tie_summary` before the refusal, contradictions are problems |
+| `f52b90d` | Coder rB-F1 | B1 cycle 1g (regression fix): the driver stub evaluator puts src/tests on sys.path (1f's fixture imports sibling test modules) |
+| `cb08bd8` | Coder rB-F1 | B2 cycle 2a (red): driver lane-gate tests (uuid-mapped occupancy, fail-closed queries, opt-in sharing, re-check before spawn) |
+| `3fd2b8d` | Coder rB-F1 | B2 cycle 2b: `lane_state` — >= 10 GiB free AND no compute process, fail-closed queries, re-check before each spawn, `ALLOW_SHARED_GPU=1` relaxes occupancy only |
+| `93ef8e2` | Coder rB-F1 | B3 cycle 3a (red): receipts written by the real writer; campaign/spawn/post digest binding tests; one digest per collection |
+| `fe61023` | Coder rB-F1 | B3 cycle 3b (red): driver tests — startup digest in the receipt, edit between cells -> exit 4 before the 2nd spawn, edit during a cell -> that cell fails |
+| `c7ef06b` | Coder rB-F1 | B3 cycle 3c: relevant-tree digest at start / before every spawn / after every cell, PIN DRIFT exit 4, receipt binds the three digests, verify_cell + collection check them |
+| `8d0335f` | Coder rB-F1 | B4 cycle 4a (red): checkpoint TOCTOU tests — verified cache + hard link, measured digest, space gate, symlink/foreign entry, tampered cache, bytes changed during the cell |
+| `00ac606` | Coder rB-F1 | B4 cycle 4b: content-addressed verified checkpoint cache, free-space gate, hard-linked farm entries re-checked before the spawn, post-run measured sha256 in the receipt |
+| `7338ceb` | Coder rB-F1 | B5 cycle 5a (red): probe tests — dirty tree = registered deviation; main() publishes via build_report / write_report |
+| `2d427a1` | Coder rB-F1 | B5 cycle 5b: probe `tree_deviations` (checked before loading) + `build_report` / `write_report` |
+| `69ee428` | Coder rB-F1 | B5 cycle 5c (red): collector probe-binding tests on a real toy probe artifact (26 refusals, legitimate FAIL, contract mirror) |
+| `55c835d` | Coder rB-F1 | B5 cycle 5d: `PROBE_CONTRACT` + `probe_reasons`; `load_control` -> (control, reasons, eps); eps_cond threshold + PASS/FAIL rendered |
+| `56cad9b` | Coder rB-F1 | B6 cycle 6a (red): offline-verifiable receipt tests (artifact digests, dump evidence, receipt mode, written only after the full verification) |
+| `e126fe7` | Coder rB-F1 | B6 cycle 6b: `build_receipt` + `dump_evidence` + `evidence_reasons`, `verify_cell(dump_check='receipt', receipt_doc=)`, verify-then-write receipts |
+| `0662305` | Coder rB-F1 | B6 cycle 6c (red): generator offline validation + NAS retention audit tests |
+| `e24c9f2` | Coder rB-F1 | B6 cycle 6d: generator validates offline (receipt mode) with one campaign digest per row / round; `--nas-retention-audit` |
+| `b6de552` | Coder rB-F1 | NIT a cycle 7a (red): K nonempty context ids; the registered repetition rule; the pairing note |
+| `57cf336` | Coder rB-F1 | NIT a cycle 7b: `stream_reasons` K ids, `context_replacement` (same repeated targets per split and K), `PAIRING_NOTE` |
+| `cf14d57` | Coder rB-F1 | NIT b cycle 8a (red): overlap derived from the validated audit, compared with the registered 1,093 / 112 |
+| `51bc8b8` | Coder rB-F1 | NIT b cycle 8b: `split_overlap(summary)` + `REGISTERED_OVERLAP`; mismatch flagged + a problem |
+| `557f3dc` | Coder rB-F1 | NIT c cycle 9 (test-only): golden byte-identity of every pre-exp25 generator row vs `e5902b9` |
+| `356ef98` | Coder rB-F1 | NIT d cycle 10 (test-only): two-cell failure-then-success driver test |
+| `dfbaaef` | Coder rB-F1 | A1 cycle 11a (red): gate harness-contract mode + checkout-portable ledger tests |
+| `6de842f` | Coder rB-F1 | A1 cycle 11b: `--harness-contract` (only under DEPTH_CANON_HARNESS, tagged reports only), `*_abs` ledger fields portable |
+| `268bd22` | Coder rB-F1 | data: the full rung-3 tie audit + sidecar committed unchanged (+ run log, gate re-validation log) |
+| `a5c28fd` | Coder rB-F1 | A1 cycle 11c (red, guard): T section on real tiny harness audits; P1b/M6 48 pins; B4/B5; Q0 |
+| `343bdf1` | Coder rB-F1 | A1 cycle 11d: the launcher calls depth_canon_audit_gate.py; gate sha in the SMOKE->FULL bind; audit + sidecar pinned (48) |
+| `08ef666` | Coder rB-F1 | A2 cycle 12a (red): DINOv3 snapshot pin tests on synthetic HF caches |
+| `36765c0` | Coder rB-F1 | A2 cycle 12b: `assert_vit_pin` pins config.json + model.safetensors (exact file set); pins regenerated (48) |
+| `2122aa2` | Coder rB-F1 | A3 + A6e cycle 13a (red, guard): strict nvidia-smi cases, GPU refusals rc 7 |
+| `6b42489` | Coder rB-F1 | A3 + A6e cycle 13b: launcher `gpu_query` (status apart from stdout), strict parsing, every GPU-gate refusal exits 7 |
+| `ca8d59a` | Coder rB-F1 | A3/A4/A6 cycle 14a (red): watcher strictness, literal rung + scrub, rc-7 transient, interpreter, token, dirty pins, drain |
+| `8fd226a` | Coder rB-F1 | A3/A4/A6 cycle 14b: the watcher fixes (strict gpu_clean, env -u + MB=32 ACC=1 DRY_RUN=0, PY_PIN, 4-line ISO token, clean pins, rc 7, tee drain) |
+| `27a87b7` | Coder rB-F1 | A5 cycle 15a (red): the latency covers unwrap + validation |
+| `999d515` | Coder rB-F1 | A5 cycle 15b: `perf_counter` before the unwrap; pins regenerated (48) |
+| `76de174` | Coder rB-F1 | records: notebook A2–A6 + ledger rows |
+| `5111f4e` | Planner records | Codex code review B (round 3c) REQUEST-CHANGES receipt + artifact; fix round rB-F1 opened |
+| `3688275` | Coder rB-F2 | F2-1a (red, guard + watcher): train.py's exit 7 must come back as the terminal 8 (R9, Z9; R9b passthrough); the watcher makes one attempt on it |
+| `978de18` | Coder rB-F2 | F2-1b: `gpu_refuse` is the only emitter of rc 7; an EXIT trap remaps any other 7 to 8; header lists every exit code |
+| `2998f7e` | Coder rB-F2 | F2-2a (red, guard): strict-only nvidia-smi stub (other queries logged + fail); U12/U12b/U13 |
+| `01cd41a` | Coder rB-F2 | F2-2b: the best-effort disclosure queries removed; the disclosure logs the validated gate answers |
+| `d348bd1` | Coder rB-F2 | F2-3a (red, guard): T15 a must-PASS fixture that is INCOMPLETE fails loudly |
+| `c652249` | Coder rB-F2 | F2-3b (guard repair): Q restores a fresh harness clone; `write_audit ok` asserts a complete PASS + prints the audit's error; tmp root /tmp/depth_canon_guard.XXXXXX validated |
+| `93de567` | Coder rB-F2 | F2-4a (red): re-hash child under a 900 s deadline; hung / failing children fail closed |
+| `84ced81` | Coder rB-F2 | F2-4b: the gate re-hashes in a killable child (`--rehash-worker`), `REHASH_DEADLINE_S = 900`, process group SIGKILLed past it |
+| `0480900` | Coder rB-F2 | F2-5a (red): token with a blank line and no final newline must wait |
+| `8b177d5` | Coder rB-F2 | F2-5b: `token_ok` counts every logical line (== key lines == newlines == 4) |
+| `85c81c2` | Coder rB-F2 | F2-6a (red): eval_FLAC hashes and deserializes one buffer; `ckpt_sha256_loaded` / `ckpt_bytes_loaded` in the record |
+| `8e87d17` | Coder rB-F2 | F2-6b: `read_checkpoint_exact`, `torch.load(io.BytesIO(buf), map_location='cpu')`, `build_metrics_record(ckpt_load=)` |
+| `6885b3c` | Coder rB-F2 | F2-6c (red): receipt binds loaded == measured == manifest; writable cache entry rejected; pre-spawn byte flip refused |
+| `b724af6` | Coder rB-F2 | F2-6d: collector LOAD_KEYS + receipt binding + `--ckpt-bytes`; driver `cache_ok` (0444, size, re-hash) at staging and before each spawn |
+| `39ccdf4` | Coder rB-F2 | F2-7a (red): the retention audit refuses `--dump-check receipt` |
+| `bf7bf38` | Coder rB-F2 | F2-7b: `--nas-retention-audit` accepts only full / manifest |
+| `55402de` | Coder rB-F2 | records: notebook F2-1 … F2-7 + closing summary, ledger rows, the round's guard / pytest logs (final regression + full guard) |
+| `20100d7` | Planner records | receipt for rB-F2 (regression 2369/7/1, guard 169/0/0 incl. NAS section, audit gate exit 0, pins unchanged), adjudications of deviations (i)–(v) and questions (a)–(c), plan v12, the Planner's verification logs; Codex A3/B3 launched |
+| `a20e6f7` | Planner records | Codex A3/B3 REQUEST-CHANGES without BLOCKING (all F2 items RESOLVED; training side cleared to arm; eval HIGH = probe path-based ckpt load → rB-F3) + artifact; DRY_RUN pass rc 0 at `1d71ae2`; integrative review launched |
+| `724b636` | Planner records | integrative pre-launch review **ARM** + artifact (HIGHs non-blocking: probe provenance → rB-F3; no gated resume → recovery policy; NIT arming scrub); plan v13; receipt; rB-F3 Coder spawned |
+| `6fdff45` | Coder rB-F3 | F3-1a (red): the cond probe reads once (`read_checkpoint_exact`), deserializes that buffer (`torch.load(io.BytesIO(buf), map_location='cpu')`), returns its digest + length; malformed digest refused before the model; provenance carries both after `ckpt_sha256` and names the deserialized bytes when the file changes after the read |
+| `9234949` | Coder rB-F3 | F3-1b: `load_probe_module` → `(module, info, ckpt_load)` (validated by `eval_FLAC._ckpt_load_provenance`, None refused); `main()` records `ckpt_sha256_loaded` + `ckpt_bytes_loaded` right after `ckpt_sha256` |
+| `a2d851e` | Coder rB-F3 | F3-2a (red): `PROBE_CONTRACT` binds the loaded digest to the CANON@40k manifest sha and the loaded length to the verified CANON@40k receipts (missing / malformed / mismatched / disagreeing / no receipt → invalid, field named); full collection refuses (rc 3) |
+| `833ab9a` | Coder rB-F3 | F3-2b: `PROBE_CONTRACT["ckpt_step"]`, `canon_endpoint_receipts`, `_probe_length_reasons`; `probe_reasons` / `load_control(canon_receipts=)` (required); `--collect` passes the collected cells' endpoint receipts |
+| `79254f3` | Coder rB-F3 | records: notebook (start, F3-1, F3-2, F3-3 no change, closing summary) + ledger rows; the round's six pytest logs (final 7-file regression 614 passed / 0 failed) |
+| `363bf11` | Planner records | receipt for rB-F3 (regression 2397/7/1; training side byte-identical; pins unchanged) + Codex B4 **SHIP** artifact — every review closed; LAST pre-freeze records commit before the GO token |
+| `b4924ef` | Coder rC-F1 | 1a (red, watcher pytest): shared policy -- a GPU-0 co-tenant is a clean poll logged once per pid-set change (test_d renamed, new d2); lowmem is test_e's dirty poll; literals 12288 / shared mirrored; idle still refuses; unknown literal exits 2; message literals 12 GiB / 120 h |
+| `398e36c` | Coder rC-F1 | 1b (red, guard): 3-column compute-app stub; U1–U18 shared-policy disclosure, floor dominance, mirrored literals, malformed rows, idle / CONFIG ERROR; E10 + R1b schema 2; R1d–f co-tenant SMOKE evidence accepted by FULL; R6/R6b the 120 h cap |
+| `a4b5b65` | Coder rC-F1 | 2: launcher gate (8) memory-only under pinned `GPU_OCCUPANCY_POLICY=shared` (floor 12288 MiB, projection ≤ 120 h, strict 3-field query, co-tenants disclosed, idle = v10 refusal, self-check); SMOKE evidence schema 2 (+4 keys) required by FULL; pins regenerated, 48, byte-identical |
+| `42e6829` | Coder rC-F1 | 3: watcher mirrors floor + policy (self-check; banner); co-tenants never dirty under shared, one `co-tenants:` log line per pid-set change; idle unchanged |
+| `3ed2ab2` | Coder rC-F1 | records: notebook (start, cycles 1–4, closing summary) + ledger rows; red/green pytest + guard logs (regression 2401/7/1, guard 185/0/0, three fixture-aborted guard attempts kept); `DRY_RUN=1 MODE=SMOKE` rc 0 at this HEAD |
+| `bb7ea8d` | Planner records | receipt for rC-F1 (regression 2405/3/1 incl. 4 CUDA tests by a disclosed protocol slip; guard 185/0/0; pins 48; DRY_RUN rc 0; W&B identity) + Codex rC artifact **REQUEST-CHANGES, no BLOCKING** (HIGH: FULL enforces the schema-2 GPU keys; NITs: watcher numeric MiB, U15 isolation, plan prose → v14.1 here) → fix round rC-F2 |
+| `c42bde9` | Coder rC-F2 | 1a (red, guard): FULL must enforce the schema-2 GPU provenance -- `write_evidence` + `max_projected_hours`, `DROP`, `cot()`; E1b; E11a–e (each key deleted), E12–E18 (policy / floor / cap / free null, one card, below floor, string), E19–E24 (co-tenant record: no cwd, pid 0, gpu 2, used_mib -1, cwd "", pid true) → rc 2 + headline + a reason line naming key and value; E25 valid records accepted; E26 non-JSON; R1b typed keys |
+| `e40c325` | Coder rC-F2 | 1b: launcher FULL predicate = NEED + `gpu_policy` / `min_gpu_free_mib` / `max_projected_hours` (this launcher's literals as argv) + typed `free_mib_at_launch` / `co_tenants_at_launch`; one OK/NO checker line; refusal = exit 2 + unchanged headline + `evidence check: …`; writer unchanged; launcher sha `7288e6b4`; pins unchanged |
+| `84661fa` | Coder rC-F2 | 2a (red, watcher pytest): stub answers only the nounits compute-app query; `na` / `na_other` `[N/A]` scenarios; `test_j2` dirty poll with the reason, no launch, never FAILED |
+| `57bae6e` | Coder rC-F2 | 2b: watcher query `…,used_memory --format=csv,noheader,nounits`; `used_memory` must be `[0-9]+` on any row else a dirty poll `non-numeric used_memory in compute-app row '<row>' - waiting`; co-tenants line appends ` MiB`; watcher sha `d1aa5e41` |
+| `762dd68` | Coder rC-F2 | 3a (red, guard): U15b -- a clone-only watcher floor flip to 23040 must make U15 fail on the watcher half |
+| `3759c04` | Coder rC-F2 | 3b: guard overlays the watcher into the clone; U15 reads launcher + watcher as the clone's committed content (`git show HEAD:`); guard sha `7a1c5130` |
+| `ae827e0` | Planner records | receipt for rC-F2 (regression 2403/7/1 CPU-only; guard 207/0/0; pins 48; DRY_RUN rc 0; W&B identity) + Codex rC2 **SHIP** artifact ("the training launcher/watcher may be armed"; NITs: plan §10 sentence synced, strict-schema E-cases deferred to the RESUME round) + ARMING record — every review closed |
+| `62dc642` | Coder rC-F3 | 1a (red, guard): W&B offline pin -- the fake trainer records its `WANDB_MODE` (that variable only); stub `GUARD_NO_WANDB=1`; section W: W1b header `wandb/offline-run-*`; W2/W5 SMOKE/FULL → the trainer sees `offline` + the run's own log carries the `W&B mode: offline (…)` line once before the ARGV; W3/W4/W6 a caller's `online` / `disabled` overridden; W7 DRY_RUN prints it; W8 the literal `WANDB_MODE_PIN="offline"` once + one `WANDB_MODE=` assignment (its export); W9 no wandb → rc 2, no ARGV |
+| `6c7c1fe` | Coder rC-F3 | 1b: launcher pins W&B OFFLINE (first real SMOKE died in `wandb.init`: SDK 0.15.4 `server_settings_introspection` → None) -- PINNED `WANDB_MODE_PIN="offline"`; `export WANDB_MODE="$WANDB_MODE_PIN"` right before train.py; the `W&B mode:` line before the ARGV (DRY_RUN too; SDK version by import, failure → rc 2); header write target; ARGV / identity gate / other gates / evidence / FULL predicate unchanged; launcher sha `2c3453e8`; pins unchanged |
+| `5d3f786` | Coder rC-F3 | records: notebook (start, cycle 1, cycle 2 verification, closing) + ledger rows for 62dc642 / 6c7c1fe + the round's logs (RED W 7/12/1, GREEN W 19/0/1 after one write_audit fixture-flake abort kept as *_ABORTED_*; regression 2403/7/1; full guard 225/0/0; DRY_RUN rc 0) |
+| `d28afcf` | Planner records | receipt for rC-F3 (SMOKE 1 FAILED 03:45:56 at 692f4f5: all v14 gates passed, train.py rc 1 in wandb.init — SDK 0.15.4 vs the current server; fix = pinned WANDB_MODE=offline; verification at 5d3f786: regression 2403/7/1 CPU-only, guard 225/0/0, pins 48, DRY_RUN rc 0, identity) + Codex rC3 artifact/log (SHIP, conditional on the guard, met) + arming-1 / SMOKE-1 artifacts + the v13 arming archive; LAST pre-freeze records commit before the ledger row |
+| `18ca5d4` | Planner (v15, test-first) | 1a (red, guard): projection cap 300 h under `shared` -- harness FULL evidence fixture + R1b expect 300; U15 expects the literal; R6 30 s/step (333.3 h) refused, R6b 6 s/step passes, R6c the measured 19.267 s/step (214.1 h) passes, R6d 27.1 s/step (300.7 h) refused; watcher pytest fake message names 300 |
+| `ba596e3` | Planner | plan v15: §4 (7) cap 300 h under `shared` after SMOKE 2 (19.27 s/step contended -> 214.1 h); rationale, co-tenant ETAs, Yixun's standing authority, idle-card alternative left open, Planner-authored deviation disclosed |
+| `f26e42f` | Planner (v15, test-first) | 1b (launcher): `MAX_PROJECTED_HOURS=300` + comments (the only code change; watcher/pins/audit gate unchanged) |
+| `8025475` | Planner (v15) | 1c (guard fixture): `clear_evidence` before E1 -- committed evidence records (since d28afcf) made a fresh clone non-empty, E1b failed deterministically (full run at f26e42f + GUARD_ONLY=E 30/1/0); production unaffected |
+| `5e779f0` | Planner (v15) | 1d (guard fixture, Codex rC4b HIGH + NIT): `clear_evidence` before Q2 + Q2 asserts the evidence refusal (headline + no-candidate line, harness=false); E1 comment precise (content-bound PASS, never the HEAD) |
+| `54e58c7` | Planner records | receipt for plan v15 (SMOKE 2 record: every check PASSED except the 120 h cap; verification at the launcher commit: regression 2403/7/1, guard 227/0/0, pins 48, DRY_RUN rc 0, identity) + Codex rC4 artifact/log (rC4 SHIP, rC4b REQUEST-CHANGES -> fixes 1c/1d, rC4c SHIP) + arming-2 / SMOKE-2 artifacts; LAST pre-freeze records commit before the ledger row |
+| `b3c43fb` | Planner records | ledger rows for the v15 commits + the receipt 54e58c7; the arming-3 GO token was issued at this commit (07:36:35 EDT) |
+| `79cabc5` | Planner records | ARMING 3 → SMOKE 3 PASS (6.13 s/step → 68.1 h ≤ 300 h) → FULL LAUNCHED 07:44:41 EDT Oct 26 at b3c43fb; freeze lifted; SMOKE-3 evidence + capture + arm DRY_RUN log; running-bash edit hazard → RESUME round postponed |
+| `2b60b60` | Planner records | ledger rows for b3c43fb (arming-3 token commit) and the FULL-launch records commit 79cabc5 |
+| `64b7942` | Planner records | FULL watch: checkpoint 1 (step 2,500) verified on the NAS (sha d7659b72…, global_step 2500, 0 non-finite tensors, lr 4.99e-5 on schedule); rates 5.0–6.75 s/step; co-tenant ETDs refined (GPU 0 ≈ 15:45 EDT Oct 26, GPU 1 ≈ Oct 27 05:00–07:30); endpoint ≈ Oct 28 07:00–17:30 EDT; `depth_canon_ckpt_inspect.py` added (Codex review batched to the endpoint round) |
+| `9391ef1` | Planner records | FULL watch 12:32–19:55 EDT: checkpoints 2 + 3 verified (sha 5daafdd8… / bc3ab2b8…); rate 4.9–5.5 s/step; GPU 0 co-tenant turned over to xRIR exp_28 E_Prog_seed1 training (18:28 EDT, ≈ 2 days, not ours) → contended throughout; endpoint ≈ Oct 28 16:30–21:00 EDT |
+| `f67b94f` | Planner records | FULL watch to 03:17 EDT Oct 27: checkpoint 4 landed; dzheng's jobs on both cards (not ours) slow exp_25 from 4.9 to 10–13 s/step → endpoint ≈ Oct 30 12:30 – Oct 31 06:30 EDT unless they end; optional decision surface for Yixun (his xRIR queue) |
+| 21e857d3 | Planner records | worklog: FULL watch 06:58–08:48 EDT Oct 27 (step 13,657, 12.2–12.8 s/step, 5/16 ckpts); 00:26 slowdown cause corrected; exp_28 seed 0 ≈ 11:50 EDT / seed 1 ≈ Oct 30 17:00; endpoint ≈ Oct 31 03:30 EDT |
+| 99041315 | Planner records | worklog: FULL watch 10:38–12:29 EDT Oct 27 (step 14,723, 5/16 ckpts); GPU 1 turnover — exp_28 seed 0 done, eval queue then E_Prog3 seed 0; 9.7 s/step for ≈ 2 h; endpoint ≈ Oct 31 02:00 EDT |
+| 06ef819f | Planner records | worklog: FULL watch 12:29–18:01 EDT Oct 27 (step 16,899, 6/16 ckpts; checkpoint 6 13:27:30); GPU 1 light ≈ 5 h then E_Prog3 seed 0 started 17:17:27; endpoint ≈ Oct 30 10:15 EDT at 10 s/step |
+| 76db6115 | Planner records | worklog: checkpoint 8 (20,000) verified (sha 5a2ab1a1…, finite, lr on schedule); checkpoint 7 landed; 8/16 ckpts, 50 %; 5.7–6.1 s/step; endpoint ≈ Oct 29 09:00 EDT at 6 s/step |
+| c317e806 | Planner records | worklog: checkpoints 9 + 10 landed (10/16, step 25,294 at 08:48 EDT Oct 28); ≈ 15-min NAS/CIFS hiccup 07:02–07:18 stalled the loaders, self-recovered (exposure disclosed); endpoint ≈ Oct 29 09:20 EDT |
+| 23a86278 | Planner records | ledger: record the 08:50 EDT Oct 28 worklog commit (c317e806) |
+| e020cd78 | Planner records | worklog: FULL watch 12:30 EDT Oct 28 — checkpoint 11 (27,500) landed 12:25:42 (11/16), step 27,530 (69 %), 5.7–6.1 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 22:30, GPU 1 ≈ Oct 30 02:45), watch re-armed bsjg1qknq; nothing to act on |
+| 9d9b19fc | Planner records | worklog: FULL watch 18:02 EDT Oct 28 — checkpoint 12 (30,000) landed 16:43:01 (12/16), step 30,791 (77 %), 5.7–6.2 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 18:50, GPU 1 ≈ Oct 29 22:15), watch re-armed bxiym1xep; nothing to act on |
+| 18377e4d | Planner records | worklog: FULL watch 21:44 EDT Oct 28 — checkpoint 13 (32,500) landed 20:55:48 (13/16), step 32,983 (82 %), 5.7–6.2 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 16:45, GPU 1 ≈ Oct 29 21:50), watch re-armed b3957f9o7; nothing to act on |
+| e1b96680 | Planner records | worklog: FULL watch 03:16 EDT Oct 29 — checkpoint 14 (35,000) landed 01:31:53 (14/16), step 35,816 (90 %), 7.0–9.5 s/step since ≈ 23:50 (co-tenant noise), co-tenant ETDs re-read (GPU 0 ≈ Oct 29 10:20 then eval, GPU 1 ≈ Oct 30 00:00–08:00), watch re-armed bqfjqif1t; nothing to act on |
+| ce444cb3 | Planner records | worklog: pre-endpoint readiness — eval-driver DRY_RUN (P1-pin + YAW-pin, 66 cells) PASSED at e47c4904; probe CLI verified; endpoint runbook |
+| 3a621ff9 | Planner records | worklog: FULL watch 06:58 EDT Oct 29 — checkpoint 15 (37,500) landed 06:20:28 (15/16), step 37,865 (95 %), 5.7–6.4 s/step, co-tenant ETDs re-read (GPU 0 ≈ Oct 29 10:30–11:00 then eval, GPU 1 ≈ Oct 30 04:00–10:00), watch re-armed bbivi42tz; endpoint ≈ 10:30 EDT; nothing to act on |
+| 1448372a | Planner records | worklog: FULL FINISHED rc 0 (16/16 ckpts, manifest 10:34:13 EDT Oct 29); endpoint 40k sha == manifest, inspector clean; NAS load-failure analysis (416 substitutes, Oct 28 hiccup only); registered probe run #1 at 2400cc93 FAIL eps_cond 8.12e-5 vs 1e-5 (Tier 1 PASS) + diagnosis + adjudication A/B for Yixun; campaign dry-run 110 cells PASS; launch artifacts committed |
+| 73eaef4a | Planner records | exp_25 campaign COMPLETE at pin d6ca307a: phase 2 TRAJ 120/120 (failed 0), collector results PARTIAL (20 S cells refused by design), registered probe JSON + sha256, campaign logs/plans (3 drivers, probe, collector, generator, 230 per-cell logs), worklog entry; Tier 1 PASS / Tier 2 FAIL as registered / Tier 3 PASS; table regen blocked by pre-existing lost evidence |
+| 63126b17 | Planner evidence | 30 theta=0 table-evidence metric JSONs + 30 receipts force-added past outputs_FLAC/ ignore; 30 sha256 lines appended to A6000_METRICS_SHA256SUMS.txt (stream/canon sidecars 94 MB pending Yixun) |
+| 97e2e9ac | Planner evidence | 40 verify_cell sidecars (30 .stream.json + 10 .canon.json, 93 MB) force-added past outputs_FLAC/ ignore — approved by Yixun 2026-10-31; the receipts bind them by artifact_sha256.stream/.canon, so no manifest lines (A6000_METRICS_SHA256SUMS.txt is metrics-only by convention) |

@@ -1,0 +1,24 @@
+=== exp_25 depth_canon eval campaign -- 2026-10-29_10-55-03 -- HEAD d6ca307a85b9b0a75ec9d47f4d237e63a3db527e -- dry_run=0 -- harness=false ===
+evaluator pin OK: d6ca307a85b9b0a75ec9d47f4d237e63a3db527e; evaluator tree digest f754bd63157eb5a7069ed9a3962260711e3c84a8d6134907f1f70714bcee3d46
+configs OK: every model / dataset config matches its manifest pin
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+cells manifest OK
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+plan: 2 cell(s) -> worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-29_10-55-03_eval_plan.json
+plan: 2 cell(s); dump root /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms; farm outputs_FLAC/exp25_depth_canon; lanes 0,1
+dump root OK: /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms is cifs //10.249.7.28/shared_data, write probe created + removed
+checkpoint cache space: 1 checkpoint(s) to stage = 723922667 B + 2147483648 B margin = 2871406315 B needed; 290216886272 B available on outputs_FLAC
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=8-step=40000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace.ckpt (the local copy hashes to the pin 52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace)
+CELL exp25_CANON_T_S40000_K1_s42 | T | CANON |  run
+  GPU 0: shared with pid 947674 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace.ckpt (0444, 723922667 bytes, 52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace)
+  RUN exp25_CANON_T_S40000_K1_s42 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-29_10-55-03_eval_exp25_CANON_T_S40000_K1_s42.log)
+CELL exp25_CANON_T_S40000_K1_s43 | T | CANON |  run
+  GPU 1: shared with pid 1648443 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace.ckpt (0444, 723922667 bytes, 52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace)
+  RUN exp25_CANON_T_S40000_K1_s43 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-29_10-55-03_eval_exp25_CANON_T_S40000_K1_s43.log)
+  DONE exp25_CANON_T_S40000_K1_s42 on GPU 0: complete and verified
+  DONE exp25_CANON_T_S40000_K1_s43 on GPU 1: complete and verified
+=== summary: selected 2 | skipped (complete and verified) 0 | ran ok 2 | failed 0 | not run 0 ===
+completion: 2/2 selected cell(s) complete and verified (manifest: 230 cells)
+CAMPAIGN SELECTION COMPLETE

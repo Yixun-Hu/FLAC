@@ -1,0 +1,134 @@
+=== exp_25 depth_canon guard suite -- source HEAD d348bd1 -- tmp /tmp/depth_canon_guard.6ZbJ2q ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+  PASS  T1 no tie audit (a pinned file): the pin gate refuses (rc=2)
+  PASS  T1b SMOKE refuses without it too (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T2 a --limit audit (REFUSED_SUBSET) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T3 a split JSON changed after the audit (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T4 a tampered sidecar (re-pinned) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T5 an audit that found a survivor (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T6 an audit with an unprocessed map (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T7 an audit by another audit script (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T8 item counts that are not the census (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T10 duplicated rows (sidecar recomputed) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T11 arbitrary row paths (sidecar recomputed) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T12 a depth map changed after the audit (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T13 an untagged report in harness mode (rc=2)
+write_audit ok_but_error returned 0
+  FAIL  T15 a write_audit fixture that must PASS but came out INCOMPLETE fails loudly with the row error
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T14 the harness report in PRODUCTION mode is refused (rc=2)
+  PASS  T9 the complete PASS audit is accepted (rc=0)
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7); strict queries (rA A3) ---
+  PASS  U1 a foreign compute process on GPU 0 (rc=7)
+  PASS  U2 a foreign compute process on GPU 1 is named with its cwd (rc=7)
+  PASS  U3 a failed compute-process query refuses (rc=7)
+  PASS  U4 a process on another (known) card does not block (rc=0)
+  PASS  U12 the co-tenancy disclosure logs the VALIDATED answers (rB-F2 F2-2) (rc=0)
+  PASS  U12b ... and names the compute process seen on another card
+  PASS  U13 the launcher issues no nvidia-smi query beyond the strict gate (a failing disclosure query is impossible)
+  PASS  U6 a process on an UNKNOWN uuid refuses (rc=7)
+  PASS  U7 a numeric memory answer with a nonzero exit refuses (rc=7)
+  PASS  U8 two memory rows for one card refuse (rc=7)
+  PASS  U9 a malformed compute-app row refuses (rc=7)
+  PASS  U10 a plausible uuid map with a nonzero exit refuses (rc=7)
+  PASS  U11 plausible compute-app rows with a nonzero exit refuse (rc=7)
+  PASS  U5 the occupancy gate is skipped under DRY_RUN (rc=0)
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(128 case(s) not run: GUARD_ONLY=U,T)
+=== 29 passed, 1 failed, 1 skipped ===

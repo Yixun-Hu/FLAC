@@ -1,0 +1,55 @@
+{
+ "schema_version": 2,
+ "kind": "depth_canon_smoke_evidence",
+ "verdict": "FAIL",
+ "why": "an earlier check or train.py failed (rc 1)",
+ "head": "692f4f56b51ea5332b7879dd2e98eaae960db540",
+ "manifest_sha256": "631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb",
+ "launcher_sha256": "7288e6b4c5a00292254690c20919023b196830c66b192f57b979d2c3a442d29f",
+ "make_pins_sha256": "8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2",
+ "contract_sha256": "ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115",
+ "audit_sha256": "b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e",
+ "audit_gate_sha256": "452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d",
+ "harness": false,
+ "config_contract_ok": true,
+ "banner_seen": false,
+ "endpoint_seen": false,
+ "ranks_seen": false,
+ "nonfinite_seen": false,
+ "smoke_checkpoints": 0,
+ "elapsed_s": 14.0,
+ "startup_inclusive_projection_h": 6.222222222222223,
+ "steady_state_s_per_step": null,
+ "steps_per_s": null,
+ "projection_h": null,
+ "max_projected_hours": 120,
+ "finite_loss_seen": false,
+ "train_loss_values_seen": 0,
+ "last_train_loss": null,
+ "canonicalization_latency": null,
+ "canonicalization_latency_ms": null,
+ "gpu_policy": "shared",
+ "min_gpu_free_mib": 12288,
+ "free_mib_at_launch": {
+  "0": 16264,
+  "1": 16098
+ },
+ "co_tenants_at_launch": [
+  {
+   "gpu": 0,
+   "pid": 2750798,
+   "used_mib": 32256,
+   "cwd": "/home/yixunhu/codespace/xRIR_code_wt13"
+  },
+  {
+   "gpu": 1,
+   "pid": 2914825,
+   "used_mib": 32266,
+   "cwd": "/home/yixunhu/codespace/xRIR_code_wt28"
+  }
+ ],
+ "train_rc": 1,
+ "argv": "/home/yixunhu/miniconda3/envs/flac/bin/python train.py --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 25 --checkpoint-every 1000000 --batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true --strategy ddp_find_unused_parameters_true --precision bf16-mixed --seed 42 --num-workers 6 --logger wandb --name FLAC_exp25_CANON_smoke --experiment-name exp25_CANON_smoke --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon",
+ "log": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-26_03-43-23_exp25_CANON_smoke_train.log",
+ "log_sha256": "795751c69f0be9d9efff53b41b092f83dc70384ccb6b1d6959ed3011253cede2"
+}

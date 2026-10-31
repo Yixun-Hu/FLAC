@@ -1,0 +1,138 @@
+=== exp_25 depth_canon guard suite -- source HEAD 268bd22 -- tmp /tmp/depth_canon_guard.Bvy7An ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (46 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+  PASS  P1 the list is LC_ALL=C sorted and unique
+missing worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json
+  FAIL  P1b the list covers the training path
+  PASS  P2 the manifest is deterministic and lists exactly the --list paths
+  PASS  P3 --write produces a manifest sha256sum verifies
+  PASS  P3b the source repo's COMMITTED manifest is current
+  PASS  P4 a new src/models/*.py is covered automatically
+  PASS  P5 a missing pinned file fails the generator
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+  PASS  M1 a tampered pinned file (rc=2)
+  PASS  M2 an unpinned new module (rc=2)
+  PASS  M3 consistent but uncommitted (rc=2)
+  PASS  M4 an uncommitted launcher edit (rc=2)
+  PASS  M5 another VAE behind the (gitignored) weights link (rc=2)
+  FAIL  M6 a committed change with its regenerated manifest is a new valid pin -- want rc=0 + 'pin manifest OK: 48 files'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  PASS  M7 an edit to a config the DINOv3 gate opens (FLAC_AR_BF.json) is caught (rc=2)
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+  FAIL  T1 no tie audit (a pinned file): the pin gate refuses -- want rc=2 + 'PIN MANIFEST FAILED'; got rc=2; last: TIE AUDIT GATE FAILED: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json (+ .sha256) unreadable ([Errno 2] No such file or directory: 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json'); run depth_canon_tie_audit.py over all three splits - abort
+  FAIL  T1b SMOKE refuses without it too -- want rc=2 + 'PIN MANIFEST FAILED'; got rc=2; last: TIE AUDIT GATE FAILED: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json (+ .sha256) unreadable ([Errno 2] No such file or directory: 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json'); run depth_canon_tie_audit.py over all three splits - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T2 a --limit audit (REFUSED_SUBSET) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T3 a split JSON changed after the audit -- want rc=2 + 'split JSONs'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; unseen: the split JSON /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen.json changed since the audit; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T4 a tampered sidecar (re-pinned) (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T5 an audit that found a survivor (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T6 an audit with an unprocessed map (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  PASS  T7 an audit by another audit script (rc=2)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T8 item counts that are not the census -- want rc=2 + 'inputs'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 1 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T10 duplicated rows (sidecar recomputed) -- want rc=2 + 'duplicate'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T11 arbitrary row paths (sidecar recomputed) -- want rc=2 + 'rows are not the'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T12 a depth map changed after the audit -- want rc=2 + 'changed since the audit'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T13 an untagged report in harness mode -- want rc=2 + 'harness-tagged'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+  FAIL  T14 the harness report in PRODUCTION mode is refused -- want rc=2 + 'a harness tag is never production'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  FAIL  T9 the complete PASS audit is accepted -- want rc=0 + 'tie audit OK'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+  FAIL  B1 a record-only commit between SMOKE and FULL is accepted -- want rc=0 + 'smoke evidence:'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  FAIL  B2 a training-closure change (+ its regenerated manifest) needs a new SMOKE -- want rc=2 + 'FULL requires a PASSING smoke evidence'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  FAIL  B3 a committed launcher change needs a new SMOKE -- want rc=2 + 'FULL requires a PASSING smoke evidence'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  FAIL  B4 a new (still qualifying) tie audit needs a new SMOKE -- want rc=2 + 'FULL requires a PASSING smoke evidence'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+  FAIL  B5 a committed change to the audit gate needs a new SMOKE -- want rc=2 + 'FULL requires a PASSING smoke evidence'; got rc=2; last: TIE AUDIT GATE FAILED: coverage {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 4, 'n_maps_audited': 4, 'complete': True} != {'splits': ['train', 'unseen', 'seen'], 'limit': None, 'subset': False, 'n_maps_union': 9650, 'n_maps_audited': 9650, 'complete': True}; train: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/train_cfg.json stale or not the registered one; train: 3 items != the registered 291210; unseen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/unseen_cfg.json stale or not the registered one; unseen: 2 items != the registered 6337; seen: dataset config /tmp/depth_canon_guard.Bvy7An/audit_tree/seen_cfg.json stale or not the registered one; seen: 2 items != the registered 6217; rows: not 9650 clean maps - abort
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. the GPUs must be UNOCCUPIED, not merely have free memory (r3b-F1 fix 7) ---
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(116 case(s) not run: GUARD_ONLY=P,M,T,B)
+=== 17 passed, 17 failed, 1 skipped ===

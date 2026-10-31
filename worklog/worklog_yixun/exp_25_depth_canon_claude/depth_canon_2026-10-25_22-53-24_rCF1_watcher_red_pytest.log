@@ -1,0 +1,115 @@
+......FF.......................................FFF                       [100%]
+=================================== FAILURES ===================================
+_____ test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged ______
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_d_shared_policy_busy_gpus0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_d_shared_policy_busy_gpus0/h'), 'head': '83764ebb70e2056a8a52eff6dc4f124a6e85d695'}
+
+    def test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged(rig):
+        """rC-F1 (plan v14, Yixun 2026-10-25 shared launch): a foreign compute process on GPU 0 does
+        not make the poll dirty -- the memory floor decides; the co-tenant is logged ONCE, as one
+        `co-tenants:` log line per change of the pid set, never through write_state."""
+        token(rig)
+        gpu(rig, ["busy"])
+        rc, out = run(rig, max_polls=12)
+        st = state(rig)
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-25_22-53-29 -- pid 3333906 -- launcher /tmp/pytest-of-yixunhu/pytest-1836/test_d_shared_policy_busy_gpus0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1836/test_d_shared_policy_busy_gpus0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 23040 MiB
+E         [2026-10-25T22:53:29-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-25T22:53:29-04:00] phase WAITING_GPU: GPUs not free: foreign compute process(es): GPU 0: pid 4242 (python, 32470 MiB, cwd ?); 
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:185: AssertionError
+___________ test_d2_a_changed_cotenant_set_is_logged_once_per_change ___________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_d2_a_changed_cotenant_set0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_d2_a_changed_cotenant_set0/h'), 'head': '83764ebb70e2056a8a52eff6dc4f124a6e85d695'}
+
+    def test_d2_a_changed_cotenant_set_is_logged_once_per_change(rig):
+        """rC-F1: the `co-tenants:` line is printed when the set of pids changes between polls,
+        not on every poll (and the changed set is still a clean poll)."""
+        token(rig)
+        gpu(rig, ["busy", "busy", "busy1"])
+        rc, out = run(rig, max_polls=12)
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon autolaunch -- 2026-10-25_22-53-29 -- pid 3334317 -- launcher /tmp/pytest-of-yixunhu/pytest-1836/test_d2_a_changed_cotenant_set0/h/fake_launch.sh -- harness=/tmp/pytest-of-yixunhu/pytest-1836/test_d2_a_changed_cotenant_set0/h ===
+E         poll 0 s, fire after 3 clean polls, <= 5 GPU-gate retries, min free 23040 MiB
+E         [2026-10-25T22:53:29-04:00] phase WAITING_TOKEN: starting
+E         [2026-10-25T22:53:29-04:00] phase WAITING_GPU: GPUs not free: foreign compute process(es): GPU 0: pid 4242 (python, 32470 MiB, cwd ?); 
+E         [2026-10-25T22:53:29-04:00] phase WAITING_GPU: GPUs not free: foreign compute process(es): GPU 1: pid 4343 (python, 16000 MiB, cwd ?); 
+E         poll budget exhausted (12) in phase WAITING_GPU
+E         
+E       assert 3 == 0
+
+src/tests/test_depth_canon_autolaunch.py:200: AssertionError
+______________________ test_constants_mirror_the_launcher ______________________
+
+    def test_constants_mirror_the_launcher():
+        """The watcher's floor and policy are the launcher's pinned literals (12 GiB, shared)."""
+        watcher = open(WATCHER).read()
+        launcher = open(os.path.join(REPO, EXPREL, "depth_canon_launch.sh")).read()
+        for name, want in (("MIN_GPU_FREE_MIB", "12288"), ("GPU_OCCUPANCY_POLICY", "shared")):
+>           assert _literal(watcher, name) == _literal(launcher, name) == want, name
+E           AssertionError: MIN_GPU_FREE_MIB
+E           assert '23040' == '12288'
+E             
+E             - 12288
+E             + 23040
+
+src/tests/test_depth_canon_autolaunch.py:500: AssertionError
+________________ test_idle_policy_still_refuses_occupied_cards _________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_idle_policy_still_refuses0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_idle_policy_still_refuses0/h'), 'head': '4f9633a14c681d2098f27fd7e3dc7a19d88be80a'}
+
+    def test_idle_policy_still_refuses_occupied_cards(rig):
+        """GPU_OCCUPANCY_POLICY=idle restores the v10 predicate: any compute process on GPU 0/1 is dirty."""
+>       _watcher_with_policy(rig, "idle")
+
+src/tests/test_depth_canon_autolaunch.py:516: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_idle_policy_still_refuses0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_idle_policy_still_refuses0/h'), 'head': '4f9633a14c681d2098f27fd7e3dc7a19d88be80a'}
+policy = 'idle'
+
+    def _watcher_with_policy(r, policy):
+        """Commit a copy of the watcher whose policy literal is <policy> into the rig's repo."""
+        path = r["exp"] / "depth_canon_autolaunch.sh"
+        text = path.read_text()
+>       assert text.count("\nGPU_OCCUPANCY_POLICY=shared\n") == 1
+E       assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x58798ee536e0>('\nGPU_OCCUPANCY_POLICY=shared\n')
+E        +    where <built-in method count of str object at 0x58798ee536e0> = '#!/usr/bin/env bash\n# ============================================================================\n# depth_canon_au...te_state DONE "SMOKE and FULL both exited 0"; exit 0; fi\n  write_state FAILED "stage=FULL rc=${rc}"\n  exit 1\ndone\n'.count
+
+src/tests/test_depth_canon_autolaunch.py:507: AssertionError
+__________________ test_an_unknown_policy_literal_is_refused ___________________
+
+rig = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_an_unknown_policy_literal0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_an_unknown_policy_literal0/h'), 'head': '4f9633a14c681d2098f27fd7e3dc7a19d88be80a'}
+
+    def test_an_unknown_policy_literal_is_refused(rig):
+        """Only idle | shared exist: any other literal is a precondition refusal (exit 2), never a launch."""
+>       _watcher_with_policy(rig, "relaxed")
+
+src/tests/test_depth_canon_autolaunch.py:528: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = {'repo': PosixPath('/tmp/pytest-of-yixunhu/pytest-1836/test_an_unknown_policy_literal0/repo'), 'exp': PosixPath('/tmp/.../pytest-of-yixunhu/pytest-1836/test_an_unknown_policy_literal0/h'), 'head': '4f9633a14c681d2098f27fd7e3dc7a19d88be80a'}
+policy = 'relaxed'
+
+    def _watcher_with_policy(r, policy):
+        """Commit a copy of the watcher whose policy literal is <policy> into the rig's repo."""
+        path = r["exp"] / "depth_canon_autolaunch.sh"
+        text = path.read_text()
+>       assert text.count("\nGPU_OCCUPANCY_POLICY=shared\n") == 1
+E       assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x58798ee57510>('\nGPU_OCCUPANCY_POLICY=shared\n')
+E        +    where <built-in method count of str object at 0x58798ee57510> = '#!/usr/bin/env bash\n# ============================================================================\n# depth_canon_au...te_state DONE "SMOKE and FULL both exited 0"; exit 0; fi\n  write_state FAILED "stage=FULL rc=${rc}"\n  exit 1\ndone\n'.count
+
+src/tests/test_depth_canon_autolaunch.py:507: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_autolaunch.py::test_d_shared_policy_busy_gpus_are_clean_and_the_cotenant_is_logged
+FAILED src/tests/test_depth_canon_autolaunch.py::test_d2_a_changed_cotenant_set_is_logged_once_per_change
+FAILED src/tests/test_depth_canon_autolaunch.py::test_constants_mirror_the_launcher
+FAILED src/tests/test_depth_canon_autolaunch.py::test_idle_policy_still_refuses_occupied_cards
+FAILED src/tests/test_depth_canon_autolaunch.py::test_an_unknown_policy_literal_is_refused
+5 failed, 45 passed in 17.24s

@@ -1,0 +1,9 @@
+top keys: ['callbacks', 'epoch', 'global_step', 'loops', 'lr_schedulers', 'model_config', 'optimizer_states', 'pytorch-lightning_version', 'state_dict']
+epoch: 8 global_step: 40000
+state_dict tensors: 1279 by prefix: {'diffusion': 1066, 'diffusion_ema': 212, 'losses': 1}
+ema tensors: 212
+non-finite tensors in state_dict: 0 []
+optimizer_states: list 1 param_groups lr: [4.902903378454601e-05] state entries: 449
+lr_schedulers: [{'last_epoch': 40000, 'inv_gamma': 1000000, 'power': 0.5, 'warmup': 0.99, 'final_lr': 0.0, 'base_lrs': [5e-05]}]
+fit_loop keys: ['epoch_loop.automatic_optimization.optim_progress', 'epoch_loop.automatic_optimization.state_dict', 'epoch_loop.batch_progress', 'epoch_loop.manual_optimization.optim_step_progress', 'epoch_loop.manual_optimization.state_dict', 'epoch_loop.scheduler_progress', 'epoch_loop.state_dict', 'epoch_loop.val_loop.batch_progress']
+optimizer progress: 40000

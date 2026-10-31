@@ -1,0 +1,12 @@
+CODER rC-F3 GREEN -- HEAD 6c7c1fe1613e0e2e203a6235f5a088ebaa483c3c -- 2026-10-26T04:07:57-04:00 -- GUARD_ONLY=W -- CUDA_VISIBLE_DEVICES="" -- launcher sha 2c3453e826ba
+=== exp_25 depth_canon guard suite -- source HEAD 6c7c1fe -- tmp /tmp/depth_canon_guard.3e8Zia ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+GUARD FIXTURE FAILED: write_audit(ok) is not a complete PASS: gate {'verdict': 'INCOMPLETE', 'exit_code': 3, 'n_survivors': 0, 'n_errors': 1}; errors [{'path': 'depth_map/Cafe/Cafe_idx_0/1.npy', 'error': "RuntimeError: the cloud AR_md built differs from the resolved file's content"}]; survivors []
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+GUARD ABORTED: make_clone could not build the harness tie-audit fixture (reason above)
+guard rc=1

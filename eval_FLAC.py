@@ -3,11 +3,13 @@ import argparse
 import contextlib
 import copy
 import hashlib
+import io
 import json
 import math
 import subprocess
 from typing import List, NamedTuple, Optional
 from tqdm import tqdm
+import numpy as np
 import torch
 import pytorch_lightning as pl
 
@@ -62,9 +64,12 @@ from src.data.yaw_rotation import (rotate_scene_metadata, invariant_conditioning
                                    draw_yaw_offsets, offsets_to_radians,
                                    yaw_column_shift,
                                    DEFAULT_FRAME_ANGLES, ORBIT_EXECUTION,
-                                   FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap)
+                                   FRAME_AVG_MAX_FWD_SAMPLES, resolve_frame_avg_cap,
+                                   TIE_CLASSES, canonical_depth_sha256,
+                                   canonicalize_scene_metadata)
 from src.models import create_model_from_config
 from src.training import create_training_wrapper_from_config, create_metric_callback_from_config
+from src.training.factory import _parse_canonicalize_config
 
 
 def rot_suffix(rotate_deg):
@@ -338,6 +343,251 @@ def apply_are_addback(latents, bank, are_lambda, metadata, device):
                                 are_lambda)
 
 
+# exp_25 depth_canon (plan_depth_canon.md v8 §2.2/§5): deepest-column yaw
+# canonicalization at evaluation. Additions only; with none of its flags given (and
+# no `training.canonicalize` block on either config) every name, record and sidecar
+# is byte-identical to the pre-exp_25 evaluator.
+CANON_KEY = 'canonicalize'
+CANON_TIEBREAK = 'image'
+# The eight record fields, appended in this order (and only) when canonicalization
+# is in play; see _canon_provenance.
+CANON_RECORD_KEYS = (
+    'canonicalize_trained', 'canonicalize_applied', 'canonicalize_mismatch',
+    'canonicalize_img_w', 'canonicalize_tiebreak', 'canonicalize_tie_counts',
+    'model_config_sha256_file', 'model_config_sha256_embedded',
+)
+
+
+# rB-F2 F2-6 (Codex B2 HIGH, B4): the checkpoint is read ONCE into memory, that buffer is hashed and
+# handed to torch.load, and the record carries these two fields (right after the base keys) -- so the
+# digest names exactly the bytes deserialized, not the file at some other moment.
+CKPT_LOAD_KEYS = ('ckpt_sha256_loaded', 'ckpt_bytes_loaded')
+
+
+def read_checkpoint_exact(ckpt_path):
+    """``(buffer, load)``: the checkpoint's bytes, read once, and ``load`` = the
+    :data:`CKPT_LOAD_KEYS` provenance of exactly that buffer (sha256, length)."""
+    with open(ckpt_path, 'rb') as f:
+        buf = f.read()
+    return buf, {'ckpt_sha256_loaded': hashlib.sha256(buf).hexdigest(), 'ckpt_bytes_loaded': len(buf)}
+
+
+def _ckpt_load_provenance(record, load):
+    """Append :data:`CKPT_LOAD_KEYS` -- ONLY when given (``None`` leaves the record untouched,
+    so a record built without it stays byte-identical). Refuses a malformed value."""
+    if load is None:
+        return record
+    if not isinstance(load, dict) or list(load) != list(CKPT_LOAD_KEYS) \
+            or not _is_sha256_hex(load['ckpt_sha256_loaded']) \
+            or type(load['ckpt_bytes_loaded']) is not int or load['ckpt_bytes_loaded'] <= 0:
+        raise ValueError(f"ckpt load provenance must be {{{', '.join(CKPT_LOAD_KEYS)}}} = "
+                         f"(a sha256 hex digest, a positive int), got {load!r}")
+    for key in CKPT_LOAD_KEYS:
+        record[key] = load[key]
+    return record
+
+
+def canon_suffix(applied=False, mismatch=False):
+    """``''`` / ``'_canon'`` / ``'_canonmis'`` / ``'_canon_canonmis'`` (applied first).
+
+    ``_canon`` = canonicalization APPLIED at evaluation; ``_canonmis`` = an
+    authorised trained != applied diagnostic (``--allow-canon-mismatch``), so a
+    trained-but-not-applied cell is distinguishable from a vanilla one by name.
+    Literal bools only: a truthy ``1`` must not silently pick a protocol token.
+    """
+    for name, value in (('applied', applied), ('mismatch', mismatch)):
+        if type(value) is not bool:
+            raise ValueError(f"canon_suffix: {name} must be a bool, got {value!r}")
+    return ('_canon' if applied else '') + ('_canonmis' if mismatch else '')
+
+
+class CanonProtocol(NamedTuple):
+    """How one evaluation stands to canonicalization (:func:`resolve_canonicalize_protocol`).
+
+    ``trained`` -- the checkpoint's embedded ``training.canonicalize`` is enabled
+    (``None`` when not in play); ``applied`` -- ``--canonicalize``; ``mismatch`` --
+    an authorised ``trained != applied`` diagnostic; ``img_w`` -- the panorama
+    width of the file config's ViT conditioners; the two blocks as found
+    (``None`` = absent).
+    """
+    in_play: bool
+    trained: Optional[bool]
+    applied: bool
+    mismatch: bool
+    img_w: Optional[int]
+    file_block: Optional[dict]
+    embedded_block: Optional[dict]
+
+
+LEGACY_CANON_PROTOCOL = CanonProtocol(False, None, False, False, None, None, None)
+_CANON_ABSENT = object()
+
+
+def _canon_strict_diff(a, b, path):
+    """First TYPE-STRICT difference of two parsed-JSON values (``type(a) is type(b)``
+    recursively, dict key sets equal), or ``None``: ``1`` is not ``True``."""
+    if type(a) is not type(b):
+        return f"{path}: type {type(a).__name__} != {type(b).__name__} ({a!r} vs {b!r})"
+    if isinstance(a, dict):
+        if set(a) != set(b):
+            return f"{path}: key sets differ ({sorted(set(a) ^ set(b))})"
+        return next((d for d in (_canon_strict_diff(a[k], b[k], f"{path}.{k}") for k in a)
+                     if d), None)
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return f"{path}: length {len(a)} != {len(b)}"
+        return next((d for d in (_canon_strict_diff(x, y, f"{path}[{i}]")
+                                 for i, (x, y) in enumerate(zip(a, b))) if d), None)
+    return None if a == b else f"{path}: {a!r} != {b!r}"
+
+
+def canon_vit_img_w(model_config):
+    """The panorama width of the config's ViT conditioners
+    (``model.conditioning.configs[*].config.ViT.img_w``): every one a positive int,
+    all equal, at least one, no two conditioners sharing an id -- else ``ValueError``.
+    Entries are kept as ``(position, id, width)``, so a duplicate id cannot hide a width."""
+    configs = (((model_config or {}).get('model') or {}).get('conditioning') or {}).get(
+        'configs') or []
+    entries = []
+    for pos, entry in enumerate(configs):
+        vit = (entry.get('config') or {}).get('ViT') if isinstance(entry, dict) else None
+        if isinstance(vit, dict):
+            entries.append((pos, str(entry.get('id')), vit.get('img_w', None)))
+    if not entries:
+        raise ValueError("canonicalize protocol: the model config has no ViT conditioner, so "
+                         "there is no panorama width to canonicalize on")
+    ids = [cid for _, cid, _ in entries]
+    dups = sorted({cid for cid in ids if ids.count(cid) > 1})
+    if dups:
+        raise ValueError(f"canonicalize protocol: duplicate conditioner id(s) {dups} among the ViT "
+                         f"conditioners {entries}")
+    bad = [e for e in entries if type(e[2]) is not int or e[2] <= 0]
+    if bad:
+        raise ValueError(f"canonicalize protocol: ViT img_w must be a positive int, got {bad}")
+    if len({w for _, _, w in entries}) != 1:
+        raise ValueError(f"canonicalize protocol: the ViT conditioners disagree on img_w: {entries}")
+    return entries[0][2]
+
+
+def model_config_sha256(model_config):
+    """sha256 hex of ``json.dumps(cfg, sort_keys=True, separators=(",", ":"))``, or ``None``."""
+    if model_config is None:
+        return None
+    return hashlib.sha256(json.dumps(model_config, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
+def resolve_canonicalize_protocol(flag, file_training_cfg, embedded_training_cfg,
+                                  allow_mismatch, *, cond_method, file_model_cfg=None):
+    """Bind ``--canonicalize`` to the CHECKPOINT, fail-closed (plan v8 §2.2, review B2 / r2 H1).
+
+    Canonicalization adds no parameter, so a CANON checkpoint loads cleanly under a
+    P1 config and vice versa; the embedded ``model_config`` is the only proof of
+    how the weights were trained (announcement 05). It is *in play* when the
+    embedded OR the file ``training`` block carries a ``canonicalize`` key (any
+    value) or either flag is given; otherwise :data:`LEGACY_CANON_PROTOCOL` is
+    returned and nothing else happens. In play, all fatal (``ValueError``):
+
+    * no embedded training config;
+    * embedded vs file ``canonicalize`` blocks not type-strictly equal (absent !=
+      ``{enabled: false}``; ``1`` != ``true``) -- whatever ``allow_mismatch`` says;
+    * an invalid block (the factory's own ``_parse_canonicalize_config``);
+    * ``--canonicalize`` with ``cond_method='fa_invariant'``;
+    * ``trained != applied`` without ``allow_mismatch``; ``allow_mismatch`` with
+      ``trained == applied`` (an unnecessary allow flag);
+    * no ``file_model_cfg`` (the whole file model config, a dict) -- it is required
+      whenever canonicalization is in play; no unanimous positive-int ViT ``img_w``
+      in it, or a trained block whose ``img_w`` differs from it.
+
+    ``cond_method`` and ``file_model_cfg`` are keyword-only (r3a hardening).
+    """
+    for name, value in (("--canonicalize", flag), ("--allow-canon-mismatch", allow_mismatch)):
+        if type(value) is not bool:
+            raise ValueError(f"canonicalize protocol: {name} must be a bool, got {value!r}")
+    embedded_has = isinstance(embedded_training_cfg, dict) and CANON_KEY in embedded_training_cfg
+    file_has = isinstance(file_training_cfg, dict) and CANON_KEY in file_training_cfg
+    if not (embedded_has or file_has or flag or allow_mismatch):
+        return LEGACY_CANON_PROTOCOL
+    if not isinstance(file_model_cfg, dict):
+        raise ValueError("canonicalize protocol: canonicalization is in play but no file model "
+                         f"config (file_model_cfg) was given ({type(file_model_cfg).__name__}); its "
+                         "ViT img_w defines the canonical column grid")
+    if not isinstance(embedded_training_cfg, dict):
+        raise ValueError(
+            "canonicalize protocol: canonicalization is in play but the checkpoint carries no "
+            "embedded model_config['training'], so how its weights were trained cannot be "
+            "proven (announcement 05). Refusing to evaluate.")
+    file_training_cfg = file_training_cfg if isinstance(file_training_cfg, dict) else {}
+    emb_block = embedded_training_cfg.get(CANON_KEY, _CANON_ABSENT)
+    file_block = file_training_cfg.get(CANON_KEY, _CANON_ABSENT)
+    if (emb_block is _CANON_ABSENT) != (file_block is _CANON_ABSENT):
+        where = "--model-config" if emb_block is _CANON_ABSENT else "the checkpoint's embedded config"
+        raise ValueError(
+            f"canonicalize protocol: training.canonicalize is present only in {where} and "
+            "absent from the other; the two must agree type-strictly (absent != "
+            "{enabled: false}). --allow-canon-mismatch does not authorise this.")
+    trained, block_img_w = False, None
+    if emb_block is not _CANON_ABSENT:
+        diff = _canon_strict_diff(emb_block, file_block, "training.canonicalize")
+        if diff is not None:
+            raise ValueError(
+                f"canonicalize protocol: the checkpoint's embedded and --model-config blocks "
+                f"disagree (type-strict): {diff}. --allow-canon-mismatch does not authorise "
+                "a config disagreement.")
+        try:
+            parsed = _parse_canonicalize_config(file_training_cfg)
+            _parse_canonicalize_config(embedded_training_cfg)
+        except ValueError as err:
+            raise ValueError(f"canonicalize protocol: {err}") from err
+        trained, block_img_w = bool(parsed), parsed.get("canonicalize_img_w")
+    applied = flag
+    if applied and cond_method == 'fa_invariant':
+        raise ValueError("canonicalize protocol: --canonicalize with --cond-method "
+                         "fa_invariant is out of scope (frame averaging already symmetrises)")
+    if trained != applied and not allow_mismatch:
+        raise ValueError(
+            f"canonicalize protocol mismatch: the checkpoint was TRAINED with canonicalize="
+            f"{trained} (embedded training.canonicalize = "
+            f"{None if emb_block is _CANON_ABSENT else emb_block!r}) but this evaluation "
+            f"APPLIES canonicalize={applied} (--canonicalize {'given' if flag else 'absent'}). "
+            "Announcement 05: the protocol must match the checkpoint; pass "
+            "--allow-canon-mismatch only for a labelled diagnostic cell.")
+    if allow_mismatch and trained == applied:
+        raise ValueError(
+            f"canonicalize protocol: --allow-canon-mismatch is unnecessary (trained == applied "
+            f"== {trained}); an unnecessary allow flag must not record an ordinary cell as a "
+            "diagnostic.")
+    img_w = canon_vit_img_w(file_model_cfg)
+    if trained and block_img_w != img_w:
+        raise ValueError(f"canonicalize protocol: training.canonicalize.img_w={block_img_w} "
+                         f"!= the ViT img_w {img_w}")
+    copy_or_none = lambda b: None if b is _CANON_ABSENT else copy.deepcopy(b)  # noqa: E731
+    return CanonProtocol(True, trained, applied, trained != applied, img_w,
+                         copy_or_none(file_block), copy_or_none(emb_block))
+
+
+def build_canon_provenance(protocol, canon_stream, file_model_config, embedded_model_config):
+    """The ``canon_provenance`` dict for :func:`build_metrics_record` -- ``None`` when
+    canonicalization is not in play (legacy record). ``canon_stream`` must be given
+    exactly when the protocol applies canonicalization. The two digests are of the
+    WHOLE file config (as written) and the WHOLE embedded config."""
+    if not protocol.in_play:
+        return None
+    if protocol.applied != (canon_stream is not None):
+        raise ValueError("canon provenance: a CanonStream is required exactly when "
+                         f"canonicalization is applied (applied={protocol.applied})")
+    return {
+        "canonicalize_trained": protocol.trained,
+        "canonicalize_applied": protocol.applied,
+        "canonicalize_mismatch": protocol.mismatch,
+        "canonicalize_img_w": protocol.img_w,
+        "canonicalize_tiebreak": CANON_TIEBREAK if protocol.applied else None,
+        "canonicalize_tie_counts": canon_stream.tie_counts() if protocol.applied else None,
+        "model_config_sha256_file": model_config_sha256(file_model_config),
+        "model_config_sha256_embedded": model_config_sha256(embedded_model_config),
+    }
+
+
 def build_output_paths(
     ckpt_path,
     steps,
@@ -349,6 +599,8 @@ def build_output_paths(
     rotate_mode='fixed',
     rotate_seed=None,
     are_lambda=None,
+    canonicalize=False,
+    canon_mismatch=False,
 ):
     """Construct the metrics-JSON and predictions-.pt output paths for one run.
 
@@ -365,6 +617,9 @@ def build_output_paths(
     ``rotate_mode='random'`` (exp_14) replaces the angle suffix with
     ``_rotrand<rotate_seed>``; the fixed-mode names are unchanged down to the byte.
 
+    exp_25: :func:`canon_suffix` goes after the method suffix and before the
+    rotation token; both default to False, which leaves every name unchanged.
+
     Returns
     -------
     dict
@@ -374,7 +629,8 @@ def build_output_paths(
     directory = os.path.dirname(ckpt_path)
     method_suffix = '' if cond_method == 'vanilla' else f'_{cond_method}_a{n_angles}'
     rot = rotation_suffix(rotate_mode, rotate_deg, rotate_seed)
-    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{rot}{are_suffix(are_lambda)}'
+    canon = canon_suffix(canonicalize, canon_mismatch)
+    stem = f'{steps}_{cfg_scale}_{eval_name}{method_suffix}{canon}{rot}{are_suffix(are_lambda)}'
     return {
         'metrics': os.path.join(directory, f'{ckpt_name}_metrics_{stem}.json'),
         'predictions': os.path.join(directory, f'{ckpt_name}_predictions_{stem}.pt'),
@@ -810,6 +1066,88 @@ def verify_stream_count(stream, dataset_count, expected=None):
         )
 
 
+# Version of the .canon.json payload below (exp_25).
+CANON_SIDECAR_SCHEMA_VERSION = 1
+
+
+class CanonStream:
+    """exp_25's per-position canonicalization record (the ``.canon.json`` sidecar).
+
+    One row per evaluated item, in stream order: ``[i, target_id, dj, tie_class,
+    canonical_depth_sha256]``. ``target_id`` is :func:`sample_target_id`, the
+    identity :class:`RotationStream` records, so the two sidecars join by
+    position. ``dj`` is the canonicalizing roll applied AFTER any evaluation
+    rotation; the depth hash is :func:`canonical_depth_sha256` of the canonical
+    panorama -- equal across rotated copies of an item (plan §1 Tier 1), whereas
+    ``dj``, and therefore :meth:`canon_hash` (a digest of the whole cell), is not.
+    """
+
+    def __init__(self):
+        self.rows = []
+
+    def __len__(self):
+        return len(self.rows)
+
+    def record(self, md, md_canon, dj, tie_class):
+        """Append one position: ``md`` is the post-rotation, PRE-canonicalization dict
+        that was canonicalized; ``md_canon`` is the result."""
+        if type(dj) is not int or dj < 0:
+            raise ValueError(f"canon stream: dj must be a non-negative int, got {dj!r}")
+        if tie_class not in TIE_CLASSES:
+            raise ValueError(f"canon stream: unknown tie class {tie_class!r}")
+        row = [len(self.rows), sample_target_id(md), dj, tie_class,
+               canonical_depth_sha256(md_canon["depth"])]
+        self.rows.append(row)
+        return row
+
+    @property
+    def target_ids(self):
+        return [r[1] for r in self.rows]
+
+    def position_tuples(self):
+        return [list(r) for r in self.rows]
+
+    def tie_counts(self):
+        counts = {c: 0 for c in TIE_CLASSES}
+        for row in self.rows:
+            counts[row[3]] += 1
+        return counts
+
+    def canon_hash(self):
+        """:func:`canonical_stream_hash` of :meth:`position_tuples` (JSON, sort_keys,
+        compact, LF-joined) -- recomputable from the sidecar's ``positions``."""
+        return canonical_stream_hash(self.position_tuples())
+
+    def canonical_depth_hash(self):
+        """The ROTATION-INVARIANT Tier-1 digest (plan v9 §2.2, r3a HIGH 2):
+        :func:`canonical_stream_hash` of the ordered ``[target_id, canonical_depth_sha256]``
+        pairs. Equal between a rotated cell and its theta = 0 pair iff every position
+        holds the same item with the same canonical depth image (``dj`` is left out,
+        so unlike :meth:`canon_hash` it does not depend on the rotation)."""
+        return canonical_stream_hash([[r[1], r[4]] for r in self.rows])
+
+
+def canon_sidecar_path(metrics_path):
+    """``<...>_metrics_<stem>.json`` -> ``<...>_metrics_<stem>.canon.json``."""
+    base = metrics_path[:-len('.json')] if metrics_path.endswith('.json') else metrics_path
+    return base + '.canon.json'
+
+
+def build_canon_record(stream, img_w):
+    """The ``.canon.json`` payload, carrying its preimages (``positions``)."""
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"canon record: img_w must be a positive int, got {img_w!r}")
+    outside = [row for row in stream.rows if row[2] >= img_w]
+    if outside:
+        raise ValueError(f"canon record: position {outside[0][0]} has dj={outside[0][2]} "
+                         f"outside the img_w={img_w} column grid")
+    return {"schema_version": CANON_SIDECAR_SCHEMA_VERSION, "img_w": img_w,
+            "tiebreak": CANON_TIEBREAK, "stream_count": len(stream),
+            "tie_counts": stream.tie_counts(), "positions": stream.position_tuples(),
+            "canon_hash": stream.canon_hash(),
+            "canonical_depth_hash": stream.canonical_depth_hash()}
+
+
 def _batch_img_w(metadata):
     """Panorama width for a batch, from the first sample's depth map."""
     if "depth" not in metadata[0]:
@@ -877,6 +1215,64 @@ def apply_rotation_plan(metadata, plan, generator=None, stream=None):
     if plan.rotate_deg != 0.0:
         return [rotate_scene_metadata(md, alpha_rad, img_w) for md in metadata]
     return metadata
+
+
+class PreparedMetadata(NamedTuple):
+    """One batch after :func:`prepare_eval_metadata`. ``cond`` is what the conditioner
+    sees (canonical when canonicalization is applied); ``metric`` is the post-rotation,
+    PRE-canonicalization list every metric input (scene / depth / query for the AGREE
+    retrieval gallery) and the ARE add-back are built from, so the metric path is the
+    same for every arm (plan v9 §2.2, decision A4). Without canonicalization the two
+    are the SAME list object."""
+    cond: list
+    metric: list
+
+
+def prepare_eval_metadata(metadata, rotation_plan, generator, stream, canonicalize,
+                          img_w, canon_stream):
+    """One batch's metadata, as a :class:`PreparedMetadata`: the evaluation rotation
+    (:func:`apply_rotation_plan`, which records the PRE-rotation identity into
+    ``stream``) gives ``metric``; THEN -- with ``canonicalize`` -- per-sample
+    deepest-column canonicalization (exp_25, plan v8 §2.2), each position recorded
+    into ``canon_stream``, gives ``cond``. Pure with respect to globals; the loader's
+    dicts are not mutated.
+
+    Disabled, ``cond`` and ``metric`` are both exactly :func:`apply_rotation_plan`'s
+    list (and a stray ``canon_stream`` is refused). Enabled, the treatment runs on the loader's CPU float64
+    point cloud as in training (``_canonicalize_batch``): another device or dtype,
+    and the operator's own contract violations, raise ``ValueError`` prefixed
+    ``canonicalize: metadata[i]:``; a ``StabilizedTieError`` propagates untouched.
+    """
+    if type(canonicalize) is not bool:
+        raise ValueError(f"prepare_eval_metadata: canonicalize must be a bool, got {canonicalize!r}")
+    if not canonicalize:
+        if canon_stream is not None:
+            raise ValueError("prepare_eval_metadata: a CanonStream without canonicalization "
+                             "would record nothing")
+        rotated = apply_rotation_plan(metadata, rotation_plan, generator, stream)
+        return PreparedMetadata(rotated, rotated)
+    if not isinstance(canon_stream, CanonStream):
+        raise ValueError("prepare_eval_metadata: canonicalization needs a CanonStream to "
+                         "record every position")
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"prepare_eval_metadata: img_w must be a positive int, got {img_w!r}")
+    rotated = apply_rotation_plan(metadata, rotation_plan, generator, stream)
+    out = []
+    for i, md in enumerate(rotated):
+        depth = md.get("depth") if isinstance(md, dict) else None
+        if torch.is_tensor(depth) and depth.device.type != "cpu":
+            raise ValueError(f"canonicalize: metadata[{i}]['depth'] is on {depth.device}; the "
+                             "treatment runs on the cpu (metadata must not be moved before it)")
+        if torch.is_tensor(depth) and depth.dtype != torch.float64:
+            raise ValueError(f"canonicalize: metadata[{i}]['depth'] is {depth.dtype}; the "
+                             "treatment requires the loader's torch.float64 point cloud")
+        try:
+            md_canon, dj, tie_class = canonicalize_scene_metadata(md, img_w)
+        except ValueError as err:  # StabilizedTieError is a RuntimeError: never caught here
+            raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err
+        canon_stream.record(md, md_canon, dj, tie_class)
+        out.append(md_canon)
+    return PreparedMetadata(out, rotated)
 
 
 def resolve_weights_source(training_config, state_dict_keys):
@@ -1036,6 +1432,55 @@ def _are_provenance(record, are_lambda, are_lambda_source, are_anchor):
     return record
 
 
+def _is_sha256_hex(value):
+    return (isinstance(value, str) and len(value) == 64
+            and all(ch in "0123456789abcdef" for ch in value))
+
+
+def _canon_provenance(record, prov):
+    """Append exp_25's eight protocol fields -- ONLY when canonicalization is in play.
+
+    ``prov is None`` (no ``canonicalize`` block anywhere, no flag) leaves the record
+    untouched, so every legacy row stays byte-identical. Otherwise ``prov`` must
+    carry exactly :data:`CANON_RECORD_KEYS`, and is refused (``ValueError``) unless
+    it is self-consistent: literal bools, ``mismatch == (trained != applied)``, a
+    positive int ``img_w``, tiebreak ``"image"`` and per-class int counts over
+    ``TIE_CLASSES`` exactly when applied (else both ``None``), two sha256 hex
+    digests. The fields are copied, so the record never aliases the caller's dict.
+    """
+    if prov is None:
+        return record
+    if not isinstance(prov, dict) or set(prov) != set(CANON_RECORD_KEYS):
+        raise ValueError(f"canon provenance must carry exactly {list(CANON_RECORD_KEYS)}, "
+                         f"got {sorted(prov) if isinstance(prov, dict) else prov!r}")
+    trained, applied, mismatch = (prov[k] for k in CANON_RECORD_KEYS[:3])
+    if any(type(v) is not bool for v in (trained, applied, mismatch)) \
+            or mismatch != (trained != applied):
+        raise ValueError(f"canon provenance: trained/applied/mismatch must be bools with "
+                         f"mismatch == (trained != applied), got {trained!r}/{applied!r}/{mismatch!r}")
+    img_w, counts = prov["canonicalize_img_w"], prov["canonicalize_tie_counts"]
+    if type(img_w) is not int or img_w <= 0:
+        raise ValueError(f"canon provenance: img_w must be a positive int, got {img_w!r}")
+    if prov["canonicalize_tiebreak"] != (CANON_TIEBREAK if applied else None):
+        raise ValueError(f"canon provenance: tiebreak {prov['canonicalize_tiebreak']!r} "
+                         f"with applied={applied}")
+    if applied:
+        if not isinstance(counts, dict) or set(counts) != set(TIE_CLASSES) or any(
+                type(counts[c]) is not int or counts[c] < 0 for c in TIE_CLASSES):
+            raise ValueError(f"canon provenance: tie counts must be non-negative ints over "
+                             f"{list(TIE_CLASSES)}, got {counts!r}")
+        counts = {c: counts[c] for c in TIE_CLASSES}
+    elif counts is not None:
+        raise ValueError(f"canon provenance: tie counts without canonicalization: {counts!r}")
+    for key in CANON_RECORD_KEYS[6:]:
+        if not _is_sha256_hex(prov[key]):
+            raise ValueError(f"canon provenance: {key} must be a sha256 hex digest, "
+                             f"got {prov[key]!r}")
+    for key in CANON_RECORD_KEYS:
+        record[key] = counts if key == "canonicalize_tie_counts" else prov[key]
+    return record
+
+
 def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame_avg_angles,
                          cond_autocast='default', batch_size=None, n_samples=None,
                          dataset_config=None, seed=None, cfg_scale=None, steps=None,
@@ -1043,7 +1488,8 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
                          rotate_mode='fixed', rotate_seed=None, input_hash=None,
                          assignment_hash=None, stream_count=None, img_w=None,
                          by_scene=None, frame_avg_max_fwd_samples=None,
-                         are_lambda=None, are_lambda_source=None, are_anchor=None):
+                         are_lambda=None, are_lambda_source=None, are_anchor=None,
+                         canon_provenance=None, ckpt_load=None):
     """Assemble the dict written to the metrics JSON.
 
     Extends the legacy ``{metrics, ckpt_path, rotate_deg}`` record with
@@ -1063,6 +1509,11 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
     ``frame_avg_max_fwd_samples`` is the cap this evaluation applied; ``None``
     records the module default, i.e. the value every row already in the record
     was produced under (exp_14 pins it to 64 explicitly on both arms).
+
+    exp_25: ``canon_provenance`` (``None`` unless canonicalization is in play)
+    appends :data:`CANON_RECORD_KEYS` last; see :func:`_canon_provenance`.
+    ``ckpt_load`` (rB-F2 F2-6; ``evaluate_model`` always passes it) adds
+    :data:`CKPT_LOAD_KEYS` right after the base keys; ``None`` leaves the record as before.
     """
     execution, cap = orbit_provenance(cond_method, frame_avg_max_fwd_samples)
     record = {
@@ -1091,10 +1542,12 @@ def build_metrics_record(metrics_dict, ckpt_path, rotate_deg, cond_method, frame
         "weights_source": weights_source,
         "device": device,
     }
+    record = _ckpt_load_provenance(record, ckpt_load)
     record = _rotation_provenance(record, rotate_mode, rotate_seed, input_hash,
                                   assignment_hash, stream_count, img_w)
     record = _per_scene_provenance(record, by_scene)
-    return _are_provenance(record, are_lambda, are_lambda_source, are_anchor)
+    record = _are_provenance(record, are_lambda, are_lambda_source, are_anchor)
+    return _canon_provenance(record, canon_provenance)
 
 
 def resolve_cond_autocast(mode):
@@ -1144,6 +1597,183 @@ def build_predictions_meta(dataset_config_path, seed, n_samples, cond_method,
     }
     return _rotation_provenance(meta, rotate_mode, rotate_seed, input_hash,
                                 assignment_hash, stream_count, img_w)
+
+
+# exp_25: the scored-waveform dump of announcement 08 (plan v8 §2.2, §5).
+SCORED_DUMP_SCHEMA_VERSION = 1
+SCORED_DUMP_MARKER = "COMPLETE"
+
+
+def scored_waveform_dir(dump_root, metrics_path):
+    """``<dump_root>/<metrics basename without .json>``: one cell's dump directory, named
+    after its metrics stem, so the filename injectivity carries over to the dumps."""
+    base = os.path.basename(metrics_path)
+    return os.path.join(dump_root, base[:-len('.json')] if base.endswith('.json') else base)
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _write_checksum_sidecar(staging, sha256):
+    """``waveforms.sha256`` in ``sha256sum`` format; read back by :meth:`ScoredWaveformDump.finalize`."""
+    with open(os.path.join(staging, "waveforms.sha256"), 'w') as f:
+        f.write(f"{sha256}  waveforms.npy\n")
+
+
+def _write_complete_marker(staging, sha256):
+    """The LAST file written inside the staging directory (plan §5, review r3 H2)."""
+    with open(os.path.join(staging, SCORED_DUMP_MARKER), 'w') as f:
+        f.write(sha256 + '\n')
+
+
+class ScoredWaveformDump:
+    """The exactly-as-scored waveforms of one cell (announcement 08): every tensor
+    passed to ``metric_callback.update_metrics`` -- post-decode, post-clamp,
+    post-pad -- appended in stream order as CPU float32 ``[B, T]``, and published
+    atomically by :meth:`finalize`.
+
+    Fail-closed at construction (i.e. before any evaluation work): the dump root
+    (parent of ``final_dir``) must already exist -- it is never created, so an
+    unmounted NAS cannot silently become a local directory -- ``final_dir`` must not
+    exist at all (an existing path, even an empty directory, is refused and kept: the
+    driver quarantines and reports such targets, the evaluator never reuses or removes
+    one), and no component of the path may carry the reserved ``.staging-`` name.
+    :meth:`finalize` builds the cell in the
+    same-filesystem sibling ``<final_dir>.staging-<pid>``: ``waveforms.npy``
+    (``[N, T]`` float32), ``waveforms.sha256``, ``manifest.json``; re-opens and
+    verifies them; writes ``COMPLETE`` last; only then renames the staging
+    directory onto ``final_dir``. A failure leaves the staging directory in place
+    for the driver to quarantine, and never a final directory.
+    """
+
+    def __init__(self, final_dir, expected_n):
+        if not isinstance(final_dir, str) or not final_dir:
+            raise ValueError(f"scored-waveform dump: final_dir must be a path, got {final_dir!r}")
+        if type(expected_n) is not int or expected_n < 0:
+            raise ValueError(f"scored-waveform dump: expected_n must be an int >= 0, got {expected_n!r}")
+        self.final_dir = self.check_target(final_dir)
+        self.expected_n = expected_n
+        self.staging_dir = f"{self.final_dir}.staging-{os.getpid()}"
+        self._rows, self._t = [], None
+
+    @staticmethod
+    def check_target(final_dir):
+        """The construction-time refusals, callable before any work; returns the abspath."""
+        final_dir = os.path.abspath(final_dir)
+        if any(".staging-" in part for part in final_dir.split(os.sep)):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} contains the reserved "
+                             "'.staging-' name (staging directories are the dump's own)")
+        if not os.path.isdir(os.path.dirname(final_dir)):
+            raise ValueError(f"scored-waveform dump: the dump root {os.path.dirname(final_dir)!r} "
+                             "does not exist (it is never created: a missing mount must not "
+                             "silently become a local directory)")
+        if os.path.lexists(final_dir):
+            raise ValueError(f"scored-waveform dump: {final_dir!r} already exists; the driver must "
+                             "quarantine it -- the evaluator never reuses or removes a cell target")
+        return final_dir
+
+    def append(self, fakes_scored):
+        """Store one batch of the scored ``[B, 1, T]`` mono tensor; returns the stored rows."""
+        if not torch.is_tensor(fakes_scored) or fakes_scored.ndim != 3 or fakes_scored.shape[1] != 1:
+            raise ValueError("scored-waveform dump: expected the scored [B, 1, T] mono tensor, got "
+                             f"{getattr(fakes_scored, 'shape', type(fakes_scored).__name__)}")
+        if fakes_scored.dtype != torch.float32:   # no silent cast: the dump IS the scored tensor
+            raise ValueError(f"scored-waveform dump: the scored tensor must be float32, got "
+                             f"{fakes_scored.dtype}")
+        if self._t is not None and fakes_scored.shape[2] != self._t:
+            raise ValueError(f"scored-waveform dump: scored length changed {self._t} -> "
+                             f"{fakes_scored.shape[2]}")
+        rows = fakes_scored.detach()[:, 0, :].to(device='cpu').clone(
+            memory_format=torch.contiguous_format)
+        self._t = int(fakes_scored.shape[2])
+        self._rows.append(rows)
+        return rows
+
+    def finalize(self, input_hash, metrics_stem, extra_meta=None):
+        """Stage -> verify -> ``COMPLETE`` -> atomic rename. Returns the manifest."""
+        if not _is_sha256_hex(input_hash):
+            raise ValueError(f"scored-waveform dump: input_hash must be the stream's sha256 hex "
+                             f"digest, got {input_hash!r}")
+        if not isinstance(metrics_stem, str) or not metrics_stem:
+            raise ValueError(f"scored-waveform dump: metrics_stem must be non-empty, got {metrics_stem!r}")
+        n = sum(int(r.shape[0]) for r in self._rows)
+        manifest = {"schema_version": SCORED_DUMP_SCHEMA_VERSION, "n": n, "dtype": "float32",
+                    "shape": [n, self._t or 0], "sha256": None, "input_hash": input_hash,
+                    "metrics_stem": metrics_stem, "source_sha": source_sha()}
+        clash = sorted(set(extra_meta or {}) & set(manifest))
+        if clash:
+            raise ValueError(f"scored-waveform dump: extra_meta may not override {clash}")
+        if n != self.expected_n:
+            raise ValueError(f"scored-waveform dump: {n} rows appended, expected {self.expected_n}")
+        self.check_target(self.final_dir)
+        arr = (torch.cat(self._rows, 0) if self._rows else torch.zeros(0, 0)).numpy()
+        os.mkdir(self.staging_dir)
+        npy = os.path.join(self.staging_dir, "waveforms.npy")
+        np.save(npy, arr, allow_pickle=False)
+        manifest["sha256"] = sha = _file_sha256(npy)
+        manifest.update(extra_meta or {})
+        _write_checksum_sidecar(self.staging_dir, sha)
+        with open(os.path.join(self.staging_dir, "manifest.json"), 'w') as f:
+            json.dump(manifest, f, indent=2)
+        loaded = np.load(npy, allow_pickle=False)
+        with open(os.path.join(self.staging_dir, "manifest.json")) as f:
+            reread = json.load(f)
+        with open(os.path.join(self.staging_dir, "waveforms.sha256")) as f:
+            sidecar = f.read()
+        if (loaded.dtype != np.float32 or loaded.shape != (self.expected_n, self._t or 0)
+                or not np.array_equal(loaded.view(np.uint32), arr.view(np.uint32))  # bitwise
+                or _file_sha256(npy) != sha
+                or reread != manifest
+                or sidecar != f"{sha}  waveforms.npy\n"):
+            raise RuntimeError(f"scored-waveform dump: verification of {self.staging_dir!r} "
+                               "failed; no COMPLETE marker written")
+        _write_complete_marker(self.staging_dir, sha)
+        os.rename(self.staging_dir, self.final_dir)   # final_dir is absent (checked above)
+        return manifest
+
+    @staticmethod
+    def is_complete(final_dir, expected_n=None):
+        """The EVALUATOR-side completion predicate of one cell directory: ``COMPLETE``
+        holds the waveform sha256; ``manifest.json`` is an object with this schema
+        version, an int ``n >= 0``, ``dtype`` float32, ``shape == [n, T]``, sha256-hex
+        ``sha256`` and ``input_hash`` and a non-empty ``metrics_stem``; ``n`` equals
+        ``expected_n`` when given; ``waveforms.npy`` is float32 of exactly that shape and
+        hashes to the manifest's ``sha256``; ``waveforms.sha256`` is its ``sha256sum`` line.
+        It does NOT verify the external artifacts the manifest names (metrics / stream /
+        canon sidecar digests): the collector's verification of those is still required
+        before a driver may skip the cell (plan §5)."""
+        if expected_n is not None and (type(expected_n) is not int or expected_n < 0):
+            raise ValueError(f"is_complete: expected_n must be None or an int >= 0, got {expected_n!r}")
+        try:
+            with open(os.path.join(final_dir, "manifest.json")) as f:
+                m = json.load(f)
+            with open(os.path.join(final_dir, SCORED_DUMP_MARKER)) as f:
+                marker = f.read()
+            with open(os.path.join(final_dir, "waveforms.sha256")) as f:
+                sidecar = f.read()
+            version = m.get("schema_version") if isinstance(m, dict) else None
+            if type(version) is not int or version != SCORED_DUMP_SCHEMA_VERSION:
+                return False   # type-strict: JSON true / 1.0 compare equal to 1 in Python
+            n, shape, sha = m.get("n"), m.get("shape"), m.get("sha256")
+            if (type(n) is not int or n < 0 or m.get("dtype") != "float32"
+                    or not (isinstance(shape, list) and len(shape) == 2
+                            and all(type(x) is int for x in shape) and shape[0] == n)
+                    or not _is_sha256_hex(sha) or not _is_sha256_hex(m.get("input_hash"))
+                    or not isinstance(m.get("metrics_stem"), str) or not m["metrics_stem"]
+                    or (expected_n is not None and n != expected_n)):
+                return False
+            npy = os.path.join(final_dir, "waveforms.npy")
+            arr = np.load(npy, mmap_mode="r", allow_pickle=False)
+            if arr.dtype != np.float32 or list(arr.shape) != shape or _file_sha256(npy) != sha:
+                return False
+            return sidecar == f"{sha}  waveforms.npy\n" and marker == sha + "\n"
+        except (OSError, ValueError, TypeError, KeyError):
+            return False
 
 
 # Unexpected-key prefixes a PL-wrapper checkpoint legitimately leaves after
@@ -1204,6 +1834,9 @@ def evaluate_model(
     record_stream=False,
     record_per_scene=False,
     are_lambda=None,
+    canonicalize=False,
+    allow_canon_mismatch=False,
+    dump_scored_waveforms=None,
 ):
     # Fail fast on an unknown cond_method (the CLI is guarded by argparse
     # choices, but programmatic callers would otherwise silently run vanilla
@@ -1239,6 +1872,17 @@ def evaluate_model(
             "--record-stream. Passing it otherwise would record an expectation that "
             "was never verified."
         )
+    # exp_25: a scored-waveform dump is bound to its items through the stream's
+    # input_hash (announcement 08), whose preimages must be PUBLISHED with the cell:
+    # random mode alone accumulates a stream but writes no sidecar (r3a, fail-closed).
+    if dump_scored_waveforms is not None and not (
+            isinstance(dump_scored_waveforms, str) and dump_scored_waveforms
+            and record_stream is True):
+        raise ValueError(
+            "--dump-scored-waveforms needs a dump root directory AND --record-stream: the "
+            "manifest binds the waveforms to their items through the stream's input_hash, "
+            "and the .stream.json sidecar holding its preimages must be published with the "
+            "cell (--rotate-mode random alone accumulates the stream but does not publish it).")
 
     # Fail fast on an unknown cond_autocast too (full-review condition C1).
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
@@ -1270,8 +1914,10 @@ def evaluate_model(
 
     training_config = model_config.get('training', None)
     
-    # Load ckpt
-    ckpt = torch.load(ckpt_path, map_location='cpu')
+    # Load ckpt: read once, hash THAT buffer, deserialize THAT buffer (rB-F2 F2-6)
+    ckpt_buf, ckpt_load = read_checkpoint_exact(ckpt_path)
+    ckpt = torch.load(io.BytesIO(ckpt_buf), map_location='cpu')
+    del ckpt_buf
     state_dict = ckpt['state_dict']
     for key in list(state_dict.keys()):
         if key.startswith('diffusion.'):
@@ -1294,6 +1940,29 @@ def evaluate_model(
     # refused for free.
     are_lambda, are_lambda_source, are_anchor_cfg = resolve_are_from_checkpoint(
         ckpt.get('model_config'), file_model_config, are_lambda)
+
+    # exp_25 (plan v8 §2.2, review B2): bind --canonicalize to the ARTIFACT, also
+    # before any model is built -- canonicalization adds no weight, so only the
+    # embedded config proves how the checkpoint was trained.
+    embedded_model_config = ckpt.get('model_config')
+    canon_protocol = resolve_canonicalize_protocol(
+        canonicalize, file_model_config.get('training'),
+        embedded_model_config.get('training') if isinstance(embedded_model_config, dict) else None,
+        allow_canon_mismatch, cond_method=cond_method, file_model_cfg=file_model_config)
+    if canon_protocol.in_play:
+        print(f"canonicalize: trained={canon_protocol.trained} applied={canon_protocol.applied} "
+              f"mismatch={canon_protocol.mismatch} img_w={canon_protocol.img_w}")
+    output_paths = build_output_paths(
+        ckpt_path, steps, cfg_scale, eval_name,
+        cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
+        rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
+        are_lambda=are_lambda, canonicalize=canon_protocol.applied,
+        canon_mismatch=canon_protocol.mismatch,
+    )
+    waveform_dump_dir = None
+    if dump_scored_waveforms is not None:
+        waveform_dump_dir = ScoredWaveformDump.check_target(
+            scored_waveform_dir(dump_scored_waveforms, output_paths['metrics']))
 
     # Build model; assert the checkpoint actually loaded (full-review condition C2).
     model = create_model_from_config(model_config)
@@ -1368,6 +2037,15 @@ def evaluate_model(
         print(f"Random yaw rotation: per-sample offsets, rotation seed "
               f"{rotation_plan.rotate_seed}")
 
+    # exp_25: per-position canonicalization record, and the exactly-as-scored dump.
+    canon_stream = CanonStream() if canon_protocol.applied else None
+    waveform_dump = None
+    if waveform_dump_dir is not None:
+        dataset = getattr(eval_dl, 'dataset', None)
+        if dataset is None:
+            raise RuntimeError("--dump-scored-waveforms: the dataset item count is unknown")
+        waveform_dump = ScoredWaveformDump(waveform_dump_dir, len(dataset))
+
     # Eval
     c=0
     if store_predictions:
@@ -1382,8 +2060,13 @@ def evaluate_model(
             # panorama + source/context poses) while leaving context_audio and the
             # target RIR fixed. Fixed mode = one angle for the whole run; random
             # mode = an independent per-sample draw. See src/data/yaw_rotation.py.
-            metadata = apply_rotation_plan(metadata, rotation_plan, rot_generator,
-                                           rot_stream)
+            # exp_25: then, with --canonicalize, deepest-column canonicalization -- for the
+            # CONDITIONER only: every metric input below comes from the post-rotation,
+            # pre-canonicalization list, as in every comparator cell (plan v9 §2.2, A4).
+            prepared = prepare_eval_metadata(metadata, rotation_plan, rot_generator, rot_stream,
+                                             canon_protocol.applied, canon_protocol.img_w,
+                                             canon_stream)
+            metadata, metric_metadata = prepared.cond, prepared.metric
 
             with cond_autocast_ctx():
                 if cond_method == 'fa_invariant':
@@ -1423,7 +2106,7 @@ def evaluate_model(
 
             # exp_16 (ARE): + lambda * A_query, on the LATENT, before the decode
             if are_bank is not None:
-                fakes = apply_are_addback(fakes, are_bank, are_lambda, metadata,
+                fakes = apply_are_addback(fakes, are_bank, are_lambda, metric_metadata,
                                           module.device)
 
             # Decode
@@ -1442,10 +2125,12 @@ def evaluate_model(
                     reals = torch.nn.functional.pad(reals, (0, fakes.shape[-1] - reals.shape[-1]))
     
             # Compute metrics
-            scene_list = [md["scene"] for md in metadata]
-            depth_list = [md["depth"] if 'depth' in md else None for md in metadata]
-            query_list = [md["source"] if 'source' in md else None for md in metadata]
+            scene_list = [md["scene"] for md in metric_metadata]
+            depth_list = [md["depth"] if 'depth' in md else None for md in metric_metadata]
+            query_list = [md["source"] if 'source' in md else None for md in metric_metadata]
             depthMinusSource_list = [(d[:3, :, :] - source_pose[:, None, None]).unsqueeze(0).float().to(device) for d, source_pose in zip(depth_list, query_list)]
+            if waveform_dump is not None:
+                waveform_dump.append(fakes)  # exactly the tensor scored below (announcement 08)
             metric_callback.update_metrics("test", fakes, reals, scene_list, depth=depthMinusSource_list)
             c += reals.shape[0]
     
@@ -1460,6 +2145,11 @@ def evaluate_model(
         verify_stream_count(rot_stream, None if dataset is None else len(dataset),
                             expected_stream_count)
         verify_stream_positions(rot_stream)
+    if canon_stream is not None and (len(canon_stream) != c or (
+            rot_stream is not None and canon_stream.target_ids != rot_stream.target_ids)):
+        raise RuntimeError(
+            f"canonical stream ({len(canon_stream)} positions) does not match the {c} evaluated "
+            "items / the assignment stream position by position. Refusing to report metrics.")
     if rotation_plan.is_random:
         rotation_provenance = {
             "rotate_mode": rotation_plan.mode,
@@ -1487,13 +2177,7 @@ def evaluate_model(
             metric_name += ' (dB)'
         print('Test/' + metric_name, metric_value)
     
-    # Save metrics in a file
-    output_paths = build_output_paths(
-        ckpt_path, steps, cfg_scale, eval_name,
-        cond_method=cond_method, rotate_deg=rotate_deg, n_angles=len(frame_avg_angles),
-        rotate_mode=rotation_plan.mode, rotate_seed=rotation_plan.rotate_seed,
-        are_lambda=are_lambda,
-    )
+    # Save metrics in a file (output_paths was built before the model, above)
     frame_angles_record = list(frame_avg_angles) if cond_method == 'fa_invariant' else None
     metrics_to_save = build_metrics_record(
         metrics_dict, ckpt_path, rotate_deg, cond_method, frame_angles_record,
@@ -1504,6 +2188,9 @@ def evaluate_model(
         frame_avg_max_fwd_samples=frame_avg_max_fwd_samples,
         are_lambda=are_lambda, are_lambda_source=are_lambda_source,
         are_anchor=are_anchor_cfg, **rotation_provenance,
+        canon_provenance=build_canon_provenance(canon_protocol, canon_stream,
+                                                file_model_config, embedded_model_config),
+        ckpt_load=ckpt_load,
     )
     path2save = output_paths['metrics']
     with open(path2save, 'w') as f:
@@ -1519,6 +2206,14 @@ def evaluate_model(
             json.dump(build_stream_record(rotation_plan, rot_stream), f, indent=2)
         print(f"Assignment stream saved to {path2save_stream}")
 
+    # exp_25 canonical sidecar: also written only after every check above passed.
+    path2save_canon = None
+    if canon_stream is not None:
+        path2save_canon = canon_sidecar_path(path2save)
+        with open(path2save_canon, 'w') as f:
+            json.dump(build_canon_record(canon_stream, canon_protocol.img_w), f, indent=2)
+        print(f"Canonicalization record saved to {path2save_canon}")
+
     if store_predictions:
         decoded_samples_all = torch.cat(decoded_samples, dim=0)
         path2save_preds = output_paths['predictions']
@@ -1532,6 +2227,21 @@ def evaluate_model(
         }
         torch.save(preds_bundle, path2save_preds)
         print(f"Decoded samples saved to {path2save_preds}")
+
+    # exp_25: the scored-waveform dump is published LAST, so its COMPLETE marker
+    # certifies every artifact of the cell; the manifest pins their digests.
+    if waveform_dump is not None:
+        stream_path = stream_sidecar_path(path2save) if record_stream else None
+        digest = lambda path: None if path is None else _file_sha256(path)  # noqa: E731
+        manifest = waveform_dump.finalize(
+            rot_stream.input_hash(), os.path.basename(waveform_dump_dir), extra_meta={
+                "ckpt_path": ckpt_path, "metrics_path": path2save,
+                "metrics_sha256": digest(path2save), "stream_sidecar_path": stream_path,
+                "stream_sidecar_sha256": digest(stream_path),
+                "canon_sidecar_path": path2save_canon,
+                "canon_sidecar_sha256": digest(path2save_canon)})
+        print(f"Scored waveforms saved to {waveform_dump_dir} (n={manifest['n']}, "
+              f"sha256 {manifest['sha256']})")
 
     print("Evaluation complete!")
     return
@@ -1561,6 +2271,9 @@ if __name__ == "__main__":
     parser.add_argument("--cond-autocast", type=str, default="default", choices=["default", "bf16", "off"], help="Autocast mode for the conditioning call: 'default' = torch per-device default dtype (fp16 on cuda; the exp_01/exp_02 protocol), 'bf16' = bfloat16 (matches finetune_cond's bf16-mixed training), 'off' = no autocast (fp32, for exactness measurements).")
     parser.add_argument("--allow-partial-load", action='store_true', help="Continue with a warning when the checkpoint does not load cleanly (missing or non-whitelisted unexpected keys) instead of raising.")
     parser.add_argument("--are-lambda", type=float, default=None, help="exp_16 ARE: weight of the analytic direct-sound anchor added back to the sampled latent before decoding. Omit to use the arm's OWN training.are_lambda from --model-config (None for every non-ARE arm, which leaves the run and its record byte-identical to today). Passing it OVERRIDES the config -- including 0.0, which is the AR3 eval-time sweep and is recorded as such. Requires the model config to declare training.are_anchor; the applied value and its source are written into the metrics record and into the output filename.")
+    parser.add_argument("--canonicalize", action='store_true', help="exp_25: deepest-column yaw canonicalization of the conditioning (depth panorama + all four pose fields) AFTER the evaluation rotation and BEFORE conditioning. Bound to the checkpoint: it must match the embedded training.canonicalize (announcement 05) unless --allow-canon-mismatch. Adds '_canon' to the output names, the canonicalize_* record fields and a <metrics-stem>.canon.json sidecar. Not with --cond-method fa_invariant.")
+    parser.add_argument("--allow-canon-mismatch", action='store_true', help="exp_25: permit a labelled trained != applied canonicalization diagnostic (adds '_canonmis'). Never authorises a disagreement between the embedded and --model-config training.canonicalize blocks, and is itself an error when trained == applied.")
+    parser.add_argument("--dump-scored-waveforms", type=str, default=None, help="exp_25 / announcement 08: an EXISTING root directory under which the exactly-as-scored waveforms (post-decode, post-clamp, post-pad: the tensor passed to the metric callback) are published atomically as <root>/<metrics-stem>/{waveforms.npy [N, T] float32, waveforms.sha256, manifest.json, COMPLETE}. Requires --record-stream (the stream sidecar is published with the cell); refuses any existing cell directory.")
     args = parser.parse_args()
 
     if args.store_predictions:
@@ -1592,4 +2305,7 @@ if __name__ == "__main__":
         record_stream=args.record_stream,
         record_per_scene=args.record_per_scene,
         are_lambda=args.are_lambda,
+        canonicalize=args.canonicalize,
+        allow_canon_mismatch=args.allow_canon_mismatch,
+        dump_scored_waveforms=args.dump_scored_waveforms,
     )

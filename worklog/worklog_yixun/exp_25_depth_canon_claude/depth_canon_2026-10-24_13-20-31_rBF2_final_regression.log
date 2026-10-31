@@ -1,0 +1,102 @@
+HEAD bf7bf3816313f19dbe07602d8a956193cfab6ee3 -- 2026-10-24T13:20:31-04:00
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+........................................................................ [ 15%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+........ss.......................................x...................... [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 33%]
+...............s........................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+...............................................................s........ [ 54%]
+......................................s................s................ [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 63%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+....................................................s................... [ 75%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+........................................................................ [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+src/tests/test_depth_canon_training.py: 4 warnings
+src/tests/test_yaw_aug_training.py: 1 warning
+src/tests/test_cond_dispatch.py: 1 warning
+src/tests/test_are_lambda_config.py: 18 warnings
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:441: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=47` in the `DataLoader` to improve performance.
+
+src/tests/test_eval_localization.py::test_integration_build_engine_follows_the_reference_construction
+src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast
+src/tests/test_eval_localization.py::test_integration_scorer_noise_mode_measures_the_sampled_readout
+src/tests/test_eval_localization.py::test_integration_scorer_noise_draws_are_seeded_and_reproducible
+src/tests/test_eval_localization.py::test_integration_scorer_noise_draws_are_seeded_and_reproducible
+src/tests/test_eval_localization.py::test_integration_scorer_noise_draws_are_seeded_and_reproducible
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+    WeightNorm.apply(module, name, dim)
+
+src/tests/test_eval_localization.py::test_integration_build_engine_follows_the_reference_construction
+src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+    warnings.warn(
+
+src/tests/test_eval_localization.py::test_integration_build_engine_follows_the_reference_construction
+src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+    warnings.warn(msg)
+
+src/tests/test_eval_localization.py::test_run_evaluation_streams_a_metrics_row_per_query
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+  Note: you can still call torch.view_as_real on the complex output to recover the old return format. (Triggered internally at /pytorch/aten/src/ATen/native/SpectralOps.cpp:875.)
+    return _VF.stft(  # type: ignore[attr-defined]
+
+src/tests/test_eval_localization.py: 11 warnings
+  /home/yixunhu/codespace/exp-25-depth-canon/src/metrics/modules/C50.py:52: RuntimeWarning: divide by zero encountered in float_scalars
+    c50 = 10*np.log10((np.sum(h2[:t])/np.sum(h2[t:])) + 1e-10)
+
+src/tests/test_eval_localization.py::test_metrics_rows_serialize_the_declared_secondaries_and_sensitivities
+  /home/yixunhu/codespace/exp-25-depth-canon/src/metrics/modules/C50.py:52: RuntimeWarning: invalid value encountered in float_scalars
+    c50 = 10*np.log10((np.sum(h2[:t])/np.sum(h2[t:])) + 1e-10)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2369 passed, 7 skipped, 1 xfailed, 54 warnings in 917.25s (0:15:17)

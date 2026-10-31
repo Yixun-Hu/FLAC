@@ -1,0 +1,15 @@
+{
+ "schema_version": 1,
+ "kind": "depth_canon_autolaunch_state",
+ "phase": "WAITING_GPU",
+ "reason": "GPUs not free: foreign compute process(es): GPU 0: pid 2750798 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32256 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt13); GPU 1: pid 2914825 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28); GPU 1: pid 3244826 (/home/dzheng/spectralmarl_venv/bin/python, 4806 MiB, cwd ?); ",
+ "watcher_pid": 2382325,
+ "started": "2026-10-24T15:39:59-04:00",
+ "updated": "2026-10-25T22:30:41-04:00",
+ "token_head": "21ce5f756db7a19498061417089afdeb0f69689a",
+ "clean_polls": 0,
+ "gpu_retries": 0,
+ "smoke_rc": null,
+ "full_rc": null,
+ "log": "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-24_15-39-59_autolaunch.log"
+}

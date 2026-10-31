@@ -1,0 +1,2652 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF. [ 90%]
+F.FFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+____________ test_record_violations_are_named[C4+45-cond_autocast] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam0')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684f760>, needle = 'cond_autocast'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_record_violations_are_named[C4+45-cond_method] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam1')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684f7f0>, needle = 'cond_method'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+____________ test_record_violations_are_named[C4+45-weights_source] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam2')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684f880>, needle = 'weights_source'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-cfg_scale] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam3')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684f910>, needle = 'cfg_scale'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________________ test_record_violations_are_named[C4+45-steps] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam4')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684f9a0>, needle = 'steps'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam4'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-n_samples] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam5')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fa30>, needle = 'n_samples'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam5'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________________ test_record_violations_are_named[C4+45-seed] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam6')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fac0>, needle = 'seed'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam6'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-eval_name] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam7')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fb50>, needle = 'eval_name'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam7'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-source_sha] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam8')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fbe0>, needle = 'source_sha'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam8'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________________ test_record_violations_are_named[C4+45-device] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam9')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fc70>, needle = 'device'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam9'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-batch_size] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam10')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fd00>, needle = 'batch_size'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam10'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+____________ test_record_violations_are_named[C4+45-dataset_config] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam11')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fd90>, needle = 'dataset_config'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam11'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-rotate_deg] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam12')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684fe20>, needle = 'rotate_deg'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam12'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________________ test_record_violations_are_named[C4+45-T60] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam13')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684feb0>, needle = 'T60'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam13'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_record_violations_are_named[C4+45-metrics keys] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam14')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf8684ff40>, needle = 'metrics keys'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam14'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-key order0] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam15')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf86824040>, needle = 'key order'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam15'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_record_violations_are_named[C4+45-by_scene] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam16')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf868240d0>, needle = 'by_scene'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam16'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_record_violations_are_named[C4+45-canonicalize_applied] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam17')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf86824160>, needle = 'canonicalize_applied'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam17'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_record_violations_are_named[C4+45-model_config_sha256] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam18')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf868241f0>, needle = 'model_config_sha256'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam18'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-tie_counts] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam19')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf86824280>, needle = 'tie_counts'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam19'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_record_violations_are_named[D-i-canonicalize_mismatch] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam20')
+spec = {'block': 'D-i', 'K': 1}, edit = <function <lambda> at 0x7fcf86824310>
+needle = 'canonicalize_mismatch'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_Di_S40000_K1_s42', 'block': 'D-i', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_Di_S40000_K1_s42', 'order': 30, 'priority': 4, 'block': 'D-i', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam20'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_record_violations_are_named[D-ii-canonicalize_mismatch] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam21')
+spec = {'block': 'D-ii', 'K': 8}, edit = <function <lambda> at 0x7fcf868243a0>
+needle = 'canonicalize_mismatch'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_Dii_S40000_K8_s42', 'block': 'D-ii', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_Dii_S40000_K8_s42', 'order': 33, 'priority': 5, 'block': 'D-ii', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam21'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[P1-pin-key order] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam22')
+spec = {'block': 'P1-pin', 'sub': 'T'}
+edit = <function <lambda> at 0x7fcf86824430>, needle = 'key order'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_T_S40000_K1_s42', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_T_S40000_K1_s42', 'order': 44, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam22'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_record_violations_are_named[C4+45-key order1] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam23')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf868244c0>, needle = 'key order'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam23'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+__________ test_record_violations_are_named[C4+45-ckpt_sha256_loaded] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam24')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf86824550>, needle = 'ckpt_sha256_loaded'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam24'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+__________ test_record_violations_are_named[C4+45-ckpt_bytes_loaded0] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam25')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf868245e0>, needle = 'ckpt_bytes_loaded'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam25'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+__________ test_record_violations_are_named[C4+45-ckpt_bytes_loaded1] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam26')
+spec = {'block': 'C4+45', 'K': 1, 'deg': 90}
+edit = <function <lambda> at 0x7fcf86824670>, needle = 'ckpt_bytes_loaded'
+
+    @pytest.mark.parametrize("spec, edit, needle", EDITS, ids=[f"{e[0]['block']}-{e[2]}" for e in EDITS])
+    def test_record_violations_are_named(tmp_path, spec, edit, needle):
+        r = row(**spec)
+>       rec = json.load(open(tmp_path / write_cell(tmp_path, r)))
+
+src/tests/test_depth_canon_collect.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th90', 'order': 12, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_record_violations_are_nam26'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_receipt_of_a_true_cell_verifies[T_CANON_K1] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve0')
+case_row = {'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K1_s42', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_of_a_true_cell_verifies[C4+45_CANON_K8] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve1')
+case_row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th90', 'order': 16, 'priority': 2, 'block': 'C4+45', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th90', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th90', 'order': 16, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_receipt_of_a_true_cell_verifies[R_CANON_K1] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve2')
+case_row = {'cell': 'exp25_CANON_R_S40000_K1_s44', 'order': 22, 'priority': 3, 'block': 'R', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s44', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s44', 'order': 22, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_receipt_of_a_true_cell_verifies[D-i_CANON_K8] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve3')
+case_row = {'cell': 'exp25_CANON_Di_S40000_K8_s42', 'order': 31, 'priority': 4, 'block': 'D-i', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_Di_S40000_K8_s42', 'block': 'D-i', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_Di_S40000_K8_s42', 'order': 31, 'priority': 4, 'block': 'D-i', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_receipt_of_a_true_cell_verifies[D-ii_P1_K1] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve4')
+case_row = {'cell': 'exp25_P1_Dii_S40000_K1_s42', 'order': 32, 'priority': 5, 'block': 'D-ii', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_Dii_S40000_K1_s42', 'block': 'D-ii', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_Dii_S40000_K1_s42', 'order': 32, 'priority': 5, 'block': 'D-ii', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve4'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_receipt_of_a_true_cell_verifies[S_CANON_K8] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve5')
+case_row = {'cell': 'exp25_CANON_S_S40000_K8_s45', 'order': 42, 'priority': 6, 'block': 'S', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_S_S40000_K8_s45', 'block': 'S', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_S_S40000_K8_s45', 'order': 42, 'priority': 6, 'block': 'S', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve5'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_receipt_of_a_true_cell_verifies[P1-pin_P1_K1] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve6')
+case_row = {'cell': 'exp25_P1_T_S40000_K1_s43', 'order': 45, 'priority': 7, 'block': 'P1-pin', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_T_S40000_K1_s43', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_T_S40000_K1_s43', 'order': 45, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve6'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_of_a_true_cell_verifies[YAW-pin_YAW_K8] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve7')
+case_row = {'cell': 'exp25_YAW_C4_S40000_K8_s42_th45', 'order': 99, 'priority': 8, 'block': 'YAW-pin', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_YAW_C4_S40000_K8_s42_th45', 'block': 'YAW-pin', 'arm': 'YAW', 'step': 40000, ...}
+row = {'cell': 'exp25_YAW_C4_S40000_K8_s42_th45', 'order': 99, 'priority': 8, 'block': 'YAW-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve7'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_of_a_true_cell_verifies[TRAJ_CANON_K1] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve8')
+case_row = {'cell': 'exp25_CANON_TRAJ_S7500_K1_s42_th270', 'order': 129, 'priority': 9, 'block': 'TRAJ', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_TRAJ_S7500_K1_s42_th270', 'block': 'TRAJ', 'arm': 'CANON', 'step': 7500, ...}
+row = {'cell': 'exp25_CANON_TRAJ_S7500_K1_s42_th270', 'order': 129, 'priority': 9, 'block': 'TRAJ', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve8'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_of_a_true_cell_verifies[T-dup_CANON_K8] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve9')
+case_row = {'cell': 'exp25_CANON_T_S40000_K8_s42_dup', 'order': 11, 'priority': 1, 'block': 'T-dup', ...}
+
+    def test_receipt_of_a_true_cell_verifies(tmp_path, case_row):
+>       assert _receipt_check(tmp_path, write_cell(tmp_path, case_row), case_row) == []
+
+src/tests/test_depth_canon_collect.py:416: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s42_dup', 'block': 'T-dup', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s42_dup', 'order': 11, 'priority': 1, 'block': 'T-dup', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_of_a_true_cell_ve9'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_violations_are_named[over0-ckpt_sha256] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na0')
+over = {'ckpt_sha256': '0000000000000000000000000000000000000000000000000000000000000000'}
+needle = 'ckpt_sha256'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_violations_are_named[over1-expect_head] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na1')
+over = {'pin': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}
+needle = 'expect_head'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________________ test_receipt_violations_are_named[over2-dump] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na2')
+over = {'dump': False}, needle = 'dump'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________________ test_receipt_violations_are_named[over3-argv] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na3')
+over = {'dump_root': '/elsewhere'}, needle = 'argv'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_violations_are_named[over4-ckpt_target] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na4')
+over = {'target': '/nas/other.ckpt'}, needle = 'ckpt_target'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na4'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_receipt_violations_are_named[over5-ckpt_link] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na5')
+over = {'link': 'farm/x.ckpt'}, needle = 'ckpt_link'
+
+    @pytest.mark.parametrize("over, needle", [
+        (dict(ckpt_sha256="0" * 64), "ckpt_sha256"), (dict(pin="b" * 40), "expect_head"),
+        (dict(dump=False), "dump"), (dict(dump_root="/elsewhere"), "argv"),
+        (dict(target="/nas/other.ckpt"), "ckpt_target"), (dict(link="farm/x.ckpt"), "ckpt_link")])
+    def test_receipt_violations_are_named(tmp_path, over, needle):
+        r = row("P1-pin", "P1", K=8, seed=44, sub="R")
+>       reasons = _receipt_check(tmp_path, write_cell(tmp_path, r), r, **over)
+
+src/tests/test_depth_canon_collect.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_R_S40000_K8_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_R_S40000_K8_s44', 'order': 61, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_violations_are_na5'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+___________ test_a_receipt_whose_tree_digest_moved_is_refused[spawn] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige0')
+edit = <function <lambda> at 0x7fcf86825ea0>, needle = 'spawn_digest'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(spawn_digest="e" * 64), "spawn_digest"),
+        (lambda d: d.update(post_digest="e" * 64), "post_digest"),
+        (lambda d: d.update(campaign_digest="nope", spawn_digest="nope", post_digest="nope"), "campaign_digest"),
+        (lambda d: d.pop("post_digest"), "receipt keys")], ids=["spawn", "post", "malformed", "absent"])
+    def test_a_receipt_whose_tree_digest_moved_is_refused(tmp_path, edit, needle):
+        """rB-F1 B3: the receipt binds the relevant-tree digest at campaign start, at the spawn and
+        after the evaluator exited; all three must be one sha256."""
+        r = row("C4+45", K=1, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:442: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'order': 13, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+___________ test_a_receipt_whose_tree_digest_moved_is_refused[post] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige1')
+edit = <function <lambda> at 0x7fcf86825f30>, needle = 'post_digest'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(spawn_digest="e" * 64), "spawn_digest"),
+        (lambda d: d.update(post_digest="e" * 64), "post_digest"),
+        (lambda d: d.update(campaign_digest="nope", spawn_digest="nope", post_digest="nope"), "campaign_digest"),
+        (lambda d: d.pop("post_digest"), "receipt keys")], ids=["spawn", "post", "malformed", "absent"])
+    def test_a_receipt_whose_tree_digest_moved_is_refused(tmp_path, edit, needle):
+        """rB-F1 B3: the receipt binds the relevant-tree digest at campaign start, at the spawn and
+        after the evaluator exited; all three must be one sha256."""
+        r = row("C4+45", K=1, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:442: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'order': 13, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_a_receipt_whose_tree_digest_moved_is_refused[malformed] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige2')
+edit = <function <lambda> at 0x7fcf86825fc0>, needle = 'campaign_digest'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(spawn_digest="e" * 64), "spawn_digest"),
+        (lambda d: d.update(post_digest="e" * 64), "post_digest"),
+        (lambda d: d.update(campaign_digest="nope", spawn_digest="nope", post_digest="nope"), "campaign_digest"),
+        (lambda d: d.pop("post_digest"), "receipt keys")], ids=["spawn", "post", "malformed", "absent"])
+    def test_a_receipt_whose_tree_digest_moved_is_refused(tmp_path, edit, needle):
+        """rB-F1 B3: the receipt binds the relevant-tree digest at campaign start, at the spawn and
+        after the evaluator exited; all three must be one sha256."""
+        r = row("C4+45", K=1, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:442: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'order': 13, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+__________ test_a_receipt_whose_tree_digest_moved_is_refused[absent] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige3')
+edit = <function <lambda> at 0x7fcf86826050>, needle = 'receipt keys'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(spawn_digest="e" * 64), "spawn_digest"),
+        (lambda d: d.update(post_digest="e" * 64), "post_digest"),
+        (lambda d: d.update(campaign_digest="nope", spawn_digest="nope", post_digest="nope"), "campaign_digest"),
+        (lambda d: d.pop("post_digest"), "receipt keys")], ids=["spawn", "post", "malformed", "absent"])
+    def test_a_receipt_whose_tree_digest_moved_is_refused(tmp_path, edit, needle):
+        """rB-F1 B3: the receipt binds the relevant-tree digest at campaign start, at the spawn and
+        after the evaluator exited; all three must be one sha256."""
+        r = row("C4+45", K=1, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:442: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K1_s42_th180', 'order': 13, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_receipt_whose_tree_dige3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+___________________ test_write_receipt_refuses_a_moved_tree ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_m0')
+
+    def test_write_receipt_refuses_a_moved_tree(tmp_path):
+        r = row("T", K=1, seed=44)
+        entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=str(tmp_path), canon_index=canon_index(),
+                             no_dump_blocks=[])[0]
+        os.makedirs(os.path.join(str(tmp_path), os.path.dirname(entry["receipt"])))
+        for spawn, post in ((DIGEST, "e" * 64), ("e" * 64, DIGEST)):
+            with pytest.raises(ValueError, match="digest"):
+>               C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                                ckpt_sha256=entry["sha256"], ckpt_bytes=CKPT_BYTES, campaign_digest=DIGEST,
+                                spawn_digest=spawn, post_digest=post)
+
+src/tests/test_depth_canon_collect.py:462: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K1_s44', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K1_s44', 'order': 2, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_m0'
+receipt = None
+kw = {'lane': 0, 'log': 'x', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+__________ test_the_receipt_binds_the_artifacts_and_the_verified_dump __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_art0')
+
+    def test_the_receipt_binds_the_artifacts_and_the_verified_dump(tmp_path):
+        r = row("T", K=8, seed=44)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:471: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s44', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s44', 'order': 7, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_art0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________ test_a_tampered_receipt_fails_offline_verification[manifest0] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_0')
+edit = <function <lambda> at 0x7fcf868263b0>, needle = 'manifest'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_a_tampered_receipt_fails_offline_verification[marker1] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_1')
+edit = <function <lambda> at 0x7fcf86826440>, needle = 'marker'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____ test_a_tampered_receipt_fails_offline_verification[manifest_sha2562] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_2')
+edit = <function <lambda> at 0x7fcf868264d0>, needle = 'manifest_sha256'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______ test_a_tampered_receipt_fails_offline_verification[input_hash3] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_3')
+edit = <function <lambda> at 0x7fcf86826560>, needle = 'input_hash'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_a_tampered_receipt_fails_offline_verification[sidecar4] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_4')
+edit = <function <lambda> at 0x7fcf868265f0>, needle = 'sidecar'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_4'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____ test_a_tampered_receipt_fails_offline_verification[artifact_sha2565] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_5')
+edit = <function <lambda> at 0x7fcf86826680>, needle = 'artifact_sha256'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_5'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______ test_a_tampered_receipt_fails_offline_verification[dump_evidence6] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_6')
+edit = <function <lambda> at 0x7fcf86826710>, needle = 'dump_evidence'
+
+    @pytest.mark.parametrize("edit, needle", OFFLINE_EDITS, ids=[e[1] + str(i) for i, e in enumerate(OFFLINE_EDITS)])
+    def test_a_tampered_receipt_fails_offline_verification(tmp_path, edit, needle):
+        r = row("R", K=1, seed=42)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:511: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'block': 'R', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_R_S40000_K1_s42', 'order': 20, 'priority': 3, 'block': 'R', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_receipt_fails_6'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______ test_a_committed_artifact_edited_after_the_receipt_fails_offline _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_committed_artifact_edit0')
+
+    def test_a_committed_artifact_edited_after_the_receipt_fails_offline(tmp_path):
+        r = row("YAW-pin", "YAW", K=8, seed=45, sub="T")
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:519: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_YAW_T_S40000_K8_s45', 'block': 'YAW-pin', 'arm': 'YAW', 'step': 40000, ...}
+row = {'cell': 'exp25_YAW_T_S40000_K8_s45', 'order': 80, 'priority': 8, 'block': 'YAW-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_committed_artifact_edit0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_a_dump_changed_after_the_receipt_is_seen_online _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_dump_changed_after_the_0')
+
+    def test_a_dump_changed_after_the_receipt_is_seen_online(tmp_path):
+        r = row("T", K=1, seed=45)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:526: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K1_s45', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K1_s45', 'order': 3, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_dump_changed_after_the_0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_receipt_rc_and_wrong_checkpoint_sha_are_refused _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_rc_and_wrong_chec0')
+
+    def test_receipt_rc_and_wrong_checkpoint_sha_are_refused(tmp_path):
+        r = row("TRAJ", K=8, deg=90, step=12500)
+>       rel = write_cell(tmp_path, r, ckpt_sha="1" * 64)
+
+src/tests/test_depth_canon_collect.py:533: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_TRAJ_S12500_K8_s42_th90', 'block': 'TRAJ', 'arm': 'CANON', 'step': 12500, ...}
+row = {'cell': 'exp25_CANON_TRAJ_S12500_K8_s42_th90', 'order': 147, 'priority': 9, 'block': 'TRAJ', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_receipt_rc_and_wrong_chec0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______________ test_verify_cell_names_a_missing_artifact[receipt] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_verify_cell_names_a_missi0')
+victim = 'receipt'
+
+    @pytest.mark.parametrize("victim", ["metrics", "stream", "receipt", "canon"])
+    def test_verify_cell_names_a_missing_artifact(tmp_path, victim):
+        r = row("T", K=8, seed=45)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:556: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s45', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s45', 'order': 8, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_verify_cell_names_a_missi0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_ test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_sha256_measured] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_mea0')
+edit = <function <lambda> at 0x7fcf86826d40>, needle = 'ckpt_sha256_measured'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_measured="1" * 64), "ckpt_sha256_measured"),
+        (lambda d: d.update(ckpt_cache="outputs_FLAC/elsewhere.ckpt"), "ckpt_cache")])
+    def test_the_receipt_binds_the_measured_checkpoint(tmp_path, edit, needle):
+        r = row("P1-pin", "P1", K=8, seed=43, sub="T")
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:618: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_T_S40000_K8_s43', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_T_S40000_K8_s43', 'order': 50, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_mea0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____ test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_cache] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_mea1')
+edit = <function <lambda> at 0x7fcf86826dd0>, needle = 'ckpt_cache'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_measured="1" * 64), "ckpt_sha256_measured"),
+        (lambda d: d.update(ckpt_cache="outputs_FLAC/elsewhere.ckpt"), "ckpt_cache")])
+    def test_the_receipt_binds_the_measured_checkpoint(tmp_path, edit, needle):
+        r = row("P1-pin", "P1", K=8, seed=43, sub="T")
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:618: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_T_S40000_K8_s43', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_T_S40000_K8_s43', 'order': 50, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_mea1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_____________ test_the_receipt_binds_the_evaluators_loaded_digest ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_eva0')
+
+    def test_the_receipt_binds_the_evaluators_loaded_digest(tmp_path):
+        r = row("P1-pin", "P1", K=1, seed=44, sub="T")
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:630: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_P1_T_S40000_K1_s44', 'block': 'P1-pin', 'arm': 'P1', 'step': 40000, ...}
+row = {'cell': 'exp25_P1_T_S40000_K1_s44', 'order': 46, 'priority': 7, 'block': 'P1-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_eva0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_________ test_a_tampered_loaded_digest_in_the_receipt_is_invalid[sha] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_0')
+edit = <function <lambda> at 0x7fcf86826f80>, needle = 'ckpt_sha256_loaded'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_loaded="1" * 64), "ckpt_sha256_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=CKPT_BYTES + 1), "ckpt_bytes_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+        (lambda d: d.pop("ckpt_sha256_loaded"), "receipt keys")], ids=["sha", "bytes", "zero", "absent"])
+    def test_a_tampered_loaded_digest_in_the_receipt_is_invalid(tmp_path, edit, needle):
+        r = row("C4+45", K=8, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:646: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'order': 17, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_0'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________ test_a_tampered_loaded_digest_in_the_receipt_is_invalid[bytes] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_1')
+edit = <function <lambda> at 0x7fcf86827010>, needle = 'ckpt_bytes_loaded'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_loaded="1" * 64), "ckpt_sha256_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=CKPT_BYTES + 1), "ckpt_bytes_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+        (lambda d: d.pop("ckpt_sha256_loaded"), "receipt keys")], ids=["sha", "bytes", "zero", "absent"])
+    def test_a_tampered_loaded_digest_in_the_receipt_is_invalid(tmp_path, edit, needle):
+        r = row("C4+45", K=8, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:646: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'order': 17, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_1'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+________ test_a_tampered_loaded_digest_in_the_receipt_is_invalid[zero] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_2')
+edit = <function <lambda> at 0x7fcf868270a0>, needle = 'ckpt_bytes_loaded'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_loaded="1" * 64), "ckpt_sha256_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=CKPT_BYTES + 1), "ckpt_bytes_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+        (lambda d: d.pop("ckpt_sha256_loaded"), "receipt keys")], ids=["sha", "bytes", "zero", "absent"])
+    def test_a_tampered_loaded_digest_in_the_receipt_is_invalid(tmp_path, edit, needle):
+        r = row("C4+45", K=8, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:646: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'order': 17, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_2'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______ test_a_tampered_loaded_digest_in_the_receipt_is_invalid[absent] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_3')
+edit = <function <lambda> at 0x7fcf86827130>, needle = 'receipt keys'
+
+    @pytest.mark.parametrize("edit, needle", [
+        (lambda d: d.update(ckpt_sha256_loaded="1" * 64), "ckpt_sha256_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=CKPT_BYTES + 1), "ckpt_bytes_loaded"),
+        (lambda d: d.update(ckpt_bytes_loaded=0), "ckpt_bytes_loaded"),
+        (lambda d: d.pop("ckpt_sha256_loaded"), "receipt keys")], ids=["sha", "bytes", "zero", "absent"])
+    def test_a_tampered_loaded_digest_in_the_receipt_is_invalid(tmp_path, edit, needle):
+        r = row("C4+45", K=8, deg=180)
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:646: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'block': 'C4+45', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_C4_S40000_K8_s42_th180', 'order': 17, 'priority': 2, 'block': 'C4+45', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_3'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_ test_a_tampered_loaded_digest_in_the_record_is_invalid_even_with_a_rebound_receipt _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_4')
+
+    def test_a_tampered_loaded_digest_in_the_record_is_invalid_even_with_a_rebound_receipt(tmp_path):
+        """The metrics record's own digest must equal the receipt's -- even when the receipt's artifact
+        digest is recomputed for the edited record (so only the loaded-digest binding can catch it)."""
+        r = row("YAW-pin", "YAW", K=1, seed=43, sub="T")
+>       rel = write_cell(tmp_path, r)
+
+src/tests/test_depth_canon_collect.py:656: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:176: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+src/tests/test_depth_canon_collect.py:207: in write_receipt
+    path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_YAW_T_S40000_K1_s43', 'block': 'YAW-pin', 'arm': 'YAW', 'step': 40000, ...}
+row = {'cell': 'exp25_YAW_T_S40000_K1_s43', 'order': 73, 'priority': 8, 'block': 'YAW-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_a_tampered_loaded_digest_4'
+receipt = None
+kw = {'lane': 0, 'log': 'logs/x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_ test_write_receipt_refuses_a_cell_that_loaded_other_bytes[other_bytes_loaded] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c0')
+load = {'ckpt_sha256_loaded': '3333333333333333333333333333333333333333333333333333333333333333', 'ckpt_bytes_loaded': 724000123}
+nbytes = 724000123, needle = 'loaded'
+
+    @pytest.mark.parametrize("load, nbytes, needle", [
+        ({"ckpt_sha256_loaded": "3" * 64, "ckpt_bytes_loaded": CKPT_BYTES}, CKPT_BYTES, "loaded"),
+        (None, CKPT_BYTES + 1, "bytes"), (None, None, "bytes")], ids=["other_bytes_loaded", "size", "no_size"])
+    def test_write_receipt_refuses_a_cell_that_loaded_other_bytes(tmp_path, load, nbytes, needle):
+        r = row("T", K=8, seed=42)
+        rel = write_cell(tmp_path, r, receipt=False, ckpt_load=load)
+        entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=os.path.join(str(tmp_path), "dumps"),
+                             canon_index=canon_index(), no_dump_blocks=[])[0]
+        assert entry["metrics"] == rel
+        with pytest.raises(ValueError, match=needle):
+>           C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                            ckpt_sha256=entry["sha256"], ckpt_bytes=nbytes, campaign_digest=DIGEST,
+                            spawn_digest=DIGEST, post_digest=DIGEST)
+
+src/tests/test_depth_canon_collect.py:675: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c0'
+receipt = None
+kw = {'lane': 0, 'log': 'x', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______ test_write_receipt_refuses_a_cell_that_loaded_other_bytes[size] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c1')
+load = None, nbytes = 724000124, needle = 'bytes'
+
+    @pytest.mark.parametrize("load, nbytes, needle", [
+        ({"ckpt_sha256_loaded": "3" * 64, "ckpt_bytes_loaded": CKPT_BYTES}, CKPT_BYTES, "loaded"),
+        (None, CKPT_BYTES + 1, "bytes"), (None, None, "bytes")], ids=["other_bytes_loaded", "size", "no_size"])
+    def test_write_receipt_refuses_a_cell_that_loaded_other_bytes(tmp_path, load, nbytes, needle):
+        r = row("T", K=8, seed=42)
+        rel = write_cell(tmp_path, r, receipt=False, ckpt_load=load)
+        entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=os.path.join(str(tmp_path), "dumps"),
+                             canon_index=canon_index(), no_dump_blocks=[])[0]
+        assert entry["metrics"] == rel
+        with pytest.raises(ValueError, match=needle):
+>           C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                            ckpt_sha256=entry["sha256"], ckpt_bytes=nbytes, campaign_digest=DIGEST,
+                            spawn_digest=DIGEST, post_digest=DIGEST)
+
+src/tests/test_depth_canon_collect.py:675: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c1'
+receipt = None
+kw = {'lane': 0, 'log': 'x', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+______ test_write_receipt_refuses_a_cell_that_loaded_other_bytes[no_size] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c2')
+load = None, nbytes = None, needle = 'bytes'
+
+    @pytest.mark.parametrize("load, nbytes, needle", [
+        ({"ckpt_sha256_loaded": "3" * 64, "ckpt_bytes_loaded": CKPT_BYTES}, CKPT_BYTES, "loaded"),
+        (None, CKPT_BYTES + 1, "bytes"), (None, None, "bytes")], ids=["other_bytes_loaded", "size", "no_size"])
+    def test_write_receipt_refuses_a_cell_that_loaded_other_bytes(tmp_path, load, nbytes, needle):
+        r = row("T", K=8, seed=42)
+        rel = write_cell(tmp_path, r, receipt=False, ckpt_load=load)
+        entry = C.plan_cells(MANIFEST, [r], farm_root=FARM, dump_root=os.path.join(str(tmp_path), "dumps"),
+                             canon_index=canon_index(), no_dump_blocks=[])[0]
+        assert entry["metrics"] == rel
+        with pytest.raises(ValueError, match=needle):
+>           C.write_receipt(entry, r, base_dir=str(tmp_path), lane=0, log="x", rc=0, pin=PIN,
+                            ckpt_sha256=entry["sha256"], ckpt_bytes=nbytes, campaign_digest=DIGEST,
+                            spawn_digest=DIGEST, post_digest=DIGEST)
+
+src/tests/test_depth_canon_collect.py:675: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'block': 'T', 'arm': 'CANON', 'step': 40000, ...}
+row = {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_refuses_a_c2'
+receipt = None
+kw = {'lane': 0, 'log': 'x', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+_______________ test_write_receipt_produces_what_verify_accepts ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan': 'plan_depth_canon.md v9 §5', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_produces_wh0')
+
+    def test_write_receipt_produces_what_verify_accepts(manifest, tmp_path):
+        import test_depth_canon_collect as T
+        manifest = T.MANIFEST
+        sel = C.select_cells(manifest, only=["exp25_YAW_C4_S40000_K1_s42_th45"])
+        entry = C.plan_cells(manifest, sel, farm_root="farm", dump_root=str(tmp_path / "d"),
+                             canon_index=None, no_dump_blocks=[])[0]
+        T.write_cell(tmp_path, sel[0], farm="farm", dump_root=str(tmp_path / "d"), receipt=False)
+>       path = C.write_receipt(entry, manifest_row(manifest, entry["cell"]), base_dir=str(tmp_path), lane=1,
+                               log="x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"], ckpt_bytes=T.CKPT_BYTES,
+                               **DIGESTS)
+
+src/tests/test_depth_canon_eval_run.py:334: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+entry = {'cell': 'exp25_YAW_C4_S40000_K1_s42_th45', 'block': 'YAW-pin', 'arm': 'YAW', 'step': 40000, ...}
+row = {'cell': 'exp25_YAW_C4_S40000_K1_s42_th45', 'order': 95, 'priority': 8, 'block': 'YAW-pin', ...}
+base_dir = '/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_produces_wh0'
+receipt = None
+kw = {'lane': 1, 'log': 'x.log', 'rc': 0, 'pin': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}
+
+    def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
+        """Atomically write the cell's receipt (``receipt`` = an already-built, verified dict, or
+        built here from ``kw``) -- temp file + ``os.replace``."""
+>       rec = receipt if receipt is not None else build_receipt(entry, row, base_dir=base_dir, **kw)
+E       TypeError: build_receipt() got an unexpected keyword argument 'ckpt_bytes'
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:647: TypeError
+____________ test_cli_write_receipt_can_verify_in_the_same_process _____________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan': 'plan_depth_canon.md v9 §5', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_cli_write_receipt_can_ver0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7fcf7809db70>
+
+    def test_cli_write_receipt_can_verify_in_the_same_process(manifest, tmp_path, capsys):
+        """One interpreter start (~5 s of imports) per finished cell instead of two."""
+        out = str(tmp_path / "plan.json")
+        assert C.main(["--plan", out, "--only", "exp25_P1_T_S40000_K1_s42", "--farm-root", "farm",
+                       "--dump-root", str(tmp_path / "d"), "--campaign-digest", "d" * 64]) == 0
+        os.makedirs(tmp_path / "farm" / "P1")
+        sha = manifest["arms"]["P1"]["ckpt"]["sha256"]
+        argv = ["--write-receipt", "exp25_P1_T_S40000_K1_s42", "--plan-json", out, "--base-dir", str(tmp_path),
+                "--lane", "0", "--log", "x.log", "--rc", "0", "--pin", PIN, "--ckpt-sha", sha, "--ckpt-bytes", "17",
+                "--farm-root", "farm", "--dump-root", str(tmp_path / "d"), "--no-link-check",
+                "--spawn-digest", "d" * 64, "--post-digest", "d" * 64]
+>       assert C.main(argv + ["--verify-after"]) == 1           # nothing to bind: refused, nothing written
+
+src/tests/test_depth_canon_eval_run.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:1374: in main
+    args = ap.parse_args(argv)
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='exp_25 depth_canon -- the cell verifier and results collec...(plan_depth_canon.md v9 §1', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --ckpt-bytes 17\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stdout call -----------------------------
+plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_cli_write_receipt_can_ver0/plan.json
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+__main__.py: error: unrecognized arguments: --ckpt-bytes 17
+________ test_write_receipt_is_written_only_after_the_full_verification ________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan': 'plan_depth_canon.md v9 §5', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_is_written_0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7fcf70e2b490>
+
+    def test_write_receipt_is_written_only_after_the_full_verification(manifest, tmp_path, capsys):
+        """B6: the receipt is the offline publication evidence, so it must not exist unless the
+        complete cell (incl. the dump, read once) verified."""
+        import test_depth_canon_collect as T
+        r = next(c for c in T.MANIFEST["cells"] if c["cell"] == "exp25_P1_T_S40000_K8_s43")
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(T.MANIFEST))
+        out = str(tmp_path / "plan.json")
+        assert C.main(["--plan", out, "--cells", str(cells), "--only", r["cell"], "--farm-root", T.FARM,
+                       "--dump-root", str(tmp_path / "dumps"), "--campaign-digest", "d" * 64]) == 0
+        T.write_cell(tmp_path, r, receipt=False)
+        argv = ["--write-receipt", r["cell"], "--plan-json", out, "--cells", str(cells), "--base-dir", str(tmp_path),
+                "--lane", "1", "--log", "x.log", "--rc", "0", "--pin", T.PIN, "--ckpt-sha",
+                T.MANIFEST["arms"]["P1"]["ckpt"]["sha256"], "--ckpt-bytes", str(T.CKPT_BYTES), "--farm-root", T.FARM,
+                "--dump-root",
+                str(tmp_path / "dumps"), "--no-link-check", "--spawn-digest", "d" * 64, "--post-digest", "d" * 64,
+                "--verify-after"]
+        d = os.path.join(str(tmp_path), "dumps", os.path.basename(json.load(open(out))["cells"][0]["stem"]))
+        os.rename(os.path.join(d, "waveforms.npy"), os.path.join(d, "w.hold"))
+>       assert C.main(argv) == 1 and not os.path.exists(tmp_path / plan_receipt(out))   # the dump is not complete
+
+src/tests/test_depth_canon_eval_run.py:405: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:1374: in main
+    args = ap.parse_args(argv)
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='exp_25 depth_canon -- the cell verifier and results collec...(plan_depth_canon.md v9 §1', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --ckpt-bytes 724000123\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stdout call -----------------------------
+plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_write_receipt_is_written_0/plan.json
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+__main__.py: error: unrecognized arguments: --ckpt-bytes 724000123
+_______________ test_the_receipt_binds_the_campaign_tree_digest ________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'c77bf671e16315fc9241f32a4590c5f9da3cfbd0'}
+
+    def test_the_receipt_binds_the_campaign_tree_digest(clone, harness):
+        import re
+        rc, out = drive(clone, harness, "--only", TWO[0])
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-10-24_13-09-37 -- HEAD c77bf671e16315fc9241f32a4590c5f9da3cfbd0 -- dry_run=0 -- harness=true ===
+E         evaluator pin OK: c77bf671e16315fc9241f32a4590c5f9da3cfbd0; evaluator tree digest 69b59ce3078b9a0a009a4548df13c0ad705180a044b0b88324bb8f71f9a2d7e1
+E         configs OK: every model / dataset config matches its manifest pin
+E         /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/logs/depth_canon_2026-10-24_13-09-37_eval_plan.json
+E         plan: 1 cell(s); dump root /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/dumps; farm /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/farm; lanes 0,1
+E         dump root OK: /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/dumps is cifs //10.249.7.28/shared_data, write probe created + removed
+E         checkpoint cache space: 1 checkpoint(s) to stage = 7 B + 2147483648 B margin = 2147483655 B needed; 309255667712 B available on /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h
+E         checkpoint OK: /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/nas/P1/epoch=8-step=40000.ckpt -> /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/farm/.ckpt_cache/b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da.ckpt (the local copy hashes to the pin b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da)
+E         CELL exp25_P1_T_S40000_K1_s42 | P1-pin | P1 |  run
+E           RUN exp25_P1_T_S40000_K1_s42 on GPU 0 (log /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/logs/depth_canon_2026-10-24_13-09-37_eval_exp25_P1_T_S40000_K1_s42.log)
+E           !! FAILED exp25_P1_T_S40000_K1_s42: post-run verification refused the cell (log /tmp/pytest-of-yixunhu/pytest-1819/test_the_receipt_binds_the_cam0/h/logs/depth_canon_2026-10-24_13-09-37_eval_exp25_P1_T_S40000_K1_s42.log)
+E         === summary: selected 1 | skipped (complete and verified) 0 | ran ok 0 | failed 1 | not run 0 ===
+E           FAILED exp25_P1_T_S40000_K1_s42
+E         completion: 0/1 selected cell(s) complete and verified (manifest: 230 cells)
+E         CAMPAIGN SELECTION INCOMPLETE - re-run to resume
+E         
+E       assert 1 == 0
+
+src/tests/test_depth_canon_eval_run.py:833: AssertionError
+_____ test_the_checkpoint_is_staged_into_a_verified_cache_and_hard_linked ______
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'c77bf671e16315fc9241f32a4590c5f9da3cfbd0'}
+
+    def test_the_checkpoint_is_staged_into_a_verified_cache_and_hard_linked(clone, harness):
+        rc, out = drive(clone, harness, "--only", TWO[0])
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-10-24_13-09-55 -- HEAD c77bf671e16315fc9241f32a4590c5f9da3cfbd0 -- dry_run=0 -- harness=true ===
+E         evaluator pin OK: c77bf671e16315fc9241f32a4590c5f9da3cfbd0; evaluator tree digest 69b59ce3078b9a0a009a4548df13c0ad705180a044b0b88324bb8f71f9a2d7e1
+E         configs OK: every model / dataset config matches its manifest pin
+E         /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/logs/depth_canon_2026-10-24_13-09-55_eval_plan.json
+E         plan: 1 cell(s); dump root /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/dumps; farm /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/farm; lanes 0,1
+E         dump root OK: /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/dumps is cifs //10.249.7.28/shared_data, write probe created + removed
+E         checkpoint cache space: 1 checkpoint(s) to stage = 7 B + 2147483648 B margin = 2147483655 B needed; 309255127040 B available on /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h
+E         checkpoint OK: /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/nas/P1/epoch=8-step=40000.ckpt -> /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/farm/.ckpt_cache/b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da.ckpt (the local copy hashes to the pin b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da)
+E         CELL exp25_P1_T_S40000_K1_s42 | P1-pin | P1 |  run
+E           RUN exp25_P1_T_S40000_K1_s42 on GPU 0 (log /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/logs/depth_canon_2026-10-24_13-09-55_eval_exp25_P1_T_S40000_K1_s42.log)
+E           !! FAILED exp25_P1_T_S40000_K1_s42: post-run verification refused the cell (log /tmp/pytest-of-yixunhu/pytest-1819/test_the_checkpoint_is_staged_0/h/logs/depth_canon_2026-10-24_13-09-55_eval_exp25_P1_T_S40000_K1_s42.log)
+E         === summary: selected 1 | skipped (complete and verified) 0 | ran ok 0 | failed 1 | not run 0 ===
+E           FAILED exp25_P1_T_S40000_K1_s42
+E         completion: 0/1 selected cell(s) complete and verified (manifest: 230 cells)
+E         CAMPAIGN SELECTION INCOMPLETE - re-run to resume
+E         
+E       assert 1 == 0
+
+src/tests/test_depth_canon_eval_run.py:872: AssertionError
+______________ test_an_existing_writable_cache_entry_is_rejected _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'c77bf671e16315fc9241f32a4590c5f9da3cfbd0'}
+
+    def test_an_existing_writable_cache_entry_is_rejected(clone, harness):
+        """rB-F2 F2-6 (a): an existing cache file must satisfy the immutable-cache contract (regular,
+        0444, the expected size) -- right bytes in a writable file are refused."""
+        rc, out = drive(clone, harness, "--only", TWO[0])
+>       assert rc == 0, out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-10-24_13-10-13 -- HEAD c77bf671e16315fc9241f32a4590c5f9da3cfbd0 -- dry_run=0 -- harness=true ===
+E         evaluator pin OK: c77bf671e16315fc9241f32a4590c5f9da3cfbd0; evaluator tree digest 69b59ce3078b9a0a009a4548df13c0ad705180a044b0b88324bb8f71f9a2d7e1
+E         configs OK: every model / dataset config matches its manifest pin
+E         /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/logs/depth_canon_2026-10-24_13-10-13_eval_plan.json
+E         plan: 1 cell(s); dump root /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/dumps; farm /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/farm; lanes 0,1
+E         dump root OK: /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/dumps is cifs //10.249.7.28/shared_data, write probe created + removed
+E         checkpoint cache space: 1 checkpoint(s) to stage = 7 B + 2147483648 B margin = 2147483655 B needed; 309254594560 B available on /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h
+E         checkpoint OK: /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/nas/P1/epoch=8-step=40000.ckpt -> /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/farm/.ckpt_cache/b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da.ckpt (the local copy hashes to the pin b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da)
+E         CELL exp25_P1_T_S40000_K1_s42 | P1-pin | P1 |  run
+E           RUN exp25_P1_T_S40000_K1_s42 on GPU 0 (log /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/logs/depth_canon_2026-10-24_13-10-13_eval_exp25_P1_T_S40000_K1_s42.log)
+E           !! FAILED exp25_P1_T_S40000_K1_s42: post-run verification refused the cell (log /tmp/pytest-of-yixunhu/pytest-1819/test_an_existing_writable_cach0/h/logs/depth_canon_2026-10-24_13-10-13_eval_exp25_P1_T_S40000_K1_s42.log)
+E         === summary: selected 1 | skipped (complete and verified) 0 | ran ok 0 | failed 1 | not run 0 ===
+E           FAILED exp25_P1_T_S40000_K1_s42
+E         completion: 0/1 selected cell(s) complete and verified (manifest: 230 cells)
+E         CAMPAIGN SELECTION INCOMPLETE - re-run to resume
+E         
+E       assert 1 == 0
+
+src/tests/test_depth_canon_eval_run.py:925: AssertionError
+____________ test_a_cache_file_changed_before_the_spawn_is_refused _____________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'c77bf671e16315fc9241f32a4590c5f9da3cfbd0'}
+
+    def test_a_cache_file_changed_before_the_spawn_is_refused(clone, harness):
+        """rB-F2 F2-6 (b): the cache file is re-hashed immediately before EACH spawn. The harness flips
+        one byte in place at the lane re-check (same size, 0444 restored): no evaluator runs."""
+        rc, out = drive(clone, harness, "--only", TWO[0], env={"GUARD_TAMPER_CACHE_AT": "2"})
+>       assert rc == 2 and "CACHE GATE FAILED" in out and "before the spawn" in out and not _calls(harness), out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-10-24_13-10-31 -- HEAD c77bf671e16315fc9241f32a4590c5f9da3cfbd0 -- dry_run=0 -- harness=true ===
+E         evaluator pin OK: c77bf671e16315fc9241f32a4590c5f9da3cfbd0; evaluator tree digest 69b59ce3078b9a0a009a4548df13c0ad705180a044b0b88324bb8f71f9a2d7e1
+E         configs OK: every model / dataset config matches its manifest pin
+E         /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/logs/depth_canon_2026-10-24_13-10-31_eval_plan.json
+E         plan: 1 cell(s); dump root /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/dumps; farm /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/farm; lanes 0,1
+E         dump root OK: /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/dumps is cifs //10.249.7.28/shared_data, write probe created + removed
+E         checkpoint cache space: 1 checkpoint(s) to stage = 7 B + 2147483648 B margin = 2147483655 B needed; 309254062080 B available on /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h
+E         checkpoint OK: /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/nas/P1/epoch=8-step=40000.ckpt -> /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/farm/.ckpt_cache/b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da.ckpt (the local copy hashes to the pin b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da)
+E         CELL exp25_P1_T_S40000_K1_s42 | P1-pin | P1 |  run
+E           RUN exp25_P1_T_S40000_K1_s42 on GPU 0 (log /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/logs/depth_canon_2026-10-24_13-10-31_eval_exp25_P1_T_S40000_K1_s42.log)
+E           !! FAILED exp25_P1_T_S40000_K1_s42: the evaluated checkpoint /tmp/pytest-of-yixunhu/pytest-1819/test_a_cache_file_changed_befo0/h/farm/P1/epoch=8-step=40000.ckpt now hashes to '965b837a6a644a8510c3f96d8593508e5f424acc1faf9557157ad3e0df758fe4', not b64d1fa4c96f1898139e611e41e015ae5b40dcc306679ce117f2b76c918116da (or left the cache inode); no receipt
+E         === summary: selected 1 | skipped (complete and verified) 0 | ran ok 0 | failed 1 | not run 0 ===
+E           FAILED exp25_P1_T_S40000_K1_s42
+E         completion: 0/1 selected cell(s) complete and verified (manifest: 230 cells)
+E         CAMPAIGN SELECTION INCOMPLETE - re-run to resume
+E         
+E       assert (1 == 2)
+
+src/tests/test_depth_canon_eval_run.py:938: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[load_not_ema]
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[load_not_ema]
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cond_autocast]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cond_method]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-weights_source]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cfg_scale]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-steps]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-n_samples]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-seed]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-eval_name]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-source_sha]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-device]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-batch_size]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-dataset_config]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-rotate_deg]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-T60]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-metrics keys]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-key order0]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-by_scene]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-canonicalize_applied]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-model_config_sha256]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-tie_counts]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[D-i-canonicalize_mismatch]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[D-ii-canonicalize_mismatch]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[P1-pin-key order]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-key order1]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_sha256_loaded]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_bytes_loaded0]
+FAILED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_bytes_loaded1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[T_CANON_K1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[C4+45_CANON_K8]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[R_CANON_K1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[D-i_CANON_K8]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[D-ii_P1_K1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[S_CANON_K8]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[P1-pin_P1_K1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[YAW-pin_YAW_K8]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[TRAJ_CANON_K1]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[T-dup_CANON_K8]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over0-ckpt_sha256]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over1-expect_head]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over2-dump]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over3-argv]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over4-ckpt_target]
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over5-ckpt_link]
+FAILED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[spawn]
+FAILED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[post]
+FAILED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[malformed]
+FAILED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[absent]
+FAILED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_moved_tree
+FAILED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_artifacts_and_the_verified_dump
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[manifest0]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[marker1]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[manifest_sha2562]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[input_hash3]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[sidecar4]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[artifact_sha2565]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[dump_evidence6]
+FAILED src/tests/test_depth_canon_collect.py::test_a_committed_artifact_edited_after_the_receipt_fails_offline
+FAILED src/tests/test_depth_canon_collect.py::test_a_dump_changed_after_the_receipt_is_seen_online
+FAILED src/tests/test_depth_canon_collect.py::test_receipt_rc_and_wrong_checkpoint_sha_are_refused
+FAILED src/tests/test_depth_canon_collect.py::test_verify_cell_names_a_missing_artifact[receipt]
+FAILED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_sha256_measured]
+FAILED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_cache]
+FAILED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_evaluators_loaded_digest
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[sha]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[bytes]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[zero]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[absent]
+FAILED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_record_is_invalid_even_with_a_rebound_receipt
+FAILED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[other_bytes_loaded]
+FAILED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[size]
+FAILED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[no_size]
+FAILED src/tests/test_depth_canon_eval_run.py::test_write_receipt_produces_what_verify_accepts
+FAILED src/tests/test_depth_canon_eval_run.py::test_cli_write_receipt_can_verify_in_the_same_process
+FAILED src/tests/test_depth_canon_eval_run.py::test_write_receipt_is_written_only_after_the_full_verification
+FAILED src/tests/test_depth_canon_eval_run.py::test_the_receipt_binds_the_campaign_tree_digest
+FAILED src/tests/test_depth_canon_eval_run.py::test_the_checkpoint_is_staged_into_a_verified_cache_and_hard_linked
+FAILED src/tests/test_depth_canon_eval_run.py::test_an_existing_writable_cache_entry_is_rejected
+FAILED src/tests/test_depth_canon_eval_run.py::test_a_cache_file_changed_before_the_spawn_is_refused
+78 failed, 2 passed, 198 deselected, 5 warnings in 86.39s (0:01:26)

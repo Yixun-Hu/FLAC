@@ -1,0 +1,32 @@
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-10-23 · **Round:** code r1 re-verification
+
+**Verdict:** REQUEST-CHANGES
+
+### Per-finding disposition
+
+| Round-1 item | Status | Evidence |
+|---|---|---|
+| BLOCKING — pose-key equivariance | **RESOLVED** | Selection is proxy-only; surviving rooted-image ties raise at [yaw_rotation.py:763](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:763). Canonicalization passes no poses to the selector at [yaw_rotation.py:861](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:861). Boundary and all-roll coverage is at [test_depth_canon.py:509](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:509) and [test_depth_canon.py:531](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:531). |
+| HIGH — required pose fields | **RESOLVED** | All four fields are required and shape/finiteness checked at [yaw_rotation.py:805](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:805); one missing-key test per field is at [test_depth_canon.py:559](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:559). |
+| HIGH — `pose_keys` pass-through | **RESOLVED** | The public canonicalizer has no `pose_keys` argument and invokes the reviewed rotation with its all-pose default at [yaw_rotation.py:835](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:835). Regression coverage is at [test_depth_canon.py:567](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:567). |
+| HIGH — round-2 CPU-float64 contract | **PARTIALLY RESOLVED** | The implementation requirement is adequate at [plan_depth_canon.md:64](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/plan_depth_canon.md:64): enabled transfer leaves metadata on CPU, `_canonicalize_batch` enforces CPU float64, and canonicalization precedes conditioning. However, the round-2 test list at [plan_depth_canon.md:147](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/plan_depth_canon.md:147) does not test the transfer hook or dtype/device rejection. |
+| NIT — identity/impossibility wording | **RESOLVED** | The exception now claims only an exactly periodic recovered image and a fail-closed policy at [yaw_rotation.py:702](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:702); forbidden wording is tested at [test_depth_canon.py:502](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:502). |
+| NIT — sample identifier | **RESOLVED** | `idx`/`path`/`relpath` are attached during re-raise and preserved by pickling at [yaw_rotation.py:711](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:711) and [yaw_rotation.py:861](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:861); tests are at [test_depth_canon.py:582](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:582). |
+| NIT — probe assertions | **RESOLVED** | Map cardinality and float64 assertions are present at [depth_canon_planning_probe_ties.py:33](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_planning_probe_ties.py:33) and [depth_canon_planning_probe_ties.py:43](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_planning_probe_ties.py:43). |
+| Accepted — signed-zero normalization | **RESOLVED / ACCEPTED** | Formula and rationale are honest at [yaw_rotation.py:877](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:877), with coverage at [test_depth_canon.py:401](/home/yixunhu/codespace/exp-25-depth-canon/src/tests/test_depth_canon.py:401). |
+| Accepted — shared context `N` | **RESOLVED / ACCEPTED** | Enforced at [yaw_rotation.py:823](/home/yixunhu/codespace/exp-25-depth-canon/src/data/yaw_rotation.py:823). |
+| Accepted — redundant `r/z` key components | **RESOLVED / MOOT** | All pose keys were removed from selection. |
+| Accepted — cycle split | **RESOLVED / ACCEPTED** | F1 and F2a are tests-only red states immediately preceding F2b, permitted by the tests-first rule. Evidence is recorded at [depth_canon_worklog.md:171](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_worklog.md:171). |
+
+### Remaining findings
+
+- **HIGH — round-2 test plan is incomplete.** Add explicit tests that enabled `transfer_batch_to_device` moves `reals` but leaves metadata CPU-float64, disabled mode delegates unchanged, `_canonicalize_batch` rejects wrong device/dtype, and execution order is transfer → canonicalize → conditioning.
+
+- **HIGH — v6 still contains operationally stale v5 policy.** It calls the operator “joint geometry-plus-query” at [plan_depth_canon.md:58](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/plan_depth_canon.md:58) and [plan_depth_canon.md:248](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/plan_depth_canon.md:248), and §7 still discusses C-4/context-draw certification alternatives at [plan_depth_canon.md:172](/home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/plan_depth_canon.md:172). Under v6, the selector is geometry-only and every image-key survivor raises regardless of poses. Update those passages, plus the stale C-4/D1 labels at lines 185 and 258. Historical changelog entries should remain historical.
+
+### What I verified
+
+- No counterexample found. My read-only probe covered 3,072 returning roll/pose cases and 832 periodic raises: column centres, `±0.0` at the seam, radii immediately below/above `1e-6`, cross-seam ties, odd/even heights, and all 512 rolls of real map `Apartments/Apartments_idx_0/0.npy`. The real map selected `j*=346`, class `none`, for every co-rotation; periodic survivor sets co-rotated exactly.
+- `yaw_rotation.py` is additions-only versus `08ac314`: `+259/−0`; `git diff --check` is clean.
+- All fix/record/plan commits are below 200 changed lines. Recorded red/green evidence is coherent, including F1/F2a’s deliberate red states and the Planner’s final `392 passed, 1 xfailed` at `de6e774`.
+- Operator code and its revised docstrings are otherwise ready; the requested changes are to the round-2 test specification and stale normative plan text.

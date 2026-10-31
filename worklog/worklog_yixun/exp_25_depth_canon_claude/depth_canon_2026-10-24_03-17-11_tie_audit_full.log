@@ -1,0 +1,25 @@
+Running json scandir...
+Found 291210 files in 243 subfolders
+Running json scandir...
+Found 6337 files in 17 subfolders
+Running json scandir...
+Found 6217 files in 131 subfolders
+## depth_canon tie audit -- gate PASS (exit 0)
+
+coverage: splits train,unseen,seen; maps audited 9650 of 9650; limit None; complete True
+
+| split | items | maps | none | same_column | cross_column_image | survivor | error |
+|---|---|---|---|---|---|---|---|
+| train | 291210 | 8488 | 8112 (280491 items) | 79 (2482 items) | 297 (8237 items) | 0 (0 items) | 0 (0 items) |
+| unseen | 6337 | 644 | 604 (5949 items) | 19 (178 items) | 21 (210 items) | 0 (0 items) | 0 (0 items) |
+| seen | 6217 | 630 | 596 (5886 items) | 13 (124 items) | 21 (207 items) | 0 (0 items) | 0 (0 items) |
+
+raw-vs-proxy agreement: candidate set {'true': 9631, 'false': 19}, selected column {'true': 9636, 'false': 14}
+dj histogram (train, items, 16 bins of 32 columns): [6496, 22831, 33950, 7838, 6031, 27818, 27248, 6397, 6863, 24777, 29778, 14319, 12836, 27858, 28071, 8099]
+dj histogram (unseen, items, 16 bins of 32 columns): [67, 715, 653, 90, 106, 536, 729, 59, 30, 554, 542, 305, 283, 630, 909, 129]
+dj histogram (seen, items, 16 bins of 32 columns): [99, 714, 620, 158, 188, 667, 486, 179, 145, 641, 714, 200, 237, 664, 415, 90]
+survivors (0): none
+errors (0): none
+
+timing: enumeration 10.1 s; 9650 maps in 138.5 s with 8 worker(s) = 69.70 maps/s; projected for all 9650 maps of these splits: 2.3 min
+wrote /home/yixunhu/codespace/exp-25-depth-canon/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json (+ .sha256)

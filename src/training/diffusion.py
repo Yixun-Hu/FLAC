@@ -22,6 +22,8 @@ from ..data.yaw_rotation import (
     invariant_conditioning,
     DEFAULT_FRAME_ANGLES,
     POSE_KEYS,
+    TIE_CLASSES,
+    canonicalize_scene_metadata,
     draw_yaw_offsets,
     offsets_to_radians,
     rotate_scene_metadata,
@@ -32,6 +34,7 @@ from .losses import MSELoss, MultiLoss
 from .utils import create_optimizer_from_config, create_scheduler_from_config, log_metric
 
 from time import time
+from time import perf_counter  # exp_25 r3b-F1: canonicalization latency
 
 _MASK64 = (1 << 64) - 1
 # SplitMix64's golden-ratio increment and its two finalising multipliers
@@ -140,6 +143,25 @@ def _yaw_aug_step_seed(seed: int, step: int, rank: int) -> int:
     return _fmix32(v ^ k_lo) ^ k_hi
 
 
+class _CpuMetadataCarrier:
+    """exp_25: carries one batch's metadata container, untouched and on the CPU, from
+    ``transfer_batch_to_device`` to ``_canonicalize_batch`` (plan_depth_canon.md v8
+    §2.2; code review r2 BLOCKING).
+
+    Deliberately OPAQUE: not a Tensor, list, tuple, dict, namedtuple or dataclass, and
+    with no ``.to``. Under DDP on CUDA the step runs through
+    ``DistributedDataParallel._pre_forward``, whose ``torch.distributed.utils._to_kwargs``
+    -> ``_recursive_to`` (torch 2.7) moves Tensors/PackedSequences and descends only
+    into namedtuples and non-empty tuples, lists and dicts, returning every other
+    object unchanged -- so metadata inside this carrier is not moved a second time.
+    """
+
+    __slots__ = ("metadata",)
+
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+
 class Profiler:
     def __init__(self):
         self.ticks = [[time(), None]]
@@ -182,6 +204,8 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             yaw_aug_enabled: bool = False,
             yaw_aug_img_w: int = 512,
             yaw_aug_seed: int = 0,
+            canonicalize_enabled: bool = False,
+            canonicalize_img_w: int = 512,
             are_lambda: tp.Optional[float] = None,
             are_anchor: tp.Optional[dict] = None
     ):
@@ -246,6 +270,35 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         self.yaw_aug_enabled = yaw_aug_enabled
         self.yaw_aug_img_w = yaw_aug_img_w
         self.yaw_aug_seed = yaw_aug_seed
+
+        # exp_25: deepest-column yaw canonicalization of every step's metadata
+        # (plan_depth_canon.md v7 §2.2; _canonicalize_batch). Off by default. The
+        # RAW arguments are validated with the factory's rules — never coerced —
+        # and the factory's two exclusions are repeated here, so direct
+        # construction is as fail-closed as the config path (exp_15 precedent).
+        if not isinstance(canonicalize_enabled, bool):
+            raise ValueError(
+                f"canonicalize_enabled must be a bool, got {canonicalize_enabled!r}")
+        if isinstance(canonicalize_img_w, bool) or not isinstance(canonicalize_img_w, int):
+            raise ValueError(
+                f"canonicalize_img_w must be an int, got {canonicalize_img_w!r}")
+        if canonicalize_img_w <= 0:
+            raise ValueError(f"canonicalize_img_w must be > 0, got {canonicalize_img_w}")
+        if canonicalize_enabled and yaw_aug_enabled:
+            raise ValueError(
+                "canonicalize_enabled=True with yaw_aug_enabled=True: two yaw "
+                "treatments in one arm are out of scope for exp_25.")
+        if canonicalize_enabled and cond_method == "fa_invariant":
+            raise ValueError(
+                "canonicalize_enabled=True with cond_method='fa_invariant' is out of "
+                "scope for exp_25 (frame averaging already symmetrises the yaw).")
+        self.canonicalize_enabled = canonicalize_enabled
+        self.canonicalize_img_w = canonicalize_img_w
+        # Cumulative per-class counts over every sample THIS rank canonicalized
+        # (training and validation steps alike); printed by on_fit_end.
+        self.canon_tie_counts = {c: 0 for c in TIE_CLASSES}
+        # r3b-F1 fix 2: wall time of the per-batch canonicalization loop (same scope).
+        self.canon_latency = {"batches": 0, "samples": 0, "total_s": 0.0}
 
         # exp_16 (ARE): the target reparameterisation z -> z - lambda*A(p).
         # ``None`` means "not an ARE arm" and is NOT the same as 0.0: at None the
@@ -408,6 +461,27 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
             flush=True,
         )
 
+    @rank_zero_only
+    def _print_canonicalize_banner(self):
+        # exp_25: flushed for the same FIFO reason; the launch gate requires this
+        # exact whole line (plan_depth_canon.md §10).
+        print(f"canonicalize ENABLED img_w={self.canonicalize_img_w} tiebreak=image",
+              flush=True)
+
+    @rank_zero_only
+    def _print_canonicalize_tie_totals(self):
+        # Rank 0's own counts (not all-reduced), one key=value per TIE_CLASSES entry.
+        counts = " ".join(f"{c}={self.canon_tie_counts[c]}" for c in TIE_CLASSES)
+        print(f"canonicalize tie_counts rank0 {counts}", flush=True)
+
+    @rank_zero_only
+    def _print_canonicalize_latency(self):
+        # r3b-F1 fix 2: the launcher parses this EXACT line into the smoke evidence.
+        b, n, t = (self.canon_latency[k] for k in ("batches", "samples", "total_s"))
+        mean_ms = 1e3 * t / b if b else float("nan")
+        print(f"canonicalize latency rank0 batches={b} samples={n} total_s={t:.6f} "
+              f"mean_ms_per_batch={mean_ms:.3f}", flush=True)
+
     def on_fit_start(self):
         """Announce the treatment once, on rank 0, before step 0.
 
@@ -418,6 +492,16 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         """
         if self.yaw_aug_enabled:
             self._print_yaw_aug_banner()
+        # exp_25: same contract for the canonicalization arm.
+        if self.canonicalize_enabled:
+            self._print_canonicalize_banner()
+
+    def on_fit_end(self):
+        """exp_25: print rank 0's cumulative canonicalization tie counts once, at the
+        end of fit (only when canonicalization is enabled)."""
+        if self.canonicalize_enabled:
+            self._print_canonicalize_tie_totals()
+            self._print_canonicalize_latency()
 
     def _check_yaw_aug_metadata(self, metadata):
         """Fail-closed schema validation of one training batch (plan §3.1, F7).
@@ -479,6 +563,136 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
                         f"yaw_aug: metadata[{i}][{key!r}] must have trailing "
                         f"dimension 3, got shape {list(pose.shape)}"
                     )
+
+    def _check_canon_metadata(self, metadata):
+        """exp_25: fail-closed schema validation of one batch before canonicalization.
+
+        The rules of :meth:`_check_yaw_aug_metadata` under the ``canonicalize:``
+        prefix (a non-empty list of dicts; ``depth`` a ``[3, H, W]`` tensor whose
+        width — read from the ACTUAL tensor — equals ``canonicalize_img_w``; all
+        four pose fields present as tensors with trailing dimension 3), plus the
+        round-2 device/dtype contract (plan v7 §2.2): ``depth`` must be the loader's
+        float64 point cloud still on the CPU, as :meth:`transfer_batch_to_device`
+        leaves it. That is the path the operator's bitwise yaw-stability is tested
+        on. The operator itself then enforces its exact pose shapes.
+        """
+        if not isinstance(metadata, (list, tuple)):
+            raise ValueError(
+                "canonicalize: metadata must be a list of per-sample dicts, got "
+                f"{type(metadata).__name__}")
+        if len(metadata) == 0:
+            raise ValueError("canonicalize: metadata is empty; nothing to canonicalize")
+
+        for i, md in enumerate(metadata):
+            if not isinstance(md, dict):
+                raise ValueError(
+                    f"canonicalize: metadata[{i}] must be a dict, got {type(md).__name__}")
+            if "depth" not in md:
+                raise ValueError(f"canonicalize: metadata[{i}] has no 'depth' field")
+            depth = md["depth"]
+            if not torch.is_tensor(depth):
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] must be a tensor, got "
+                    f"{type(depth).__name__}")
+            if depth.ndim != 3 or depth.shape[0] != 3:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] must have shape [3, H, W], "
+                    f"got {list(depth.shape)}")
+            if depth.shape[2] != self.canonicalize_img_w:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is {depth.shape[2]} columns "
+                    f"wide but canonicalize_img_w is {self.canonicalize_img_w}")
+            if depth.device.type != "cpu":
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is on {depth.device}; the "
+                    "treatment runs on the cpu (metadata must not be moved before it)")
+            if depth.dtype != torch.float64:
+                raise ValueError(
+                    f"canonicalize: metadata[{i}]['depth'] is {depth.dtype}; the "
+                    "treatment requires the loader's torch.float64 point cloud")
+            for key in POSE_KEYS:
+                if key not in md:
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}] has no {key!r} pose field")
+                pose = md[key]
+                if not torch.is_tensor(pose):
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}][{key!r}] must be a tensor, got "
+                        f"{type(pose).__name__}")
+                if pose.ndim < 1 or pose.shape[-1] != 3:
+                    raise ValueError(
+                        f"canonicalize: metadata[{i}][{key!r}] must have trailing "
+                        f"dimension 3, got shape {list(pose.shape)}")
+
+    def _canonicalize_batch(self, metadata):
+        """exp_25: canonicalize every sample of one batch (plan_depth_canon.md v7 §2.2).
+
+        :meth:`_check_canon_metadata`, then ``canonicalize_scene_metadata(md,
+        canonicalize_img_w)`` per sample — the deepest column moves to column 0,
+        depth vectors and all four pose fields co-rotate, every other field
+        (``context_audio``, ``padding_mask``, ``scene``, loader ids) passes through,
+        the input dicts are not mutated — and returns the new list. A
+        ``StabilizedTieError`` (exactly periodic panorama) propagates and stops the
+        run. The batch's tie classes are added to ``canon_tie_counts`` only after
+        every sample succeeded; on the training path (a Trainer attached and
+        ``trainer.training``) the cumulative cross-/same-column counts are logged
+        on rank 0 per step. Consumes no RNG. A :class:`_CpuMetadataCarrier` (what
+        ``transfer_batch_to_device`` hands on when enabled) is unwrapped first.
+        """
+        t0 = perf_counter()   # rB-F1 A5: the whole treatment overhead, unwrap + validation included
+        if isinstance(metadata, _CpuMetadataCarrier):
+            metadata = metadata.metadata
+        self._check_canon_metadata(metadata)
+        out, batch_counts = [], {c: 0 for c in TIE_CLASSES}
+        for i, md in enumerate(metadata):
+            try:
+                md_canon, _, tie_class = canonicalize_scene_metadata(md, self.canonicalize_img_w)
+            except ValueError as err:  # the operator's exact contract; StabilizedTieError
+                # is a RuntimeError, so it propagates untouched (never caught here)
+                raise ValueError(f"canonicalize: metadata[{i}]: {err}") from err
+            if tie_class not in batch_counts:
+                raise RuntimeError(f"canonicalize: unknown tie class {tie_class!r}")
+            batch_counts[tie_class] += 1
+            out.append(md_canon)
+        elapsed = perf_counter() - t0
+        for tie_class, n in batch_counts.items():
+            self.canon_tie_counts[tie_class] += n
+        self.canon_latency["batches"] += 1
+        self.canon_latency["samples"] += len(out)
+        self.canon_latency["total_s"] += elapsed
+        if self._trainer is not None and self._trainer.training:
+            for name, tie_class in (("canon/cross_column_ties", "cross_column_image"),
+                                    ("canon/same_column_ties", "same_column")):
+                # float: Lightning stores logged values as float32 (exact < 2**24).
+                self.log(name, float(self.canon_tie_counts[tie_class]), rank_zero_only=True,
+                         on_step=True, on_epoch=False)
+            self.log("canon/latency_ms", 1e3 * elapsed, rank_zero_only=True, on_step=True,
+                     on_epoch=False)
+        return out
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        """exp_25: with canonicalization on, move ``reals`` only; leave the metadata on
+        the CPU (plan_depth_canon.md v7 §2.2, code review r1).
+
+        Lightning's default moves every tensor nested in the metadata dicts to the
+        accelerator before the step, but the treatment must run on the loader's
+        CPU float64 point cloud (``_check_canon_metadata`` refuses anything else).
+        Every consumer of the metadata on the three step paths moves what it needs
+        itself (the conditioners' ``.to(device)``, the padding-mask stack, the
+        metric callback's AGREE image tower). So for the loader's ``[reals,
+        metadata]`` pair (list or tuple, as ``collation_fn`` builds it) ``reals`` goes
+        through the parent implementation and the very same metadata container is
+        handed on inside a :class:`_CpuMetadataCarrier`, which DDP's forward-input
+        mover does not descend into (code review r2). Disabled, or any other batch
+        shape: the parent implementation, unchanged.
+        """
+        if not self.canonicalize_enabled:
+            return super().transfer_batch_to_device(batch, device, dataloader_idx)
+        if (type(batch) in (list, tuple) and len(batch) == 2 and torch.is_tensor(batch[0])
+                and isinstance(batch[1], (list, tuple))):
+            reals = super().transfer_batch_to_device(batch[0], device, dataloader_idx)
+            return type(batch)((reals, _CpuMetadataCarrier(batch[1])))
+        return super().transfer_batch_to_device(batch, device, dataloader_idx)
 
     def _apply_yaw_aug(self, metadata):
         """Rotate each sample's conditioning by its own freshly drawn yaw.
@@ -588,6 +802,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         # exp_15: TRAINING-ONLY random yaw of the conditioning (plan §6.3).
         if self.yaw_aug_enabled:
@@ -744,6 +961,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         if reals.ndim == 4 and reals.shape[0] == 1:
             reals = reals[0]
@@ -839,6 +1059,9 @@ class DiffusionCondTrainingWrapper(pl.LightningModule):
         
     def test_step(self, batch, batch_idx):
         reals, metadata = batch
+        # exp_25: canonicalize FIRST, before any other metadata transform.
+        if self.canonicalize_enabled:
+            metadata = self._canonicalize_batch(metadata)
 
         B = reals.shape[0]
 

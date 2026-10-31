@@ -11,6 +11,7 @@ yaw-invariant and are intentionally left untouched.
 Used both by the standalone rotation-invariance diagnostic and by ``eval_FLAC.py``
 (via its optional ``--rotate-deg`` flag).
 """
+import hashlib
 import math
 from typing import Dict, List, Sequence, Tuple
 
@@ -629,3 +630,261 @@ def yaw_transform_consistency(
         assert isinstance(rotated, torch.Tensor)
         report[float(deg)] = max_dev(rotated)
     return report
+
+
+# --------------------------------------------------------------------------- #
+# exp_25 depth_canon: deepest-pixel yaw canonicalization (plan_depth_canon.md
+# §2.1 / §8). Additions only -- nothing above this line is changed.
+# --------------------------------------------------------------------------- #
+def _check_depth_cloud(depth) -> None:
+    """Fail-closed contract of a metadata ``depth`` point cloud ``[3, H, W]``."""
+    if not isinstance(depth, torch.Tensor):
+        raise ValueError(f"depth must be a torch.Tensor, got {type(depth).__name__}")
+    if not depth.is_floating_point():
+        raise ValueError(f"depth must be a floating tensor, got {depth.dtype}")
+    if depth.ndim != 3 or depth.shape[0] != 3:
+        raise ValueError(f"depth must have shape [3, H, W], got {list(depth.shape)}")
+    H, W = int(depth.shape[1]), int(depth.shape[2])
+    if H == 0 or W == 0 or H % 2 != 0:
+        raise ValueError(
+            f"depth needs an even H > 0 and W > 0, got H={H}, W={W} (an odd H puts a "
+            "panorama row at phi = 0, where the depth proxy's denominator is zero)")
+    if not bool(torch.isfinite(depth).all()):
+        raise ValueError("depth contains non-finite values")
+
+
+def recover_depth_proxy(depth: torch.Tensor) -> torch.Tensor:
+    """
+    ``[3, H, W]`` camera-frame point cloud -> ``[H, W]`` recovered-depth PROXY.
+
+    ``D[h, w] = depth[2, h, w] / (-sin(phi_h))`` with
+    ``phi_h = (h + 0.5) * pi / H - pi / 2`` built exactly as
+    ``AR_md.convert_equirect_to_camera_coord`` builds its row angle
+    (``torch.arange`` -> float32 angle -> ``torch.sin``), cast to ``depth.dtype``
+    only at the division.
+
+    This is a **bitwise yaw-stable proxy**, NOT an exact inverse of the raw depth
+    map: AR_md stores ``z = -d * sin(phi)`` in float64, and dividing back agrees
+    with the raw ``.npy`` only to ~1e-15 (the planning probe found 8.9e-16 and 91 %
+    of pixels bitwise). What IS exact is its behaviour under
+    :func:`rotate_scene_metadata`: a yaw rotation leaves the z channel bitwise
+    unchanged (matrix row ``[0, 0, 1]``) and ``sin(phi_h)`` is a per-row constant,
+    so the proxy of a rotated map, un-rolled, equals the original proxy bitwise --
+    which the per-pixel L2 norm of the point cloud does not. (The one exception is
+    the sign of zero at zero-depth pixels, which compares equal;
+    :func:`canonical_depth_sha256` normalizes it before hashing.)
+
+    Raises ``ValueError`` unless ``depth`` is a finite floating ``[3, H, W]``
+    tensor with even ``H > 0`` and ``W > 0``, or if any row has ``sin(phi) == 0``.
+    """
+    _check_depth_cloud(depth)
+    H = int(depth.shape[1])
+    phi = (torch.arange(H) + 0.5) * math.pi / H - math.pi / 2  # float32, as in AR_md
+    s = torch.sin(phi)
+    if not bool(s.abs().min() > 0.0):
+        raise ValueError("a panorama row has sin(phi) == 0: the depth proxy is undefined")
+    return depth[2] / (-s.to(device=depth.device, dtype=depth.dtype))[:, None]
+
+
+def column_profile(D: torch.Tensor) -> torch.Tensor:
+    """Per-column maximum ``P[w] = max_h D[h, w]`` of an ``[H, W]`` depth proxy -> ``[W]``."""
+    if not isinstance(D, torch.Tensor) or not D.is_floating_point() or D.ndim != 2 \
+            or D.shape[0] == 0 or D.shape[1] == 0:
+        raise ValueError(
+            f"column_profile needs a non-empty floating [H, W] tensor, got "
+            f"{getattr(D, 'dtype', type(D).__name__)} {list(getattr(D, 'shape', []))}")
+    return D.max(dim=0).values
+
+
+TIE_CLASSES: Tuple[str, ...] = ("none", "same_column", "cross_column_image")
+
+
+class StabilizedTieError(RuntimeError):
+    """Plan §2.1 Step C-2 (v6): the approved rooted-image key leaves several candidate
+    columns, i.e. the recovered panorama is exactly periodic. Policy is to FAIL
+    CLOSED rather than pick one (``min`` of {0, 256} rolled by 300 is 44, not the
+    co-rotated 300); this is an exception, never a tie class. ``candidates`` holds
+    the tied columns in ascending order; ``sample`` is the loader's identifier of the
+    item (``idx`` / ``path`` / ``relpath`` when present, see
+    :func:`canonicalize_scene_metadata`), or ``None``."""
+
+    def __init__(self, candidates, sample=None):
+        self.candidates = tuple(int(c) for c in candidates)
+        self.sample = dict(sample) if sample else None
+        where = f" [sample {self.sample}]" if self.sample else ""
+        super().__init__(
+            f"canonicalization tie: candidate columns {list(self.candidates)} have "
+            "identical rooted images (the recovered panorama is exactly periodic); "
+            f"policy fails closed (plan_depth_canon.md §2.1 Step C-2){where}")
+
+    def __reduce__(self):  # picklable despite the non-message constructor arguments
+        return (type(self), (self.candidates, self.sample))
+
+
+def _check_pose(name: str, pose, shape: Tuple) -> None:
+    """Exact-shape (``None`` = free size), floating, finite pose contract."""
+    if not isinstance(pose, torch.Tensor) or not pose.is_floating_point():
+        raise ValueError(f"{name} must be a floating torch.Tensor, got "
+                         f"{getattr(pose, 'dtype', type(pose).__name__)}")
+    if pose.ndim != len(shape) or any(s is not None and int(n) != s
+                                      for n, s in zip(pose.shape, shape)):
+        raise ValueError(f"{name} must have shape {list(shape)} (None = any), got "
+                         f"{list(pose.shape)}")
+    if not bool(torch.isfinite(pose).all()):
+        raise ValueError(f"{name} contains non-finite values")
+
+
+def _lex_compare(a: torch.Tensor, b: torch.Tensor) -> int:
+    """Exact lexicographic order of two equal-length 1-D tensors: -1, 0 or +1."""
+    diff = torch.nonzero(a != b)
+    if diff.numel() == 0:
+        return 0
+    k = int(diff[0, 0])  # nonzero() returns indices in increasing order
+    return 1 if bool(a[k] > b[k]) else -1
+
+
+def _image_key_survivors(D: torch.Tensor, cands: List[int]) -> List[int]:
+    """Step C-1: the candidates whose ROOTED image -- columns c, c+1, ... (mod W),
+    each read top to bottom -- is lexicographically LARGEST (exact comparison).
+    The rooted image is read from the candidate anchor, so it co-rotates."""
+    H = int(D.shape[0])
+    flat = D.t().contiguous().view(-1)  # column-major: column w is flat[w*H:(w+1)*H]
+    best, best_img = [cands[0]], torch.roll(flat, shifts=-cands[0] * H)
+    for c in cands[1:]:
+        img = torch.roll(flat, shifts=-c * H)
+        order = _lex_compare(img, best_img)
+        if order > 0:
+            best, best_img = [c], img
+        elif order == 0:
+            best.append(c)
+    return best
+
+
+def canonical_column(D: torch.Tensor) -> Tuple[int, str]:
+    """
+    The canonical ("deepest") column ``j*`` of an ``[H, W]`` depth proxy, with its
+    tie class (plan_depth_canon.md §2.1 Steps B-C).
+
+    Candidates are the columns whose maximum equals the global maximum (exact
+    equality). A single candidate is returned with class ``"same_column"`` when
+    several pixels of that column share the global maximum, else ``"none"``.
+    Several candidates are compared by their full rooted image -- columns
+    ``c, c+1, ...`` (mod W), each read top to bottom, a rotation-invariant object
+    read from the candidate anchor -- and the lexicographically largest wins
+    (``"cross_column_image"``). If several candidates still tie, the recovered
+    panorama is exactly periodic and the selector fails closed with
+    :class:`StabilizedTieError`. Poses are NOT selector inputs (plan v6: pose keys
+    computed from re-rounded float32 poses flip at column centres and at the
+    degeneracy radius). Every comparison is exact; there is no tolerance.
+    """
+    P = column_profile(D)
+    if not bool(torch.isfinite(D).all()):
+        raise ValueError("depth proxy contains non-finite values")
+    M = P.max()
+    cands = torch.nonzero(P == M).flatten().tolist()
+    if len(cands) == 1:
+        n_max = int((D[:, cands[0]] == M).sum())
+        return int(cands[0]), ("same_column" if n_max > 1 else "none")
+    cands = _image_key_survivors(D, cands)
+    if len(cands) == 1:
+        return int(cands[0]), "cross_column_image"
+    raise StabilizedTieError(cands)
+
+
+def canonical_shift(j_star: int, img_w: int) -> int:
+    """The roll ``dj = (img_w - j*) mod img_w`` that moves column ``j*`` to column 0
+    (:func:`rotate_scene_metadata` rolls by ``+dj``). ``dj == 0`` iff ``j* == 0``."""
+    for name, v in (("j_star", j_star), ("img_w", img_w)):
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(f"{name} must be an int, got {v!r}")
+    if img_w <= 0 or not 0 <= j_star < img_w:
+        raise ValueError(f"need img_w > 0 and 0 <= j_star < img_w, got {j_star}, {img_w}")
+    return (img_w - j_star) % img_w
+
+
+# Exact pose shapes of the AR metadata contract (None = the context count N >= 1).
+# Every one of these fields is REQUIRED: a canonical frame must move all of them.
+_CANON_POSE_SHAPES: Dict[str, Tuple] = {"source": (3,), "source_vit": (1, 3),
+                                        "context_poses": (None, 3),
+                                        "context_poses_vit": (None, 3)}
+
+
+def _check_canon_inputs(md, img_w) -> None:
+    """Fail-closed input contract of :func:`canonicalize_scene_metadata`."""
+    if not isinstance(md, dict):
+        raise ValueError(f"metadata must be a dict, got {type(md).__name__}")
+    if isinstance(img_w, bool) or not isinstance(img_w, int) or img_w <= 0:
+        raise ValueError(f"img_w must be a positive int, got {img_w!r}")
+    if "depth" not in md:
+        raise ValueError("metadata has no 'depth' field to canonicalize")
+    _check_depth_cloud(md["depth"])
+    if int(md["depth"].shape[2]) != img_w:
+        raise ValueError(f"depth width {int(md['depth'].shape[2])} != img_w {img_w}")
+    counts = set()
+    for key, shape in _CANON_POSE_SHAPES.items():
+        if key not in md:
+            raise ValueError(f"metadata lacks the required pose field {key!r}")
+        _check_pose(key, md[key], shape)
+        if shape[0] is None:
+            counts.add(int(md[key].shape[0]))
+    if 0 in counts or len(counts) > 1:
+        raise ValueError(f"context_poses / context_poses_vit need the same N >= 1 rows, "
+                         f"got {sorted(counts)}")
+
+
+def canonicalize_scene_metadata(
+    md: Dict[str, object], img_w: int
+) -> Tuple[Dict[str, object], int, str]:
+    """
+    Deepest-pixel yaw canonicalization of ONE sample's metadata (plan §2.1 Step D).
+
+    ``j*`` comes from :func:`canonical_column` on the :func:`recover_depth_proxy` of
+    ``md['depth']`` alone (poses never select); the reviewed
+    yaw operator is then applied ONCE, ``rotate_scene_metadata(md, dj * 2pi / img_w,
+    img_w)`` with ``dj = canonical_shift(j*, img_w)`` and its default pose keys:
+    column ``j*`` becomes column 0 and the depth vectors and ALL FOUR pose fields
+    of :data:`POSE_KEYS` rotate about z by the same angle (there is deliberately
+    no ``pose_keys`` argument -- a partial rotation would desynchronise the frame).
+    ``context_audio``, ``scene``, ``padding_mask`` and every other field pass
+    through as the same objects; the input dict and its tensors are not mutated.
+
+    Fail-closed: ``ValueError`` on a contract violation (``depth`` a finite floating
+    ``[3, H, W]`` with even ``H`` and ``W == img_w``; REQUIRED ``source [3]``,
+    ``source_vit [1, 3]``, ``context_poses`` / ``context_poses_vit [N, 3]`` with one
+    ``N >= 1``, finite floating); :class:`StabilizedTieError` (re-raised with the
+    record's ``idx`` / ``path`` / ``relpath`` when present, never swallowed);
+    ``RuntimeError`` when the post-condition -- the selector re-run on the
+    output gives ``j* == 0`` and the same tie class -- fails.
+
+    Returns ``(md_canon, dj, tie_class)``.
+    """
+    _check_canon_inputs(md, img_w)
+    try:
+        j_star, tie_class = canonical_column(recover_depth_proxy(md["depth"]))
+    except StabilizedTieError as err:  # re-raised naming the loader sample (dataset.py)
+        sample = {k: md[k] for k in ("idx", "path", "relpath") if k in md}
+        raise StabilizedTieError(err.candidates, sample) from err
+    dj = canonical_shift(j_star, img_w)
+    out = rotate_scene_metadata(md, offsets_to_radians([dj], img_w)[0], img_w)
+    j_check, class_check = canonical_column(recover_depth_proxy(out["depth"]))
+    if j_check != 0 or class_check != tie_class:
+        raise RuntimeError(
+            f"canonicalization post-condition failed: shifting j*={j_star} ({tie_class}) "
+            f"by dj={dj} left the selector at j*={j_check} ({class_check}), expected 0")
+    return out, dj, tie_class
+
+
+def canonical_depth_sha256(depth_canon: torch.Tensor) -> str:
+    """sha256 hex digest of ``recover_depth_proxy(depth_canon) + 0.0`` as C-contiguous
+    float64 bytes -- the per-item Tier-1 hash of plan §5, bitwise comparable across
+    cells, so ``depth_canon`` must be float64 (``ValueError`` otherwise).
+
+    Signed zeros are normalized to ``+0.0`` first (``D + 0.0``; every other value is
+    unchanged), so equal proxies hash equal: AR_md stores ``z = -0.0`` at zero depth
+    on one hemisphere and a yaw rotation (``z' = 0*x + 0*y + 1*z``) writes ``+0.0``
+    there -- the proxies compare equal, their raw bytes do not."""
+    if not isinstance(depth_canon, torch.Tensor) or depth_canon.dtype != torch.float64:
+        raise ValueError(f"canonical_depth_sha256 needs a float64 depth tensor, got "
+                         f"{getattr(depth_canon, 'dtype', type(depth_canon).__name__)}")
+    D = recover_depth_proxy(depth_canon) + 0.0
+    return hashlib.sha256(D.contiguous().cpu().numpy().tobytes()).hexdigest()

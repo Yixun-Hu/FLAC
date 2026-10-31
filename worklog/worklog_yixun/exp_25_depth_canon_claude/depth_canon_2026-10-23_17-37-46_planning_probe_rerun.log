@@ -1,0 +1,16 @@
+maps sampled 400 of 9650
+exact ties at the global max: same-column-only 4, cross-column 15; cross-column circular separations [1, 1, 1, 1, 1, 1, 3, 4, 16, 36, 52, 56, 100, 110, 114]; all on one row: 15
+top1-top2 column-max gap: min 0.000e+00 p1 0.000e+00 median 2.368e-02; n<1e-6 21; n<1e-3 28
+  example: ('Apartments/Apartments_idx_41/22.npy', 2, [376, 392], [120], 7.665)
+  example: ('Restaurants/Restaurants_idx_23/1.npy', 2, [71, 185], [154], 4.4824)
+  example: ('Bathrooms/Bathrooms_idx_28/14.npy', 2, [46, 47], [72], 2.5606)
+  example: ('MeetingRoom/MeetingRoom_idx_19/21.npy', 2, [230, 282], [98], 4.3753)
+  example: ('Restaurants/Restaurants_idx_6/29.npy', 2, [319, 320], [170], 5.3412)
+  example: ('MeetingRoom/MeetingRoom_idx_13/19.npy', 2, [176, 177], [183], 4.0002)
+min |sin phi| over rows: 0.00614 (never zero)
+z-channel recovery bitwise-invariant under rotate_scene_metadata: 0/300 mismatches; L2-norm route: 300/300 mismatches
+recovered-vs-raw: max abs err 8.88e-16; fraction bitwise equal 0.9094
+
+real	0m29.363s
+user	2m14.546s
+sys	0m6.340s

@@ -1,0 +1,153 @@
+CODER rC-F2 1a RED (rerun) -- HEAD c42bde9ef08c8df19a21baf5d9f03733a71ce4eb -- 2026-10-26T01:25:54-04:00 -- GUARD_ONLY=E,R (launcher unchanged, sha 4b72da295ba3)
+=== exp_25 depth_canon guard suite -- source HEAD c42bde9 -- tmp /tmp/depth_canon_guard.zeWpf6 ===
+wrote worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (48 files)
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- P. the content-pin manifest generator ---
+--- A. mode, dry-run flag, rung (string-pinned), harness location ---
+--- I. the interpreter (r3b-F1 fix 6): the flac env for every gate and for training ---
+--- K. HEAD pin ---
+--- F. the ACTUAL train.py argv (whole tokens, each flag exactly once) ---
+--- M. content pins: coverage, bytes (incl. the gitignored VAE), committed ---
+--- C. config contract: the arm is the P1 control plus exactly training.canonicalize ---
+--- T. SMOKE and FULL need the complete PASSING tie audit, through ONE gate (rB B1 / rA A1) ---
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+Running json scandir...
+Found 3 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 2 subfolders
+--- E. FULL needs a PASSING smoke evidence of this HEAD + manifest (+ harness flag) ---
+  PASS  E1 no evidence (rc=2)
+  FAIL  E1b ... and the line after the headline says there is no candidate (rC-F2)
+  PASS  E2 evidence of another launcher (rc=2)
+  PASS  E3 evidence of another manifest (rc=2)
+  PASS  E4 a failed smoke (rc=2)
+  PASS  E5 production evidence in harness mode (rc=2)
+  PASS  E6 evidence whose log was edited (rc=2)
+  PASS  E7 a smoke that wrote a checkpoint (rc=2)
+  PASS  E8 a truthy non-bool field (rc=2)
+  PASS  E10 v13 (schema 1) evidence is refused: FULL needs the v14 schema (rC-F1) (rc=2)
+  FAIL  E11a gpu_policy deleted -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: gpu_policy = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E11b min_gpu_free_mib deleted -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: min_gpu_free_mib = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E11c max_projected_hours deleted -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: max_projected_hours = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E11d free_mib_at_launch deleted -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: free_mib_at_launch = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E11e co_tenants_at_launch deleted -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E12 gpu_policy idle (not the pinned shared) -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: gpu_policy = "idle" (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E13 the v13 floor 23040 -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: min_gpu_free_mib = 23040 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E14 the v13 cap 60 h -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: max_projected_hours = 60 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E15 free_mib_at_launch null (the writer's no-gate form) -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: free_mib_at_launch = null (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E16 a card missing -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: free_mib_at_launch = {"0": 20000} (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E17 GPU 1 below the floor -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: free_mib_at_launch["1"] = 12287 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E18 a free value as a string -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: free_mib_at_launch["0"] = "20000" (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E19 a co-tenant record without cwd -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].cwd = <missing> (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E20 a co-tenant pid 0 -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].pid = 0 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E21 a co-tenant on GPU 2 -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].gpu = 2 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E22 a co-tenant used_mib -1 -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].used_mib = -1 (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E23 a co-tenant with an empty cwd -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].cwd = "" (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  FAIL  E24 a bool smuggled as the pid -- want rc=2 + 'FULL requires a PASSING smoke evidence' + next line 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: co_tenants_at_launch[0].pid = true (want ...'; got rc=0; next: DRY_RUN: all gates passed; train.py NOT launched
+  PASS  E25 valid co-tenant records (incl. cwd '?', 0 MiB) are accepted (rc=0)
+  FAIL  E26 an unreadable evidence file is refused -- want rc=2 + 'evidence check: newest candidate depth_canon_smoke_evidence_ev.json refused: not a JSON object'; got rc=2; last: FULL requires a PASSING smoke evidence bound to this content (manifest fa4a62b310832c18b1fa81d69d1f2b0f10e68f4ace09a0f70979031213a7756b, launcher 4b72da295ba3d6660c4d05c96b5f205a402f2684b61d48e6f8bd8abb4460c804, pins generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2, contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115, audit ad1245bf25c29c6820a25aca7a25bcbcd56108372626cf0a51e0f0b725e6798d, audit gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d; harness=true) in worklog/worklog_yixun/exp_25_depth_canon_claude - none qualifies - run MODE=SMOKE first - abort
+  PASS  E9 genuine evidence accepted (rc=0)
+--- B. the SMOKE->FULL binding is content-scoped (r3b-F1 fix 9): HEAD is provenance only ---
+--- N. NAS gate on the save root: identity, free space, write probe ---
+--- S. run-owned namespaces ---
+--- G. GPU memory (never under DRY_RUN), W&B (never in harness), DINOv3 pin ---
+--- U. v14: shared policy - co-tenants disclosed, memory floor decides; strict queries kept (rC-F1; rA A3) ---
+--- X. the preflight cannot satisfy the post-run scans ---
+--- R. SMOKE: the real launch path on the fake trainer ---
+  PASS  R1 a healthy smoke passes (rc=0)
+  PASS  R1b it wrote evidence bound to HEAD, manifest and its final log
+  PASS  R1c FULL accepts that evidence (the writer -> FULL predicate round trip) (rc=0)
+  PASS  R1d a SMOKE beside a co-tenant on GPU 0 passes (rC-F1) (rc=0)
+  PASS  R1e its evidence discloses the co-tenant (pid, gpu 0, used_mib, cwd) and the free memory
+  PASS  R1f FULL accepts the co-tenant SMOKE's evidence (rc=0)
+  PASS  R2 no banner (rc=3)
+  PASS  R3 no endpoint marker (rc=6)
+  PASS  R4 no two-rank start (rc=6)
+  PASS  R5 a non-finite loss (rc=4)
+  PASS  R6 too slow: 12 s/step (133 h > 120 h) (rc=4)
+  PASS  R6b 6 s/step (66.7 h) passes under the v14 120 h cap (rc=0)
+  PASS  R7 no rate stamps (rc=4)
+  PASS  R8 a smoke that wrote a checkpoint (rc=5)
+  PASS  R9 train.py exited 7: remapped to the terminal 8 (rc 7 is the GPU gate's alone; Codex A2 HIGH 1) (rc=8)
+  PASS  R9b another train.py failure passes through unchanged (rc=3)
+  PASS  R10 only R1 left PASS evidence
+--- L. SMOKE proves a finite loss and a measured canonicalization latency (r3b-F1 fix 2) ---
+--- Z. FULL: banner, endpoint, non-finite, run-owned checkpoints, manifest ---
+--- Q. production path (opt-in GUARD_NAS_READONLY=1: READS the real NAS -- findmnt, df, stat; writes nothing) ---
+  SKIP  Q1-Q2 production-path dry runs -- set GUARD_NAS_READONLY=1 to read the real NAS
+
+(145 case(s) not run: GUARD_ONLY=E,R)
+=== 28 passed, 20 failed, 1 skipped ===
+guard rc=1

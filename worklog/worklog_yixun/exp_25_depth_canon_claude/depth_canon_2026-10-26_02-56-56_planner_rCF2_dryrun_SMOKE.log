@@ -1,0 +1,51 @@
+=== exp_25 depth_canon SMOKE -- 2026-10-26_02-56-56 -- HEAD 1ed20273339cbe7cd8444ba040df2a44f47363e6 -- dry_run=1 -- harness=false ===
+identity: project=FLAC_exp25_CANON_smoke | run=exp25_CANON_smoke | save-root=/media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon (production pin /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon)
+budget: mode=SMOKE | endpoint=25 | cadence=1000000
+interpreter OK: /home/yixunhu/miniconda3/envs/flac/bin/python
+ARGV: /home/yixunhu/miniconda3/envs/flac/bin/python train.py --model-config worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json --dataset-config src/configs/dataset_configs/AR/train/acousticroom_train.json --pretransform-ckpt-path weights/FLAC/VAE.safetensors --max-steps 25 --checkpoint-every 1000000 --batch-size 32 --accum-batches 1 --num-gpus 2 --sync-batchnorm true --strategy ddp_find_unused_parameters_true --precision bf16-mixed --seed 42 --num-workers 6 --logger wandb --name FLAC_exp25_CANON_smoke --experiment-name exp25_CANON_smoke --save-dir /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon
+HEAD pin OK: 1ed20273339cbe7cd8444ba040df2a44f47363e6
+pin manifest OK: 48 files match worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_pins.sha256 (sha256 631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb); pinned paths + launcher kit committed at HEAD
+config contract OK: worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json == worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json (sha 733ca52b66c4...) + training.canonicalize {'enabled': True, 'img_w': 512}
+tie audit OK: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_tie_audit.json (sha256 b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e) via worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_audit_gate.py: the registered census, 0 survivors, 0 errors, hashes current, map bytes re-hashed
+evidence binding: manifest 631da22ffc31fa1d0935b672a99d2259a24e757a7d1af44489116642d82f03fb launcher 7288e6b4c5a00292254690c20919023b196830c66b192f57b979d2c3a442d29f pins-generator 8da7cd9bbe35f3744aec3b6b31a27bbfebd51c7c547dfdb17e7275852de00fa2 contract ff91b9540a037b41151b05d2bd0d091c44a9342ec03858e54d89bb83e8d2a115 audit b58f253ad3310b9c3701709baff9667318a208a2df2300ed743b8725cd17a62e audit-gate 452ece21d94ae97f1e39139e02f0ce33c1cd574af6a9d249cdfc8062253e635d
+NAS gate OK: /media/diskstation/yixunhu/FLAC/checkpoints is cifs //10.249.7.28/shared_data, 16440631836672 bytes free; write probe SKIPPED under DRY_RUN
+run namespace OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON_smoke/exp25_CANON_smoke
+GPU memory gate SKIPPED under DRY_RUN
+W&B identity gate SKIPPED under DRY_RUN
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+src imported from /home/yixunhu/codespace/exp-25-depth-canon/src
+ViT pin OK: cache /home/yixunhu/.cache/huggingface/hub, single snapshot 114c13799502…, every file pinned (config.json 9481247be9f9…, model.safetensors 4610ad75edef…; launch with HF_HUB_OFFLINE=1)
+building B-V (vanilla) ...
+No module named 'flash_attn'
+flash_attn not installed, disabling Flash Attention
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+building B-F (fa_invariant) ...
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+cond_method: BV='vanilla'  BF='fa_invariant'  BF angles=(0.0, 90.0, 180.0, 270.0)
+BV: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+BF: wrapper wiring OK — EMA on, cfg_dropout 0.1, log_snr(-1.2,2.0); configure_optimizers() -> AdamW(initial_lr 5e-5, step-0 lr 5.000e-07 = warmup-live, (0.9,0.999), wd1e-3) + InverseLR(1e6,0.5,0.99)@step  OK
+architecture: identical param names (753 tensors) and count (64.50M) in both arms
+init identity: state_dict sha256 match under seed 42: 44a2f6aadd7d2180…
+
+ALL ASSERTS PASSED — arms are init-identical and differ only in forward-time conditioning method.
+--- env manifest ---
+python: /home/yixunhu/miniconda3/envs/flac/bin/python
+torch 2.7.0+cu126 cuda 12.6
+pip-freeze sha256: e896c48f61ce6f67e3520a5a9b6b145aeab938e846687051056aad30571ddec1
+DRY_RUN: all gates passed; train.py NOT launched
+DRYRUN_RC=0 end 2026-10-26T02:59:16-04:00
