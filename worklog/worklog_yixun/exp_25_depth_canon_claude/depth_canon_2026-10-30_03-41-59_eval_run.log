@@ -1,0 +1,558 @@
+=== exp_25 depth_canon eval campaign -- 2026-10-30_03-41-59 -- HEAD d6ca307a85b9b0a75ec9d47f4d237e63a3db527e -- dry_run=0 -- harness=false ===
+evaluator pin OK: d6ca307a85b9b0a75ec9d47f4d237e63a3db527e; evaluator tree digest f754bd63157eb5a7069ed9a3962260711e3c84a8d6134907f1f70714bcee3d46
+configs OK: every model / dataset config matches its manifest pin
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+cells manifest OK
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+plan: 120 cell(s) -> worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_plan.json
+plan: 120 cell(s); dump root /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms; farm outputs_FLAC/exp25_depth_canon; lanes 0,1
+checkpoint cache space: 15 checkpoint(s) to stage = 10858840005 B + 2147483648 B margin = 13006323653 B needed; 285868875776 B available on outputs_FLAC/exp25_depth_canon/.ckpt_cache
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=0-step=2500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (the local copy hashes to the pin d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+CELL exp25_CANON_TRAJ_S2500_K1_s42_th0 | TRAJ | CANON |  run
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S2500_K1_s42_th90 | TRAJ | CANON |  run
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S2500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S2500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S2500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S2500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S2500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S2500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba.ckpt (0444, 723922667 bytes, d7659b7276ffa3c4364ece87feea7b842caa0fc22301a8b18e863b192757fcba)
+  RUN exp25_CANON_TRAJ_S2500_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S2500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=1-step=5000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (the local copy hashes to the pin 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+CELL exp25_CANON_TRAJ_S5000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S5000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S2500_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S5000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S5000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S5000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S5000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S5000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S5000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821.ckpt (0444, 723922667 bytes, 5daafdd84dccbd714573a7c6cd4bd719c842d298d9879d0dd1a67de478c1b821)
+  RUN exp25_CANON_TRAJ_S5000_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S5000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=1-step=7500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (the local copy hashes to the pin bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+CELL exp25_CANON_TRAJ_S7500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S7500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S5000_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K1_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S7500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S7500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K1_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S7500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S7500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S7500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S7500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471.ckpt (0444, 723922667 bytes, bc3ab2b840f7754001b2f2f00ce9c2249690b00dbc4336438998f1bc76b0b471)
+  RUN exp25_CANON_TRAJ_S7500_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S7500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=2-step=10000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (the local copy hashes to the pin 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+CELL exp25_CANON_TRAJ_S10000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S10000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S7500_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S10000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S10000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S10000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S10000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S10000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S10000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30.ckpt (0444, 723922667 bytes, 3cde2ac0abb778989b25218a92745777e5ceb8986a4353da612bd0fc39189d30)
+  RUN exp25_CANON_TRAJ_S10000_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S10000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=2-step=12500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (the local copy hashes to the pin 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+CELL exp25_CANON_TRAJ_S12500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S12500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S12500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S10000_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S12500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S12500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S12500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S12500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S12500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716.ckpt (0444, 723922667 bytes, 1016660cf66c53ac2ef18c343687fdc679183ada1d3babdc92e9c61beadbb716)
+  RUN exp25_CANON_TRAJ_S12500_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S12500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=3-step=15000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (the local copy hashes to the pin 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+CELL exp25_CANON_TRAJ_S15000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S15000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S12500_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K1_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S15000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S15000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K1_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S15000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S15000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S15000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S15000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59.ckpt (0444, 723922667 bytes, 36cdb9b103774036d5f8f3b76cea3dde58924b310220b7b880c55b37777e9a59)
+  RUN exp25_CANON_TRAJ_S15000_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S15000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=3-step=17500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (the local copy hashes to the pin f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+CELL exp25_CANON_TRAJ_S17500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S17500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S15000_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S17500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S17500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S17500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S17500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S17500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S17500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35.ckpt (0444, 723922667 bytes, f65b1a8c0b58af8c2e628678a490ead8fcdf96908cbb73f560fa150785090e35)
+  RUN exp25_CANON_TRAJ_S17500_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S17500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=4-step=20000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (the local copy hashes to the pin 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+CELL exp25_CANON_TRAJ_S20000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S20000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S17500_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K1_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S20000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S20000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S20000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K1_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S20000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S20000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S20000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0.ckpt (0444, 723922667 bytes, 5a2ab1a16c23100944b2f07ba5669f582052abb6a646e49c3a8328d0163898a0)
+  RUN exp25_CANON_TRAJ_S20000_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S20000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=4-step=22500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (the local copy hashes to the pin 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+CELL exp25_CANON_TRAJ_S22500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S22500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S20000_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S22500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S22500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S22500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S22500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S22500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S22500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162.ckpt (0444, 723922667 bytes, 03cd285fa960e072a531e8326978d7f9a6f77834650b9d1143519b562d029162)
+  RUN exp25_CANON_TRAJ_S22500_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S22500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=5-step=25000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (the local copy hashes to the pin a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+CELL exp25_CANON_TRAJ_S25000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S25000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S25000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S22500_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S25000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S25000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S25000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S25000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S25000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e.ckpt (0444, 723922667 bytes, a14ab945d79b387a58312ae35ae9d2eddb0887e2f6f688e8d0af14edbb659f8e)
+  RUN exp25_CANON_TRAJ_S25000_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S25000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=6-step=27500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (the local copy hashes to the pin defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+CELL exp25_CANON_TRAJ_S27500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S27500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S25000_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K1_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S27500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S27500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K1_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S27500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S27500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S27500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S27500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084.ckpt (0444, 723922667 bytes, defdeca3e30f787fe034b552311bcd2ff1c1e4e52c73165cb8daccf132abb084)
+  RUN exp25_CANON_TRAJ_S27500_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S27500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=6-step=30000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (the local copy hashes to the pin 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+CELL exp25_CANON_TRAJ_S30000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S30000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S27500_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S30000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S30000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S30000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S30000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S30000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S30000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80.ckpt (0444, 723922667 bytes, 05144e0ac3506bfd4f50e2a11d357396834972eef90910e0b048d59f3098de80)
+  RUN exp25_CANON_TRAJ_S30000_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S30000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=7-step=32500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (the local copy hashes to the pin 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+CELL exp25_CANON_TRAJ_S32500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S32500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S30000_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K1_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S32500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S32500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S32500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K1_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S32500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S32500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K8_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S32500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1.ckpt (0444, 723922667 bytes, 5640b5b166c77d64c1a2b622e644899d5efb111469073550fcd05e9221ef64e1)
+  RUN exp25_CANON_TRAJ_S32500_K8_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S32500_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=7-step=35000.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (the local copy hashes to the pin 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+CELL exp25_CANON_TRAJ_S35000_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K8_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K1_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S35000_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S32500_K8_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S35000_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K1_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S35000_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K1_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K1_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S35000_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K1_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K8_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S35000_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K1_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K8_s42_th90 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S35000_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K8_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S35000_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K8_s42_th90 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62.ckpt (0444, 723922667 bytes, 516b0c05e5cc1f88cfdabbed8e7ffc9162f211b43a1acf0e750cca67543aec62)
+  RUN exp25_CANON_TRAJ_S35000_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S35000_K8_s42_th270.log)
+checkpoint OK: /media/diskstation/yixunhu/FLAC/checkpoints/exp25_depth_canon/FLAC_exp25_CANON/exp25_CANON/checkpoints/epoch=8-step=37500.ckpt -> outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (the local copy hashes to the pin d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+CELL exp25_CANON_TRAJ_S37500_K1_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K8_s42_th180 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K1_s42_th0 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K1_s42_th0.log)
+CELL exp25_CANON_TRAJ_S37500_K1_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K1_s42_th0 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K1_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K1_s42_th90.log)
+CELL exp25_CANON_TRAJ_S37500_K1_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S35000_K8_s42_th270 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K1_s42_th180 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K1_s42_th180.log)
+CELL exp25_CANON_TRAJ_S37500_K1_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K1_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K1_s42_th270 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K1_s42_th270.log)
+CELL exp25_CANON_TRAJ_S37500_K8_s42_th0 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K1_s42_th180 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K8_s42_th0 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K8_s42_th0.log)
+CELL exp25_CANON_TRAJ_S37500_K8_s42_th90 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K1_s42_th270 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K8_s42_th90 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K8_s42_th90.log)
+CELL exp25_CANON_TRAJ_S37500_K8_s42_th180 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K8_s42_th90 on GPU 1: complete and verified
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K8_s42_th180 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K8_s42_th180.log)
+CELL exp25_CANON_TRAJ_S37500_K8_s42_th270 | TRAJ | CANON |  run
+  DONE exp25_CANON_TRAJ_S37500_K8_s42_th0 on GPU 0: complete and verified
+  GPU 0: shared with pid 2799800 (/home/yixunhu/miniconda3/envs/xRIR/bin/python, 32266 MiB, cwd /home/yixunhu/codespace/xRIR_code_wt28) (ALLOW_SHARED_GPU=1)
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b.ckpt (0444, 723922667 bytes, d9e5378e129e9f6949fb260482de1fc47d98837d6009c1f2e2db6a6536747f4b)
+  RUN exp25_CANON_TRAJ_S37500_K8_s42_th270 on GPU 0 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-10-30_03-41-59_eval_exp25_CANON_TRAJ_S37500_K8_s42_th270.log)
+  DONE exp25_CANON_TRAJ_S37500_K8_s42_th180 on GPU 1: complete and verified
+  DONE exp25_CANON_TRAJ_S37500_K8_s42_th270 on GPU 0: complete and verified
+=== summary: selected 120 | skipped (complete and verified) 0 | ran ok 120 | failed 0 | not run 0 ===
+completion: 120/120 selected cell(s) complete and verified (manifest: 230 cells)
+CAMPAIGN SELECTION COMPLETE
