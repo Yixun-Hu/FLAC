@@ -8,3 +8,9 @@ Replace exp_20's discrete 10-source candidate sets with the exp_09 mesh-valid 3-
 
 ## Why
 The 10-candidate protocol answers "which source point"; the mesh grid answers "where in the room" — the physically meaningful localization claim, and the version the NeurIPS workshop paper's Table 1 reserves. Three matched arms transport exp_20's cross-arm question onto the continuous grid.
+
+
+## 2026-11-02 — Yixun decision 6 (verbatim, from his pasted decision list)
+> exp_22: approved. Run the OrbitRIR (BF) and Yaw-Aug mesh-grid arms (option ii, next step). Plan it as a new reviewed round. GPUs on this box are busy with exp_07 until about Nov 6; these eval-only arms get the cards first after that, before any exp_09 seeds. exp_22 items 2 and 3: no action.
+
+**Summary:** run the two remaining admissible arms on the frozen mesh protocol, as a new reviewed round (`plan_loc_meshgrid_r2_bf_yaw.md`), launching on the first free cards after ≈ Nov 6. **Assumptions:** "OrbitRIR (BF)" = the registered `weights/exp20/BF_40k.ckpt` (fa-trained, C4 frame average), "Yaw-Aug" = `weights/exp20/YAW_40k.ckpt` (exp_17 A6000 yaw-aug); "exp_07" names whatever Yixun runs on the cards now (at 15:27 EST the cards held two `train.py` processes from `~/codespace/flac-fork-attn`, an exp_30 config — not ours, never touched); items 2 and 3 = the cross-hardware tie policy and the Ruling-3 veto window → no action. **Why a plan first:** the engine refuses `fa_invariant` by design (§1.5 cache split not implemented), the full-pass driver lacks launch records, and the report registers `cond_method: vanilla` — code rounds precede any GPU hour.

@@ -15,3 +15,7 @@
 - ARE-V stays unlaunched. The Aug-16 22:00 evaluation deadline he set earlier is now MOOT by his own instruction (the last launch window, tonight 23:00, will pass unused). No further deadline is tracked for exp_16.
 - **State parked launch-ready:** code committed (`6956cbc` r1, `50679ec` r2: 193 ARE tests, suite 1472 green, 76/76 guards, live mutation evidence); r2 fix-verify review in flight and will be archived; calibration done (δ̂=0, A_g=0.394574); arm config + launcher + evidence machinery complete. Reactivation cost from a cold start: probe + stamp + launch ≈ 1 h, then ~46 h training.
 - **Owed when it resumes:** SOP artifacts not yet written — `are_port_params_set_up.md` exists, still missing `are_port_command.md` (beyond the stub), `commits_are_port.md`, and the results/analysis/HTML/closure set.
+
+## 2026-11-02T15:38:59-05:00 — FORMALLY CLOSED by Yixun (2026-11-02): "exp_16 ARE: close formally (stays held; drop it from status lines)."
+- State at closure: HELD since 2026-08-14 ("ARE-V先不做"); never launched. Code stays committed and reviewed (`6956cbc` r1, `50679ec` r2: 193 ARE tests, 76/76 guards; calibration δ̂=0, A_g=0.394574; arm config `FLAC_AR_ARE.json`, launcher + guard suite complete). No results, no closing analysis — the experiment produced no run, so the SOP closure set (`commits_are_port.md`, results/analysis/HTML) is not owed.
+- Effect: exp_16 leaves every status line; the tracker row reads CLOSED (held, unrun). Reactivation would be a new decision by Yixun, not a resumption.
