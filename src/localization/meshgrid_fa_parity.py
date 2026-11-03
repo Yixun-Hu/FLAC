@@ -45,6 +45,11 @@ FROZEN_OBSERVATION_BANK_SHA256 = (
     "ee2ba80ad4f27b61f4d48e24b4c31cd0d7af5891259aa4f92385cb4400841c6b")
 COMMITTED_PROBE_REPORT = os.path.join("worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude",
                                       "offgrid_probe_report.json")
+#: the committed report's BYTES, pinned (Codex rB finding 2; plan r2 amendment A4 v): the
+#: frozen grid anchor is not caller-replaceable -- a relocated copy is admitted only if it
+#: hashes to this, and anything else is refused before a replay starts
+COMMITTED_PROBE_REPORT_SHA256 = (
+    "8c5fd5e8b35e380fe6bc66a328eb8353ce5ef75b56fc02a587ddb5c85957ffd3")
 #: binding fields that decide no number: the dump authority governs dumps only
 REPLAY_BINDING_EXEMPT = ("dump_cases_sha256",)
 GATE_NOTES = {
@@ -561,16 +566,45 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
         executed_partition=executed)
 
 
+def load_probe_anchor(path=COMMITTED_PROBE_REPORT):
+    """The committed P1 probe report as the gates' frozen anchor, its bytes pinned by digest.
+
+    Read ONCE, so the digest is of the bytes parsed; any other bytes are refused,
+    wherever they live. Returns the path, the digest, the ordered query ids (the
+    registered 16) with their digest, and ``{query_id: {row_sha256, sims_sha256}}``.
+    """
+    from src.localization.crossarm import canonical_sha256
+
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != COMMITTED_PROBE_REPORT_SHA256:
+        raise ValueError(f"the probe report {str(path)!r} hashes to {digest[:12]}..., not the "
+                         f"committed canonical P1 probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}"
+                         "...; the frozen anchor is pinned by digest and not caller-replaceable "
+                         "(Codex rB finding 2)")
+    records = json.loads(raw.decode("utf-8"))["records"]
+    ids = [str(record["query_id"]) for record in records]
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"the probe report {str(path)!r} names a query twice")
+    return {"path": str(path), "sha256": digest, "pinned_sha256": COMMITTED_PROBE_REPORT_SHA256,
+            "query_ids": ids, "query_ids_sha256": canonical_sha256(ids), "n_queries": len(ids),
+            "digests": {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
+                                                  "sims_sha256": record["grid_sims_sha256"]}
+                        for record in records}}
+
+
 def frozen_grid_digests(probe_report_path=COMMITTED_PROBE_REPORT):
-    """``{query_id: {row_sha256, sims_sha256}}`` the committed P1 probe report froze."""
-    with open(str(probe_report_path)) as handle:
-        report = json.load(handle)
-    return {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
-                                      "sims_sha256": record["grid_sims_sha256"]}
-            for record in report["records"]}
+    """``{query_id: {row_sha256, sims_sha256}}`` the committed (pinned) P1 probe report froze."""
+    return load_probe_anchor(probe_report_path)["digests"]
 
 
-def vanilla_replay_regression(engine, cases, run_dir, *, frozen_digests, observation_bank_sha256,
+#: what of the anchor a gate's evidence publishes (the digests themselves stay in the report)
+ANCHOR_EVIDENCE = ("path", "sha256", "pinned_sha256", "query_ids", "query_ids_sha256",
+                   "n_queries")
+
+
+def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_bank_sha256,
                               expected_observation_bank_sha256=FROZEN_OBSERVATION_BANK_SHA256,
                               run_binding=None, seed=me.SEED, num_samples=me.NUM_SAMPLES,
                               noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU):
@@ -584,6 +618,10 @@ def vanilla_replay_regression(engine, cases, run_dir, *, frozen_digests, observa
                          "split, which gates 1-3 cover")
     published, published_sha = mr.load_published_binding(run_dir)
     reasons = []
+    if not (anchor.get("sha256") == anchor.get("pinned_sha256") == COMMITTED_PROBE_REPORT_SHA256):
+        reasons.append(f"the frozen anchor {str(anchor.get('sha256'))[:12]}... is not the pinned "
+                       f"committed probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}...")
+    frozen_digests = anchor.get("digests") or {}
     if str(observation_bank_sha256) != str(expected_observation_bank_sha256):
         reasons.append(f"the observation bank hashes to {str(observation_bank_sha256)[:12]}..., "
                        f"not the frozen {str(expected_observation_bank_sha256)[:12]}...")
@@ -618,8 +656,15 @@ def vanilla_replay_regression(engine, cases, run_dir, *, frozen_digests, observa
         entries.append(entry)
     if not entries:
         reasons.append("no registered probe query was replayed")
+    key_set_equal = (sorted(entry["query_id"] for entry in entries)
+                     == sorted(anchor.get("query_ids") or []) == sorted(frozen_digests))
+    if not key_set_equal:
+        reasons.append("the replayed queries are not exactly the anchor's key set "
+                       f"({len(entries)} replayed, {len(anchor.get('query_ids') or [])} frozen)")
     return gate_report("G0", reasons, queries=entries,
                        inputs={"run_dir": str(run_dir), "published_binding_sha256": published_sha,
+                               "probe_report": {key: anchor.get(key) for key in ANCHOR_EVIDENCE},
+                               "anchor_key_set_equal": key_set_equal,
                                "observation_bank_sha256": str(observation_bank_sha256),
                                "expected_observation_bank_sha256":
                                    str(expected_observation_bank_sha256),

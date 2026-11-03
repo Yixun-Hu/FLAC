@@ -1242,24 +1242,41 @@ def _published_vanilla_run(tmp_path):
     me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
     me.run_pass(ENG.SyntheticEngine(), items, records, plan, out, num_samples=4, prefixes=(1, 4),
                 batch_rows=8, source_chunk=3, binding_sha256=me.binding_sha256(binding))
-    frozen = {row["query_id"]: {"row_sha256": row["row_sha256"],
-                                "sims_sha256": row["sims_sha256"]} for row in me.read_rows(out)}
     cases = []
     for room_id, position in (("A/A_idx_1", 0), ("B/B_idx_2", 3)):
         room = me.load_room_plan(plan, room_id)
         query = next(q for q in room.queries if q.position == position)
         obs, md = items[position]
         cases.append(fp.probe_case(room, query, me.GuardedMetadata(md), obs))
+    probes = {case["query"].query_id for case in cases}
+    frozen = {row["query_id"]: {"row_sha256": row["row_sha256"],
+                                "sims_sha256": row["sims_sha256"]}
+              for row in me.read_rows(out) if row["query_id"] in probes}
     return out, binding, frozen, cases
+
+
+def _fake_anchor(tmp_path, monkeypatch, frozen, name="probe_report.json"):
+    """A probe report over ``frozen`` written to disk and PINNED in place of the committed
+    one (the fixture's stand-in for 8c5fd5e8...), read back through the real loader."""
+    path = tmp_path / name
+    path.write_text(json.dumps({"records": [
+        {"query_id": query_id, "grid_row_sha256": digests["row_sha256"],
+         "grid_sims_sha256": digests["sims_sha256"]} for query_id, digests in frozen.items()]}))
+    import hashlib
+
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_REPORT_SHA256",
+                        hashlib.sha256(path.read_bytes()).hexdigest())
+    return fp.load_probe_anchor(str(path))
 
 
 G0_KW = {"seed": 42, "num_samples": 4, "tau": me.TAU}
 
 
-def test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly(tmp_path):
+def test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly(tmp_path, monkeypatch):
     out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
     report = fp.vanilla_replay_regression(
-        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
         expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
     assert report["gate"] == "G0" and report["name"] == "vanilla_replay_regression"
     assert report["verdict"] == "PASS", report["reasons"]
@@ -1272,8 +1289,9 @@ def test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly(tmp_path):
     assert _quality_keys(json.loads(json.dumps(report))) == set()
 
 
-def test_gate0_fails_when_the_vanilla_path_moves(tmp_path):
+def test_gate0_fails_when_the_vanilla_path_moves(tmp_path, monkeypatch):
     out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
 
     class Shifted(ENG.FakeConditioner):
         def __call__(self, batch_metadata, device, only_ids=None):
@@ -1283,35 +1301,38 @@ def test_gate0_fails_when_the_vanilla_path_moves(tmp_path):
     engine = ENG.SyntheticEngine()
     engine.conditioner = Shifted()
     report = fp.vanilla_replay_regression(
-        engine, cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        engine, cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
         expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
     assert report["verdict"] == "FAIL"
     assert any("float16" in reason for reason in report["reasons"])
 
 
-def test_gate0_fails_on_moved_frozen_digests_a_moved_bank_or_another_protocol(tmp_path):
+def test_gate0_fails_on_moved_frozen_digests_a_moved_bank_or_another_protocol(tmp_path,
+                                                                              monkeypatch):
     out, binding, frozen, cases = _published_vanilla_run(tmp_path)
     first = cases[0]["query"].query_id
     tampered = dict(frozen, **{first: dict(frozen[first], sims_sha256="0" * 64)})
     report = fp.vanilla_replay_regression(
-        ENG.SyntheticEngine(), cases, out, frozen_digests=tampered,
+        ENG.SyntheticEngine(), cases, out, anchor=_fake_anchor(tmp_path, monkeypatch, tampered),
         observation_bank_sha256="o" * 64, expected_observation_bank_sha256="o" * 64,
         run_binding=binding, **G0_KW)
     assert report["verdict"] == "FAIL" and any("frozen" in r for r in report["reasons"])
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
     report = fp.vanilla_replay_regression(
-        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="x" * 64,
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="x" * 64,
         run_binding=binding, **G0_KW)
     assert report["verdict"] == "FAIL" and any("observation bank" in r for r in report["reasons"])
     report = fp.vanilla_replay_regression(
-        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
         expected_observation_bank_sha256="o" * 64, run_binding=dict(binding, tau=0.05), **G0_KW)
     assert report["verdict"] == "FAIL" and any("tau" in r for r in report["reasons"])
 
 
-def test_gate0_refuses_an_engine_with_the_split(tmp_path):
+def test_gate0_refuses_an_engine_with_the_split(tmp_path, monkeypatch):
     out, binding, frozen, cases = _published_vanilla_run(tmp_path)
     with pytest.raises(ValueError, match="vanilla"):
-        fp.vanilla_replay_regression(FaSyntheticEngine(), cases, out, frozen_digests=frozen,
+        fp.vanilla_replay_regression(FaSyntheticEngine(), cases, out,
+                                     anchor=_fake_anchor(tmp_path, monkeypatch, frozen),
                                      observation_bank_sha256="o" * 64, **G0_KW)
 
 
@@ -1321,10 +1342,8 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
 
     out, binding, frozen, _cases = _published_vanilla_run(tmp_path)
     plan, records, items = ENG._aligned(tmp_path / "stream")
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
     report_path = tmp_path / "probe_report.json"
-    report_path.write_text(json.dumps({"records": [
-        {"query_id": query_id, "grid_row_sha256": digests["row_sha256"],
-         "grid_sims_sha256": digests["sims_sha256"]} for query_id, digests in frozen.items()]}))
     monkeypatch.setattr(mop, "compute_observation_bank_digest",
                         lambda *a, **k: {"observation_bank_sha256":
                                          fp.FROZEN_OBSERVATION_BANK_SHA256})
@@ -1341,6 +1360,13 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
     assert [entry["query_id"] for entry in evidence["queries"]] == [probes[r] for r in
                                                                      sorted(probes)]
     assert "GATE G0 vanilla_replay_regression: PASS" in capsys.readouterr().out
+    # the anchor's path, digest and exact key-set verification are published
+    published = evidence["inputs"]["probe_report"]
+    assert published["path"] == str(report_path)
+    assert published["sha256"] == published["pinned_sha256"] == anchor["sha256"]
+    assert published["query_ids"] == anchor["query_ids"]
+    assert published["query_ids_sha256"] == canonical_sha256(anchor["query_ids"])
+    assert evidence["inputs"]["anchor_key_set_equal"] is True
     # --replay-against is the VANILLA no-regression form of --replay-check only
     with pytest.raises(SystemExit, match="vanilla"):
         driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check",
@@ -1495,3 +1521,85 @@ def test_gate2_on_a_single_candidate_cannot_pass_and_does_not_crash(tmp_path):
     # candidate dependence cannot be shown on one candidate: the gate says so
     assert report["verdict"] == "FAIL"
     assert any("per_query_context_poses did not bite" in r for r in report["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F1 (Codex code review rB): gate integrity
+# --------------------------------------------------------------------------- #
+COMMITTED_PROBE_REPORT_SHA256 = "8c5fd5e8b35e380fe6bc66a328eb8353ce5ef75b56fc02a587ddb5c85957ffd3"
+
+
+def test_the_g0_anchor_is_pinned_to_the_committed_probe_report_digest():
+    """Codex rB finding 2: the frozen grid anchor is the committed report, by digest."""
+    assert fp.COMMITTED_PROBE_REPORT_SHA256 == COMMITTED_PROBE_REPORT_SHA256
+    anchor = fp.load_probe_anchor(PROBE_REPORT)
+    assert anchor["sha256"] == anchor["pinned_sha256"] == COMMITTED_PROBE_REPORT_SHA256
+    assert anchor["path"] == PROBE_REPORT
+    assert anchor["n_queries"] == len(anchor["query_ids"]) == len(set(anchor["query_ids"])) == 16
+    assert anchor["query_ids_sha256"] == canonical_sha256(anchor["query_ids"])
+    assert anchor["digests"] == fp.frozen_grid_digests(PROBE_REPORT)
+    assert sorted(anchor["digests"]) == sorted(anchor["query_ids"])
+
+
+def test_a_replaced_probe_report_is_refused_as_the_anchor(tmp_path):
+    payload = json.load(open(PROBE_REPORT))
+    payload["records"][0]["grid_sims_sha256"] = "0" * 64
+    replaced = tmp_path / "offgrid_probe_report.json"
+    replaced.write_text(json.dumps(payload))
+    for loader in (fp.load_probe_anchor, fp.frozen_grid_digests):
+        with pytest.raises(ValueError, match="8c5fd5e8"):
+            loader(str(replaced))
+    # the same BYTES elsewhere are the same anchor (the path is published, not trusted)
+    moved = tmp_path / "moved.json"
+    moved.write_bytes(open(PROBE_REPORT, "rb").read())
+    assert fp.load_probe_anchor(str(moved))["sha256"] == COMMITTED_PROBE_REPORT_SHA256
+
+
+def test_the_driver_refuses_a_replaced_g0_anchor_before_any_replay(tmp_path, monkeypatch):
+    import localize_meshgrid as driver
+    from src.localization import meshgrid_offgrid_probe as mop
+
+    out, binding, frozen, _cases = _published_vanilla_run(tmp_path)
+    plan, records, items = ENG._aligned(tmp_path / "stream")
+    replaced = tmp_path / "replaced.json"
+    replaced.write_text(json.dumps({"records": [
+        {"query_id": query_id, "grid_row_sha256": digests["row_sha256"],
+         "grid_sims_sha256": digests["sims_sha256"]} for query_id, digests in frozen.items()]}))
+    banked = []
+    monkeypatch.setattr(mop, "compute_observation_bank_digest",
+                        lambda *a, **k: banked.append(1) or {
+                            "observation_bank_sha256": fp.FROZEN_OBSERVATION_BANK_SHA256})
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check", "--replay-against", out,
+                              "--replay-probe-report", str(replaced), "--out-dir",
+                              str(tmp_path / "gates"), "--num-samples", "4", "--k-prefixes",
+                              "1", "4"] + ENG._VANILLA_PROTOCOL)
+    engine = ENG.SyntheticEngine()
+    with pytest.raises(SystemExit, match="8c5fd5e8"):
+        driver._run_replay_check(args, engine, plan, records,
+                                 [(obs, [md]) for obs, md in items], binding=binding)
+    assert banked == [] and engine.n_sampler_rows == 0
+    assert not os.path.exists(tmp_path / "gates" / "vanilla_replay_regression.json")
+
+
+def test_gate0_requires_the_anchor_key_set_to_be_exactly_the_replayed_queries(tmp_path,
+                                                                              monkeypatch):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    extra = dict(frozen, **{"9|ir/Z/Z_idx_9/S001_R001_hybrid_IR.wav": {
+        "row_sha256": "1" * 64, "sims_sha256": "2" * 64}})
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, anchor=_fake_anchor(tmp_path, monkeypatch, extra),
+        observation_bank_sha256="o" * 64, expected_observation_bank_sha256="o" * 64,
+        run_binding=binding, **G0_KW)
+    assert report["verdict"] == "FAIL" and report["inputs"]["anchor_key_set_equal"] is False
+    assert any("key set" in reason for reason in report["reasons"])
+
+
+def test_gate0_refuses_an_anchor_that_is_not_the_pinned_report(tmp_path, monkeypatch):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_REPORT_SHA256", "f" * 64)
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
+    assert report["verdict"] == "FAIL"
+    assert any("pinned" in reason for reason in report["reasons"])

@@ -180,8 +180,9 @@ def parse_args(argv=None):
                              "own batching and require them reproduced exactly; writes "
                              "<out-dir>/vanilla_replay_regression.json")
     parser.add_argument("--replay-probe-report", default=None,
-                        help="the probe report whose per-query grid digests are frozen "
-                             "(default: the committed canonical P1 off-grid probe report)")
+                        help="where the committed canonical P1 off-grid probe report lives "
+                             "(default: its worklog path); its bytes must hash to the pinned "
+                             "8c5fd5e8... or the gate refuses (Codex rB finding 2)")
     parser.add_argument("--dataset-root", default="AcousticRooms",
                         help="where the observed RIRs the frozen observation bank hashes live")
     parser.add_argument("--parity-candidates", type=int, default=None,
@@ -724,12 +725,15 @@ def _run_replay_check(args, engine, plan, records, loader, binding=None):
         from src.localization import meshgrid_fa_parity as fp
         from src.localization import meshgrid_offgrid_probe as mop
 
+        try:                       # the pinned anchor FIRST: nothing runs against another one
+            anchor = fp.load_probe_anchor(args.replay_probe_report or fp.COMMITTED_PROBE_REPORT)
+        except (OSError, ValueError, KeyError) as error:
+            _refuse(f"G0 anchor: {error}")
         bank = mop.compute_observation_bank_digest(args.audit_report, args.context_manifest,
                                                    dataset_root=args.dataset_root)
         report = fp.vanilla_replay_regression(
             engine, _probe_cases(args, plan, records, loader), args.replay_against,
-            frozen_digests=fp.frozen_grid_digests(args.replay_probe_report
-                                                  or fp.COMMITTED_PROBE_REPORT),
+            anchor=anchor,
             observation_bank_sha256=bank["observation_bank_sha256"], run_binding=binding,
             seed=args.seed, num_samples=args.num_samples, noise_policy=args.noise_policy,
             tau=args.tau)
