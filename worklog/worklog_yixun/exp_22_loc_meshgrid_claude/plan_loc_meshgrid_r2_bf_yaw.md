@@ -94,3 +94,8 @@ Off-grid probe per arm (D-R2-3); any re-run of the P1 arm; items (2) and (3); qu
 
 ## 8. Review ledger
 - r1 (2026-11-02) → Codex plan review `loc_meshgrid_codex_plan_r2_review.md` = **REVISE** (B1 estimand, B2 p-values/verdicts, B3 crossarm truth path, B4 launch-record segments, B5 fa dependency table, B6 protocol-complete launches; H1 pairing axes, H2 full fa binding, H3 three parity gates, H4 cap unit + disclosure, H5 control handoff + claim boundary, H6 SOP record set; N1–N4) → **r2 (this file): all folded** → Yixun's approval → R2-A.
+
+## 9. Amendments after approval
+- **A1 (2026-11-02 21:38 EST, Planner; cosmetic, disclosed):** the implemented cross-arm CLI is `python -m src.localization.meshgrid_crossarm --run-p1 DIR --run-yaw DIR [--run-bf DIR] --context-manifest … --audit-report … --metadata-root … --expect-metadata-bank-sha256 … [--allow-legacy-p1-provenance] --out-dir …`, writing `crossarm_r2.json` + `crossarm_r2.md` (one invocation computes the whole 4-test family; with one treatment present it reports raw p only and no Holm verdict; with both present BF is also paired with YAW as a descriptive extra). This replaces the §3 R2-C line `--run-arm … --expect-arm YAW → crossarm_{A}_vs_P1.*`, which came from the plan draft, not from the Coder's brief. Statistics, pairing axes and verdict rules are unchanged.
+- **A2 (same time, Planner ruling on the Coder's concern):** a canonical run whose launch-record segments carry different git SHAs is REFUSED at merge and makes a report NON-CANONICAL (one reviewed pin per run); R2-A publishes mixed SHAs only — the fix round after Codex rA implements the refusal.
+
