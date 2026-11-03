@@ -739,3 +739,95 @@ def test_the_crossarm_holds_every_registered_room_to_the_arms_own_report(arm_run
     del missing["report_per_room"][rooms[0]]
     with pytest.raises(ValueError, match="per-room"):
         mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=missing)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA HIGH): the comparison cites the sparse control only after
+# consuming its completed canonical handoff, and says STATUS NOT RECONCILED otherwise
+# --------------------------------------------------------------------------- #
+def _consumed(path=None):
+    from src.localization import meshgrid_offgrid_probe as op
+
+    return op.consume_retrieval_handoff(path or RF.REAL_HANDOFF)
+
+
+def _everything(payload):
+    return (json.dumps(mr.jsonable(payload)) + mx.render_markdown(payload)).lower()
+
+
+def test_the_comparison_cites_the_control_after_consuming_the_handoff(arm_runs):
+    _runs, admitted = arm_runs
+    consumed = _consumed()
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=admitted["BF"],
+                              retrieval_handoff=consumed)
+    assert payload["canonical_status"] == {"canonical": True, "reasons": [], "note": None}
+    block = payload["retrieval_control"]
+    assert block["status"] == "RECONCILED" and block["reconciled"] is True
+    assert block["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert block["report_sha256"] == consumed["report_sha256"]
+    assert block["headline"] == consumed["headline"]
+    assert block["census"] == {"n_queries": 5337, "n_rooms": 16}
+    markdown = mx.render_markdown(payload)
+    for digest in (consumed["sha256"], consumed["report_sha256"]):
+        assert digest in markdown
+    assert "REUSED, NOT RERUN" in markdown and "STATUS NOT RECONCILED" not in markdown
+    assert "1.9431" in markdown                       # the reconciled median_e_loc point
+    assert payload["claim_boundary"] == mx.CLAIM_BOUNDARY and "reused" not in mx.CLAIM_BOUNDARY
+
+
+def test_without_the_handoff_the_comparison_is_not_reconciled(arm_runs):
+    _runs, admitted = arm_runs
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=admitted["BF"])
+    status = payload["canonical_status"]
+    assert status["canonical"] is False and status["note"] == mx.CROSSARM_NON_CANONICAL_NOTE
+    assert [reason["gate"] for reason in status["reasons"]] == ["retrieval_handoff"]
+    assert payload["retrieval_control"]["status"] == "STATUS NOT RECONCILED"
+    assert payload["retrieval_control"]["headline"] is None
+    markdown = mx.render_markdown(payload)
+    assert "STATUS NOT RECONCILED" in markdown and mx.CROSSARM_NON_CANONICAL_NOTE in markdown
+    assert "reused" not in _everything(payload)
+    # the registered statistics are still computed exactly as registered
+    assert payload["confirmatory"]["family_complete"] is True
+
+
+@pytest.mark.parametrize("changes", [
+    {"headline": {}},
+    {"status": "run (NON-CANONICAL)", "canonical": False},
+    {"census": {"n_queries": 4, "n_rooms": 2}},
+])
+def test_a_tampered_handoff_is_never_cited_by_the_comparison(arm_runs, tmp_path, changes):
+    _runs, admitted = arm_runs
+    consumed = _consumed(RF.tampered_handoff(tmp_path, **changes))
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], retrieval_handoff=consumed)
+    assert payload["canonical_status"]["canonical"] is False
+    why = payload["canonical_status"]["reasons"][0]["why"]
+    assert mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256[:12] in why
+    assert payload["retrieval_control"]["handoff_sha256"] == consumed["sha256"]
+    assert "reused" not in _everything(payload)
+
+
+def test_the_cli_consumes_the_handoff_once_and_refuses_a_foreign_one(arm_runs, tmp_path, capsys,
+                                                                   monkeypatch):
+    runs, _admitted = arm_runs
+    seam = {"totals": runs["P1"]["totals"], "require_manifest_census": False}
+    argv = _cli(runs, tmp_path / "cited", "--allow-legacy-p1-provenance",
+                "--retrieval-handoff", RF.REAL_HANDOFF)
+    assert mx.main(argv, admission_kwargs=seam) == 0
+    cited = json.load(open(tmp_path / "cited" / mx.OUTPUT_JSON))
+    assert cited["canonical_status"]["canonical"] is True
+    assert cited["retrieval_control"]["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert "REUSED, NOT RERUN" in capsys.readouterr().out
+    assert mx.main(_cli(runs, tmp_path / "silent", "--allow-legacy-p1-provenance"),
+                   admission_kwargs=seam) == 0
+    printed = capsys.readouterr().out
+    assert "STATUS NOT RECONCILED" in printed and "reused" not in printed.lower()
+    silent = (tmp_path / "silent" / mx.OUTPUT_MARKDOWN).read_text()
+    assert "STATUS NOT RECONCILED" in silent and "reused" not in silent.lower()
+    # the reviewed refusals refuse before a single run is admitted
+    calls = []
+    monkeypatch.setattr(mx, "admit_run", lambda *a, **k: calls.append(1))
+    foreign = RF.tampered_handoff(tmp_path, control_key="something_else")
+    with pytest.raises(SystemExit, match="REFUSED"):
+        mx.main(_cli(runs, tmp_path / "x", "--retrieval-handoff", foreign),
+                admission_kwargs=seam)
+    assert calls == []

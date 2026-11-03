@@ -769,8 +769,7 @@ RETRIEVAL_CITATION_NOTE = (
     "handoff: one read, hashed and parsed together; the registered digest; this control's "
     "key; status 'run (canonical)' with canonical true; the registered census; a report "
     "digest and the registered headline. It then publishes the handoff and report digests "
-    "and the reconciled headline. Anything less is STATUS NOT RECONCILED and the control is "
-    "not cited")
+    "and the reconciled headline. Anything less leaves the control unreconciled and uncited")
 
 
 def consume_retrieval_handoff(path, expected_sha256=None, expected_census=None, base=None):

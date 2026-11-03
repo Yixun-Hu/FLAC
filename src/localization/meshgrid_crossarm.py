@@ -426,8 +426,60 @@ CLAIM_BOUNDARY = (
     "CLAIM BOUNDARY (plan r2 §1, Codex H5): no per-arm off-grid probe or calibration is run in "
     "R2, so this comparison makes NO claim for BF or YAW about continuous-truth score/rank or "
     "sub-lattice sharpness, grid densification, real-vs-generated AGREE calibration / domain "
-    "gap, or off-grid behaviour; those conclusions remain P1-only. The arm-independent controls "
-    "(random baseline, sparse retrieval) are reused, not rerun")
+    "gap, or off-grid behaviour; those conclusions remain P1-only")
+RANDOM_BASELINE_STATEMENT = (
+    "random baseline: recomputed inside each arm's own report from that arm's authenticated "
+    "truth and candidate set with the fixed baseline seeds -- arm-independent, because the "
+    "pairing gate proves the truths and candidate sets identical across arms")
+#: rA-F1 (Codex rA HIGH): the one sentence that says "reused", printed only once
+#: the completed canonical handoff has been consumed and reconciled
+SPARSE_REUSED_TEMPLATE = (
+    "sparse AGREE retrieval control: REUSED, NOT RERUN -- it has no generator (a fixed real-RIR "
+    "bank and the frozen scorer), so it is arm-independent once the pairing gate proves the "
+    "truths identical; cited from the completed canonical handoff {handoff} naming report "
+    "{report} (sparse metadata bank, never the dense grid)")
+CROSSARM_NON_CANONICAL_NOTE = (
+    "NON-CANONICAL CROSS-ARM COMPARISON: the sparse retrieval control was not reconciled (no "
+    "completed canonical handoff was consumed), so this artifact may not be quoted as the "
+    "registered R2 result; its statistics are computed exactly as registered and are "
+    "diagnostics until --retrieval-handoff reconciles the control")
+
+
+def retrieval_control(consumed=None):
+    """The sparse control as THIS comparison may cite it, and its canonical status.
+
+    ``consumed`` is :func:`meshgrid_offgrid_probe.consume_retrieval_handoff`'s
+    verdict (``None`` without ``--retrieval-handoff``). Only a reconciled one is
+    cited -- digests, census and headline published, the "reused" sentence
+    printed; anything else is STATUS NOT RECONCILED and makes the comparison
+    NON-CANONICAL (Codex rA: the handoff is required for a canonical crossarm).
+    """
+    from src.localization import meshgrid_offgrid_probe as op
+
+    consumed = consumed or {}
+    reconciled = bool(consumed.get("reconciled"))
+    reasons = [] if reconciled else list(consumed.get("reasons") or [
+        "no --retrieval-handoff was supplied, so the comparison cannot cite the control's "
+        "completed canonical run"])
+    statement = (SPARSE_REUSED_TEMPLATE.format(handoff=consumed.get("sha256"),
+                                               report=consumed.get("report_sha256"))
+                 if reconciled else
+                 "sparse AGREE retrieval control: " + (consumed.get("entry") or
+                                                       op.unreconciled_retrieval_entry(None)))
+    block = {"status": "RECONCILED" if reconciled else "STATUS NOT RECONCILED",
+             "reconciled": reconciled, "reasons": reasons,
+             "handoff_path": consumed.get("path"), "handoff_sha256": consumed.get("sha256"),
+             "registered_handoff_sha256": mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256,
+             "report_json": consumed.get("report_json"),
+             "report_sha256": consumed.get("report_sha256"), "census": consumed.get("census"),
+             "binding_sha256": consumed.get("binding_sha256"),
+             "headline": consumed.get("headline") if reconciled else None,
+             "statement": statement, "note": op.RETRIEVAL_CITATION_NOTE}
+    status = {"canonical": reconciled,
+              "reasons": [] if reconciled else [{"gate": mr.RETRIEVAL_HANDOFF_GATE,
+                                                 "why": "; ".join(reasons)[:2000]}],
+              "note": None if reconciled else CROSSARM_NON_CANONICAL_NOTE}
+    return block, status
 
 
 def assert_per_room_agreement(arm, stats, run):
@@ -450,8 +502,11 @@ def assert_per_room_agreement(arm, stats, run):
                                  f"({reported[room][stat]!r}); every room must agree")
 
 
-def run_crossarm(p1, yaw=None, bf=None):
-    """Pair every admitted treatment with P1 (and with each other), then test the family."""
+def run_crossarm(p1, yaw=None, bf=None, retrieval_handoff=None):
+    """Pair every admitted treatment with P1 (and with each other), then test the family.
+
+    ``retrieval_handoff``: the consumed sparse-control handoff (:func:`retrieval_control`).
+    """
     from datetime import datetime, timezone
 
     admitted = {arm: run for arm, run in (("P1", p1), ("YAW", yaw), ("BF", bf)) if run}
@@ -486,7 +541,11 @@ def run_crossarm(p1, yaw=None, bf=None):
                 raise ValueError(f"{arm}: the room-first {stat} recomputed here differs from the "
                                  "arm's own report headline; the two derivations disagree")
         assert_per_room_agreement(arm, stats, admitted[arm])
+    retrieval, status = retrieval_control(retrieval_handoff)
     return {"experiment": "exp_22 loc_meshgrid R2 paired cross-arm comparison",
+            "canonical_status": status, "retrieval_control": retrieval,
+            "controls": {"random_baseline": RANDOM_BASELINE_STATEMENT,
+                         "sparse_retrieval": retrieval["statement"]},
             "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "estimand": "unweighted mean over the registered rooms of the paired room deltas "
                         "(treatment - P1) of the within-room median e_loc and success_raw@1.0, "
@@ -509,6 +568,23 @@ def _cell(value, digits=4, signed=True):
     return f"{value:+.{digits}f}" if signed else f"{value:.{digits}f}"
 
 
+def _controls_lines(payload):
+    """The arm-independent controls: the baseline's rule, the sparse control's status."""
+    block = payload["retrieval_control"]
+    lines = [f"## Arm-independent controls — sparse retrieval {block['status']}", "",
+             f"- {payload['controls']['random_baseline']}",
+             f"- {payload['controls']['sparse_retrieval']}"]
+    if block["reconciled"]:
+        lines += [f"- handoff `{block['handoff_path']}` sha256 `{block['handoff_sha256']}`; "
+                  f"report `{block['report_json']}` sha256 `{block['report_sha256']}`; census "
+                  f"{block['census']['n_queries']:,} queries / {block['census']['n_rooms']} rooms"]
+        lines += [f"- {name}: {_cell(cell.get('point'), signed=False)} "
+                  f"[{_cell(cell.get('ci_lo'), signed=False)}, "
+                  f"{_cell(cell.get('ci_hi'), signed=False)}]"
+                  for name, cell in sorted(block["headline"].items())]
+    return lines + ["", f"_{block['note']}_", ""]
+
+
 def render_markdown(payload):
     confirmatory = payload["confirmatory"]
     lines = ["# exp_22 R2 — paired cross-arm comparison on the mesh grid", "",
@@ -521,9 +597,15 @@ def render_markdown(payload):
              f"`{confirmatory['draws']['sha256'][:16]}...`); BF one-sided, YAW two-sided; "
              "draws exactly 0 count as crossing; no finite-sample correction; Holm over "
              f"exactly 4 tests at alpha = {confirmatory['alpha']}. CIs are descriptive.", ""]
+    status = payload["canonical_status"]
+    if not status["canonical"]:
+        lines += [f"> **{status['note']}**", ">"]
+        lines += [f"> - `{reason['gate']}` — {reason['why']}" for reason in status["reasons"]]
+        lines.append("")
     if payload.get("legacy_exception_note"):
         lines += [f"> **{payload['legacy_exception_note']}**", ""]
     lines += [f"> **{payload['claim_boundary']}**", ""]
+    lines += _controls_lines(payload)
     lines += ["## Registered confirmatory tests (room-first, K = 8)", "",
               "| contrast | Δ | 95 % CI | p_raw | p_adj | verdict |", "|---|---|---|---|---|---|"]
     for test in confirmatory["tests"]:
@@ -585,6 +667,10 @@ def parse_args(argv=None):
     parser.add_argument("--allow-legacy-p1-provenance", action="store_true",
                         help="admit the published P1 comparator, which predates launch "
                              "records, under the registered exception (printed prominently)")
+    parser.add_argument("--retrieval-handoff", default=None,
+                        help="the sparse retrieval control's COMPLETED canonical "
+                             "retrieval_control_handoff.json; required for a canonical "
+                             "comparison (without it: STATUS NOT RECONCILED, NON-CANONICAL)")
     for arm in ("p1", "yaw", "bf"):
         parser.add_argument(f"--ckpt-{arm}", default=None,
                             help=f"optional: the {arm.upper()} checkpoint, so its embedded "
@@ -612,6 +698,14 @@ def main(argv=None, admission_kwargs=None):
     """CLI. ``admission_kwargs`` is a fixture seam (totals / manifest census), never a flag."""
     args = parse_args(argv)
     validate_args(args)
+    handoff = None
+    if args.retrieval_handoff:
+        from src.localization import meshgrid_offgrid_probe as op
+
+        try:
+            handoff = op.consume_retrieval_handoff(args.retrieval_handoff)
+        except (OSError, ValueError) as error:
+            _refuse(f"--retrieval-handoff: {error}")
     common = dict(audit_report=args.audit_report, context_manifest=args.context_manifest,
                   metadata_root=args.metadata_root,
                   expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
@@ -631,12 +725,17 @@ def main(argv=None, admission_kwargs=None):
             _refuse(f"{arm}: {error}")
         print(f"admitted {arm}: {run_dir} (binding {admitted[arm]['binding_sha256'][:12]}...)")
     try:
-        payload = run_crossarm(admitted["P1"], yaw=admitted.get("YAW"), bf=admitted.get("BF"))
+        payload = run_crossarm(admitted["P1"], yaw=admitted.get("YAW"), bf=admitted.get("BF"),
+                               retrieval_handoff=handoff)
     except ValueError as error:
         _refuse(str(error))
     if payload["legacy_exception_note"]:
         print(f"\n*** {payload['legacy_exception_note']} ***\n")
     print(f"{CLAIM_BOUNDARY}\n")
+    print(f"{payload['controls']['sparse_retrieval']}\n")
+    status = payload["canonical_status"]
+    print("CANONICAL: every registered gate passed\n" if status["canonical"] else
+          f"{status['note']}\n")
     for test in payload["confirmatory"]["tests"]:
         print(f"  {test['label']:34s} delta {test['delta']:+.4f}  p_raw {test['p_raw']:.4f}  "
               f"p_adj {_cell(test['p_adjusted'], signed=False)}")

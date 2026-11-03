@@ -2674,6 +2674,7 @@ def test_a_treatment_report_cites_the_control_after_consuming_the_handoff(yaw_fi
     for digest in (consumed["sha256"], consumed["report_sha256"]):
         assert digest in markdown
     assert "median_e_loc 1.943 m" in markdown and "run pending" not in markdown
+    assert "STATUS NOT RECONCILED" not in markdown
 
 
 def test_without_the_handoff_a_treatment_report_is_not_reconciled(yaw_fixture):
