@@ -773,9 +773,12 @@ def _probe_cases(args, plan, records, loader):
     from src.localization.meshgrid_fa_parity import probe_case
 
     probes = me.registered_probe_queries(plan)
+    if args.probe_room and args.probe_room not in probes:
+        _refuse(f"--probe-room {args.probe_room!r} is not one of the {len(probes)} audited rooms")
     rooms = [args.probe_room] if args.probe_room else sorted(probes)
     wanted = {probes[room]: room for room in rooms}
     by_position = {int(record["position"]): record for record in records}
+    remaining = set(wanted)
     for position, (obs, md) in enumerate(_iter_items(loader)):
         record = by_position.get(position)
         if record is None or record["query_id"] not in wanted:
@@ -784,7 +787,10 @@ def _probe_cases(args, plan, records, loader):
         me.verify_context_record(guarded, record, position)
         room = me.load_room_plan(plan, wanted[record["query_id"]])
         query = next(q for q in room.queries if q.query_id == record["query_id"])
+        remaining.discard(record["query_id"])
         yield probe_case(room, query, guarded, obs)
+        if not remaining:          # the rest of the stream decides nothing for these cases
+            return
 
 
 def _gate_inputs(args, binding):

@@ -1464,3 +1464,23 @@ def test_gate3_holds_on_the_real_conditioning_classes(tmp_path):
                                   num_samples=4, prefixes=(1, 4))
     assert report["verdict"] == "PASS", report["reasons"]
     assert report["executed_partition"]["violations"] == []
+
+
+def test_the_gate_cases_stop_the_stream_after_the_last_wanted_query(tmp_path):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    args = _gate_args(tmp_path, "--fa-production-parity-check", "--probe-room", "A/A_idx_1")
+    pulled = []
+
+    def stream():
+        for position, item in enumerate(loader):
+            pulled.append(position)
+            yield item
+
+    cases = list(driver._probe_cases(args, plan, records, stream()))
+    assert [case["query"].position for case in cases] == [0]
+    assert pulled == [0]                       # nothing after the last wanted query is loaded
+    args.probe_room = "Nowhere/Nowhere_idx_1"
+    with pytest.raises(SystemExit, match="probe-room"):
+        list(driver._probe_cases(args, plan, records, iter(loader)))
