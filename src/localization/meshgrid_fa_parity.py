@@ -26,6 +26,7 @@ host and -- on a GPU -- the CUDA runtime's own card UUID.
 import hashlib
 import json
 import os
+import re
 
 from datetime import datetime, timezone
 
@@ -37,9 +38,16 @@ from src.localization import meshgrid_engine as me
 #: the gates, their artifact stems and their PRE-REGISTERED tolerances (plan r2
 #: §3 R2-B). A tolerance is not an argument: a bar the caller picks can be argued down.
 GATE_NAMES = {"G1": "fa_split_parity", "G2": "fa_cache_parity", "G3": "fa_production_parity",
-              "G3D": "fa_production_drift", "G0": "vanilla_replay_regression"}
+              "G3D": "fa_production_drift", "G0": "vanilla_replay_regression",
+              "GV": "vanilla_cache_parity"}
 #: ``None``: a measurement, not a gate -- no tolerance exists to pass or fail (A4 ii)
-GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3, "G3D": None, "G0": 0.0}
+GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3, "G3D": None, "G0": 0.0, "GV": 0.0}
+#: each gate's registered arm(s) and the ONLY binding deviations its registration admits
+#: (Codex rB finding 3; plan r2 amendment A4 v): G1 and the G3 logic gate run autocast off,
+#: nothing else may move. GV is the vanilla cache parity run AS a gate (--expect-arm YAW)
+GATE_IDENTITY = {"G0": (("P1",), {}), "G1": (("BF",), {"cond_autocast": "off"}),
+                 "G2": (("BF",), {}), "G3": (("BF",), {"cond_autocast": "off"}),
+                 "G3D": (("BF",), {}), "GV": (("P1", "YAW"), {})}
 #: the autocast each gate is registered at (A4 i/ii): G1 and the G3 logic gate run with
 #: autocast OFF; the drift measurement runs the production flag, resolved by the device
 GATE_AUTOCAST = {"G1": ("off", False), "G3": ("off", False), "G3D": ("default", True)}
@@ -95,6 +103,10 @@ GATE_NOTES = {
            "8-candidate context call under fp16) as context. No fp16 tolerance is chosen before "
            "or after the BF values are seen. 'complete' says only that the comparison's "
            "structure held (every probe query, full and tail batches, the declared partition)",
+    "GV": "VANILLA CACHE PARITY AS A GATE (plan r2 §3 R2-C step 1; Codex rB finding 3): the "
+          "§1.5 cached-vs-uncached memoization proof and its counter-test on the first registered "
+          "query, run under the arm --expect-arm names (YAW for R2) and held to that arm's "
+          "registered identity and to captured provenance",
     "G0": "VANILLA NO-REGRESSION (plan r2 §3 R2-B): after the R2-B change, the vanilla path "
           "replays each registered probe query of the published P1 run at the row's OWN stamped "
           "batching (the matched-batching tie of the r9s/r9u probe, meshgrid_drift_measurement."
@@ -340,8 +352,68 @@ GATE_REPORT_KEYS = ("gate", "name", "verdict", "match", "reasons", "tolerance", 
                     "complete")
 
 
+def gate_identity(gate, binding, expect_arm=None):
+    """The gate's arm identity through the FULL registered-binding check (Codex rB finding 3):
+    the checkpoint must be one of the gate's arms and the binding must deviate from that
+    arm's registered protocol on exactly the gate's admitted fields -- ``(block, reasons)``."""
+    from src.localization import meshgrid_report as mr
+
+    arms, admitted = GATE_IDENTITY[gate]
+    block = {"gate": gate, "registered_arms": list(arms), "expect_arm": expect_arm,
+             "admitted_deviations": dict(admitted), "arm": None, "deviations": None,
+             "ckpt_sha256": (binding or {}).get("ckpt_sha256")}
+    try:
+        verdict = mr.assert_registered_protocol(dict(binding or {}), allow_deviation=True,
+                                                expect_arm=expect_arm)
+    except (ValueError, TypeError, KeyError) as error:
+        reasons = [f"identity: {error}"]
+    else:
+        block.update(arm=verdict["arm"], deviations={field: entry["run"] for field, entry
+                                                     in verdict["deviations"].items()})
+        reasons = [] if verdict["arm"] in arms else [
+            f"identity: {GATE_NAMES[gate]} runs the registered {'/'.join(arms)} arm; this "
+            f"checkpoint is {verdict['arm'] or 'no registered arm'}"]
+        if block["deviations"] != admitted:
+            reasons.append(f"identity: the binding deviates from arm {verdict['arm']}'s "
+                           f"registered protocol on {sorted(block['deviations'])}; "
+                           f"{GATE_NAMES[gate]} admits exactly {admitted or 'none'}")
+    block.update(registered_for_gate=not reasons, reasons=reasons)
+    return block, reasons
+
+
+def identity_reasons(inputs):
+    identity = inputs.get("identity") or {}
+    if identity.get("registered_for_gate") is True:
+        return []
+    return list(identity.get("reasons") or ["identity: the evidence names no registered arm "
+                                            "identity for this gate (Codex rB finding 3)"])
+
+
+def provenance_reasons(provenance):
+    """A PASS rests on CAPTURED provenance (Codex rB finding 3): a full git SHA, a tracked-clean
+    tree, the host and -- on a GPU -- the CUDA runtime's own card UUID."""
+    reasons = []
+    if not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get("git_sha") or "")):
+        reasons.append(f"provenance: the git SHA was not captured as a full commit id "
+                       f"({provenance.get('git_sha')!r})")
+    if provenance.get("tracked_clean") is not True:
+        reasons.append(f"provenance: the tracked tree was dirty or its state was not captured "
+                       f"(tracked_clean={provenance.get('tracked_clean')!r})")
+    if not provenance.get("hostname"):
+        reasons.append("provenance: the hostname was not captured")
+    if str(provenance.get("device")).startswith("cuda") and not str(
+            provenance.get("gpu_uuid") or "").startswith("GPU-"):
+        reasons.append(f"provenance: the CUDA runtime did not report the card's UUID "
+                       f"({(provenance.get('gpu_runtime') or {}).get('error')})")
+    return reasons
+
+
 def finalize_evidence(report, device, environment=None, runtime=None, inputs=None):
-    """The gate's evidence: its report plus the run's provenance (record-free diagnostic)."""
+    """The gate's evidence: its report, the run's provenance, and the verdict over ALL clauses.
+
+    A numerical PASS stands only if the gate ran its registered autocast, under its
+    registered arm identity, with its provenance captured; each clause is published.
+    """
     from src.localization import meshgrid_offgrid_probe as mop
 
     environment = mop.current_environment() if environment is None else environment
@@ -349,20 +421,24 @@ def finalize_evidence(report, device, environment=None, runtime=None, inputs=Non
     if on_gpu and runtime is None:
         runtime = mop.runtime_gpu_uuid(device)
     dirty = environment.get("git_status_dirty")
-    evidence = dict(report)
-    evidence["inputs"] = dict(report.get("inputs") or {}, **(inputs or {}))
-    late = autocast_reasons(report["gate"], evidence["inputs"])
-    if late:
-        evidence = dict(gate_report(report["gate"], list(report["reasons"]) + late,
-                                    **{key: value for key, value in evidence.items()
-                                       if key not in GATE_REPORT_KEYS}))
-    evidence["provenance"] = {
+    merged = dict(report.get("inputs") or {}, **(inputs or {}))
+    provenance = {
         "git_sha": environment.get("git_sha"),
         "tracked_clean": None if dirty is None else not bool(dirty),
         "hostname": environment.get("hostname"), "device": str(device),
         "gpu_uuid": (runtime or {}).get("uuid") if on_gpu else None,
         "gpu_runtime": runtime if on_gpu else None,
         "torch": torch.__version__, "record_free": True}
+    clauses = {"autocast": autocast_reasons(report["gate"], merged),
+               "identity": identity_reasons(merged), "provenance": provenance_reasons(provenance)}
+    provenance.update(complete=not clauses["provenance"], reasons=clauses["provenance"])
+    fields = {key: value for key, value in report.items() if key not in GATE_REPORT_KEYS}
+    evidence = gate_report(report["gate"], list(report["reasons"]) + [
+        reason for name in ("autocast", "identity", "provenance") for reason in clauses[name]],
+        **dict(fields, inputs=merged))
+    evidence["provenance"] = provenance
+    evidence["verdict_clauses"] = {"comparison": not report["reasons"],
+                                   **{name: not why for name, why in clauses.items()}}
     evidence["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     return evidence
 

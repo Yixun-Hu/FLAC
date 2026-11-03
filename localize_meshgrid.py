@@ -383,6 +383,7 @@ def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256
     binding; and only THEN the engine's own cacheability refusal, so a protocol
     mismatch is named as one rather than as a cache limitation (plan r2 §3 R2-A).
     """
+    from src.localization import meshgrid_fa_parity as fp
     from src.localization import meshgrid_report as mr
 
     binding = build_run_binding(args, plan, ckpt_sha256=ckpt_sha256, agree_sha256=agree_sha256,
@@ -393,6 +394,11 @@ def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256
             expect_arm=args.expect_arm)
     except ValueError as error:
         _refuse(f"arm/protocol check: {error}")
+    gate, identity = gate_of(args), None
+    if gate is not None:           # a gate's verdict rests on its registered arm (Codex rB 3)
+        identity, reasons = fp.gate_identity(gate, binding, args.expect_arm)
+        if reasons:
+            _refuse(f"gate {gate} identity: " + "; ".join(reasons))
     embedded = mr.checkpoint_protocol_reasons(checkpoint, registered["arm"], binding)
     for reason in embedded["reasons"]:
         _refuse(f"embedded training protocol: {reason}")
@@ -401,7 +407,21 @@ def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256
     me.assert_cacheable(args.cond_method,
                         me.split_for(args.cond_method, resolved_protocol(args)[0]))
     return binding, {"registered": registered, "embedded": embedded,
-                     "cond_binding": cond_binding}
+                     "cond_binding": cond_binding, "gate_identity": identity}
+
+
+def gate_of(args):
+    """Which registered gate this invocation is, or ``None`` for a plain diagnostic. The
+    vanilla cache parity is a gate (GV) only with its arm named by --expect-arm."""
+    for flag, gate in (("fa_split_parity_check", "G1"), ("fa_production_parity_check", "G3"),
+                       ("fa_production_drift_measurement", "G3D")):
+        if getattr(args, flag):
+            return gate
+    if args.replay_check and args.replay_against:
+        return "G0"
+    if args.cache_parity_check and str(args.cond_method) == "fa_invariant":
+        return "G2"
+    return "GV" if args.cache_parity_check and args.expect_arm else None
 
 
 def claim_out_dir(args, run_binding, advisory, launch):
@@ -830,11 +850,15 @@ def _probe_cases(args, plan, records, loader, probes=None):
             "(plan r2 amendment A4 v)")
 
 
-def _gate_inputs(args, binding):
-    """What the evidence says ran: the binding, the RESOLVED autocast (never the bare flag
-    word; Codex rB finding 6, A4 iii), the batching, the checkpoint and the device."""
-    return {"binding": dict(binding or {}), **me.cond_autocast_state(args.device,
-                                                                      args.cond_autocast),
+def _gate_inputs(args, binding, gate):
+    """What the evidence says ran: the binding and the gate's arm identity re-derived from it
+    (Codex rB finding 3), the RESOLVED autocast (never the bare flag word; finding 6, A4 iii),
+    the batching, the checkpoint and the device."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    return {"binding": dict(binding or {}),
+            "identity": fp.gate_identity(gate, binding, args.expect_arm)[0],
+            **me.cond_autocast_state(args.device, args.cond_autocast),
             "batch_rows": int(args.batch_rows), "source_chunk": int(args.source_chunk),
             "ckpt_path": args.ckpt_path, "device": args.device}
 
@@ -842,7 +866,8 @@ def _gate_inputs(args, binding):
 def _publish_gate(args, report, binding):
     from src.localization import meshgrid_fa_parity as fp
 
-    evidence = fp.finalize_evidence(report, args.device, inputs=_gate_inputs(args, binding))
+    evidence = fp.finalize_evidence(report, args.device,
+                                    inputs=_gate_inputs(args, binding, report["gate"]))
     path = fp.write_evidence(args.out_dir, evidence)
     print(f"GATE {evidence['gate']} {evidence['name']}: {evidence['verdict']} -> {path}")
     for reason in evidence["reasons"][:10]:
@@ -891,7 +916,15 @@ def _run_cache_parity(args, engine, plan, records, loader, binding=None):
     print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
           f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
           f"{report['batched']['note']}")
-    return 0 if report["match"] else 1
+    if gate_of(args) != "GV":      # the R1 diagnostic: printed, no evidence, no verdict
+        return 0 if report["match"] else 1
+    from src.localization import meshgrid_fa_parity as fp
+
+    return _publish_gate(args, fp.gate_report(
+        "GV", [] if report["match"] else ["the §1.5 memoization did not match or its "
+                                          "counter-test did not bite"],
+        vanilla_cache_parity=report, inputs={"query_id": query.query_id,
+                                             "n_candidates": report["n_candidates"]}), binding)
 
 
 if __name__ == "__main__":

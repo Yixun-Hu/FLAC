@@ -1165,13 +1165,13 @@ def _driver_stack(tmp_path):
     return plan, records, [(obs, [md]) for obs, md in items]
 
 
-def test_the_driver_runs_gate1_and_writes_its_evidence(tmp_path, capsys):
+def test_the_driver_runs_gate1_and_writes_its_evidence(tmp_path, capsys, clean_env):
     import localize_meshgrid as driver
 
     plan, records, loader = _driver_stack(tmp_path)
     args = _gate_args(tmp_path, "--fa-split-parity-check", "--parity-candidates", "48",
                       protocol=_off(ENG._FA_PROTOCOL))
-    binding = {"ckpt_sha256": "5" * 64, "cond_method": "fa_invariant"}
+    binding = _registered_binding("BF", cond_autocast="off")
     code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G1", binding)
     assert code == 0
     evidence = json.load(open(tmp_path / "gates" / "fa_split_parity.json"))
@@ -1184,17 +1184,19 @@ def test_the_driver_runs_gate1_and_writes_its_evidence(tmp_path, capsys):
     assert evidence["inputs"]["cond_autocast_dtype"] == "float32"
     assert evidence["coverage"]["complete"] is True             # 48 = 32 + a tail of 16
     assert evidence["provenance"]["record_free"] is True
+    assert evidence["inputs"]["identity"]["arm"] == "BF"
+    assert evidence["inputs"]["identity"]["deviations"] == {"cond_autocast": "off"}
     assert "GATE G1 fa_split_parity: PASS" in capsys.readouterr().out
 
 
 def test_the_drivers_cache_parity_runs_gate2_under_fa_and_the_vanilla_proof_otherwise(
-        tmp_path, capsys):
+        tmp_path, capsys, clean_env):
     import localize_meshgrid as driver
 
     plan, records, loader = _driver_stack(tmp_path)
     args = _gate_args(tmp_path, "--cache-parity-check", "--parity-candidates", "5")
     assert driver._run_cache_parity(args, FaSyntheticEngine(), plan, records, loader,
-                                    binding={"cond_method": "fa_invariant"}) == 0
+                                    binding=_registered_binding("BF")) == 0
     evidence = json.load(open(tmp_path / "gates" / "fa_cache_parity.json"))
     assert evidence["verdict"] == "PASS" and evidence["inputs"]["n_candidates"] == 5
     assert "GATE G2 fa_cache_parity: PASS" in capsys.readouterr().out
@@ -1262,14 +1264,15 @@ def test_the_frozen_vanilla_digests_are_the_committed_p1_registration():
         assert all(len(value) == 64 for value in digests.values())
 
 
-def _published_vanilla_run(tmp_path):
+def _published_vanilla_run(tmp_path, binding=None):
     """A published vanilla run of the fixture (the P1 stand-in) and its frozen grid digests."""
     plan, records, items = ENG._aligned(tmp_path)
-    binding = ENG._binding(k_prefixes=[1, 4], num_samples=4)
+    binding = ENG._binding(k_prefixes=[1, 4], num_samples=4) if binding is None else binding
     out = str(tmp_path / "published")
     os.makedirs(out)
     me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
-    me.run_pass(ENG.SyntheticEngine(), items, records, plan, out, num_samples=4, prefixes=(1, 4),
+    me.run_pass(ENG.SyntheticEngine(), items, records, plan, out,
+                num_samples=binding["num_samples"], prefixes=tuple(binding["k_prefixes"]),
                 batch_rows=8, source_chunk=3, binding_sha256=me.binding_sha256(binding))
     cases = []
     for room_id, position in (("A/A_idx_1", 0), ("B/B_idx_2", 3)):
@@ -1366,11 +1369,11 @@ def test_gate0_refuses_an_engine_with_the_split(tmp_path, monkeypatch):
                                      observation_bank_sha256="o" * 64, **G0_KW)
 
 
-def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, capsys):
+def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, capsys, clean_env):
     import localize_meshgrid as driver
     from src.localization import meshgrid_offgrid_probe as mop
 
-    out, binding, frozen, _cases = _published_vanilla_run(tmp_path)
+    out, binding, frozen, _cases = _published_vanilla_run(tmp_path, _registered_binding("P1"))
     plan, records, items = ENG._aligned(tmp_path / "stream")
     anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
     report_path = tmp_path / "probe_report.json"
@@ -1379,8 +1382,7 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
                                          fp.FROZEN_OBSERVATION_BANK_SHA256})
     args = driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check", "--replay-against", out,
                               "--replay-probe-report", str(report_path), "--out-dir",
-                              str(tmp_path / "gates"), "--num-samples", "4", "--k-prefixes",
-                              "1", "4"] + ENG._VANILLA_PROTOCOL)
+                              str(tmp_path / "gates")] + ENG._VANILLA_PROTOCOL)
     assert driver.validate_args(args) and driver.writes_query_artifacts(args) is False
     code = driver._run_replay_check(args, ENG.SyntheticEngine(), plan, records,
                                     [(obs, [md]) for obs, md in items], binding=binding)
@@ -1397,6 +1399,9 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
     assert published["query_ids"] == anchor["query_ids"]
     assert published["query_ids_sha256"] == canonical_sha256(anchor["query_ids"])
     assert evidence["inputs"]["anchor_key_set_equal"] is True
+    assert evidence["inputs"]["identity"]["arm"] == "P1"
+    assert evidence["verdict_clauses"] == {"comparison": True, "autocast": True,
+                                           "identity": True, "provenance": True}
     # --replay-against is the VANILLA no-regression form of --replay-check only
     with pytest.raises(SystemExit, match="vanilla"):
         driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check",
@@ -1795,11 +1800,14 @@ def test_the_evidence_holds_each_gate_to_its_registered_autocast(tmp_path):
     report = _g3(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
                  declared_partition=FA_DECLARED)
     environment = {"git_sha": "a" * 40, "git_status_dirty": False, "hostname": "box"}
+    identity = {"identity": fp.gate_identity("G3", _registered_binding("BF",
+                                                                       cond_autocast="off"))[0]}
     passing = fp.finalize_evidence(report, device="cpu", environment=environment,
-                                   inputs=me.cond_autocast_state("cpu", "off"))
+                                   inputs=dict(me.cond_autocast_state("cpu", "off"), **identity))
     assert passing["verdict"] == "PASS"
     failing = fp.finalize_evidence(report, device="cpu", environment=environment,
-                                   inputs=me.cond_autocast_state("cpu", "default"))
+                                   inputs=dict(me.cond_autocast_state("cpu", "default"),
+                                               **identity))
     assert failing["verdict"] == "FAIL" and failing["match"] is False
     assert any("autocast" in reason for reason in failing["reasons"])
     unstated = fp.finalize_evidence(report, device="cpu", environment=environment)
@@ -1807,18 +1815,17 @@ def test_the_evidence_holds_each_gate_to_its_registered_autocast(tmp_path):
 
 
 def test_the_driver_runs_the_drift_measurement_and_writes_its_own_evidence(tmp_path, monkeypatch,
-                                                                         capsys):
+                                                                         capsys, clean_env):
     import localize_meshgrid as driver
 
     plan, records, loader = _driver_stack(tmp_path)
     anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
     args = _gate_args(tmp_path, "--fa-production-drift-measurement", "--replay-probe-report",
-                      anchor["path"])
-    args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
+                      anchor["path"])                     # the REGISTERED 256 / 16 / K = 8
     engine = FaSyntheticEngine()
     engine.conditioner = Noisy()
     code = driver._run_fa_gate(args, engine, plan, records, loader, "G3D",
-                               {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"})
+                               _registered_binding("BF"))
     evidence = json.load(open(tmp_path / "gates" / "fa_production_drift.json"))
     assert evidence["verdict"] == "measurement" and evidence["complete"] is True
     assert evidence["inputs"]["cond_autocast_requested"] == "default"
@@ -1827,3 +1834,234 @@ def test_the_driver_runs_the_drift_measurement_and_writes_its_own_evidence(tmp_p
     assert code == 0
     assert not os.path.exists(tmp_path / "gates" / "fa_production_parity.json")
     assert "fa_production_drift: measurement" in capsys.readouterr().out
+
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB finding 3: a PASS needs the registered identity and captured provenance
+# --------------------------------------------------------------------------- #
+from src.localization import meshgrid_report as mr                       # noqa: E402
+
+CLEAN_ENVIRONMENT = {"git_sha": "a" * 40, "git_status_dirty": False, "hostname": "box",
+                     "gpus": []}
+
+
+@pytest.fixture
+def clean_env(monkeypatch):
+    """A captured, tracked-clean environment for the driver's evidence (the worktree under
+    test is usually dirty, which -- correctly -- makes every real gate non-PASS)."""
+    from src.localization import meshgrid_offgrid_probe as mop
+
+    monkeypatch.setattr(mop, "current_environment", lambda: dict(CLEAN_ENVIRONMENT))
+    return CLEAN_ENVIRONMENT
+
+
+def _registered_binding(arm, **overrides):
+    """A run binding that IS arm ``arm``'s registered protocol (R2 generation)."""
+    payload = dict(ENG._binding(), **mr.REGISTERED_PROTOCOL, **mr.REGISTERED_ARTIFACT_SHA256,
+                   **mr.REGISTERED_ARM_PROTOCOL[arm], ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm])
+    payload.update(overrides)
+    return payload
+
+
+def test_the_registered_binding_helper_is_the_registered_protocol():
+    for arm in ("P1", "YAW", "BF"):
+        verdict = mr.assert_registered_protocol(_registered_binding(arm), expect_arm=arm)
+        assert verdict["is_registered"] and verdict["arm"] == arm
+
+
+@pytest.mark.parametrize("gate, arm, overrides, expect_arm, ok", [
+    ("G1", "BF", {"cond_autocast": "off"}, None, True),
+    ("G1", "BF", {}, None, False),                     # G1 runs its registered autocast off
+    ("G3", "BF", {"cond_autocast": "off"}, None, True),
+    ("G3", "YAW", {"cond_autocast": "off"}, None, False),
+    ("G3D", "BF", {}, None, True),
+    ("G3D", "BF", {"cond_autocast": "off"}, None, False),
+    ("G2", "BF", {}, None, True),
+    ("G2", "BF", {"tau": 0.05}, None, False),
+    ("G2", "BF", {"ckpt_sha256": "5" * 64}, None, False),
+    ("G0", "P1", {}, None, True),
+    ("G0", "BF", {}, None, False),
+    ("GV", "YAW", {}, "YAW", True),
+    ("GV", "P1", {}, "YAW", False),
+    ("GV", "BF", {}, "BF", False),
+])
+def test_each_gate_requires_its_registered_arm_identity(gate, arm, overrides, expect_arm, ok):
+    block, reasons = fp.gate_identity(gate, _registered_binding(arm, **overrides), expect_arm)
+    assert block["registered_for_gate"] is ok and (reasons == []) is ok, reasons
+    assert all(reason.startswith("identity:") for reason in reasons)
+
+
+def _preflight(args, arm):
+    import localize_meshgrid as driver
+
+    # each arm's checkpoint embeds its own training policy (crossarm.ARMS identities)
+    training = {"P1": {}, "YAW": {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}},
+                "BF": {"cond_method": "fa_invariant", "frame_avg_angles": list(C4)}}[arm]
+    model_config = json.load(open(os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                               "FLAC_AR.json")))
+    return driver.preflight(args, me.load_audit_plan(args.audit_report), model_config,
+                            {"model_config": {"training": training}},
+                            ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                            agree_sha256=mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"],
+                            model_config_sha256=mr.REGISTERED_ARTIFACT_SHA256[
+                                "model_config_sha256"])
+
+
+def _preflight_args(tmp_path, *mode, protocol):
+    import localize_meshgrid as driver
+
+    _out, report_path, _base = ENG._fixture_audit(tmp_path)
+    manifest = tmp_path / "d1.json"
+    manifest.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+                              "--context-manifest", str(manifest), "--out-dir",
+                              str(tmp_path / "gates")] + list(protocol) + list(mode))
+    driver.validate_args(args)
+    return args
+
+
+def test_the_driver_refuses_a_gate_on_an_unregistered_identity_before_any_device_work(tmp_path):
+    """Preflight is CPU-only: a gate on the wrong arm (or a moved protocol) never starts."""
+    g1 = _preflight_args(tmp_path / "g1", "--fa-split-parity-check",
+                         protocol=_off(ENG._FA_PROTOCOL))
+    binding, verdict = _preflight(g1, "BF")
+    assert verdict["gate_identity"]["registered_for_gate"] is True
+    with pytest.raises(SystemExit, match="identity"):
+        _preflight(g1, "YAW")
+    moved = _preflight_args(tmp_path / "g2", "--cache-parity-check", "--tau", "0.05",
+                            protocol=ENG._FA_PROTOCOL)
+    with pytest.raises(SystemExit, match="identity"):
+        _preflight(moved, "BF")
+    g0 = _preflight_args(tmp_path / "g0", "--replay-check", "--replay-against", "run",
+                         protocol=ENG._VANILLA_PROTOCOL)
+    assert _preflight(g0, "P1")[1]["gate_identity"]["arm"] == "P1"
+    with pytest.raises(SystemExit, match="identity"):
+        _preflight(g0, "YAW")
+    # the YAW parity gate is the vanilla cache parity WITH its registered arm named
+    yaw = _preflight_args(tmp_path / "yaw", "--cache-parity-check", "--expect-arm", "YAW",
+                          protocol=ENG._VANILLA_PROTOCOL)
+    assert _preflight(yaw, "YAW")[1]["gate_identity"]["arm"] == "YAW"
+    with pytest.raises(SystemExit):
+        _preflight(yaw, "P1")
+    # without --expect-arm the vanilla cache parity is the R1 diagnostic: no gate, no verdict
+    plain = _preflight_args(tmp_path / "plain", "--cache-parity-check",
+                            protocol=ENG._VANILLA_PROTOCOL)
+    assert _preflight(plain, "YAW")[1]["gate_identity"] is None
+
+
+def _g1_report(tmp_path):
+    query, md = _gate_query(tmp_path)
+    return fp.split_parity(FaSyntheticEngine(), query, md, micro_batch=3, n_candidates=7)
+
+
+def _g1_inputs(device="cpu"):
+    return dict(me.cond_autocast_state(device, "off"),
+                identity=fp.gate_identity("G1", _registered_binding("BF", cond_autocast="off"))[0])
+
+
+@pytest.mark.parametrize("broken, why", [({"git_status_dirty": True}, "tracked tree"),
+                                         ({"git_status_dirty": None}, "tracked tree"),
+                                         ({"git_sha": None}, "git SHA"),
+                                         ({"git_sha": "abc"}, "git SHA"),
+                                         ({"hostname": None}, "hostname")])
+def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+    report = _g1_report(tmp_path)
+    assert report["verdict"] == "PASS"
+    clean = fp.finalize_evidence(report, device="cpu", environment=CLEAN_ENVIRONMENT,
+                                 inputs=_g1_inputs())
+    assert clean["verdict"] == "PASS" and clean["provenance"]["complete"] is True
+    evidence = fp.finalize_evidence(report, device="cpu",
+                                    environment=dict(CLEAN_ENVIRONMENT, **broken),
+                                    inputs=_g1_inputs())
+    assert evidence["verdict"] == "FAIL" and evidence["match"] is False
+    assert evidence["provenance"]["complete"] is False
+    assert any(why in reason for reason in evidence["provenance"]["reasons"])
+    assert any(reason.startswith("provenance:") for reason in evidence["reasons"])
+    assert evidence["verdict_clauses"] == {"comparison": True, "autocast": True,
+                                           "identity": True, "provenance": False}
+
+
+def test_a_failed_cuda_uuid_capture_on_a_gpu_makes_the_gate_non_pass(tmp_path):
+    report = _g1_report(tmp_path)
+    failed = {"ok": False, "uuid": None, "error": "the runtime could not describe device 0"}
+    evidence = fp.finalize_evidence(report, device="cuda:0", environment=CLEAN_ENVIRONMENT,
+                                    runtime=failed, inputs=_g1_inputs("cuda:0"))
+    assert evidence["verdict"] == "FAIL"
+    assert any("CUDA" in reason and "could not describe" in reason
+               for reason in evidence["provenance"]["reasons"])
+    captured = {"ok": True, "uuid": "GPU-1234", "error": None}
+    evidence = fp.finalize_evidence(report, device="cuda:0", environment=CLEAN_ENVIRONMENT,
+                                    runtime=captured, inputs=_g1_inputs("cuda:0"))
+    assert evidence["verdict"] == "PASS" and evidence["provenance"]["gpu_uuid"] == "GPU-1234"
+
+
+def test_evidence_without_a_registered_identity_is_not_a_pass(tmp_path):
+    report = _g1_report(tmp_path)
+    bare = fp.finalize_evidence(report, device="cpu", environment=CLEAN_ENVIRONMENT,
+                                inputs=me.cond_autocast_state("cpu", "off"))
+    assert bare["verdict"] == "FAIL" and bare["verdict_clauses"]["identity"] is False
+    wrong = fp.finalize_evidence(report, device="cpu", environment=CLEAN_ENVIRONMENT, inputs=dict(
+        me.cond_autocast_state("cpu", "off"),
+        identity=fp.gate_identity("G1", _registered_binding("YAW", cond_autocast="off"))[0]))
+    assert wrong["verdict"] == "FAIL"
+    assert any(reason.startswith("identity:") for reason in wrong["reasons"])
+
+
+def test_the_driver_exits_non_zero_when_provenance_fails(tmp_path, monkeypatch):
+    import localize_meshgrid as driver
+    from src.localization import meshgrid_offgrid_probe as mop
+
+    monkeypatch.setattr(mop, "current_environment",
+                        lambda: dict(CLEAN_ENVIRONMENT, git_status_dirty=True))
+    plan, records, loader = _driver_stack(tmp_path)
+    args = _gate_args(tmp_path, "--fa-split-parity-check", "--parity-candidates", "48",
+                      protocol=_off(ENG._FA_PROTOCOL))
+    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G1",
+                               _registered_binding("BF", cond_autocast="off"))
+    evidence = json.load(open(tmp_path / "gates" / "fa_split_parity.json"))
+    assert code == 1 and evidence["verdict"] == "FAIL"
+    assert evidence["verdict_clauses"]["comparison"] is True
+    assert evidence["verdict_clauses"]["provenance"] is False
+
+
+def test_the_yaw_parity_gate_publishes_its_evidence_under_the_yaw_identity(tmp_path, capsys,
+                                                                          clean_env):
+    import localize_meshgrid as driver
+
+    plan, records, items = ENG._aligned(tmp_path)
+    loader = [([obs], [md]) for obs, md in items]
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--cache-parity-check", "--expect-arm",
+                              "YAW", "--out-dir", str(tmp_path / "gates")]
+                             + ENG._VANILLA_PROTOCOL)
+    assert driver.validate_args(args)
+    assert driver._run_cache_parity(args, ENG.SyntheticEngine(), plan, records, loader,
+                                    binding=_registered_binding("YAW")) == 0
+    evidence = json.load(open(tmp_path / "gates" / "vanilla_cache_parity.json"))
+    assert evidence["gate"] == "GV" and evidence["verdict"] == "PASS"
+    assert evidence["inputs"]["identity"]["arm"] == "YAW"
+    assert evidence["vanilla_cache_parity"]["match"] is True
+    assert "MEMOIZATION" in capsys.readouterr().out
+    # the same gate on another arm's binding is not a PASS
+    assert driver._run_cache_parity(args, ENG.SyntheticEngine(), plan, records, loader,
+                                    binding=_registered_binding("P1")) == 1
+
+
+def test_gate3_passes_end_to_end_at_the_registered_numbers_and_identity(tmp_path, monkeypatch,
+                                                                       capsys, clean_env):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
+    args = _gate_args(tmp_path, "--fa-production-parity-check", "--replay-probe-report",
+                      anchor["path"], protocol=_off(ENG._FA_PROTOCOL))
+    assert driver.validate_args(args)
+    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3",
+                               _registered_binding("BF", cond_autocast="off"))
+    evidence = json.load(open(tmp_path / "gates" / "fa_production_parity.json"))
+    assert code == 0 and evidence["verdict"] == "PASS", evidence["reasons"]
+    assert evidence["verdict_clauses"] == {"comparison": True, "autocast": True,
+                                           "identity": True, "provenance": True}
+    assert evidence["executed_partition"]["executed"] == mr.REGISTERED_ARM_PROTOCOL["BF"][
+        "fa_partition"]
+    assert evidence["probe_queries"]["complete"] is True
