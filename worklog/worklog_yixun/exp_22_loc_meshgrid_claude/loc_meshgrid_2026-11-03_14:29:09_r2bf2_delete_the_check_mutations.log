@@ -1,0 +1,27 @@
+# exp_22 rB-F2 delete-the-check mutations at HEAD 3163658c25793e938f384ac09c81c033e1a94d32, 2026-11-03T14:29:09-05:00, CPU (CUDA_VISIBLE_DEVICES=""): each of the round's new clauses deleted ONE at a time (exact-text mutation, restored from a byte copy), its tests run; CAUGHT = the tests failed
+CAUGHT  G3D score_tolerance null [src/localization/meshgrid_fa_parity.py; -k g3_carries_its_numeric_tolerances]: 1 failed, 228 deselected, 3 warnings in 6.50s
+CAUGHT  G3 anchor clause [src/localization/meshgrid_fa_parity.py; -k without_its_pinned_anchor]: 1 failed, 228 deselected, 3 warnings in 6.50s
+CAUGHT  G3 complete replay record [src/localization/meshgrid_fa_parity.py; -k complete_replay_record]: 2 failed, 227 deselected, 3 warnings in 6.99s
+CAUGHT  reverify: replay record per chunk [src/localization/meshgrid_fa_parity.py; -k tampered_gate3]: 1 failed, 17 passed, 211 deselected, 3 warnings in 16.26s
+CAUGHT  reverify: per-key fold [src/localization/meshgrid_fa_parity.py; -k tampered_gate3]: 1 failed, 17 passed, 211 deselected, 3 warnings in 16.55s
+CAUGHT  reverify: provenance facts [src/localization/meshgrid_fa_parity.py; -k tampered_gate3]: 1 failed, 17 passed, 211 deselected, 3 warnings in 16.25s
+CAUGHT  reverify: the registered tolerance [src/localization/meshgrid_fa_parity.py; -k tampered_gate3]: 1 failed, 17 passed, 211 deselected, 3 warnings in 16.73s
+CAUGHT  reverify: G2 counter bite [src/localization/meshgrid_fa_parity.py; -k tampered_gate_evidence]: 1 failed, 20 passed, 208 deselected, 3 warnings in 8.79s
+CAUGHT  G0 publishes its frozen digests [src/localization/meshgrid_fa_parity.py; -k gate0_publishes or every_other_real]: 2 failed, 3 passed, 224 deselected, 3 warnings in 5.75s
+CAUGHT  reader: segment digest [src/localization/meshgrid_engine.py; -k corrupted]: 5 failed, 19 passed, 205 deselected, 5 warnings in 17.18s
+CAUGHT  reader: segment indices [src/localization/meshgrid_engine.py; -k corrupted]: 4 failed, 20 passed, 205 deselected, 5 warnings in 16.90s
+CAUGHT  reader: non-negative integers [src/localization/meshgrid_engine.py; -k corrupted]: 2 failed, 22 passed, 205 deselected, 5 warnings in 16.94s
+CAUGHT  reader: merged block [src/localization/meshgrid_engine.py; -k corrupted]: 2 failed, 22 passed, 205 deselected, 5 warnings in 16.50s
+CAUGHT  reader: run summary block [src/localization/meshgrid_engine.py; -k corrupted]: 5 failed, 19 passed, 205 deselected, 5 warnings in 16.99s
+CAUGHT  reopen goes through the reader [src/localization/meshgrid_engine.py; -k reopen_before]: 11 failed, 218 deselected, 3 warnings in 10.57s
+CAUGHT  driver preflight reads the ledger [localize_meshgrid.py; -k driver_refuses_a_corrupted]: 1 failed, 228 deselected, 5 warnings in 6.94s
+CAUGHT  final failure writes the marker [src/localization/meshgrid_engine.py; -k final_partition_check_fails_marks]: 1 failed, 228 deselected, 3 warnings in 5.02s
+MISSED  merge names a marked shard first [src/localization/meshgrid_engine.py; -k merge_refuses_a_non_admissible]: 1 passed, 228 deselected, 3 warnings in 4.88s
+CAUGHT  the reader refuses a marked shard [src/localization/meshgrid_engine.py; -k final_partition_check_fails_marks]: 1 failed, 228 deselected, 3 warnings in 5.22s
+CAUGHT  the report refuses a marked run [src/localization/meshgrid_report.py; -k per_arm_report_refuses]: 2 failed, 227 deselected, 3 warnings in 5.27s
+19/20 mutations caught
+## git diff of the source files after the run (must be empty)
+## the MISSED mutation re-run after the merge test gained 'the only invocation' (a failed shard with NO run summary, where _read_shard's check is the one that names it), 2026-11-03T14:34:32-05:00
+CAUGHT  merge names a marked shard first [src/localization/meshgrid_engine.py; -k merge_refuses_a_non_admissible]: 1 failed, 1 passed, 228 deselected, 3 warnings in 5.64s
+1/1 mutations caught
+## git diff of the source files after the re-run (must be empty)

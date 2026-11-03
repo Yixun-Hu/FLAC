@@ -3043,10 +3043,12 @@ def test_a_probe_never_writes_a_failure_marker(tmp_path):
     assert not os.path.exists(os.path.join(out, me.FA_FAILURE_FILENAME))
 
 
+@pytest.mark.parametrize("when", ["a later invocation", "the only invocation"])
 def test_the_merge_refuses_a_non_admissible_shard_by_name_with_nothing_written(tmp_path,
-                                                                             monkeypatch):
-    """Shard b finished, then a later invocation's final exact check failed: the pass itself
-    marks the shard (its stale run summary is still on disk) and the merge names it."""
+                                                                             monkeypatch, when):
+    """The pass itself marks the shard when its final exact check fails -- after an earlier
+    invocation finished (a stale run summary is on disk) or in its only invocation (no run
+    summary at all) -- and the merge names it in both cases, before anything else."""
     plan, records, dirs, totals = _fa_shards(tmp_path)
     real = me.assert_fa_partition_executed
 
@@ -3058,13 +3060,23 @@ def test_the_merge_refuses_a_non_admissible_shard_by_name_with_nothing_written(t
 
     monkeypatch.setattr(me, "assert_fa_partition_executed", fails_finally)
     stack = _fa_aligned(tmp_path / "stack")
+    shard = dirs["b"] if when == "a later invocation" else str(tmp_path / "b_failed")
     with pytest.raises(ValueError, match="not the declared one"):
-        _two_segment_run(dirs["b"], stack, rooms=["B/B_idx_2"])
+        if when == "a later invocation":
+            _two_segment_run(shard, stack, rooms=["B/B_idx_2"])
+        else:
+            binding = _r2_binding(fa_partition=FA_DECLARED)
+            me.write_binding(shard, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                             declared_rooms=["B/B_idx_2"])
+            me.run_pass(FaSyntheticEngine(), stack[2], stack[1], stack[0], shard,
+                        rooms=["B/B_idx_2"], binding_sha256=me.binding_sha256(binding),
+                        fa_partition=FA_DECLARED, **FA_SHAPES)
     monkeypatch.setattr(me, "assert_fa_partition_executed", real)
-    assert os.path.exists(os.path.join(dirs["b"], me.FA_FAILURE_FILENAME))
+    assert os.path.exists(os.path.join(shard, me.FA_FAILURE_FILENAME))
+    assert os.path.exists(_fa_files(shard)[1]) is (when == "a later invocation")
     merged = str(tmp_path / "merged")
     with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
-        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+        me.merge_shards([dirs["a"], shard], merged, plan, records, totals=totals)
     assert not os.path.exists(merged)
 
 
