@@ -355,14 +355,87 @@ CONTROLS_ELSEWHERE = {
         "src/localization/meshgrid_offgrid_probe.py -- cos(E(h_obs), E(h_real,other)) against "
         "cos(E(h_obs), E(h_generated)) on the same sixteen queries",
     "agree_oracle_retrieval_over_the_metadata_bank":
-        "src/localization/meshgrid_retrieval_control.py -- built (r9b), run pending. AGREE "
-        "nearest-neighbour retrieval over the real dataset RIRs that exist at each query's own "
-        "receiver (other sources; the query's own pair excluded), labelled sparse/metadata-bank "
-        "and never confused with the dense-grid model oracle: its candidate set is not the "
-        "grid and its oracle floor is the sparse bank's own. When it has been run, its "
-        "retrieval_control_handoff.json carries the numbers this entry should name",
+        "src/localization/meshgrid_retrieval_control.py -- AGREE nearest-neighbour retrieval "
+        "over the real dataset RIRs that exist at each query's own receiver (other sources; the "
+        "query's own pair excluded), labelled sparse/metadata-bank and never confused with the "
+        "dense-grid model oracle: its candidate set is not the grid and its oracle floor is the "
+        "sparse bank's own. This static entry states NO status (exp_22 rA-F1): a report states "
+        "it only after consuming the control's retrieval_control_handoff.json "
+        "(--retrieval-handoff), and says that it did not otherwise",
     "score_ablations": "deferred by §2 unless separately approved (waveform / multiscale STFT)",
 }
+
+#: exp_22 rA-F1 (Codex rA HIGH): the gate an unreconciled control fails.
+RETRIEVAL_HANDOFF_GATE = "retrieval_handoff"
+#: the arms that CITE the control rather than being the run it was produced beside
+RETRIEVAL_CITING_ARMS = tuple(arm for arm in REGISTERED_CKPT_SHA256 if arm != "P1")
+#: the one sentence that says "reused": printed only after the handoff reconciled
+RETRIEVAL_REUSED_TEMPLATE = (
+    "REUSED, NOT RERUN for the {arm} arm (plan r2 §1): the control has no generator -- a fixed "
+    "real-RIR bank and the frozen scorer -- so it is arm-independent; cited from the completed "
+    "canonical handoff {handoff} naming report {report}")
+LEGACY_RETRIEVAL_NOTE = (
+    "LEGACY P1 COMPARATOR: this report did not consume the handoff, and for the published P1 "
+    "comparator it need not -- the P1 phase reconciled §2 itself (its canonical off-grid probe "
+    "consumed the control's handoff; Codex r9t blocker 5, closed by r9z7) and that "
+    "reconciliation stands. Pass --retrieval-handoff to cite the control here")
+
+
+def retrieval_control(arm, legacy, consumed=None, defer_gate=False):
+    """The §2 sparse-retrieval control as THIS report may cite it (Codex rA HIGH).
+
+    ``consumed`` is :func:`meshgrid_offgrid_probe.consume_retrieval_handoff`'s
+    verdict, or ``None`` when no ``--retrieval-handoff`` was given. The entry is
+    the reconciled status only when that verdict reconciled; otherwise it says
+    STATUS NOT RECONCILED with the reasons -- never the stale "run pending" and
+    never "reused", which is printed only for a reconciled BF or YAW arm.
+
+    Canonicality: for every run but the legacy one an unreconciled control is a
+    reason (gate ``retrieval_handoff``), so a BF or YAW report -- or any run the
+    R2 driver produced -- is canonical only after consuming the completed
+    canonical handoff. ``defer_gate`` is for a caller that applies this gate
+    itself, once, over several reports (the R2 crossarm); the report CLI never
+    sets it.
+
+    LEGACY BRANCH -- exactly what happens for the published Aug-2026 P1
+    comparator (``legacy`` is ``launch_provenance()['legacy_provenance']``: arm
+    P1, legacy R1 binding, no launch record anywhere): the control NEVER enters
+    its canonical status, with or without the flag, so the published P1 result
+    is not retro-declared non-canonical; the P1 phase's own reconciliation
+    stands (its canonical off-grid probe consumed this same handoff, Codex r9t
+    blocker 5, closed by r9z7). Without the flag the entry is STATUS NOT
+    RECONCILED plus :data:`LEGACY_RETRIEVAL_NOTE`; with it the handoff is
+    consumed exactly as for every other arm and the entry is the reconciled one
+    (or names why it is not). "Reused" is never printed for P1: the control was
+    produced beside the P1 run, not reused for it.
+    """
+    from src.localization import meshgrid_offgrid_probe as op
+
+    consumed = consumed or {}
+    reconciled = bool(consumed.get("reconciled"))
+    entry = consumed.get("entry") or op.unreconciled_retrieval_entry(None)
+    reused = reconciled and arm in RETRIEVAL_CITING_ARMS
+    if reused:
+        entry += ". " + RETRIEVAL_REUSED_TEMPLATE.format(
+            arm=arm, handoff=consumed["sha256"], report=consumed["report_sha256"])
+    if legacy and not reconciled:
+        entry += " " + LEGACY_RETRIEVAL_NOTE
+    reasons = [] if reconciled else list(consumed.get("reasons") or [
+        "no --retrieval-handoff was supplied, so this report cannot cite the control's "
+        "completed canonical run"])
+    return {"status": "RECONCILED" if reconciled else "STATUS NOT RECONCILED",
+            "reconciled": reconciled, "arm_independent_citation": reused, "reasons": reasons,
+            "gating": not legacy and not defer_gate, "legacy": bool(legacy),
+            "handoff_path": consumed.get("path"), "handoff_sha256": consumed.get("sha256"),
+            "registered_handoff_sha256": REGISTERED_RETRIEVAL_HANDOFF_SHA256,
+            "report_json": consumed.get("report_json"),
+            "report_sha256": consumed.get("report_sha256"),
+            "handoff_status": consumed.get("status"),
+            "handoff_canonical": consumed.get("canonical"), "census": consumed.get("census"),
+            "binding_sha256": consumed.get("binding_sha256"),
+            "headline": consumed.get("headline") if reconciled else None,
+            "entry": entry, "note": op.RETRIEVAL_CITATION_NOTE}
+
 
 #: the report's own artifact names.
 REPORT_JSON = "meshgrid_r1_report.json"
@@ -2490,6 +2563,12 @@ def canonical_status(evaluated, report=None):
                             "why": f"{report['latency']['n_incomplete']} row(s) lack a timing "
                                    "component, so the latency endpoint is non-canonical",
                             "note": LATENCY_NON_CANONICAL_NOTE})
+        block = report.get("retrieval_control") or {
+            "gating": not provenance.get("legacy_provenance"), "reconciled": False,
+            "reasons": ["the report carries no retrieval-control block"], "note": None}
+        if block["gating"] and not block["reconciled"]:
+            reasons.append({"gate": RETRIEVAL_HANDOFF_GATE,
+                            "why": "; ".join(block["reasons"])[:2000], "note": block["note"]})
     return {"canonical": not reasons, "reasons": reasons,
             "note": None if not reasons else non_canonical_note(arm)}
 
@@ -2542,8 +2621,12 @@ def oracle_crosscheck_summary(results):
 
 def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_root,
                  radii=SUCCESS_RADII, bootstrap_seed=BOOTSTRAP_SEED, n_boot=BOOTSTRAP_N,
-                 alpha=BOOTSTRAP_ALPHA, sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY):
-    """The machine-readable R1 report: every §2 readout, every stamp."""
+                 alpha=BOOTSTRAP_ALPHA, sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY,
+                 retrieval_handoff=None, defer_retrieval_gate=False):
+    """The machine-readable R1 report: every §2 readout, every stamp.
+
+    ``retrieval_handoff`` / ``defer_retrieval_gate``: see :func:`retrieval_control`.
+    """
     results = evaluated["results"]
     census = evaluated["census"]
     prefixes = [int(k) for k in evaluated["protocol"]["k_prefixes"]]
@@ -2557,6 +2640,8 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
 
     merge_path = os.path.join(str(run_dir), "merge_report.json")
     arm = evaluated["registered_protocol"].get("arm")
+    retrieval = retrieval_control(arm, evaluated["launch_provenance"]["legacy_provenance"],
+                                  retrieval_handoff, defer_gate=defer_retrieval_gate)
     report = {
         "experiment": "exp_22 loc_meshgrid R1 report",
         "arm": arm,
@@ -2570,7 +2655,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "batching_caveat": me.BATCHING_CAVEAT,
             "aggregator_roles": AGGREGATOR_ROLES,
         },
-        "controls_elsewhere": CONTROLS_ELSEWHERE,
+        "controls_elsewhere": dict(
+            CONTROLS_ELSEWHERE, agree_oracle_retrieval_over_the_metadata_bank=retrieval["entry"]),
+        "retrieval_control": retrieval,
         "provenance": {
             "run_dir": str(run_dir),
             "binding_sha256": evaluated["binding_sha256"],
@@ -2764,6 +2851,25 @@ def _provenance_lines(report):
             f"{format_number(record.get('resume'))} | {format_number(record.get('verified'))} |")
     lines.append("")
     return lines
+
+
+def _retrieval_lines(block):
+    """The sparse control's status, digests and -- only once reconciled -- its headline."""
+    lines = [f"## §2 sparse retrieval control — {block['status']}", ""]
+    if block["handoff_sha256"] is None:
+        lines.append(f"- handoff: none consumed (registered "
+                     f"`{block['registered_handoff_sha256']}`)")
+    else:
+        lines += [f"- handoff: `{block['handoff_path']}` sha256 `{block['handoff_sha256']}` "
+                  f"(registered `{block['registered_handoff_sha256']}`)",
+                  f"- report it names: `{block['report_json']}` sha256 "
+                  f"`{block['report_sha256']}`"]
+    for name, cell in sorted((block["headline"] or {}).items()):
+        lines.append(f"- {name}: {format_number(cell.get('point'))} "
+                     f"[{format_number(cell.get('ci_lo'))}, {format_number(cell.get('ci_hi'))}]"
+                     " (sparse metadata bank, never the dense grid)")
+    lines += [f"- not cited: {reason}" for reason in block["reasons"]]
+    return lines + ["", f"_{block['note']}_", ""]
 
 
 def render_markdown(report):
@@ -2977,6 +3083,7 @@ def render_markdown(report):
                  f"{report['gates']['d1_g1_rows_identity_join']['n_rooms']} rooms")
     lines.append("")
 
+    lines.extend(_retrieval_lines(report["retrieval_control"]))
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
     for name, where in sorted(report["controls_elsewhere"].items()):
@@ -3077,6 +3184,11 @@ def parse_args(argv=None):
                         help="publish even though the run binding is not the registered "
                              "protocol; the report and the markdown are then stamped as a "
                              "sensitivity check throughout")
+    parser.add_argument("--retrieval-handoff", default=None,
+                        help="the sparse retrieval control's COMPLETED canonical "
+                             "retrieval_control_handoff.json. Required for a canonical BF / YAW "
+                             "report; without it the control is STATUS NOT RECONCILED (the "
+                             "published P1 comparator keeps the P1 phase's own reconciliation)")
     return parser.parse_args(argv)
 
 
@@ -3137,6 +3249,14 @@ def main(argv=None):
     print(f"SUBSET: {SUBSET_LABEL}")
     if args.single_shard:
         print("\nSINGLE-SHARD MODE: a shard-local diagnostic, never the canonical result\n")
+    handoff = None
+    if args.retrieval_handoff:
+        from src.localization import meshgrid_offgrid_probe as op
+
+        try:
+            handoff = op.consume_retrieval_handoff(args.retrieval_handoff)
+        except (OSError, ValueError) as error:
+            _refuse(f"--retrieval-handoff: {error}")
 
     evaluated = evaluate_run(args.run_dir, args.audit_report, args.context_manifest,
                              args.metadata_root, baseline_seeds=args.baseline_seeds,
@@ -3161,7 +3281,12 @@ def main(argv=None):
     report = build_report(evaluated, args.run_dir, args.audit_report, args.context_manifest,
                           args.metadata_root, bootstrap_seed=args.bootstrap_seed,
                           n_boot=args.n_boot,
-                          sidecar_argmax_policy=args.sidecar_argmax_policy)
+                          sidecar_argmax_policy=args.sidecar_argmax_policy,
+                          retrieval_handoff=handoff)
+    retrieval = report["retrieval_control"]
+    print(f"§2 sparse retrieval control: {retrieval['status']}"
+          + (f" (handoff {retrieval['handoff_sha256']}, report {retrieval['report_sha256']})"
+             if retrieval["reconciled"] else f" -- {'; '.join(retrieval['reasons'])}"))
     cases = build_case_payload(report["visualization_cases"], evaluated["rows_by_id"],
                                evaluated["plans_by_id"],
                                {r["query_id"]: r for r in evaluated["results"]},

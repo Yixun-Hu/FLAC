@@ -295,8 +295,10 @@ def admit_run(run_dir, arm, *, audit_report, context_manifest, metadata_root,
         expect_ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm], expect_arm=arm,
         expect_metadata_bank_sha256=expect_metadata_bank_sha256,
         allow_protocol_deviation=False, allow_unpinned_metadata_bank=False, ckpt_path=ckpt_path)
+    # the comparison applies the sparse-retrieval gate ITSELF, once (rA-F1)
     report = mr.build_report(evaluated, run_dir, audit_report, context_manifest, metadata_root,
-                             sidecar_argmax_policy=sidecar_argmax_policy)
+                             sidecar_argmax_policy=sidecar_argmax_policy,
+                             defer_retrieval_gate=True)
     status = report["canonical_status"]
     if not status["canonical"]:
         raise ValueError(f"the {arm} run at {run_dir} is not canonical: "

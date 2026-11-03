@@ -1121,11 +1121,14 @@ def test_the_report_names_the_registered_controls_it_does_not_contain(tmp_path):
     assert "meshgrid_offgrid_probe.py" in \
         elsewhere["real_vs_generated_agree_calibration"]
     # the sparse/metadata-bank control: named with its tool and its state, so
-    # silence is read neither as a null nor as a published number (r9b)
+    # silence is read neither as a null nor as a published number (r9b). rA-F1:
+    # the state is the CONSUMED handoff's, never the stale static "run pending"
     sparse = elsewhere["agree_oracle_retrieval_over_the_metadata_bank"]
     assert "meshgrid_retrieval_control.py" in sparse
-    assert "built (r9b), run pending" in sparse
-    assert "sparse/metadata-bank" in sparse and "retrieval_control_handoff.json" in sparse
+    assert "run pending" not in sparse and "STATUS NOT RECONCILED" in sparse
+    assert "retrieval_control_handoff.json" in sparse
+    assert "sparse/metadata-bank" in mr.CONTROLS_ELSEWHERE[
+        "agree_oracle_retrieval_over_the_metadata_bank"]
     markdown = mr.render_markdown(report)
     assert "controls that are NOT in this report" in markdown
 
@@ -2486,8 +2489,10 @@ def test_an_arm_run_with_complete_records_publishes_every_segment(tmp_path):
     provenance = evaluated["launch_provenance"]
     assert provenance["complete"] is True and provenance["legacy_provenance"] is False
     assert sorted(r["position_ranges"] for r in provenance["records"]) == [[[0, 2]], [[3, 3]]]
+    # rA-F1: a YAW report is canonical only with the consumed handoff (Codex rA HIGH)
     report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
-                             fixture["context_manifest"], fixture["metadata_root"])
+                             fixture["context_manifest"], fixture["metadata_root"],
+                             retrieval_handoff=_consume())
     assert report["arm"] == "YAW" and report["legacy_provenance"] is False
     assert report["canonical_status"]["canonical"] is True
     published = report["provenance"]["launch_provenance"]
@@ -2507,8 +2512,10 @@ def test_a_missing_record_makes_the_report_non_canonical(tmp_path):
     os.remove(os.path.join(fixture["run_dir"], ledger["segments"][0]["record_file"]))
     evaluated = evaluate_fixture(fixture)
     assert evaluated["launch_provenance"]["acceptable"] is False
+    # the handoff is consumed, so the launch gap is the ONLY reason (rA-F1)
     report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
-                             fixture["context_manifest"], fixture["metadata_root"])
+                             fixture["context_manifest"], fixture["metadata_root"],
+                             retrieval_handoff=_consume())
     status = report["canonical_status"]
     assert status["canonical"] is False
     assert [reason["gate"] for reason in status["reasons"]] == ["launch_provenance"]
@@ -2592,3 +2599,181 @@ def test_a_report_over_segments_at_two_commits_is_non_canonical(tmp_path):
     why = [reason["why"] for reason in status["reasons"] if reason["gate"] == "launch_provenance"]
     assert why and "one reviewed pin" in why[0]
     assert "one reviewed pin" in mr.render_markdown(report)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA HIGH): a report cites the sparse retrieval control only
+# after consuming its completed canonical handoff
+# --------------------------------------------------------------------------- #
+#: the committed, completed canonical handoff of the P1 phase (the probe tests pin
+#: that it is the registered one). Defined here, not imported: the probe test
+#: module imports this one.
+REAL_HANDOFF = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, "worklog",
+    "worklog_yixun", "exp_22_loc_meshgrid_claude", "retrieval_control_handoff.json"))
+RETRIEVAL_KEY = "agree_oracle_retrieval_over_the_metadata_bank"
+
+
+def tampered_handoff(tmp_path, name="handoff.json", **changes):
+    """The committed handoff with ``changes`` applied, written to ``tmp_path``."""
+    payload = json.load(open(REAL_HANDOFF))
+    payload.update(changes)
+    path = str(tmp_path / name)
+    me.write_json(path, payload)
+    return path
+
+
+def _consume(path=REAL_HANDOFF, **kwargs):
+    from src.localization import meshgrid_offgrid_probe as op
+
+    return op.consume_retrieval_handoff(path, **kwargs)
+
+
+def _report(fixture, handoff=None, **evaluate):
+    evaluated = evaluate_fixture(fixture, **evaluate)
+    return mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                           fixture["context_manifest"], fixture["metadata_root"],
+                           retrieval_handoff=handoff)
+
+
+def _text(report):
+    return (json.dumps(jsonable_report(report)) + mr.render_markdown(report)).lower()
+
+
+def jsonable_report(report):
+    return mr.jsonable(report)
+
+
+@pytest.fixture(scope="module")
+def yaw_fixture(tmp_path_factory):
+    root = tmp_path_factory.mktemp("yaw_handoff")
+    return build_fixture_run(root, arm="YAW", launch=fixture_launch(root, "YAW"))
+
+
+def test_the_static_entry_states_no_status():
+    static = mr.CONTROLS_ELSEWHERE[RETRIEVAL_KEY]
+    assert "run pending" not in static and "built (r9b)" not in static
+    assert "retrieval_control_handoff.json" in static and "--retrieval-handoff" in static
+    assert static.startswith("src/localization/meshgrid_retrieval_control.py -- ")
+
+
+def test_a_treatment_report_cites_the_control_after_consuming_the_handoff(yaw_fixture):
+    consumed = _consume()
+    report = _report(yaw_fixture, handoff=consumed, expect_arm="YAW")
+    assert report["canonical_status"]["canonical"] is True, report["canonical_status"]
+    block = report["retrieval_control"]
+    assert block["status"] == "RECONCILED" and block["reconciled"]
+    assert block["arm_independent_citation"] is True
+    assert block["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert block["report_sha256"] == consumed["report_sha256"]
+    assert block["headline"] == consumed["headline"]
+    assert block["census"] == {"n_queries": 5337, "n_rooms": 16}
+    entry = report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert entry.startswith(consumed["entry"]) and "REUSED, NOT RERUN for the YAW arm" in entry
+    markdown = mr.render_markdown(report)
+    for digest in (consumed["sha256"], consumed["report_sha256"]):
+        assert digest in markdown
+    assert "median_e_loc 1.943 m" in markdown and "run pending" not in markdown
+
+
+def test_without_the_handoff_a_treatment_report_is_not_reconciled(yaw_fixture):
+    report = _report(yaw_fixture, expect_arm="YAW")
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    assert [reason["gate"] for reason in status["reasons"]] == ["retrieval_handoff"]
+    block = report["retrieval_control"]
+    assert block["status"] == "STATUS NOT RECONCILED"
+    assert block["arm_independent_citation"] is False
+    assert "STATUS NOT RECONCILED" in report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" in mr.render_markdown(report)
+    text = _text(report)
+    assert "reused" not in text and "run pending" not in text
+
+
+@pytest.mark.parametrize("changes", [
+    {"headline": {}},                                                 # digest + headline
+    {"status": "run (NON-CANONICAL)", "canonical": False},           # not completed
+    {"census": {"n_queries": 4, "n_rooms": 2}},                       # another census
+])
+def test_a_tampered_handoff_is_never_silently_cited(yaw_fixture, tmp_path, changes):
+    consumed = _consume(tampered_handoff(tmp_path, **changes))
+    assert consumed["reconciled"] is False
+    report = _report(yaw_fixture, handoff=consumed, expect_arm="YAW")
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    why = [r["why"] for r in status["reasons"] if r["gate"] == "retrieval_handoff"]
+    assert why and mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256[:12] in why[0]
+    assert "reused" not in _text(report)
+    assert report["retrieval_control"]["handoff_sha256"] == consumed["sha256"]
+
+
+def test_the_legacy_p1_branch_keeps_its_canonical_status(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    # without the flag: canonical as published, NOT RECONCILED in this report, the
+    # P1 phase's own reconciliation named, never stale and never "reused"
+    report = _report(fixture)
+    assert report["legacy_provenance"] is True
+    assert report["canonical_status"]["canonical"] is True
+    block = report["retrieval_control"]
+    assert block["gating"] is False and block["reconciled"] is False and block["legacy"] is True
+    entry = report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" in entry and mr.LEGACY_RETRIEVAL_NOTE in entry
+    assert "reused" not in _text(report) and "run pending" not in _text(report)
+    # with the flag: consumed exactly as for every arm, still no "reused" for P1
+    cited = _report(fixture, handoff=_consume())
+    assert cited["canonical_status"]["canonical"] is True
+    assert cited["retrieval_control"]["reconciled"] is True
+    assert "reused" not in _text(cited)
+    # a bad handoff never touches the legacy canonical status, but is not cited either
+    bad = _report(fixture, handoff=_consume(tampered_handoff(tmp_path, headline={})))
+    assert bad["canonical_status"]["canonical"] is True
+    assert "STATUS NOT RECONCILED" in bad["controls_elsewhere"][RETRIEVAL_KEY]
+
+
+def test_a_caller_that_gates_the_control_itself_may_defer_it(yaw_fixture):
+    evaluated = evaluate_fixture(yaw_fixture, expect_arm="YAW")
+    report = mr.build_report(evaluated, yaw_fixture["run_dir"], yaw_fixture["audit_report"],
+                             yaw_fixture["context_manifest"], yaw_fixture["metadata_root"],
+                             defer_retrieval_gate=True)
+    assert report["canonical_status"]["canonical"] is True
+    assert report["retrieval_control"]["gating"] is False
+    assert report["retrieval_control"]["status"] == "STATUS NOT RECONCILED"
+
+
+def _cli_run(monkeypatch, fixture, out_dir, *extra):
+    real = mr.evaluate_run
+
+    def seam(*args, **kwargs):
+        kwargs.update(totals=fixture["totals"], require_manifest_census=False)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(mr, "evaluate_run", seam)
+    argv = ["--run-dir", fixture["run_dir"], "--out-dir", str(out_dir),
+            "--audit-report", fixture["audit_report"],
+            "--context-manifest", fixture["context_manifest"],
+            "--metadata-root", fixture["metadata_root"],
+            "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+            "--expect-arm", "YAW", "--n-boot", str(mr.BOOTSTRAP_N)] + list(extra)
+    assert mr.main(argv) == 0
+    return json.load(open(os.path.join(str(out_dir), mr.REPORT_JSON)))
+
+
+def test_the_report_cli_consumes_the_handoff(yaw_fixture, tmp_path, monkeypatch, capsys):
+    assert mr.parse_args(["--retrieval-handoff", "h.json"]).retrieval_handoff == "h.json"
+    assert mr.parse_args([]).retrieval_handoff is None
+    cited = _cli_run(monkeypatch, yaw_fixture, tmp_path / "cited",
+                     "--retrieval-handoff", REAL_HANDOFF)
+    assert cited["canonical_status"]["canonical"] is True
+    assert cited["retrieval_control"]["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert "RECONCILED" in capsys.readouterr().out
+    silent = _cli_run(monkeypatch, yaw_fixture, tmp_path / "silent")
+    assert silent["canonical_status"]["canonical"] is False
+    assert "STATUS NOT RECONCILED" in capsys.readouterr().out
+    # the reviewed refusals refuse the CLI before any evaluation
+    calls = []
+    monkeypatch.setattr(mr, "evaluate_run", lambda *a, **k: calls.append(1))
+    foreign = tampered_handoff(tmp_path, control_key="something_else")
+    with pytest.raises(SystemExit, match="REFUSED"):
+        mr.main(["--run-dir", yaw_fixture["run_dir"], "--out-dir", str(tmp_path / "x"),
+                 "--expect-metadata-bank-sha256", "0" * 64, "--retrieval-handoff", foreign])
+    assert calls == []
