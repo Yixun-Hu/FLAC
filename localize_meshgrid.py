@@ -167,6 +167,8 @@ def parse_args(argv=None):
     parser.add_argument("--emit-launch-record", default=None,
                         help="PROVENANCE MODE: write the launch record for THIS command to PATH "
                              "and exit; then run the identical command with --launch-record PATH")
+    parser.add_argument("--expect-arm", default=None, choices=["P1", "BF", "YAW"],
+                        help="refuse unless the checkpoint is this registered arm")
     return parser.parse_args(argv)
 
 
@@ -261,11 +263,94 @@ def validate_args(args):
         _refuse(f"--tau must be > 0, got {args.tau}")
     validate_protocol_flags(args)
     validate_launch_provenance(args)
-    if args.cond_method != "vanilla":
-        _refuse(f"cond_method={args.cond_method!r}: the registered exp_22 arm is vanilla; the "
-                "frame-average arm needs §1.5's narrower context cache, which this engine "
-                "refuses rather than mis-caches")
+    # fa_invariant is no longer refused here: the engine's own refusal
+    # (assert_cacheable) fires in preflight, AFTER every binding check (R2-A)
     return True
+
+
+def emit_launch_record(args, argv, environment=None, runtime=None):
+    """PROVENANCE MODE (B4): the probe module's record, for THIS command; no gates, no GPU work."""
+    from src.localization import meshgrid_segments as ms
+
+    try:
+        record = ms.build_launch_record(argv, device=args.device, environment=environment,
+                                        runtime=runtime)
+    except ValueError as error:
+        _refuse(str(error))
+    me.write_json(args.emit_launch_record, record)
+    print(f"launch record -> {args.emit_launch_record}\nnow run the identical command with "
+          f"--launch-record {args.emit_launch_record}")
+    return 0
+
+
+def admit_launch_record(args, argv, environment=None, runtime=None):
+    """The record must describe THIS invocation on THIS machine, every axis (probe mechanism)."""
+    from src.localization import meshgrid_segments as ms
+
+    try:
+        return ms.read_verified_launch_record(args.launch_record, argv, device=args.device,
+                                              environment=environment, runtime=runtime)
+    except (OSError, ValueError) as error:
+        _refuse(f"launch record: {error}")
+
+
+def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256,
+              model_config_sha256):
+    """Every CPU-side refusal about WHAT will run, in order, before any device work.
+
+    The binding; the registered arm and its complete method (the same gate the
+    report applies last -- strict for a canonical pass, a stamped deviation for a
+    diagnostic); the file's embedded training protocol; the ARE / cond-method
+    binding; and only THEN the engine's own cacheability refusal, so a protocol
+    mismatch is named as one rather than as a cache limitation (plan r2 §3 R2-A).
+    """
+    from src.localization import meshgrid_report as mr
+
+    binding = build_run_binding(args, plan, ckpt_sha256=ckpt_sha256, agree_sha256=agree_sha256,
+                                model_config_sha256=model_config_sha256)
+    try:
+        registered = mr.assert_registered_protocol(
+            binding, allow_deviation=not writes_query_artifacts(args),
+            expect_arm=args.expect_arm)
+    except ValueError as error:
+        _refuse(f"arm/protocol check: {error}")
+    embedded = mr.checkpoint_protocol_reasons(checkpoint, registered["arm"], binding)
+    for reason in embedded["reasons"]:
+        _refuse(f"embedded training protocol: {reason}")
+    cond_binding = validate_checkpoint(args, model_config, checkpoint)
+    me.assert_cacheable(args.cond_method)
+    return binding, {"registered": registered, "embedded": embedded,
+                     "cond_binding": cond_binding}
+
+
+def claim_out_dir(args, run_binding, advisory, launch):
+    """Publish or continue the binding, open this invocation's segment, list what to skip."""
+    from src.localization import meshgrid_segments as ms
+
+    if args.resume:
+        assert_resumable(args, args.out_dir)
+    if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
+        moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory,
+                                  declared_rooms=args.rooms)
+        if moved is not True:
+            me.record_advisory_change(args.out_dir, moved, advisory=advisory)
+            print(f"NOTE: batching changed since the published pass: {moved}\n  "
+                  f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
+    else:
+        me.write_binding(args.out_dir, run_binding, advisory=advisory,
+                         declared_rooms=args.rooms)
+    segment = (ms.open_segment(args.out_dir, args.launch_record, launch, resume=args.resume)
+               if launch else None)
+    done = set()
+    if args.resume:
+        done, rejected = me.completed_queries(
+            args.out_dir, binding_sha256=me.binding_sha256(run_binding),
+            launch_records=set(ms.ledger_shas(args.out_dir)) if launch else None)
+        print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
+              f"and regenerated")
+        for verdict in rejected[:5]:
+            print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
+    return done, segment
 
 
 def validate_checkpoint(args, model_config, ckpt):
@@ -383,10 +468,16 @@ def _iter_items(loader):
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
     validate_args(args)
     if args.merge_shards is not None:
         return _run_merge(args)
+    if args.emit_launch_record:
+        return emit_launch_record(args, argv)
+    # provenance first: a record that does not describe this invocation on this
+    # machine refuses before a single artifact is read (B4)
+    launch = admit_launch_record(args, argv) if args.launch_record else None
 
     with open(args.model_config) as handle:
         model_config = json.load(handle)
@@ -405,47 +496,39 @@ def main(argv=None):
           f"{me.SCORER_READOUT_DEVIATION}")
     print(f"noise key policy: {args.noise_policy}")
 
-    # CPU-only validation first: no ARE artifact, and the conditioning method
-    # is bound to the file itself -- both before anything reaches a device
+    # CPU-only validation first: the binding, the arm and its method, the file's
+    # own training protocol, no ARE, and the engine's refusal -- all before
+    # anything reaches a device (plan r2 §3 R2-A; the report is the LAST gate)
     ckpt = torch.load(args.ckpt_path, map_location="cpu")
-    binding_verdict = validate_checkpoint(args, model_config, ckpt)
-    print(f"cond_method binding: {binding_verdict['binding']} "
-          f"({binding_verdict.get('checkpoint_cond_method')!r})")
+    run_binding, verdict = preflight(args, plan, model_config, ckpt,
+                                     ckpt_sha256=me.file_sha256(args.ckpt_path),
+                                     agree_sha256=me.file_sha256(agree_path),
+                                     model_config_sha256=me.file_sha256(args.model_config))
+    registered = verdict["registered"]
+    status = ("registered protocol" if registered["is_registered"]
+              else f"DEVIATES on {sorted(registered['deviations'])}")
+    print(f"arm {registered['arm']} ({status}); cond_method binding: "
+          f"{verdict['cond_binding']['binding']} "
+          f"({verdict['cond_binding'].get('checkpoint_cond_method')!r})")
+    if launch:
+        print(f"launch record {launch['sha256'][:12]}... git {launch['git_sha'][:12]} on "
+              f"{launch['hostname']}, card {launch['execution_gpu_uuid']}")
 
     from src.localization.agree_embed import load_agree_audio
 
     agree = load_agree_audio(agree_path, args.device)
+    if agree.ckpt_sha256 != run_binding["agree_ckpt_sha256"]:
+        _refuse("the AGREE scorer that loaded is not the file the binding was built from")
     engine, context = me.build_mesh_engine(
         args.ckpt_path, model_config, agree, device=args.device,
         cond_method=args.cond_method, cond_autocast=args.cond_autocast,
         steps=args.steps, cfg_scale=args.cfg_scale, ckpt=ckpt)
     print(f"weights: {context['weights_source']}, latent {context['latent_shape']}")
 
-    run_binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
-                                    agree_sha256=agree.ckpt_sha256,
-                                    model_config_sha256=me.file_sha256(args.model_config))
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
-    done = set()
+    done, segment = set(), None
     if writes_query_artifacts(args):
-        if args.resume:
-            assert_resumable(args, args.out_dir)
-        if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
-            moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory,
-                                      declared_rooms=args.rooms)
-            if moved is not True:
-                me.record_advisory_change(args.out_dir, moved, advisory=advisory)
-                print(f"NOTE: batching changed since the published pass: {moved}\n  "
-                      f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
-        else:
-            me.write_binding(args.out_dir, run_binding, advisory=advisory,
-                             declared_rooms=args.rooms)
-        if args.resume:
-            done, rejected = me.completed_queries(
-                args.out_dir, binding_sha256=me.binding_sha256(run_binding))
-            print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
-                  f"and regenerated")
-            for verdict in rejected[:5]:
-                print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
+        done, segment = claim_out_dir(args, run_binding, advisory, launch)
 
     admitted = dump_allowance(args, plan)
     dump_queries = admitted["query_ids"]
@@ -476,7 +559,8 @@ def main(argv=None):
                           source_chunk=args.source_chunk, done=done,
                           probe=args.probe, probe_room=args.probe_room,
                           dump_queries=dump_queries, dump_top_n=args.dump_top_n,
-                          binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms)
+                          binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms,
+                          launch_record_sha256=(launch or {}).get("sha256"))
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT
@@ -507,6 +591,11 @@ def main(argv=None):
         return 0
 
     summary.pop("probe_records", None)
+    if segment is not None:
+        from src.localization import meshgrid_segments as ms
+
+        summary["launch_segment"] = ms.close_segment(args.out_dir,
+                                                     segment["launch_record_sha256"], summary)
     me.write_json(os.path.join(args.out_dir, "run_summary.json"), summary)
     print(f"scored {summary['n_scored']} queries ({summary['n_skipped']} skipped), "
           f"{summary['n_conditioner_rows']} source-conditioner rows, "

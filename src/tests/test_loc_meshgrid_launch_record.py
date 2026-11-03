@@ -464,3 +464,180 @@ def test_a_legacy_merge_states_that_it_predates_launch_records(tmp_path):
     assert report["launch_provenance"]["generation"] == "legacy_r1_binding"
     assert report["launch_provenance"]["complete"] is False
     assert not os.path.isfile(os.path.join(str(tmp_path / "merged"), ms.SEGMENTS_FILENAME))
+
+
+# --------------------------------------------------------------------------- #
+# the driver: emit, admit, fail-fast preflight, segments around the pass
+# --------------------------------------------------------------------------- #
+import localize_meshgrid as driver                             # noqa: E402
+from src.localization import meshgrid_report as mr           # noqa: E402
+
+MODEL_CONFIG = os.path.join("src", "configs", "model_configs", "FLAC", "AR", "FLAC_AR.json")
+FA_TRAINING = {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}
+YAW_TRAINING = {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}}
+
+
+def _args(tmp_path, *extra, protocol=None, record=True, validate=True):
+    out_dir, report_path, _base = ENG._fixture_audit(tmp_path)
+    manifest = tmp_path / "d1.json"
+    manifest.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    argv = (["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+             "--context-manifest", str(manifest), "--out-dir", str(tmp_path / "run"),
+             "--device", "cuda:0"]
+            + list(protocol if protocol is not None else ENG._VANILLA_PROTOCOL) + list(extra)
+            + (["--launch-record", str(tmp_path / "launch.json")] if record else []))
+    args = driver.parse_args(argv)
+    if validate:            # a record-less FULL pass is refused by design; its argv is
+        driver.validate_args(args)       # what an emission describes
+    return args, argv, me.load_audit_plan(report_path)
+
+
+def _preflight(args, plan, arm, training):
+    model_config = json.load(open(MODEL_CONFIG))
+    return driver.preflight(args, plan, model_config, {"model_config": {"training": training}},
+                            ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                            agree_sha256=mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"],
+                            model_config_sha256=mr.REGISTERED_ARTIFACT_SHA256[
+                                "model_config_sha256"])
+
+
+def test_validate_args_no_longer_preempts_the_fa_refusal(tmp_path):
+    args, _argv, _plan = _args(tmp_path, protocol=ENG._FA_PROTOCOL)
+    assert args.cond_method == "fa_invariant"          # reached here: no early refusal
+
+
+def test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check(tmp_path,
+                                                                           monkeypatch):
+    """The ordering the plan registers: binding checks FIRST, engine refusal SECOND."""
+    calls = []
+    for name, module in (("assert_registered_protocol", mr),
+                         ("checkpoint_protocol_reasons", mr), ("assert_cacheable", me)):
+        real = getattr(module, name)
+        monkeypatch.setattr(module, name, (lambda real, name: lambda *a, **k: (
+            calls.append(name), real(*a, **k))[1])(real, name))
+    real_validate = driver.validate_checkpoint
+    monkeypatch.setattr(driver, "validate_checkpoint", lambda *a, **k: (
+        calls.append("validate_checkpoint"), real_validate(*a, **k))[1])
+
+    args, _argv, plan = _args(tmp_path, protocol=ENG._FA_PROTOCOL)
+    # (a) a BF checkpoint trained fa, the registered orbit and partition: every
+    # binding check passes, and only then does the engine refuse fa
+    with pytest.raises(ValueError, match="fa_invariant"):
+        _preflight(args, plan, "BF", FA_TRAINING)
+    assert calls == ["assert_registered_protocol", "checkpoint_protocol_reasons",
+                     "validate_checkpoint", "assert_cacheable"]
+    # (b) the same flags against the P1 checkpoint: the ARM check names the
+    # mismatch and the engine is never asked
+    calls.clear()
+    with pytest.raises(SystemExit, match="arm/protocol"):
+        _preflight(args, plan, "P1", {})
+    assert "assert_cacheable" not in calls
+    # (c) a BF digest whose file was trained vanilla: the embedded protocol refuses
+    calls.clear()
+    with pytest.raises(SystemExit, match="embedded training protocol"):
+        _preflight(args, plan, "BF", {})
+    assert "assert_cacheable" not in calls
+
+
+def test_a_canonical_vanilla_pass_is_held_to_its_arm_before_any_device_work(tmp_path):
+    args, _argv, plan = _args(tmp_path)
+    binding, verdict = _preflight(args, plan, "YAW", YAW_TRAINING)
+    assert verdict["registered"]["arm"] == "YAW" and verdict["registered"]["is_registered"]
+    assert binding["frame_avg_angles"] == [0.0] and binding["fa_partition"] is None
+    # a vanilla canonical run under the BF checkpoint is the catastrophic mismatch
+    with pytest.raises(SystemExit, match="arm/protocol"):
+        _preflight(args, plan, "BF", FA_TRAINING)
+    # --expect-arm is held too
+    args, _argv, plan = _args(tmp_path, "--expect-arm", "P1")
+    with pytest.raises(SystemExit, match="--expect-arm"):
+        _preflight(args, plan, "YAW", YAW_TRAINING)
+
+
+def test_a_diagnostic_may_deviate_but_never_against_its_own_file(tmp_path):
+    args, _argv, plan = _args(tmp_path, "--probe", "1", record=False)
+    # a vanilla probe of the BF digest passes the registry as a stamped deviation
+    # but the file itself was trained fa, so the embedded protocol still refuses
+    with pytest.raises(SystemExit, match="embedded training protocol"):
+        _preflight(args, plan, "BF", FA_TRAINING)
+    _binding, verdict = _preflight(args, plan, "P1", {})
+    assert verdict["registered"]["arm"] == "P1"
+
+
+@pytest.mark.parametrize("broken, axis", [
+    ({"git_sha": "b" * 40, "git_sha_capture": OPT._ok("b" * 40)}, "git_sha"),
+    ({"git_status_dirty": True, "git_status_capture": OPT._ok(" M src/x.py")},
+     "git_tracked_clean"),
+    ({"hostname": "elsewhere", "hostname_capture": OPT._ok("elsewhere")}, "hostname"),
+])
+def test_the_driver_refuses_a_record_that_fails_any_environment_axis(tmp_path, broken, axis):
+    args, argv, _plan = _args(tmp_path)
+    emit(tmp_path, argv=[t for t in argv if t not in ("--launch-record",
+                                                      str(tmp_path / "launch.json"))])
+    with pytest.raises(SystemExit, match=axis):
+        driver.admit_launch_record(args, argv, environment=OPT._environment(**broken),
+                                   runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0))
+    with pytest.raises(SystemExit, match="gpu_uuid"):
+        driver.admit_launch_record(args, argv, environment=OPT._environment(),
+                                   runtime=OPT._runtime(OPT._FIXTURE_GPUS[1]["uuid"], 0))
+    admitted = driver.admit_launch_record(
+        args, argv, environment=OPT._environment(),
+        runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0))
+    assert admitted["environment_verified"] is True
+
+
+def test_the_driver_emits_the_record_for_the_command_it_will_run(tmp_path):
+    args, argv, _plan = _args(tmp_path, record=False, validate=False)
+    path = str(tmp_path / "emitted.json")
+    emit_argv = argv + ["--emit-launch-record", path]
+    emit_args = driver.parse_args(emit_argv)
+    driver.validate_args(emit_args)
+    assert driver.emit_launch_record(emit_args, emit_argv, environment=OPT._environment(),
+                                     runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0)) == 0
+    record = json.load(open(path))
+    assert record["argv"] == argv                       # the RUN's argv, flag pair stripped
+    assert record["execution_gpu_uuid"] == OPT._FIXTURE_GPUS[0]["uuid"]
+    run_argv = argv + ["--launch-record", path]
+    run_args = driver.parse_args(run_argv)
+    assert driver.admit_launch_record(
+        run_args, run_argv, environment=OPT._environment(),
+        runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0))["sha256"] == \
+        me.file_sha256(path)
+    # emission that cannot state a fact is refused, never written
+    with pytest.raises(SystemExit, match="cannot be written"):
+        driver.emit_launch_record(emit_args, emit_argv, environment=OPT._environment(),
+                                  runtime=OPT._runtime_failed())
+
+
+def _claim(tmp_path, argv_extra=(), name="launch.json"):
+    args, argv, plan = _args(tmp_path, *argv_extra, record=False, validate=False)
+    path = emit(tmp_path, argv=argv, name=name)
+    run_argv = argv + ["--launch-record", path]
+    run_args = driver.parse_args(run_argv)
+    driver.validate_args(run_args)
+    launch = driver.admit_launch_record(run_args, run_argv, environment=OPT._environment(),
+                                        runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0))
+    binding = driver.build_run_binding(run_args, plan, ckpt_sha256="1" * 64,
+                                       agree_sha256="2" * 64, model_config_sha256="3" * 64)
+    return run_args, binding, launch
+
+
+def test_claiming_the_out_dir_opens_one_segment_per_invocation(tmp_path):
+    advisory = {"source_chunk": 16, "batch_rows": 256}
+    args, binding, launch = _claim(tmp_path)
+    done, segment = driver.claim_out_dir(args, binding, advisory, launch)
+    assert done == set() and segment["segment_index"] == 0 and segment["resume"] is False
+    assert ms.ledger_shas(args.out_dir) == [launch["sha256"]]
+    # the same record cannot vouch for a second invocation
+    with pytest.raises(ValueError, match="one invocation"):
+        driver.claim_out_dir(args, binding, advisory, launch)
+    # a resume is a new invocation under a new record: a new segment
+    resumed, binding2, launch2 = _claim(tmp_path, ("--resume",), name="resume.json")
+    done, segment = driver.claim_out_dir(resumed, binding2, advisory, launch2)
+    assert segment["segment_index"] == 1 and segment["resume"] is True
+    assert ms.ledger_shas(args.out_dir) == [launch["sha256"], launch2["sha256"]]
+
+
+def test_a_diagnostic_never_claims_the_out_dir_or_opens_a_segment(tmp_path):
+    args, _argv, _plan = _args(tmp_path, "--probe", "1", record=False)
+    assert driver.writes_query_artifacts(args) is False
+    assert not os.path.exists(os.path.join(args.out_dir, ms.SEGMENTS_FILENAME))
