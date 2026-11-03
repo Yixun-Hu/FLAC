@@ -371,3 +371,27 @@ Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_D
 | `e2adccba` | rA HIGH (1/3) | `REGISTERED_RETRIEVAL_HANDOFF_SHA256` (the bytes the canonical P1 probe consumed); next to the reviewed helpers in `meshgrid_offgrid_probe`: `_parse_retrieval_handoff` (one buffer; `read_retrieval_handoff` output unchanged), `consume_retrieval_handoff` (digest, completed+canonical, census, report digest, headline), `unreconciled_retrieval_entry` | +69 |
 | `166caa18` | rA HIGH (2/3) | per-arm report: stale "built (r9b), run pending" gone; `retrieval_control` block + reconciled/NOT RECONCILED entry; gate `retrieval_handoff` for every non-legacy run; legacy P1 branch documented and never gated; `--retrieval-handoff`; `admit_run` defers that gate to the crossarm | +84 |
 | `05b9c455` | rA HIGH (3/3) | crossarm: the unconditional "reused" sentence removed; the handoff consumed once (`--retrieval-handoff`, before admission); own `canonical_status` (NON-CANONICAL when not reconciled); "REUSED, NOT RERUN" only after reconciliation; controls section with digests + headline | +78 |
+
+## Round exp22-R2-B (fa-aware conditioning for BF: the five-way split, executed partition, three parity gates, vanilla no-regression; plan r2 §2 table, §3 R2-B, Codex rA A8 / rA-F1 F6(b))
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `75628305`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants such as the gate notes count as code, as in the R2-A
+ledger; the scratchpad counter reproduces the R2-A/rA-F1 rows `38603f29` +2, `4b5549a5` +18,
+`d9c3ac05` +26, `b55bd7f6` +15, `e2adccba` +69). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `675aa0cb` | §3 R2-B vanilla gate | the vanilla no-regression fixture: score fingerprints, sidecars, conditioner calls, sampler batch shapes, replay and cache parity on the engine fixture pinned to digests frozen at the untouched `75628305` (log pinned too); mutation log shows it bites | 0 (tests only) |
+| `9e23f520` | B5 / A8 | the split's building blocks: `FA_BRANCH_IDS` (context_vit / context_scored_batch / source_cache), `_BranchConditioner`, `fa_branch` through the released `invariant_conditioning` at cap = batch, `FaSplit`, `fa_query_conditioning`, `fa_candidate_conditioning`, `source_conditioning(fa=…)`, `FaPartitionRecorder` (executed schema from the calls that ran, violations, per-batch histograms), `fa_partition_differences`, `assert_fa_partition_executed` | +143 (+145/−2) |
+| `955ee0a1` | §3 R2-B / A8 | the split wired through the pass: `assert_cacheable(cond_method, split)`, `split_for`, `MeshEngine.split`, `query_context`, `ReceiverCache.build(fa=…)`, `scored_conditioning` (+ `candidate_inputs` / `candidate_rows`), replay + dump; `run_pass(fa_partition=…)`: undeclared refused up front, executed == declared before every row / probe record / dump, `fa_partition_executed` in the summary | +58 (+78/−20) |
+| `2d889aa8` | A8 / F6(b) | `build_mesh_engine(frame_avg_angles=…)` engages the split; driver preflight + main pass orbit and declared partition; `write_probe_records` serializes `binding_fields(binding)` and the executed block (contract changes in two R2-A tests, disclosed) | +7 (+17/−10) |
+| `bb79a369` | H3 gate 1 | new `meshgrid_fa_parity.py`: fail-closed comparison helpers (shapes, dtypes, digests incl. bf16, finiteness, masks, DiT inputs), pre-registered tolerances, evidence provenance (git SHA, tracked-clean, host, card UUID) + atomic writer; `split_parity` (G1) | +180 |
+| `a58ed1d8` | H3 gate 2 | `cache_parity` (G2): production path at one candidate per call vs the released path per candidate, bit-exact; four counter-tests that must bite; informational production-chunk difference; gate views carry their own split; the vanilla `cache_parity_check` refuses an fa engine | +102 |
+| `7a8e43f7` | H3 gate 3 | `probe_case`, `production_parity` (G3): production batching vs exp_20's released `fa_conditioning` per scored batch, per-key ≤ 1e-3 (tensors, masks, DiT inputs; shapes/dtypes; replay orbit partition), |ΔS| ≤ `SCORE_TOLERANCE`, no argmax moved, executed == declared, full + tail scored and source batches; no quality value in the evidence | +136 (+145/−9) |
+| `c6b3fdda` | H3 | driver modes `--fa-split-parity-check` (autocast off), `--cache-parity-check` (gate 2 under fa), `--fa-production-parity-check` (256 / 16 / default only), `--parity-candidates`; one diagnostic per invocation; record-free; evidence to `--out-dir` | +94 (+103/−9) |
+| `8b2949bc` | §3 R2-B vanilla gate | `--replay-check --replay-against <published P1 run>` (G0): the probe queries' published rows replayed at their own batching through the vanilla path (reviewed matched-batching tie) — float16-exact sidecar, 0.0 aggregate, frozen grid digests of the committed P1 probe report, observation bank `ee2ba80a…`, published protocol | +101 (+106/−5) |
+| `0b41c9b1` | H3 / brief | G3 digest chains; all three gates on the REAL conditioner classes on CPU (tiny SimpleViT, no weights): G1, G2 bit-exact, G3 within 1e-3 | +12 (+14/−2) |
+| `a68c75b8` | self-review | gate cases stop the stream after the last wanted probe query; unknown `--probe-room` refused by name | +6 |
+| `a62b9d8d` | self-review | gate 2 sizes its slice within the query (one candidate: FAIL by name, not crash) | 0 (+2/−2) |
