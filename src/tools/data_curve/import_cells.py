@@ -28,6 +28,11 @@ fails quietly, which is what this module is for:
   from -- configured, caller-supplied, verified (the contract it states), re-read or
   recorded -- and a ``[limits]`` section says what no check establishes (codex V finding
   1). The manifest lists its digest.
+* **A copied value cannot add a line (codex V-F1 finding 1).** A record's ``source_sha``,
+  a re-read bundle's meta values and a file name are free text; joined raw, one holding a
+  line break became a forged ``(verified: ...)`` section. Both files are joined only by
+  ``_join_single_lines``, which refuses -- ``ValueError``, nothing installed -- any line
+  that ``str.splitlines`` would split; every value follows its key on its own line.
 
 No GPU, no network, and nothing in the destination checkout is committed or force-added
 here: this module copies and prints, the analyst commits.
@@ -306,16 +311,58 @@ def _recorded_source_sha(path):
     """The record's own ``source_sha``, or ``"absent"`` (the kit evaluator writes none).
 
     Read from the STAGED copy, just verified against the validated source's digest, so the
-    value comes from the bytes being published.
+    value comes from the bytes being published. A string goes through ``_printable``; any
+    other JSON value's ``str`` is already printable.
     """
     with open(path) as fin:
         record = json.load(fin)
     value = record.get("source_sha") if isinstance(record, dict) else None
-    return "absent" if value is None else str(value)
+    if value is None:
+        return "absent"
+    return _printable(value) if isinstance(value, str) else str(value)
 
 
 def _value(v):
-    return v if isinstance(v, str) else json.dumps(v)
+    """A value as the attestation writes it: a string via ``_printable``, anything else JSON."""
+    return _printable(v) if isinstance(v, str) else json.dumps(v)
+
+
+def _printable(text):
+    """A string copied from an artifact, made readable on its line (codex V-F1 finding 1).
+
+    Each non-printable character (``str.isprintable``: ESC and other controls, format
+    characters such as U+202E, non-ASCII spaces) becomes its Python escape, and each
+    backslash is doubled so an escape cannot be typed into a value. Line breaks are left
+    as they are: ``_join_single_lines`` refuses them -- escaped, a value spanning lines
+    would still be published.
+    """
+    return "".join("\\\\" if ch == "\\" else
+                   ch if ch.isprintable() or (ch + ".").splitlines() != [ch + "."] else
+                   repr(ch)[1:-1] for ch in text)
+
+
+def _join_single_lines(lines, what):
+    """``lines`` joined, ``\\n``-terminated -- or ``ValueError`` if any is not ONE line.
+
+    The one place either file is joined (codex V-F1 finding 1). A line break is whatever
+    ``str.splitlines`` breaks on (``\\n``, ``\\r``, ``\\v``, ``\\f``, ``\\x1c``-``\\x1e``,
+    ``\\x85``, U+2028, U+2029), so no reader splits the file anywhere but at the ``\\n``
+    written here. The message names the key and the section, is itself one line, and is
+    raised before the file is opened; ``_stage_and_install`` then removes its staging
+    directory, so nothing is installed.
+    """
+    section = None
+    for line in lines:
+        if line and line.splitlines() != [line]:
+            key, sep, _ = line.partition(": ")
+            name = f"the value of {key!r}" if sep else "a line"
+            under = f" under {section}" if section else ""
+            raise ValueError(f"{what}: {name}{under} is not one line ({line!r:.200}); a "
+                             "copied value may not add lines or sections -- nothing was "
+                             "installed")
+        if line.startswith("["):
+            section = line
+    return "\n".join(lines) + "\n"
 
 
 def _contract_lines(protocol, n_items, ks, seeds):
@@ -362,8 +409,8 @@ def _limit_lines():
         "importer's code; no run contract, split file, model config or training log is read",
         "N3: where --expect-ckpt-sha256 came from -- C2 checks its syntax and that the "
         "checkpoint bytes hash to it, not its provenance",
-        "N4: record_source_sha -- copied from the installed metrics record as it is; nothing "
-        "checks it",
+        "N4: record_source_sha -- copied from the installed metrics record as it is (non-"
+        "printable characters escaped, see the opening comment); nothing checks it",
         "N5: that a second read saw the bytes a check read -- metrics_record_sha256 is hashed "
         "after check_metrics parsed the record, and each cell's bundle section is read after "
         "check_bundle loaded the file; nothing compares the two reads",
@@ -502,6 +549,13 @@ def _render_attestation(context, files, checkout):
              f"as the cells; {MANIFEST_BASENAME} lists its sha256.",
              "# Each [<section> (<tag>: <detail>)] header says where its values come from:"]
     lines += [f"#   {name} -- {meaning}" for name, meaning in PROVENANCE_TAGS.items()]
+    lines += ["# Every line is one line, and every value follows its key on it ('key: value'):"
+              " a value that str.splitlines() would split refuses the import, so no value adds"
+              " a line or a [section]; text in a value that looks like a header or a tag is "
+              "still that key's value.",
+              "# In a string copied from a record or a bundle (record_source_sha, meta_*), each"
+              " non-printable character is written as its Python escape (\\x1b, \\t, "
+              "\\u202e) and each backslash as \\\\; paths are written as they are."]
     lines += ["", _header("run", "configured", "--arm/--tag and code constants; no run "
                           "contract, split file, model config or training log is read"),
               f"run_id: {context['run']}", f"arm: {arm}",
@@ -531,14 +585,15 @@ def _render_attestation(context, files, checkout):
     lines += ["", STAMP_HEADER, "# Time and importer of the FIRST import; an identical "
               "rerun leaves this file byte-for-byte as it was."]
     lines += [f"{key}: {context['stamp'][key]}" for key in STAMP_KEYS]
-    return "\n".join(lines) + "\n"
+    return _join_single_lines(lines, ATTESTATION_BASENAME)
 
 
 def _write_attestation(staging, checkout, context, files):
     """Write ``ATTESTATION.txt`` into the staging directory; return its sha256."""
     path = os.path.join(staging, names.assert_no_forbidden_substring(ATTESTATION_BASENAME))
+    text = _render_attestation(context, files, checkout)       # may refuse; nothing written
     with open(path, "w") as fout:
-        fout.write(_render_attestation(context, files, checkout))
+        fout.write(text)
     return _sha256(path)
 
 
@@ -568,8 +623,9 @@ def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files, attestatio
     digest, dest = attestation
     lines += ["#", "# --- attestation of the cells above (sha256  path relative to the FLAC "
               "checkout) ---", f"{digest}  {os.path.relpath(dest, checkout)}"]
+    text = _join_single_lines(lines, MANIFEST_BASENAME)        # may refuse; nothing written
     with open(path, "w") as fout:
-        fout.write("\n".join(lines) + "\n")
+        fout.write(text)
     return path
 
 
@@ -630,8 +686,9 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     digest): that is not a verdict about the artifacts. An artifact that vanishes or changes
     under the import after it was validated -- a bundle gone before its attestation re-read
     (``OSError``), a bundle whose re-read bytes no longer load (``ValueError``), a record
-    whose verified copy no longer parses (``ValueError``) -- also raises; in every case
-    nothing has been installed.
+    whose verified copy no longer parses (``ValueError``) -- also raises, as does a copied
+    value or path that would span lines in the attestation or the manifest
+    (``ValueError``); in every case nothing has been installed.
     """
     run = names.run_id(arm, tag)                    # validates the arm and the fraction
     # The one rule about what a checkpoint digest may be lives in names; re-stating it here
