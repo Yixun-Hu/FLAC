@@ -67,6 +67,15 @@ COMMITTED_PROBE_REPORT = os.path.join("worklog", "worklog_yixun", "exp_22_loc_me
 #: hashes to this, and anything else is refused before a replay starts
 COMMITTED_PROBE_REPORT_SHA256 = (
     "8c5fd5e8b35e380fe6bc66a328eb8353ce5ef75b56fc02a587ddb5c85957ffd3")
+#: ... and its CONTENT, registered beside its bytes (Codex rB-F2 finding 2): the canonical
+#: digest (``crossarm.canonical_sha256``, as ``load_probe_anchor`` computes it) of its ORDERED
+#: probe query ids and of its frozen grid-digest map ``{query_id: {row_sha256, sims_sha256}}``,
+#: computed from the committed file -- an evidence's anchor block is authenticated by these,
+#: not by the sha string it claims (src/tests re-derives both from the file's bytes)
+COMMITTED_PROBE_QUERY_IDS_SHA256 = (
+    "4f5743a8c7dcead5486281560a60e709ff93e44e315acf16722962790ab82382")
+COMMITTED_PROBE_FROZEN_DIGESTS_SHA256 = (
+    "9ecef47d94165e375c87c98597815a8b0c1ef3b8e83fe75112519ab20f31011c")
 #: binding fields that decide no number: the dump authority governs dumps only
 REPLAY_BINDING_EXEMPT = ("dump_cases_sha256",)
 GATE_NOTES = {
@@ -339,6 +348,13 @@ def anchor_reasons(block, key_set_equal):
     if (block.get("query_ids_sha256") != canonical_sha256(ids) or len(set(ids)) != len(ids)
             or block.get("n_queries") != len(ids)):
         reasons.append("anchor: its ordered query ids do not match their digest or count")
+    if block.get("query_ids_sha256") != COMMITTED_PROBE_QUERY_IDS_SHA256:
+        reasons.append(f"anchor: its ordered query ids are not the registered content of the "
+                       f"pinned probe report ({str(block.get('query_ids_sha256'))[:12]}... vs "
+                       f"{COMMITTED_PROBE_QUERY_IDS_SHA256[:12]}...; Codex rB-F2 finding 2)")
+    if block.get("frozen_digests_sha256") != COMMITTED_PROBE_FROZEN_DIGESTS_SHA256:
+        reasons.append("anchor: its frozen grid-digest map is not the registered content of the "
+                       "pinned probe report")
     if key_set_equal is not True:
         reasons.append("anchor: the registered and consumed probe queries are not exactly the "
                        "anchor's key set")
@@ -350,6 +366,19 @@ def anchor_evidence(anchor, registered, consumed):
     block = {key: (anchor or {}).get(key) for key in ANCHOR_EVIDENCE}
     equal = key_set_equal(block, registered, consumed)
     return block, equal, anchor_reasons(block if anchor else None, equal)
+
+
+def _content_reasons(ids, frozen):
+    """An anchor's ordered ids (``None``: not compared) and frozen map against the registered
+    content of the pinned report (Codex rB-F2 finding 2)."""
+    from src.localization.crossarm import canonical_sha256
+
+    reasons = [] if ids is None or canonical_sha256([str(query) for query in ids]) == (
+        COMMITTED_PROBE_QUERY_IDS_SHA256) else [
+        "its ordered query ids are not the registered content of the pinned probe report"]
+    return reasons + ([] if canonical_sha256(frozen) == COMMITTED_PROBE_FROZEN_DIGESTS_SHA256
+                      else ["its frozen grid-digest map is not the registered content of the "
+                            "pinned probe report"])
 
 
 def key_set_equal(block, registered, consumed):
@@ -867,11 +896,17 @@ def load_probe_anchor(path=COMMITTED_PROBE_REPORT):
     ids = [str(record["query_id"]) for record in records]
     if len(set(ids)) != len(ids):
         raise ValueError(f"the probe report {str(path)!r} names a query twice")
+    digests = {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
+                                         "sims_sha256": record["grid_sims_sha256"]}
+               for record in records}
+    content = (canonical_sha256(ids), canonical_sha256(digests))
+    if content != (COMMITTED_PROBE_QUERY_IDS_SHA256, COMMITTED_PROBE_FROZEN_DIGESTS_SHA256):
+        raise ValueError(f"the probe report {str(path)!r} is not the registered content of the "
+                         f"pinned report: its ordered ids / frozen map hash to "
+                         f"{content[0][:12]}... / {content[1][:12]}... (Codex rB-F2 finding 2)")
     return {"path": str(path), "sha256": digest, "pinned_sha256": COMMITTED_PROBE_REPORT_SHA256,
-            "query_ids": ids, "query_ids_sha256": canonical_sha256(ids), "n_queries": len(ids),
-            "digests": {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
-                                                  "sims_sha256": record["grid_sims_sha256"]}
-                        for record in records}}
+            "query_ids": ids, "query_ids_sha256": content[0], "n_queries": len(ids),
+            "frozen_digests_sha256": content[1], "digests": digests}
 
 
 def frozen_grid_digests(probe_report_path=COMMITTED_PROBE_REPORT):
@@ -881,7 +916,7 @@ def frozen_grid_digests(probe_report_path=COMMITTED_PROBE_REPORT):
 
 #: what of the anchor a gate's evidence publishes (the digests themselves stay in the report)
 ANCHOR_EVIDENCE = ("path", "sha256", "pinned_sha256", "query_ids", "query_ids_sha256",
-                   "n_queries")
+                   "n_queries", "frozen_digests_sha256")
 
 
 def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_bank_sha256,
@@ -902,6 +937,8 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
         reasons.append(f"the frozen anchor {str(anchor.get('sha256'))[:12]}... is not the pinned "
                        f"committed probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}...")
     frozen_digests = anchor.get("digests") or {}
+    reasons += [f"the frozen anchor: {why}" for why in _content_reasons(
+        anchor.get("query_ids") or [], frozen_digests)]
     if str(observation_bank_sha256) != str(expected_observation_bank_sha256):
         reasons.append(f"the observation bank hashes to {str(observation_bank_sha256)[:12]}..., "
                        f"not the frozen {str(expected_observation_bank_sha256)[:12]}...")
@@ -1208,6 +1245,10 @@ def _reverify_replay(evidence, inputs):
     reasons += anchor_reasons(anchor, equal)
     if inputs.get("anchor_key_set_equal") is not equal:
         reasons.append("anchor: the published anchor_key_set_equal is not the recomputed one")
+    # the map the frozen clause compared, re-assembled from the queries: replacing the frozen
+    # and published maps together no longer re-verifies (Codex rB-F2 finding 2)
+    reasons += [f"G0's queries: {why}" for why in _content_reasons(
+        None, {str(entry["query_id"]): entry.get("frozen_digests") for entry in queries})]
     banks = (inputs.get("observation_bank_sha256"), inputs.get("expected_observation_bank_sha256"))
     if banks != (FROZEN_OBSERVATION_BANK_SHA256, FROZEN_OBSERVATION_BANK_SHA256):
         reasons.append(f"the observation bank {str(banks[0])[:12]}... is not the frozen "

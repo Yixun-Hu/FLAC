@@ -1011,15 +1011,33 @@ def _ids(cases):
     return [case["query"].query_id for case in cases]
 
 
+#: the pinned anchor's registered constants -- its bytes' digest and (Codex rB-F2 finding 2)
+#: its content digests -- which a fixture probe set re-registers for its own test
+ANCHOR_CONSTANTS = ("COMMITTED_PROBE_REPORT_SHA256", "COMMITTED_PROBE_QUERY_IDS_SHA256",
+                    "COMMITTED_PROBE_FROZEN_DIGESTS_SHA256")
+
+
+@pytest.fixture(autouse=True)
+def _registered_anchor(monkeypatch):
+    """Every test gets the COMMITTED anchor constants back afterwards, whatever a fixture
+    probe set re-registered (``_anchor_for`` assigns them directly; monkeypatch restores)."""
+    for name in ANCHOR_CONSTANTS:
+        monkeypatch.setattr(fp, name, getattr(fp, name, None), raising=False)
+
+
 def _anchor_for(ids):
     """A pinned probe-report anchor over ``ids``, shaped as ``fp.load_probe_anchor`` returns it
-    (gate 3's registered set is the pinned committed report's -- Codex rB-F1 finding 2)."""
+    (gate 3's registered set is the pinned committed report's -- Codex rB-F1 finding 2). The
+    fixture's ids and frozen map are RE-REGISTERED as the pinned report's content (Codex
+    rB-F2 finding 2) for this test only -- the autouse ``_registered_anchor`` restores them."""
     ids = [str(query) for query in ids]
+    digests = {query: {"row_sha256": "1" * 64, "sims_sha256": "2" * 64} for query in ids}
+    fp.COMMITTED_PROBE_QUERY_IDS_SHA256 = canonical_sha256(ids)
+    fp.COMMITTED_PROBE_FROZEN_DIGESTS_SHA256 = canonical_sha256(digests)
     return {"path": "fixture_probe_report.json", "sha256": fp.COMMITTED_PROBE_REPORT_SHA256,
             "pinned_sha256": fp.COMMITTED_PROBE_REPORT_SHA256, "query_ids": ids,
             "query_ids_sha256": canonical_sha256(ids), "n_queries": len(ids),
-            "digests": {query: {"row_sha256": "1" * 64, "sims_sha256": "2" * 64}
-                        for query in ids}}
+            "frozen_digests_sha256": canonical_sha256(digests), "digests": digests}
 
 
 def _g3(engine, cases, **kwargs):
@@ -1321,6 +1339,13 @@ def _fake_anchor(tmp_path, monkeypatch, frozen, name="probe_report.json"):
 
     monkeypatch.setattr(fp, "COMMITTED_PROBE_REPORT_SHA256",
                         hashlib.sha256(path.read_bytes()).hexdigest())
+    # ... and its CONTENT registered with it (Codex rB-F2 finding 2)
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_QUERY_IDS_SHA256",
+                        canonical_sha256([str(query_id) for query_id in frozen]), raising=False)
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_FROZEN_DIGESTS_SHA256",
+                        canonical_sha256({str(query_id): {"row_sha256": d["row_sha256"],
+                                                          "sims_sha256": d["sims_sha256"]}
+                                          for query_id, d in frozen.items()}), raising=False)
     return fp.load_probe_anchor(str(path))
 
 
@@ -3092,3 +3117,98 @@ def test_the_per_arm_report_refuses_a_non_admissible_run_by_name(tmp_path, merge
                                check="final", error="simulated")
     with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
         RPT.evaluate_fixture(fixture)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 2: the pinned anchor's CONTENT -- its
+# ordered probe query ids and its frozen grid-digest map -- is registered beside the
+# digest of its bytes, and every clause that reads an anchor authenticates it
+# --------------------------------------------------------------------------- #
+def _committed_content():
+    """The committed report's ordered ids and frozen map, read WITHOUT the module's loader."""
+    records = json.load(open(PROBE_REPORT))["records"]
+    ids = [str(record["query_id"]) for record in records]
+    frozen = {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
+                                        "sims_sha256": record["grid_sims_sha256"]}
+              for record in records}
+    return ids, frozen
+
+
+def test_the_registered_anchor_content_is_the_committed_reports():
+    """The two content constants are recomputed here from the committed file's bytes with
+    the module's canonical digest, so they cannot drift from the pinned report."""
+    ids, frozen = _committed_content()
+    assert len(ids) == 16
+    assert fp.COMMITTED_PROBE_QUERY_IDS_SHA256 == canonical_sha256(ids) == (
+        "4f5743a8c7dcead5486281560a60e709ff93e44e315acf16722962790ab82382")
+    assert fp.COMMITTED_PROBE_FROZEN_DIGESTS_SHA256 == canonical_sha256(frozen) == (
+        "9ecef47d94165e375c87c98597815a8b0c1ef3b8e83fe75112519ab20f31011c")
+    anchor = fp.load_probe_anchor(PROBE_REPORT)
+    assert anchor["query_ids"] == ids and anchor["digests"] == frozen
+    assert anchor["query_ids_sha256"] == fp.COMMITTED_PROBE_QUERY_IDS_SHA256
+    assert anchor["frozen_digests_sha256"] == fp.COMMITTED_PROBE_FROZEN_DIGESTS_SHA256
+    assert "frozen_digests_sha256" in fp.ANCHOR_EVIDENCE
+    assert fp.anchor_reasons({key: anchor[key] for key in fp.ANCHOR_EVIDENCE}, True) == []
+
+
+def test_an_anchor_claiming_the_pinned_digest_over_other_content_is_refused():
+    """Codex rB-F2's probe: an arbitrary query id, its digest recomputed, the pinned sha
+    strings retained -- ``anchor_reasons(..., True)`` returned [] at rB-F2."""
+    anchor = fp.load_probe_anchor(PROBE_REPORT)
+    block = {key: anchor[key] for key in fp.ANCHOR_EVIDENCE}
+    for ids in (["0|forged/Q/Q_idx_0/S001_R001_hybrid_IR.wav"],
+                anchor["query_ids"][:-1] + ["0|forged/Q/Q_idx_0/S001_R001_hybrid_IR.wav"],
+                list(reversed(anchor["query_ids"]))):
+        forged = dict(block, query_ids=ids, query_ids_sha256=canonical_sha256(ids),
+                      n_queries=len(ids))
+        reasons = fp.anchor_reasons(forged, True)
+        assert any("query ids are not the registered content" in r for r in reasons), reasons
+    moved = dict(block, frozen_digests_sha256="0" * 64)
+    assert any("frozen grid-digest map is not the registered content" in reason
+               for reason in fp.anchor_reasons(moved, True))
+    assert fp.anchor_reasons(dict(block, frozen_digests_sha256=None), True)
+
+
+def test_a_report_with_the_pinned_bytes_digest_but_other_content_is_refused_at_load(tmp_path,
+                                                                                  monkeypatch):
+    """The bytes check alone vouches for the content only while the constants agree with the
+    file; the loader holds the parsed content to the registered digests too."""
+    import hashlib
+
+    path = tmp_path / "other.json"
+    path.write_text(json.dumps({"records": [{"query_id": "0|x", "grid_row_sha256": "1" * 64,
+                                             "grid_sims_sha256": "2" * 64}]}))
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_REPORT_SHA256",
+                        hashlib.sha256(path.read_bytes()).hexdigest())
+    with pytest.raises(ValueError, match="registered content"):
+        fp.load_probe_anchor(str(path))
+
+
+def test_gate0_fails_on_a_frozen_map_that_is_not_the_registered_content(tmp_path, monkeypatch):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_FROZEN_DIGESTS_SHA256", "0" * 64)
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding,
+        expected_queries=_ids(cases), **G0_KW)
+    assert report["verdict"] == "FAIL"
+    assert any("frozen grid-digest map" in reason for reason in report["reasons"])
+
+
+def test_a_coordinated_swap_of_g0s_frozen_and_published_maps_does_not_re_verify(
+        tmp_path, monkeypatch, clean_env):
+    """Codex rB-F2: G0's re-verification compared frozen == published only, so replacing both
+    maps together re-verified. The frozen map must hash to the registered content."""
+    evidence = _real_gate_evidence(tmp_path, monkeypatch, "G0")
+    assert fp.reverify_gate_evidence(evidence) == []
+    swapped = copy.deepcopy(evidence)
+    for entry in swapped["queries"]:
+        entry["frozen_digests"] = {"row_sha256": "3" * 64, "sims_sha256": "4" * 64}
+        entry["published_digests"] = dict(entry["frozen_digests"])
+    reasons = fp.reverify_gate_evidence(swapped)
+    assert any("frozen grid-digest map" in reason for reason in reasons), reasons
+    # the anchor block's own claim is held to the registration as well
+    claimed = _tamper(evidence, ["inputs", "probe_report", "frozen_digests_sha256"], "0" * 64)
+    assert any("frozen grid-digest map is not the registered content" in reason
+               for reason in fp.reverify_gate_evidence(claimed))

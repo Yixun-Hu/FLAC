@@ -1,0 +1,18 @@
+# exp_22 rB-F3 cycle 1 RED (anchor content; Codex rB-F2 finding 2), HEAD 383a1ab5 + working tree (new tests + fixture re-registration only), 2026-11-03T15:27:01-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest src/tests/test_loc_meshgrid_fa_split.py --tb=line (one line per failure, then the summary)
+E   AssertionError: assert None == '4f5743a8c7dcead5486281560a60e709ff93e44e315acf16722962790ab82382'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3142: AssertionError: assert None == '4f5743a8c7dcead5486281560a60e709ff93e44e315acf16722962790ab82382'
+E   AssertionError: []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3165: AssertionError: []
+E   Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3183: Failed: DID NOT RAISE ValueError
+E   AssertionError: assert 'PASS' == 'FAIL'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3195: AssertionError: assert 'PASS' == 'FAIL'
+E   AssertionError: []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3210: AssertionError: []
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_registered_anchor_content_is_the_committed_reports
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_anchor_claiming_the_pinned_digest_over_other_content_is_refused
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_report_with_the_pinned_bytes_digest_but_other_content_is_refused_at_load
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_fails_on_a_frozen_map_that_is_not_the_registered_content
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_coordinated_swap_of_g0s_frozen_and_published_maps_does_not_re_verify
+5 failed, 230 passed in 87.28s (0:01:27)
