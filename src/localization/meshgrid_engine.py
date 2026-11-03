@@ -534,7 +534,9 @@ FA_EXECUTION_NOTE = (
     "Before every row a prefix whose batches have not yet filled a declared micro-batch is "
     "consistent; the pass's final check, the merge and gate 3 need every declared micro-batch "
     "observed at full size. A pass whose executed partition differs from the declared "
-    "run_binding.json fa_partition publishes nothing")
+    "run_binding.json fa_partition stops; the rows it already wrote stay on disk as "
+    "INCOMPLETE, NON-ADMISSIBLE artifacts -- the shard writes partition_check_failed.json and "
+    "every merge, report and reopen refuses it (plan r2 amendment A6 iv)")
 #: the micro-batch fields a tail-only prefix may leave below their declared value
 FA_BATCH_FIELDS = ("candidate_micro_batch", "frame_avg_fwd_cap")
 
@@ -780,9 +782,48 @@ def assert_fa_partition_executed(declared, recorder, final=True):
     if differing or report["violations"]:
         raise ValueError(f"the executed frame-average partition is not the declared one: "
                          f"{differing} differ (executed {report['executed']}); violations "
-                         f"{report['violations'][:3]}. Nothing is published under a partition "
-                         "the run did not declare")
+                         f"{report['violations'][:3]}. A scored pass stops here and marks its "
+                         f"shard NON-ADMISSIBLE ({FA_FAILURE_FILENAME}; plan r2 amendment A6 iv)")
     return report
+
+
+FA_FAILURE_FILENAME = "partition_check_failed.json"
+FA_FAILURE_NOTE = (
+    "NON-ADMISSIBLE SHARD (plan r2 amendment A6 (iv); Codex rB-F1 NIT 5): an executed-partition "
+    "check of this scored pass failed, so the frame-average partition it ran is not the one its "
+    "run_binding.json declares. The rows it wrote are INCOMPLETE ARTIFACTS: every merge, "
+    "per-arm report, crossarm admission and reopen refuses this directory by name. Fix the "
+    "cause, then RESTART the shard in a fresh out-dir with fresh launch records -- never resume")
+
+
+def write_partition_failure(out_dir, declared, recorder, check, error, n_segments=None,
+                            launch_record_sha256=None):
+    """Mark ``out_dir`` NON-ADMISSIBLE (A6 iv) with what failed: which check, the declared and
+    executed blocks, the differing paths, the violations and the judged call counts."""
+    from datetime import datetime, timezone
+
+    report = recorder.report()
+    os.makedirs(str(out_dir), exist_ok=True)           # a pass refused before its first row
+    write_json(os.path.join(str(out_dir), FA_FAILURE_FILENAME), {
+        "note": FA_FAILURE_NOTE, "check": str(check), "error": str(error), "declared": declared,
+        "executed": report["executed"], "violations": report["violations"],
+        "differences": fa_partition_differences(declared, report["executed"]),
+        "branches": report["branches"], "counts": recorder.to_counts(),
+        "counts_sha256": counts_sha256(recorder),
+        "ledger": {"file": FA_LEDGER_FILENAME, "n_segments": n_segments},
+        "launch_record_sha256": launch_record_sha256,
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+
+
+def assert_admissible(run_dir):
+    """A6 (iv): a shard whose executed-partition check failed is refused by name -- by the
+    merge, the per-arm report and every reopen (it is restarted, never resumed)."""
+    if os.path.exists(os.path.join(str(run_dir), FA_FAILURE_FILENAME)):
+        raise ValueError(f"{run_dir} is NON-ADMISSIBLE (plan r2 amendment A6 (iv)): an "
+                         f"executed-partition check of its pass failed ({FA_FAILURE_FILENAME}); "
+                         "its rows are incomplete artifacts that no merge, report or resume "
+                         "admits -- restart the shard in a fresh out-dir once the cause is fixed")
+    return True
 
 
 FA_LEDGER_FILENAME = "fa_partition_ledger.json"
@@ -905,6 +946,7 @@ def read_fa_ledger(out_dir, declared, exact=False):
     merge, as a consistent prefix at a reopen). A vanilla run carries no ledger and no block.
     Returns ``None`` when no ledger is on disk and none is required."""
     out_dir = str(out_dir)
+    assert_admissible(out_dir)                         # A6 (iv), before anything is read
     path = os.path.join(out_dir, FA_LEDGER_FILENAME)
     summary_path = os.path.join(out_dir, RUN_SUMMARY_FILENAME)
     summary = _read_object(summary_path) if os.path.isfile(summary_path) else None
@@ -2532,8 +2574,13 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         # the RUN's executed partition: every segment's counts, this one included (a
         # finished shard resumed conditions nothing and still publishes it -- rB 5)
         merged = persist_fa_ledger(fa_ledger, engine.split.recorder, query=False)
-        state["fa_partition_executed"] = fa_executed_block(
-            fa_partition, merged, len(fa_ledger["payload"]["segments"]))
+        n_segments = len(fa_ledger["payload"]["segments"])
+        try:
+            state["fa_partition_executed"] = fa_executed_block(fa_partition, merged, n_segments)
+        except ValueError as error:                    # A6 (iv): non-admissible, on disk
+            write_partition_failure(out_dir, fa_partition, merged, "final", error, n_segments,
+                                    launch_record_sha256)
+            raise
     elif engine.split is not None:
         # the no-quality probe: what ran, prefix-consistent, published not judged
         ran = any(engine.split.recorder.counts.values())
@@ -2595,8 +2642,16 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                     # Codex rA A8: the executed partition is the declared one before
                     # this query's row (or probe record, or dump) can exist -- a
                     # prefix that has not yet filled a micro-batch is consistent
-                    assert_fa_partition_executed(fa_partition, engine.split.recorder,
-                                                 final=False)
+                    try:
+                        assert_fa_partition_executed(fa_partition, engine.split.recorder,
+                                                     final=False)
+                    except ValueError as error:        # A6 (iv): a scored shard says so
+                        if fa_ledger is not None:
+                            write_partition_failure(
+                                out_dir, fa_partition, engine.split.recorder, "before_row",
+                                error, len(fa_ledger["payload"]["segments"]),
+                                launch_record_sha256)
+                        raise
                     if fa_ledger is not None:          # on disk BEFORE the row (rB 5)
                         persist_fa_ledger(fa_ledger, engine.split.recorder)
                 state["n_candidate_query_pairs"] += query.n_candidates
@@ -2881,6 +2936,7 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
 # --------------------------------------------------------------------------- #
 def _read_shard(shard_dir):
     """One shard's published binding and summary, or a refusal."""
+    assert_admissible(shard_dir)                       # A6 (iv): named before anything else
     binding_path = os.path.join(str(shard_dir), BINDING_FILENAME)
     if not os.path.isfile(binding_path):
         raise ValueError(f"{shard_dir} publishes no {BINDING_FILENAME}; a shard that cannot "

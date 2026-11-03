@@ -2826,13 +2826,17 @@ def _fa_files(out):
     return ledger_path, summary_path
 
 
-def _two_segment_run(out, stack):
+def _two_segment_run(out, stack, rooms=None):
     """A finished fa run ``out`` plus a final no-op resume: two ledger segments and the
     run summary the driver writes after each invocation."""
     plan, records, items = stack
     done, _rejected = me.completed_queries(out)
-    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done,
+    bound = os.path.join(out, me.BINDING_FILENAME)
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done, rooms=rooms,
+                          binding_sha256=(json.load(open(bound))["binding_sha256"]
+                                          if os.path.isfile(bound) else None),
                           fa_partition=FA_DECLARED, **FA_SHAPES)
+    assert summary["n_scored"] == 0                          # a true no-op resume
     me.write_json(_fa_files(out)[1], summary)
     assert len(_ledger(out)["segments"]) == 2
     return done
@@ -2939,7 +2943,7 @@ def re_escape(text):
 def test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written(tmp_path, name):
     plan, records, dirs, totals = _fa_shards(tmp_path)
     shard = dirs["b"]
-    _two_segment_run(shard, _fa_aligned(tmp_path / "stack"))
+    _two_segment_run(shard, _fa_aligned(tmp_path / "stack"), rooms=["B/B_idx_2"])
     if name == "stale summary":            # a reopen admits it (a crash after the segment);
         summary_path = _fa_files(shard)[1]  # the merge needs the summary of EVERY segment
         summary = json.load(open(summary_path))
@@ -2973,3 +2977,104 @@ def test_the_driver_refuses_a_corrupted_ledger_before_it_writes_or_touches_a_dev
     with pytest.raises(SystemExit, match="counts do not hash to its counts_sha256"):
         _preflight(args, "BF")
     assert _snapshot(out) == before
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB-F1 NIT 5; plan r2 amendment A6 (iv): a shard whose executed-partition check
+# failed is NON-ADMISSIBLE -- it says so on disk, and the merge, the per-arm report and
+# every reopen refuse it by name (restart in a fresh out-dir, never resume)
+# --------------------------------------------------------------------------- #
+NEVER_FILLS = me.declared_fa_partition(list(C4), batch_rows=800, num_samples=4, source_chunk=3)
+
+
+def _failed_pass(tmp_path, declared=NEVER_FILLS, **overrides):
+    plan, records, items = _fa_aligned(tmp_path)
+    out = str(tmp_path / "run")
+    kwargs = dict(FA_SHAPES, fa_partition=declared, **overrides)
+    with pytest.raises(ValueError, match="not the declared one"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, **kwargs)
+    return out, (plan, records, items), kwargs
+
+
+def test_a_pass_whose_final_partition_check_fails_marks_itself_non_admissible(tmp_path):
+    """Micro-batch 200 is never filled: every row passes the prefix rule, the final exact
+    check fails -- the rows stay on disk as INCOMPLETE artifacts, and the shard says so."""
+    out, (plan, records, items), kwargs = _failed_pass(tmp_path, batch_rows=800)
+    marker = json.load(open(os.path.join(out, me.FA_FAILURE_FILENAME)))
+    assert marker["check"] == "final" and marker["note"] == me.FA_FAILURE_NOTE
+    assert "A6 (iv)" in marker["note"] and "never" in marker["note"]
+    assert marker["declared"] == NEVER_FILLS
+    assert marker["differences"] == ["context_scored_batch.candidate_micro_batch"]
+    assert marker["executed"]["context_scored_batch"]["candidate_micro_batch"] < 200
+    assert marker["violations"] == [] and "context_scored_batch" in marker["error"]
+    assert marker["ledger"] == {"file": me.FA_LEDGER_FILENAME, "n_segments": 1}
+    # the judged counts are the run's summed ledger, and they re-derive the executed block
+    assert marker["counts_sha256"] == _ledger(out)["merged"]["counts_sha256"]
+    assert me.FaPartitionRecorder.from_counts(marker["counts"]).executed() == marker["executed"]
+    assert me.read_rows(out) and not os.path.exists(os.path.join(out, "run_summary.json"))
+    # never resumed: a reopen is refused by name before anything is written
+    before = _snapshot(out)
+    done, _rejected = me.completed_queries(out)
+    with pytest.raises(ValueError, match="NON-ADMISSIBLE"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done, **kwargs)
+    for check in (lambda: me.read_fa_ledger(out, NEVER_FILLS),
+                  lambda: me.assert_admissible(out)):
+        with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+            check()
+    assert _snapshot(out) == before
+
+
+def test_a_pass_refused_before_a_row_marks_itself_non_admissible_too(tmp_path):
+    """The before-row check refuses a partition the pass does not execute (source chunk 16
+    declared, 3 run): the same non-admissible state, named by the check that caught it."""
+    declared = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=16)
+    out, _stack, _kwargs = _failed_pass(tmp_path, declared=declared)
+    marker = json.load(open(os.path.join(out, me.FA_FAILURE_FILENAME)))
+    assert marker["check"] == "before_row"
+    assert "source_cache.candidate_micro_batch" in marker["differences"]
+
+
+def test_a_probe_never_writes_a_failure_marker(tmp_path):
+    _engine, summary, out, _stack = _fa_pass(tmp_path, batch_rows=800, fa_partition=NEVER_FILLS,
+                                             probe=1)
+    assert summary["fa_partition_executed"]["branches"]["context_scored_batch"]["saturated"] is False
+    assert not os.path.exists(os.path.join(out, me.FA_FAILURE_FILENAME))
+
+
+def test_the_merge_refuses_a_non_admissible_shard_by_name_with_nothing_written(tmp_path,
+                                                                             monkeypatch):
+    """Shard b finished, then a later invocation's final exact check failed: the pass itself
+    marks the shard (its stale run summary is still on disk) and the merge names it."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    real = me.assert_fa_partition_executed
+
+    def fails_finally(declared, recorder, final=True):
+        if final:
+            raise ValueError("the executed frame-average partition is not the declared one "
+                             "(simulated)")
+        return real(declared, recorder, final=False)
+
+    monkeypatch.setattr(me, "assert_fa_partition_executed", fails_finally)
+    stack = _fa_aligned(tmp_path / "stack")
+    with pytest.raises(ValueError, match="not the declared one"):
+        _two_segment_run(dirs["b"], stack, rooms=["B/B_idx_2"])
+    monkeypatch.setattr(me, "assert_fa_partition_executed", real)
+    assert os.path.exists(os.path.join(dirs["b"], me.FA_FAILURE_FILENAME))
+    merged = str(tmp_path / "merged")
+    with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("merged", [False, True])
+def test_the_per_arm_report_refuses_a_non_admissible_run_by_name(tmp_path, merged):
+    import test_loc_meshgrid_report as RPT
+
+    fixture = RPT.build_fixture_run(tmp_path, merged=merged, arm="BF",
+                                    launch=RPT.fixture_launch(tmp_path, "BF") if merged else None)
+    assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "BF"   # admissible
+    declared = fixture["binding"]["fa_partition"]
+    me.write_partition_failure(fixture["run_dir"], declared, me.FaPartitionRecorder(),
+                               check="final", error="simulated")
+    with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+        RPT.evaluate_fixture(fixture)

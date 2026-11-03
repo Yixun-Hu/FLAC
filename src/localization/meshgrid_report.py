@@ -2430,6 +2430,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     production path.
     """
     run_dir = str(run_dir)
+    me.assert_admissible(run_dir)          # exp_22 rB-F2: plan r2 amendment A6 (iv), by name
     binding, binding_sha = load_published_binding(run_dir)
     plan = me.load_audit_plan(audit_report, branch=binding["branch"])
     artifacts = assert_artifact_hashes(binding, plan, context_manifest)
