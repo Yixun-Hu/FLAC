@@ -1,0 +1,427 @@
+# exp_14 data-curve import attestation -- dc_van_f025
+# Written by src.tools.data_curve.import_cells and installed in the same rename as the cells; MANIFEST.sha256 lists its sha256.
+# Each [<section> (<tag>: <detail>)] header says where its values come from:
+#   configured -- the importer's --arm/--tag and its code constants; read from no artifact
+#   caller-supplied -- the command line; checked only as far as its own lines say
+#   verified -- checked by import_run / validate_cells; [validation contract] lists each
+#   re-read -- read again after validation and written down; nothing compared
+#   recorded -- copied or hashed and written down; compared with nothing
+#   not verified -- what no check of this import establishes
+# Every line is one line, and every value follows its key on it ('key: value'): a value that str.splitlines() would split refuses the import, so no value adds a line or a [section]; text in a value that looks like a header or a tag is still that key's value.
+# In a string copied from a record or a bundle (record_source_sha, meta_*), each non-printable character is written as its Python escape (\x1b, \t, \u202e) and each backslash as \\; paths are written as they are.
+
+[run (configured: --arm/--tag and code constants; no run contract, split file, model config or training log is read)]
+run_id: dc_van_f025
+arm: van
+backbone: stock DINOv3-S
+fraction: 0.25
+fraction_tag: 025
+imported_to: outputs_FLAC/data_curve_import/dc_van_f025
+
+[final checkpoint (verified: C1, C2)]
+final_checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+final_checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+
+[expected checkpoint digest (caller-supplied: --expect-ckpt-sha256)]
+expect_ckpt_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+syntax: verified (64 lowercase hex characters, names._check_ckpt_sha256)
+equals_final_checkpoint_bytes: verified (C2)
+provenance: not verified (see [limits] N3)
+
+[rows (configured: --arm/--tag and code constants)]
+label: data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)
+protocol: vanilla eval
+protocol_flags: cond_method=vanilla frame_avg_angles=null rotate_deg=0.0 cond_autocast=bf16
+row_K1: ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1, ["outputs_FLAC/data_curve_import/dc_van_f025/*_K1_s4[2-6]*.json"]),
+row_K8: ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f025/*_K8_s4[2-6]*.json"]),
+
+[validation contract (verified: the checks import_run and validate_cells made; every cell below passed all of them)]
+C1: the run directory holds exactly one *step=40000.ckpt, the final checkpoint above; a --ckpt-path override may only name that same file
+C2: that checkpoint hashes, through one open descriptor with fstat before and after, to the caller-supplied --expect-ckpt-sha256 (syntax + equality verified; provenance of the expected digest is not verified by the importer), and its (device, inode, size, mtime_ns) is unchanged after every cell was validated and every bundle re-read
+C3: per cell (K in [1, 8] x seed in [42, 43, 44, 45, 46]) the metrics record exists at the evaluator's output path and is a JSON object with a non-empty metrics object
+C4: record.ckpt_path is the final checkpoint and record.ckpt_sha256 is its digest
+C5: record.cond_method / frame_avg_angles / rotate_deg / cond_autocast are vanilla / null / 0.0 / bf16
+C6: the sibling prediction bundle exists and loads (torch, CPU) as a dict of predictions and a meta dict
+C7: meta.n_items (and meta.n_samples, if present) == 6337 and predictions is an all-finite tensor of shape (6337, 1, 10240) -- counts and shape, not which items (see [limits] N1)
+C8: meta.seed is the cell's seed and meta.eval_name is dc_<arm>_f<tag>_K<K>_s<seed>
+C9: meta.dataset_config is exactly the full unseen-eval config of the cell's K (K=1: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, K=8: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json) and that file is readable in the importer's worktree
+C10: meta.cond_method / frame_avg_angles / rotate_deg / cond_autocast equal C5's
+C11: meta.steps == 1, meta.cfg_scale == 1.0, meta.stored_after_clamp_pad is true and meta.artifact_contract == "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+C12: meta.ckpt_path is the final checkpoint and meta.ckpt_sha256 is its digest
+C13: all cells pass or nothing is copied; each staged copy re-hashes to its source's digest; the cells, this file and MANIFEST.sha256 are installed with one rename; an existing destination must be byte-identical to what this import would publish, or nothing is touched
+
+[limits (not verified: what no check of this import establishes)]
+N1: item identity -- which items the predictions are, their order and uniqueness, and that they are the dataset config's entries: C7 checks counts and shape only
+N2: backbone and fraction -- [run] and [rows] say what --arm/--tag mean in the importer's code; no run contract, split file, model config or training log is read
+N3: where --expect-ckpt-sha256 came from -- C2 checks its syntax and that the checkpoint bytes hash to it, not its provenance
+N4: record_source_sha -- copied from the installed metrics record as it is (non-printable characters escaped, see the opening comment); nothing checks it
+N5: that a second read saw the bytes a check read -- metrics_record_sha256 is hashed after check_metrics parsed the record, and each cell's bundle section is read after check_bundle loaded the file; nothing compares the two reads
+N6: that dataset_config_sha256 is the file the evaluator read -- the evaluator records the config's path only; the digest is of the importer worktree's copy at import time
+
+[cell K1 s42 (verified: C3-C13 passed for this cell)]
+K: 1
+seed: 42
+eval_name: dc_van_f025_K1_s42
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s42.json
+metrics_record_sha256: 0fb68576587d8e8a357d07f459fea237dbc012b0f7fcdc850b405963aeb3e35a
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s42.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K1_s42.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, the full unseen-eval config of K=1)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K1 s42 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 1666a9b3b3fbef60f265c028200f3b4435fb064c522ebf6f5196244c40da6770
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+
+[cell K1 s42 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K1 s43 (verified: C3-C13 passed for this cell)]
+K: 1
+seed: 43
+eval_name: dc_van_f025_K1_s43
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s43.json
+metrics_record_sha256: 9374ec59863918ea3d4680eda047defe11f27446c14bfe2d72fbc5c44f8a7b10
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s43.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K1_s43.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, the full unseen-eval config of K=1)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K1 s43 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: b42ee379d88ed1062bca37f917953402aaa42219aa9aa6dfa83f9c2aaeacafc5
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+
+[cell K1 s43 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K1 s44 (verified: C3-C13 passed for this cell)]
+K: 1
+seed: 44
+eval_name: dc_van_f025_K1_s44
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s44.json
+metrics_record_sha256: 6f1bd21c504b20f9e190c4271942745b1f00dc7843e2318c432f4ffe253df30c
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s44.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K1_s44.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, the full unseen-eval config of K=1)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K1 s44 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: d953623ae575897da25b5f776d2221761f97451269d495284ee71d2ad36c28d4
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+
+[cell K1 s44 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K1 s45 (verified: C3-C13 passed for this cell)]
+K: 1
+seed: 45
+eval_name: dc_van_f025_K1_s45
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s45.json
+metrics_record_sha256: c8766494e188fabaf554f812f99142fe74b104b98a2fe29803842c7f0c32cd00
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s45.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K1_s45.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, the full unseen-eval config of K=1)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K1 s45 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 6766afa43192ae54cc2e2c4b33ccaaf50c4e4652062457725a84e568fd23ec64
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+
+[cell K1 s45 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K1 s46 (verified: C3-C13 passed for this cell)]
+K: 1
+seed: 46
+eval_name: dc_van_f025_K1_s46
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s46.json
+metrics_record_sha256: ab79df7ad15218f4830b3aa8335e6dcb7bc828e0ec6e2f877f6d1c565a56f57f
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K1_s46.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K1_s46.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json, the full unseen-eval config of K=1)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K1 s46 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 0b8f236835e325b6629391209d8028c5185e9f7ecf1d0ff937eaaaf737759c51
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json
+
+[cell K1 s46 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 4875374040cad2272e1df2b99809743c7bcf3fd0718df40c6ebfaf9c84c8b4e3
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K8 s42 (verified: C3-C13 passed for this cell)]
+K: 8
+seed: 42
+eval_name: dc_van_f025_K8_s42
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s42.json
+metrics_record_sha256: 4136ac75d570f84f76d34c5cac0f1e05e681897f4aefe53ffce12dd381f13180
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s42.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K8_s42.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json, the full unseen-eval config of K=8)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K8 s42 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 6739d79f09ced79490e78119a68839cb5dd43db5320e9e20323d8f7f9dde6f81
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+
+[cell K8 s42 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K8 s43 (verified: C3-C13 passed for this cell)]
+K: 8
+seed: 43
+eval_name: dc_van_f025_K8_s43
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s43.json
+metrics_record_sha256: eec6591177df4937bb6d93120b2b8efe6496dc2fe174561462206967f24fe4f8
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s43.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K8_s43.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json, the full unseen-eval config of K=8)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K8 s43 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: b34c6e0d2d3096c9c24421420d497f9b70c763de98cace5e8a2dc236050ec173
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+
+[cell K8 s43 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K8 s44 (verified: C3-C13 passed for this cell)]
+K: 8
+seed: 44
+eval_name: dc_van_f025_K8_s44
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s44.json
+metrics_record_sha256: 54626df18f8b6794f2b079e9d5e1a91b2846d83589cbbb2ceee63a0e782a29e8
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s44.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K8_s44.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json, the full unseen-eval config of K=8)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K8 s44 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 5405495840de3ac1c5898901561e04d066c53e5c805cc6ed0dfd83fb8f48977a
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+
+[cell K8 s44 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K8 s45 (verified: C3-C13 passed for this cell)]
+K: 8
+seed: 45
+eval_name: dc_van_f025_K8_s45
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s45.json
+metrics_record_sha256: a144f65e61ea67183f05ed0d55cceb0a603a38a5df29fcafb5aafa407caf3f23
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s45.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K8_s45.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json, the full unseen-eval config of K=8)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K8 s45 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 1e1910489974b52815b3bf0ae8e81bb28dc6c698d2bd7d282777c5959a3e0f57
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+
+[cell K8 s45 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[cell K8 s46 (verified: C3-C13 passed for this cell)]
+K: 8
+seed: 46
+eval_name: dc_van_f025_K8_s46
+checkpoint: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000.ckpt
+checkpoint_sha256: aa1a2cd624333a18eb2f9f019f6b46beaf2d94c1b2d7dc455f238ad0cec9433c
+metrics_record: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s46.json
+metrics_record_sha256: 612b3c017e170f8cb55bf794aee3e98f6a5f140fdf737489dc7c326d7626fa1f
+imported_copy: outputs_FLAC/data_curve_import/dc_van_f025/epoch=34-step=40000_metrics_1_1.0_dc_van_f025_K8_s46.json
+prediction_bundle: /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f025/epoch=34-step=40000_predictions_1_1.0_dc_van_f025_K8_s46.pt
+cond_method: vanilla
+frame_avg_angles: null
+rotate_deg: 0.0
+cond_autocast: bf16
+steps: 1
+cfg_scale: 1.0
+bundle_artifact_contract: "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+dataset_config_matches_K: yes (C9: meta.dataset_config == src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json, the full unseen-eval config of K=8)
+full_unseen_contract_passed: yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = 6337 items -- the full unseen split -- and C9)
+item_identity_verified: no (see [limits] N1)
+
+[cell K8 s46 bundle (re-read: prediction_bundle read once after validation -- hashed and loaded from the same bytes; nothing compared)]
+prediction_bundle_sha256: 94c64960d11892b2b6563f90ee9d24739067ee19ffb7bce60be7ce7e6c5505b9
+meta_n_items: 6337
+meta_n_samples: 6337
+predictions_shape: (6337, 1, 10240)
+predictions_finite: yes
+meta_dataset_config: src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json
+
+[cell K8 s46 recorded (recorded: copied or hashed; compared with nothing)]
+dataset_config_sha256: 063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55
+record_source_sha (as recorded, unvalidated): absent
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+imported_at: 2026-11-02T22:03:41-05:00
+
+[import stamp (recorded: when and by which code the first import ran; not a check)]
+# Time and importer of the FIRST import; an identical rerun leaves this file byte-for-byte as it was.
+imported_at: 2026-11-02T22:03:41-05:00
+importer: src.tools.data_curve.import_cells
+importer_git_sha: 46a9c3d0b17f212c35b0e0efa7f5af33482710da
+importer_tracked_tree: clean
+importer_worktree: /home/yixunhu/codespace/exp-14-data-curve

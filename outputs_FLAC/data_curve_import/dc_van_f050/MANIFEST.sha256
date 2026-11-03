@@ -1,0 +1,31 @@
+# exp_14 data-curve import -- dc_van_f050
+# written by src.tools.data_curve.import_cells (announcement 04, plan §9 D9)
+# final checkpoint:        /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000.ckpt
+# final checkpoint sha256: 3717387f9b5483590b85e4da944abe42640ebfcf2ef455537916e954a9a55c4a
+#
+# --- sources (sha256  NAS path) ---
+#1f7d8d8a36ec1860cfdd064f0ef6dfc39e13da4cf6dd44a3a3fefe5345e78144  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s42.json
+#7f3c8aec997d89bd5a92029748276d45e4890e46513154e422fab46fc2425d1a  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s43.json
+#9cb02f0a686c0ee89f64674486475d5aa94ab56a730ba23276168c663991dcc1  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s44.json
+#32652f2085bea53f7806d0cb678204aed4ded01dd966cdd15dc6e7ed4305b991  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s45.json
+#39298408471acf619eedd5f99640ddadcd00b5e184a9074dd064076fbcfdf048  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s46.json
+#a744663f69d0f216546d098e66cb57dfedbec7ef46704dfe831e94ff8f978721  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s42.json
+#492d5c1aaab8d012381ccb3f4362c891633f459b12233e9478b57a1500cc2b54  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s43.json
+#4e655b8e4b27034efbc2707f26c3a493317c0fa979374c47563f9191261c8711  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s44.json
+#62ad7101efbb02962b2ea1e81d92d4f965264567c308b0c344ff4b29e9f9fde1  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s45.json
+#20a7066435675d48b1c4c69afbe7cbe374dbdc8d90365851b9e83ef5765b8133  /media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s46.json
+#
+# --- imported copies (sha256  path relative to the FLAC checkout) ---
+1f7d8d8a36ec1860cfdd064f0ef6dfc39e13da4cf6dd44a3a3fefe5345e78144  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s42.json
+7f3c8aec997d89bd5a92029748276d45e4890e46513154e422fab46fc2425d1a  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s43.json
+9cb02f0a686c0ee89f64674486475d5aa94ab56a730ba23276168c663991dcc1  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s44.json
+32652f2085bea53f7806d0cb678204aed4ded01dd966cdd15dc6e7ed4305b991  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s45.json
+39298408471acf619eedd5f99640ddadcd00b5e184a9074dd064076fbcfdf048  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K1_s46.json
+a744663f69d0f216546d098e66cb57dfedbec7ef46704dfe831e94ff8f978721  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s42.json
+492d5c1aaab8d012381ccb3f4362c891633f459b12233e9478b57a1500cc2b54  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s43.json
+4e655b8e4b27034efbc2707f26c3a493317c0fa979374c47563f9191261c8711  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s44.json
+62ad7101efbb02962b2ea1e81d92d4f965264567c308b0c344ff4b29e9f9fde1  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s45.json
+20a7066435675d48b1c4c69afbe7cbe374dbdc8d90365851b9e83ef5765b8133  outputs_FLAC/data_curve_import/dc_van_f050/epoch=17-step=40000_metrics_1_1.0_dc_van_f050_K8_s46.json
+#
+# --- attestation of the cells above (sha256  path relative to the FLAC checkout) ---
+1a057595c93b0201cd73661b805e94885e47e560914511a420623d81d52f38f1  outputs_FLAC/data_curve_import/dc_van_f050/ATTESTATION.txt
