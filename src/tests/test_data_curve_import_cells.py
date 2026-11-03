@@ -25,6 +25,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -51,8 +52,9 @@ def sha256_of(path):
 
 
 def make_run(tmp_path, arm="cyl", tag="025", drop=(), metrics_patch=None,
-             bundle_patch=None, ckpt_bytes=b"checkpoint bytes", step=names.MAX_STEPS):
-    """A run on a fake NAS: one checkpoint, ten metric JSONs, ten bundles.
+             bundle_patch=None, ckpt_bytes=b"checkpoint bytes", step=names.MAX_STEPS,
+             n_items=N_ITEMS):
+    """A run on a fake NAS: one checkpoint, ten metric JSONs, ten ``n_items``-item bundles.
 
     ``step`` builds the same internally consistent artifacts around a checkpoint that is
     NOT the final one -- the case a ``--ckpt-path`` override used to let through.
@@ -80,7 +82,7 @@ def make_run(tmp_path, arm="cyl", tag="025", drop=(), metrics_patch=None,
                 json.dump(record, fout)
             meta = {
                 "dataset_config": names.EVAL_DATASET_CONFIGS[K], "seed": seed,
-                "n_samples": N_ITEMS, "n_items": N_ITEMS,
+                "n_samples": n_items, "n_items": n_items,
                 "cond_method": names.ARM_COND_METHOD[arm], "frame_avg_angles": angles,
                 "rotate_deg": names.ROTATE_DEG, "batch_size": 8,
                 "cond_autocast": names.COND_AUTOCAST, "ckpt_path": ckpt,
@@ -90,18 +92,18 @@ def make_run(tmp_path, arm="cyl", tag="025", drop=(), metrics_patch=None,
                 "ckpt_sha256": digest,
             }
             meta.update((bundle_patch or {}).get((K, seed), {}))
-            torch.save({"predictions": torch.zeros(N_ITEMS, 1, names.SAMPLE_LEN),
+            torch.save({"predictions": torch.zeros(n_items, 1, names.SAMPLE_LEN),
                         "meta": meta},
                        names.predictions_pt_path(ckpt, arm, tag, K, seed))
     return str(nas), ckpt, digest
 
 
-def run_import(tmp_path, arm="cyl", tag="025", expect_sha=None, **kwargs):
-    nas, ckpt, digest = make_run(tmp_path, arm, tag, **kwargs)
+def run_import(tmp_path, arm="cyl", tag="025", expect_sha=None, n_items=N_ITEMS, **kwargs):
+    nas, ckpt, digest = make_run(tmp_path, arm, tag, n_items=n_items, **kwargs)
     checkout = tmp_path / "flac"
     checkout.mkdir(exist_ok=True)
     result, violations = import_cells.import_run(
-        nas, arm, tag, str(checkout), expect_sha or digest, expect_n=N_ITEMS)
+        nas, arm, tag, str(checkout), expect_sha or digest, expect_n=n_items)
     return result, violations, str(checkout), ckpt
 
 
@@ -473,9 +475,12 @@ def test_every_row_is_a_four_field_entry_with_a_truthful_backbone(arm, tag, K):
 
 # ------------------------------------- the attestation file (codex T finding F6 / M5)
 # The metrics JSON alone does not say which seed, K, split or protocol it was scored under;
-# the importer proved all of that from the pair before copying, and ATTESTATION.txt keeps
-# the proof beside the cells. Every expectation below is rebuilt here from the fixture --
-# paths typed out, digests re-hashed -- never by asking the importer.
+# the importer checks the pair before copying, and ATTESTATION.txt keeps what it found
+# beside the cells. Round V-F1 (codex V finding 1): every section names WHERE its values
+# come from -- configured, caller-supplied, verified, re-read, recorded, not verified -- and
+# every expectation below is rebuilt from the fixture (paths typed out, digests re-hashed,
+# item counts and shapes taken from what make_run wrote), never by asking the importer: an
+# overclaim has to be typed here before it can pass.
 ATTESTATION = "ATTESTATION.txt"
 #: The repository the tests (and the importer) run from: src/tests -> src -> root.
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -485,6 +490,44 @@ CONTRACT = ("clamped/padded callback input "
             "(float32 cast and 8000-sample crop are scoring-internal)")
 #: A fixed import time, so the stamp is predictable (the importer reads the clock once).
 STAMP_TIME = "2026-11-02T16:00:00-05:00"
+#: The one header form: ``[<name> (<tag>: <detail>)]``.
+HEADER = re.compile(r"^\[(?P<name>[^()\[\]]+) \((?P<tag>[^:()]+): (?P<detail>.+)\)\]$")
+#: Where a section's values may come from -- typed out, the attestation's whole vocabulary.
+TAGS = ("configured", "caller-supplied", "verified", "re-read", "recorded", "not verified")
+HEADERS = {
+    "run": "[run (configured: --arm/--tag and code constants; no run contract, split file, "
+           "model config or training log is read)]",
+    "final checkpoint": "[final checkpoint (verified: C1, C2)]",
+    "expected checkpoint digest":
+        "[expected checkpoint digest (caller-supplied: --expect-ckpt-sha256)]",
+    "rows": "[rows (configured: --arm/--tag and code constants)]",
+    "validation contract": "[validation contract (verified: the checks import_run and "
+                           "validate_cells made; every cell below passed all of them)]",
+    "limits": "[limits (not verified: what no check of this import establishes)]",
+    "import stamp": "[import stamp (recorded: when and by which code the first import ran; "
+                    "not a check)]",
+}
+#: The production split size, typed: what "full" means however a test patches names.
+FULL_SPLIT = 6337
+SOURCE_SHA_KEY = "record_source_sha (as recorded, unvalidated)"
+
+
+def cell_headers(K, seed):
+    """A cell's three sections: what was verified, what was re-read, what was recorded."""
+    return (f"[cell K{K} s{seed} (verified: C3-C13 passed for this cell)]",
+            f"[cell K{K} s{seed} bundle (re-read: prediction_bundle read once after "
+            "validation -- hashed and loaded from the same bytes; nothing compared)]",
+            f"[cell K{K} s{seed} recorded (recorded: copied or hashed; compared with nothing)]")
+
+
+def full_no(n):
+    return (f"no (fixture override expect_n={n}: C7 checked {n} items; the full unseen "
+            f"split is {FULL_SPLIT})")
+
+
+def full_yes(n):
+    return (f"yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = {n} items -- the full "
+            "unseen split -- and C9)")
 
 
 def git_head_and_tree():
@@ -498,14 +541,20 @@ def git_head_and_tree():
 
 
 def parse_attestation(text):
-    """``{section: {key: value}}`` -- an independent reader of the plain-text format."""
+    """``{section name: {key: value}}`` -- an independent reader of the plain-text format.
+
+    Every header must be ``[<name> (<tag>: <detail>)]`` with a tag from TAGS: a header that
+    does not say where its values come from fails here instead of being read.
+    """
     sections, current = {}, None
     for line in text.splitlines():
         if not line.strip() or line.startswith("#"):
             continue
-        if line.startswith("[") and line.endswith("]"):
-            assert line[1:-1] not in sections, f"duplicate section {line!r}"
-            current = sections[line[1:-1]] = {}
+        if line.startswith("["):
+            match = HEADER.match(line)
+            assert match and match["tag"] in TAGS, f"no provenance tag: {line!r}"
+            assert match["name"] not in sections, f"duplicate section {line!r}"
+            current = sections[match["name"]] = {}
             continue
         key, sep, value = line.partition(": ")
         assert sep and current is not None, f"not a 'key: value' line: {line!r}"
@@ -514,80 +563,66 @@ def parse_attestation(text):
     return sections
 
 
-def read_attestation(result):
+def read_text(result):
     with open(os.path.join(result["dest_dir"], ATTESTATION)) as fin:
-        return parse_attestation(fin.read())
+        return fin.read()
 
 
-def expected_cell(arm, tag, K, seed, ckpt, imported_at=STAMP_TIME):
+def read_attestation(result):
+    return parse_attestation(read_text(result))
+
+
+def assert_block(text, block):
+    """``block`` -- a header and its lines -- appears verbatim, once, and ends a section."""
+    lines = text.splitlines()
+    assert lines.count(block[0]) == 1, f"{block[0]!r} is not exactly one line"
+    start = lines.index(block[0])
+    assert lines[start:start + len(block)] == block
+    assert start + len(block) == len(lines) or lines[start + len(block)] == ""
+
+
+def expected_cell_lines(arm, tag, K, seed, ckpt, n=N_ITEMS, full=None, source_sha="absent"):
+    """One cell's three sections, line for line, from the fixture's own known values."""
     run_dir, ckpt_stem = os.path.dirname(ckpt), os.path.basename(ckpt)[:-len(".ckpt")]
     stem = f"1_1.0_dc_{arm}_f{tag}_K{K}_s{seed}" + ("_fa_invariant_a1" if arm == "cyl" else "")
     record = os.path.join(run_dir, f"{ckpt_stem}_metrics_{stem}.json")
     bundle = os.path.join(run_dir, f"{ckpt_stem}_predictions_{stem}.pt")
-    return {
-        "K": str(K), "seed": str(seed), "eval_name": f"dc_{arm}_f{tag}_K{K}_s{seed}",
-        "dataset_config": CONFIG_BY_K[K],
-        "dataset_config_sha256": sha256_of(os.path.join(REPO, CONFIG_BY_K[K])),
-        "prediction_bundle_items": str(N_ITEMS),
-        "full_unseen_split": f"NO -- fixture override expect_n={N_ITEMS}; "
-                             "the full unseen split is 6337 items",
-        "cond_method": {"cyl": "fa_invariant", "van": "vanilla"}[arm],
-        "frame_avg_angles": {"cyl": "[0.0]", "van": "null"}[arm],
-        "rotate_deg": "0.0", "cond_autocast": "bf16", "steps": "1", "cfg_scale": "1.0",
-        "checkpoint": ckpt, "checkpoint_sha256": sha256_of(ckpt),
-        "metrics_record": record, "metrics_record_sha256": sha256_of(record),
-        "imported_copy": f"outputs_FLAC/data_curve_import/dc_{arm}_f{tag}/"
-                         f"{os.path.basename(record)}",
-        "prediction_bundle": bundle, "prediction_bundle_sha256": sha256_of(bundle),
-        "bundle_artifact_contract": json.dumps(CONTRACT),
-        "record_source_sha": "absent",
-        "importer_git_sha": git_head_and_tree()[0], "imported_at": imported_at,
-    }
+    verified, reread, recorded = cell_headers(K, seed)
+    return [
+        verified, f"K: {K}", f"seed: {seed}", f"eval_name: dc_{arm}_f{tag}_K{K}_s{seed}",
+        f"checkpoint: {ckpt}", f"checkpoint_sha256: {sha256_of(ckpt)}",
+        f"metrics_record: {record}", f"metrics_record_sha256: {sha256_of(record)}",
+        f"imported_copy: outputs_FLAC/data_curve_import/dc_{arm}_f{tag}/"
+        f"{os.path.basename(record)}",
+        f"prediction_bundle: {bundle}",
+        "cond_method: " + {"cyl": "fa_invariant", "van": "vanilla"}[arm],
+        "frame_avg_angles: " + {"cyl": "[0.0]", "van": "null"}[arm],
+        "rotate_deg: 0.0", "cond_autocast: bf16", "steps: 1", "cfg_scale: 1.0",
+        f"bundle_artifact_contract: {json.dumps(CONTRACT)}",
+        f"dataset_config: {CONFIG_BY_K[K]}",
+        f"dataset_config_matches_K: yes (C9: meta.dataset_config == {CONFIG_BY_K[K]}, the "
+        f"full unseen-eval config of K={K})",
+        f"full_unseen_contract_passed: {full or full_no(n)}",
+        "item_identity_verified: no (see [limits] N1)", "",
+        reread, f"prediction_bundle_sha256: {sha256_of(bundle)}", f"meta_n_items: {n}",
+        f"meta_n_samples: {n}", f"predictions_shape: ({n}, 1, 10240)",
+        "predictions_finite: yes", f"meta_dataset_config: {CONFIG_BY_K[K]}", "",
+        recorded,
+        f"dataset_config_sha256: {sha256_of(os.path.join(REPO, CONFIG_BY_K[K]))}",
+        f"{SOURCE_SHA_KEY}: {source_sha}",
+        f"importer_git_sha: {git_head_and_tree()[0]}", f"imported_at: {STAMP_TIME}",
+    ]
 
 
 @pytest.mark.parametrize("arm, tag", [("cyl", "025"), ("van", "050")])
-def test_the_attestation_records_every_cell_exactly_as_validated(tmp_path, monkeypatch,
-                                                                 arm, tag):
+def test_the_attestation_states_every_line_from_the_fixture(tmp_path, monkeypatch, arm, tag):
     monkeypatch.setattr(import_cells, "_now_iso", lambda: STAMP_TIME)
     result, violations, _, ckpt = run_import(tmp_path, arm=arm, tag=tag)
     assert violations == []
-    sections = read_attestation(result)
-    cells = {name: body for name, body in sections.items() if name.startswith("cell ")}
-    assert sorted(cells) == sorted(f"cell K{K} s{s}" for K in (1, 8) for s in range(42, 47))
+    text = read_text(result)
     for K in (1, 8):
         for seed in range(42, 47):
-            assert cells[f"cell K{K} s{seed}"] == expected_cell(arm, tag, K, seed, ckpt)
-
-
-def test_the_attestation_header_names_the_run_its_rows_and_its_contract(tmp_path):
-    result, _, _, ckpt = run_import(tmp_path)
-    sections = read_attestation(result)
-    assert sections["run"] == {
-        "run_id": "dc_cyl_f025", "arm": "cyl", "backbone": "CylDINO",
-        "fraction": "0.25", "fraction_tag": "025",
-        "final_checkpoint": ckpt, "final_checkpoint_sha256": sha256_of(ckpt),
-        "imported_to": "outputs_FLAC/data_curve_import/dc_cyl_f025",
-    }
-    assert sections["rows"] == {
-        "label": "data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)",
-        "protocol": "fa eval",
-        "protocol_flags": "cond_method=fa_invariant frame_avg_angles=[0.0] rotate_deg=0.0 "
-                          "cond_autocast=bf16",
-        "row_K1": EXPECTED_ROWS[("cyl", "025", 1)],
-        "row_K8": '("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8, '
-                  '["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K8_s4[2-6]*.json"]),',
-    }
-    contract = sections["validation contract"]
-    assert list(contract) == [f"C{i}" for i in range(1, 14)]
-    assert "step=40000" in contract["C1"]
-    assert "--expect-ckpt-sha256" in contract["C2"]
-    assert "record.ckpt_sha256" in contract["C4"]
-    assert "fa_invariant / [0.0] / 0.0 / bf16" in contract["C5"]
-    assert f"== {N_ITEMS}" in contract["C7"] and f"({N_ITEMS}, 1, 10240)" in contract["C7"]
-    assert "meta.seed" in contract["C8"] and "meta.eval_name" in contract["C8"]
-    assert CONFIG_BY_K[1] in contract["C9"] and CONFIG_BY_K[8] in contract["C9"]
-    assert json.dumps(CONTRACT) in contract["C11"] and "meta.steps == 1" in contract["C11"]
-    assert "meta.ckpt_sha256" in contract["C12"]
+            assert_block(text, expected_cell_lines(arm, tag, K, seed, ckpt))
 
 
 def test_the_stock_arm_s_attestation_names_its_own_backbone_and_protocol(tmp_path):
