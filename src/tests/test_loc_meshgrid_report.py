@@ -2189,3 +2189,21 @@ def test_the_resolver_can_be_held_to_the_pre_registered_pair_digests(tmp_path):
     # ... and a query the bank never covered cannot supply one either
     with pytest.raises(ValueError, match="does not cover this query"):
         mr.TruthResolver(fixture["metadata_root"], expected={}).resolve(fixture["records"][0])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: arm-aware registration, launch provenance (plan r2 §3 R2-A)
+# --------------------------------------------------------------------------- #
+def test_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    r2 = dict(fixture["binding"], frame_avg_angles=[0.0], rotate_deg=0.0, fa_partition=None)
+    run_dir = str(tmp_path / "r2_binding")
+    me.write_binding(run_dir, r2, advisory=FIXTURE_ADVISORY)
+    published, digest = mr.load_published_binding(run_dir)
+    assert digest == me.binding_sha256(r2) != fixture["binding_sha256"]
+    assert published["frame_avg_angles"] == [0.0]
+    payload = json.load(open(os.path.join(run_dir, me.BINDING_FILENAME)))
+    payload["frame_avg_angles"] = [0.0, 90.0]
+    me.write_json(os.path.join(run_dir, me.BINDING_FILENAME), payload)
+    with pytest.raises(ValueError, match="does not match its own content"):
+        mr.load_published_binding(run_dir)

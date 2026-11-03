@@ -2318,3 +2318,83 @@ def test_the_driver_binds_the_case_list_digest_it_was_given(tmp_path):
                                      agree_sha256="2" * 64, model_config_sha256="3" * 64)
     assert bound["dump_cases_sha256"] == digest
     assert me.binding_sha256(bound) != me.binding_sha256(plain)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: the explicit eval-protocol fields (plan r2 §3 R2-A, Codex B6/H2)
+# --------------------------------------------------------------------------- #
+def _r2_binding(**overrides):
+    """An R2-generation binding: the legacy fields plus the explicit protocol."""
+    payload = dict(_binding(), frame_avg_angles=[0.0], rotate_deg=0.0, fa_partition=None)
+    payload.update(overrides)
+    return payload
+
+
+def test_the_r2_protocol_fields_are_declared_beside_the_legacy_binding():
+    assert me.RUN_BINDING_PROTOCOL_FIELDS == ("frame_avg_angles", "rotate_deg",
+                                              "fa_partition")
+    assert not set(me.RUN_BINDING_PROTOCOL_FIELDS) & set(me.RUN_BINDING_FIELDS)
+    # the R1 tuple itself is untouched: the retrieval control partitions it
+    assert len(me.RUN_BINDING_FIELDS) == 20
+
+
+def test_a_legacy_binding_digests_exactly_as_it_always_did():
+    """The published P1 binding (Aug 2026) predates the flags; its digest may not move."""
+    from src.localization.crossarm import canonical_sha256
+
+    legacy = _binding()
+    assert me.binding_fields(legacy) == me.RUN_BINDING_FIELDS
+    assert me.binding_sha256(legacy) == canonical_sha256(
+        {field: legacy[field] for field in sorted(me.RUN_BINDING_FIELDS)})
+
+
+def test_an_r2_binding_digests_its_protocol_fields_too():
+    r2 = _r2_binding()
+    assert me.binding_fields(r2) == me.RUN_BINDING_FIELDS + me.RUN_BINDING_PROTOCOL_FIELDS
+    digest = me.binding_sha256(r2)
+    assert digest != me.binding_sha256(_binding())
+    for changed in ({"frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}, {"rotate_deg": 45.0},
+                    {"fa_partition": {"orbit_size": 4}}):
+        assert me.binding_sha256(_r2_binding(**changed)) != digest
+    # type-sensitive: an integer angle is a different document than a float one
+    assert me.binding_sha256(_r2_binding(rotate_deg=0)) != digest
+
+
+def test_a_partial_r2_binding_is_refused_all_or_none():
+    for field in me.RUN_BINDING_PROTOCOL_FIELDS:
+        partial = {key: value for key, value in _r2_binding().items() if key != field}
+        with pytest.raises(ValueError, match="all or none"):
+            me.binding_sha256(partial)
+    with pytest.raises(ValueError, match="unregistered"):
+        me.binding_sha256(dict(_r2_binding(), launch_record_sha256="0" * 64))
+
+
+def test_an_r2_binding_round_trips_through_publication_and_resume(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    advisory = {"batch_rows": 256, "source_chunk": 16}
+    me.write_binding(out, _r2_binding(), advisory=advisory)
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    assert published["frame_avg_angles"] == [0.0] and published["rotate_deg"] == 0.0
+    assert published["fa_partition"] is None
+    assert published["binding_sha256"] == me.binding_sha256(_r2_binding())
+    assert me.assert_binding(out, _r2_binding(), advisory=advisory) is True
+    with pytest.raises(ValueError, match="frame_avg_angles"):
+        me.assert_binding(out, _r2_binding(frame_avg_angles=[0.0, 90.0, 180.0, 270.0]),
+                          advisory=advisory)
+    # a resume cannot switch generation: a legacy binding does not continue an R2 pass
+    with pytest.raises(ValueError, match="frame_avg_angles"):
+        me.assert_binding(out, _binding(), advisory=advisory)
+
+
+def test_a_shard_with_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_path):
+    out = str(tmp_path / "shard")
+    os.makedirs(out)
+    me.write_binding(out, _r2_binding(), declared_rooms=["A/A_idx_1"])
+    me.write_json(os.path.join(out, "run_summary.json"), {"n_scored": 0})
+    assert me._read_shard(out)["binding_sha256"] == me.binding_sha256(_r2_binding())
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    published["rotate_deg"] = 45.0                    # edited after publication
+    me.write_json(os.path.join(out, me.BINDING_FILENAME), published)
+    with pytest.raises(ValueError, match="does not match its own content"):
+        me._read_shard(out)

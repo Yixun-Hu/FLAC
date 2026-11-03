@@ -910,6 +910,28 @@ RUN_BINDING_FIELDS = (
     # it now asks for, so changing it is a different run
     "dump_cases_sha256", "dataset_config")
 
+#: exp_22 R2 (plan r2 §3 R2-A; Codex B6/H2): the eval-protocol flags every R2
+#: launch declares explicitly instead of inheriting -- the frame-average orbit
+#: (a vanilla arm binds the explicit canonical ``[0.0]``), the global rotation
+#: (registered 0) and the frame-average chunk plan (announcement 06; ``None`` for
+#: a vanilla arm). A binding carries ALL of them or NONE: none is the legacy R1
+#: generation -- exactly the published Aug-2026 P1 comparator, whose digest must
+#: not move -- and a partial set is refused rather than read as either.
+RUN_BINDING_PROTOCOL_FIELDS = ("frame_avg_angles", "rotate_deg", "fa_partition")
+
+
+def binding_fields(binding):
+    """The strict fields ``binding`` is digested over: legacy R1, or R1 + R2 protocol."""
+    present = [field for field in RUN_BINDING_PROTOCOL_FIELDS if field in binding]
+    if not present:
+        return RUN_BINDING_FIELDS
+    if len(present) != len(RUN_BINDING_PROTOCOL_FIELDS):
+        missing = [field for field in RUN_BINDING_PROTOCOL_FIELDS if field not in binding]
+        raise ValueError(f"the run binding declares the R2 protocol fields {present} but not "
+                         f"{missing}; they are bound all or none -- a partial set is neither the "
+                         "legacy R1 binding nor a complete R2 one")
+    return RUN_BINDING_FIELDS + RUN_BINDING_PROTOCOL_FIELDS
+
 #: recorded and compared, but NOT part of the strict digest. These change only
 #: the batch SHAPES the backbones see; under the registered autocast that moves
 #: an output by about one float16 ulp (measured on the real conditioner), which
@@ -936,20 +958,21 @@ def binding_sha256(binding):
     """Canonical, type-sensitive digest of a complete run binding."""
     from src.localization.crossarm import canonical_sha256
 
+    fields = binding_fields(binding)
     missing = [field for field in RUN_BINDING_FIELDS if field not in binding]
     if missing:
         raise ValueError(f"the run binding is missing {missing}; every registered field must be "
                          "pinned before a query is generated")
-    extra = [key for key in binding if key not in RUN_BINDING_FIELDS]
+    extra = [key for key in binding if key not in fields]
     if extra:
         raise ValueError(f"the run binding carries unregistered fields {extra}")
-    return canonical_sha256({field: binding[field] for field in sorted(RUN_BINDING_FIELDS)})
+    return canonical_sha256({field: binding[field] for field in sorted(fields)})
 
 
 def write_binding(out_dir, binding, advisory=None, declared_rooms=None):
     """Publish the binding beside the artifacts it authorizes."""
     os.makedirs(str(out_dir), exist_ok=True)
-    payload = {field: binding[field] for field in RUN_BINDING_FIELDS}
+    payload = {field: binding[field] for field in binding_fields(binding)}
     payload["binding_sha256"] = binding_sha256(binding)
     payload["advisory"] = {field: (advisory or {}).get(field)
                            for field in RUN_BINDING_ADVISORY}
@@ -999,8 +1022,11 @@ def assert_binding(out_dir, binding, advisory=None, declared_rooms=None):
                          "artifacts whose provenance is unknown")
     with open(path) as handle:
         published = json.load(handle)
-    differing = [field for field in RUN_BINDING_FIELDS
-                 if published.get(field) != binding.get(field)]
+    # the union of both generations' fields: a legacy pass is not continued by
+    # an R2 run (or vice versa) just because the R1 fields agree
+    fields = list(RUN_BINDING_FIELDS) + [field for field in RUN_BINDING_PROTOCOL_FIELDS
+                                         if field in published or field in binding]
+    differing = [field for field in fields if published.get(field) != binding.get(field)]
     if differing:
         raise ValueError(f"this run does not continue the published one: {differing} differ "
                          f"(published binding {str(published.get('binding_sha256'))[:12]}..., "
@@ -2172,7 +2198,7 @@ def _read_shard(shard_dir):
     if missing:
         raise ValueError(f"{shard_dir}'s binding is missing {missing}; it cannot be "
                          "recomputed, so it cannot be trusted")
-    recomputed = binding_sha256({field: binding[field] for field in RUN_BINDING_FIELDS})
+    recomputed = binding_sha256({field: binding[field] for field in binding_fields(binding)})
     if binding.get("binding_sha256") != recomputed:
         raise ValueError(f"{shard_dir}'s published binding does not match its own content: it "
                          f"stores {str(binding.get('binding_sha256'))[:12]}... but hashes to "
@@ -2214,8 +2240,8 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"the shards were not produced under the same binding: "
                          f"{sorted(str(d)[:12] for d in digests)}")
     binding_sha256 = shards[0]["binding_sha256"]
-    base = {field: shards[0]["binding"][field] for field in RUN_BINDING_FIELDS
-            if field in shards[0]["binding"]}
+    base = {field: shards[0]["binding"][field]
+            for field in binding_fields(shards[0]["binding"])}
 
     # (2) pinned production advisory values, in the bindings AND in every row
     advisories = {json.dumps(shard["advisory"], sort_keys=True) for shard in shards}

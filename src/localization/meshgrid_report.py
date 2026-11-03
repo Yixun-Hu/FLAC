@@ -355,8 +355,9 @@ def load_published_binding(run_dir):
     if missing:
         raise ValueError(f"{path} is missing the registered binding fields {missing}; the "
                          "binding cannot be recomputed, so it cannot be trusted")
+    # legacy R1 or R1 + the R2 protocol fields (all or none), never a subset
     recomputed = me.binding_sha256({field: published[field]
-                                    for field in me.RUN_BINDING_FIELDS})
+                                    for field in me.binding_fields(published)})
     if published.get("binding_sha256") != recomputed:
         raise ValueError(f"{path} does not match its own content: it stores "
                          f"{str(published.get('binding_sha256'))[:12]}... but hashes to "
