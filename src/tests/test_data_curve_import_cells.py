@@ -745,3 +745,34 @@ def test_without_git_the_stamp_says_so_and_the_import_still_happens(tmp_path, mo
     stamp = read_attestation(result)["import stamp"]
     assert stamp["importer_git_sha"].startswith("unavailable (FileNotFoundError")
     assert stamp["importer_tracked_tree"] == "unavailable"
+
+
+@pytest.mark.parametrize("vanishes", ["bundle", "record"])
+def test_an_artifact_that_changes_after_validation_raises_and_installs_nothing(
+        tmp_path, monkeypatch, vanishes):
+    # The attestation reads two things validation did not keep: the bundle's bytes (to hash
+    # them) and the staged record (for source_sha). If either is gone or garbled by then,
+    # the import raises -- and nothing, not even a staging directory, is left behind.
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    real_validate = import_cells.validate_cells
+
+    def validate_then_lose_a_bundle(*args, **kwargs):
+        files, violations = real_validate(*args, **kwargs)
+        os.remove(names.predictions_pt_path(ckpt, "cyl", "025", 8, 45))
+        return files, violations
+
+    def garbled(path):
+        raise json.JSONDecodeError("Expecting value", "", 0)
+
+    if vanishes == "bundle":
+        monkeypatch.setattr(import_cells, "validate_cells", validate_then_lose_a_bundle)
+        expected = OSError
+    else:
+        monkeypatch.setattr(import_cells, "_recorded_source_sha", garbled)
+        expected = ValueError
+    with pytest.raises(expected):
+        import_cells.import_run(nas, "cyl", "025", str(checkout), digest, expect_n=N_ITEMS)
+    root = os.path.join(str(checkout), "outputs_FLAC", "data_curve_import")
+    assert not os.path.exists(root) or os.listdir(root) == []

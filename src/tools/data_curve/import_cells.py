@@ -382,8 +382,9 @@ def _render_attestation(context, files, checkout):
     lines = [f"# exp_14 data-curve import attestation -- {context['run']}",
              "# Written by src.tools.data_curve.import_cells and installed in the same rename "
              f"as the cells; {MANIFEST_BASENAME} lists its sha256.",
-             "# Every value below was validated (see [validation contract]) or hashed by "
-             "that import; none of it is a further check.",
+             "# Every run and cell value below was validated (see [validation contract]) or "
+             "hashed by that import; the [import stamp] (echoed per cell) only says when and "
+             "by which code. None of it is a further check.",
              "", "[run]", f"run_id: {context['run']}", f"arm: {arm}",
              f"backbone: {ARM_BACKBONE_LABEL[arm]}",
              f"fraction: {names.FRACTIONS[context['tag']]}", f"fraction_tag: {context['tag']}",
@@ -516,8 +517,11 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
 
     Returns ``(result, violations)``. ``violations`` non-empty means nothing was copied --
     a half-published arm would be globbed and averaged exactly like a complete one.
-    ``ValueError`` is raised only for a caller bug (unknown arm/tag, a digest that is not a
-    digest): that is not a verdict about the artifacts.
+    ``ValueError`` is raised for a caller bug (unknown arm/tag, a digest that is not a
+    digest): that is not a verdict about the artifacts. An artifact that vanishes or changes
+    under the import after it was validated -- a bundle gone before its attestation hash
+    (``OSError``), a record whose verified copy no longer parses (``ValueError``) -- also
+    raises; in every case nothing has been installed.
     """
     run = names.run_id(arm, tag)                    # validates the arm and the fraction
     # The one rule about what a checkpoint digest may be lives in names; re-stating it here
