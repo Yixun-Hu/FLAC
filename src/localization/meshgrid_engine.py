@@ -1172,15 +1172,20 @@ def fresh_out_dir(out_dir):
 
 def read_fa_ledger(out_dir, declared, exact=False):
     """THE validating reader of a run's executed-partition ledger (Codex rB-F1 finding 3) --
-    the one every reopen (``open_fa_ledger``, the driver's preflight) and the merge
-    (``fa_partition_census``, ``exact=True``) go through. It refuses, naming every broken
-    check: another declaration; segment indices not 0..n-1 once each; a count or query count
-    that is not a non-negative integer; counts not canonical or not hashing to their
-    segment's ``counts_sha256``; a stored merged block (digest, executed, violations) that
-    is not the sum of the segments; a run summary block that is not the whole ledger (merge)
-    or a prefix of it (reopen); an executed partition not the declared one (exactly at a
-    merge, as a consistent prefix at a reopen). A vanilla run carries no ledger and no block.
-    Returns ``None`` when no ledger is on disk and none is required."""
+    the one every reopen (``open_fa_ledger``, the driver's preflight), the merge
+    (``fa_partition_census``, ``exact=True``) and the per-arm report (``exact=True``) go
+    through. It refuses, naming every broken check: a non-admissible directory (a failure
+    marker or a pending-check sentinel); a missing ledger anywhere but in a FRESH out-dir;
+    another declaration; segment indices not the real ints 0..n-1 once each; a count or
+    query count that is not a non-negative integer; counts or a delta not canonical, a delta
+    not inside its counts, counts not hashing to their segment's ``counts_sha256``; a stored
+    merged block that is not the sum of the segments; a run summary block that is not the
+    whole ledger (merge) or a prefix of it (reopen) -- or, for a MERGED run, a merged segment
+    without its shard origin and a merge receipt that is not the ledger's (merged runs are
+    never reopened); a segment state not bound to its rows' stamps (rB-F2 finding 3); an
+    executed partition not the declared one (exactly at a merge, as a consistent prefix at a
+    reopen). A vanilla run carries no ledger, no block and no non-null receipt. Returns
+    ``None`` when no ledger is on disk and none is required."""
     out_dir = str(out_dir)
     assert_admissible(out_dir)                         # A6 (iv), before anything is read
     path = os.path.join(out_dir, FA_LEDGER_FILENAME)

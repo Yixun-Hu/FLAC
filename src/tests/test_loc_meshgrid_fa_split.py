@@ -4035,3 +4035,92 @@ def test_the_merge_and_the_report_refuse_a_directory_carrying_the_sentinel(tmp_p
     me.write_json(os.path.join(fixture["run_dir"], PENDING), {"check": "final"})
     with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
         RPT.evaluate_fixture(fixture)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3: ISOLATED negatives for re-verifier paths that were tamper-tested only through
+# edits another clause also catches (Codex rB-F2 C8) -- each edit below is named by exactly
+# one clause, so deleting that clause is observable
+# --------------------------------------------------------------------------- #
+ISOLATED_TAMPERS = [
+    # (gate, path, edit, the only clause's needle)
+    ("G3", ["inputs", "tau"], {"value": 0.05}, "inputs: tau"),
+    ("G3", ["digest_chains", "source", 0], {"value": "0" * 64}, "digest_chains"),
+    ("G3", ["score_stability", "8", "max_abs_delta"], {"value": 0.5}, "score_stability"),
+    ("G3", ["executed_partition", "executed", "orbit_size"], {"value": 5},
+     "the published block is not the one its call counts yield"),
+    ("G0", ["inputs", "published_binding_sha256"], {"value": "0" * 64},
+     "does not hash to its published_binding_sha256"),
+    ("G0", ["inputs", "binding", "tau"], {"value": 0.05},
+     "the replay does not run the published protocol"),
+    ("G0", ["queries", 0, "published_digests", "row_sha256"], {"value": "0" * 64},
+     "the published row's grid digests are not the frozen ones"),
+    ("G1", ["inputs", "angles"], {"value": [0.0, 90.0, 180.0, 270.0, 45.0]}, "compared orbit"),
+    ("G1", ["coverage", "tail"], {"value": 9}, "coverage"),
+    ("G1", ["per_key", "source", "max_abs_diff"], {"value": 1.0}, "per_key"),
+    ("GV", ["vanilla_cache_parity", "match"], {"value": False}, "flags are not re-verified"),
+    ("GV", ["inputs", "query_id"], {"value": "0|another"}, "parity report covers"),
+    ("G2", ["counter_tests", "extra"], {"value": {"keys": {"source": 1.0}, "detected": True}},
+     "counter-test: published"),
+    ("G2", ["per_key", "source", "max_abs_diff"], {"value": 1.0}, "per_key"),
+]
+
+
+@pytest.mark.parametrize("gate, path, edit, needle", ISOLATED_TAMPERS,
+                         ids=[f"{t[0]}-{'.'.join(map(str, t[1]))}" for t in ISOLATED_TAMPERS])
+def test_an_isolated_tamper_is_named_by_its_own_clause(tmp_path, monkeypatch, clean_env, gate,
+                                                       path, edit, needle):
+    evidence = _real_evidence(tmp_path, monkeypatch, gate)
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, path, **edit))
+    assert any(needle in reason for reason in reasons), reasons
+
+
+def test_the_merge_refuses_a_merged_ledger_its_reader_would_refuse(tmp_path, monkeypatch):
+    """The census verifies the merged ledger and the receipt as the reader will, and the
+    merge binds the merged ledger to the rows it publishes -- both in memory, before any
+    write (defence in depth: a census bug would otherwise publish a ledger the per-arm report
+    refuses)."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    real_merged, real_binding = me._merged_reasons, me._row_binding_reasons
+    monkeypatch.setattr(me, "_merged_reasons", lambda *a: (["a simulated census bug"], None))
+    with pytest.raises(ValueError, match="would not verify under its own reader"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m1"), plan, records,
+                        totals=totals)
+    monkeypatch.setattr(me, "_merged_reasons", real_merged)
+
+    def merged_only(segments, stamps, exact, blocks=None):    # the shards' own reads still pass
+        return (["a simulated binding bug"] if blocks is not None
+                else real_binding(segments, stamps, exact, blocks))
+
+    monkeypatch.setattr(me, "_row_binding_reasons", merged_only)
+    with pytest.raises(ValueError, match="do not bind the merged ledger"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
+                        totals=totals)
+    assert not os.path.exists(tmp_path / "m1") and not os.path.exists(tmp_path / "m2")
+
+
+def test_a_ledger_segment_naming_another_launch_record_than_its_rows_is_refused(tmp_path):
+    """A segment's launch record is in no digest; the rows it is bound to name theirs."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    assert me.read_fa_ledger(out, FA_DECLARED, exact=True)
+    _edit_json(_fa_files(out)[0],
+               lambda ledger: ledger["segments"][0].update(launch_record_sha256="f" * 64))
+    with pytest.raises(ValueError, match="which the ledger does not hold"):
+        me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+def test_a_segment_whose_delta_counts_are_outside_its_counts_is_refused(tmp_path):
+    """The delta binds a one-ahead state's prefix only if it is inside the counts: a delta row
+    the counts do not hold (every self-digest recomputed) is refused by the reader."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    phantom = {"branch": "source_cache", "configured": 3, "cap": 2, "base": [2],
+               "orbit": [2, 2, 2], "orbit_size": 4, "count": 1}
+    ledger = _ledger(out)
+    ledger["segments"][0]["delta_counts"] = me.FaPartitionRecorder.from_counts(
+        ledger["segments"][0]["delta_counts"] + [phantom]).to_counts()
+    me.write_json(_fa_files(out)[0], _resummed(ledger))
+    for exact in (False, True):
+        with pytest.raises(ValueError, match="delta_counts are not inside its counts"):
+            me.read_fa_ledger(out, FA_DECLARED, exact=exact)
