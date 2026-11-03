@@ -1,0 +1,408 @@
+# exp_22 rB-F3 delete-the-check proof (Codex rB-F2 C8), HEAD 701926e5 (code tracked-clean), 2026-11-03T16:59:45-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+# each mutation deletes ONE check (exact-text edits of one clause), runs the tests selected for it on src/tests/test_loc_meshgrid_fa_split.py, and restores the file from its byte copy (bytes compared after every mutation); CAUGHT = the selected tests fail
+# the driver (scratchpad, Coder tooling), verbatim:
+#   """exp_22 rB-F3 delete-the-check proof (Coder tooling, scratchpad).
+#   
+#   Each mutation deletes ONE check (one or more exact-text edits of one logical clause) in a
+#   production module, runs the tests named for it, and restores the file from its byte copy.
+#   A mutation is CAUGHT when the selected tests fail. After every mutation the file's bytes
+#   are compared with the copy taken before it (a mismatch aborts the run).
+#   Usage: python mutate.py <repo> <log path>
+#   """
+#   import subprocess
+#   import sys
+#   
+#   ENGINE = "src/localization/meshgrid_engine.py"
+#   PARITY = "src/localization/meshgrid_fa_parity.py"
+#   REPORT = "src/localization/meshgrid_report.py"
+#   DRIVER = "localize_meshgrid.py"
+#   
+#   MUTATIONS = [
+#       # ---- this round's new clauses -------------------------------------------------------
+#       ("anchor: ids are the registered content", PARITY, [(
+#           'if block.get("query_ids_sha256") != COMMITTED_PROBE_QUERY_IDS_SHA256:', 'if False:')],
+#        "anchor_claiming_the_pinned_digest_over_other_content"),
+#       ("anchor: the frozen-map claim is the registered content", PARITY, [(
+#           'if block.get("frozen_digests_sha256") != COMMITTED_PROBE_FROZEN_DIGESTS_SHA256:',
+#           'if False:')], "anchor_claiming_the_pinned_digest_over_other_content"),
+#       ("load_probe_anchor: the parsed content is the registered one", PARITY, [(
+#           'if content != (COMMITTED_PROBE_QUERY_IDS_SHA256, COMMITTED_PROBE_FROZEN_DIGESTS_SHA256):',
+#           'if False:')], "pinned_bytes_digest_but_other_content"),
+#       ("G0 live: the anchor content", PARITY, [(
+#           'reasons += [f"the frozen anchor: {why}" for why in _content_reasons(',
+#           'reasons += [] and [f"the frozen anchor: {why}" for why in _content_reasons(')],
+#        "gate0_fails_on_a_frozen_map_that_is_not_the_registered_content"),
+#       ("G0 reverify: the published frozen map hashes to the registration", PARITY, [(
+#           'reasons += [f"G0\'s queries: {why}" for why in _content_reasons(',
+#           'reasons += [] and [f"G0\'s queries: {why}" for why in _content_reasons(')],
+#        "coordinated_swap_of_g0s_frozen_and_published_maps"),
+#       ("reverify: the verdict re-derivation is guarded", PARITY, [(
+#           '''    try:                       # the verdict too: malformed input is a named reason, never raised
+#           verdict = _verdict_reasons(gate, evidence, clauses)
+#       except MALFORMED as error:
+#           verdict = [f"verdict: the evidence is malformed ({type(error).__name__}: {error})"]''',
+#           '''    verdict = _verdict_reasons(gate, evidence, clauses)''')],
+#        "malformed_evidence_is_named_never_raised"),
+#       ("reverify: a non-string gate is named", PARITY, [(
+#           'if not isinstance(gate, str) or gate not in REVERIFIERS:', 'if gate not in REVERIFIERS:')],
+#        "malformed_evidence_is_named_never_raised"),
+#       ("autocast: the exact resolved dtype", PARITY, [(
+#           'and found[2] == dtype and found[3] == kind):', 'and found[3] == kind):')],
+#        "exact_resolved_state_on_the_evidence_device or autocast_probe"),
+#       ("autocast: the device type of inputs.device", PARITY, [(
+#           'and found[2] == dtype and found[3] == kind):', 'and found[2] == dtype):')],
+#        "exact_resolved_state_on_the_evidence_device or autocast_probe"),
+#       ("autocast: enabled is a real bool", PARITY, [(
+#           'found[0] == requested and found[1] is enabled', 'found[0] == requested and found[1] == enabled')],
+#        "exact_resolved_state_on_the_evidence_device"),
+#       ("G3D: a per-key delta is a measured number", PARITY, [(
+#           '''        if not _measured(found):
+#               reasons.append(f"max |diff| {_fmt(found)} is not a finite number >= 0")''',
+#           '''        pass''')], "delta_that_is_not_a_finite_number"),
+#       ("G3D: a score delta is a measured number", PARITY, [(
+#           '''    why = [] if _measured(delta) else [f"K={k}: score |diff| {_fmt(delta)} is not a finite "
+#                                          "number >= 0"]''', '''    why = []''')],
+#        "delta_that_is_not_a_finite_number"),
+#       ("_measured: a bool is not a number", PARITY, [(
+#           'return (isinstance(value, (int, float)) and not isinstance(value, bool)',
+#           'return (isinstance(value, (int, float))')], "delta_that_is_not_a_finite_number"),
+#       ("DiT inputs: exactly the registered set", PARITY, [(
+#           'return [] if names == sorted(REGISTERED_DIT_INPUTS) else [', 'return [] if True else [')],
+#        "requires_exactly_the_registered_inputs"),
+#       ("executed counts: the shared canonical validator", PARITY, [(
+#           'why, recorder = me.counts_reasons(executed.get("counts"), "executed partition")',
+#           'why, recorder = [], me.FaPartitionRecorder.from_counts(executed.get("counts") or [])')],
+#        "executed_counts_go_through_the_ledgers_canonical_counts_validator"),
+#       ("counts: a zero count is refused", ENGINE, [(
+#           'if not all(entry["count"] >= 1 for entry in counts):', 'if False:')],
+#        "executed_counts_go_through_the_ledgers_canonical_counts_validator"),
+#       ("schema: the evidence schema runs", PARITY, [(
+#           '_collect(schema, "schema", lambda: schema_reasons(gate, evidence))', 'pass')],
+#        "systematic_type_substitution or unregistered_field_or_an_edited"),
+#       ("schema: the registered texts", PARITY, [(
+#           '''                      if evidence.get(field) != text]''', '''                      if False]''')],
+#        "unregistered_field_or_an_edited"),
+#       ("reopen: a missing ledger only in a fresh out-dir", ENGINE, [(
+#           'if exact or (summary or {}).get("fa_partition_executed") is not None or not fresh:',
+#           'if exact or (summary or {}).get("fa_partition_executed") is not None:')],
+#        "missing_ledger"),
+#       ("ledger: segment indices are real ints", ENGINE, [(
+#           'reasons = [] if all(map(_count, indices)) and indices == list(range(len(segments))) else [',
+#           'reasons = [] if indices == list(range(len(segments))) else [')],
+#        "segment_index_is_a_real_integer"),
+#       ("driver: the ledger is opened before the binding", DRIVER, [(
+#           '''    ledger = (me.open_fa_ledger(args.out_dir, run_binding["fa_partition"],
+#                                   (launch or {}).get("sha256"))
+#                 if isinstance(run_binding.get("fa_partition"), dict) else None)''',
+#           '''    ledger = None''')], "opens_the_ledger_before_it_writes_the_binding"),
+#       ("open: the new segment is published at once", ENGINE, [(
+#           '''    ledger = {"path": path, "payload": payload}
+#       persist_fa_ledger(ledger, FaPartitionRecorder(), query=False)''',
+#           '''    ledger = {"path": path, "payload": payload}''')],
+#        "adopts_only_the_ledger or opens_the_ledger_before"),
+#       ("run_pass: only the ledger just opened is adopted", ENGINE, [(
+#           '''    if (os.path.abspath(str(ledger.get("path"))) != os.path.abspath(''',
+#           '''    if False and (os.path.abspath(str(ledger.get("path"))) != os.path.abspath(''')],
+#        "adopts_only_the_ledger"),
+#       ("merge: one index space for the merged segments", ENGINE, [(
+#           'segments.append(dict(segment, segment_index=len(segments), shard=shard["dir"],',
+#           'segments.append(dict(segment, shard=shard["dir"],')],
+#        "merged_ledger_is_valid_under_its_own_reader"),
+#       ("merged reader: every segment names its origin", ENGINE, [(
+#           'if not (isinstance(shard, str) and shard and _count(local)):', 'if False:')],
+#        "does_not_join"),
+#       ("merged reader: the receipt is the ledger's", ENGINE, [(
+#           'moved = sorted(key for key in set(wanted) | set(receipt) if receipt.get(key) != wanted.get(key))\n    return reasons + ([f"the merge report\'s',
+#           'moved = []\n    return reasons + ([f"the merge report\'s')], "does_not_join"),
+#       ("merged reader: a missing receipt is refused", ENGINE, [(
+#           '''    if not isinstance(receipt, dict):
+#           return reasons + ["the merge report carries no fa_partition_executed receipt"], blocks''',
+#           '''    if False:
+#           return reasons + ["the merge report carries no fa_partition_executed receipt"], blocks''')],
+#        "does_not_join"),
+#       ("merged reader: a merged run is never reopened", ENGINE, [(
+#           'reasons, blocks = (_merged_reasons(payload["segments"], receipt, merged) if exact else (',
+#           'reasons, blocks = (_merged_reasons(payload["segments"], receipt, merged) if True else (')],
+#        "merged_ledger_is_valid_under_its_own_reader"),
+#       ("report: the ledger re-read exactly and joined", REPORT, [(
+#           '    me.read_fa_ledger(run_dir, binding.get("fa_partition"), exact=True)\n', '')],
+#        "does_not_join or single_shard_bf_report or vanilla_report_admits or binds_every_merged_row"),
+#       ("vanilla: a non-null receipt is refused", ENGINE, [(
+#           '''        if (os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None
+#                   or receipt is not None):''',
+#           '''        if (os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None):''')],
+#        "vanilla_report_admits"),
+#       ("census: the merged ledger verified before any write", ENGINE, [(
+#           '''    if reasons:
+#           raise ValueError("the merged executed-partition ledger would not verify under its own "''',
+#           '''    if False:
+#           raise ValueError("the merged executed-partition ledger would not verify under its own "''')],
+#        "reader_would_refuse"),
+#       ("merge: the rows bind the merged ledger before any write", ENGINE, [(
+#           '''        if unbound:
+#               raise ValueError("the merged rows do not bind the merged ledger: "''',
+#           '''        if False:
+#               raise ValueError("the merged rows do not bind the merged ledger: "''')],
+#        "reader_would_refuse"),
+#       ("binding: an exact state is its last row's", ENGINE, [(
+#           '''    if state != stamped:
+#           return [f"{name}'s state is not the one its last row was published under"]''',
+#           '''    if False:
+#           return [f"{name}'s state is not the one its last row was published under"]''')],
+#        "truncated_tail or stamp_does_not_bind or binds_every_merged_row"),
+#       ("binding: a one-ahead state is bound by its prefix", ENGINE, [(
+#           '''             else counts_sha256(_counts_minus(segment["counts"], segment["delta_counts"])))''',
+#           '''             else stamped)''')], "one_query_ahead"),
+#       ("binding: at most one query ahead", ENGINE, [(
+#           'if n not in (m, m + 1):', 'if False:')], "one_query_ahead"),
+#       ("binding: the last invocation is exact at a merge", ENGINE, [(
+#           'if n == m + 1 and exact and last:', 'if False:')], "last_invocation_is_exact"),
+#       ("binding: a lost attempt's shapes were executed again", ENGINE, [(
+#           'if n == m + 1 and exact and not _shapes(segment["delta_counts"]) <= later:', 'if False:')],
+#        "last_invocation_is_exact"),
+#       ("binding: a stamp has exactly its fields", ENGINE, [(
+#           'if not (isinstance(stamp, dict) and sorted(stamp) == sorted(STAMP_FIELDS + ("query_id",))',
+#           'if not (isinstance(stamp, dict)')], "stamp_does_not_bind"),
+#       ("binding: a stamp names its own query", ENGINE, [(
+#           '                and stamp["query_id"] == query_id and _count(stamp["segment_index"])',
+#           '                and _count(stamp["segment_index"])')], "stamp_does_not_bind"),
+#       ("binding: no state claimed twice", ENGINE, [(
+#           'if key in seen or stamp["n_queries"] > segment["n_queries"]:',
+#           'if stamp["n_queries"] > segment["n_queries"]:')], "same_ledger_state"),
+#       ("binding: a segment's launch record is its rows'", ENGINE, [(
+#           'if segment is None or segment.get("launch_record_sha256") != launch:',
+#           'if segment is None:')], "another_launch_record"),
+#       ("binding: the stamp is written before the row", ENGINE, [(
+#           '                        write_fa_stamp(out_dir, query, fa_ledger)       # rB-F2 finding 3\n',
+#           '')], "ledger_state_it_was_published or stamp_does_not_bind"),
+#       ("merge: each stamp travels with its row", ENGINE, [(
+#           '            shutil.copy2(fa_stamp_path(shard_dir, row["room_id"], row["position"]), stamp)\n',
+#           '            pass\n')], "merged_ledger_is_valid_under_its_own_reader"),
+#       ("persist: the delta is the calls since n_queries - 1", ENGINE, [(
+#           'n_queries=segment["n_queries"] + int(query), delta_counts=delta.to_counts())',
+#           'n_queries=segment["n_queries"] + int(query), delta_counts=recorder.to_counts())')],
+#        "ledger_state_it_was_published or one_query_ahead"),
+#       ("ledger: the delta is inside the counts", ENGINE, [(
+#           '''    if not delta and _counts_minus(segment["counts"], segment["delta_counts"]) is None:
+#           delta = [f"segment {index}'s delta_counts are not inside its counts"]''',
+#           '''    pass''')], "delta_counts_are_outside_its_counts"),
+#       ("sentinel: published around the before-row check", ENGINE, [
+#           ('''                    if fa_ledger is not None:          # rB-F2 NIT 5: the kill window
+#                           begin_partition_check(out_dir, "before_row",
+#                                                 len(fa_ledger["payload"]["segments"]))''', ''),
+#           ('''                        end_partition_check(out_dir)
+#                           persist_fa_ledger(fa_ledger, engine.split.recorder)''',
+#            '''                        persist_fa_ledger(fa_ledger, engine.split.recorder)''')],
+#        "sentinel_is_on_disk or killed_inside"),
+#       ("sentinel: published around the final check", ENGINE, [
+#           ('''        begin_partition_check(out_dir, "final", n_segments)       # rB-F2 NIT 5: the kill window\n''', ''),
+#           ('''            raise
+#           end_partition_check(out_dir)
+#   ''', '''            raise
+#   ''')], "sentinel_is_on_disk or killed_inside"),
+#       ("sentinel: a directory carrying it is refused", ENGINE, [(
+#           '    if os.path.exists(os.path.join(str(run_dir), FA_PENDING_FILENAME)):', '    if False:')],
+#        "killed_inside or carrying_the_sentinel"),
+#       # ---- re-verifier paths tamper-tested at rB-F2, never mutation-tested -----------------
+#       ("G3 reverify: the registered / bound inputs", PARITY, [(
+#           'for field, value in bound.items() if inputs.get(field) != value]',
+#           'for field, value in bound.items() if False]')], "isolated_tamper and G3-inputs"),
+#       ("G3 reverify: chunk tiling", PARITY, [(
+#           '''    if ([[chunk.get("start"), chunk.get("n")] for chunk in entry["chunks"]] != tiling
+#               or len(query.get("candidate_indices") or []) != n):''',
+#           '''    if False:''')], "tampered_gate3_evidence and missing"),
+#       ("G1 reverify: chunk tiling", PARITY, [(
+#           '''    if ([[chunk.get("start"), chunk.get("n"), chunk.get("full")] for chunk in chunks] != tiling
+#               or len(inputs.get("candidate_indices") or []) != n):''',
+#           '''    if False:''')], "tampered_gate_evidence and G1-chunks"),
+#       ("G3 reverify: digest chains", PARITY, [(
+#           '''    if {name: [side.hexdigest() for side in sides] for name, sides in chains.items()} != \\
+#               evidence.get("digest_chains"):''', '''    if False:''')],
+#        "isolated_tamper and digest_chains"),
+#       ("G3 reverify: coverage re-derived", PARITY, [(
+#           '''    return reasons + ([] if covered == evidence.get("coverage") else [''',
+#           '''    return reasons + ([] if True else [''')], "tampered_gate3_evidence and coverage"),
+#       ("G3 reverify: score summary re-derived", PARITY, [(
+#           '_collect(reasons, "score_stability", lambda: [] if score_summary(queries) == evidence.get(',
+#           '_collect(reasons, "score_stability", lambda: [] if True or score_summary(queries) == evidence.get(')],
+#        "isolated_tamper and score_stability"),
+#       ("G3 reverify: executed block re-derived from its counts", PARITY, [(
+#           '''    reasons = why + ([] if all(executed.get(key) == again[key] for key in (''',
+#           '''    reasons = why + ([] if True or all(executed.get(key) == again[key] for key in (''')],
+#        "isolated_tamper and executed_partition"),
+#       ("G0 reverify: the frozen observation bank", PARITY, [(
+#           'if banks != (FROZEN_OBSERVATION_BANK_SHA256, FROZEN_OBSERVATION_BANK_SHA256):', 'if False:')],
+#        "tampered_gate_evidence and observation_bank"),
+#       ("G0 reverify: the published binding hashes to its digest", PARITY, [(
+#           'if me.binding_sha256(published) != inputs.get("published_binding_sha256"):', 'if False:')],
+#        "isolated_tamper and published_binding_sha256"),
+#       ("G0 reverify: the replay runs the published protocol", PARITY, [(
+#           '''                for field in me.RUN_BINDING_FIELDS if field not in REPLAY_BINDING_EXEMPT
+#                   and replayed.get(field) != published.get(field)]''',
+#           '''                for field in me.RUN_BINDING_FIELDS if False]''')],
+#        "isolated_tamper and G0-inputs.binding"),
+#       ("G0 reverify: frozen == published per query", PARITY, [(
+#           '''        frozen = isinstance(entry.get("frozen_digests"), dict) and entry.get(
+#               "frozen_digests") == entry.get("published_digests")''', '''        frozen = True''')],
+#        "isolated_tamper and published_digests"),
+#       ("G0 reverify: the float16-exact sidecar", PARITY, [(
+#           'if matched.get("float16_bit_exact") is not True or matched.get("n_float16_mismatch") != 0:',
+#           'if False:')], "tampered_gate_evidence and float16"),
+#       ("G0 reverify: the 0.0 aggregate", PARITY, [(
+#           '''        if matched["aggregate"]["max_abs_delta"] != 0.0:
+#               reasons.append(f"{entry['query_id']}: the float32 aggregate moved by "''',
+#           '''        if False:
+#               reasons.append(f"{entry['query_id']}: the float32 aggregate moved by "''')],
+#        "tampered_gate_evidence and aggregate"),
+#       ("G1 reverify: the compared orbit", PARITY, [(
+#           '''    return [] if inputs.get("angles") == angles else [''', '''    return [] if True else [''')],
+#        "isolated_tamper and G1-inputs.angles"),
+#       ("G1 reverify: coverage", PARITY, [(
+#           'if not covered["complete"] or covered != evidence.get("coverage"):', 'if False:')],
+#        "isolated_tamper and G1-coverage"),
+#       ("G1 reverify: the per-key fold", PARITY, [(
+#           '''    if per_key != evidence.get("per_key"):
+#           reasons.append("per_key: the published per-key summary is not the fold of its chunks")
+#       return reasons
+#   
+#   
+#   def _reverify_cache''', '''    return reasons
+#   
+#   
+#   def _reverify_cache''')], "isolated_tamper and G1-per_key"),
+#       ("GV reverify: the memoization on every vanilla id", PARITY, [(
+#           '''    memo_ok = sorted(keys) == sorted(ids) and all(entry.get("equal") is True
+#                                                     for entry in keys.values())''',
+#           '''    memo_ok = True''')], "tampered_gate_evidence and GV-vanilla_cache_parity.memoization"),
+#       ("GV reverify: the counter-test bites", PARITY, [(
+#           '    bites = isinstance(found, (int, float)) and found > 0.0', '    bites = True')],
+#        "tampered_gate_evidence and GV-vanilla_cache_parity.counter_test"),
+#       ("GV reverify: the published flags", PARITY, [(
+#           '''    if (memo.get("match"), counter.get("detected"), report.get("match")) != (
+#               memo_ok, bites, memo_ok and bites):''', '''    if False:''')],
+#        "isolated_tamper and GV-vanilla_cache_parity.match"),
+#       ("GV reverify: the gate's query is the report's", PARITY, [(
+#           '''    if (inputs.get("query_id"), inputs.get("n_candidates")) != (report.get("query_id"),
+#                                                                   report.get("n_candidates")):''',
+#           '''    if False:''')], "isolated_tamper and GV-inputs.query_id"),
+#       ("G2 reverify: exactly the registered counter-tests", PARITY, [(
+#           'if set(counters) != set(COUNTER_KEYS):', 'if False:')],
+#        "isolated_tamper and G2-counter_tests.extra"),
+#       ("G2 reverify: the per-key fold", PARITY, [(
+#           'if fold_per_key({}, memo["conditioning"], memo["dit_inputs"]) != evidence.get("per_key"):',
+#           'if False:')], "isolated_tamper and G2-per_key"),
+#   ]
+#   
+#   
+#   def run(repo, log_path):
+#       lines, missed = [], 0
+#       with open(log_path, "a") as log:
+#           for number, (name, path, edits, selector) in enumerate(MUTATIONS, 1):
+#               full = f"{repo}/{path}"
+#               original = open(full, "rb").read()
+#               text = original.decode("utf-8")
+#               for old, new in edits:
+#                   if text.count(old) != 1:
+#                       raise SystemExit(f"M{number:02d} {name}: the edit's text occurs "
+#                                        f"{text.count(old)} times in {path}")
+#                   text = text.replace(old, new)
+#               open(full, "w", encoding="utf-8").write(text)
+#               try:
+#                   result = subprocess.run(
+#                       ["/home/yixunhu/miniconda3/envs/flac/bin/python", "-m", "pytest",
+#                        "-p", "no:cacheprovider", "-p", "no:warnings", "-q", "--tb=no",
+#                        "src/tests/test_loc_meshgrid_fa_split.py", "-k", selector],
+#                       cwd=repo, capture_output=True, text=True,
+#                       env={"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1",
+#                            "PATH": "/usr/bin:/bin", "HOME": "/home/yixunhu"})
+#               finally:
+#                   open(full, "wb").write(original)
+#               assert open(full, "rb").read() == original, f"{path} was not restored"
+#               summary = (result.stdout.strip().splitlines() or ["(no output)"])[-1]
+#               caught = result.returncode != 0 and "failed" in summary
+#               missed += not caught
+#               line = (f"M{number:02d} [{path.split('/')[-1]}] {name}: "
+#                       f"{'CAUGHT' if caught else 'MISSED'} -- -k '{selector}': {summary}")
+#               print(line, flush=True)
+#               log.write(line + "\n")
+#               log.flush()
+#           tail = f"TOTAL {len(MUTATIONS) - missed}/{len(MUTATIONS)} caught"
+#           print(tail)
+#           log.write(tail + "\n")
+#       return missed
+#   
+#   
+#   if __name__ == "__main__":
+#       sys.exit(1 if run(sys.argv[1], sys.argv[2]) else 0)
+# results:
+M01 [meshgrid_fa_parity.py] anchor: ids are the registered content: CAUGHT -- -k 'anchor_claiming_the_pinned_digest_over_other_content': 1 failed, 353 deselected in 3.24s
+M02 [meshgrid_fa_parity.py] anchor: the frozen-map claim is the registered content: CAUGHT -- -k 'anchor_claiming_the_pinned_digest_over_other_content': 1 failed, 353 deselected in 3.19s
+M03 [meshgrid_fa_parity.py] load_probe_anchor: the parsed content is the registered one: CAUGHT -- -k 'pinned_bytes_digest_but_other_content': 1 failed, 353 deselected in 3.16s
+M04 [meshgrid_fa_parity.py] G0 live: the anchor content: CAUGHT -- -k 'gate0_fails_on_a_frozen_map_that_is_not_the_registered_content': 1 failed, 353 deselected in 5.56s
+M05 [meshgrid_fa_parity.py] G0 reverify: the published frozen map hashes to the registration: CAUGHT -- -k 'coordinated_swap_of_g0s_frozen_and_published_maps': 1 failed, 353 deselected in 5.62s
+M06 [meshgrid_fa_parity.py] reverify: the verdict re-derivation is guarded: CAUGHT -- -k 'malformed_evidence_is_named_never_raised': 2 failed, 8 passed, 344 deselected in 3.17s
+M07 [meshgrid_fa_parity.py] reverify: a non-string gate is named: CAUGHT -- -k 'malformed_evidence_is_named_never_raised': 2 failed, 8 passed, 344 deselected in 3.19s
+M08 [meshgrid_fa_parity.py] autocast: the exact resolved dtype: CAUGHT -- -k 'exact_resolved_state_on_the_evidence_device or autocast_probe': 9 failed, 1 passed, 344 deselected in 5.85s
+M09 [meshgrid_fa_parity.py] autocast: the device type of inputs.device: CAUGHT -- -k 'exact_resolved_state_on_the_evidence_device or autocast_probe': 9 failed, 1 passed, 344 deselected in 5.81s
+M10 [meshgrid_fa_parity.py] autocast: enabled is a real bool: CAUGHT -- -k 'exact_resolved_state_on_the_evidence_device': 9 failed, 345 deselected in 3.18s
+M11 [meshgrid_fa_parity.py] G3D: a per-key delta is a measured number: CAUGHT -- -k 'delta_that_is_not_a_finite_number': 6 failed, 348 deselected in 8.99s
+M12 [meshgrid_fa_parity.py] G3D: a score delta is a measured number: CAUGHT -- -k 'delta_that_is_not_a_finite_number': 6 failed, 348 deselected in 9.10s
+M13 [meshgrid_fa_parity.py] _measured: a bool is not a number: CAUGHT -- -k 'delta_that_is_not_a_finite_number': 1 failed, 5 passed, 348 deselected in 9.30s
+M14 [meshgrid_fa_parity.py] DiT inputs: exactly the registered set: CAUGHT -- -k 'requires_exactly_the_registered_inputs': 3 failed, 351 deselected in 7.13s
+M15 [meshgrid_fa_parity.py] executed counts: the shared canonical validator: CAUGHT -- -k 'executed_counts_go_through_the_ledgers_canonical_counts_validator': 9 failed, 345 deselected in 11.12s
+M16 [meshgrid_engine.py] counts: a zero count is refused: CAUGHT -- -k 'executed_counts_go_through_the_ledgers_canonical_counts_validator': 1 failed, 8 passed, 345 deselected in 10.98s
+M17 [meshgrid_fa_parity.py] schema: the evidence schema runs: CAUGHT -- -k 'systematic_type_substitution or unregistered_field_or_an_edited': 7 failed, 347 deselected in 11.16s
+M18 [meshgrid_fa_parity.py] schema: the registered texts: CAUGHT -- -k 'unregistered_field_or_an_edited': 1 failed, 353 deselected in 5.81s
+M19 [meshgrid_engine.py] reopen: a missing ledger only in a fresh out-dir: CAUGHT -- -k 'missing_ledger': 10 failed, 1 passed, 343 deselected in 6.08s
+M20 [meshgrid_engine.py] ledger: segment indices are real ints: CAUGHT -- -k 'segment_index_is_a_real_integer': 3 failed, 1 passed, 350 deselected in 6.92s
+M21 [localize_meshgrid.py] driver: the ledger is opened before the binding: CAUGHT -- -k 'opens_the_ledger_before_it_writes_the_binding': 1 failed, 353 deselected in 3.16s
+M22 [meshgrid_engine.py] open: the new segment is published at once: CAUGHT -- -k 'adopts_only_the_ledger or opens_the_ledger_before': 2 failed, 352 deselected in 5.15s
+M23 [meshgrid_engine.py] run_pass: only the ledger just opened is adopted: CAUGHT -- -k 'adopts_only_the_ledger': 1 failed, 353 deselected in 5.25s
+M24 [meshgrid_engine.py] merge: one index space for the merged segments: CAUGHT -- -k 'merged_ledger_is_valid_under_its_own_reader': 3 failed, 351 deselected in 6.80s
+M25 [meshgrid_engine.py] merged reader: every segment names its origin: CAUGHT -- -k 'does_not_join': 1 failed, 9 passed, 344 deselected in 7.99s
+M26 [meshgrid_engine.py] merged reader: the receipt is the ledger's: CAUGHT -- -k 'does_not_join': 5 failed, 5 passed, 344 deselected in 8.21s
+M27 [meshgrid_engine.py] merged reader: a missing receipt is refused: CAUGHT -- -k 'does_not_join': 2 failed, 8 passed, 344 deselected in 8.20s
+M28 [meshgrid_engine.py] merged reader: a merged run is never reopened: CAUGHT -- -k 'merged_ledger_is_valid_under_its_own_reader': 3 failed, 351 deselected in 6.54s
+M29 [meshgrid_report.py] report: the ledger re-read exactly and joined: CAUGHT -- -k 'does_not_join or single_shard_bf_report or vanilla_report_admits or binds_every_merged_row': 14 failed, 2 passed, 338 deselected in 9.94s
+M30 [meshgrid_engine.py] vanilla: a non-null receipt is refused: CAUGHT -- -k 'vanilla_report_admits': 1 failed, 3 passed, 350 deselected in 6.46s
+M31 [meshgrid_engine.py] census: the merged ledger verified before any write: CAUGHT -- -k 'reader_would_refuse': 1 failed, 353 deselected in 5.55s
+M32 [meshgrid_engine.py] merge: the rows bind the merged ledger before any write: CAUGHT -- -k 'reader_would_refuse': 1 failed, 353 deselected in 5.64s
+M33 [meshgrid_engine.py] binding: an exact state is its last row's: CAUGHT -- -k 'truncated_tail or stamp_does_not_bind or binds_every_merged_row': 6 failed, 5 passed, 343 deselected in 9.97s
+M34 [meshgrid_engine.py] binding: a one-ahead state is bound by its prefix: CAUGHT -- -k 'one_query_ahead': 1 failed, 353 deselected in 5.41s
+M35 [meshgrid_engine.py] binding: at most one query ahead: CAUGHT -- -k 'one_query_ahead': 1 failed, 353 deselected in 5.43s
+M36 [meshgrid_engine.py] binding: the last invocation is exact at a merge: CAUGHT -- -k 'last_invocation_is_exact': 1 failed, 353 deselected in 5.69s
+M37 [meshgrid_engine.py] binding: a lost attempt's shapes were executed again: CAUGHT -- -k 'last_invocation_is_exact': 1 failed, 353 deselected in 5.68s
+M38 [meshgrid_engine.py] binding: a stamp has exactly its fields: CAUGHT -- -k 'stamp_does_not_bind': 1 failed, 5 passed, 348 deselected in 7.63s
+M39 [meshgrid_engine.py] binding: a stamp names its own query: CAUGHT -- -k 'stamp_does_not_bind': 1 failed, 5 passed, 348 deselected in 7.75s
+M40 [meshgrid_engine.py] binding: no state claimed twice: CAUGHT -- -k 'same_ledger_state': 1 failed, 353 deselected in 5.56s
+M41 [meshgrid_engine.py] binding: a segment's launch record is its rows': CAUGHT -- -k 'another_launch_record': 1 failed, 353 deselected in 5.54s
+M42 [meshgrid_engine.py] binding: the stamp is written before the row: CAUGHT -- -k 'ledger_state_it_was_published or stamp_does_not_bind': 7 failed, 347 deselected in 7.98s
+M43 [meshgrid_engine.py] merge: each stamp travels with its row: CAUGHT -- -k 'merged_ledger_is_valid_under_its_own_reader': 3 failed, 351 deselected in 6.69s
+M44 [meshgrid_engine.py] persist: the delta is the calls since n_queries - 1: CAUGHT -- -k 'ledger_state_it_was_published or one_query_ahead': 2 failed, 352 deselected in 5.93s
+M45 [meshgrid_engine.py] ledger: the delta is inside the counts: CAUGHT -- -k 'delta_counts_are_outside_its_counts': 1 failed, 353 deselected in 5.55s
+M46 [meshgrid_engine.py] sentinel: published around the before-row check: CAUGHT -- -k 'sentinel_is_on_disk or killed_inside': 2 failed, 2 passed, 350 deselected in 6.62s
+M47 [meshgrid_engine.py] sentinel: published around the final check: CAUGHT -- -k 'sentinel_is_on_disk or killed_inside': 2 failed, 2 passed, 350 deselected in 6.65s
+M48 [meshgrid_engine.py] sentinel: a directory carrying it is refused: CAUGHT -- -k 'killed_inside or carrying_the_sentinel': 4 failed, 350 deselected in 7.46s
+M49 [meshgrid_fa_parity.py] G3 reverify: the registered / bound inputs: CAUGHT -- -k 'isolated_tamper and G3-inputs': 1 failed, 353 deselected in 5.88s
+M50 [meshgrid_fa_parity.py] G3 reverify: chunk tiling: CAUGHT -- -k 'tampered_gate3_evidence and missing': 1 failed, 1 passed, 352 deselected in 6.48s
+M51 [meshgrid_fa_parity.py] G1 reverify: chunk tiling: CAUGHT -- -k 'tampered_gate_evidence and G1-chunks': 1 failed, 3 passed, 350 deselected in 6.48s
+M52 [meshgrid_fa_parity.py] G3 reverify: digest chains: CAUGHT -- -k 'isolated_tamper and digest_chains': 1 failed, 353 deselected in 5.79s
+M53 [meshgrid_fa_parity.py] G3 reverify: coverage re-derived: CAUGHT -- -k 'tampered_gate3_evidence and coverage': 1 failed, 353 deselected in 5.81s
+M54 [meshgrid_fa_parity.py] G3 reverify: score summary re-derived: CAUGHT -- -k 'isolated_tamper and score_stability': 1 failed, 353 deselected in 5.80s
+M55 [meshgrid_fa_parity.py] G3 reverify: executed block re-derived from its counts: CAUGHT -- -k 'isolated_tamper and executed_partition': 1 failed, 353 deselected in 5.76s
+M56 [meshgrid_fa_parity.py] G0 reverify: the frozen observation bank: CAUGHT -- -k 'tampered_gate_evidence and observation_bank': 1 failed, 353 deselected in 5.58s
+M57 [meshgrid_fa_parity.py] G0 reverify: the published binding hashes to its digest: CAUGHT -- -k 'isolated_tamper and published_binding_sha256': 1 failed, 353 deselected in 5.54s
+M58 [meshgrid_fa_parity.py] G0 reverify: the replay runs the published protocol: CAUGHT -- -k 'isolated_tamper and G0-inputs.binding': 1 failed, 353 deselected in 5.47s
+M59 [meshgrid_fa_parity.py] G0 reverify: frozen == published per query: CAUGHT -- -k 'isolated_tamper and published_digests': 1 failed, 353 deselected in 5.49s
+M60 [meshgrid_fa_parity.py] G0 reverify: the float16-exact sidecar: CAUGHT -- -k 'tampered_gate_evidence and float16': 1 failed, 353 deselected in 5.51s
+M61 [meshgrid_fa_parity.py] G0 reverify: the 0.0 aggregate: CAUGHT -- -k 'tampered_gate_evidence and aggregate': 1 failed, 353 deselected in 5.39s
+M62 [meshgrid_fa_parity.py] G1 reverify: the compared orbit: CAUGHT -- -k 'isolated_tamper and G1-inputs.angles': 1 failed, 353 deselected in 5.44s
+M63 [meshgrid_fa_parity.py] G1 reverify: coverage: CAUGHT -- -k 'isolated_tamper and G1-coverage': 1 failed, 353 deselected in 5.42s
+M64 [meshgrid_fa_parity.py] G1 reverify: the per-key fold: CAUGHT -- -k 'isolated_tamper and G1-per_key': 1 failed, 353 deselected in 5.41s
+M65 [meshgrid_fa_parity.py] GV reverify: the memoization on every vanilla id: CAUGHT -- -k 'tampered_gate_evidence and GV-vanilla_cache_parity.memoization': 1 failed, 353 deselected in 5.18s
+M66 [meshgrid_fa_parity.py] GV reverify: the counter-test bites: CAUGHT -- -k 'tampered_gate_evidence and GV-vanilla_cache_parity.counter_test': 1 failed, 353 deselected in 5.39s
+M67 [meshgrid_fa_parity.py] GV reverify: the published flags: CAUGHT -- -k 'isolated_tamper and GV-vanilla_cache_parity.match': 1 failed, 353 deselected in 5.16s
+M68 [meshgrid_fa_parity.py] GV reverify: the gate's query is the report's: CAUGHT -- -k 'isolated_tamper and GV-inputs.query_id': 1 failed, 353 deselected in 5.16s
+M69 [meshgrid_fa_parity.py] G2 reverify: exactly the registered counter-tests: CAUGHT -- -k 'isolated_tamper and G2-counter_tests.extra': 1 failed, 353 deselected in 5.27s
+M70 [meshgrid_fa_parity.py] G2 reverify: the per-key fold: CAUGHT -- -k 'isolated_tamper and G2-per_key': 1 failed, 353 deselected in 5.31s
+TOTAL 70/70 caught
