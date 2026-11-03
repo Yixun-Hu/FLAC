@@ -33,8 +33,20 @@ from src.localization import meshgrid_engine as me
 
 #: the gates, their artifact stems and their PRE-REGISTERED tolerances (plan r2
 #: §3 R2-B). A tolerance is not an argument: a bar the caller picks can be argued down.
-GATE_NAMES = {"G1": "fa_split_parity", "G2": "fa_cache_parity", "G3": "fa_production_parity"}
-GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3}
+GATE_NAMES = {"G1": "fa_split_parity", "G2": "fa_cache_parity", "G3": "fa_production_parity",
+              "G0": "vanilla_replay_regression"}
+GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3, "G0": 0.0}
+
+#: the vanilla no-regression gate's frozen inputs: the observation-bank digest of
+#: the 16 registered probe queries (loc_meshgrid_preregistered_digests.json, frozen
+#: 2026-08-26 before any quality was read) and the committed canonical P1 off-grid
+#: probe report, whose per-query grid row/sidecar digests the replay is held to
+FROZEN_OBSERVATION_BANK_SHA256 = (
+    "ee2ba80ad4f27b61f4d48e24b4c31cd0d7af5891259aa4f92385cb4400841c6b")
+COMMITTED_PROBE_REPORT = os.path.join("worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude",
+                                      "offgrid_probe_report.json")
+#: binding fields that decide no number: the dump authority governs dumps only
+REPLAY_BINDING_EXEMPT = ("dump_cases_sha256",)
 GATE_NOTES = {
     "G1": "GATE 1 (plan r2 §3 R2-B, Codex H3): the five-way split's decomposition against the "
           "released invariant_conditioning at IDENTICAL batching -- every split batch is run at "
@@ -61,6 +73,14 @@ GATE_NOTES = {
           "argmax moved at any K. Full AND tail scored and source batches must be covered. The "
           "evidence carries no prediction, score or margin -- only deltas, agreement booleans and "
           "at-risk flags -- so no BF localization quality is read before the pass",
+    "G0": "VANILLA NO-REGRESSION (plan r2 §3 R2-B): after the R2-B change, the vanilla path "
+          "replays each registered probe query of the published P1 run at the row's OWN stamped "
+          "batching (the matched-batching tie of the r9s/r9u probe, meshgrid_drift_measurement."
+          "measure_matched_query) and must reproduce its float16 sidecar exactly and its float32 "
+          "aggregate to exactly 0.0; the published rows must still carry the grid digests the "
+          "committed P1 probe report froze, the observation bank must hash to the frozen "
+          "ee2ba80a..., and the replay must run the published protocol. Architecture-bound: run "
+          "it on the A6000 class the P1 pass ran on",
 }
 
 #: the counter-tests of gate 2 and the ids each one must move
@@ -524,3 +544,69 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                 "noise_policy": str(noise_policy), "tau": float(tau),
                 "prefixes": [int(k) for k in prefixes], "angles": list(split.angles)},
         executed_partition=executed)
+
+
+def frozen_grid_digests(probe_report_path=COMMITTED_PROBE_REPORT):
+    """``{query_id: {row_sha256, sims_sha256}}`` the committed P1 probe report froze."""
+    with open(str(probe_report_path)) as handle:
+        report = json.load(handle)
+    return {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
+                                      "sims_sha256": record["grid_sims_sha256"]}
+            for record in report["records"]}
+
+
+def vanilla_replay_regression(engine, cases, run_dir, *, frozen_digests, observation_bank_sha256,
+                              expected_observation_bank_sha256=FROZEN_OBSERVATION_BANK_SHA256,
+                              run_binding=None, seed=me.SEED, num_samples=me.NUM_SAMPLES,
+                              noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU):
+    """G0 -- the vanilla path still reproduces the published P1 rows of the probe queries."""
+    from src.localization import meshgrid_drift_measurement as dm
+    from src.localization import meshgrid_offgrid_probe as mop
+    from src.localization import meshgrid_report as mr
+
+    if getattr(engine, "split", None) is not None or str(engine.cond_method) != "vanilla":
+        raise ValueError("the no-regression replay gates the vanilla path; this engine runs the fa "
+                         "split, which gates 1-3 cover")
+    published, published_sha = mr.load_published_binding(run_dir)
+    reasons = []
+    if str(observation_bank_sha256) != str(expected_observation_bank_sha256):
+        reasons.append(f"the observation bank hashes to {str(observation_bank_sha256)[:12]}..., "
+                       f"not the frozen {str(expected_observation_bank_sha256)[:12]}...")
+    if run_binding is not None:
+        moved = [field for field in me.RUN_BINDING_FIELDS if field not in REPLAY_BINDING_EXEMPT
+                 and run_binding.get(field) != published.get(field)]
+        reasons += [f"the replay does not run the published protocol: {field} differs"
+                    for field in moved]
+    entries = []
+    for case in cases:
+        query, md = case["query"], case["md"]
+        row = mop.load_grid_row(run_dir, query, binding_sha256=published_sha, binding=published)
+        stored = {"row_sha256": row.get("row_sha256"), "sims_sha256": row.get("sims_sha256")}
+        batch_rows, source_chunk = mop.row_batching(row)
+        obs = engine.embedder(torch.as_tensor(case["obs_wav"]).to(engine.device))[0].float().cpu()
+        matched, _per_candidate, _deltas = dm.measure_matched_query(
+            engine, query, md, me.query_context(engine, md), query.receiver_id, case["union"],
+            case["union_positions"], row, row["_sims"], obs, seed=seed, num_samples=num_samples,
+            noise_policy=noise_policy, batch_rows=batch_rows, source_chunk=source_chunk, tau=tau)
+        entry = {"query_id": query.query_id, "room_id": query.room_id,
+                 "frozen_digests_equal": frozen_digests.get(query.query_id) == stored,
+                 "published_digests": stored, "matched": matched}
+        if not entry["frozen_digests_equal"]:
+            reasons.append(f"{query.query_id}: the published row no longer carries the frozen "
+                           "grid digests of the committed P1 probe report")
+        if not matched["float16_bit_exact"]:
+            reasons.append(f"{query.query_id}: {matched['n_float16_mismatch']} sidecar cells are "
+                           "not reproduced float16-exactly")
+        if matched["aggregate"]["max_abs_delta"] != 0.0:
+            reasons.append(f"{query.query_id}: the float32 aggregate moved by "
+                           f"{matched['aggregate']['max_abs_delta']:.3g}")
+        entries.append(entry)
+    if not entries:
+        reasons.append("no registered probe query was replayed")
+    return gate_report("G0", reasons, queries=entries,
+                       inputs={"run_dir": str(run_dir), "published_binding_sha256": published_sha,
+                               "observation_bank_sha256": str(observation_bank_sha256),
+                               "expected_observation_bank_sha256":
+                                   str(expected_observation_bank_sha256),
+                               "queries": [entry["query_id"] for entry in entries]},
+                       executed_partition=None)

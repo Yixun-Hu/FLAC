@@ -1210,3 +1210,141 @@ def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsy
     driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
     evidence = json.load(open(tmp_path / "gates" / "fa_production_parity.json"))
     assert evidence["inputs"]["queries"] == [probes["B/B_idx_2"]]
+
+
+# --------------------------------------------------------------------------- #
+# the vanilla no-regression gate: the P1 probe queries' published rows, replayed
+# --------------------------------------------------------------------------- #
+PREREGISTERED = os.path.join(WORKLOG, "loc_meshgrid_preregistered_digests.json")
+PROBE_REPORT = os.path.join(WORKLOG, "offgrid_probe_report.json")
+
+
+def test_the_frozen_vanilla_digests_are_the_committed_p1_registration():
+    assert fp.FROZEN_OBSERVATION_BANK_SHA256 == json.load(open(PREREGISTERED))[
+        "observation_bank_sha256"]
+    assert fp.FROZEN_OBSERVATION_BANK_SHA256.startswith("ee2ba80a")
+    assert fp.COMMITTED_PROBE_REPORT == PROBE_REPORT
+    report = json.load(open(PROBE_REPORT))
+    assert report["run_gate"]["observation_bank_sha256"] == fp.FROZEN_OBSERVATION_BANK_SHA256
+    frozen = fp.frozen_grid_digests(PROBE_REPORT)
+    assert len(frozen) == 16
+    for digests in frozen.values():
+        assert set(digests) == {"row_sha256", "sims_sha256"}
+        assert all(len(value) == 64 for value in digests.values())
+
+
+def _published_vanilla_run(tmp_path):
+    """A published vanilla run of the fixture (the P1 stand-in) and its frozen grid digests."""
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._binding(k_prefixes=[1, 4], num_samples=4)
+    out = str(tmp_path / "published")
+    os.makedirs(out)
+    me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
+    me.run_pass(ENG.SyntheticEngine(), items, records, plan, out, num_samples=4, prefixes=(1, 4),
+                batch_rows=8, source_chunk=3, binding_sha256=me.binding_sha256(binding))
+    frozen = {row["query_id"]: {"row_sha256": row["row_sha256"],
+                                "sims_sha256": row["sims_sha256"]} for row in me.read_rows(out)}
+    cases = []
+    for room_id, position in (("A/A_idx_1", 0), ("B/B_idx_2", 3)):
+        room = me.load_room_plan(plan, room_id)
+        query = next(q for q in room.queries if q.position == position)
+        obs, md = items[position]
+        cases.append(fp.probe_case(room, query, me.GuardedMetadata(md), obs))
+    return out, binding, frozen, cases
+
+
+G0_KW = {"seed": 42, "num_samples": 4, "tau": me.TAU}
+
+
+def test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly(tmp_path):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
+    assert report["gate"] == "G0" and report["name"] == "vanilla_replay_regression"
+    assert report["verdict"] == "PASS", report["reasons"]
+    assert len(report["queries"]) == 2
+    for entry in report["queries"]:
+        assert entry["frozen_digests_equal"] is True
+        assert entry["matched"]["float16_bit_exact"] is True
+        assert entry["matched"]["aggregate"]["max_abs_delta"] == 0.0
+        assert (entry["matched"]["batch_rows"], entry["matched"]["source_chunk"]) == (8, 3)
+    assert _quality_keys(json.loads(json.dumps(report))) == set()
+
+
+def test_gate0_fails_when_the_vanilla_path_moves(tmp_path):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+
+    class Shifted(ENG.FakeConditioner):
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out_ = super().__call__(batch_metadata, device, only_ids=only_ids)
+            return {key: [value[0] + 1e-2, value[1]] for key, value in out_.items()}
+
+    engine = ENG.SyntheticEngine()
+    engine.conditioner = Shifted()
+    report = fp.vanilla_replay_regression(
+        engine, cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
+    assert report["verdict"] == "FAIL"
+    assert any("float16" in reason for reason in report["reasons"])
+
+
+def test_gate0_fails_on_moved_frozen_digests_a_moved_bank_or_another_protocol(tmp_path):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    first = cases[0]["query"].query_id
+    tampered = dict(frozen, **{first: dict(frozen[first], sims_sha256="0" * 64)})
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, frozen_digests=tampered,
+        observation_bank_sha256="o" * 64, expected_observation_bank_sha256="o" * 64,
+        run_binding=binding, **G0_KW)
+    assert report["verdict"] == "FAIL" and any("frozen" in r for r in report["reasons"])
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="x" * 64,
+        run_binding=binding, **G0_KW)
+    assert report["verdict"] == "FAIL" and any("observation bank" in r for r in report["reasons"])
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, frozen_digests=frozen, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=dict(binding, tau=0.05), **G0_KW)
+    assert report["verdict"] == "FAIL" and any("tau" in r for r in report["reasons"])
+
+
+def test_gate0_refuses_an_engine_with_the_split(tmp_path):
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    with pytest.raises(ValueError, match="vanilla"):
+        fp.vanilla_replay_regression(FaSyntheticEngine(), cases, out, frozen_digests=frozen,
+                                     observation_bank_sha256="o" * 64, **G0_KW)
+
+
+def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, capsys):
+    import localize_meshgrid as driver
+    from src.localization import meshgrid_offgrid_probe as mop
+
+    out, binding, frozen, _cases = _published_vanilla_run(tmp_path)
+    plan, records, items = ENG._aligned(tmp_path / "stream")
+    report_path = tmp_path / "probe_report.json"
+    report_path.write_text(json.dumps({"records": [
+        {"query_id": query_id, "grid_row_sha256": digests["row_sha256"],
+         "grid_sims_sha256": digests["sims_sha256"]} for query_id, digests in frozen.items()]}))
+    monkeypatch.setattr(mop, "compute_observation_bank_digest",
+                        lambda *a, **k: {"observation_bank_sha256":
+                                         fp.FROZEN_OBSERVATION_BANK_SHA256})
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check", "--replay-against", out,
+                              "--replay-probe-report", str(report_path), "--out-dir",
+                              str(tmp_path / "gates"), "--num-samples", "4", "--k-prefixes",
+                              "1", "4"] + ENG._VANILLA_PROTOCOL)
+    assert driver.validate_args(args) and driver.writes_query_artifacts(args) is False
+    code = driver._run_replay_check(args, ENG.SyntheticEngine(), plan, records,
+                                    [(obs, [md]) for obs, md in items], binding=binding)
+    evidence = json.load(open(tmp_path / "gates" / "vanilla_replay_regression.json"))
+    assert code == 0 and evidence["verdict"] == "PASS", evidence["reasons"]
+    probes = me.registered_probe_queries(plan)
+    assert [entry["query_id"] for entry in evidence["queries"]] == [probes[r] for r in
+                                                                     sorted(probes)]
+    assert "GATE G0 vanilla_replay_regression: PASS" in capsys.readouterr().out
+    # --replay-against is the VANILLA no-regression form of --replay-check only
+    with pytest.raises(SystemExit, match="vanilla"):
+        driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check",
+                                                "--replay-against", out] + ENG._FA_PROTOCOL))
+    with pytest.raises(SystemExit, match="--replay-check"):
+        driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt", "--probe", "1",
+                                                "--replay-against", out]))

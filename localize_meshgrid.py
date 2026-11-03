@@ -174,6 +174,16 @@ def parse_args(argv=None):
                              "autocast) vs a faithful replay over the registered probe queries "
                              "(--probe-room bounds it to one room); writes "
                              "<out-dir>/fa_production_parity.json and exits")
+    parser.add_argument("--replay-against", default=None,
+                        help="VANILLA NO-REGRESSION (exp_22 R2-B): with --replay-check, replay "
+                             "the registered probe queries of this PUBLISHED run at their rows' "
+                             "own batching and require them reproduced exactly; writes "
+                             "<out-dir>/vanilla_replay_regression.json")
+    parser.add_argument("--replay-probe-report", default=None,
+                        help="the probe report whose per-query grid digests are frozen "
+                             "(default: the committed canonical P1 off-grid probe report)")
+    parser.add_argument("--dataset-root", default="AcousticRooms",
+                        help="where the observed RIRs the frozen observation bank hashes live")
     parser.add_argument("--parity-candidates", type=int, default=None,
                         help="candidates gates 1 and 2 compare (default: a full and a tail "
                              "micro-batch for gate 1, two source chunks for gate 2)")
@@ -278,7 +288,12 @@ def validate_args(args):
                                     args.fa_production_parity_check)) if on]
     if len(modes) > 1:
         _refuse(f"{modes} are separate diagnostics: run one diagnostic per invocation")
-    if args.probe is None and args.probe_room and not args.fa_production_parity_check:
+    if args.replay_against and not args.replay_check:
+        _refuse("--replay-against is the vanilla no-regression form of --replay-check")
+    if args.replay_against and str(args.cond_method) != "vanilla":
+        _refuse("--replay-against replays the published P1 rows through the vanilla path")
+    if args.probe is None and args.probe_room and not (args.fa_production_parity_check
+                                                       or args.replay_against):
         _refuse("--probe-room only bounds the throughput probe (or gate 3); pass --probe too")
     if args.probe is not None:
         if int(args.probe) < 1:
@@ -608,7 +623,7 @@ def main(argv=None):
     if args.fa_production_parity_check:
         return _run_fa_gate(args, engine, plan, records, loader, "G3", run_binding)
     if args.replay_check:
-        return _run_replay_check(args, engine, plan, records, loader)
+        return _run_replay_check(args, engine, plan, records, loader, binding=run_binding)
 
     progress = _progress_printer(len(records) - len(done))
     summary = me.run_pass(engine, _iter_items(loader), records, plan, args.out_dir,
@@ -702,8 +717,23 @@ def _run_merge(args):
     return 0
 
 
-def _run_replay_check(args, engine, plan, records, loader):
-    """The registered fixed-batching determinism claim, on the first real query."""
+def _run_replay_check(args, engine, plan, records, loader, binding=None):
+    """The registered fixed-batching determinism claim, on the first real query -- or,
+    with --replay-against, the vanilla no-regression replay of the probe queries."""
+    if args.replay_against:
+        from src.localization import meshgrid_fa_parity as fp
+        from src.localization import meshgrid_offgrid_probe as mop
+
+        bank = mop.compute_observation_bank_digest(args.audit_report, args.context_manifest,
+                                                   dataset_root=args.dataset_root)
+        report = fp.vanilla_replay_regression(
+            engine, _probe_cases(args, plan, records, loader), args.replay_against,
+            frozen_digests=fp.frozen_grid_digests(args.replay_probe_report
+                                                  or fp.COMMITTED_PROBE_REPORT),
+            observation_bank_sha256=bank["observation_bank_sha256"], run_binding=binding,
+            seed=args.seed, num_samples=args.num_samples, noise_policy=args.noise_policy,
+            tau=args.tau)
+        return _publish_gate(args, report, binding)
     first = records[0]
     room = me.load_room_plan(plan, first["room_id"])
     query = next(q for q in room.queries if q.query_id == first["query_id"])
