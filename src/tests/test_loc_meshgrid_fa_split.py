@@ -770,3 +770,122 @@ def test_the_driver_builds_the_split_and_hands_the_pass_the_declared_partition(t
     assert payload["binding"]["fa_partition"] == DECLARED
     assert payload["binding"]["frame_avg_angles"] == list(C4)
     assert payload["fa_partition_executed"] == {"executed": DECLARED}
+
+
+# --------------------------------------------------------------------------- #
+# gate 1 -- the split vs the released invariant_conditioning at IDENTICAL batching
+# --------------------------------------------------------------------------- #
+from src.localization import meshgrid_fa_parity as fp                    # noqa: E402
+
+GATE_SCHEMA = {"gate", "name", "verdict", "match", "reasons", "tolerance", "inputs",
+               "executed_partition", "provenance", "created_utc", "note"}
+
+
+def _gate_query(tmp_path):
+    plan, _records, items = _fa_aligned(tmp_path)
+    query = me.load_room_plan(plan, "A/A_idx_1").queries[0]
+    return query, me.GuardedMetadata(items[0][1])
+
+
+class BatchSensitiveFa(FaFakeConditioner):
+    """An output that moves with the BATCH SIZE, as a real backbone under autocast does."""
+
+    OFFSET = 1e-4
+
+    def __call__(self, batch_metadata, device, only_ids=None):
+        out = super().__call__(batch_metadata, device, only_ids=only_ids)
+        return {key: [value[0] + self.OFFSET * len(batch_metadata), value[1]]
+                for key, value in out.items()}
+
+
+def test_gate1_passes_bit_for_bit_and_records_full_and_tail_batches(tmp_path):
+    query, md = _gate_query(tmp_path)
+    report = fp.split_parity(FaSyntheticEngine(), query, md, micro_batch=3, n_candidates=7)
+    assert report["gate"] == "G1" and report["name"] == "fa_split_parity"
+    assert report["verdict"] == "PASS" and report["match"] is True and report["reasons"] == []
+    assert report["tolerance"] == 0.0
+    assert [chunk["n"] for chunk in report["chunks"]] == [3, 3, 1]
+    assert report["coverage"] == {"full": 2, "tail": 1, "complete": True}
+    for chunk in report["chunks"]:
+        assert chunk["released_partition"]["partition"] == [chunk["n"]] * 3
+        for key in FA_IDS:
+            entry = chunk["conditioning"][key]
+            assert entry["tensor"]["bitwise"] and entry["tensor"]["max_abs_diff"] == 0.0
+            assert entry["mask"]["bitwise"]
+            assert entry["tensor"]["digest"][0] == entry["tensor"]["digest"][1]
+        assert all(entry["bitwise"] for entry in chunk["dit_inputs"].values())
+    assert set(report["per_key"]) == set(FA_IDS) | {"dit_inputs.cond"}
+    assert report["inputs"]["candidate_indices"] == [int(i) for i in
+                                                     query.candidate_indices[:7]]
+    assert set(report["executed_partition"]) >= {"executed", "violations", "branches"}
+
+
+def test_gate1_holds_at_identical_batching_even_for_a_batch_sensitive_backbone(tmp_path):
+    query, md = _gate_query(tmp_path)
+    engine = FaSyntheticEngine()
+    engine.conditioner = BatchSensitiveFa()
+    report = fp.split_parity(engine, query, md, micro_batch=3, n_candidates=7)
+    assert report["verdict"] == "PASS"
+
+
+def test_gate1_fails_on_a_wrong_decomposition_and_names_the_key(tmp_path):
+    query, md = _gate_query(tmp_path)
+
+    class Unfaithful(FaFakeConditioner):
+        """The only_ids seam computes context_poses differently from the full call."""
+
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            if only_ids is not None and list(only_ids) == ["context_poses"]:
+                out["context_poses"] = [out["context_poses"][0] + 0.5, out["context_poses"][1]]
+            return out
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = Unfaithful()
+    report = fp.split_parity(engine, query, md, micro_batch=3, n_candidates=7)
+    assert report["verdict"] == "FAIL" and report["match"] is False
+    assert any("context_poses" in reason for reason in report["reasons"])
+    assert report["per_key"]["context_poses"]["max_abs_diff"] == pytest.approx(0.5)
+    assert report["per_key"]["source"]["max_abs_diff"] == 0.0
+
+
+def test_gate1_without_full_and_tail_coverage_does_not_pass(tmp_path):
+    query, md = _gate_query(tmp_path)
+    report = fp.split_parity(FaSyntheticEngine(), query, md, micro_batch=3, n_candidates=6)
+    assert report["coverage"] == {"full": 2, "tail": 0, "complete": False}
+    assert report["verdict"] == "FAIL" and any("tail" in r for r in report["reasons"])
+
+
+def test_the_gates_refuse_an_engine_without_the_split(tmp_path):
+    query, md = _gate_query(tmp_path)
+    with pytest.raises(ValueError, match="split"):
+        fp.split_parity(ENG.SyntheticEngine(), query, md, micro_batch=3)
+
+
+def test_gate_evidence_carries_its_provenance_and_is_written_atomically(tmp_path):
+    query, md = _gate_query(tmp_path)
+    report = fp.split_parity(FaSyntheticEngine(), query, md, micro_batch=3, n_candidates=7)
+    environment = {"git_sha": "a" * 40, "git_status_dirty": False, "hostname": "box",
+                   "gpus": []}
+    evidence = fp.finalize_evidence(report, device="cpu", environment=environment,
+                                    inputs={"ckpt_sha256": "5" * 64, "cond_autocast": "off"})
+    assert GATE_SCHEMA <= set(evidence)
+    assert evidence["provenance"]["git_sha"] == "a" * 40
+    assert evidence["provenance"]["tracked_clean"] is True
+    assert evidence["provenance"]["hostname"] == "box"
+    assert evidence["provenance"]["gpu_uuid"] is None            # a CPU run names no card
+    assert evidence["inputs"]["ckpt_sha256"] == "5" * 64
+    assert evidence["inputs"]["query_id"] == query.query_id
+    path = fp.write_evidence(str(tmp_path / "evidence"), evidence)
+    assert os.path.basename(path) == "fa_split_parity.json"
+    assert json.load(open(path)) == json.loads(json.dumps(evidence))
+    assert not os.path.exists(path + ".tmp")
+
+
+def test_a_bfloat16_tensor_is_digested_without_numpy():
+    value = torch.tensor([1.0, 2.0], dtype=torch.bfloat16)
+    facts = fp.tensor_pair(value, value.clone(), 0.0)
+    assert facts["bitwise"] and facts["dtype"] == ["torch.bfloat16", "torch.bfloat16"]
+    assert facts["digest"][0] == facts["digest"][1] and len(facts["digest"][0]) == 64
+    other = fp.tensor_pair(value, value.float(), 0.0)
+    assert other["bitwise"] is False and any("dtype" in r for r in other["reasons"])
