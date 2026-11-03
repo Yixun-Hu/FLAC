@@ -1,0 +1,172 @@
+# exp_22 rB-F3 whole-repo collection + checks, HEAD d5a4a3c3154a81c23a02c3b12a4a92f201a07bce, 2026-11-03T17:15:47-05:00, CPU
+## pytest --collect-only (whole repo, CPU)
+5239 tests collected in 10.00s
+collection-error lines: 0
+## git diff --check 383a1ab5 HEAD -- '*.py'
+(clean)
+## py_compile of touched modules and tests
+py_compile OK (7 files: localize_meshgrid.py, src/localization/meshgrid_engine.py, src/localization/meshgrid_fa_parity.py, src/localization/meshgrid_report.py, src/tests/test_loc_meshgrid_fa_split.py, src/tests/test_loc_meshgrid_report.py, src/tests/test_loc_meshgrid_launch_record.py; bytecode to the scratchpad, never into the tree)
+## files changed since 383a1ab5
+ localize_meshgrid.py                               |   31 +-
+ src/localization/meshgrid_engine.py                |  417 +++++++-
+ src/localization/meshgrid_fa_parity.py             |  314 ++++--
+ src/localization/meshgrid_report.py                |    4 +
+ src/tests/test_loc_meshgrid_fa_split.py            | 1062 +++++++++++++++++++-
+ src/tests/test_loc_meshgrid_launch_record.py       |    5 +-
+ src/tests/test_loc_meshgrid_report.py              |   30 +-
+ ...-11-03_15:23:42_r2bf3_c1_anchor_content_red.log |   18 +
+ ...-03_15:36:42_r2bf3_c2_reverify_complete_red.log |   71 ++
+ ...11-03_15:52:05_r2bf3_c3_evidence_schema_red.log |   17 +
+ ...6-11-03_16:01:43_r2bf3_c4_fresh_out_dir_red.log |   34 +
+ ...6-11-03_16:12:37_r2bf3_c5_merged_ledger_red.log |   35 +
+ ...026-11-03_16:20:56_r2bf3_c6_row_binding_red.log |   29 +
+ ...026-11-03_16:47:14_r2bf3_c7_kill_window_red.log |   13 +
+ ...3_16:59:45_r2bf3_delete_the_check_mutations.log |  408 ++++++++
+ 15 files changed, 2333 insertions(+), 155 deletions(-)
+## untouched by contract: src/data src/models crossarm.py meshgrid_crossarm.py meshgrid_segments.py configs gen_model_comparison.py train.py eval_FLAC.py (empty = untouched)
+(end of protected list)
+## meshgrid_report.py: every changed line (finding 1, in scope this round)
++    # exp_22 rB-F3 (Codex rB-F2 finding 1): the executed-partition ledger re-read EXACTLY by
++    # the engine's reader and joined to the merge receipt (or the run summary); a vanilla run
++    # may carry neither a ledger nor a non-null receipt
++    me.read_fa_ledger(run_dir, binding.get("fa_partition"), exact=True)
+## the P1 golden regression + the three vanilla frozen-digest tests, by name
+4 passed in 6.48s
+## per-commit code lines (non-blank, non-comment, non-docstring Python outside src/tests; scratchpad counter, reproduces every rB-F2 row)
+66024ecd exp_22 rB-F3 (1/n): the pinned anchor's CONTENT is registere: TOTAL +34/-5 net 29 [meshgrid_fa_parity.py +34/-5]
+45f492e9 exp_22 rB-F3 (2/n): reverify_gate_evidence never raises and : TOTAL +118/-66 net 52 [meshgrid_engine.py +16/-11, meshgrid_fa_parity.py +102/-55]
+ea6b0fa7 exp_22 rB-F3 (3/n): every gate's evidence SCHEMA is register: TOTAL +53/-2 net 51 [meshgrid_fa_parity.py +53/-2]
+a56d4a59 exp_22 rB-F3 (4/n): a missing executed-partition ledger is a: TOTAL +59/-20 net 39 [localize_meshgrid.py +15/-12, meshgrid_engine.py +44/-8]
+c0fbadf4 exp_22 rB-F3 (5/n): the merged BF ledger is valid under its : TOTAL +56/-14 net 42 [meshgrid_engine.py +55/-14, meshgrid_report.py +1/-0]
+3b410489 exp_22 rB-F3 (6/n): every executed-partition ledger state is: TOTAL +130/-8 net 122 [meshgrid_engine.py +130/-8]
+7375693c exp_22 rB-F3 (7/n): the kill window is closed -- a pending-c: TOTAL +26/-1 net 25 [meshgrid_engine.py +26/-1]
+701926e5 exp_22 rB-F3 (8/n): self-review -- the ledger reader's docst: TOTAL +0/-0 net 0 [meshgrid_engine.py +0/-0]
+d5a4a3c3 exp_22 rB-F3 (9/n): delete-the-check proof -- 70 mutations, : TOTAL +0/-0 net 0 []
+383a1ab5..HEAD exp_22 rB-F3 (9/n): delete-the-check proof -- 70 mutations, : TOTAL +468/-108 net 360 [localize_meshgrid.py +15/-12, meshgrid_engine.py +264/-35, meshgrid_fa_parity.py +188/-61, meshgrid_report.py +1/-0]
+## raw changed Python lines outside src/tests, per commit (git numstat)
+66024ecd +46/-5 = 51
+45f492e9 +161/-71 = 232
+ea6b0fa7 +68/-2 = 70
+a56d4a59 +77/-23 = 100
+c0fbadf4 +70/-15 = 85
+3b410489 +172/-9 = 181
+7375693c +39/-3 = 42
+701926e5 +14/-9 = 23
+d5a4a3c3 +0/-0 = 0
+## every commit carries the trailer
+66024ecd 1
+45f492e9 1
+ea6b0fa7 1
+a56d4a59 1
+c0fbadf4 1
+3b410489 1
+7375693c 1
+701926e5 1
+d5a4a3c3 1
+## the per-commit code-line counter (scratchpad, Coder tooling), verbatim
+#   """Per-commit CODE-line counter (exp_22 rB-F3 Coder tooling; scratchpad, not part of the repo).
+#   
+#   "code lines" = non-blank, non-comment-only, non-docstring Python lines OUTSIDE src/tests/.
+#   For a commit C (against its first parent, or an explicit base), every '+' line of
+#   `git diff -U0` is counted if its NEW line number is a code line of the new file version,
+#   every '-' line if its OLD line number is a code line of the old version. Docstrings are
+#   the first-statement string literals of the module / each class / each function (ast);
+#   comment-only lines come from tokenize. Usage:
+#       python count_code_lines.py <repo> <commit> [<commit> ...]
+#       python count_code_lines.py <repo> --range <base> <head>
+#   """
+#   import ast
+#   import io
+#   import re
+#   import subprocess
+#   import sys
+#   import tokenize
+#   
+#   
+#   def git(repo, *args):
+#       return subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True,
+#                             text=True).stdout
+#   
+#   
+#   def code_lines(source):
+#       """The 1-based line numbers of ``source`` that are code."""
+#       lines = source.splitlines()
+#       candidates = {i + 1 for i, text in enumerate(lines) if text.strip()}
+#       try:
+#           tree = ast.parse(source)
+#       except SyntaxError:
+#           return candidates
+#       doc = set()
+#       for node in ast.walk(tree):
+#           if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+#               body = getattr(node, "body", [])
+#               if body and isinstance(body[0], ast.Expr) and isinstance(
+#                       getattr(body[0], "value", None), ast.Constant) and isinstance(
+#                       body[0].value.value, str):
+#                   doc.update(range(body[0].lineno, body[0].end_lineno + 1))
+#       comment_only = set()
+#       code_tokens = set()
+#       try:
+#           for token in tokenize.generate_tokens(io.StringIO(source).readline):
+#               if token.type == tokenize.COMMENT:
+#                   comment_only.add(token.start[0])
+#               elif token.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT,
+#                                       tokenize.DEDENT, tokenize.ENDMARKER):
+#                   for row in range(token.start[0], token.end[0] + 1):
+#                       code_tokens.add(row)
+#       except tokenize.TokenError:
+#           pass
+#       comment_only -= code_tokens
+#       return candidates - doc - comment_only
+#   
+#   
+#   def show(repo, rev, path):
+#       try:
+#           return git(repo, "show", f"{rev}:{path}")
+#       except subprocess.CalledProcessError:
+#           return ""
+#   
+#   
+#   def count(repo, base, head):
+#       files = [path for path in git(repo, "diff", "--name-only", base, head).split()
+#                if path.endswith(".py") and not path.startswith("src/tests/")]
+#       per_file, added, removed = {}, 0, 0
+#       for path in files:
+#           old_code, new_code = code_lines(show(repo, base, path)), code_lines(show(repo, head, path))
+#           plus = minus = 0
+#           diff = git(repo, "diff", "-U0", base, head, "--", path)
+#           old_line = new_line = 0
+#           for line in diff.splitlines():
+#               match = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", line)
+#               if match:
+#                   old_line, new_line = int(match.group(1)), int(match.group(3))
+#                   continue
+#               if line.startswith("+++") or line.startswith("---"):
+#                   continue
+#               if line.startswith("+"):
+#                   plus += new_line in new_code
+#                   new_line += 1
+#               elif line.startswith("-"):
+#                   minus += old_line in old_code
+#                   old_line += 1
+#           per_file[path] = (plus, minus)
+#           added += plus
+#           removed += minus
+#       return per_file, added, removed
+#   
+#   
+#   def main(argv):
+#       repo = argv[0]
+#       if argv[1] == "--range":
+#           pairs = [(argv[2], argv[3], f"{argv[2][:8]}..{argv[3][:8]}")]
+#       else:
+#           pairs = [(f"{rev}^", rev, rev[:8]) for rev in argv[1:]]
+#       for base, head, label in pairs:
+#           per_file, added, removed = count(repo, base, head)
+#           subject = git(repo, "log", "-1", "--format=%s", head)[:60]
+#           detail = ", ".join(f"{path.split('/')[-1]} +{p}/-{m}" for path, (p, m) in per_file.items())
+#           print(f"{label} {subject}: TOTAL +{added}/-{removed} net {added - removed} [{detail}]")
+#   
+#   
+#   if __name__ == "__main__":
+#       main(sys.argv[1:])

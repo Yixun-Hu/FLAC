@@ -437,3 +437,28 @@ the one disclosed out-of-scope line). Not pushed — the Planner verifies and pu
 | `fc8836a7` | rB-F1 5 (NIT), A6 iv | `partition_check_failed.json` written by a scored fa pass whose final (or before-row) partition check fails; `assert_admissible` refuses it by name in the reader (reopen + merge census), `_read_shard` and `meshgrid_report.evaluate_run` (one disclosed line); probe writes none; "publishes nothing" wording fixed | +46 (+53/−7) |
 | `3163658c` | self-review | an unknown-branch counts row is a named reader reason; the partition refusal reads the same in every caller | +3 (+6/−3) |
 | `01f693cb` | proof | delete-the-check mutations of the round's 20 new clauses (19/20 at once; the merge test gained "the only invocation failed" → 20/20) | 0 |
+
+## Round exp22-rB-F3 (fix round closing Codex code review rB-F2: BLOCKING 1–2, HIGH 3–4, NIT 5; C8 mutation coverage)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `383a1ab5`. Coder:
+Claude Opus 5.5 subagent; every code commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; the scratchpad counter — source in the round's checks log — reproduces every
+rB-F2 row exactly). Range `383a1ab5..d5a4a3c3`: +468/−108, net +360 (`meshgrid_engine.py`
++264/−35, `meshgrid_fa_parity.py` +188/−61, `localize_meshgrid.py` +15/−12, `meshgrid_report.py`
++1/−0 — one call, in scope this round for finding 1); per-commit sums +476/−116 (lines added and
+removed again inside the round cancel in the range). Largest commit `45f492e9`: 184 changed code
+lines (232 raw changed lines incl. docstrings / comments — disclosed). Not pushed — the Planner
+verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `66024ecd` | rB-F2 2 (BLOCKING) | the pinned anchor's CONTENT registered: `COMMITTED_PROBE_QUERY_IDS_SHA256 = 4f5743a8…`, `COMMITTED_PROBE_FROZEN_DIGESTS_SHA256 = 9ecef47d…` (load_probe_anchor's own `canonical_sha256` of the committed report's ordered ids / frozen map); loader, `anchor_reasons` (G3 / G3D / G0), G0 live and G0 re-verification hold them; fixtures re-register a fixture probe set, an autouse fixture restores | +29 (+34/−5) |
+| `45f492e9` | rB-F2 4 (HIGH) part 1 | the verdict re-derivation guarded, a non-string gate named; `RESOLVED_AUTOCAST` + exact token / bool / dtype / device type vs `inputs.device`; G3D finite non-negative deltas + boolean flags (`measurement_reasons`, live and re-verified); `REGISTERED_DIT_INPUTS` exact (live + re-verified); `me.counts_reasons` shared by the ledger and G3 / G3D executed counts (count ≥ 1); `_reverify_production` keeps named reasons when a fact is malformed | +52 (+118/−66) |
+| `ea6b0fa7` | rB-F2 4 part 2 | `EVIDENCE_SCHEMA` (every top-level and inputs field of each gate with its JSON type, registered texts); `schema_reasons`; the systematic type-substitution sweep (6 gates × every field × every other JSON type + deletion) | +51 (+53/−2) |
+| `a56d4a59` | rB-F2 3 part 1 | `fresh_out_dir`: a missing ledger only in a fresh out-dir; real-int segment indices; `open_fa_ledger` publishes at once, the driver opens it before the binding and `run_pass` adopts it (`adopt_fa_ledger`); fixtures follow the driver's order | +39 (+59/−20) |
+| `c0fbadf4` | rB-F2 1 (BLOCKING) | merged segments renumbered 0..n−1 keeping `shard` + `shard_segment_index`, verified before any write; `_merged_reasons` (origins, contiguous 0..k−1 blocks, the receipt joined exactly); merged runs never reopened; vanilla admits no ledger / block / non-null receipt; `meshgrid_report.evaluate_run` re-reads the ledger exactly (crossarm inherits) | +42 (+56/−14) |
+| `3b410489` | rB-F2 3 part 2 | per-row ledger stamps beside the rows (`fa_ledger_stamps/`, written after the ledger and before the row, copied by the merge); `delta_counts`; `_row_binding_reasons` (N == M exact / N == M + 1 bound by its prefix; at a merge the last invocation exact and a lost attempt's shapes re-executed), shard and merged mode, reopen / merge / report; the merge binds its rows in memory | +122 (+130/−8) |
+| `7375693c` | rB-F2 5 (NIT), A6 iv | `partition_check_pending.json` published before every executed-partition check of a scored fa pass, removed after it passed; `assert_admissible` refuses it (reopen, merge, report, crossarm) | +25 (+26/−1) |
+| `701926e5` | self-review, C8 | the reader's docstring names every check; `ISOLATED_TAMPERS` (14 single-clause tampers) + the census / merge in-memory defences, a segment naming another launch record, a delta outside its counts | 0 |
+| `d5a4a3c3` | C8 proof | delete-the-check: 70 mutations (48 new clauses + 22 re-verifier paths), 70/70 caught at once; log with the driver's source | 0 |
