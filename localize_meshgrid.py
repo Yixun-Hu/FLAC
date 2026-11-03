@@ -59,8 +59,38 @@ DEFAULT_AUDIT_REPORT = os.path.join("outputs_loc", "exp22", "g1_audit",
                                     "geometry_audit_report.json")
 
 
+#: exp_22 R2-A (Codex B6; announcement 05): the protocol and batching flags a
+#: canonical full pass must DECLARE on its command line -- none may be inherited
+#: from a default, because the default is not the registered value for every arm
+#: (``--batch-rows`` defaults to 64; the registered pass ran 256).
+REGISTERED_EXPLICIT_FLAGS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
+                             "batch_rows", "source_chunk")
+#: the explicit no-op orbit a vanilla arm binds, and the registered C4 orbit
+VANILLA_FRAME_AVG_ANGLES = [0.0]
+FA_FRAME_AVG_ANGLES = [0.0, 90.0, 180.0, 270.0]
+REGISTERED_ROTATE_DEG = 0.0
+
+
+class _Explicit(argparse.Action):
+    """Store the value AND remember the flag was given; a default never runs an action."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace.explicit_flags = frozenset(set(namespace.explicit_flags) | {self.dest})
+
+
+def resolved_protocol(args):
+    """``(frame_avg_angles, rotate_deg)`` as bound; diagnostics resolve the vanilla no-op."""
+    angles = args.frame_avg_angles
+    if angles is None and str(args.cond_method) == "vanilla":
+        angles = VANILLA_FRAME_AVG_ANGLES
+    rotate = REGISTERED_ROTATE_DEG if args.rotate_deg is None else args.rotate_deg
+    return (None if angles is None else [float(a) for a in angles]), float(rotate)
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.set_defaults(explicit_flags=frozenset())
     parser.add_argument("--ckpt-path", default=None,
                         help="the frozen FLAC checkpoint (wrapped; EMA resolved at load)")
     parser.add_argument("--merge-shards", nargs="+", default=None,
@@ -83,8 +113,17 @@ def parse_args(argv=None):
                              "stream is still walked and verified")
     parser.add_argument("--branch", default=None,
                         help="assert the audit's branch; the branch itself is not selectable")
-    parser.add_argument("--cond-method", default="vanilla", choices=["vanilla", "fa_invariant"])
-    parser.add_argument("--cond-autocast", default="default", choices=["default", "bf16", "off"])
+    parser.add_argument("--cond-method", default="vanilla", choices=["vanilla", "fa_invariant"],
+                        action=_Explicit)
+    parser.add_argument("--cond-autocast", default="default", choices=["default", "bf16", "off"],
+                        action=_Explicit)
+    parser.add_argument("--frame-avg-angles", type=float, nargs="+", default=None,
+                        action=_Explicit,
+                        help="the frame-average orbit, explicit on every canonical launch: "
+                             "vanilla arms pass exactly 0 (bound as [0.0]); fa_invariant "
+                             "passes the registered C4 orbit 0 90 180 270")
+    parser.add_argument("--rotate-deg", type=float, default=None, action=_Explicit,
+                        help="global panorama rotation; registered 0, anything else refused")
     parser.add_argument("--seed", type=int, default=me.SEED)
     parser.add_argument("--tau", type=float, default=me.TAU)
     parser.add_argument("--num-samples", type=int, default=me.NUM_SAMPLES)
@@ -93,9 +132,9 @@ def parse_args(argv=None):
                         choices=list(me.NOISE_KEY_POLICIES))
     parser.add_argument("--steps", type=int, default=me.STEPS)
     parser.add_argument("--cfg-scale", type=float, default=me.CFG_SCALE)
-    parser.add_argument("--batch-rows", type=int, default=64,
+    parser.add_argument("--batch-rows", type=int, default=64, action=_Explicit,
                         help="generated rows per forward (candidates x K)")
-    parser.add_argument("--source-chunk", type=int, default=me.SOURCE_CHUNK,
+    parser.add_argument("--source-chunk", type=int, default=me.SOURCE_CHUNK, action=_Explicit,
                         help="candidates per source-branch forward; each row is a full ViT "
                              "pass over a [3, 256, 512] map, so this is the memory knob")
     parser.add_argument("--resume", action="store_true",
@@ -120,6 +159,14 @@ def parse_args(argv=None):
                              "agreement (the registered determinism claim), then exit")
     parser.add_argument("--cache-parity-check", action="store_true",
                         help="run the §1.5 cached-vs-uncached bit-identity proof and exit")
+    parser.add_argument("--launch-record", default=None,
+                        help="PATH to this invocation's launch record (argv, git SHA, tracked-"
+                             "clean, hostname, designated GPU UUID), written BEFORE the run by "
+                             "--emit-launch-record. Required for every canonical full pass; one "
+                             "record per invocation (a --resume opens a new segment)")
+    parser.add_argument("--emit-launch-record", default=None,
+                        help="PROVENANCE MODE: write the launch record for THIS command to PATH "
+                             "and exit; then run the identical command with --launch-record PATH")
     return parser.parse_args(argv)
 
 
@@ -127,9 +174,49 @@ def _refuse(message):
     raise SystemExit(f"REFUSED: {message}")
 
 
+def validate_protocol_flags(args):
+    """The explicit eval protocol (announcement 05): orbit and rotation, per method."""
+    angles, rotate = resolved_protocol(args)
+    if str(args.cond_method) == "vanilla" and angles != VANILLA_FRAME_AVG_ANGLES:
+        _refuse(f"--frame-avg-angles {angles} with --cond-method vanilla: a vanilla arm binds "
+                "the explicit no-op orbit, so it passes exactly `--frame-avg-angles 0`")
+    if str(args.cond_method) == "fa_invariant" and angles != FA_FRAME_AVG_ANGLES:
+        _refuse(f"--frame-avg-angles {angles} with --cond-method fa_invariant: the registered "
+                f"orbit is the C4 group in order, `--frame-avg-angles 0 90 180 270`")
+    if rotate != REGISTERED_ROTATE_DEG:
+        _refuse(f"--rotate-deg {rotate:g}: the registered rotation is 0; a rotated pass is a "
+                "different experiment, not a variant of this one")
+    return angles, rotate
+
+
+def validate_launch_provenance(args):
+    """Canonical full passes carry a record and declare every protocol flag; diagnostics don't."""
+    recorded = args.launch_record or args.emit_launch_record
+    if args.launch_record and args.emit_launch_record:
+        _refuse("--emit-launch-record writes a record and exits; --launch-record runs the pass "
+                "it describes. Pass one of them")
+    if not writes_query_artifacts(args):
+        if recorded:
+            _refuse("launch records describe canonical full passes; --probe, the parity checks, "
+                    "--replay-check and --merge-shards are diagnostics and stay record-free")
+        return True
+    if not recorded:
+        _refuse("a canonical full pass requires --launch-record PATH, written BEFORE the run by "
+                "the identical command with --emit-launch-record PATH (plan r2 §3 R2-A, B4)")
+    implicit = [flag for flag in REGISTERED_EXPLICIT_FLAGS
+                if flag not in set(args.explicit_flags)]
+    if implicit:
+        _refuse(f"a canonical full pass may not rely on a default: declare "
+                f"{['--' + flag.replace('_', '-') for flag in implicit]} explicitly "
+                "(announcement 05; the registered batching is --batch-rows 256 "
+                "--source-chunk 16)")
+    return True
+
+
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
     if args.merge_shards is not None:
+        validate_launch_provenance(args)
         if not args.merge_out:
             _refuse("--merge-shards needs --merge-out: a merge publishes into a fresh "
                     "directory, never back into a shard")
@@ -172,6 +259,8 @@ def validate_args(args):
         _refuse("--dump-cases-sha256 was given without --dump-cases")
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
+    validate_protocol_flags(args)
+    validate_launch_provenance(args)
     if args.cond_method != "vanilla":
         _refuse(f"cond_method={args.cond_method!r}: the registered exp_22 arm is vanilla; the "
                 "frame-average arm needs §1.5's narrower context cache, which this engine "
@@ -265,7 +354,25 @@ def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256
         "dataset_config_sha256": me.file_sha256(args.dataset_config),
         "dump_cases_sha256": args.dump_cases_sha256 or None,
         "dataset_config": str(args.dataset_config),
+        **protocol_binding(args),
     }
+
+
+def protocol_binding(args):
+    """The R2 protocol fields this namespace binds, or ``{}`` for a legacy namespace.
+
+    The off-grid probe and the retrieval control reuse :func:`build_run_binding`
+    to verify the PUBLISHED P1 binding, which predates these flags; their parsers
+    define no ``--frame-avg-angles``, so they keep building the legacy R1 binding.
+    """
+    if not hasattr(args, "frame_avg_angles"):
+        return {}
+    angles, rotate = resolved_protocol(args)
+    partition = (me.declared_fa_partition(angles, batch_rows=args.batch_rows,
+                                          num_samples=args.num_samples,
+                                          source_chunk=args.source_chunk)
+                 if str(args.cond_method) == "fa_invariant" else None)
+    return {"frame_avg_angles": angles, "rotate_deg": rotate, "fa_partition": partition}
 
 
 def _iter_items(loader):

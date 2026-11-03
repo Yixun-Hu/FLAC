@@ -920,6 +920,28 @@ RUN_BINDING_FIELDS = (
 RUN_BINDING_PROTOCOL_FIELDS = ("frame_avg_angles", "rotate_deg", "fa_partition")
 
 
+def declared_fa_partition(angles, *, batch_rows, num_samples, source_chunk):
+    """The announcement-06 chunk plan a frame-averaged mesh pass DECLARES.
+
+    exp_20's per-angle plan (``cap_policy = candidate_micro_batch``, so every
+    rotated angle is its own forward) at the three batch shapes the R2 split
+    conditions with (plan r2 §2 table): the per-query context ViT orbit (one
+    query), the scored candidate batch ``context_poses`` is recomputed in
+    (``batch_rows // num_samples`` candidates; angle-invariant, never averaged)
+    and the receiver/source-cache chunk (``source_chunk``). R2-B executes the
+    split and must record the EXECUTED partition against this declaration.
+    """
+    orbit = len(list(angles))
+    source = int(source_chunk)
+    return {"frame_avg_chunk_plan": "per_angle", "cap_policy": "candidate_micro_batch",
+            "orbit_size": orbit, "angles_per_chunk": 1, "n_orbit_forwards": orbit - 1,
+            "shared_angle_count": 1,
+            "context_vit": {"candidate_micro_batch": 1, "frame_avg_fwd_cap": 1},
+            "context_scored_batch": {
+                "candidate_micro_batch": max(1, int(batch_rows) // int(num_samples))},
+            "source_cache": {"candidate_micro_batch": source, "frame_avg_fwd_cap": source}}
+
+
 def binding_fields(binding):
     """The strict fields ``binding`` is digested over: legacy R1, or R1 + R2 protocol."""
     present = [field for field in RUN_BINDING_PROTOCOL_FIELDS if field in binding]

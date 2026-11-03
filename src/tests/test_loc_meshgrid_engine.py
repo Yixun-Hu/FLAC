@@ -1340,7 +1340,10 @@ def test_the_driver_builds_the_binding_from_the_files_it_will_actually_read(tmp_
     binding = driver.build_run_binding(args, plan, ckpt_sha256="1" * 64,
                                        agree_sha256="2" * 64,
                                        model_config_sha256="3" * 64)
-    assert set(binding) == set(me.RUN_BINDING_FIELDS)
+    # exp_22 R2-A: the driver always publishes the R2 generation (R1 + the
+    # explicit protocol fields); only the probe/retrieval namespaces, which
+    # verify against the published P1 binding, still build the legacy one
+    assert set(binding) == set(me.RUN_BINDING_FIELDS) | set(me.RUN_BINDING_PROTOCOL_FIELDS)
     assert binding["g1_report_sha256"] == me.file_sha256(report_path)
     assert binding["d1_manifest_sha256"] == me.file_sha256(str(manifest_path))
     assert binding["room_manifest_sha256"] == {
@@ -2130,9 +2133,12 @@ def test_the_driver_requires_the_case_list_digest(tmp_path):
                               "--dump-cases", str(path)])
     with pytest.raises(SystemExit, match="--dump-cases-sha256"):
         driver.validate_args(args)
+    # exp_22 R2-A: a full pass is canonical, so it also carries its launch
+    # record and declares every protocol flag (B4/B6)
     args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "1|x",
                               "--dump-cases", str(path),
-                              "--dump-cases-sha256", me.file_sha256(str(path))])
+                              "--dump-cases-sha256", me.file_sha256(str(path)),
+                              "--launch-record", "l.json"] + _VANILLA_PROTOCOL)
     assert driver.validate_args(args) is True
 
 
@@ -2398,3 +2404,148 @@ def test_a_shard_with_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_p
     me.write_json(os.path.join(out, me.BINDING_FILENAME), published)
     with pytest.raises(ValueError, match="does not match its own content"):
         me._read_shard(out)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: the driver's explicit protocol flags (Codex B6; announcement 05)
+# --------------------------------------------------------------------------- #
+#: the registered vanilla launch, every protocol and batching flag spelled out
+_VANILLA_PROTOCOL = ["--cond-method", "vanilla", "--frame-avg-angles", "0", "--rotate-deg", "0",
+                     "--cond-autocast", "default", "--batch-rows", "256",
+                     "--source-chunk", "16"]
+_FA_PROTOCOL = ["--cond-method", "fa_invariant", "--frame-avg-angles", "0", "90", "180", "270",
+                "--rotate-deg", "0", "--cond-autocast", "default", "--batch-rows", "256",
+                "--source-chunk", "16"]
+
+
+def test_the_driver_parses_the_explicit_protocol_flags():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL)
+    assert args.frame_avg_angles == [0.0] and args.rotate_deg == 0.0
+    assert set(args.explicit_flags) == set(driver.REGISTERED_EXPLICIT_FLAGS)
+    assert set(driver.REGISTERED_EXPLICIT_FLAGS) == {
+        "cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast", "batch_rows",
+        "source_chunk"}
+    bare = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    assert set(bare.explicit_flags) == set()
+    assert bare.frame_avg_angles is None and bare.rotate_deg is None
+    # diagnostics keep their historical defaults
+    assert bare.batch_rows == 64 and bare.source_chunk == me.SOURCE_CHUNK
+    # an abbreviation is still an explicit declaration, because argparse resolves it
+    short = driver.parse_args(["--ckpt-path", "x.ckpt", "--batch-r", "256"])
+    assert "batch_rows" in short.explicit_flags and short.batch_rows == 256
+
+
+def test_a_vanilla_run_binds_exactly_the_canonical_zero_orbit():
+    import localize_meshgrid as driver
+
+    probe = ["--ckpt-path", "x.ckpt", "--probe", "1"]
+    assert driver.validate_args(driver.parse_args(probe + ["--frame-avg-angles", "0"]))
+    for angles in (["0", "90"], ["90"], ["0", "90", "180", "270"], ["0", "0"]):
+        with pytest.raises(SystemExit, match="--frame-avg-angles"):
+            driver.validate_args(driver.parse_args(probe + ["--frame-avg-angles", *angles]))
+
+
+def test_a_frame_averaged_run_must_declare_the_registered_c4_orbit():
+    import localize_meshgrid as driver
+
+    probe = ["--ckpt-path", "x.ckpt", "--probe", "1", "--cond-method", "fa_invariant"]
+    for angles in ([], ["0"], ["0", "90"], ["0", "90", "180"], ["90", "0", "180", "270"]):
+        with pytest.raises(SystemExit, match="--frame-avg-angles"):
+            driver.validate_args(driver.parse_args(
+                probe + (["--frame-avg-angles", *angles] if angles else [])))
+
+
+def test_the_rotation_is_registered_zero():
+    import localize_meshgrid as driver
+
+    for value in ("45", "90", "-0.5"):
+        with pytest.raises(SystemExit, match="--rotate-deg"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--probe", "1", "--rotate-deg", value]))
+    assert driver.validate_args(driver.parse_args(
+        ["--ckpt-path", "x.ckpt", "--probe", "1", "--rotate-deg", "0"]))
+
+
+def test_a_canonical_full_pass_requires_a_launch_record_and_every_protocol_flag():
+    import localize_meshgrid as driver
+
+    full = ["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL
+    with pytest.raises(SystemExit, match="--launch-record"):
+        driver.validate_args(driver.parse_args(full))
+    assert driver.validate_args(driver.parse_args(full + ["--launch-record", "l.json"]))
+    # no registered launch may rely on a default -- batching included (B6)
+    for flag in ("--cond-method", "--frame-avg-angles", "--rotate-deg", "--cond-autocast",
+                 "--batch-rows", "--source-chunk"):
+        position = full.index(flag)
+        dropped = full[:position] + full[position + 2:]
+        with pytest.raises(SystemExit, match=flag):
+            driver.validate_args(driver.parse_args(dropped + ["--launch-record", "l.json"]))
+
+
+def test_diagnostics_may_use_defaults_and_stay_record_free():
+    import localize_meshgrid as driver
+
+    for mode in (["--probe", "1"], ["--cache-parity-check"], ["--replay-check"]):
+        assert driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt"] + mode))
+        with pytest.raises(SystemExit, match="record-free"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--launch-record", "l.json"] + mode))
+        with pytest.raises(SystemExit, match="record-free"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--emit-launch-record", "l.json"] + mode))
+    with pytest.raises(SystemExit, match="record-free"):
+        driver.validate_args(driver.parse_args(
+            ["--merge-shards", "a", "b", "--merge-out", "m", "--launch-record", "l.json"]))
+
+
+def test_emission_validates_the_command_it_will_describe():
+    import localize_meshgrid as driver
+
+    full = ["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL
+    assert driver.validate_args(driver.parse_args(full + ["--emit-launch-record", "l.json"]))
+    without = [token for token in full if token not in ("--batch-rows", "256")]
+    with pytest.raises(SystemExit, match="--batch-rows"):
+        driver.validate_args(driver.parse_args(without + ["--emit-launch-record", "l.json"]))
+    with pytest.raises(SystemExit, match="--emit-launch-record"):
+        driver.validate_args(driver.parse_args(
+            full + ["--emit-launch-record", "l.json", "--launch-record", "l.json"]))
+
+
+def test_the_declared_fa_partition_is_the_per_angle_announcement_06_plan():
+    partition = me.declared_fa_partition([0.0, 90.0, 180.0, 270.0], batch_rows=256,
+                                         num_samples=8, source_chunk=16)
+    assert partition == {
+        "frame_avg_chunk_plan": "per_angle", "cap_policy": "candidate_micro_batch",
+        "orbit_size": 4, "angles_per_chunk": 1, "n_orbit_forwards": 3,
+        "shared_angle_count": 1,
+        "context_vit": {"candidate_micro_batch": 1, "frame_avg_fwd_cap": 1},
+        "context_scored_batch": {"candidate_micro_batch": 32},
+        "source_cache": {"candidate_micro_batch": 16, "frame_avg_fwd_cap": 16}}
+
+
+def test_the_driver_binds_the_explicit_protocol(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    manifest_path = tmp_path / "d1.json"
+    manifest_path.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    common = ["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+              "--context-manifest", str(manifest_path)]
+    vanilla = driver.build_run_binding(driver.parse_args(common + _VANILLA_PROTOCOL), plan,
+                                       ckpt_sha256="1" * 64, agree_sha256="2" * 64,
+                                       model_config_sha256="3" * 64)
+    assert set(vanilla) == set(me.RUN_BINDING_FIELDS) | set(me.RUN_BINDING_PROTOCOL_FIELDS)
+    assert vanilla["frame_avg_angles"] == [0.0] and vanilla["rotate_deg"] == 0.0
+    assert vanilla["fa_partition"] is None
+    assert isinstance(vanilla["rotate_deg"], float)
+    fa = driver.build_run_binding(driver.parse_args(common + _FA_PROTOCOL), plan,
+                                  ckpt_sha256="1" * 64, agree_sha256="2" * 64,
+                                  model_config_sha256="3" * 64)
+    assert fa["cond_method"] == "fa_invariant"
+    assert fa["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert fa["fa_partition"] == me.declared_fa_partition(
+        [0.0, 90.0, 180.0, 270.0], batch_rows=256, num_samples=8, source_chunk=16)
+    assert me.binding_sha256(fa) != me.binding_sha256(vanilla)
