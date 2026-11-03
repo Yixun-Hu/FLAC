@@ -43,6 +43,7 @@ import argparse
 import datetime
 import glob
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -243,21 +244,60 @@ def _validated_protocol(arm):
 
 
 def _attest_cells(files, arm, tag, ckpt):
-    """Add to each validated cell what its attestation keeps beyond the metrics record.
+    """Add to each validated cell what its attestation states beyond the metrics record.
 
     Nothing here is a check. The bundle and config paths are the ones ``check_bundle``
-    accepted; their digests are recorded, never compared -- the evaluator stamps no bundle
-    digest anywhere and names the config by path only. The ten bundle reads (~2.6 GB per
-    arm) are this round's one addition to the import's NAS read budget.
+    accepted; each bundle is read once more by ``_reread_bundle`` and the config is hashed
+    in the importer's worktree -- recorded, never compared (the evaluator stamps no bundle
+    digest and names the config by path only). The ten bundle reads (~2.6 GB per arm) are
+    the attestation's whole addition to the import's NAS read budget.
     """
     for entry in files:
         K, seed = entry["K"], entry["seed"]
         entry["eval_name"] = names.eval_name(arm, tag, K, seed)
         entry["bundle"] = names.predictions_pt_path(ckpt, arm, tag, K, seed)
-        entry["bundle_sha256"] = _sha256(entry["bundle"])
+        entry["bundle_reread"] = _reread_bundle(entry["bundle"])
         entry["dataset_config"] = names.EVAL_DATASET_CONFIGS[K]
         entry["dataset_config_sha256"] = names.eval_dataset_config_sha256(K)
     return files
+
+
+#: What a cell's ``bundle`` section states, in file order, after its digest.
+REREAD_KEYS = ("meta_n_items", "meta_n_samples", "predictions_shape", "predictions_finite",
+               "meta_dataset_config")
+
+
+def _reread_bundle(path):
+    """One validated bundle, read again: its sha256 and the values ``REREAD_KEYS`` name.
+
+    ``check_bundle`` keeps nothing it loads, so what the attestation says about a bundle
+    comes from this second read, after validation. The file is read ONCE, hashed, and
+    ``torch.load``-ed from those same bytes, so the digest and the values describe one
+    content. Nothing is compared -- not with the contract, not with what ``check_bundle``
+    loaded ([limits] N5): this exposes what the file says and adds no check. A file that is
+    gone raises ``OSError``; bytes that no longer load as a bundle raise ``ValueError`` --
+    there is then nothing to state, and nothing is installed.
+    """
+    import torch  # deferred, as in names.check_bundle: the module imports without torch
+
+    with open(path, "rb") as fin:
+        data = fin.read()
+    try:
+        bundle = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
+        meta, predictions = bundle["meta"], bundle["predictions"]
+        if not isinstance(meta, dict) or not torch.is_tensor(predictions):
+            raise TypeError("expected a meta dict and a predictions tensor")
+        found = {"meta_n_items": _value(meta.get("n_items")),
+                 "meta_n_samples": _value(meta["n_samples"]) if "n_samples" in meta
+                 else "absent",
+                 "predictions_shape": str(tuple(predictions.shape)),
+                 "predictions_finite": "yes" if bool(torch.isfinite(predictions.float()).all())
+                 else "no",
+                 "meta_dataset_config": _value(meta.get("dataset_config"))}
+    except Exception as err:
+        raise ValueError(f"{path} no longer loads as a prediction bundle, so its attestation "
+                         f"cannot be written ({type(err).__name__}: {err})") from err
+    return dict(found, sha256=hashlib.sha256(data).hexdigest())
 
 
 def _recorded_source_sha(path):
@@ -284,8 +324,9 @@ def _contract_lines(protocol, n_items, ks, seeds):
         f"C1: the run directory holds exactly one *step={names.MAX_STEPS}.ckpt, the final "
         "checkpoint above; a --ckpt-path override may only name that same file",
         "C2: that checkpoint hashes, through one open descriptor with fstat before and after,"
-        " to the --expect-ckpt-sha256 the launcher validated, and its (device, inode, size, "
-        "mtime_ns) is unchanged after every cell was validated and every bundle hashed",
+        " to the caller-supplied --expect-ckpt-sha256 (syntax + equality verified; provenance "
+        "of the expected digest is not verified by the importer), and its (device, inode, "
+        "size, mtime_ns) is unchanged after every cell was validated and every bundle re-read",
         f"C3: per cell (K in {list(ks)} x seed in {list(seeds)}) the metrics record exists at "
         "the evaluator's output path and is a JSON object with a non-empty metrics object",
         "C4: record.ckpt_path is the final checkpoint and record.ckpt_sha256 is its digest",
@@ -293,7 +334,8 @@ def _contract_lines(protocol, n_items, ks, seeds):
         "C6: the sibling prediction bundle exists and loads (torch, CPU) as a dict of "
         "predictions and a meta dict",
         f"C7: meta.n_items (and meta.n_samples, if present) == {n_items} and predictions is an"
-        f" all-finite tensor of shape ({n_items}, 1, {names.SAMPLE_LEN})",
+        f" all-finite tensor of shape ({n_items}, 1, {names.SAMPLE_LEN}) -- counts and shape, "
+        "not which items (see [limits] N1)",
         "C8: meta.seed is the cell's seed and meta.eval_name is dc_<arm>_f<tag>_K<K>_s<seed>",
         f"C9: meta.dataset_config is exactly the full unseen-eval config of the cell's K "
         f"({configs}) and that file is readable in the importer's worktree",
@@ -413,7 +455,7 @@ def _render_attestation(context, files, checkout):
                   f"metrics_record: {e['source']}", f"metrics_record_sha256: {e['sha256']}",
                   f"imported_copy: {os.path.relpath(e['dest'], checkout)}",
                   f"prediction_bundle: {e['bundle']}",
-                  f"prediction_bundle_sha256: {e['bundle_sha256']}",
+                  f"prediction_bundle_sha256: {e['bundle_reread']['sha256']}",
                   "bundle_artifact_contract: "
                   f"{json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
                   f"record_source_sha: {e['record_source_sha']}",
@@ -519,9 +561,10 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     a half-published arm would be globbed and averaged exactly like a complete one.
     ``ValueError`` is raised for a caller bug (unknown arm/tag, a digest that is not a
     digest): that is not a verdict about the artifacts. An artifact that vanishes or changes
-    under the import after it was validated -- a bundle gone before its attestation hash
-    (``OSError``), a record whose verified copy no longer parses (``ValueError``) -- also
-    raises; in every case nothing has been installed.
+    under the import after it was validated -- a bundle gone before its attestation re-read
+    (``OSError``), a bundle whose re-read bytes no longer load (``ValueError``), a record
+    whose verified copy no longer parses (``ValueError``) -- also raises; in every case
+    nothing has been installed.
     """
     run = names.run_id(arm, tag)                    # validates the arm and the fraction
     # The one rule about what a checkpoint digest may be lives in names; re-stating it here
@@ -551,8 +594,8 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     if bad:
         return result, [f"{run}: {bad[0]}; nothing was published"]
     if on_disk != expect_ckpt_sha256:
-        return result, [f"{run}: {ckpt} hashes to {on_disk}, not the ckpt_sha256 "
-                        f"{expect_ckpt_sha256} the launcher validated"]
+        return result, [f"{run}: {ckpt} hashes to {on_disk}, not the caller-supplied "
+                        f"--expect-ckpt-sha256 {expect_ckpt_sha256}"]
     files, violations = validate_cells(ckpt, arm, tag, expect_ckpt_sha256, seeds, ks,
                                        expect_n)
     if violations:
@@ -568,8 +611,8 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     if still != identity:
         return result, [f"{run}: {ckpt} changed while this import was reading it "
                         f"({identity} -> {still}); nothing was published"]
-    context = {"run": run, "arm": arm, "tag": tag, "ckpt": ckpt,
-               "ckpt_sha256": expect_ckpt_sha256, "dest_dir": dest_dir,
+    context = {"run": run, "arm": arm, "tag": tag, "ckpt": ckpt, "ckpt_sha256": on_disk,
+               "expect_ckpt_sha256": expect_ckpt_sha256, "dest_dir": dest_dir,
                "n_items": names.N_ITEMS_UNSEEN if expect_n is None else expect_n,
                "protocol": _validated_protocol(arm), "ks": tuple(ks), "seeds": tuple(seeds),
                "row_specs": result["row_specs"]}
