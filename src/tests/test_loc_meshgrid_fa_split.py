@@ -1094,3 +1094,119 @@ def test_gate3_evidence_reads_no_localization_quality(tmp_path):
                                     environment={"git_sha": "a" * 40, "git_status_dirty": False,
                                                  "hostname": "box"})
     assert _quality_keys(json.loads(json.dumps(evidence))) == set()
+
+
+# --------------------------------------------------------------------------- #
+# the driver's gate modes: record-free diagnostics that write evidence
+# --------------------------------------------------------------------------- #
+def _gate_args(tmp_path, *mode, protocol=None):
+    import localize_meshgrid as driver
+
+    argv = (["--ckpt-path", "x.ckpt", "--out-dir", str(tmp_path / "gates")]
+            + list(ENG._FA_PROTOCOL if protocol is None else protocol) + list(mode))
+    return driver.parse_args(argv)
+
+
+def _off(protocol):
+    swapped = list(protocol)
+    swapped[swapped.index("--cond-autocast") + 1] = "off"
+    return swapped
+
+
+def test_the_gate_modes_validate_their_registered_conditions(tmp_path):
+    import localize_meshgrid as driver
+
+    g1 = _gate_args(tmp_path, "--fa-split-parity-check", protocol=_off(ENG._FA_PROTOCOL))
+    assert driver.validate_args(g1) and driver.writes_query_artifacts(g1) is False
+    # gate 1 is autocast OFF, and frame-averaged
+    with pytest.raises(SystemExit, match="--cond-autocast off"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-split-parity-check"))
+    with pytest.raises(SystemExit, match="fa_invariant"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-split-parity-check",
+                                        protocol=_off(ENG._VANILLA_PROTOCOL)))
+    # gate 3 is the PRODUCTION batching and autocast, nothing else
+    g3 = _gate_args(tmp_path, "--fa-production-parity-check", "--probe-room", "B/B_idx_2")
+    assert driver.validate_args(g3) and driver.writes_query_artifacts(g3) is False
+    for protocol, flag in ((_off(ENG._FA_PROTOCOL), "--cond-autocast"),
+                           ([t if t != "256" else "64" for t in ENG._FA_PROTOCOL], "--batch-rows"),
+                           ([t if t != "16" else "8" for t in ENG._FA_PROTOCOL], "--source-chunk")):
+        with pytest.raises(SystemExit, match=flag):
+            driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
+                                            protocol=protocol))
+    with pytest.raises(SystemExit, match="fa_invariant"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
+                                        protocol=ENG._VANILLA_PROTOCOL))
+    # one diagnostic at a time; gates are record-free
+    with pytest.raises(SystemExit, match="one diagnostic"):
+        driver.validate_args(_gate_args(tmp_path, "--cache-parity-check",
+                                        "--fa-production-parity-check"))
+    with pytest.raises(SystemExit, match="record-free"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
+                                        "--launch-record", "l.json"))
+
+
+def _driver_stack(tmp_path):
+    plan, records, items = _fa_aligned(tmp_path)
+    # the released loader yields a BATCHED observation tensor and a metadata list
+    return plan, records, [(obs, [md]) for obs, md in items]
+
+
+def test_the_driver_runs_gate1_and_writes_its_evidence(tmp_path, capsys):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    args = _gate_args(tmp_path, "--fa-split-parity-check", "--parity-candidates", "48",
+                      protocol=_off(ENG._FA_PROTOCOL))
+    binding = {"ckpt_sha256": "5" * 64, "cond_method": "fa_invariant"}
+    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G1", binding)
+    assert code == 0
+    evidence = json.load(open(tmp_path / "gates" / "fa_split_parity.json"))
+    assert evidence["verdict"] == "PASS" and evidence["gate"] == "G1"
+    assert evidence["inputs"]["binding"] == binding
+    assert evidence["inputs"]["cond_autocast"] == "off"
+    assert evidence["coverage"]["complete"] is True             # 48 = 32 + a tail of 16
+    assert evidence["provenance"]["record_free"] is True
+    assert "GATE G1 fa_split_parity: PASS" in capsys.readouterr().out
+
+
+def test_the_drivers_cache_parity_runs_gate2_under_fa_and_the_vanilla_proof_otherwise(
+        tmp_path, capsys):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    args = _gate_args(tmp_path, "--cache-parity-check", "--parity-candidates", "5")
+    assert driver._run_cache_parity(args, FaSyntheticEngine(), plan, records, loader,
+                                    binding={"cond_method": "fa_invariant"}) == 0
+    evidence = json.load(open(tmp_path / "gates" / "fa_cache_parity.json"))
+    assert evidence["verdict"] == "PASS" and evidence["inputs"]["n_candidates"] == 5
+    assert "GATE G2 fa_cache_parity: PASS" in capsys.readouterr().out
+    # vanilla: the original proof, printed as before, no fa evidence
+    plan, records, items = ENG._aligned(tmp_path / "vanilla")
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--source-chunk", "2",
+                              "--out-dir", str(tmp_path / "vanilla_gates")])
+    assert driver._run_cache_parity(args, ENG.SyntheticEngine(), plan, records,
+                                    [([obs], [md]) for obs, md in items]) == 0
+    assert "MEMOIZATION" in capsys.readouterr().out
+    assert not os.path.exists(tmp_path / "vanilla_gates" / "fa_cache_parity.json")
+
+
+def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsys):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    args = _gate_args(tmp_path, "--fa-production-parity-check")
+    args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
+    binding = {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"}
+    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
+    evidence = json.load(open(tmp_path / "gates" / "fa_production_parity.json"))
+    probes = me.registered_probe_queries(plan)
+    assert evidence["inputs"]["queries"] == [probes[room] for room in sorted(probes)]
+    assert evidence["declared_partition"] == FA_DECLARED
+    assert evidence["executed_partition"]["executed"] == FA_DECLARED
+    assert code == (0 if evidence["verdict"] == "PASS" else 1)
+    assert f"GATE G3 fa_production_parity: {evidence['verdict']}" in capsys.readouterr().out
+    # --probe-room bounds it to that room's registered probe query
+    args.probe_room = "B/B_idx_2"
+    driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
+    evidence = json.load(open(tmp_path / "gates" / "fa_production_parity.json"))
+    assert evidence["inputs"]["queries"] == [probes["B/B_idx_2"]]

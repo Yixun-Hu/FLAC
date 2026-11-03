@@ -1,0 +1,9 @@
+E       SystemExit: 2
+E       SystemExit: 2
+E       SystemExit: 2
+E       SystemExit: 2
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_gate_modes_validate_their_registered_conditions
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_gate1_and_writes_its_evidence
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_drivers_cache_parity_runs_gate2_under_fa_and_the_vanilla_proof_otherwise
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_gate3_over_the_registered_probe_queries
+4 failed, 51 passed, 5 warnings in 18.54s

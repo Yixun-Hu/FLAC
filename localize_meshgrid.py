@@ -163,7 +163,20 @@ def parse_args(argv=None):
                         help="score one query twice at fixed batching and require bit-exact "
                              "agreement (the registered determinism claim), then exit")
     parser.add_argument("--cache-parity-check", action="store_true",
-                        help="run the §1.5 cached-vs-uncached bit-identity proof and exit")
+                        help="run the §1.5 cached-vs-uncached bit-identity proof and exit; "
+                             "under fa_invariant this is GATE 2 (fa_cache_parity evidence)")
+    parser.add_argument("--fa-split-parity-check", action="store_true",
+                        help="GATE 1 (exp_22 R2-B): the five-way split vs the released "
+                             "invariant_conditioning at identical batching, --cond-autocast off; "
+                             "writes <out-dir>/fa_split_parity.json and exits")
+    parser.add_argument("--fa-production-parity-check", action="store_true",
+                        help="GATE 3 (exp_22 R2-B): production batching (256/16, default "
+                             "autocast) vs a faithful replay over the registered probe queries "
+                             "(--probe-room bounds it to one room); writes "
+                             "<out-dir>/fa_production_parity.json and exits")
+    parser.add_argument("--parity-candidates", type=int, default=None,
+                        help="candidates gates 1 and 2 compare (default: a full and a tail "
+                             "micro-batch for gate 1, two source chunks for gate 2)")
     parser.add_argument("--launch-record", default=None,
                         help="PATH to this invocation's launch record (argv, git SHA, tracked-"
                              "clean, hostname, designated GPU UUID), written BEFORE the run by "
@@ -194,6 +207,28 @@ def validate_protocol_flags(args):
         _refuse(f"--rotate-deg {rotate:g}: the registered rotation is 0; a rotated pass is a "
                 "different experiment, not a variant of this one")
     return angles, rotate
+
+
+def validate_gate_flags(args):
+    """The fa parity gates' registered conditions (plan r2 §3 R2-B, Codex H3)."""
+    from src.localization import meshgrid_report as mr
+
+    gate = args.fa_split_parity_check or args.fa_production_parity_check
+    if gate and str(args.cond_method) != "fa_invariant":
+        _refuse("the fa parity gates compare the five-way split: pass --cond-method fa_invariant "
+                "--frame-avg-angles 0 90 180 270")
+    if args.fa_split_parity_check and args.cond_autocast != "off":
+        _refuse("gate 1 is registered bit-exact with autocast OFF: pass --cond-autocast off")
+    if args.fa_production_parity_check:
+        for flag, registered, found in (("--cond-autocast", "default", args.cond_autocast),
+                                        ("--batch-rows", mr.REGISTERED_BATCH_ROWS,
+                                         args.batch_rows),
+                                        ("--source-chunk", mr.REGISTERED_SOURCE_CHUNK,
+                                         args.source_chunk)):
+            if found != registered:
+                _refuse(f"gate 3 runs the PRODUCTION batching and autocast: {flag} {registered}, "
+                        f"not {found}")
+    return True
 
 
 def validate_launch_provenance(args):
@@ -235,8 +270,16 @@ def validate_args(args):
     if args.rooms is not None and args.probe is not None:
         _refuse("--rooms shards a scored pass and --probe is a no-quality diagnostic; use "
                 "--probe-room to bound a probe")
-    if args.probe is None and args.probe_room:
-        _refuse("--probe-room only bounds the throughput probe; pass --probe too")
+    modes = [flag for flag, on in (("--probe", args.probe is not None),
+                                   ("--cache-parity-check", args.cache_parity_check),
+                                   ("--replay-check", args.replay_check),
+                                   ("--fa-split-parity-check", args.fa_split_parity_check),
+                                   ("--fa-production-parity-check",
+                                    args.fa_production_parity_check)) if on]
+    if len(modes) > 1:
+        _refuse(f"{modes} are separate diagnostics: run one diagnostic per invocation")
+    if args.probe is None and args.probe_room and not args.fa_production_parity_check:
+        _refuse("--probe-room only bounds the throughput probe (or gate 3); pass --probe too")
     if args.probe is not None:
         if int(args.probe) < 1:
             _refuse("--probe must cover at least one query")
@@ -267,6 +310,7 @@ def validate_args(args):
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
     validate_protocol_flags(args)
+    validate_gate_flags(args)
     validate_launch_provenance(args)
     # fa_invariant is no longer refused here: the engine's own refusal
     # (assert_cacheable) fires in preflight, AFTER every binding check (R2-A)
@@ -422,6 +466,7 @@ def writes_query_artifacts(args):
     must not read one either.
     """
     return (args.probe is None and not args.cache_parity_check and not args.replay_check
+            and not args.fa_split_parity_check and not args.fa_production_parity_check
             and args.merge_shards is None)
 
 
@@ -557,7 +602,11 @@ def main(argv=None):
           "D1 pass at iterator creation")
 
     if args.cache_parity_check:
-        return _run_cache_parity(args, engine, plan, records, loader)
+        return _run_cache_parity(args, engine, plan, records, loader, binding=run_binding)
+    if args.fa_split_parity_check:
+        return _run_fa_gate(args, engine, plan, records, loader, "G1", run_binding)
+    if args.fa_production_parity_check:
+        return _run_fa_gate(args, engine, plan, records, loader, "G3", run_binding)
     if args.replay_check:
         return _run_replay_check(args, engine, plan, records, loader)
 
@@ -677,26 +726,92 @@ def _run_replay_check(args, engine, plan, records, loader):
     _refuse("the stream ended before the first registered query")
 
 
-def _run_cache_parity(args, engine, plan, records, loader):
-    """§1.5's bit-identity proof on the first query of the pass, then stop."""
+def _first_query(plan, records, loader):
+    """The pass's first registered query, its verified metadata and its observation."""
     first = records[0]
     room = me.load_room_plan(plan, first["room_id"])
     query = next(q for q in room.queries if q.query_id == first["query_id"])
-    for position, (_obs, md) in enumerate(_iter_items(loader)):
-        if position != int(first["position"]):
-            continue
-        me.verify_context_record(md, first, position)
-        report = me.cache_parity_check(engine, query, md,
-                                       source_chunk=args.source_chunk)
-        print(json.dumps(report, indent=2, sort_keys=True))
-        print("\nMEMOIZATION (the contract): "
-              f"{'MATCH' if report['memoization']['match'] else 'MISMATCH'}; "
-              f"counter-test {'bit' if report['counter_test']['detected'] else 'DID NOT BITE'}")
-        print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
-              f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
-              f"{report['batched']['note']}")
-        return 0 if report["match"] else 1
+    for position, (obs, md) in enumerate(_iter_items(loader)):
+        if position == int(first["position"]):
+            me.verify_context_record(md, first, position)
+            return query, md, obs
     _refuse("the stream ended before the first registered query")
+
+
+def _probe_cases(args, plan, records, loader):
+    """Gate 3's cases: the registered probe queries (one room with --probe-room), streamed."""
+    from src.localization.meshgrid_fa_parity import probe_case
+
+    probes = me.registered_probe_queries(plan)
+    rooms = [args.probe_room] if args.probe_room else sorted(probes)
+    wanted = {probes[room]: room for room in rooms}
+    by_position = {int(record["position"]): record for record in records}
+    for position, (obs, md) in enumerate(_iter_items(loader)):
+        record = by_position.get(position)
+        if record is None or record["query_id"] not in wanted:
+            continue
+        guarded = me.GuardedMetadata(md)
+        me.verify_context_record(guarded, record, position)
+        room = me.load_room_plan(plan, wanted[record["query_id"]])
+        query = next(q for q in room.queries if q.query_id == record["query_id"])
+        yield probe_case(room, query, guarded, obs)
+
+
+def _gate_inputs(args, binding):
+    return {"binding": dict(binding or {}), "cond_autocast": args.cond_autocast,
+            "batch_rows": int(args.batch_rows), "source_chunk": int(args.source_chunk),
+            "ckpt_path": args.ckpt_path, "device": args.device}
+
+
+def _publish_gate(args, report, binding):
+    from src.localization import meshgrid_fa_parity as fp
+
+    evidence = fp.finalize_evidence(report, args.device, inputs=_gate_inputs(args, binding))
+    path = fp.write_evidence(args.out_dir, evidence)
+    print(f"GATE {report['gate']} {report['name']}: {report['verdict']} -> {path}")
+    for reason in report["reasons"][:10]:
+        print(f"  {reason}")
+    return 0 if report["match"] else 1
+
+
+def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
+    """Gate 1 on the pass's first query, or gate 3 over the registered probe queries."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    micro = max(1, int(args.batch_rows) // int(args.num_samples))
+    if gate == "G1":
+        query, md, _obs = _first_query(plan, records, loader)
+        report = fp.split_parity(engine, query, me.GuardedMetadata(md), micro_batch=micro,
+                                 n_candidates=args.parity_candidates)
+    else:
+        report = fp.production_parity(
+            engine, _probe_cases(args, plan, records, loader), batch_rows=args.batch_rows,
+            source_chunk=args.source_chunk, num_samples=args.num_samples, seed=args.seed,
+            noise_policy=args.noise_policy, tau=args.tau,
+            prefixes=tuple(int(k) for k in args.k_prefixes),
+            declared_partition=(binding or {}).get("fa_partition"))
+    return _publish_gate(args, report, binding)
+
+
+def _run_cache_parity(args, engine, plan, records, loader, binding=None):
+    """§1.5's bit-identity proof on the first query of the pass, then stop (gate 2 under fa)."""
+    query, md, _obs = _first_query(plan, records, loader)
+    if getattr(engine, "split", None) is not None:
+        from src.localization import meshgrid_fa_parity as fp
+
+        return _publish_gate(args, fp.cache_parity(
+            engine, query, me.GuardedMetadata(md), n_candidates=args.parity_candidates,
+            source_chunk=args.source_chunk,
+            micro_batch=max(1, int(args.batch_rows) // int(args.num_samples))), binding)
+    report = me.cache_parity_check(engine, query, md, source_chunk=args.source_chunk)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    print("\nMEMOIZATION (the contract): "
+          f"{'MATCH' if report['memoization']['match'] else 'MISMATCH'}; "
+          f"counter-test {'bit' if report['counter_test']['detected'] else 'DID NOT BITE'}")
+    print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
+          f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
+          f"{report['batched']['note']}")
+    return 0 if report["match"] else 1
 
 
 if __name__ == "__main__":
