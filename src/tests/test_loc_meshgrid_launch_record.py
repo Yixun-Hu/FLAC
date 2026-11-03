@@ -320,3 +320,147 @@ def test_a_merge_refuses_a_shard_whose_census_is_incomplete(tmp_path):
     rows = _rows(entry["launch_record_sha256"], [0]) + [{"query_id": "1|q", "position": 1}]
     with pytest.raises(ValueError, match="launch provenance"):
         ms.merge_ledgers({out: rows}, str(tmp_path / "merged"))
+
+
+# --------------------------------------------------------------------------- #
+# the engine: rows name their segment, resume accounting, the merge gate
+# --------------------------------------------------------------------------- #
+import test_loc_meshgrid_engine as ENG                        # noqa: E402
+
+
+def _segment(tmp_path, out, name, argv=ARGV, resume=False):
+    path = emit(tmp_path, argv=argv, name=name)
+    return ms.open_segment(out, path, admit(path, argv=argv), resume=resume)
+
+
+def _score(out, items, records, plan, binding, rooms=None, sha=None, done=()):
+    summary = me.run_pass(ENG.SyntheticEngine(), items, records, plan, out, num_samples=4,
+                          prefixes=(1, 4), batch_rows=8, source_chunk=3, rooms=rooms,
+                          binding_sha256=me.binding_sha256(binding), done=done,
+                          launch_record_sha256=sha)
+    me.write_json(os.path.join(out, "run_summary.json"), summary)
+    return summary
+
+
+def test_every_row_names_the_record_of_the_invocation_that_produced_it(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    out = str(tmp_path / "run")
+    me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
+    entry = _segment(tmp_path, out, "one.json")
+    summary = _score(out, items, records, plan, binding, sha=entry["launch_record_sha256"])
+    assert summary["launch_record_sha256"] == entry["launch_record_sha256"]
+    rows = me.read_rows(out)
+    assert {row["launch_record_sha256"] for row in rows} == {entry["launch_record_sha256"]}
+    # the stamp is a CLAIM of the row, so the row digest authenticates it
+    path = me.query_artifact_paths(out, rows[0]["room_id"], rows[0]["position"])["row"]
+    me.write_json(path, dict(rows[0], launch_record_sha256="f" * 64))
+    assert me.verify_query_artifact(path)["ok"] is False
+
+
+def test_a_pass_without_a_record_writes_exactly_the_rows_it_always_did(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    out = str(tmp_path / "run")
+    _score(out, items, records, plan, ENG._binding())
+    assert all("launch_record_sha256" not in row for row in me.read_rows(out))
+
+
+def test_a_resume_is_a_new_segment_and_rows_are_attributed_to_their_own(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    out = str(tmp_path / "run")
+    me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
+    first = _segment(tmp_path, out, "one.json")
+    _score(out, items, records, plan, binding, sha=first["launch_record_sha256"])
+    # the first invocation "crashed" before publishing positions 1 and 3
+    for room, position in (("A/A_idx_1", 1), ("B/B_idx_2", 3)):
+        os.remove(me.query_artifact_paths(out, room, position)["row"])
+    resumed = ARGV + ["--resume"]
+    second = _segment(tmp_path, out, "two.json", argv=resumed, resume=True)
+    done, rejected = me.completed_queries(out, binding_sha256=me.binding_sha256(binding),
+                                          launch_records=set(ms.ledger_shas(out)))
+    assert len(done) == 2 and rejected == []
+    _score(out, items, records, plan, binding, sha=second["launch_record_sha256"], done=done)
+    census = ms.provenance_census(out, me.read_rows(out))
+    assert census["complete"] is True
+    ranges = {r["launch_record_sha256"]: r["position_ranges"] for r in census["records"]}
+    assert ranges == {first["launch_record_sha256"]: [[0, 0], [2, 2]],
+                      second["launch_record_sha256"]: [[1, 1], [3, 3]]}
+
+
+def test_a_resume_regenerates_a_row_whose_record_this_run_does_not_know(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    out = str(tmp_path / "run")
+    me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3})
+    entry = _segment(tmp_path, out, "one.json")
+    _score(out, items, records, plan, binding, sha=entry["launch_record_sha256"])
+    # a row smuggled in under a record this run never admitted
+    _score(str(tmp_path / "elsewhere"), items, records, plan, binding, sha="e" * 64)
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)
+    foreign = me.query_artifact_paths(str(tmp_path / "elsewhere"), "A/A_idx_1", 0)
+    for key in ("row", "sims"):
+        with open(foreign[key], "rb") as source, open(path[key], "wb") as target:
+            target.write(source.read())
+    done, rejected = me.completed_queries(out, binding_sha256=me.binding_sha256(binding),
+                                          launch_records=set(ms.ledger_shas(out)))
+    assert len(done) == 3
+    assert [verdict["query_id"] for verdict in rejected] == [records[0]["query_id"]]
+    assert "launch record" in rejected[0]["reason"]
+
+
+def _r2_shards(tmp_path, stamp=True):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    dirs = {}
+    for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
+        out = str(tmp_path / name)
+        me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                         declared_rooms=rooms)
+        argv = [token if token != "out" else name for token in ARGV]
+        sha = _segment(tmp_path, out, f"{name}.json", argv=argv)["launch_record_sha256"]
+        _score(out, items, records, plan, binding, rooms=rooms, sha=sha if stamp else None)
+        dirs[name] = out
+    pairs, unions = ENG._fixture_totals()
+    totals = {"rooms": 2, "queries": len(records), "candidate_query_pairs": pairs,
+              "source_rows": unions, "generated_waveforms": pairs * 4}
+    return plan, records, dirs, totals, binding
+
+
+def test_an_r2_merge_carries_every_record_and_publishes_the_census(tmp_path):
+    plan, records, dirs, totals, binding = _r2_shards(tmp_path)
+    merged = str(tmp_path / "merged")
+    report = me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    provenance = report["launch_provenance"]
+    assert provenance["complete"] is True and len(provenance["records"]) == 2
+    assert sorted(r["position_ranges"] for r in provenance["records"]) == [
+        [[0, 2]], [[3, 3]]]
+    assert ms.provenance_census(merged, me.read_rows(merged))["complete"] is True
+    published = json.load(open(os.path.join(merged, me.BINDING_FILENAME)))
+    assert published["binding_sha256"] == me.binding_sha256(binding)
+    assert published["frame_avg_angles"] == [0.0] and "fa_partition" in published
+
+
+def test_an_r2_merge_refuses_a_row_without_a_record(tmp_path):
+    plan, records, dirs, totals, _binding = _r2_shards(tmp_path, stamp=False)
+    with pytest.raises(ValueError, match="launch provenance"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+    assert not os.path.exists(str(tmp_path / "m"))
+
+
+def test_an_r2_merge_refuses_a_row_naming_an_unknown_record(tmp_path):
+    plan, records, dirs, totals, _binding = _r2_shards(tmp_path)
+    os.remove(os.path.join(dirs["b"], ms.SEGMENTS_FILENAME))
+    with pytest.raises(ValueError, match="launch provenance"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+
+
+def test_a_legacy_merge_states_that_it_predates_launch_records(tmp_path):
+    plan, records, dirs, totals = ENG._shards(tmp_path)
+    report = me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "merged"), plan, records,
+                             totals=totals)
+    assert report["launch_provenance"]["generation"] == "legacy_r1_binding"
+    assert report["launch_provenance"]["complete"] is False
+    assert not os.path.isfile(os.path.join(str(tmp_path / "merged"), ms.SEGMENTS_FILENAME))

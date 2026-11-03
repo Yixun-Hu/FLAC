@@ -1318,12 +1318,14 @@ def compare_scored_runs(rows_a, rows_b, tolerance=SCORE_TOLERANCE):
             "contract": DETERMINISM_CONTRACT}
 
 
-def completed_queries(out_dir, binding_sha256=None):
+def completed_queries(out_dir, binding_sha256=None, launch_records=None):
     """``(verified query ids, rejected verdicts)`` for a resume.
 
     Only a query whose row AND sidecar re-verify is skipped; anything else is
     reported and regenerated, so a half-written artifact can never be adopted as
-    a finished one.
+    a finished one. ``launch_records`` (exp_22 R2-A, canonical passes) is the set
+    of record digests this run's segment ledger knows: a row naming any other --
+    or none -- would break the merge census, so it is regenerated, not adopted.
     """
     done, rejected = set(), []
     root = os.path.join(str(out_dir), ROWS_DIRNAME)
@@ -1338,6 +1340,13 @@ def completed_queries(out_dir, binding_sha256=None):
                 continue
             verdict = verify_query_artifact(os.path.join(room_dir, name),
                                             binding_sha256=binding_sha256)
+            if verdict["ok"] and launch_records is not None:
+                with open(os.path.join(room_dir, name)) as handle:
+                    stamp = json.load(handle).get("launch_record_sha256")
+                if stamp not in set(launch_records):
+                    verdict = dict(verdict, ok=False,
+                                   reason=f"the row names launch record {stamp!r}, which this "
+                                          "run's segment ledger does not hold")
             if verdict["ok"]:
                 done.add(verdict["query_id"])
             else:
@@ -1793,7 +1802,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
-             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None):
+             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None,
+             launch_record_sha256=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1828,7 +1838,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              "n_geometry_tolerated": 0, "n_contexts_conditioned": 0,
              "rooms": [], "declared_rooms": declared, "argmax_stability": {},
              "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
-             "probe_records": [], "timings_s": {}}
+             "probe_records": [], "timings_s": {},
+             "launch_record_sha256": launch_record_sha256}
     buffer, depths, receiver_of = {}, {}, {}
     room_plan, current_room = None, None
     timer = _Timer(engine.device)
@@ -1841,7 +1852,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   geometry_tol=geometry_tol, dump_queries=dump_queries,
-                  dump_top_n=dump_top_n, binding_sha256=binding_sha256)
+                  dump_top_n=dump_top_n, binding_sha256=binding_sha256,
+                  launch_record_sha256=launch_record_sha256)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -1917,7 +1929,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
               probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N,
-              binding_sha256=None):
+              binding_sha256=None, launch_record_sha256=None):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -1981,6 +1993,10 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                  n_contexts=context["n_contexts"],
                                  batching={"batch_rows": int(batch_rows),
                                            "source_chunk": int(source_chunk)})
+                if launch_record_sha256 is not None:
+                    # the segment that produced this row (exp_22 R2-A); absent
+                    # without a record, so a record-free row is byte-identical
+                    row["launch_record_sha256"] = str(launch_record_sha256)
                 if query.query_id in dump_queries:
                     row.update(_dump_query(engine, query, context, cache, out_dir, row,
                                            scored, seed=seed, num_samples=num_samples,
@@ -2323,6 +2339,18 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"{len(absent)} registered queries are missing from the shards "
                          f"(first {absent[:3]}); a merged run is the complete subset")
 
+    # (4b) exp_22 R2-A launch provenance (Codex B4): an R2-generation binding is
+    # produced only by the record-carrying driver, so every row must resolve to a
+    # present, hash-verified, environment-verified segment record. The legacy R1
+    # generation (the published Aug-2026 P1 comparator) predates launch records.
+    from src.localization import meshgrid_segments as ms
+
+    recorded = binding_fields(base) != RUN_BINDING_FIELDS
+    rows_by_shard = {shard["dir"]: [row for query_id, row in rows.items()
+                                    if owner[query_id] == shard["dir"]] for shard in shards}
+    if recorded:
+        ms.merge_ledgers(rows_by_shard, None, dry_run=True)
+
     # (5) every digest, every row's identity against the G1 plan -- and the
     # source-row census DERIVED from that plan, so a shard that was resumed
     # after finishing receiver groups still merges (r8 review, gate 7)
@@ -2374,7 +2402,13 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
             shutil.copy2(source, destination)
 
     write_binding(out_dir, base, advisory=advisory, declared_rooms=sorted(declared))
+    provenance = (ms.merge_ledgers(rows_by_shard, out_dir) if recorded else
+                  {"generation": "legacy_r1_binding", "complete": False, "records": [],
+                   "note": "the shards carry the legacy R1 binding, which predates launch "
+                           "records; only the published P1 comparator may be canonical "
+                           "without them (plan r2 §1 legacy-provenance exception)"})
     report = {"experiment": "exp_22 loc_meshgrid I1 shard merge", "ok": True,
+              "launch_provenance": provenance,
               "binding_sha256": binding_sha256, "advisory": advisory,
               "declared_rooms": sorted(declared), "n_rows": len(rows),
               "shards": [{"dir": shard["dir"], "rooms": shard["declared_rooms"],

@@ -254,11 +254,12 @@ def provenance_census(run_dir, rows):
             "note": SEGMENT_NOTE}
 
 
-def merge_ledgers(rows_by_shard, out_dir):
+def merge_ledgers(rows_by_shard, out_dir, dry_run=False):
     """Carry every shard's records into the merged run, after each shard's census.
 
     ``rows_by_shard`` is ``{shard_dir: [rows]}``. Nothing is written unless every
-    shard's census is complete and no record appears in two shards.
+    shard's census is complete and no record appears in two shards; ``dry_run``
+    applies exactly those checks and writes nothing (the merge's check phase).
     """
     merged, seen = [], {}
     for shard_dir, rows in rows_by_shard.items():
@@ -274,6 +275,8 @@ def merge_ledgers(rows_by_shard, out_dir):
                                  "invocation")
             seen[sha] = shard_dir
             merged.append((shard_dir, entry, record))
+    if dry_run:
+        return {"complete": True, "n_records": len(merged)}
     os.makedirs(str(out_dir), exist_ok=True)
     segments = []
     for index, (shard_dir, entry, record) in enumerate(merged):
