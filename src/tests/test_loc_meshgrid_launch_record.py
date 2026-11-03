@@ -641,3 +641,15 @@ def test_a_diagnostic_never_claims_the_out_dir_or_opens_a_segment(tmp_path):
     args, _argv, _plan = _args(tmp_path, "--probe", "1", record=False)
     assert driver.writes_query_artifacts(args) is False
     assert not os.path.exists(os.path.join(args.out_dir, ms.SEGMENTS_FILENAME))
+
+
+def test_emission_may_write_into_the_shard_directory_before_it_exists(tmp_path):
+    """Plan r2 §3 R2-C emits <out-dir>/launch_record.json BEFORE the shard runs."""
+    args, argv, _plan = _args(tmp_path, record=False, validate=False)
+    path = os.path.join(args.out_dir, "launch_record.json")
+    assert not os.path.exists(args.out_dir)
+    emit_argv = argv + ["--emit-launch-record", path]
+    emit_args = driver.parse_args(emit_argv)
+    assert driver.emit_launch_record(emit_args, emit_argv, environment=OPT._environment(),
+                                     runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0)) == 0
+    assert json.load(open(path))["argv"] == argv

@@ -20,12 +20,15 @@ in ``src.localization.meshgrid_engine``; the model build follows
 ``eval_FLAC.evaluate_model``'s lines of record through ``eval_localization``.
 This file is the protocol wiring around them.
 
-  # the registered pass (P1 arm, z_band branch chosen by the G1 audit)
-  python localize_meshgrid.py \
-      --ckpt-path weights/exp20/P1_40k.ckpt \
+  # a registered R2 shard (plan r2 §3 R2-C): every protocol and batching flag
+  # explicit; emit the launch record first, then run the IDENTICAL command with it
+  python localize_meshgrid.py --emit-launch-record <out>/launch_record.json \
+      --ckpt-path weights/exp20/YAW_40k.ckpt --cond-method vanilla --frame-avg-angles 0 \
+      --rotate-deg 0 --cond-autocast default --batch-rows 256 --source-chunk 16 \
       --context-manifest outputs_loc/exp22/d1_context_manifest.json \
       --audit-report outputs_loc/exp22/g1_audit/geometry_audit_report.json \
-      --out-dir outputs_loc/exp22/i1_P1 --device cuda:0
+      --rooms Cafe/Cafe_idx_1 --device cuda:0 --out-dir <out>
+  python localize_meshgrid.py --launch-record <out>/launch_record.json <same flags>
 
   # the pre-registered no-quality throughput probe (writes timings only).
   # --probe covers WHOLE receiver groups so the cache is amortized honestly, and
@@ -277,6 +280,9 @@ def emit_launch_record(args, argv, environment=None, runtime=None):
                                         runtime=runtime)
     except ValueError as error:
         _refuse(str(error))
+    # the registered launch lines emit into the shard directory before it exists
+    parent = os.path.dirname(os.path.abspath(str(args.emit_launch_record)))
+    os.makedirs(parent, exist_ok=True)
     me.write_json(args.emit_launch_record, record)
     print(f"launch record -> {args.emit_launch_record}\nnow run the identical command with "
           f"--launch-record {args.emit_launch_record}")
