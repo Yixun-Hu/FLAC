@@ -3941,3 +3941,97 @@ def test_the_merged_report_binds_every_merged_row_to_its_shards_segment(tmp_path
     os.remove(_stamp_file(run, rows[0]))
     with pytest.raises(ValueError, match="not a"):
         RPT.evaluate_fixture(fixture)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), NIT 5: the kill window between an executed-
+# partition check and its verdict is closed -- a pending-check sentinel is published before
+# each check and removed only once it passed; a directory still carrying it is refused
+# --------------------------------------------------------------------------- #
+PENDING = "partition_check_pending.json"
+
+
+def test_the_sentinel_is_on_disk_exactly_while_each_partition_check_runs(tmp_path, monkeypatch):
+    real, seen = me.assert_fa_partition_executed, []
+
+    def watched(declared, recorder, final=True):
+        seen.append((final, os.path.exists(os.path.join(str(tmp_path / "run"), PENDING))))
+        return real(declared, recorder, final=final)
+
+    monkeypatch.setattr(me, "assert_fa_partition_executed", watched)
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    rows = len(me.read_rows(out))
+    # every before-row check and the final one ran with the sentinel published
+    assert [final for final, _ in seen].count(False) == rows and seen[-1][0] is True
+    assert all(pending for _final, pending in seen)
+    assert not os.path.exists(os.path.join(out, PENDING))           # removed once each passed
+    me.assert_admissible(out)
+    # a probe judges nothing durable and publishes no sentinel
+    seen.clear()
+    _engine, _summary, probe_out, _stack = _fa_pass(tmp_path / "probe", probe=1)
+    assert not os.path.exists(os.path.join(probe_out, PENDING))
+
+
+class _Killed(BaseException):
+    """A hard kill: not an Exception, so no handler of the pass can run."""
+
+
+@pytest.mark.parametrize("where", ["inside the before-row check", "inside the final check",
+                                   "after a check passed, before its sentinel is removed"])
+def test_a_shard_killed_inside_a_partition_check_is_non_admissible(tmp_path, monkeypatch, where):
+    """Codex rB-F2 NIT 5: a kill between a failed check and the failure marker left the
+    before-row ledger holding the previous good prefix -- fail-open. The sentinel makes any
+    kill inside the window conservative: the shard is refused and restarted (A6 iv)."""
+    real_check, real_end = me.assert_fa_partition_executed, me.end_partition_check
+    if where == "inside the before-row check":
+        state = {"n": 0}
+
+        def killed(declared, recorder, final=True):
+            state["n"] += 1
+            if state["n"] == 3:
+                raise _Killed()
+            return real_check(declared, recorder, final=final)
+        monkeypatch.setattr(me, "assert_fa_partition_executed", killed)
+    elif where == "inside the final check":
+        def killed(declared, recorder, final=True):
+            if final:
+                raise _Killed()
+            return real_check(declared, recorder, final=final)
+        monkeypatch.setattr(me, "assert_fa_partition_executed", killed)
+    else:
+        def killed(out_dir):
+            raise _Killed()
+        monkeypatch.setattr(me, "end_partition_check", killed)
+    plan, records, items = _fa_aligned(tmp_path)
+    out = str(tmp_path / "run")
+    with pytest.raises(_Killed):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    monkeypatch.setattr(me, "assert_fa_partition_executed", real_check)
+    monkeypatch.setattr(me, "end_partition_check", real_end)
+    assert json.load(open(os.path.join(out, PENDING)))["check"] in ("before_row", "final")
+    before = _snapshot(out)
+    done, _rejected = me.completed_queries(out)
+    for refuse in (lambda: me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done,
+                                       fa_partition=FA_DECLARED, **FA_SHAPES),
+                   lambda: me.read_fa_ledger(out, FA_DECLARED),
+                   lambda: me.assert_admissible(out)):
+        with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+            refuse()
+    assert _snapshot(out) == before
+
+
+def test_the_merge_and_the_report_refuse_a_directory_carrying_the_sentinel(tmp_path):
+    import test_loc_meshgrid_report as RPT
+
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    me.write_json(os.path.join(dirs["b"], PENDING), {"check": "before_row"})
+    merged = str(tmp_path / "merged")
+    with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    assert not os.path.exists(merged)
+    fixture = RPT.build_fixture_run(tmp_path / "report", merged=False, arm="BF")
+    assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "BF"
+    me.write_json(os.path.join(fixture["run_dir"], PENDING), {"check": "final"})
+    with pytest.raises(ValueError, match=r"NON-ADMISSIBLE.*A6 \(iv\)"):
+        RPT.evaluate_fixture(fixture)

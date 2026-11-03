@@ -1,0 +1,13 @@
+# exp_22 rB-F3 cycle 7 RED (the kill window: a pending-check sentinel around every executed-partition check; Codex rB-F2 NIT 5), HEAD 3b410489 + working tree (new tests only), 2026-11-03T16:47:14-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest -k 'sentinel or killed_inside' --tb=line
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3966: assert False
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3985: AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'end_partition_check'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3985: AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'end_partition_check'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3985: AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'end_partition_check'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:4030: Failed: DID NOT RAISE ValueError
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_sentinel_is_on_disk_exactly_while_each_partition_check_runs
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_shard_killed_inside_a_partition_check_is_non_admissible[inside the before-row check]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_shard_killed_inside_a_partition_check_is_non_admissible[inside the final check]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_shard_killed_inside_a_partition_check_is_non_admissible[after a check passed, before its sentinel is removed]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merge_and_the_report_refuse_a_directory_carrying_the_sentinel
+5 failed, 332 deselected in 6.52s

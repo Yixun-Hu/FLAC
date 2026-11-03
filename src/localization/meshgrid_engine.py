@@ -815,14 +815,44 @@ def write_partition_failure(out_dir, declared, recorder, check, error, n_segment
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
 
 
+FA_PENDING_FILENAME = "partition_check_pending.json"
+FA_PENDING_NOTE = (
+    "EXECUTED-PARTITION CHECK IN PROGRESS (Codex rB-F2 NIT 5; plan r2 amendment A6 (iv)): "
+    "published atomically before each executed-partition check of a scored fa pass -- before "
+    "every row and the final one -- and removed only once that check passed. A directory still "
+    "carrying it was killed between a check and its verdict: NON-ADMISSIBLE, refused by every "
+    "reopen, merge and per-arm report; restart the shard in a fresh out-dir")
+
+
+def begin_partition_check(out_dir, check, n_segments):
+    """Publish the pending-check sentinel: from here until :func:`end_partition_check`, a kill
+    leaves the shard non-admissible (conservative: whether the check held is unknown)."""
+    from datetime import datetime, timezone
+
+    write_json(os.path.join(str(out_dir), FA_PENDING_FILENAME), {
+        "note": FA_PENDING_NOTE, "check": str(check), "n_segments": int(n_segments),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+
+
+def end_partition_check(out_dir):
+    """The check passed: remove the sentinel."""
+    os.remove(os.path.join(str(out_dir), FA_PENDING_FILENAME))
+
+
 def assert_admissible(run_dir):
-    """A6 (iv): a shard whose executed-partition check failed is refused by name -- by the
-    merge, the per-arm report and every reopen (it is restarted, never resumed)."""
+    """A6 (iv): a shard whose executed-partition check failed -- or was killed while a check
+    ran (Codex rB-F2 NIT 5) -- is refused by name: by the merge, the per-arm report and every
+    reopen (it is restarted, never resumed)."""
     if os.path.exists(os.path.join(str(run_dir), FA_FAILURE_FILENAME)):
         raise ValueError(f"{run_dir} is NON-ADMISSIBLE (plan r2 amendment A6 (iv)): an "
                          f"executed-partition check of its pass failed ({FA_FAILURE_FILENAME}); "
                          "its rows are incomplete artifacts that no merge, report or resume "
                          "admits -- restart the shard in a fresh out-dir once the cause is fixed")
+    if os.path.exists(os.path.join(str(run_dir), FA_PENDING_FILENAME)):
+        raise ValueError(f"{run_dir} is NON-ADMISSIBLE (plan r2 amendment A6 (iv)): it was "
+                         f"killed while an executed-partition check ran ({FA_PENDING_FILENAME} "
+                         "is still on disk), so whether its partition held is unknown -- "
+                         "restart the shard in a fresh out-dir")
     return True
 
 
@@ -1133,7 +1163,7 @@ def fresh_out_dir(out_dir):
     if not os.path.isdir(out_dir):
         return False, [out_dir]
     written = (BINDING_FILENAME, RUN_SUMMARY_FILENAME, MERGE_REPORT_FILENAME, FA_LEDGER_FILENAME,
-               FA_FAILURE_FILENAME, ms.SEGMENTS_FILENAME)
+               FA_FAILURE_FILENAME, FA_PENDING_FILENAME, ms.SEGMENTS_FILENAME)
     found = sorted(name for name in os.listdir(out_dir)
                    if not (name.endswith(".json") and os.path.isfile(os.path.join(out_dir, name)))
                    or name in written or name.startswith("diagnostics_"))
@@ -2844,12 +2874,14 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         # finished shard resumed conditions nothing and still publishes it -- rB 5)
         merged = persist_fa_ledger(fa_ledger, engine.split.recorder, query=False)
         n_segments = len(fa_ledger["payload"]["segments"])
+        begin_partition_check(out_dir, "final", n_segments)       # rB-F2 NIT 5: the kill window
         try:
             state["fa_partition_executed"] = fa_executed_block(fa_partition, merged, n_segments)
         except ValueError as error:                    # A6 (iv): non-admissible, on disk
             write_partition_failure(out_dir, fa_partition, merged, "final", error, n_segments,
                                     launch_record_sha256)
             raise
+        end_partition_check(out_dir)
     elif engine.split is not None:
         # the no-quality probe: what ran, prefix-consistent, published not judged
         ran = any(engine.split.recorder.counts.values())
@@ -2911,6 +2943,9 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                     # Codex rA A8: the executed partition is the declared one before
                     # this query's row (or probe record, or dump) can exist -- a
                     # prefix that has not yet filled a micro-batch is consistent
+                    if fa_ledger is not None:          # rB-F2 NIT 5: the kill window
+                        begin_partition_check(out_dir, "before_row",
+                                              len(fa_ledger["payload"]["segments"]))
                     try:
                         assert_fa_partition_executed(fa_partition, engine.split.recorder,
                                                      final=False)
@@ -2922,6 +2957,7 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                 launch_record_sha256)
                         raise
                     if fa_ledger is not None:          # on disk BEFORE the row (rB 5)
+                        end_partition_check(out_dir)
                         persist_fa_ledger(fa_ledger, engine.split.recorder)
                         write_fa_stamp(out_dir, query, fa_ledger)       # rB-F2 finding 3
                 state["n_candidate_query_pairs"] += query.n_candidates
