@@ -449,7 +449,7 @@ class ReceiverCache:
 
     @classmethod
     def build(cls, conditioner, receiver_id, base_md, indices, positions_cam, device,
-              chunk=SOURCE_CHUNK):
+              chunk=SOURCE_CHUNK, fa=None):
         indices = [int(i) for i in indices]
         if len(set(indices)) != len(indices):
             raise ValueError(f"receiver {receiver_id!r}: the union repeats a candidate index")
@@ -457,7 +457,8 @@ class ReceiverCache:
         if positions.shape[0] != len(indices):
             raise ValueError(f"receiver {receiver_id!r}: {positions.shape[0]} positions for "
                              f"{len(indices)} candidates")
-        conditioning = source_conditioning(conditioner, base_md, positions, device, chunk=chunk)
+        conditioning = source_conditioning(conditioner, base_md, positions, device, chunk=chunk,
+                                           fa=fa)
         return cls(receiver_id, indices, conditioning, tensor_digest(base_md["depth"]))
 
     @property
@@ -1843,23 +1844,80 @@ class MeshEngine:
     decoder: object
     embedder: object
     cond_method: str = "vanilla"
+    #: exp_22 R2-B: the engaged :class:`FaSplit` (fa_invariant only), else ``None``
+    split: object = None
 
 
-def assert_cacheable(cond_method):
-    """The §1.5 split is only valid for vanilla conditioning.
+def assert_cacheable(cond_method, split=None):
+    """The §1.5 caches are valid for vanilla conditioning with no split, and for
+    fa_invariant ONLY under the engaged five-way split (exp_22 R2-B, plan r2 §2).
 
     Under the released C4 frame average the cylindrical transform makes
-    ``context_poses.dphi`` candidate-dependent, so a per-query context cache
-    would serve the wrong tokens. §1.5 prescribes a narrower split for that arm;
-    until it is implemented, an FA run is refused rather than mis-cached.
+    ``context_poses.dphi`` candidate-dependent, so the vanilla per-query context
+    cache would serve the wrong tokens; the split recomputes it per scored
+    candidate batch instead. Any other pairing is refused rather than mis-cached.
     """
-    if str(cond_method) != "vanilla":
-        raise ValueError(f"the per-query context cache is registered for vanilla conditioning "
-                         f"only, but this engine runs cond_method={cond_method!r}; under "
-                         "fa_invariant the released cylindrical transform makes context_poses "
-                         "candidate-dependent (inherited plan §1.5) and only context_poses_vit "
-                         "and context_audio may be cached")
-    return True
+    method = str(cond_method)
+    if method == "vanilla" and split is None:
+        return True
+    if method == "fa_invariant" and isinstance(split, FaSplit) and split.name == FA_SPLIT:
+        return True
+    raise ValueError(f"the per-query context cache is registered for vanilla conditioning with "
+                     f"no split and for fa_invariant under the {FA_SPLIT!r} split only, but this "
+                     f"engine runs cond_method={method!r} with split "
+                     f"{getattr(split, 'name', split)!r}; under fa_invariant the released "
+                     "cylindrical transform makes context_poses candidate-dependent (inherited "
+                     "plan §1.5), so it may only be cached the way the split caches it")
+
+
+def split_for(cond_method, frame_avg_angles=None):
+    """The split a method is cached under: none for vanilla; for fa_invariant the
+    five-way split over its DECLARED orbit, with a fresh executed-partition recorder."""
+    if str(cond_method) != "fa_invariant":
+        return None
+    angles = tuple(float(angle) for angle in (frame_avg_angles or ()))
+    if not angles or angles[0] != 0.0:
+        raise ValueError(f"fa_invariant needs its explicit frame-average orbit, starting at the "
+                         f"identity 0.0; got {list(angles)}")
+    return FaSplit(angles=angles, recorder=FaPartitionRecorder())
+
+
+def query_context(engine, md):
+    """The per-query cached branch: vanilla's three context ids, or the split's two."""
+    if engine.split is None:
+        return context_conditioning(engine.conditioner, md, engine.device)
+    return fa_query_conditioning(engine.split, engine.conditioner, md, engine.device)
+
+
+def candidate_inputs(engine, query, source):
+    """What the split recomputes per scored batch -- the raw context poses (read
+    from ``source``, the query's metadata or its buffer entry) and the query's
+    camera-frame candidate positions -- or ``None`` under vanilla conditioning."""
+    if engine.split is None:
+        return None
+    positions = (np.asarray(query.coordinates, dtype=np.float64)
+                 - np.asarray(query.receiver_xyz, dtype=np.float64))
+    return {"context_poses": source["context_poses"], "positions": positions}
+
+
+def candidate_rows(engine, candidate, start, stop, num_samples, configured, record=True):
+    """The split's ``context_poses`` for candidates ``[start, stop)``, one row per draw."""
+    positions = candidate["positions"][start:stop]
+    poses = fa_candidate_conditioning(engine.split, engine.conditioner,
+                                      candidate["context_poses"], positions, engine.device,
+                                      configured=configured, record=record)
+    rows = torch.arange(positions.shape[0]).repeat_interleave(int(num_samples))
+    return {key: _select(entry, rows.to(entry[0].device)) for key, entry in poses.items()}
+
+
+def scored_conditioning(engine, context, cache, rows, candidate=None, *, start=0, stop=None,
+                        num_samples=1, configured=None):
+    """What the DiT is conditioned on for one scored batch: the two caches expanded
+    over ``rows`` and -- under the split -- the batch's own ``context_poses``."""
+    merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
+    if candidate is not None:
+        merged.update(candidate_rows(engine, candidate, start, stop, num_samples, configured))
+    return merged
 
 
 def assert_declared_rooms(rooms, plan):
@@ -1914,8 +1972,12 @@ def probe_groups(plan, budget, room_order=None, room=None):
 
 
 def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_samples,
-                     noise_policy, batch_rows, timer):
-    """Generate and score every candidate of one query -> sims ``[M, K]``."""
+                     noise_policy, batch_rows, timer, candidate=None):
+    """Generate and score every candidate of one query -> sims ``[M, K]``.
+
+    ``candidate`` (:func:`candidate_inputs`, the fa split only) adds each scored
+    batch's own ``context_poses``; ``None`` is the vanilla path, unchanged.
+    """
     from src.localization.scoring import cosine_sims
 
     indices = [int(i) for i in query.candidate_indices]
@@ -1928,7 +1990,9 @@ def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_
                             engine.latent_shape, policy=noise_policy, device=engine.device)
         rows = rows_all[start:start + per_chunk].repeat_interleave(int(num_samples))
         with timer("conditioning"):
-            merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
+            merged = scored_conditioning(engine, context, cache, rows, candidate, start=start,
+                                         stop=start + per_chunk, num_samples=num_samples,
+                                         configured=per_chunk)
             cond_inputs = engine.cond_inputs_fn(merged)
         with timer("sampling"):
             latents = engine.sampler(noise, cond_inputs)
@@ -1954,6 +2018,13 @@ def _dump_query(engine, query, context, cache, out_dir, row, scored, *, seed, nu
     merged = expand_conditioning(context["context"], cache.conditioning,
                                  cache_rows.repeat_interleave(int(num_samples)),
                                  engine.device)
+    candidate = candidate_inputs(engine, query, context)
+    if candidate is not None:
+        # the dump regenerates its selection in ONE forward: not a scored batch,
+        # so it is kept out of the executed partition
+        candidate = dict(candidate, positions=candidate["positions"][rows])
+        merged.update(candidate_rows(engine, candidate, 0, len(rows), num_samples, len(rows),
+                                     record=False))
     wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
     wavs = wavs.reshape(len(indices), int(num_samples), -1)
     return write_query_waveforms(out_dir, row, indices, wavs, context["obs_wav"])
@@ -1974,14 +2045,16 @@ def replay_check(engine, query, md, obs_wav, *, seed=SEED, tau=TAU, num_samples=
     base_md = {"depth": md["depth"]}
     runs = []
     for _attempt in (0, 1):
-        context = context_conditioning(engine.conditioner, md, engine.device)
+        context = query_context(engine, md)
         cache = ReceiverCache.build(engine.conditioner, query.receiver_id, base_md, indices,
-                                    positions, engine.device, chunk=source_chunk)
+                                    positions, engine.device, chunk=source_chunk,
+                                    fa=engine.split)
         obs_embedding = engine.embedder(
             torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
         sims = _score_one_query(engine, query, context, cache, obs_embedding, seed=seed,
                                 num_samples=num_samples, noise_policy=noise_policy,
-                                batch_rows=batch_rows, timer=_Timer(engine.device))
+                                batch_rows=batch_rows, timer=_Timer(engine.device),
+                                candidate=candidate_inputs(engine, query, md))
         scored = score_query(sims, indices, query.coordinates, tau=tau, prefixes=prefixes)
         runs.append((sims, scored))
     delta = float((runs[0][0] - runs[1][0]).abs().max())
@@ -2022,7 +2095,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
              geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None,
-             launch_record_sha256=None):
+             launch_record_sha256=None, fa_partition=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -2031,10 +2104,17 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     queries are then run receiver group by receiver group, so the source branch
     costs one conditioner call per (receiver, candidate) in that receiver's
     union and exactly one group's cache is resident at a time.
+
+    Under the fa split (exp_22 R2-B) ``fa_partition`` is the binding's DECLARED
+    partition: the executed one is checked against it before every row, and
+    published as ``fa_partition_executed`` in the returned summary.
     """
     from src.localization import meshgrid_queries as mq
 
-    assert_cacheable(engine.cond_method)
+    assert_cacheable(engine.cond_method, engine.split)
+    if engine.split is not None and not isinstance(fa_partition, dict):
+        raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
+                         "(run_binding.json fa_partition) before anything runs against it")
     assert_registered_noise_policy(noise_policy, allow_unregistered_noise_policy)
     excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
     done = set(done)
@@ -2072,7 +2152,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   geometry_tol=geometry_tol, dump_queries=dump_queries,
                   dump_top_n=dump_top_n, binding_sha256=binding_sha256,
-                  launch_record_sha256=launch_record_sha256)
+                  launch_record_sha256=launch_record_sha256, fa_partition=fa_partition)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -2120,7 +2200,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                              "waveform; there is nothing to score against")
         query_context_timer = _Timer(engine.device)
         with query_context_timer("context"):
-            context = context_conditioning(engine.conditioner, md, engine.device)
+            context = query_context(engine, md)
             obs_embedding = engine.embedder(
                 torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
         timer.totals["context"] = timer.totals.get("context", 0.0) + \
@@ -2142,13 +2222,20 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     flush()
     for name, value in timer.totals.items():
         state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
+    if engine.split is not None:
+        # a pass that conditioned nothing (a finished shard resumed) has nothing to
+        # hold to the declaration; anything that ran was held to it before its row
+        ran = any(engine.split.recorder.counts.values())
+        state["fa_partition_executed"] = (
+            assert_fa_partition_executed(fa_partition, engine.split.recorder) if ran
+            else engine.split.recorder.report())
     return state
 
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
               probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N,
-              binding_sha256=None, launch_record_sha256=None):
+              binding_sha256=None, launch_record_sha256=None, fa_partition=None):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -2176,7 +2263,8 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
         with timer("source_cache"):
             cache = ReceiverCache.build(engine.conditioner, group.receiver_id,
                                         {"depth": depths[group.receiver_id]}, group.union,
-                                        positions_cam, engine.device, chunk=source_chunk)
+                                        positions_cam, engine.device, chunk=source_chunk,
+                                        fa=engine.split)
         state["n_conditioner_rows"] += cache.n_conditioner_rows
         try:
             for query in runnable:
@@ -2189,7 +2277,12 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                 sims = _score_one_query(
                     engine, query, context["context"], cache, context["obs_embedding"],
                     seed=seed, num_samples=num_samples, noise_policy=noise_policy,
-                    batch_rows=batch_rows, timer=query_timer)
+                    batch_rows=batch_rows, timer=query_timer,
+                    candidate=candidate_inputs(engine, query, context))
+                if engine.split is not None:
+                    # Codex rA A8: the executed partition is the declared one before
+                    # this query's row (or probe record, or dump) can exist
+                    assert_fa_partition_executed(fa_partition, engine.split.recorder)
                 state["n_candidate_query_pairs"] += query.n_candidates
                 state["n_generated"] += query.n_candidates * int(num_samples)
                 for name, value in query_timer.totals.items():

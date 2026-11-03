@@ -428,3 +428,212 @@ def test_an_empty_or_undeclared_partition_is_refused():
     _run_production_shapes(split)
     with pytest.raises(ValueError, match="declare"):
         me.assert_fa_partition_executed(None, split.recorder)
+
+
+# --------------------------------------------------------------------------- #
+# the split wired through the pass: caches, scored batches, refusals
+# --------------------------------------------------------------------------- #
+class FaSyntheticEngine(ENG.SyntheticEngine):
+    """The engine fixture's synthetic stack, conditioned through the engaged split."""
+
+    def __init__(self, angles=C4):
+        super().__init__()
+        self.conditioner = FaFakeConditioner()
+        self.cond_method = "fa_invariant"
+        self.split = me.split_for("fa_invariant", angles)
+
+
+def _fa_aligned(tmp_path):
+    """The engine fixture with a real ``[3, H, W]`` panorama per receiver (the fa path rolls it)."""
+    plan, records, items = ENG._aligned(tmp_path)
+    for _obs, md in items:
+        seed = int(round(1000 * float(md["depth"].reshape(-1)[0])))     # one per receiver
+        generator = torch.Generator().manual_seed(seed)
+        md["depth"] = torch.rand((3, 2, 8), generator=generator, dtype=torch.float64) - 0.5
+    return plan, records, items
+
+
+#: the fixture's batching: 8 generated rows of K = 4 -> 2 candidates per scored batch
+FA_SHAPES = {"num_samples": 4, "prefixes": (1, 4), "batch_rows": 8, "source_chunk": 3}
+FA_DECLARED = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=3)
+
+
+def _fa_pass(tmp_path, engine=None, **overrides):
+    plan, records, items = _fa_aligned(tmp_path)
+    engine = engine or FaSyntheticEngine()
+    out = str(tmp_path / "run")
+    kwargs = dict(FA_SHAPES, fa_partition=FA_DECLARED)
+    kwargs.update(overrides)
+    summary = me.run_pass(engine, items, records, plan, out, **kwargs)
+    return engine, summary, out, (plan, records, items)
+
+
+def test_the_cache_refuses_every_method_and_split_but_the_registered_two():
+    split = me.split_for("fa_invariant", C4)
+    assert me.assert_cacheable("vanilla") is True
+    assert me.assert_cacheable("vanilla", None) is True
+    assert me.assert_cacheable("fa_invariant", split) is True
+    for method, engaged in (("fa_invariant", None), ("vanilla", split),
+                            ("fa_invariant", me.FaSplit(angles=C4, name="other")),
+                            ("bogus", None), ("bogus", split)):
+        with pytest.raises(ValueError, match="fa_invariant"):
+            me.assert_cacheable(method, engaged)
+    assert me.split_for("vanilla", [0.0]) is None
+    for angles in (None, [], [90.0, 0.0]):
+        with pytest.raises(ValueError, match="fa_invariant"):
+            me.split_for("fa_invariant", angles)
+    assert isinstance(split.recorder, me.FaPartitionRecorder) and split.angles == C4
+
+
+def test_a_synthetic_fa_pass_scores_every_query_under_its_declared_partition(tmp_path):
+    engine, summary, out, _ = _fa_pass(tmp_path)
+    assert summary["n_scored"] == 4
+    done, rejected = me.completed_queries(out)
+    assert len(done) == 4 and rejected == []
+    executed = summary["fa_partition_executed"]
+    assert executed["executed"] == FA_DECLARED and executed["violations"] == []
+    assert executed["note"] == me.FA_EXECUTION_NOTE
+    # the source branch is still one conditioner row per (receiver, candidate)
+    assert summary["n_conditioner_rows"] == ENG._fixture_totals()[1]
+    assert engine.n_sampler_rows == ENG._fixture_totals()[0] * 4
+
+
+def test_the_pass_computes_context_audio_exactly_once_per_query(tmp_path):
+    engine, summary, _out, _ = _fa_pass(tmp_path)
+    audio = [call for call in engine.conditioner.calls if "context_audio" in (call["ids"] or [])]
+    assert len(audio) == summary["n_contexts_conditioned"] == 4
+    assert all(call["n"] == 1 for call in audio)
+
+
+def test_the_pass_recomputes_context_poses_once_per_scored_batch_and_never_per_angle(tmp_path):
+    engine, _summary, _out, (plan, _records, _items) = _fa_pass(tmp_path)
+    expected = []
+    for room_id in ("A/A_idx_1", "B/B_idx_2"):
+        for group in me.receiver_groups(me.load_room_plan(plan, room_id)):
+            for query in group.queries:
+                m = query.n_candidates
+                expected += [min(2, m - start) for start in range(0, m, 2)]
+    poses = [call["n"] for call in engine.conditioner.calls if call["ids"] == ["context_poses"]]
+    assert poses == expected
+    # the ViT ids are the only ones ever re-run on a rotated frame
+    rotated = {tuple(call["ids"]) for call in engine.conditioner.calls
+               if call["ids"] and len(call["ids"]) == 1 and call["ids"] != ["context_poses"]}
+    assert rotated == {("context_poses_vit",), ("source_vit",)}
+
+
+def test_source_vit_is_averaged_over_four_angles_per_receiver_chunk_in_the_pass(tmp_path):
+    engine, _summary, _out, (plan, _records, _items) = _fa_pass(tmp_path)
+    chunks = []
+    for room_id in ("A/A_idx_1", "B/B_idx_2"):
+        for group in me.receiver_groups(me.load_room_plan(plan, room_id)):
+            u = len(group.union)
+            chunks += [min(3, u - start) for start in range(0, u, 3)]
+    base = [call["n"] for call in engine.conditioner.calls
+            if call["ids"] == ["source", "source_vit"]]
+    rotated = [call["n"] for call in engine.conditioner.calls if call["ids"] == ["source_vit"]]
+    assert base == chunks and rotated == [n for n in chunks for _ in range(3)]
+
+
+def test_every_scored_row_is_conditioned_exactly_as_the_released_path_conditions_it(tmp_path):
+    """End to end: every generated row the DiT sees equals ``invariant_conditioning``
+    over that scored batch's candidates (the fake is per-row, so batch shapes
+    cannot excuse a difference)."""
+    engine = FaSyntheticEngine()
+    captured, inner = [], engine.cond_inputs_fn
+    engine.cond_inputs_fn = lambda merged: (captured.append(
+        {key: [value[0].clone(), value[1].clone()] for key, value in merged.items()}),
+        inner(merged))[1]
+    _engine, _summary, _out, (plan, _records, items) = _fa_pass(tmp_path, engine=engine)
+    expected = []
+    for room_id in ("A/A_idx_1", "B/B_idx_2"):
+        for group in me.receiver_groups(me.load_room_plan(plan, room_id)):
+            for query in group.queries:
+                md = items[query.position][1]
+                positions = (np.asarray(query.coordinates, dtype=np.float64)
+                             - np.asarray(query.receiver_xyz, dtype=np.float64))
+                for start in range(0, query.n_candidates, 2):
+                    expected.append(_released(FaFakeConditioner(), md, positions[start:start + 2]))
+    assert len(captured) == len(expected)
+    for got, want in zip(captured, expected):
+        assert sorted(got) == sorted(FA_IDS)
+        for key in FA_IDS:
+            assert torch.equal(got[key][0], want[key][0].repeat_interleave(4, dim=0)), key
+            assert torch.equal(got[key][1], want[key][1].repeat_interleave(4, dim=0)), key
+
+
+def test_a_declared_partition_the_pass_does_not_execute_is_refused_before_any_row(tmp_path):
+    declared = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=16)
+    with pytest.raises(ValueError, match=r"source_cache\.candidate_micro_batch"):
+        _fa_pass(tmp_path, fa_partition=declared)
+    assert not os.path.isdir(os.path.join(str(tmp_path / "run"), me.ROWS_DIRNAME))
+
+
+def test_an_fa_pass_without_a_declared_partition_is_refused_before_it_conditions(tmp_path):
+    engine = FaSyntheticEngine()
+    with pytest.raises(ValueError, match="declare"):
+        _fa_pass(tmp_path, engine=engine, fa_partition=None)
+    assert engine.conditioner.calls == []
+
+
+def test_a_vanilla_pass_carries_no_executed_partition(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    summary = me.run_pass(ENG.SyntheticEngine(), items, records, plan, str(tmp_path / "run"),
+                          num_samples=4, prefixes=(1, 4), batch_rows=8)
+    assert "fa_partition_executed" not in summary
+
+
+def test_the_fa_replay_check_is_bit_exact_and_bites(tmp_path):
+    plan, _records, items = _fa_aligned(tmp_path)
+    query = me.load_room_plan(plan, "A/A_idx_1").queries[0]
+    md = me.GuardedMetadata(items[0][1])
+    report = me.replay_check(FaSyntheticEngine(), query, md, items[0][0], num_samples=4,
+                             prefixes=(1, 4), batch_rows=8, source_chunk=3)
+    assert report["bit_exact"] is True and report["max_abs_delta"] == 0.0
+
+    class Drifting(FaFakeConditioner):
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            return {key: [value[0] + 1e-2 * len(self.calls), value[1]]
+                    for key, value in out.items()}
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = Drifting()
+    report = me.replay_check(engine, query, md, items[0][0], num_samples=4, prefixes=(1, 4),
+                             batch_rows=8, source_chunk=3)
+    assert report["bit_exact"] is False
+
+
+def test_an_fa_dump_regenerates_its_selection_outside_the_scored_partition(tmp_path):
+    query_id = "0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav"
+    engine, summary, out, _ = _fa_pass(tmp_path, dump_queries={query_id}, dump_top_n=2)
+    assert summary["n_dumped"] == 1
+    # the dump's one-forward regeneration is not a scored batch: the executed
+    # partition is unchanged by it
+    assert summary["fa_partition_executed"]["executed"] == FA_DECLARED
+    row = json.load(open(me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]))
+    payload = np.load(os.path.join(out, row["waveform_path"]))
+    sims = np.load(me.query_artifact_paths(out, "A/A_idx_1", 0)["sims"])
+    embedder = ENG.SyntheticEngine()._embed
+    for slot, index in enumerate(row["waveform_candidate_indices"]):
+        position = row["candidate_indices"].index(index)
+        wavs = torch.as_tensor(payload["waveforms"][slot]).unsqueeze(1)
+        obs = torch.as_tensor(payload["observation"]).reshape(1, 1, -1)
+        got = (embedder(wavs) @ embedder(obs)[0]).numpy()
+        assert np.allclose(got, sims[position].astype(np.float32), atol=2e-3)
+
+
+def test_an_fa_probe_publishes_its_executed_partition_and_no_score(tmp_path):
+    engine, summary, out, _ = _fa_pass(tmp_path, probe=1)
+    assert summary["n_scored"] == 0 and summary["probe_records"]
+    assert summary["fa_partition_executed"]["executed"] == FA_DECLARED
+    assert not os.path.isdir(os.path.join(out, me.ROWS_DIRNAME))
+
+
+def test_a_resume_that_conditions_nothing_reports_an_empty_partition_without_refusing(tmp_path):
+    _engine, _summary, out, (plan, records, items) = _fa_pass(tmp_path)
+    done, _rejected = me.completed_queries(out)
+    engine = FaSyntheticEngine()
+    summary = me.run_pass(engine, items, records, plan, out, done=done,
+                          fa_partition=FA_DECLARED, **FA_SHAPES)
+    assert summary["n_scored"] == 0 and engine.conditioner.calls == []
+    assert summary["fa_partition_executed"]["branches"]["source_cache"]["invocations"] == 0
