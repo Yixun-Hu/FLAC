@@ -395,3 +395,22 @@ ledger; the scratchpad counter reproduces the R2-A/rA-F1 rows `38603f29` +2, `4b
 | `0b41c9b1` | H3 / brief | G3 digest chains; all three gates on the REAL conditioner classes on CPU (tiny SimpleViT, no weights): G1, G2 bit-exact, G3 within 1e-3 | +12 (+14/−2) |
 | `a68c75b8` | self-review | gate cases stop the stream after the last wanted probe query; unknown `--probe-room` refused by name | +6 |
 | `a62b9d8d` | self-review | gate 2 sizes its slice within the query (one candidate: FAIL by name, not crash) | 0 (+2/−2) |
+
+## Round exp22-rB-F1 (fix round closing Codex code review rB of R2-B: BLOCKING 1–3, HIGH 4–7, NIT 8; plan amendment A4)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `e837e173`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants count as code; the scratchpad counter reproduces the R2-B
+rows `9e23f520` +143, `955ee0a1` +58, `2d889aa8` +7, `bb79a369` +180, `a58ed1d8` +102,
+`7a8e43f7` +136). Total +528/−128, net +406. Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `d6361fc2` | rB 2 (BLOCKING) | G0's frozen anchor pinned: `COMMITTED_PROBE_REPORT_SHA256 = 8c5fd5e8…`, `load_probe_anchor` (one read, digest-refused otherwise), the driver loads it before any replay; evidence publishes path, digest, ordered query ids + digest and `anchor_key_set_equal` | +34 (+44/−10) |
+| `b18cd9ed` | rB 1 (BLOCKING), A4 v | every registered probe query consumed: `_probe_cases` refuses at stream end; the audit's set must be the committed report's 16; `--probe-room` refused for gates; `probe_query_set` (registered/consumed ordered ids, digests, missing/unexpected/repeated) is a verdict clause of G3 and G0 | +42 (+62/−20) |
+| `f382a582` | rB 4, rB 6 (HIGH), A4 i–iii | G3 = fp32 logic gate (`--cond-autocast off`, hard 1e-3); `--fa-production-drift-measurement` (G3D, production autocast, verdict "measurement", 3.9e-3 caveat as context); `cond_autocast_context` / `cond_autocast_state` (resolved enabled + dtype read back from torch) in every gate's evidence; G1/G3/G3D held to their registered autocast | +63 (+108/−45) |
+| `65a7b825` | rB 3 (BLOCKING) | `GATE_IDENTITY` + `gate_identity` (full `assert_registered_protocol`, exact admitted deviations: G1/G3 autocast off only); preflight refusal before device work; evidence re-derives it; `provenance_reasons` (40-hex SHA, tracked-clean, host, CUDA UUID on a GPU); `verdict_clauses`; YAW parity gate = `--cache-parity-check --expect-arm YAW` (GV, `vanilla_cache_parity.json`) | +83 (+98/−15) |
+| `9831a2a4` | rB 7 (HIGH) | replay orbit partition a hard clause (G3 and G1); absent-mask digests/dtypes/shapes; masks in the G3 digest chains and per-key facts; isolated negatives: score drift, argmax movement, source-tail omission, batched replay orbit, 4 mask-only corruptions, DiT-input-only corruption | +21 |
+| `b6735a7b` | rB 5 part 1 (HIGH), NIT 8 | executed partition read off the calls (largest base batch / rotated forward, counted orbit), configured stride as consistency violations; exact-schema comparison both ways; tail-only-prefix rule before each row, exact final check; `split_reasons` in `assert_cacheable` / `require_split`; + the cycle-5 delete-the-check mutation log (13/13) | +48 (+74/−26) |
+| `0c696c78` | rB 5 part 2 (HIGH) | durable `fa_partition_ledger.json` (segment per invocation, rewritten before every row), run summary = sum over segments with counts digest; `merge_shards` re-derives every shard's partition, checks its summary, sums, keeps the ledger, publishes the block in `merge_report.json`; synthetic BF report fixture writes its ledger (`synthetic_fa_evidence`) | +115 (+121/−6) |
