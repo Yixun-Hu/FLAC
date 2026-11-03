@@ -1348,3 +1348,119 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
     with pytest.raises(SystemExit, match="--replay-check"):
         driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt", "--probe", "1",
                                                 "--replay-against", out]))
+
+
+def test_gate3_publishes_a_digest_chain_per_key_and_side(tmp_path):
+    """Per-chunk digests of 5,000-candidate queries would bloat the evidence; an ordered
+    sha256 chain of them per key and side is compact and re-derivable by a re-run."""
+    first = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path / "a"), **G3_KW)
+    second = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path / "b"), **G3_KW)
+    chains = first["digest_chains"]
+    assert set(chains) >= set(FA_IDS)
+    for key in FA_IDS:
+        production, replay = chains[key]
+        assert len(production) == len(replay) == 64
+        assert production == replay                          # bit-identical on this stack
+    assert chains == second["digest_chains"]                  # deterministic
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = BatchSensitiveFa()
+    noisy = fp.production_parity(engine, _g3_cases(tmp_path / "c"), **G3_KW)
+    assert noisy["digest_chains"]["context_audio"][0] != noisy["digest_chains"]["context_audio"][1]
+
+
+# --------------------------------------------------------------------------- #
+# the REAL conditioning classes, on CPU: MultiConditioner + DistEmbedder + RIR
+# encoder + GeometryConditioner over a tiny locally-built ViT (no weights read)
+# --------------------------------------------------------------------------- #
+def _tiny_real_conditioner():
+    """FLAC_AR.json's conditioning block, the ViT swapped for a tiny SimpleViT."""
+    import copy
+
+    from src.models.conditioners import create_multi_conditioner_from_conditioning_config
+
+    config = json.load(open(os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                         "FLAC_AR.json")))
+    conditioning = copy.deepcopy(config["model"]["conditioning"])
+    conditioning["cond_dim"] = 16
+    for entry in conditioning["configs"]:
+        if entry["type"] == "ViTCoordinates":
+            entry["config"]["ViT"] = {"ch_dim": 3, "img_h": 8, "img_w": 16, "patch_h": 4,
+                                      "patch_w": 4, "dim": 16, "depth": 1, "heads": 2,
+                                      "mlp_dim": 16}
+    torch.manual_seed(0)
+    module = create_multi_conditioner_from_conditioning_config(conditioning).eval()
+    cross = ("context_poses_vit", "context_poses", "context_audio")
+
+    def conditioner(metadata, device, only_ids=None):
+        with torch.no_grad():
+            return module(metadata, device, only_ids=only_ids)
+
+    def cond_inputs(conditioning_tensors):
+        """``get_conditioning_inputs``' concatenation for FLAC_AR's id lists."""
+        return {"cross_attn_cond": torch.cat([conditioning_tensors[k][0] for k in cross], dim=1),
+                "cross_attn_mask": torch.cat([conditioning_tensors[k][1] for k in cross], dim=1),
+                "global_cond": torch.cat([conditioning_tensors[k][0]
+                                          for k in ("source", "source_vit")], dim=-1).squeeze(1)}
+    return conditioner, cond_inputs
+
+
+class TinyRealEngine(ENG.SyntheticEngine):
+    """The synthetic generation stack, conditioned by the REAL conditioner classes."""
+
+    def __init__(self):
+        super().__init__()
+        self.conditioner, self.cond_inputs_fn = _tiny_real_conditioner()
+        self.cond_method = "fa_invariant"
+        self.split = me.split_for("fa_invariant", C4)
+
+    def _sample(self, noise, cond):
+        self.n_sampler_rows += int(noise.shape[0])
+        level = cond["cross_attn_cond"].mean(dim=(1, 2)) + cond["global_cond"].mean(dim=-1)
+        return noise + level.reshape(-1, 1, 1)
+
+
+def _real_cases(tmp_path):
+    plan, _records, items = _fa_aligned(tmp_path)
+    generator = torch.Generator().manual_seed(11)
+    for _obs, md in items:
+        md["depth"] = torch.rand((3, 8, 16), generator=generator, dtype=torch.float64) - 0.5
+        md["context_audio"] = torch.randn((8, 1, 256), generator=generator)
+    return plan, items
+
+
+@pytest.mark.parametrize("n, micro", [(5, 2)])
+def test_gate1_is_bit_exact_on_the_real_conditioning_classes(tmp_path, n, micro):
+    plan, items = _real_cases(tmp_path)
+    query = me.load_room_plan(plan, "A/A_idx_1").queries[0]
+    report = fp.split_parity(TinyRealEngine(), query, me.GuardedMetadata(items[0][1]),
+                             micro_batch=micro, n_candidates=n)
+    assert report["verdict"] == "PASS", report["reasons"]
+    assert set(report["per_key"]) == set(FA_IDS) | {"dit_inputs.cross_attn_cond",
+                                                    "dit_inputs.cross_attn_mask",
+                                                    "dit_inputs.global_cond"}
+    assert all(entry["bitwise"] for entry in report["per_key"].values())
+
+
+def test_gate2_is_bit_exact_and_bites_on_the_real_conditioning_classes(tmp_path):
+    plan, items = _real_cases(tmp_path)
+    query = me.load_room_plan(plan, "A/A_idx_1").queries[0]
+    report = fp.cache_parity(TinyRealEngine(), query, me.GuardedMetadata(items[0][1]),
+                             n_candidates=4, source_chunk=2, micro_batch=2)
+    assert report["verdict"] == "PASS", report["reasons"]
+    assert all(counter["detected"] for counter in report["counter_tests"].values())
+
+
+def test_gate3_holds_on_the_real_conditioning_classes(tmp_path):
+    plan, items = _real_cases(tmp_path)
+    room = me.load_room_plan(plan, "B/B_idx_2")
+    query = room.queries[0]
+    obs, md = items[query.position]
+    case = fp.probe_case(room, query, me.GuardedMetadata(md), obs)
+    # a bounded slice keeps the CPU cost small: the first 9 candidates of the query
+    query.candidate_indices = query.candidate_indices[:9]
+    # source chunk 4: the union of 99 leaves a tail of 3 (chunk 3 would leave none)
+    report = fp.production_parity(TinyRealEngine(), [case], batch_rows=8, source_chunk=4,
+                                  num_samples=4, prefixes=(1, 4))
+    assert report["verdict"] == "PASS", report["reasons"]
+    assert report["executed_partition"]["violations"] == []

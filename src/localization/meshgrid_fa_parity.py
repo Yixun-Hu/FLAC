@@ -446,8 +446,18 @@ def _score_deltas(production, replayed, indices, tau, prefixes):
     return out, why
 
 
+def _chain(chains, conditioning, inputs):
+    """Extend each key's ordered per-side sha256 chain with this chunk's tensor digests."""
+    rows = [(key, entry["tensor"]) for key, entry in conditioning.items()]
+    rows += [(f"dit_inputs.{name}", facts) for name, facts in inputs.items()]
+    for name, facts in rows:
+        sides = chains.setdefault(name, [hashlib.sha256(), hashlib.sha256()])
+        for side, digest in zip(sides, facts.get("digest") or ["", ""]):
+            side.update(str(digest).encode("utf-8"))
+
+
 def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, num_samples,
-                      seed, noise_policy, tau, prefixes, per_key, sizes):
+                      seed, noise_policy, tau, prefixes, per_key, sizes, chains):
     from src.localization.scoring import cosine_sims
 
     query, md = case["query"], case["md"]
@@ -475,6 +485,7 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
         inputs, w_inputs = compare_inputs(engine.cond_inputs_fn(produced),
                                           engine.cond_inputs_fn(replay), GATE_TOLERANCES["G3"])
         fold_per_key(per_key, conditioning, inputs)
+        _chain(chains, conditioning, inputs)
         why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]
         sizes["scored"].append(len(slice_indices))
         chunks.append({"start": start, "n": len(slice_indices),
@@ -509,11 +520,13 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
     view = gate_engine(engine)
     micro = max(1, int(batch_rows) // int(num_samples))
     entries, per_key, reasons, sizes = [], {}, [], {"scored": [], "source": []}
+    chains = {}
     for case in cases:
         entry, why = _production_query(view, engine, case, micro=micro, batch_rows=batch_rows,
                                        source_chunk=source_chunk, num_samples=num_samples,
                                        seed=seed, noise_policy=noise_policy, tau=tau,
-                                       prefixes=prefixes, per_key=per_key, sizes=sizes)
+                                       prefixes=prefixes, per_key=per_key, sizes=sizes,
+                                       chains=chains)
         entries.append(entry)
         reasons += [f"{case['query'].query_id}: {item}" for item in why]
     covered = {"scored": coverage(sizes["scored"], micro),
@@ -537,6 +550,8 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
             block["n_at_risk"] += int(facts["at_risk"])
     return gate_report(
         "G3", reasons, queries=entries, per_key=per_key, coverage=covered, score_stability=by_k,
+        digest_chains={name: [side.hexdigest() for side in sides]
+                       for name, sides in chains.items()},
         score_tolerance=me.SCORE_TOLERANCE, declared_partition=declared_partition,
         inputs={"queries": [entry["inputs"]["query_id"] for entry in entries],
                 "batch_rows": int(batch_rows), "source_chunk": int(source_chunk),
