@@ -29,10 +29,14 @@ from an aggregate table -- and two runs are paired only when they agree on every
 axis outside an explicit whitelist (the checkpoint, the arm, the arm's registered
 method fields, the launch records, timings and every generated output).
 """
+import argparse
 import hashlib
+import os
+import sys
 
 import numpy as np
 
+from src.localization import meshgrid_engine as me
 from src.localization import meshgrid_report as mr
 
 CONTROL_ARM = "P1"
@@ -266,8 +270,6 @@ def _digest(value):
 
 def noise_keys_digest(binding, results, rows):
     """The derivable CRN keys of every query's K draws (seed, policy, query, draw)."""
-    from src.localization import meshgrid_engine as me
-
     keys = {}
     for result in results:
         first = int(rows[result["query_id"]]["candidate_indices"][0])
@@ -409,3 +411,214 @@ def pair_runs(a, b):
     return {"paired": not mismatches, "arms": [a["arm"], b["arm"]], "mismatches": mismatches,
             "n_queries": len(ids[0]), "whitelisted_differences": sorted(whitelisted),
             "axes": list(PAIRING_AXES), "whitelist": PAIRING_WHITELIST}
+
+
+# --------------------------------------------------------------------------- #
+# the comparison, its artifacts and its CLI
+# --------------------------------------------------------------------------- #
+OUTPUT_JSON = "crossarm_r2.json"
+OUTPUT_MARKDOWN = "crossarm_r2.md"
+CLAIM_BOUNDARY = (
+    "CLAIM BOUNDARY (plan r2 §1, Codex H5): no per-arm off-grid probe or calibration is run in "
+    "R2, so this comparison makes NO claim for BF or YAW about continuous-truth score/rank or "
+    "sub-lattice sharpness, grid densification, real-vs-generated AGREE calibration / domain "
+    "gap, or off-grid behaviour; those conclusions remain P1-only. The arm-independent controls "
+    "(random baseline, sparse retrieval) are reused, not rerun")
+
+
+def run_crossarm(p1, yaw=None, bf=None):
+    """Pair every admitted treatment with P1 (and with each other), then test the family."""
+    from datetime import datetime, timezone
+
+    admitted = {arm: run for arm, run in (("P1", p1), ("YAW", yaw), ("BF", bf)) if run}
+    pairs = [(arm, CONTROL_ARM) for arm in ("YAW", "BF") if arm in admitted]
+    if len(pairs) == 2:
+        pairs.append(("BF", "YAW"))
+    pairing = {f"{t}_vs_{c}": pair_runs(admitted[c], admitted[t]) for t, c in pairs}
+    refused = {name: verdict["mismatches"][:5] for name, verdict in pairing.items()
+               if not verdict["paired"]}
+    if refused:
+        raise ValueError(f"the pairing gate refused {sorted(refused)}: {refused}")
+    room_stats = {arm: room_statistics(run["results"]) for arm, run in admitted.items()}
+    draws = shared_draws(len(room_stats[CONTROL_ARM]))
+    per_arm = {}
+    for arm, stats in room_stats.items():
+        per_arm[arm] = {stat: float(np.mean([stats[r][stat] for r in stats]))
+                        for stat in PRIMARY_ENDPOINTS}
+        per_arm[arm].update(
+            per_room=stats, n_rooms=len(stats), n_queries=len(admitted[arm]["results"]),
+            run_dir=admitted[arm]["run_dir"],
+            ckpt_sha256=admitted[arm]["binding"]["ckpt_sha256"],
+            binding_sha256=admitted[arm]["binding_sha256"],
+            legacy_provenance=bool(admitted[arm]["launch_provenance"]["legacy_provenance"]),
+            launch_records=[{key: record.get(key) for key in
+                             ("launch_record_sha256", "shard", "n_rows", "position_ranges")}
+                            for record in admitted[arm]["launch_provenance"]["records"]])
+        headline = admitted[arm]["report_headline"]
+        for stat in PRIMARY_ENDPOINTS:
+            if abs(per_arm[arm][stat] - float(headline[stat]["point"])) > 1e-12:
+                raise ValueError(f"{arm}: the room-first {stat} recomputed here differs from the "
+                                 "arm's own report headline; the two derivations disagree")
+    return {"experiment": "exp_22 loc_meshgrid R2 paired cross-arm comparison",
+            "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "estimand": "unweighted mean over the registered rooms of the paired room deltas "
+                        "(treatment - P1) of the within-room median e_loc and success_raw@1.0, "
+                        f"{PRIMARY_AGGREGATOR} score, K = {PRIMARY_K} (plan r2 §1)",
+            "confirmatory": confirmatory(room_stats, draws=draws),
+            "secondary": secondary_descriptives(
+                {arm: run["results"] for arm, run in admitted.items()}, draws=draws),
+            "per_arm": per_arm, "pairing": pairing,
+            "legacy_p1_provenance": per_arm[CONTROL_ARM]["legacy_provenance"],
+            "legacy_exception_note": (LEGACY_EXCEPTION_NOTE
+                                      if per_arm[CONTROL_ARM]["legacy_provenance"] else None),
+            "claim_boundary": CLAIM_BOUNDARY,
+            "labels": {"subset": mr.SUBSET_LABEL,
+                       "agree_leakage_caveat": me.AGREE_LEAKAGE_CAVEAT}}
+
+
+def _cell(value, digits=4, signed=True):
+    if value is None:
+        return "n/a"
+    return f"{value:+.{digits}f}" if signed else f"{value:.{digits}f}"
+
+
+def render_markdown(payload):
+    confirmatory = payload["confirmatory"]
+    lines = ["# exp_22 R2 — paired cross-arm comparison on the mesh grid", "",
+             f"Generated {payload['created_utc']}. {payload['estimand']}.", "",
+             f"- **Scope:** {payload['labels']['subset']}",
+             f"- **AGREE leakage caveat:** {payload['labels']['agree_leakage_caveat']}",
+             f"- **Inference:** one shared room-resample matrix (seed "
+             f"{confirmatory['draws']['seed']}, {confirmatory['draws']['n_boot']:,} draws over "
+             f"{confirmatory['draws']['n_rooms']} rooms, sha256 "
+             f"`{confirmatory['draws']['sha256'][:16]}...`); BF one-sided, YAW two-sided; "
+             "draws exactly 0 count as crossing; no finite-sample correction; Holm over "
+             f"exactly 4 tests at alpha = {confirmatory['alpha']}. CIs are descriptive.", ""]
+    if payload.get("legacy_exception_note"):
+        lines += [f"> **{payload['legacy_exception_note']}**", ""]
+    lines += [f"> **{payload['claim_boundary']}**", ""]
+    lines += ["## Registered confirmatory tests (room-first, K = 8)", "",
+              "| contrast | Δ | 95 % CI | p_raw | p_adj | verdict |", "|---|---|---|---|---|---|"]
+    for test in confirmatory["tests"]:
+        outcome = ("raw p only (family incomplete)" if test["rejected"] is None
+                   else "REJECTED" if test["rejected"] else "not rejected")
+        lines.append(f"| `{test['label']}` | {_cell(test['delta'])} | "
+                     f"[{_cell(test['ci95'][0])}, {_cell(test['ci95'][1])}] | "
+                     f"{_cell(test['p_raw'], signed=False)} | "
+                     f"{_cell(test['p_adjusted'], signed=False)} | {outcome} |")
+    lines.append("")
+    for arm, verdict in confirmatory["verdicts"].items():
+        lines.append(f"- **{arm}: {verdict}**")
+    lines += ["", "## Per-arm room-first values (K = 8)", "",
+              "| arm | mean within-room median e_loc (m) | mean success_raw@1.0 | rooms | "
+              "queries | legacy provenance | launch records |", "|---|---|---|---|---|---|---|"]
+    for arm, summary in payload["per_arm"].items():
+        lines.append(f"| {arm} | {_cell(summary['median_e_loc'], signed=False)} | "
+                     f"{_cell(summary['success_raw@1.0'], signed=False)} | {summary['n_rooms']} | "
+                     f"{summary['n_queries']:,} | {'yes' if summary['legacy_provenance'] else 'no'}"
+                     f" | {len(summary['launch_records'])} |")
+    lines += ["", "## Secondary readouts (DESCRIPTIVE: Δ and interval only, no test)", "",
+              "| arm | K | statistic | Δ | 95 % CI |", "|---|---|---|---|---|"]
+    for arm, by_k in payload["secondary"].items():
+        for k, cells in by_k.items():
+            for stat, cell in cells.items():
+                lines.append(f"| {arm} | {k} | {stat} | {_cell(cell['delta'])} | "
+                             f"[{_cell(cell['ci95'][0])}, {_cell(cell['ci95'][1])}] |")
+    lines += ["", "## Pairing gate", "", "| pair | paired | queries | whitelisted differences |",
+              "|---|---|---|---|"]
+    for name, verdict in payload["pairing"].items():
+        lines.append(f"| {name} | {'yes' if verdict['paired'] else 'NO'} | "
+                     f"{verdict['n_queries']:,} | "
+                     f"{', '.join(verdict['whitelisted_differences']) or '—'} |")
+    return "\n".join(lines) + "\n"
+
+
+def write_outputs(out_dir, payload):
+    os.makedirs(str(out_dir), exist_ok=True)
+    json_path = os.path.join(str(out_dir), OUTPUT_JSON)
+    me.write_json(json_path, mr.jsonable(payload))
+    markdown_path = os.path.join(str(out_dir), OUTPUT_MARKDOWN)
+    with open(markdown_path + ".tmp", "w") as handle:
+        handle.write(render_markdown(payload))
+    os.replace(markdown_path + ".tmp", markdown_path)
+    return {"json": json_path, "markdown": markdown_path}
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--run-p1", required=True, help="the MERGED P1 comparator run")
+    parser.add_argument("--run-yaw", default=None, help="the MERGED YAW run")
+    parser.add_argument("--run-bf", default=None, help="the MERGED BF run")
+    parser.add_argument("--context-manifest", required=True)
+    parser.add_argument("--audit-report", required=True)
+    parser.add_argument("--metadata-root", required=True)
+    parser.add_argument("--expect-metadata-bank-sha256", default=None,
+                        help="the PRE-REGISTERED pair-metadata bank digest (required)")
+    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--allow-legacy-p1-provenance", action="store_true",
+                        help="admit the published P1 comparator, which predates launch "
+                             "records, under the registered exception (printed prominently)")
+    for arm in ("p1", "yaw", "bf"):
+        parser.add_argument(f"--ckpt-{arm}", default=None,
+                            help=f"optional: the {arm.upper()} checkpoint, so its embedded "
+                                 "training protocol is checked too")
+    return parser.parse_args(argv)
+
+
+def _refuse(message):
+    raise SystemExit(f"REFUSED: {message}")
+
+
+def validate_args(args):
+    if not args.expect_metadata_bank_sha256:
+        _refuse("--expect-metadata-bank-sha256 is required: the truths behind every e_loc must "
+                "come from the pre-registered bank")
+    if not (args.run_yaw or args.run_bf):
+        _refuse("at least one treatment run (--run-yaw / --run-bf) is required")
+    runs = {os.path.abspath(str(d)) for d in (args.run_p1, args.run_yaw, args.run_bf) if d}
+    if os.path.abspath(str(args.out_dir)) in runs:
+        _refuse("--out-dir may not be one of the run directories it reports on")
+    return True
+
+
+def main(argv=None, admission_kwargs=None):
+    """CLI. ``admission_kwargs`` is a fixture seam (totals / manifest census), never a flag."""
+    args = parse_args(argv)
+    validate_args(args)
+    common = dict(audit_report=args.audit_report, context_manifest=args.context_manifest,
+                  metadata_root=args.metadata_root,
+                  expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
+                  **(admission_kwargs or {}))
+    admitted = {}
+    for arm, run_dir, ckpt in (("P1", args.run_p1, args.ckpt_p1),
+                               ("YAW", args.run_yaw, args.ckpt_yaw),
+                               ("BF", args.run_bf, args.ckpt_bf)):
+        if not run_dir:
+            continue
+        try:
+            admitted[arm] = admit_run(
+                run_dir, arm, ckpt_path=ckpt,
+                allow_legacy_p1_provenance=(arm == CONTROL_ARM
+                                            and args.allow_legacy_p1_provenance), **common)
+        except ValueError as error:
+            _refuse(f"{arm}: {error}")
+        print(f"admitted {arm}: {run_dir} (binding {admitted[arm]['binding_sha256'][:12]}...)")
+    try:
+        payload = run_crossarm(admitted["P1"], yaw=admitted.get("YAW"), bf=admitted.get("BF"))
+    except ValueError as error:
+        _refuse(str(error))
+    if payload["legacy_exception_note"]:
+        print(f"\n*** {payload['legacy_exception_note']} ***\n")
+    print(f"{CLAIM_BOUNDARY}\n")
+    for test in payload["confirmatory"]["tests"]:
+        print(f"  {test['label']:34s} delta {test['delta']:+.4f}  p_raw {test['p_raw']:.4f}  "
+              f"p_adj {_cell(test['p_adjusted'], signed=False)}")
+    for arm, verdict in payload["confirmatory"]["verdicts"].items():
+        print(f"VERDICT {arm}: {verdict}")
+    for name, path in write_outputs(args.out_dir, payload).items():
+        print(f"  {name:9s} -> {path}  sha256 {me.file_sha256(path)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

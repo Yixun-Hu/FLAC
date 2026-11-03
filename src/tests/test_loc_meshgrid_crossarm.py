@@ -296,7 +296,7 @@ def test_the_secondaries_are_descriptive_deltas_only():
 # --------------------------------------------------------------------------- #
 import copy                                                   # noqa: E402
 
-import test_loc_meshgrid_report as RF                         # noqa: E402  (pytest prepends src/tests)
+import test_loc_meshgrid_report as RF                         # noqa: E402  (src/tests on path)
 
 
 def shifted_engine(shift):
@@ -532,3 +532,98 @@ def test_a_whitelisted_difference_never_breaks_the_pair(arm_runs, path, value):
     path = [(_first(admitted["YAW"]) if key is None else key) for key in path]
     verdict = mx.pair_runs(admitted["P1"], _mutate(admitted["YAW"], path, value))
     assert verdict["paired"] is True, verdict["mismatches"]
+
+
+# --------------------------------------------------------------------------- #
+# the comparison end to end, its artifacts and its CLI
+# --------------------------------------------------------------------------- #
+def test_the_full_family_end_to_end_on_admitted_runs(arm_runs):
+    _runs, admitted = arm_runs
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=admitted["BF"])
+    confirmatory = payload["confirmatory"]
+    assert confirmatory["family_complete"] is True and len(confirmatory["tests"]) == 4
+    assert set(confirmatory["verdicts"]) == {"BF", "YAW"}
+    assert confirmatory["draws"]["registered"] is True
+    # the per-arm room-first values ARE each arm's own report headline
+    for arm in ("P1", "YAW", "BF"):
+        summary = payload["per_arm"][arm]
+        headline = admitted[arm]["report_headline"]
+        assert summary["median_e_loc"] == pytest.approx(headline["median_e_loc"]["point"])
+        assert summary["success_raw@1.0"] == pytest.approx(
+            headline["success_raw@1.0"]["point"])
+    # the deltas are exactly the per-arm differences of those room-first values
+    by_label = {t["label"]: t for t in confirmatory["tests"]}
+    assert by_label["YAW_vs_P1_median_e_loc_K8"]["delta"] == pytest.approx(
+        payload["per_arm"]["YAW"]["median_e_loc"] - payload["per_arm"]["P1"]["median_e_loc"])
+    assert {pair["paired"] for pair in payload["pairing"].values()} == {True}
+    assert set(payload["pairing"]) == {"YAW_vs_P1", "BF_vs_P1", "BF_vs_YAW"}
+    assert payload["legacy_p1_provenance"] is True
+    assert payload["claim_boundary"] == mx.CLAIM_BOUNDARY
+
+
+def test_an_unpaired_arm_refuses_the_whole_comparison(arm_runs):
+    _runs, admitted = arm_runs
+    broken = copy.deepcopy(admitted["YAW"])
+    broken["binding"]["tau"] = 0.2
+    with pytest.raises(ValueError, match="pairing gate"):
+        mx.run_crossarm(admitted["P1"], yaw=broken, bf=admitted["BF"])
+
+
+def test_one_treatment_arm_yields_raw_p_only(arm_runs):
+    _runs, admitted = arm_runs
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"])
+    assert payload["confirmatory"]["family_complete"] is False
+    markdown = mx.render_markdown(payload)
+    assert mx.INCOMPLETE_FAMILY_VERDICT in markdown
+    assert "SUPERIOR" not in markdown and "DIFFERENT-" not in markdown
+
+
+def test_the_markdown_carries_the_verdict_table_the_boundary_and_the_exception(arm_runs):
+    _runs, admitted = arm_runs
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=admitted["BF"])
+    markdown = mx.render_markdown(payload)
+    assert "| contrast | Δ | 95 % CI | p_raw | p_adj | verdict |" in markdown
+    assert mx.CLAIM_BOUNDARY in markdown
+    assert mx.LEGACY_EXCEPTION_NOTE in markdown
+    for test in payload["confirmatory"]["tests"]:
+        assert test["label"] in markdown
+    for arm, verdict in payload["confirmatory"]["verdicts"].items():
+        assert f"**{arm}: {verdict}**" in markdown
+
+
+def _cli(runs, out_dir, *extra, treatments=("YAW", "BF")):
+    shared = runs["P1"]
+    argv = ["--run-p1", runs["P1"]["run_dir"], "--context-manifest", shared["context_manifest"],
+            "--audit-report", shared["audit_report"], "--metadata-root",
+            shared["metadata_root"], "--expect-metadata-bank-sha256",
+            shared["metadata_bank_sha256"], "--out-dir", str(out_dir)]
+    for arm in treatments:
+        argv += [f"--run-{arm.lower()}", runs[arm]["run_dir"]]
+    return argv + list(extra)
+
+
+def test_the_cli_publishes_both_artifacts(arm_runs, tmp_path, capsys):
+    runs, _admitted = arm_runs
+    seam = {"totals": runs["P1"]["totals"], "require_manifest_census": False}
+    argv = _cli(runs, tmp_path / "out", "--allow-legacy-p1-provenance")
+    assert mx.main(argv, admission_kwargs=seam) == 0
+    payload = json.load(open(tmp_path / "out" / mx.OUTPUT_JSON))
+    assert payload["confirmatory"]["family_complete"] is True
+    assert (tmp_path / "out" / mx.OUTPUT_MARKDOWN).read_text().startswith("# exp_22 R2")
+    printed = capsys.readouterr().out
+    assert "LEGACY-PROVENANCE EXCEPTION" in printed
+    # without the explicit flag the legacy P1 comparator is refused
+    with pytest.raises(SystemExit, match="allow-legacy-p1-provenance"):
+        mx.main(_cli(runs, tmp_path / "out2"), admission_kwargs=seam)
+
+
+def test_the_cli_refuses_an_incomplete_or_unsafe_invocation(arm_runs, tmp_path):
+    runs, _admitted = arm_runs
+    with pytest.raises(SystemExit, match="treatment"):
+        mx.validate_args(mx.parse_args(_cli(runs, tmp_path / "o", treatments=())))
+    no_bank = _cli(runs, tmp_path / "o")
+    position = no_bank.index("--expect-metadata-bank-sha256")
+    with pytest.raises(SystemExit):
+        mx.validate_args(mx.parse_args(no_bank[:position] + no_bank[position + 2:]))
+    with pytest.raises(SystemExit, match="out-dir"):
+        mx.validate_args(mx.parse_args(_cli(runs, runs["YAW"]["run_dir"])))
