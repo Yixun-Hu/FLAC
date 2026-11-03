@@ -887,9 +887,10 @@ def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
         report = fp.split_parity(engine, query, me.GuardedMetadata(md), micro_batch=micro,
                                  n_candidates=args.parity_candidates)
     else:                          # G3, or G3D: the same comparison as a measurement
-        probes, ordered, _anchor = _registered_probes(args, plan)
-        report = fp.production_parity(
+        probes, ordered, anchor = _registered_probes(args, plan)
+        report = fp.production_parity(     # the pinned anchor travels into the evidence
             engine, _probe_cases(args, plan, records, loader, probes), expected_queries=ordered,
+            anchor=anchor,
             batch_rows=args.batch_rows,
             source_chunk=args.source_chunk, num_samples=args.num_samples, seed=args.seed,
             noise_policy=args.noise_policy, tau=args.tau,

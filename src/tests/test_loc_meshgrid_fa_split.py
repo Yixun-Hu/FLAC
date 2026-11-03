@@ -1011,9 +1011,21 @@ def _ids(cases):
     return [case["query"].query_id for case in cases]
 
 
+def _anchor_for(ids):
+    """A pinned probe-report anchor over ``ids``, shaped as ``fp.load_probe_anchor`` returns it
+    (gate 3's registered set is the pinned committed report's -- Codex rB-F1 finding 2)."""
+    ids = [str(query) for query in ids]
+    return {"path": "fixture_probe_report.json", "sha256": fp.COMMITTED_PROBE_REPORT_SHA256,
+            "pinned_sha256": fp.COMMITTED_PROBE_REPORT_SHA256, "query_ids": ids,
+            "query_ids_sha256": canonical_sha256(ids), "n_queries": len(ids),
+            "digests": {query: {"row_sha256": "1" * 64, "sims_sha256": "2" * 64}
+                        for query in ids}}
+
+
 def _g3(engine, cases, **kwargs):
-    """Gate 3 over ``cases`` with exactly those cases registered."""
+    """Gate 3 over ``cases`` with exactly those cases registered, anchored by a pinned report."""
     kwargs.setdefault("expected_queries", _ids(cases))
+    kwargs.setdefault("anchor", _anchor_for(kwargs["expected_queries"] or []))
     return fp.production_parity(engine, cases, **kwargs)
 
 
@@ -1063,7 +1075,8 @@ def test_gate3_passes_on_a_batch_invariant_stack_and_covers_full_and_tail_batche
         assert report["per_key"][key]["shapes"] and report["per_key"][key]["dtypes"]
         assert report["per_key"][key]["mask_max_abs_diff"] == 0.0
     for entry in report["queries"]:
-        assert all(chunk["replay_partition"] == [chunk["n"]] * 3 for chunk in entry["chunks"])
+        assert all(chunk["replay_partition"]["partition"] == [chunk["n"]] * 3
+                   for chunk in entry["chunks"])
 
 
 def test_gate3_tolerates_backbone_batch_noise_within_the_registered_bound(tmp_path):
@@ -2508,3 +2521,88 @@ def test_g3_carries_its_numeric_tolerances_and_g3d_carries_none(tmp_path):
             assert payload["verdict"] == "measurement"
             assert payload["tolerance"] is None and payload["score_tolerance"] is None
             assert payload["match"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB-F1 finding 2 (part 1): the G3 / G3D evidence carries what its verdict was
+# judged on -- the pinned anchor block and, per chunk, the COMPLETE replay-partition
+# record and the per-key facts -- so a reader can re-verify it from the JSON alone
+# --------------------------------------------------------------------------- #
+#: every field ``replay_partition_reasons`` reads, and the rest of the released record
+REPLAY_RECORD_FIELDS = {"partition", "frame_avg_fwd_cap", "candidate_micro_batch",
+                        "angles_per_chunk", "n_orbit_forwards", "orbit_size", "cap_policy",
+                        "shared_angle_count", "cond_method"}
+
+
+def _registered_gate3(tmp_path, monkeypatch, gate="G3"):
+    """A driver-run G3 (fp32 logic gate) or G3D (drift measurement) at the REGISTERED
+    256 / 16 / K = 8 over the fixture's registered probe queries -- the real evidence."""
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
+    mode = "--fa-production-parity-check" if gate == "G3" else "--fa-production-drift-measurement"
+    protocol = _off(ENG._FA_PROTOCOL) if gate == "G3" else ENG._FA_PROTOCOL
+    args = _gate_args(tmp_path, mode, "--replay-probe-report", anchor["path"], protocol=protocol)
+    assert driver.validate_args(args)
+    binding = _registered_binding("BF", **({"cond_autocast": "off"} if gate == "G3" else {}))
+    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, gate, binding)
+    name = "fa_production_parity.json" if gate == "G3" else "fa_production_drift.json"
+    return code, json.load(open(tmp_path / "gates" / name)), anchor
+
+
+@pytest.mark.parametrize("gate", ["G3", "G3D"])
+def test_gate3_and_its_measurement_publish_the_pinned_anchor_block(tmp_path, monkeypatch,
+                                                                   clean_env, gate):
+    """The driver used to verify the pinned report and then discard it (localize_meshgrid.py
+    ~890): the evidence could not show that its registered set is the pinned 8c5fd5e8...'s."""
+    code, evidence, anchor = _registered_gate3(tmp_path, monkeypatch, gate)
+    assert code == 0
+    published = evidence["inputs"]["probe_report"]
+    assert published == {key: anchor[key] for key in fp.ANCHOR_EVIDENCE}
+    assert published["sha256"] == published["pinned_sha256"] == fp.COMMITTED_PROBE_REPORT_SHA256
+    assert published["query_ids_sha256"] == canonical_sha256(published["query_ids"])
+    assert sorted(published["query_ids"]) == sorted(evidence["probe_queries"]["registered"])
+    assert evidence["inputs"]["anchor_key_set_equal"] is True
+
+
+def test_gate3_without_its_pinned_anchor_does_not_pass(tmp_path):
+    cases = _g3_cases(tmp_path)
+    ids = _ids(cases)
+    kwargs = dict(G3_KW, declared_partition=FA_DECLARED, expected_queries=ids)
+    assert fp.production_parity(FaSyntheticEngine(), cases, anchor=_anchor_for(ids),
+                                **kwargs)["verdict"] == "PASS"
+    unanchored = fp.production_parity(FaSyntheticEngine(), cases, **kwargs)
+    assert unanchored["verdict"] == "FAIL"
+    _only(unanchored["reasons"], "anchor")
+    for anchor, needle in ((dict(_anchor_for(ids), sha256="0" * 64), "pinned"),
+                           (_anchor_for(ids + ["9|ir/Z/Z_idx_9/S001_R001_hybrid_IR.wav"]),
+                            "key set")):
+        report = fp.production_parity(FaSyntheticEngine(), cases, anchor=anchor, **kwargs)
+        assert report["verdict"] == "FAIL" and report["inputs"]["probe_report"]["path"]
+        _only(report["reasons"], "anchor")
+        assert any(needle in reason for reason in report["reasons"]), needle
+
+
+@pytest.mark.parametrize("measurement", [False, True])
+def test_each_gate3_chunk_serializes_its_complete_replay_record_and_per_key_facts(tmp_path,
+                                                                                  measurement):
+    """Codex rB-F1 finding 2: a chunk published only ``record['partition']``, not the cap,
+    micro-batch, angle and forward counts ``replay_partition_reasons`` judged."""
+    report = json.loads(json.dumps(_g3_registered(tmp_path, measurement=measurement)))
+    for entry in report["queries"]:
+        for chunk in entry["chunks"]:
+            record = chunk["replay_partition"]
+            assert REPLAY_RECORD_FIELDS <= set(record), sorted(record)
+            assert fp.replay_partition_reasons(record, chunk["n"], len(C4)) == []
+            assert record["partition"] == [chunk["n"]] * 3
+            assert set(chunk["conditioning"]) == set(FA_IDS)
+            for facts in chunk["conditioning"].values():
+                assert {"shape", "dtype", "digest", "finite", "max_abs_diff",
+                        "bitwise"} <= set(facts["tensor"]) and "digest" in facts["mask"]
+            assert chunk["dit_inputs"] and all("max_abs_diff" in facts
+                                               for facts in chunk["dit_inputs"].values())
+    executed = report["executed_partition"]
+    again = me.FaPartitionRecorder.from_counts(executed["counts"]).report()
+    assert {key: again[key] for key in ("executed", "violations", "branches")} == {
+        key: executed[key] for key in ("executed", "violations", "branches")}

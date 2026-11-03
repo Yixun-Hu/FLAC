@@ -289,6 +289,36 @@ def probe_query_set(registered, consumed):
     return block, reasons
 
 
+def anchor_reasons(block, key_set_equal):
+    """The anchor clause over the SERIALIZED anchor block (Codex rB-F1 finding 2): the pinned
+    committed probe report, its ordered ids matching their digest, and the gate's registered
+    and consumed queries exactly its key set."""
+    from src.localization.crossarm import canonical_sha256
+
+    if not isinstance(block, dict) or not block.get("sha256"):
+        return ["anchor: the evidence names no pinned probe-report anchor, so its registered "
+                "probe set is not shown to be the committed report's"]
+    ids, reasons = list(block.get("query_ids") or []), []
+    if not (block.get("sha256") == block.get("pinned_sha256") == COMMITTED_PROBE_REPORT_SHA256):
+        reasons.append(f"anchor: the probe report {str(block.get('sha256'))[:12]}... is not the "
+                       f"pinned committed probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}...")
+    if (block.get("query_ids_sha256") != canonical_sha256(ids) or len(set(ids)) != len(ids)
+            or block.get("n_queries") != len(ids)):
+        reasons.append("anchor: its ordered query ids do not match their digest or count")
+    if key_set_equal is not True:
+        reasons.append("anchor: the registered and consumed probe queries are not exactly the "
+                       "anchor's key set")
+    return reasons
+
+
+def anchor_evidence(anchor, registered, consumed):
+    """``(block, key_set_equal, reasons)``: the anchor as G0 publishes it, for G3 / G3D."""
+    block = {key: (anchor or {}).get(key) for key in ANCHOR_EVIDENCE}
+    ids = sorted(str(query) for query in block["query_ids"] or [])
+    equal = bool(ids) and ids == sorted(registered or []) == sorted(consumed)
+    return block, equal, anchor_reasons(block if anchor else None, equal)
+
+
 def gate_report(gate, reasons, **fields):
     """The verdict block every gate shares; a measurement (no tolerance) carries none."""
     if GATE_TOLERANCES[gate] is None:
@@ -672,7 +702,9 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
                                            for e in conditioning.values()),
                        "bitwise": all(e["tensor"]["bitwise"] and e["mask"]["bitwise"]
                                       for e in conditioning.values()),
-                       "replay_partition": replayed_partition[0].get("partition")})
+                       # what the verdict was judged on, whole (Codex rB-F1 finding 2)
+                       "replay_partition": dict(replayed_partition[0]),
+                       "conditioning": conditioning, "dit_inputs": inputs})
         # the replay's own generation: the production chunking and the same keyed noise
         noise = me.noise_block(seed, query.query_id, slice_indices, num_samples,
                                engine.latent_shape, policy=noise_policy, device=engine.device)
@@ -694,7 +726,7 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
 def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me.NUM_SAMPLES,
                       seed=me.SEED, noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU,
                       prefixes=me.K_PREFIXES, declared_partition=None, expected_queries=None,
-                      measurement=False):
+                      measurement=False, anchor=None):
     """G3 -- production batching against a faithful replay, with score/argmax stability; with
     ``measurement`` the same comparison as G3D, the drift measurement (no verdict, A4 ii)."""
     gate = "G3D" if measurement else "G3"
@@ -711,9 +743,10 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                                        chains=chains, tolerance=GATE_TOLERANCES[gate])
         entries.append(entry)
         reasons += [f"{case['query'].query_id}: {item}" for item in why]
-    queries, why_queries = probe_query_set(expected_queries,
-                                           [entry["inputs"]["query_id"] for entry in entries])
-    reasons += why_queries
+    consumed = [entry["inputs"]["query_id"] for entry in entries]
+    queries, why_queries = probe_query_set(expected_queries, consumed)
+    anchored, key_set_equal, why_anchor = anchor_evidence(anchor, queries["registered"], consumed)
+    reasons += why_queries + why_anchor
     covered = {"scored": coverage(sizes["scored"], micro),
                "source": coverage(sizes["source"], int(source_chunk))}
     reasons += [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
@@ -747,8 +780,10 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                 "batch_rows": int(batch_rows), "source_chunk": int(source_chunk),
                 "num_samples": int(num_samples), "micro_batch": micro, "seed": int(seed),
                 "noise_policy": str(noise_policy), "tau": float(tau),
-                "prefixes": [int(k) for k in prefixes], "angles": list(split.angles)},
-        executed_partition=executed)
+                "prefixes": [int(k) for k in prefixes], "angles": list(split.angles),
+                "probe_report": anchored, "anchor_key_set_equal": key_set_equal},
+        # the raw call counts: the executed block is re-derivable from the evidence alone
+        executed_partition=dict(executed, counts=view.split.recorder.to_counts()))
 
 
 def load_probe_anchor(path=COMMITTED_PROBE_REPORT):
