@@ -1,0 +1,2 @@
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_emission_may_write_into_the_shard_directory_before_it_exists
+1 failed, 43 deselected in 2.71s

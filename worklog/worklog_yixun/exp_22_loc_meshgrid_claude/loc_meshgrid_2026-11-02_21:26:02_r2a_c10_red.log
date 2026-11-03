@@ -1,0 +1,7 @@
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_full_family_end_to_end_on_admitted_runs
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_an_unpaired_arm_refuses_the_whole_comparison
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_one_treatment_arm_yields_raw_p_only
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_markdown_carries_the_verdict_table_the_boundary_and_the_exception
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_cli_publishes_both_artifacts
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_cli_refuses_an_incomplete_or_unsafe_invocation
+6 failed, 77 passed, 3 warnings in 6.71s

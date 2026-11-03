@@ -331,3 +331,27 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `4fc81b4` exp_22 r9z2: emission fails closed; record designates its execution card (equality, not membership)
 - `9c90a19` exp_22 r9z4: runtime-UUID designation (inference deleted); genuinely non-empty facts
 - `41720e1` exp_22 r9z6: test-only — emission regression routed through write_launch_record, non-vacuous
+
+## Round exp22-R2-A (provenance, arm-aware registration, paired cross-arm comparison; plan r2 §3 R2-A)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `3f595e19`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(raw diff counts, which include docstrings and the notes' prose, are in the commit messages /
+`git show --stat`). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `19374349` | B6/H2 | `meshgrid_engine.RUN_BINDING_PROTOCOL_FIELDS` (`frame_avg_angles`, `rotate_deg`, `fa_partition`) + `binding_fields()`: a binding is legacy R1 (none — the published P1 digest is unchanged) or complete R2 (all); partial refused; digest/write/resume/shard/merge/report recompute over it | +13 |
+| `120c8bf7` | B6 | driver `--frame-avg-angles` (vanilla exactly `0` → `[0.0]`; fa exactly C4) and `--rotate-deg` (0 only); explicit-flag tracking; a canonical full pass needs `--launch-record` and all six protocol/batching flags explicit; diagnostics record-free; R2 fields bound; `declared_fa_partition()` | +89 |
+| `3ed76a4e` | B4 | new `meshgrid_segments.py` (imports the probe's launch-record mechanism): `open_segment` (one record per invocation; bytes copied into the run), `close_segment`, `verify_segment` | +151 |
+| `38c05166` | B4/N3 | `provenance_census` (every row → present, verified record; per-record row ranges) and `merge_ledgers` | +76 |
+| `11fc63d9` | B4 | rows stamped with their segment's record digest; resume regenerates rows of unknown records; R2 merges require a complete census (checked before any write) and carry the records across | +26 |
+| `5a5cf53a` | H2/N2 | `REGISTERED_ARM_PROTOCOL` (P1/YAW vanilla `[0.0]`; BF C4 + per-angle partition at 256/16); arm resolved FIRST; `expect_arm` and a partition-less fa binding are hard refusals; embedded checkpoint protocol check; P1 fixture golden-digest regression | +90 |
+| `27193268` | B4/B6/H2 | driver emit/admit, `preflight` (binding → arm protocol → embedded protocol → ARE/cond binding → engine `assert_cacheable` last), `claim_out_dir` (segments, resume), `--expect-arm` | +60 |
+| `6f7a7338` | B4/N3/H2 | report-side launch census (NON-CANONICAL on any gap), `legacy_provenance` (P1 + legacy binding + no records only), `arm` published, notes/title per arm, `--expect-arm` / `--ckpt-path` | +73 |
+| `b9d7835b` | B1/B2 | new `meshgrid_crossarm.py` statistics: room-first paired deltas, one shared resample matrix, BF one-sided / YAW two-sided tails (zero crosses, no correction), Holm over exactly 4, exhaustive verdicts, descriptive CIs, incomplete family | +148 |
+| `813651c5` | B3/H1 | `admit_run` through `evaluate_run` + `build_report` (canonical required; P1 legacy only with the flag); `pair_runs` with explicit `PAIRING_WHITELIST` | +161 |
+| `f09aea97` | B1–B3/H5/N3 | `run_crossarm`, `crossarm_r2.json` / `.md` (exp_20 verdict table, claim boundary, legacy exception), CLI | +188 |
+| `38603f29` | R2-C support | emission creates the shard directory the registered launch lines write the record into | +2 |
+| `4b5549a5` | self-review | `-0` folds to 0; read-once resume stamp; verified record copy at merge; unreadable ledger is a reason; per-arm census published | +18 |
