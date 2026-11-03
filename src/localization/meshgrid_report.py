@@ -133,10 +133,38 @@ REGISTERED_PROTOCOL = {
     "noise_policy": me.REGISTERED_NOISE_POLICY,
     "steps": me.STEPS,
     "cfg_scale": me.CFG_SCALE,
-    "cond_method": "vanilla",
     "scorer_readout": me.SCORER_READOUT,
-    "cond_autocast": "default",
 }
+
+#: The registered batching every arm runs at (plan r2 §1: `--batch-rows 256
+#: --source-chunk 16`, the batching of the published P1 pass). Advisory in the
+#: binding; it fixes the BF partition below and is a cross-arm pairing axis.
+REGISTERED_BATCH_ROWS = 256
+REGISTERED_SOURCE_CHUNK = me.SOURCE_CHUNK
+
+#: exp_22 R2 (plan r2 §1, §3 R2-A; Codex H2/B6): the COMPLETE conditioning
+#: method each admissible arm is registered under. ``cond_method`` and
+#: ``cond_autocast`` moved here from :data:`REGISTERED_PROTOCOL` because they
+#: are arm-dependent; vanilla arms bind the explicit no-op orbit ``[0.0]``; BF
+#: binds the C4 orbit and its announcement-06 chunk plan (exp_20's per-angle
+#: plan at the three R2 batch shapes; R2-B executes it and must record the
+#: executed partition against this declaration).
+ARM_PROTOCOL_FIELDS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
+                       "fa_partition")
+_VANILLA_ARM = {"cond_method": "vanilla", "frame_avg_angles": [0.0], "rotate_deg": 0.0,
+                "cond_autocast": "default", "fa_partition": None}
+REGISTERED_ARM_PROTOCOL = {
+    "P1": dict(_VANILLA_ARM),
+    "YAW": dict(_VANILLA_ARM),
+    "BF": {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+           "rotate_deg": 0.0, "cond_autocast": "default",
+           "fa_partition": me.declared_fa_partition(
+               [0.0, 90.0, 180.0, 270.0], batch_rows=REGISTERED_BATCH_ROWS,
+               num_samples=me.NUM_SAMPLES, source_chunk=REGISTERED_SOURCE_CHUNK)},
+}
+#: the one arm whose binding may predate the R2 protocol fields: the published
+#: Aug-2026 P1 comparator (plan r2 §1 legacy-provenance exception)
+LEGACY_PROTOCOL_ARM = "P1"
 
 #: Artifact identities §1.4 pins BY DIGEST and that the published P1 binding
 #: reproduces, so they are enforced here rather than merely recorded. The
@@ -595,7 +623,78 @@ def registered_arm(ckpt_sha256):
     return None
 
 
-def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False):
+def assert_fa_partition(partition):
+    """Announcement 06: a frame-averaged binding states its WHOLE chunk plan, or is refused.
+
+    A missing field is not a deviation that ``--allow-protocol-deviation`` can
+    stamp: without it the binding does not say which method ran.
+    """
+    registered = REGISTERED_ARM_PROTOCOL["BF"]["fa_partition"]
+    missing = ([] if isinstance(partition, dict) else ["<the whole partition>"])
+    if not missing:
+        for field, wanted in registered.items():
+            if field not in partition:
+                missing.append(field)
+            elif isinstance(wanted, dict):
+                if not isinstance(partition[field], dict):
+                    missing.append(f"{field}.*")
+                    continue
+                missing += [f"{field}.{key}" for key in wanted if key not in partition[field]]
+    if missing:
+        raise ValueError(f"a fa_invariant run binding must carry its complete announcement-06 "
+                         f"chunk plan; it lacks {missing}. Without it the binding does not say "
+                         "which frame-average method ran")
+    return True
+
+
+def checkpoint_protocol_reasons(checkpoint, arm, binding):
+    """The training protocol the checkpoint EMBEDS, against its arm and the binding.
+
+    exp_20's admission reads the same block (``crossarm._identity_reasons``):
+    BF carries ``cond_method``/``frame_avg_angles``, YAW carries ``yaw_aug``, P1
+    carries neither. "When available": a file that embeds no training block is
+    reported, not refused.
+    """
+    from src.localization.crossarm import ARMS, _identity_reasons
+
+    embedded = (checkpoint or {}).get("model_config")
+    training = embedded.get("training") if isinstance(embedded, dict) else None
+    if not isinstance(training, dict):
+        return {"available": False, "reasons": [], "arm": arm,
+                "note": "the checkpoint embeds no training block, so its training protocol "
+                        "cannot be read; the binding and the digest registry still apply"}
+    reasons = list(_identity_reasons(arm, embedded)) if arm in ARMS else []
+    trained = str(training.get("cond_method", "vanilla"))
+    if trained != str(binding.get("cond_method")):
+        reasons.append(f"the file was trained with cond_method={trained!r} but the run binding "
+                       f"conditions it with {binding.get('cond_method')!r}")
+    angles = training.get("frame_avg_angles")
+    bound = binding.get("frame_avg_angles")
+    if trained == "fa_invariant" and bound is not None and \
+            [float(a) for a in bound] != [float(a) for a in (angles or [])]:
+        reasons.append(f"the file was trained with frame_avg_angles={angles!r} but the run "
+                       f"binding averages over {bound!r}")
+    return {"available": True, "reasons": reasons, "arm": arm,
+            "trained_cond_method": trained, "trained_frame_avg_angles": angles}
+
+
+def assert_checkpoint_protocol(ckpt_path, binding, arm):
+    """Hash the file the binding names, then hold its embedded protocol to the arm."""
+    from src.localization.crossarm import snapshot_checkpoint
+
+    checkpoint, digest, _identity = snapshot_checkpoint(str(ckpt_path))
+    if digest != binding.get("ckpt_sha256"):
+        raise ValueError(f"{ckpt_path} hashes to {digest[:12]}..., which is not the checkpoint "
+                         f"the run binding names ({str(binding.get('ckpt_sha256'))[:12]}...)")
+    verdict = checkpoint_protocol_reasons(checkpoint, arm, binding)
+    if verdict["reasons"]:
+        raise ValueError("the checkpoint's embedded training protocol contradicts the run: "
+                         + "; ".join(verdict["reasons"]))
+    return dict(verdict, ckpt_path=str(ckpt_path), sha256=digest)
+
+
+def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False,
+                               expect_arm=None):
     """The run binding IS the registered protocol, or the deviation is declared.
 
     ``assert_row_protocol`` proves every row equals the binding; this proves the
@@ -607,7 +706,21 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
     A deviation refuses unless it is explicitly allowed, and when it is allowed
     the verdict travels into the report and the markdown so no artifact can keep
     calling the setting pre-registered.
+
+    exp_22 R2-A (Codex H2): the ARM is resolved from the checkpoint digest FIRST
+    and the binding is compared against that arm's complete registered method
+    (:data:`REGISTERED_ARM_PROTOCOL`). ``expect_arm`` and an fa binding without
+    its chunk plan are hard refusals that no deviation flag relaxes.
     """
+    arm = registered_arm(binding.get("ckpt_sha256"))
+    if expect_arm is not None and (expect_arm not in REGISTERED_ARM_PROTOCOL
+                                   or arm != expect_arm):
+        raise ValueError(f"--expect-arm {expect_arm} but the run binding's checkpoint "
+                         f"{str(binding.get('ckpt_sha256'))[:12]}... is "
+                         f"{'the registered ' + arm + ' arm' if arm else 'no registered arm'}; "
+                         f"registered arms are {sorted(REGISTERED_ARM_PROTOCOL)}")
+    if str(binding.get("cond_method")) == "fa_invariant":
+        assert_fa_partition(binding.get("fa_partition"))
     deviations = {}
     for field, wanted in REGISTERED_PROTOCOL.items():
         found = binding.get(field)
@@ -619,10 +732,19 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
         if binding.get(field) != wanted:
             deviations[field] = {"registered": wanted, "run": binding.get(field)}
 
-    arm = registered_arm(binding.get("ckpt_sha256"))
+    legacy = not any(field in binding for field in me.RUN_BINDING_PROTOCOL_FIELDS)
     if arm is None:
         deviations["ckpt_sha256"] = {"registered": dict(REGISTERED_CKPT_SHA256),
                                      "run": binding.get("ckpt_sha256")}
+    else:
+        for field, wanted in REGISTERED_ARM_PROTOCOL[arm].items():
+            if legacy and field in me.RUN_BINDING_PROTOCOL_FIELDS:
+                if arm != LEGACY_PROTOCOL_ARM:
+                    deviations[field] = {"registered": wanted,
+                                         "run": "<absent: legacy R1 binding>"}
+                continue
+            if binding.get(field) != wanted:
+                deviations[field] = {"registered": wanted, "run": binding.get(field)}
     if expect_ckpt_sha256 and binding.get("ckpt_sha256") != str(expect_ckpt_sha256):
         deviations["ckpt_sha256"] = {"registered": str(expect_ckpt_sha256),
                                      "run": binding.get("ckpt_sha256")}
@@ -631,13 +753,17 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
             f"the run binding is not the registered protocol: {sorted(deviations)} differ. "
             f"First: {sorted(deviations)[0]} = {deviations[sorted(deviations)[0]]!r}. A report "
             "over a different tau, K ladder, seed, noise policy, sampler setting, scorer, "
-            "checkpoint or pinned artifact is a SENSITIVITY CHECK, not the canonical R1 result; "
+            f"checkpoint or pinned artifact -- or a method that is not arm {arm}'s -- is a "
+            "SENSITIVITY CHECK, not the canonical result; "
             f"pass --allow-protocol-deviation to publish it as one. {CKPT_SHA256_NOTE}")
     return {"is_registered": not deviations, "deviations": deviations,
-            "checked": sorted(list(REGISTERED_PROTOCOL) + list(REGISTERED_ARTIFACT_SHA256)
-                              + ["ckpt_sha256"]),
+            "checked": sorted(set(REGISTERED_PROTOCOL) | set(REGISTERED_ARTIFACT_SHA256)
+                              | {"ckpt_sha256"} | set(ARM_PROTOCOL_FIELDS)),
             "ckpt_sha256": binding.get("ckpt_sha256"),
             "arm": arm,
+            "arm_protocol": REGISTERED_ARM_PROTOCOL.get(arm),
+            "legacy_binding": legacy,
+            "expect_arm": expect_arm,
             "registered_arms": dict(REGISTERED_CKPT_SHA256),
             "ckpt_sha256_pinned": bool(arm is not None or expect_ckpt_sha256),
             "ckpt_sha256_note": CKPT_SHA256_NOTE,
@@ -2128,7 +2254,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
                  require_manifest_census=True, single_shard=False,
                  expect_ckpt_sha256=None, expect_metadata_bank_sha256=None,
                  allow_protocol_deviation=False, allow_unpinned_metadata_bank=False,
-                 source_provider=None, on_query=None):
+                 source_provider=None, on_query=None, expect_arm=None, ckpt_path=None):
     """Gate the artifacts, then evaluate every query. Returns the raw material.
 
     The gates run first and in full, in this order, and every one of them is a
@@ -2172,7 +2298,11 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     plan = me.load_audit_plan(audit_report, branch=binding["branch"])
     artifacts = assert_artifact_hashes(binding, plan, context_manifest)
     registered = assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
-                                            allow_deviation=allow_protocol_deviation)
+                                            allow_deviation=allow_protocol_deviation,
+                                            expect_arm=expect_arm)
+    # "when available" (plan r2 §3 R2-A): the file's own training protocol
+    checkpoint_protocol = (assert_checkpoint_protocol(ckpt_path, binding, registered["arm"])
+                           if ckpt_path else None)
 
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
@@ -2239,7 +2369,8 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             "manifest": manifest, "records": records, "rows": rows,
             "rows_by_id": rows_by_id, "plans_by_id": plans_by_id, "results": results,
             "census": census, "protocol": protocol, "artifacts": artifacts,
-            "registered_protocol": registered, "merge": merge, "derived": derived,
+            "registered_protocol": registered, "checkpoint_protocol": checkpoint_protocol,
+            "merge": merge, "derived": derived,
             "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
             "metadata_bank": metadata_bank, "sims_by_id": sims_by_id,

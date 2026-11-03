@@ -1524,10 +1524,12 @@ def test_the_checkpoint_must_be_one_of_the_registered_admissible_arms(tmp_path):
     assert verdict["arm"] == "P1"
     assert verdict["ckpt_sha256_pinned"] is True
     assert verdict["registered_arms"] == mr.REGISTERED_CKPT_SHA256
-    # every admissible arm passes ...
+    # every admissible arm passes -- under ITS OWN registered method (exp_22
+    # R2-A, Codex H2: a BF checkpoint under a vanilla binding is the
+    # catastrophic mismatch announcement 05 forbids, so it no longer passes) ...
     for arm, digest in mr.REGISTERED_CKPT_SHA256.items():
         assert mr.assert_registered_protocol(
-            dict(fixture["binding"], ckpt_sha256=digest))["arm"] == arm
+            arm_binding(fixture["binding"], arm))["arm"] == arm
     # ... and nothing else does
     with pytest.raises(ValueError, match="ckpt_sha256"):
         mr.assert_registered_protocol(dict(fixture["binding"], ckpt_sha256="b" * 64))
@@ -2207,3 +2209,200 @@ def test_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_path):
     me.write_json(os.path.join(run_dir, me.BINDING_FILENAME), payload)
     with pytest.raises(ValueError, match="does not match its own content"):
         mr.load_published_binding(run_dir)
+
+
+#: The P1 fixture's report semantics, computed by the UNMODIFIED report at the
+#: R2 base commit 3f595e19 (and reproduced bit-for-bit at 19374349). Digests of
+#: the canonical JSON of each numeric section -- latency is excluded because it
+#: reads wall-clock timings. Codex N2: whole-file byte identity is not the
+#: contract (new arm/provenance fields change the serialization); these are.
+P1_FIXTURE_GOLDEN = {
+    "metrics": "bac1b459f16f1fcc67fbc59ea483fd1918a2071014dd0e552a15328372a39987",
+    "oracle": "a74fbd9732bf5df947505e3dc6cd8deacda1377b62aa05d1b18058317068caff",
+    "random_baseline": "60977af3f9c8c82d952ba3c95c714813ed95a2585dc45c10a5d75c8e376c0f98",
+    "associations": "a66a2cd427ebf9ecbee69a7d4649d40acea086f7411ca5efafd6cc9950759c80",
+    "census": "ce402e6cc7cb64ff26daa0ebca6a4ca523af8e4817c0f592cf581e94db197aa8",
+    "visualization_cases": "21121487e7b8815d7b63e7bd320c1268286ade1e2cf36ee364ef1c495d18d46e",
+    "crosscheck": "ca5d8fe511ab58bbf725ab993bfb0df26e1b94819176ad05ec13a96b6683bb8e",
+    "protocol_without_registration":
+        "653afa4788036f1234aefab4493b54063bb9ab98d9cf6830d4b93d07bbb1601c",
+}
+P1_FIXTURE_CHECKED_AT_BASE = [
+    "agree_ckpt_sha256", "cfg_scale", "ckpt_sha256", "cond_autocast", "cond_method",
+    "dataset_config_sha256", "k_prefixes", "model_config_sha256", "noise_policy",
+    "num_samples", "scorer_readout", "seed", "steps", "tau"]
+
+
+def arm_binding(binding, arm, **overrides):
+    """``binding`` re-registered as ``arm``: its checkpoint and its complete method."""
+    out = dict(binding, ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+               **mr.REGISTERED_ARM_PROTOCOL[arm])
+    out.update(overrides)
+    return out
+
+
+def test_the_p1_fixture_semantics_are_unchanged_by_the_arm_aware_registration(tmp_path):
+    from src.localization.crossarm import canonical_sha256
+
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    found = {name: canonical_sha256(mr.jsonable(report[name]))
+             for name in P1_FIXTURE_GOLDEN if name != "protocol_without_registration"}
+    found["protocol_without_registration"] = canonical_sha256(mr.jsonable(
+        {k: v for k, v in report["protocol"].items() if k != "registered_protocol"}))
+    assert found == P1_FIXTURE_GOLDEN
+    assert report["canonical_status"]["canonical"] is True
+    registered = report["protocol"]["registered_protocol"]
+    assert registered["is_registered"] is True and registered["deviations"] == {}
+    assert registered["arm"] == "P1"
+    # every field checked at the base is still checked (the arm fields are added)
+    assert set(P1_FIXTURE_CHECKED_AT_BASE) <= set(registered["checked"])
+
+
+def test_every_arm_registers_its_complete_method():
+    assert sorted(mr.REGISTERED_ARM_PROTOCOL) == ["BF", "P1", "YAW"]
+    assert sorted(mr.REGISTERED_ARM_PROTOCOL) == sorted(mr.REGISTERED_CKPT_SHA256)
+    vanilla = {"cond_method": "vanilla", "frame_avg_angles": [0.0], "rotate_deg": 0.0,
+               "cond_autocast": "default", "fa_partition": None}
+    assert mr.REGISTERED_ARM_PROTOCOL["P1"] == vanilla
+    assert mr.REGISTERED_ARM_PROTOCOL["YAW"] == vanilla
+    bf = mr.REGISTERED_ARM_PROTOCOL["BF"]
+    assert bf["cond_method"] == "fa_invariant"
+    assert bf["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert (bf["rotate_deg"], bf["cond_autocast"]) == (0.0, "default")
+    # the announcement-06 partition at the registered batching (256 rows, chunk 16)
+    assert bf["fa_partition"] == me.declared_fa_partition(
+        [0.0, 90.0, 180.0, 270.0], batch_rows=256, num_samples=8, source_chunk=16)
+    assert bf["fa_partition"]["context_vit"] == {"candidate_micro_batch": 1,
+                                                 "frame_avg_fwd_cap": 1}
+    assert bf["fa_partition"]["source_cache"] == {"candidate_micro_batch": 16,
+                                                  "frame_avg_fwd_cap": 16}
+    # the arm-independent registry no longer pins a conditioning method
+    assert "cond_method" not in mr.REGISTERED_PROTOCOL
+    assert "cond_autocast" not in mr.REGISTERED_PROTOCOL
+
+
+def test_each_arm_is_held_to_its_own_method(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    for arm in ("P1", "YAW", "BF"):
+        verdict = mr.assert_registered_protocol(arm_binding(fixture["binding"], arm))
+        assert verdict["is_registered"] is True and verdict["arm"] == arm
+        assert verdict["arm_protocol"] == mr.REGISTERED_ARM_PROTOCOL[arm]
+    # [0.0] is the canonical explicit vanilla binding
+    assert mr.assert_registered_protocol(
+        arm_binding(fixture["binding"], "P1"))["legacy_binding"] is False
+
+
+@pytest.mark.parametrize("arm, overrides, deviating", [
+    ("BF", {"cond_method": "vanilla", "frame_avg_angles": [0.0], "fa_partition": None},
+     {"cond_method", "frame_avg_angles", "fa_partition"}),
+    ("YAW", {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+             "fa_partition": me.declared_fa_partition([0.0, 90.0, 180.0, 270.0],
+                                                      batch_rows=256, num_samples=8,
+                                                      source_chunk=16)},
+     {"cond_method", "frame_avg_angles", "fa_partition"}),
+    ("P1", {"frame_avg_angles": [0.0, 90.0]}, {"frame_avg_angles"}),
+    ("YAW", {"rotate_deg": 90.0}, {"rotate_deg"}),
+    ("BF", {"cond_autocast": "off"}, {"cond_autocast"}),
+    ("YAW", {"fa_partition": {"orbit_size": 1}}, {"fa_partition"}),
+])
+def test_a_binding_that_is_not_its_arms_method_is_refused(tmp_path, arm, overrides,
+                                                          deviating):
+    fixture = build_fixture_run(tmp_path)
+    binding = arm_binding(fixture["binding"], arm, **overrides)
+    with pytest.raises(ValueError, match="not the registered protocol"):
+        mr.assert_registered_protocol(binding)
+    relaxed = mr.assert_registered_protocol(binding, allow_deviation=True)
+    assert relaxed["is_registered"] is False and relaxed["arm"] == arm
+    assert set(relaxed["deviations"]) == deviating
+
+
+def test_only_p1_may_present_the_legacy_binding(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    legacy = mr.assert_registered_protocol(fixture["binding"])
+    assert legacy["legacy_binding"] is True and legacy["is_registered"] is True
+    for arm in ("YAW", "BF"):
+        binding = dict(fixture["binding"], ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                       cond_method=mr.REGISTERED_ARM_PROTOCOL[arm]["cond_method"])
+        if arm == "BF":
+            continue        # an fa binding without its partition is refused outright (below)
+        relaxed = mr.assert_registered_protocol(binding, allow_deviation=True)
+        assert {"frame_avg_angles", "rotate_deg", "fa_partition"} <= set(
+            relaxed["deviations"])
+
+
+def test_a_frame_averaged_binding_must_carry_its_complete_chunk_plan(tmp_path):
+    """Announcement 06: an FA binding without its partition is no method at all."""
+    fixture = build_fixture_run(tmp_path)
+    full = arm_binding(fixture["binding"], "BF")
+    broken = [dict(full, fa_partition=None)]
+    for field in sorted(full["fa_partition"]):
+        broken.append(dict(full, fa_partition={k: v for k, v in full["fa_partition"].items()
+                                               if k != field}))
+    for binding in broken:
+        for allow in (False, True):
+            with pytest.raises(ValueError, match="chunk plan"):
+                mr.assert_registered_protocol(binding, allow_deviation=allow)
+
+
+def test_the_expected_arm_is_a_hard_refusal(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    yaw = arm_binding(fixture["binding"], "YAW")
+    assert mr.assert_registered_protocol(yaw, expect_arm="YAW")["expect_arm"] == "YAW"
+    for wrong in ("P1", "BF"):
+        for allow in (False, True):
+            with pytest.raises(ValueError, match="--expect-arm"):
+                mr.assert_registered_protocol(yaw, expect_arm=wrong, allow_deviation=allow)
+    with pytest.raises(ValueError, match="--expect-arm"):
+        mr.assert_registered_protocol(yaw, expect_arm="P2")
+    unknown = dict(yaw, ckpt_sha256="b" * 64)
+    with pytest.raises(ValueError, match="--expect-arm"):
+        mr.assert_registered_protocol(unknown, expect_arm="YAW", allow_deviation=True)
+
+
+def _ckpt(training):
+    return {"model_config": {"training": training}}
+
+
+def test_the_checkpoints_embedded_training_protocol_is_an_extra_refusal(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    p1, bf, yaw = (arm_binding(fixture["binding"], arm) for arm in ("P1", "BF", "YAW"))
+    fa_training = {"cond_method": "fa_invariant",
+                   "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}
+    yaw_training = {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}}
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "P1", p1)["reasons"] == []
+    assert mr.checkpoint_protocol_reasons(_ckpt(fa_training), "BF", bf)["reasons"] == []
+    assert mr.checkpoint_protocol_reasons(_ckpt(yaw_training), "YAW", yaw)["reasons"] == []
+    # a vanilla-trained file under the BF arm, and BF's fa training under YAW
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "BF", bf)["reasons"]
+    assert mr.checkpoint_protocol_reasons(_ckpt(fa_training), "YAW", yaw)["reasons"]
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "YAW", yaw)["reasons"]   # no yaw_aug
+    # the binding's own orbit must be the one the file was trained with
+    other = dict(fa_training, frame_avg_angles=[0.0, 180.0])
+    assert any("frame_avg_angles" in reason for reason in
+               mr.checkpoint_protocol_reasons(_ckpt(other), "BF", bf)["reasons"])
+    # "when available": a file that embeds no training block is not a refusal
+    absent = mr.checkpoint_protocol_reasons({}, "BF", bf)
+    assert absent["available"] is False and absent["reasons"] == []
+
+
+def test_the_report_applies_the_embedded_protocol_when_given_the_checkpoint(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    path = str(tmp_path / "fake.ckpt")
+    torch.save({"model_config": {"training": {"cond_method": "fa_invariant",
+                                              "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}},
+                "state_dict": {}}, path)
+    # the run binding names a different file -> refused before anything else
+    with pytest.raises(ValueError, match="not the checkpoint the run binding names"):
+        evaluate_fixture(fixture, ckpt_path=path)
+    # re-sign the run under THIS file: the vanilla binding meets an fa-trained file
+    binding_path = os.path.join(fixture["run_dir"], me.BINDING_FILENAME)
+    published = json.load(open(binding_path))
+    published["ckpt_sha256"] = me.file_sha256(path)
+    published["binding_sha256"] = me.binding_sha256(
+        {field: published[field] for field in me.binding_fields(published)})
+    me.write_json(binding_path, published)
+    with pytest.raises(ValueError, match="embedded training protocol"):
+        mr.assert_checkpoint_protocol(path, published, arm=None)
