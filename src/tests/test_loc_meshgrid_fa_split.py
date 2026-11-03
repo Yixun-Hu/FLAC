@@ -2704,3 +2704,113 @@ def test_a_drift_measurement_re_verifies_without_judging_its_deltas(tmp_path, mo
 
 def test_an_unknown_or_unregistered_evidence_does_not_re_verify():
     assert fp.reverify_gate_evidence({}) and fp.reverify_gate_evidence({"gate": "G9"})
+
+
+# --------------------------------------------------------------------------- #
+# ... and every other gate whose evidence allows it: G1, G2, GV and G0 (G0 now
+# publishes the frozen digests it compared and the published binding it replayed)
+# --------------------------------------------------------------------------- #
+def _real_gate_evidence(tmp_path, monkeypatch, gate):
+    """A driver-run PASS evidence of ``gate`` on the fixture (``clean_env`` active)."""
+    import localize_meshgrid as driver
+    from src.localization import meshgrid_offgrid_probe as mop
+
+    if gate in ("G1", "G2"):
+        plan, records, loader = _driver_stack(tmp_path)
+        if gate == "G1":
+            args = _gate_args(tmp_path, "--fa-split-parity-check", "--parity-candidates", "48",
+                              protocol=_off(ENG._FA_PROTOCOL))
+            code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G1",
+                                       _registered_binding("BF", cond_autocast="off"))
+        else:
+            args = _gate_args(tmp_path, "--cache-parity-check", "--parity-candidates", "5")
+            code = driver._run_cache_parity(args, FaSyntheticEngine(), plan, records, loader,
+                                            binding=_registered_binding("BF"))
+    elif gate == "GV":
+        plan, records, items = ENG._aligned(tmp_path)
+        args = driver.parse_args(["--ckpt-path", "x.ckpt", "--cache-parity-check", "--expect-arm",
+                                  "YAW", "--out-dir", str(tmp_path / "gates")]
+                                 + ENG._VANILLA_PROTOCOL)
+        code = driver._run_cache_parity(args, ENG.SyntheticEngine(), plan, records,
+                                        [([obs], [md]) for obs, md in items],
+                                        binding=_registered_binding("YAW"))
+    else:
+        out, binding, frozen, _cases = _published_vanilla_run(tmp_path, _registered_binding("P1"))
+        plan, records, items = ENG._aligned(tmp_path / "stream")
+        anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+        monkeypatch.setattr(mop, "compute_observation_bank_digest",
+                            lambda *a, **k: {"observation_bank_sha256":
+                                             fp.FROZEN_OBSERVATION_BANK_SHA256})
+        args = driver.parse_args(["--ckpt-path", "x.ckpt", "--replay-check", "--replay-against",
+                                  out, "--replay-probe-report", anchor["path"], "--out-dir",
+                                  str(tmp_path / "gates")] + ENG._VANILLA_PROTOCOL)
+        code = driver._run_replay_check(args, ENG.SyntheticEngine(), plan, records,
+                                        [(obs, [md]) for obs, md in items], binding=binding)
+    evidence = json.load(open(tmp_path / "gates" / f"{fp.GATE_NAMES[gate]}.json"))
+    assert code == 0 and evidence["verdict"] == "PASS", evidence["reasons"]
+    return evidence
+
+
+@pytest.mark.parametrize("gate", ["G1", "G2", "GV", "G0"])
+def test_every_other_real_gate_evidence_re_verifies_from_its_json_alone(tmp_path, monkeypatch,
+                                                                        clean_env, gate):
+    assert fp.reverify_gate_evidence(_real_gate_evidence(tmp_path, monkeypatch, gate)) == []
+
+
+OTHER_TAMPERS = [
+    ("G1", ["chunks", 0, "conditioning", "source_vit", "tensor", "max_abs_diff"],
+     {"value": 1e-9}, "source_vit.tensor: max |diff| 1e-09 > 0.0"),
+    ("G1", ["chunks", 1, "released_partition", "frame_avg_fwd_cap"], {"scale": 2},
+     "replay orbit partition"),
+    ("G1", ["chunks", 1], {"delete": True}, "do not tile"),
+    ("G1", ["chunks", 0, "dit_inputs", "cond", "dtype", 1], {"value": "torch.float16"},
+     "dit_inputs.cond: dtype"),
+    ("G1", ["inputs", "identity", "arm"], {"value": "YAW"}, "identity"),
+    ("G2", ["memoization", "conditioning", "context_poses", "mask", "max_abs_diff"],
+     {"value": 1e-9}, "memoization: context_poses.mask: max |diff|"),
+    ("G2", ["counter_tests", "unaveraged_vit", "keys", "source_vit"], {"value": 0.0},
+     "did not bite"),
+    ("G2", ["counter_tests", "swapped_candidates"], {"delete": True}, "counter-test"),
+    ("G2", ["memoization", "match"], {"value": False}, "memoization"),
+    ("GV", ["vanilla_cache_parity", "memoization", "keys", "source", "equal"], {"value": False},
+     "memoization"),
+    ("GV", ["vanilla_cache_parity", "counter_test", "max_abs_diff"], {"value": 0.0},
+     "counter-test"),
+    ("GV", ["inputs", "identity", "arm"], {"value": "P1"}, "identity"),
+    ("GV", ["inputs", "binding", "ckpt_sha256"], {"value": "5" * 64}, "identity"),
+    ("G0", ["queries", 0, "matched", "float16_bit_exact"], {"value": False}, "float16"),
+    ("G0", ["queries", 1, "matched", "aggregate", "max_abs_delta"], {"value": 1e-7},
+     "aggregate"),
+    ("G0", ["queries", 0, "frozen_digests", "sims_sha256"], {"value": "0" * 64}, "frozen"),
+    ("G0", ["inputs", "observation_bank_sha256"], {"value": "0" * 64}, "observation bank"),
+    ("G0", ["inputs", "published_binding", "tau"], {"value": 0.05}, "published"),
+    ("G0", ["inputs", "probe_report", "pinned_sha256"], {"value": "0" * 64},
+     "pinned committed probe report"),
+    ("G0", ["queries", 1], {"delete": True}, "registered probe queries were not consumed"),
+    ("G0", ["provenance", "hostname"], {"value": None}, "provenance: the hostname"),
+]
+
+
+@pytest.mark.parametrize("gate, path, edit, needle", OTHER_TAMPERS,
+                         ids=[f"{t[0]}-{'.'.join(map(str, t[1]))}" for t in OTHER_TAMPERS])
+def test_a_tampered_gate_evidence_names_what_does_not_re_verify(tmp_path, monkeypatch, clean_env,
+                                                                gate, path, edit, needle):
+    evidence = _real_gate_evidence(tmp_path, monkeypatch, gate)
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, path, **edit))
+    assert any(needle in reason for reason in reasons), reasons
+
+
+def test_gate0_publishes_what_its_frozen_and_protocol_clauses_compared(tmp_path, monkeypatch,
+                                                                       clean_env):
+    evidence = _real_gate_evidence(tmp_path, monkeypatch, "G0")
+    for entry in evidence["queries"]:
+        assert entry["frozen_digests"] == entry["published_digests"]
+    published = evidence["inputs"]["published_binding"]
+    assert me.binding_sha256(published) == evidence["inputs"]["published_binding_sha256"]
+
+
+def test_every_finalized_evidence_tells_its_reader_how_to_re_verify_it(tmp_path):
+    evidence = fp.finalize_evidence(_g1_report(tmp_path), device="cpu",
+                                    environment=CLEAN_ENVIRONMENT, inputs=_g1_inputs())
+    assert evidence["reverify_note"] == fp.REVERIFY_NOTE
+    assert "reverify_gate_evidence" in fp.REVERIFY_NOTE

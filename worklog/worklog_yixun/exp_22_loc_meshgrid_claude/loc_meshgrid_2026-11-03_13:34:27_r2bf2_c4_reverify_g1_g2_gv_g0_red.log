@@ -1,0 +1,31 @@
+# rB-F2 cycle 4 RED (Codex rB-F1 finding 2 HIGH, part 3: reverify_gate_evidence for G1, G2, GV and G0; G0 publishes its frozen digests and the published binding), HEAD 4b2af1f5a7f18696c1c62e6cccdfc0b4b82b07d8, 2026-11-03T13:35:48-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_other_real_gate_evidence_re_verifies_from_its_json_alone[G1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_other_real_gate_evidence_re_verifies_from_its_json_alone[G2]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_other_real_gate_evidence_re_verifies_from_its_json_alone[GV]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_other_real_gate_evidence_re_verifies_from_its_json_alone[G0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G1-chunks.0.conditioning.source_vit.tensor.max_abs_diff]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G1-chunks.1.released_partition.frame_avg_fwd_cap]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G1-chunks.1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G1-chunks.0.dit_inputs.cond.dtype.1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G1-inputs.identity.arm]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G2-memoization.conditioning.context_poses.mask.max_abs_diff]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G2-counter_tests.unaveraged_vit.keys.source_vit]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G2-counter_tests.swapped_candidates]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G2-memoization.match]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[GV-vanilla_cache_parity.memoization.keys.source.equal]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[GV-vanilla_cache_parity.counter_test.max_abs_diff]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[GV-inputs.identity.expect_arm]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-queries.0.matched.float16_bit_exact]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-queries.1.matched.aggregate.max_abs_delta]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-queries.0.frozen_digests.sims_sha256]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-inputs.observation_bank_sha256]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-inputs.published_binding.tau]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-inputs.probe_report.pinned_sha256]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-queries.1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate_evidence_names_what_does_not_re_verify[G0-provenance.hostname]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_publishes_what_its_frozen_and_protocol_clauses_compared
+25 failed, 172 passed, 11 warnings in 78.03s (0:01:18)
+## the reverify note (added within cycle 4), RED with the finalize line removed, 2026-11-03T13:43:04-05:00
+E       KeyError: 'reverify_note'
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_finalized_evidence_tells_its_reader_how_to_re_verify_it
+1 failed, 198 deselected, 3 warnings in 4.76s

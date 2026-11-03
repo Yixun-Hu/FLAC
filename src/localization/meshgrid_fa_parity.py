@@ -121,6 +121,14 @@ GATE_NOTES = {
           "it on the A6000 class the P1 pass ran on",
 }
 
+#: how a reader re-verifies a gate's evidence (Codex rB-F1 finding 2)
+REVERIFY_NOTE = (
+    "Every PASS clause of this evidence re-verifies from this JSON alone: "
+    "src.localization.meshgrid_fa_parity.reverify_gate_evidence(<this JSON>) returns [] for a "
+    "clean PASS (for the G3D measurement: a complete one) and names every clause that does not "
+    "hold otherwise; tolerances, the pinned anchor and the registered batching come from the "
+    "code, never from the evidence")
+
 #: the counter-tests of gate 2 and the ids each one must move
 COUNTER_KEYS = {"moved_candidates": ("source", "source_vit", "context_poses"),
                 "per_query_context_poses": ("context_poses",),
@@ -325,8 +333,9 @@ def anchor_reasons(block, key_set_equal):
                 "probe set is not shown to be the committed report's"]
     ids, reasons = list(block.get("query_ids") or []), []
     if not (block.get("sha256") == block.get("pinned_sha256") == COMMITTED_PROBE_REPORT_SHA256):
-        reasons.append(f"anchor: the probe report {str(block.get('sha256'))[:12]}... is not the "
-                       f"pinned committed probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}...")
+        reasons.append(f"anchor: the probe report {str(block.get('sha256'))[:12]}... (stated pin "
+                       f"{str(block.get('pinned_sha256'))[:12]}...) is not the pinned committed "
+                       f"probe report {COMMITTED_PROBE_REPORT_SHA256[:12]}...")
     if (block.get("query_ids_sha256") != canonical_sha256(ids) or len(set(ids)) != len(ids)
             or block.get("n_queries") != len(ids)):
         reasons.append("anchor: its ordered query ids do not match their digest or count")
@@ -524,6 +533,7 @@ def finalize_evidence(report, device, environment=None, runtime=None, inputs=Non
     evidence["provenance"] = provenance
     evidence["verdict_clauses"] = {"comparison": not report["reasons"],
                                    **{name: not why for name, why in clauses.items()}}
+    evidence["reverify_note"] = REVERIFY_NOTE
     evidence["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     return evidence
 
@@ -913,6 +923,8 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
             noise_policy=noise_policy, batch_rows=batch_rows, source_chunk=source_chunk, tau=tau)
         entry = {"query_id": query.query_id, "room_id": query.room_id,
                  "frozen_digests_equal": frozen_digests.get(query.query_id) == stored,
+                 # both sides of the comparison, so it re-verifies from the JSON alone
+                 "frozen_digests": frozen_digests.get(query.query_id),
                  "published_digests": stored, "matched": matched}
         if not entry["frozen_digests_equal"]:
             reasons.append(f"{query.query_id}: the published row no longer carries the frozen "
@@ -934,6 +946,8 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
                        f"({len(entries)} replayed, {len(anchor.get('query_ids') or [])} frozen)")
     return gate_report("G0", reasons, queries=entries, probe_queries=queries,
                        inputs={"run_dir": str(run_dir), "published_binding_sha256": published_sha,
+                               "published_binding": {field: published[field] for field
+                                                     in me.binding_fields(published)},
                                "probe_report": {key: anchor.get(key) for key in ANCHOR_EVIDENCE},
                                "anchor_key_set_equal": key_set_equal,
                                "observation_bank_sha256": str(observation_bank_sha256),
@@ -1102,8 +1116,127 @@ def _verdict_reasons(gate, evidence, clauses):
                       if published.get(name) is not (not why)]
 
 
+def _orbit_reasons(inputs):
+    angles = (inputs.get("binding") or {}).get("frame_avg_angles")
+    return [] if inputs.get("angles") == angles else [
+        f"inputs: the compared orbit {inputs.get('angles')!r} is not the binding's {angles!r}"]
+
+
+def _reverify_split(evidence, inputs):
+    """G1: the chunks tile the compared candidates, each bit-exact on the five ids, their
+    masks and the DiT inputs at the released per-angle replay record; full + tail coverage."""
+    micro, n, tolerance = int(inputs["micro_batch"]), int(inputs["n_candidates"]), 0.0
+    chunks, per_key, reasons = evidence.get("chunks") or [], {}, _orbit_reasons(inputs)
+    tiling = [[start, min(micro, n - start), n - start >= micro] for start in range(0, n, micro)]
+    if ([[chunk.get("start"), chunk.get("n"), chunk.get("full")] for chunk in chunks] != tiling
+            or len(inputs.get("candidate_indices") or []) != n):
+        reasons.append(f"its chunks do not tile its {n} candidates at micro {micro}")
+    for chunk in chunks:
+        why = conditioning_reasons(chunk["conditioning"], tolerance)
+        why += inputs_reasons(chunk["dit_inputs"], tolerance) + replay_partition_reasons(
+            chunk.get("released_partition"), chunk["n"], len(inputs.get("angles") or []))
+        reasons += [f"chunk@{chunk.get('start')}: {item}" for item in why]
+        fold_per_key(per_key, chunk["conditioning"], chunk["dit_inputs"])
+    covered = coverage([chunk["n"] for chunk in chunks], micro)
+    if not covered["complete"] or covered != evidence.get("coverage"):
+        reasons.append(f"coverage: {covered['full']} full / {covered['tail']} tail re-derived "
+                       f"(published {evidence.get('coverage')}); a gate covers both")
+    if per_key != evidence.get("per_key"):
+        reasons.append("per_key: the published per-key summary is not the fold of its chunks")
+    return reasons
+
+
+def _reverify_cache(evidence, inputs):
+    """G2: the memoization is bit-exact on the five ids, masks and DiT inputs, and each of
+    the four counter-tests bites on exactly its keys."""
+    memo, tolerance = evidence.get("memoization") or {}, GATE_TOLERANCES["G2"]
+    why = conditioning_reasons(memo["conditioning"], tolerance)
+    why += inputs_reasons(memo["dit_inputs"], tolerance)
+    reasons = _orbit_reasons(inputs) + [f"memoization: {item}" for item in why]
+    if memo.get("match") is not (not why):
+        reasons.append(f"memoization: published match {memo.get('match')!r}, re-verified {not why}")
+    counters = evidence.get("counter_tests") or {}
+    if set(counters) != set(COUNTER_KEYS):
+        reasons.append(f"counter-test: published {sorted(counters)}, registered "
+                       f"{sorted(COUNTER_KEYS)}")
+    for name, keys in COUNTER_KEYS.items():
+        moved = (counters.get(name) or {}).get("keys") or {}
+        bites = set(moved) == set(keys) and all(value > 0.0 for value in moved.values())
+        if not bites or (counters.get(name) or {}).get("detected") is not bites:
+            reasons.append(f"counter-test {name} did not bite on {sorted(keys)} (published "
+                           f"detected {(counters.get(name) or {}).get('detected')!r})")
+    if fold_per_key({}, memo["conditioning"], memo["dit_inputs"]) != evidence.get("per_key"):
+        reasons.append("per_key: the published per-key summary is not the memoization's fold")
+    return reasons
+
+
+def _reverify_vanilla_cache(evidence, inputs):
+    """GV: the §1.5 memoization matched on every vanilla id and its counter-test bit."""
+    report = evidence.get("vanilla_cache_parity") or {}
+    memo, counter = report.get("memoization") or {}, report.get("counter_test") or {}
+    keys, ids = memo.get("keys") or {}, me.CONTEXT_COND_IDS + me.SOURCE_COND_IDS
+    memo_ok = sorted(keys) == sorted(ids) and all(entry.get("equal") is True
+                                                  for entry in keys.values())
+    found = counter.get("max_abs_diff")
+    bites = isinstance(found, (int, float)) and found > 0.0
+    reasons = [] if memo_ok else [f"memoization: the vanilla memoization is not exact on "
+                                  f"every id of {list(ids)}"]
+    reasons += [] if bites else [f"counter-test: the vanilla counter-test did not bite ({found!r})"]
+    if (memo.get("match"), counter.get("detected"), report.get("match")) != (
+            memo_ok, bites, memo_ok and bites):
+        reasons.append("memoization: the published match / detected flags are not re-verified")
+    if (inputs.get("query_id"), inputs.get("n_candidates")) != (report.get("query_id"),
+                                                                report.get("n_candidates")):
+        reasons.append("inputs: the gate's query is not the one its parity report covers")
+    return reasons
+
+
+def _reverify_replay(evidence, inputs):
+    """G0: the probe set and the pinned anchor, the frozen observation bank, the published
+    protocol replayed, and per query the frozen grid digests, the float16-exact sidecar and
+    the 0.0 aggregate."""
+    queries = evidence.get("queries") or []
+    consumed = [str(entry["query_id"]) for entry in queries]
+    block, reasons = probe_query_set((evidence.get("probe_queries") or {}).get("registered"),
+                                     consumed)
+    if evidence.get("probe_queries") != block or inputs.get("queries") != consumed:
+        reasons.append("probe_queries: the published set is not the one its registered and "
+                       "consumed ids yield")
+    anchor = inputs.get("probe_report") or {}
+    equal = sorted(consumed) == sorted(anchor.get("query_ids") or []) and all(
+        isinstance(entry.get("frozen_digests"), dict) for entry in queries)
+    reasons += anchor_reasons(anchor, equal)
+    if inputs.get("anchor_key_set_equal") is not equal:
+        reasons.append("anchor: the published anchor_key_set_equal is not the recomputed one")
+    banks = (inputs.get("observation_bank_sha256"), inputs.get("expected_observation_bank_sha256"))
+    if banks != (FROZEN_OBSERVATION_BANK_SHA256, FROZEN_OBSERVATION_BANK_SHA256):
+        reasons.append(f"the observation bank {str(banks[0])[:12]}... is not the frozen "
+                       f"{FROZEN_OBSERVATION_BANK_SHA256[:12]}...")
+    published, replayed = inputs.get("published_binding") or {}, inputs.get("binding") or {}
+    if me.binding_sha256(published) != inputs.get("published_binding_sha256"):
+        reasons.append("the published binding does not hash to its published_binding_sha256")
+    reasons += [f"the replay does not run the published protocol: {field} differs"
+                for field in me.RUN_BINDING_FIELDS if field not in REPLAY_BINDING_EXEMPT
+                and replayed.get(field) != published.get(field)]
+    for entry in queries:
+        frozen = isinstance(entry.get("frozen_digests"), dict) and entry.get(
+            "frozen_digests") == entry.get("published_digests")
+        if not frozen or entry.get("frozen_digests_equal") is not frozen:
+            reasons.append(f"{entry['query_id']}: the published row's grid digests are not the "
+                           "frozen ones of the committed P1 probe report")
+        matched = entry["matched"]
+        if matched.get("float16_bit_exact") is not True or matched.get("n_float16_mismatch") != 0:
+            reasons.append(f"{entry['query_id']}: the sidecar is not reproduced float16-exactly")
+        if matched["aggregate"]["max_abs_delta"] != 0.0:
+            reasons.append(f"{entry['query_id']}: the float32 aggregate moved by "
+                           f"{_fmt(matched['aggregate']['max_abs_delta'])}")
+    return reasons
+
+
 #: the gates :func:`reverify_gate_evidence` re-verifies, by their comparison clauses
-REVERIFIERS = {"G3": _reverify_production, "G3D": _reverify_production}
+REVERIFIERS = {"G1": _reverify_split, "G2": _reverify_cache, "G3": _reverify_production,
+               "G3D": _reverify_production, "G0": _reverify_replay,
+               "GV": _reverify_vanilla_cache}
 
 
 def reverify_gate_evidence(evidence):
