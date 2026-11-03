@@ -220,3 +220,103 @@ def test_a_record_written_from_a_dirty_tree_never_verifies(tmp_path):
     verdict = ms.verify_segment(out, entry)
     assert verdict["ok"] is False
     assert any("tracked-dirty" in reason for reason in verdict["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# the census: every row resolves, or the reasons say which do not
+# --------------------------------------------------------------------------- #
+def _rows(sha, positions):
+    return [{"query_id": f"{p}|q", "position": p, "launch_record_sha256": sha}
+            for p in positions]
+
+
+def test_a_complete_census_publishes_every_record_with_its_row_ranges(tmp_path):
+    out = str(tmp_path / "shard")
+    first = emit(tmp_path, name="first.json")
+    one = ms.open_segment(out, first, admit(first), resume=False)
+    resumed = ARGV + ["--resume"]
+    second = emit(tmp_path, argv=resumed, name="second.json")
+    two = ms.open_segment(out, second, admit(second, argv=resumed), resume=True)
+    rows = (_rows(one["launch_record_sha256"], [0, 1, 2, 7])
+            + _rows(two["launch_record_sha256"], [3, 4, 5, 6]))
+    census = ms.provenance_census(out, rows)
+    assert census["complete"] is True and census["reasons"] == []
+    assert census["generation"] == "launch_records"
+    by_sha = {record["launch_record_sha256"]: record for record in census["records"]}
+    assert by_sha[one["launch_record_sha256"]]["position_ranges"] == [[0, 2], [7, 7]]
+    assert by_sha[two["launch_record_sha256"]]["position_ranges"] == [[3, 6]]
+    assert by_sha[two["launch_record_sha256"]]["n_rows"] == 4
+    assert by_sha[two["launch_record_sha256"]]["resume"] is True
+    assert census["git_shas"] == ["a" * 40]
+
+
+def test_a_row_without_a_record_or_with_an_unknown_one_breaks_the_census(tmp_path):
+    out, entry = _opened(tmp_path)
+    sha = entry["launch_record_sha256"]
+    unstamped = _rows(sha, [0, 1]) + [{"query_id": "2|q", "position": 2}]
+    census = ms.provenance_census(out, unstamped)
+    assert census["complete"] is False and census["n_unstamped"] == 1
+    assert any("no launch record" in reason for reason in census["reasons"])
+    unknown = _rows(sha, [0, 1]) + _rows("f" * 64, [2])
+    census = ms.provenance_census(out, unknown)
+    assert census["complete"] is False and census["n_unknown"] == 1
+    assert any("unknown" in reason for reason in census["reasons"])
+
+
+def test_a_run_with_no_ledger_has_no_launch_provenance(tmp_path):
+    census = ms.provenance_census(str(tmp_path / "legacy"), [{"query_id": "0|q",
+                                                              "position": 0}])
+    assert census["generation"] == "none" and census["complete"] is False
+    assert census["records"] == []
+
+
+def test_a_segment_that_fails_verification_breaks_the_census(tmp_path):
+    out, entry = _opened(tmp_path)
+    os.remove(os.path.join(out, entry["record_file"]))
+    census = ms.provenance_census(out, _rows(entry["launch_record_sha256"], [0]))
+    assert census["complete"] is False
+    assert any("missing" in reason for reason in census["reasons"])
+
+
+def test_a_ledgers_row_range_claim_must_match_the_rows(tmp_path):
+    out, entry = _opened(tmp_path)
+    ledger = ms.read_ledger(out)
+    ledger["segments"][0]["n_rows"] = 5
+    ledger["segments"][0]["position_ranges"] = [[0, 4]]
+    me.write_json(os.path.join(out, ms.SEGMENTS_FILENAME), ledger)
+    census = ms.provenance_census(out, _rows(entry["launch_record_sha256"], [0, 1]))
+    assert census["complete"] is False
+    assert any("claims" in reason for reason in census["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# carrying segments across a merge
+# --------------------------------------------------------------------------- #
+def test_a_merge_carries_every_record_and_its_row_ranges_across(tmp_path):
+    shards = {}
+    for name, positions in (("cafe", [0, 1]), ("rest", [2, 3, 4])):
+        argv = [token if token != "out" else name for token in ARGV]
+        path = emit(tmp_path, argv=argv, name=f"{name}.json")
+        out = str(tmp_path / name)
+        entry = ms.open_segment(out, path, admit(path, argv=argv), resume=False)
+        shards[out] = _rows(entry["launch_record_sha256"], positions)
+    merged = str(tmp_path / "merged")
+    census = ms.merge_ledgers(shards, merged)
+    assert census["complete"] is True and len(census["records"]) == 2
+    ledger = ms.read_ledger(merged)
+    assert sorted(segment["shard"] for segment in ledger["segments"]) == sorted(shards)
+    for segment in ledger["segments"]:
+        assert os.path.isfile(os.path.join(merged, segment["record_file"]))
+    rows = [row for rows in shards.values() for row in rows]
+    again = ms.provenance_census(merged, rows)
+    assert again["complete"] is True
+    assert sorted(r["position_ranges"] for r in again["records"]) == [[[0, 1]], [[2, 4]]]
+
+
+def test_a_merge_refuses_a_shard_whose_census_is_incomplete(tmp_path):
+    path = emit(tmp_path)
+    out = str(tmp_path / "shard")
+    entry = ms.open_segment(out, path, admit(path), resume=False)
+    rows = _rows(entry["launch_record_sha256"], [0]) + [{"query_id": "1|q", "position": 1}]
+    with pytest.raises(ValueError, match="launch provenance"):
+        ms.merge_ledgers({out: rows}, str(tmp_path / "merged"))

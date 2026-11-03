@@ -200,3 +200,95 @@ def verify_segment(run_dir, entry):
                          "execution_device", "recorded_utc", "argv")}
     verdict["ok"] = not verdict["reasons"]
     return verdict
+
+
+def provenance_census(run_dir, rows):
+    """Every row resolves to a present, hash-verified, environment-verified record.
+
+    Never raises on a provenance gap: it returns ``complete`` and the named
+    reasons, so the merge can refuse while the report marks itself non-canonical.
+    A ledger that states row ranges (a merged one) must state the ones the rows
+    themselves yield.
+    """
+    ledger = read_ledger(run_dir)
+    segments = (ledger or {}).get("segments", [])
+    by_sha = {}
+    for row in rows:
+        by_sha.setdefault(row.get("launch_record_sha256"), []).append(int(row["position"]))
+    unstamped = by_sha.pop(None, [])
+    known = {str(s["launch_record_sha256"]) for s in segments}
+    unknown = {sha: positions for sha, positions in by_sha.items() if sha not in known}
+    reasons = []
+    if ledger is None:
+        reasons.append(f"the run publishes no {SEGMENTS_FILENAME}: it has no launch provenance")
+    if unstamped:
+        reasons.append(f"{len(unstamped)} row(s) carry no launch record (first positions "
+                       f"{sorted(unstamped)[:3]})")
+    if unknown:
+        reasons.append(f"{sum(len(p) for p in unknown.values())} row(s) name unknown launch "
+                       f"records {sorted(str(sha)[:12] for sha in unknown)[:3]}")
+    records = []
+    for entry in segments:
+        sha = str(entry["launch_record_sha256"])
+        verdict = verify_segment(run_dir, entry)
+        reasons += [f"segment {entry.get('segment_index')} ({sha[:12]}...): {reason}"
+                    for reason in verdict["reasons"]]
+        positions = by_sha.get(sha, [])
+        ranges = position_ranges(positions)
+        for claim, derived in (("n_rows", len(positions)), ("position_ranges", ranges)):
+            if claim in entry and entry[claim] != derived:
+                reasons.append(f"segment {entry.get('segment_index')} ({sha[:12]}...) claims "
+                               f"{claim}={entry[claim]!r} but the rows yield {derived!r}")
+        records.append({"launch_record_sha256": sha,
+                        "segment_index": entry.get("segment_index"),
+                        "shard": entry.get("shard"), "resume": bool(entry.get("resume")),
+                        "n_rows": len(positions), "position_ranges": ranges,
+                        "verified": verdict["ok"], "opened_utc": entry.get("opened_utc"),
+                        "closed_utc": entry.get("closed_utc"), **verdict["facts"]})
+    return {"generation": "launch_records" if ledger is not None else "none",
+            "complete": not reasons, "reasons": reasons, "n_rows": len(rows),
+            "n_unstamped": len(unstamped),
+            "n_unknown": sum(len(p) for p in unknown.values()),
+            "records": records,
+            "git_shas": sorted({str(r["git_sha"]) for r in records if r.get("git_sha")}),
+            "note": SEGMENT_NOTE}
+
+
+def merge_ledgers(rows_by_shard, out_dir):
+    """Carry every shard's records into the merged run, after each shard's census.
+
+    ``rows_by_shard`` is ``{shard_dir: [rows]}``. Nothing is written unless every
+    shard's census is complete and no record appears in two shards.
+    """
+    merged, seen = [], {}
+    for shard_dir, rows in rows_by_shard.items():
+        census = provenance_census(shard_dir, rows)
+        if not census["complete"]:
+            raise ValueError(f"{shard_dir}: the launch provenance census fails -- "
+                             + "; ".join(census["reasons"][:3]) + f". {SEGMENT_NOTE}")
+        for entry, record in zip(read_ledger(shard_dir)["segments"], census["records"]):
+            sha = str(entry["launch_record_sha256"])
+            if sha in seen:
+                raise ValueError(f"launch record {sha[:12]}... vouches for segments of both "
+                                 f"{seen[sha]} and {shard_dir}; a record describes one "
+                                 "invocation")
+            seen[sha] = shard_dir
+            merged.append((shard_dir, entry, record))
+    os.makedirs(str(out_dir), exist_ok=True)
+    segments = []
+    for index, (shard_dir, entry, record) in enumerate(merged):
+        source = os.path.join(str(shard_dir), entry["record_file"])
+        target = os.path.join(str(out_dir), entry["record_file"])
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(source, "rb") as handle:
+            raw = handle.read()
+        with open(target + ".tmp", "wb") as handle:
+            handle.write(raw)
+        os.replace(target + ".tmp", target)
+        segments.append(dict(entry, segment_index=index, shard=str(shard_dir),
+                             shard_segment_index=entry.get("segment_index"),
+                             n_rows=record["n_rows"],
+                             position_ranges=record["position_ranges"]))
+    me.write_json(os.path.join(str(out_dir), SEGMENTS_FILENAME),
+                  {"segments": segments, "note": SEGMENT_NOTE})
+    return provenance_census(out_dir, [row for rows in rows_by_shard.values() for row in rows])
