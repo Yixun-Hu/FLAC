@@ -2880,6 +2880,8 @@ LEDGER_CORRUPTIONS = {
         orbit_size=5), "run summary"),
     "summary names a missing ledger": ("delete", None, "not on disk"),
     "garbled ledger": ("garble", None, "is not valid JSON"),
+    "unknown branch": (lambda l: l["segments"][0]["counts"][0].update(branch="nowhere"), None,
+                       "segment 0: a ledger entry names branch 'nowhere'"),
 }
 
 

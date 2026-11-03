@@ -782,8 +782,8 @@ def assert_fa_partition_executed(declared, recorder, final=True):
     if differing or report["violations"]:
         raise ValueError(f"the executed frame-average partition is not the declared one: "
                          f"{differing} differ (executed {report['executed']}); violations "
-                         f"{report['violations'][:3]}. A scored pass stops here and marks its "
-                         f"shard NON-ADMISSIBLE ({FA_FAILURE_FILENAME}; plan r2 amendment A6 iv)")
+                         f"{report['violations'][:3]}. A scored pass that fails this check is "
+                         f"NON-ADMISSIBLE ({FA_FAILURE_FILENAME}; plan r2 amendment A6 iv)")
     return report
 
 
@@ -867,7 +867,10 @@ def _segment_reasons(index, segment):
             entry["configured"], entry["cap"], entry["orbit_size"], entry["count"],
             *entry["base"], *entry["orbit"])):
         return reasons + [f"segment {index} holds a count that is not a non-negative integer"], None
-    recorder = FaPartitionRecorder.from_counts(counts)
+    try:
+        recorder = FaPartitionRecorder.from_counts(counts)
+    except ValueError as error:                        # an unknown branch
+        return reasons + [f"segment {index}: {error}"], None
     if recorder.to_counts() != counts:
         reasons.append(f"segment {index}'s counts are not canonical (repeated or unsorted rows)")
     if segment.get("counts_sha256") != counts_sha256(recorder):
