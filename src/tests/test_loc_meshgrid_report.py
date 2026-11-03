@@ -278,6 +278,30 @@ def fixture_totals(plan=None, branch="z_band"):
             "generated_waveforms": pairs * FIXTURE_SAMPLES}
 
 
+def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None):
+    """The SYNTHETIC BF fixture's executed-partition ledger and summary block (exp_22 rB-F1).
+
+    The fixture's BF arm binds BF's registered method but runs the synthetic
+    vanilla stack (it exercises admission, pairing and statistics, not the fa
+    path), while a merge now re-derives every fa shard's executed partition from
+    its durable ledger (Codex rB finding 5). The ledger is therefore written
+    through the engine's own functions from calls of exactly the declared shapes:
+    one full batch per branch (context ViT 1, scored ``candidate_micro_batch``,
+    source ``candidate_micro_batch``), each with its rotated forwards.
+    """
+    recorder = me.FaPartitionRecorder()
+    orbit = int(declared["orbit_size"])
+    for branch, block in (("context_vit", declared["context_vit"]),
+                          ("context_scored_batch", declared["context_scored_batch"]),
+                          ("source_cache", declared["source_cache"])):
+        n = int(block["candidate_micro_batch"])
+        rotated = [(n, True)] * (orbit - 1) if branch in me.FA_ORBIT_BRANCHES else []
+        recorder.observe(branch, [(n, False)] + rotated, cap=n, configured=n, orbit_size=orbit)
+    ledger = me.open_fa_ledger(out_dir, declared, launch_record_sha256)
+    merged = me.persist_fa_ledger(ledger, recorder)
+    return me.fa_executed_block(declared, merged, len(ledger["payload"]["segments"]))
+
+
 def build_fixture_run(tmp_path, merged=True, arm=None, launch=None, engine=None):
     """A complete, self-consistent fixture: G1 audit, D1 manifest, MERGED run.
 
@@ -334,6 +358,9 @@ def build_fixture_run(tmp_path, merged=True, arm=None, launch=None, engine=None)
                               prefixes=FIXTURE_PREFIXES, batch_rows=8, source_chunk=2,
                               rooms=rooms, binding_sha256=binding_sha,
                               launch_record_sha256=sha)
+        if isinstance(binding.get("fa_partition"), dict):
+            summary["fa_partition_executed"] = synthetic_fa_evidence(
+                out_dir, binding["fa_partition"], sha)
         me.write_json(os.path.join(out_dir, "run_summary.json"), summary)
         return out_dir
 

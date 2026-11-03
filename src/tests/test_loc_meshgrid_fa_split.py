@@ -633,14 +633,20 @@ def test_an_fa_probe_publishes_its_executed_partition_and_no_score(tmp_path):
     assert not os.path.isdir(os.path.join(out, me.ROWS_DIRNAME))
 
 
-def test_a_resume_that_conditions_nothing_reports_an_empty_partition_without_refusing(tmp_path):
-    _engine, _summary, out, (plan, records, items) = _fa_pass(tmp_path)
+def test_a_resume_that_conditions_nothing_keeps_the_runs_executed_partition(tmp_path):
+    """Codex rB finding 5: a final no-op resume used to replace the summary's block with an
+    empty recorder; the run's executed partition is its durable ledger's, every segment."""
+    _engine, first, out, (plan, records, items) = _fa_pass(tmp_path)
     done, _rejected = me.completed_queries(out)
     engine = FaSyntheticEngine()
     summary = me.run_pass(engine, items, records, plan, out, done=done,
                           fa_partition=FA_DECLARED, **FA_SHAPES)
     assert summary["n_scored"] == 0 and engine.conditioner.calls == []
-    assert summary["fa_partition_executed"]["branches"]["source_cache"]["invocations"] == 0
+    executed = summary["fa_partition_executed"]
+    assert executed["executed"] == FA_DECLARED and executed["violations"] == []
+    assert executed["ledger"]["counts_sha256"] == first["fa_partition_executed"]["ledger"][
+        "counts_sha256"]
+    assert executed["ledger"]["n_segments"] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -2329,3 +2335,153 @@ def test_assert_cacheable_refuses_a_malformed_split(split, why):
     engine.split = split
     with pytest.raises(ValueError, match=why):
         fp.require_split(engine)
+
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB finding 5 (part 2): the executed partition is DURABLE -- a per-query
+# ledger across segments -- and every shard's is re-derived at the merge
+# --------------------------------------------------------------------------- #
+import test_loc_meshgrid_launch_record as LR                             # noqa: E402
+
+
+def test_recorder_counts_round_trip_exactly():
+    recorder = _observe_production(me.FaPartitionRecorder(), scored=(32, 32, 8))
+    again = me.FaPartitionRecorder.from_counts(recorder.to_counts())
+    assert again.counts == recorder.counts
+    both = me.FaPartitionRecorder.from_counts(recorder.to_counts(), recorder.to_counts())
+    assert both.report()["branches"]["context_scored_batch"]["invocations"] == 6
+    with pytest.raises(ValueError, match="branch"):
+        me.FaPartitionRecorder.from_counts([dict(recorder.to_counts()[0], branch="nowhere")])
+
+
+def _ledger(out):
+    return json.load(open(os.path.join(out, me.FA_LEDGER_FILENAME)))
+
+
+def test_the_ledger_is_written_before_every_row_and_survives_a_crash(tmp_path, monkeypatch):
+    real, written = me.write_query_artifact, []
+
+    def crash_on_the_third(*args, **kwargs):
+        if len(written) == 2:
+            raise RuntimeError("the card fell over")
+        written.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(me, "write_query_artifact", crash_on_the_third)
+    plan, records, items = _fa_aligned(tmp_path)
+    out = str(tmp_path / "run")
+    with pytest.raises(RuntimeError, match="fell over"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    ledger = _ledger(out)
+    assert ledger["declared"] == FA_DECLARED and len(ledger["segments"]) == 1
+    assert ledger["segments"][0]["n_queries"] == 3          # the crashed query's calls too
+    monkeypatch.setattr(me, "write_query_artifact", real)
+    done, _rejected = me.completed_queries(out)
+    assert len(done) == 2
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done,
+                          fa_partition=FA_DECLARED, **FA_SHAPES)
+    ledger = _ledger(out)
+    assert [segment["n_queries"] for segment in ledger["segments"]] == [3, 2]
+    merged = me.FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["segments"]])
+    assert summary["fa_partition_executed"]["executed"] == merged.executed() == FA_DECLARED
+    assert summary["fa_partition_executed"]["ledger"]["counts_sha256"] == canonical_sha256(
+        merged.to_counts()) == ledger["merged"]["counts_sha256"]
+
+
+def test_a_ledger_for_another_declaration_is_refused(tmp_path):
+    _engine, _summary, out, (plan, records, items) = _fa_pass(tmp_path)
+    other = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=5)
+    with pytest.raises(ValueError, match="declar"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, fa_partition=other,
+                    **dict(FA_SHAPES, source_chunk=5))
+
+
+def test_a_probe_writes_no_ledger(tmp_path):
+    _engine, _summary, out, _ = _fa_pass(tmp_path, probe=1)
+    assert not os.path.exists(os.path.join(out, me.FA_LEDGER_FILENAME))
+
+
+def _fa_shards(tmp_path):
+    """Two record-carrying fa shards of the fixture, published like the real ones."""
+    plan, records, items = _fa_aligned(tmp_path)
+    binding = _r2_binding(fa_partition=FA_DECLARED)
+    dirs = {}
+    for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
+        out = str(tmp_path / name)
+        me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                         declared_rooms=rooms)
+        argv = [token if token != "out" else name for token in LR.ARGV]
+        sha = LR._segment(tmp_path, out, f"{name}.json", argv=argv)["launch_record_sha256"]
+        summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, rooms=rooms,
+                              binding_sha256=me.binding_sha256(binding),
+                              launch_record_sha256=sha, fa_partition=FA_DECLARED, **FA_SHAPES)
+        me.write_json(os.path.join(out, "run_summary.json"), summary)
+        dirs[name] = out
+    pairs, unions = ENG._fixture_totals()
+    totals = {"rooms": 2, "queries": len(records), "candidate_query_pairs": pairs,
+              "source_rows": unions, "generated_waveforms": pairs * 4}
+    return plan, records, dirs, totals
+
+
+def test_an_fa_merge_re_derives_every_shards_executed_partition_and_keeps_it(tmp_path):
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    merged = str(tmp_path / "merged")
+    report = me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    block = report["fa_partition_executed"]
+    assert block["executed"] == FA_DECLARED and block["violations"] == []
+    shards = [me.FaPartitionRecorder.from_counts(*[s["counts"] for s in _ledger(d)["segments"]])
+              for d in (dirs["a"], dirs["b"])]
+    union = me.FaPartitionRecorder.from_counts(*[r.to_counts() for r in shards])
+    assert block["counts_sha256"] == canonical_sha256(union.to_counts())
+    assert [entry["counts_sha256"] for entry in block["per_shard"]] == [
+        canonical_sha256(r.to_counts()) for r in shards]
+    kept = _ledger(merged)
+    assert kept["merged"]["counts_sha256"] == block["counts_sha256"]
+    assert {segment["shard"] for segment in kept["segments"]} == {dirs["a"], dirs["b"]}
+
+
+@pytest.mark.parametrize("damage, match", [
+    ("ledger_missing", "fa_partition_ledger"),
+    ("ledger_counts_edited", "violations"),
+    ("summary_disagrees", "run summary"),
+    ("summary_missing_block", "run summary"),
+])
+def test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold(tmp_path, damage,
+                                                                           match):
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    shard = dirs["b"]
+    ledger_path = os.path.join(shard, me.FA_LEDGER_FILENAME)
+    summary_path = os.path.join(shard, "run_summary.json")
+    if damage == "ledger_missing":
+        os.remove(ledger_path)
+    elif damage == "ledger_counts_edited":
+        ledger = _ledger(shard)
+        entry = next(e for e in ledger["segments"][0]["counts"]
+                     if e["branch"] == "context_scored_batch")
+        entry["base"] = [entry["configured"] + 1]                  # a batch above its stride
+        me.write_json(ledger_path, ledger)
+    else:
+        summary = json.load(open(summary_path))
+        if damage == "summary_disagrees":
+            summary["fa_partition_executed"]["ledger"]["counts_sha256"] = "0" * 64
+        else:
+            summary.pop("fa_partition_executed")
+        me.write_json(summary_path, summary)
+    merged = str(tmp_path / "merged")
+    with pytest.raises(ValueError, match=match):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    assert not os.path.exists(merged)
+
+
+def test_a_vanilla_merge_refuses_a_shard_carrying_a_frame_average_partition(tmp_path):
+    plan, records, dirs, totals, _binding = LR._r2_shards(tmp_path)
+    me.write_json(os.path.join(dirs["a"], me.FA_LEDGER_FILENAME), {"segments": []})
+    with pytest.raises(ValueError, match="vanilla"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m"), plan, records,
+                        totals=totals)
+    os.remove(os.path.join(dirs["a"], me.FA_LEDGER_FILENAME))
+    report = me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
+                             totals=totals)
+    assert report["fa_partition_executed"] is None

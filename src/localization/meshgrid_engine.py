@@ -685,6 +685,28 @@ class FaPartitionRecorder:
                 "source_cache": {"candidate_micro_batch": seen["source_cache"][0],
                                  "frame_avg_fwd_cap": seen["source_cache"][1]}}
 
+    def to_counts(self):
+        """The counts as JSON rows, one per distinct call shape (the durable ledger's unit)."""
+        return [{"branch": branch, "configured": key[0], "cap": key[1], "base": list(key[2]),
+                 "orbit": list(key[3]), "orbit_size": key[4], "count": int(count)}
+                for branch in FA_BRANCHES for key, count in sorted(self.counts[branch].items())]
+
+    @classmethod
+    def from_counts(cls, *count_lists):
+        """A recorder holding the SUM of ``count_lists`` (segments, or shards)."""
+        recorder = cls()
+        for entries in count_lists:
+            for entry in entries:
+                if entry.get("branch") not in recorder.counts:
+                    raise ValueError(f"a ledger entry names branch {entry.get('branch')!r}, not "
+                                     f"one of {list(FA_BRANCHES)}")
+                key = (int(entry["configured"]), int(entry["cap"]),
+                       tuple(int(n) for n in entry["base"]),
+                       tuple(int(n) for n in entry["orbit"]), int(entry["orbit_size"]))
+                bucket = recorder.counts[entry["branch"]]
+                bucket[key] = bucket.get(key, 0) + int(entry["count"])
+        return recorder
+
     def report(self):
         """The executed block, its violations and the per-batch evidence it rests on."""
         branches = {}
@@ -761,6 +783,105 @@ def assert_fa_partition_executed(declared, recorder, final=True):
                          f"{report['violations'][:3]}. Nothing is published under a partition "
                          "the run did not declare")
     return report
+
+
+FA_LEDGER_FILENAME = "fa_partition_ledger.json"
+FA_LEDGER_NOTE = (
+    "EXECUTED-PARTITION LEDGER (Codex rB finding 5): the split's call counts, one segment per "
+    "invocation of a scored pass, rewritten atomically after each query's partition check and "
+    "BEFORE its row is written -- a crash leaves every published row's calls on disk, and a "
+    "resume adds a segment instead of replacing the evidence. The run's executed partition is "
+    "the sum of its segments' counts; the merge re-derives each shard's, and the sum over all "
+    "shards, from these counts and refuses any disagreement with the declaration or with the "
+    "shard's own run summary")
+
+
+def counts_sha256(recorder):
+    from src.localization.crossarm import canonical_sha256
+
+    return canonical_sha256(recorder.to_counts())
+
+
+def open_fa_ledger(out_dir, declared, launch_record_sha256=None):
+    """This invocation's (new) segment of the run's ledger; refused for another declaration."""
+    path = os.path.join(str(out_dir), FA_LEDGER_FILENAME)
+    payload = {"declared": declared, "segments": [], "note": FA_LEDGER_NOTE}
+    if os.path.isfile(path):
+        with open(path) as handle:
+            payload = json.load(handle)
+        if payload.get("declared") != declared:
+            raise ValueError(f"{path} is the executed-partition ledger of another declaration; "
+                             "this pass may not add a segment to it")
+    payload["segments"].append({"segment_index": len(payload["segments"]), "n_queries": 0,
+                                "launch_record_sha256": launch_record_sha256, "counts": []})
+    return {"path": path, "payload": payload}
+
+
+def persist_fa_ledger(ledger, recorder, query=True):
+    """Rewrite the ledger with this segment's counts so far; the run's summed recorder."""
+    segment = ledger["payload"]["segments"][-1]
+    segment.update(counts=recorder.to_counts(), counts_sha256=counts_sha256(recorder),
+                   n_queries=segment["n_queries"] + int(query))
+    merged = FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["payload"]["segments"]])
+    ledger["payload"]["merged"] = {"counts_sha256": counts_sha256(merged),
+                                   "executed": merged.executed(),
+                                   "violations": merged.violations()}
+    os.makedirs(os.path.dirname(ledger["path"]) or ".", exist_ok=True)
+    write_json(ledger["path"], ledger["payload"])
+    return merged
+
+
+def fa_executed_block(declared, merged, n_segments):
+    """A scored fa pass's ``fa_partition_executed``: the run's summed partition held to the
+    declaration (exactly) and the digest of the ledger counts it was derived from."""
+    report = (assert_fa_partition_executed(declared, merged) if any(merged.counts.values())
+              else merged.report())
+    return dict(report, ledger={"file": FA_LEDGER_FILENAME, "counts_sha256": counts_sha256(merged),
+                                "n_segments": int(n_segments)})
+
+
+def fa_partition_census(shards, declared):
+    """Each shard's executed partition re-derived from its ledger and held to the declaration
+    and to its own run summary, then the sum over shards -- or ``None`` for a vanilla run."""
+    if declared is None:
+        carrying = [shard["dir"] for shard in shards if shard["summary"].get(
+            "fa_partition_executed") is not None or os.path.exists(
+                os.path.join(shard["dir"], FA_LEDGER_FILENAME))]
+        if carrying:
+            raise ValueError(f"a vanilla run's shards carry no frame-average executed partition, "
+                             f"but {carrying} do")
+        return None
+    per_shard, segments, recorders = [], [], []
+    for shard in shards:
+        path = os.path.join(shard["dir"], FA_LEDGER_FILENAME)
+        if not os.path.isfile(path):
+            raise ValueError(f"{shard['dir']} publishes no {FA_LEDGER_FILENAME}: its executed "
+                             "frame-average partition is not on disk, so it cannot enter a merge")
+        with open(path) as handle:
+            ledger = json.load(handle)
+        recorder = FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["segments"]])
+        try:
+            if ledger.get("declared") != declared:
+                raise ValueError("its ledger records another declaration")
+            report = assert_fa_partition_executed(declared, recorder)
+        except ValueError as error:
+            raise ValueError(f"{shard['dir']}: {error}") from None
+        published, digest = shard["summary"].get("fa_partition_executed") or {}, \
+            counts_sha256(recorder)
+        if (published.get("executed") != report["executed"]
+                or (published.get("ledger") or {}).get("counts_sha256") != digest):
+            raise ValueError(f"{shard['dir']}: the run summary's executed partition is not its "
+                             f"ledger's ({digest[:12]}...); finish the shard so its summary covers "
+                             "every segment")
+        per_shard.append({"dir": shard["dir"], "counts_sha256": digest,
+                          "n_segments": len(ledger["segments"])})
+        segments += [dict(segment, shard=shard["dir"]) for segment in ledger["segments"]]
+        recorders.append(recorder)
+    union = FaPartitionRecorder.from_counts(*[recorder.to_counts() for recorder in recorders])
+    report = assert_fa_partition_executed(declared, union)
+    return {"executed": report["executed"], "violations": report["violations"],
+            "counts_sha256": counts_sha256(union), "per_shard": per_shard,
+            "segments": segments, "declared": declared}
 
 
 # --------------------------------------------------------------------------- #
@@ -2188,6 +2309,9 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     if engine.split is not None and not isinstance(fa_partition, dict):
         raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
                          "(run_binding.json fa_partition) before anything runs against it")
+    # a scored fa pass keeps its executed partition on disk, one segment per invocation
+    fa_ledger = (open_fa_ledger(out_dir, fa_partition, launch_record_sha256)
+                 if engine.split is not None and probe is None else None)
     assert_registered_noise_policy(noise_policy, allow_unregistered_noise_policy)
     excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
     done = set(done)
@@ -2225,7 +2349,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   geometry_tol=geometry_tol, dump_queries=dump_queries,
                   dump_top_n=dump_top_n, binding_sha256=binding_sha256,
-                  launch_record_sha256=launch_record_sha256, fa_partition=fa_partition)
+                  launch_record_sha256=launch_record_sha256, fa_partition=fa_partition,
+                  fa_ledger=fa_ledger)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -2295,21 +2420,26 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     flush()
     for name, value in timer.totals.items():
         state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
-    if engine.split is not None:
-        # a pass that conditioned nothing (a finished shard resumed) has nothing to
-        # hold to the declaration; anything that ran was held to it before its row
+    if fa_ledger is not None:
+        # the RUN's executed partition: every segment's counts, this one included (a
+        # finished shard resumed conditions nothing and still publishes it -- rB 5)
+        merged = persist_fa_ledger(fa_ledger, engine.split.recorder, query=False)
+        state["fa_partition_executed"] = fa_executed_block(
+            fa_partition, merged, len(fa_ledger["payload"]["segments"]))
+    elif engine.split is not None:
+        # the no-quality probe: what ran, prefix-consistent, published not judged
         ran = any(engine.split.recorder.counts.values())
         state["fa_partition_executed"] = (
-            assert_fa_partition_executed(fa_partition, engine.split.recorder,
-                                         final=probe is None) if ran
-            else engine.split.recorder.report())
+            assert_fa_partition_executed(fa_partition, engine.split.recorder, final=False)
+            if ran else engine.split.recorder.report())
     return state
 
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
               probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N,
-              binding_sha256=None, launch_record_sha256=None, fa_partition=None):
+              binding_sha256=None, launch_record_sha256=None, fa_partition=None,
+              fa_ledger=None):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -2359,6 +2489,8 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                     # prefix that has not yet filled a micro-batch is consistent
                     assert_fa_partition_executed(fa_partition, engine.split.recorder,
                                                  final=False)
+                    if fa_ledger is not None:          # on disk BEFORE the row (rB 5)
+                        persist_fa_ledger(fa_ledger, engine.split.recorder)
                 state["n_candidate_query_pairs"] += query.n_candidates
                 state["n_generated"] += query.n_candidates * int(num_samples)
                 for name, value in query_timer.totals.items():
@@ -2705,6 +2837,10 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
                          f"{sorted(advisories)}; a merged run must state one batching")
     advisory = shards[0]["advisory"]
 
+    # (2b) exp_22 rB-F1 (Codex rB finding 5): every shard's executed frame-average
+    # partition re-derived from its durable ledger, and their sum, before any write
+    fa = fa_partition_census(shards, base.get("fa_partition"))
+
     # (3) disjoint declared rooms whose union is the registered set
     declared, overlap = [], set()
     for shard in shards:
@@ -2819,6 +2955,10 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
             shutil.copy2(source, destination)
 
     write_binding(out_dir, base, advisory=advisory, declared_rooms=sorted(declared))
+    if fa is not None:
+        write_json(os.path.join(out_dir, FA_LEDGER_FILENAME), {
+            "declared": fa["declared"], "segments": fa["segments"], "note": FA_LEDGER_NOTE,
+            "merged": {key: fa[key] for key in ("counts_sha256", "executed", "violations")}})
     provenance = (ms.merge_ledgers(rows_by_shard, out_dir) if recorded else
                   {"generation": "legacy_r1_binding", "complete": False, "records": [],
                    "note": "the shards carry the legacy R1 binding, which predates launch "
@@ -2826,6 +2966,9 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
                            "without them (plan r2 §1 legacy-provenance exception)"})
     report = {"experiment": "exp_22 loc_meshgrid I1 shard merge", "ok": True,
               "launch_provenance": provenance,
+              "fa_partition_executed": None if fa is None else {
+                  key: fa[key] for key in ("executed", "violations", "counts_sha256",
+                                           "per_shard")},
               "binding_sha256": binding_sha256, "advisory": advisory,
               "declared_rooms": sorted(declared), "n_rows": len(rows),
               "shards": [{"dir": shard["dir"], "rooms": shard["declared_rooms"],
