@@ -482,6 +482,18 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 CONFIG_BY_K = {1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
                8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
 CONTRACT = "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+#: A fixed import time, so the stamp is predictable (the importer reads the clock once).
+STAMP_TIME = "2026-11-02T16:00:00-05:00"
+
+
+def git_head_and_tree():
+    """The importer's own repository, asked directly: HEAD and whether tracked files differ."""
+    def git(*args):
+        return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True,
+                              check=True).stdout
+    dirty = git("status", "--porcelain", "--untracked-files=no").strip()
+    return (git("rev-parse", "HEAD").strip(),
+            "clean" if not dirty else "modified (tracked files differ from HEAD)")
 
 
 def parse_attestation(text):
@@ -506,7 +518,7 @@ def read_attestation(result):
         return parse_attestation(fin.read())
 
 
-def expected_cell(arm, tag, K, seed, ckpt):
+def expected_cell(arm, tag, K, seed, ckpt, imported_at=STAMP_TIME):
     run_dir, ckpt_stem = os.path.dirname(ckpt), os.path.basename(ckpt)[:-len(".ckpt")]
     stem = f"1_1.0_dc_{arm}_f{tag}_K{K}_s{seed}" + ("_fa_invariant_a1" if arm == "cyl" else "")
     record = os.path.join(run_dir, f"{ckpt_stem}_metrics_{stem}.json")
@@ -528,11 +540,14 @@ def expected_cell(arm, tag, K, seed, ckpt):
         "prediction_bundle": bundle, "prediction_bundle_sha256": sha256_of(bundle),
         "bundle_artifact_contract": json.dumps(CONTRACT),
         "record_source_sha": "absent",
+        "importer_git_sha": git_head_and_tree()[0], "imported_at": imported_at,
     }
 
 
 @pytest.mark.parametrize("arm, tag", [("cyl", "025"), ("van", "050")])
-def test_the_attestation_records_every_cell_exactly_as_validated(tmp_path, arm, tag):
+def test_the_attestation_records_every_cell_exactly_as_validated(tmp_path, monkeypatch,
+                                                                 arm, tag):
+    monkeypatch.setattr(import_cells, "_now_iso", lambda: STAMP_TIME)
     result, violations, _, ckpt = run_import(tmp_path, arm=arm, tag=tag)
     assert violations == []
     sections = read_attestation(result)
@@ -678,3 +693,52 @@ def test_a_destination_without_an_attestation_is_refused_and_nothing_changes(tmp
                                             expect_n=N_ITEMS)
     assert any("already exists" in v and ATTESTATION in v for v in violations)
     assert _snapshot(first["dest_dir"]) == before
+
+
+# ------------------------------------------- the import stamp (time + importer identity)
+def test_the_import_stamp_names_the_importer_its_tree_and_the_time(tmp_path, monkeypatch):
+    monkeypatch.setattr(import_cells, "_now_iso", lambda: STAMP_TIME)
+    result, violations, _, _ = run_import(tmp_path)
+    assert violations == []
+    head, tree = git_head_and_tree()
+    assert read_attestation(result)["import stamp"] == {
+        "imported_at": STAMP_TIME, "importer": "src.tools.data_curve.import_cells",
+        "importer_git_sha": head, "importer_tracked_tree": tree, "importer_worktree": REPO}
+
+
+def test_the_clock_is_local_iso_8601_to_the_second():
+    stamp = import_cells._now_iso()
+    assert len(stamp) == len(STAMP_TIME) and stamp[10] == "T" and stamp[-6] in "+-"
+
+
+def test_an_identical_rerun_keeps_the_first_import_s_stamp_byte_for_byte(tmp_path, monkeypatch):
+    times = iter(["2026-11-02T10:00:00-05:00", "2026-11-03T11:11:11-05:00"])
+    monkeypatch.setattr(import_cells, "_now_iso", lambda: next(times))
+    nas, _, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    first, _ = import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    before = _snapshot(first["dest_dir"])
+    # a later rerun, from a later importer commit: the directory is what it would publish
+    monkeypatch.setattr(import_cells, "_importer_identity", lambda: {
+        "importer": "src.tools.data_curve.import_cells", "importer_git_sha": "f" * 40,
+        "importer_tracked_tree": "clean", "importer_worktree": "/elsewhere"})
+    second, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == [] and second["installed"] == "identical"
+    assert _snapshot(first["dest_dir"]) == before
+    stamp = read_attestation(first)["import stamp"]
+    assert stamp["imported_at"] == "2026-11-02T10:00:00-05:00"
+    assert stamp["importer_git_sha"] == git_head_and_tree()[0]
+
+
+def test_without_git_the_stamp_says_so_and_the_import_still_happens(tmp_path, monkeypatch):
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("[Errno 2] No such file or directory: 'git'")
+
+    monkeypatch.setattr(import_cells.subprocess, "run", no_git)
+    result, violations, _, _ = run_import(tmp_path)
+    assert violations == [] and result["installed"] == "new"
+    stamp = read_attestation(result)["import stamp"]
+    assert stamp["importer_git_sha"].startswith("unavailable (FileNotFoundError")
+    assert stamp["importer_tracked_tree"] == "unavailable"
