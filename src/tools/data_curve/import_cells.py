@@ -24,8 +24,10 @@ fails quietly, which is what this module is for:
 * **What the pair proved does not survive the copy (codex T finding F6 / M5).** Only the
   metrics JSONs are installed, and they cannot say which K, seed, split or protocol they
   were scored under. ``ATTESTATION.txt`` -- plain text, so no ``*.json`` row glob matches
-  it -- is installed in the same rename and keeps, per cell, the values the import
-  validated or hashed, plus the contract they passed. The manifest lists its digest.
+  it -- is installed in the same rename. Every section of it says where its values come
+  from -- configured, caller-supplied, verified (the contract it states), re-read or
+  recorded -- and a ``[limits]`` section says what no check establishes (codex V finding
+  1). The manifest lists its digest.
 
 No GPU, no network, and nothing in the destination checkout is committed or force-added
 here: this module copies and prints, the analyst commits.
@@ -351,6 +353,48 @@ def _contract_lines(protocol, n_items, ks, seeds):
     ]
 
 
+def _limit_lines():
+    """N1-N6: what no check of this import establishes (codex V finding 1)."""
+    return [
+        "N1: item identity -- which items the predictions are, their order and uniqueness, "
+        "and that they are the dataset config's entries: C7 checks counts and shape only",
+        "N2: backbone and fraction -- [run] and [rows] say what --arm/--tag mean in the "
+        "importer's code; no run contract, split file, model config or training log is read",
+        "N3: where --expect-ckpt-sha256 came from -- C2 checks its syntax and that the "
+        "checkpoint bytes hash to it, not its provenance",
+        "N4: record_source_sha -- copied from the installed metrics record as it is; nothing "
+        "checks it",
+        "N5: that a second read saw the bytes a check read -- metrics_record_sha256 is hashed "
+        "after check_metrics parsed the record, and each cell's bundle section is read after "
+        "check_bundle loaded the file; nothing compares the two reads",
+        "N6: that dataset_config_sha256 is the file the evaluator read -- the evaluator "
+        "records the config's path only; the digest is of the importer worktree's copy at "
+        "import time",
+    ]
+
+
+#: Where the values under each attestation header come from (codex V finding 1). Every
+#: header is ``[<name> (<tag>: <detail>)]``; the file's opening comment repeats this list.
+PROVENANCE_TAGS = {
+    "configured": "the importer's --arm/--tag and its code constants; read from no artifact",
+    "caller-supplied": "the command line; checked only as far as its own lines say",
+    "verified": "checked by import_run / validate_cells; [validation contract] lists each",
+    "re-read": "read again after validation and written down; nothing compared",
+    "recorded": "copied or hashed and written down; compared with nothing",
+    "not verified": "what no check of this import establishes",
+}
+
+
+def _header(name, tag, detail):
+    """``[<name> (<tag>: <detail>)]`` -- the only header form an attestation has."""
+    if tag not in PROVENANCE_TAGS:
+        raise ValueError(f"unknown provenance tag {tag!r}")
+    return f"[{name} ({tag}: {detail})]"
+
+
+#: The stamp's header -- also exactly what ``_existing_stamp`` looks for in a rerun.
+STAMP_HEADER = _header("import stamp", "recorded",
+                       "when and by which code the first import ran; not a check")
 #: The ``[import stamp]`` keys, in file order. The only time- or environment-dependent part
 #: of an attestation; ``imported_at`` and ``importer_git_sha`` are echoed in every cell.
 STAMP_KEYS = ("imported_at", "importer", "importer_git_sha", "importer_tracked_tree",
@@ -400,7 +444,7 @@ def _existing_stamp(dest_dir):
     stamp, inside = {}, False
     for line in text.splitlines():
         if line.startswith("["):
-            inside = line == "[import stamp]"
+            inside = line == STAMP_HEADER
         elif inside and not line.startswith("#"):
             key, sep, value = line.partition(": ")
             if sep and key in STAMP_KEYS:
@@ -408,62 +452,85 @@ def _existing_stamp(dest_dir):
     return stamp if set(stamp) == set(STAMP_KEYS) else None
 
 
-def _render_attestation(context, files, checkout):
-    """``ATTESTATION.txt``: ``[section]`` headers over ``key: value`` lines; ``#`` = comment.
+def _cell_lines(e, context, checkout, full):
+    """One cell: what C3-C13 verified, the bundle as re-read, and what is only recorded."""
+    cell, stamp, reread = f"cell K{e['K']} s{e['seed']}", context["stamp"], e["bundle_reread"]
+    lines = ["", _header(cell, "verified", "C3-C13 passed for this cell"),
+             f"K: {e['K']}", f"seed: {e['seed']}", f"eval_name: {e['eval_name']}",
+             f"checkpoint: {context['ckpt']}", f"checkpoint_sha256: {context['ckpt_sha256']}",
+             f"metrics_record: {e['source']}", f"metrics_record_sha256: {e['sha256']}",
+             f"imported_copy: {os.path.relpath(e['dest'], checkout)}",
+             f"prediction_bundle: {e['bundle']}"]
+    lines += [f"{k}: {_value(v)}" for k, v in context["protocol"].items()]
+    lines += [f"steps: {names.EVAL_STEPS}", f"cfg_scale: {names.EVAL_CFG_SCALE}",
+              f"bundle_artifact_contract: {json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
+              f"dataset_config: {e['dataset_config']}",
+              f"dataset_config_matches_K: yes (C9: meta.dataset_config == "
+              f"{e['dataset_config']}, the full unseen-eval config of K={e['K']})",
+              f"full_unseen_contract_passed: {full}",
+              "item_identity_verified: no (see [limits] N1)",
+              "", _header(f"{cell} bundle", "re-read", "prediction_bundle read once after "
+                          "validation -- hashed and loaded from the same bytes; nothing "
+                          "compared"),
+              f"prediction_bundle_sha256: {reread['sha256']}"]
+    lines += [f"{key}: {reread[key]}" for key in REREAD_KEYS]
+    return lines + ["", _header(f"{cell} recorded", "recorded",
+                                "copied or hashed; compared with nothing"),
+                    f"dataset_config_sha256: {e['dataset_config_sha256']}",
+                    f"record_source_sha (as recorded, unvalidated): {e['record_source_sha']}",
+                    f"importer_git_sha: {stamp['importer_git_sha']}",
+                    f"imported_at: {stamp['imported_at']}"]
 
-    Built only from values this import validated (the contract below) or hashed, plus
-    ``context["stamp"]`` -- the one time-dependent part, which ``_stage_and_install`` takes
-    from an already-installed attestation when there is one.
+
+def _render_attestation(context, files, checkout):
+    """``ATTESTATION.txt``: ``[<name> (<tag>: <detail>)]`` headers over ``key: value`` lines.
+
+    Every header names where the values under it come from (``PROVENANCE_TAGS``; codex V
+    finding 1): configured from the CLI and code constants, supplied by the caller, verified
+    by the stated contract, re-read after validation, or only recorded; ``[limits]`` says
+    what no check establishes. ``context["stamp"]`` is the one time-dependent part, which
+    ``_stage_and_install`` takes from an already-installed attestation when there is one.
     """
-    arm, protocol, n_items = context["arm"], context["protocol"], context["n_items"]
-    stamp = context["stamp"]
-    full = (f"yes ({n_items} items = names.N_ITEMS_UNSEEN, the full unseen split)"
-            if n_items == names.N_ITEMS_UNSEEN else
-            f"NO -- fixture override expect_n={n_items}; the full unseen split is "
-            f"{names.N_ITEMS_UNSEEN} items")
+    arm, tag, protocol, n_items = (context["arm"], context["tag"], context["protocol"],
+                                   context["n_items"])
+    full = (f"yes (validate_cells: C7 with names.N_ITEMS_UNSEEN = {n_items} items -- the full "
+            "unseen split -- and C9)" if n_items == names.N_ITEMS_UNSEEN else
+            f"no (fixture override expect_n={n_items}: C7 checked {n_items} items; the full "
+            f"unseen split is {names.N_ITEMS_UNSEEN})")
     lines = [f"# exp_14 data-curve import attestation -- {context['run']}",
              "# Written by src.tools.data_curve.import_cells and installed in the same rename "
              f"as the cells; {MANIFEST_BASENAME} lists its sha256.",
-             "# Every run and cell value below was validated (see [validation contract]) or "
-             "hashed by that import; the [import stamp] (echoed per cell) only says when and "
-             "by which code. None of it is a further check.",
-             "", "[run]", f"run_id: {context['run']}", f"arm: {arm}",
-             f"backbone: {ARM_BACKBONE_LABEL[arm]}",
-             f"fraction: {names.FRACTIONS[context['tag']]}", f"fraction_tag: {context['tag']}",
-             f"final_checkpoint: {context['ckpt']}",
-             f"final_checkpoint_sha256: {context['ckpt_sha256']}",
-             f"imported_to: {os.path.relpath(context['dest_dir'], checkout)}",
-             "", "[rows]", f"label: {_row_label(arm, context['tag'])}",
-             f"protocol: {ARM_PROTOCOL_LABEL[arm]}",
-             "protocol_flags: " + " ".join(f"{k}={_value(v)}" for k, v in protocol.items())]
+             "# Each [<section> (<tag>: <detail>)] header says where its values come from:"]
+    lines += [f"#   {name} -- {meaning}" for name, meaning in PROVENANCE_TAGS.items()]
+    lines += ["", _header("run", "configured", "--arm/--tag and code constants; no run "
+                          "contract, split file, model config or training log is read"),
+              f"run_id: {context['run']}", f"arm: {arm}",
+              f"backbone: {ARM_BACKBONE_LABEL[arm]}", f"fraction: {names.FRACTIONS[tag]}",
+              f"fraction_tag: {tag}",
+              f"imported_to: {os.path.relpath(context['dest_dir'], checkout)}",
+              "", _header("final checkpoint", "verified", "C1, C2"),
+              f"final_checkpoint: {context['ckpt']}",
+              f"final_checkpoint_sha256: {context['ckpt_sha256']}",
+              "", _header("expected checkpoint digest", "caller-supplied",
+                          "--expect-ckpt-sha256"),
+              f"expect_ckpt_sha256: {context['expect_ckpt_sha256']}",
+              "syntax: verified (64 lowercase hex characters, names._check_ckpt_sha256)",
+              "equals_final_checkpoint_bytes: verified (C2)",
+              "provenance: not verified (see [limits] N3)",
+              "", _header("rows", "configured", "--arm/--tag and code constants"),
+              f"label: {_row_label(arm, tag)}", f"protocol: {ARM_PROTOCOL_LABEL[arm]}",
+              "protocol_flags: " + " ".join(f"{k}={_value(v)}" for k, v in protocol.items())]
     lines += [f"row_K{K}: {row}" for K, row in zip(context["ks"], context["row_specs"])]
-    lines += ["", "[validation contract]"]
+    lines += ["", _header("validation contract", "verified", "the checks import_run and "
+                          "validate_cells made; every cell below passed all of them")]
     lines += _contract_lines(protocol, n_items, context["ks"], context["seeds"])
-    lines += ["", "# dataset_config_sha256: that file in the importer's worktree, hashed at "
-              "import time (C9 found it readable; the evaluator records only its path).",
-              "# prediction_bundle_sha256: hashed after validation -- recorded, not compared: "
-              "no evaluator records a bundle digest."]
+    lines += ["", _header("limits", "not verified", "what no check of this import "
+                          "establishes")] + _limit_lines()
     for e in files:
-        lines += ["", f"[cell K{e['K']} s{e['seed']}]", f"K: {e['K']}", f"seed: {e['seed']}",
-                  f"eval_name: {e['eval_name']}", f"dataset_config: {e['dataset_config']}",
-                  f"dataset_config_sha256: {e['dataset_config_sha256']}",
-                  f"prediction_bundle_items: {n_items}", f"full_unseen_split: {full}"]
-        lines += [f"{k}: {_value(v)}" for k, v in protocol.items()]
-        lines += [f"steps: {names.EVAL_STEPS}", f"cfg_scale: {names.EVAL_CFG_SCALE}",
-                  f"checkpoint: {context['ckpt']}",
-                  f"checkpoint_sha256: {context['ckpt_sha256']}",
-                  f"metrics_record: {e['source']}", f"metrics_record_sha256: {e['sha256']}",
-                  f"imported_copy: {os.path.relpath(e['dest'], checkout)}",
-                  f"prediction_bundle: {e['bundle']}",
-                  f"prediction_bundle_sha256: {e['bundle_reread']['sha256']}",
-                  "bundle_artifact_contract: "
-                  f"{json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
-                  f"record_source_sha: {e['record_source_sha']}",
-                  f"importer_git_sha: {stamp['importer_git_sha']}",
-                  f"imported_at: {stamp['imported_at']}"]
-    lines += ["", "[import stamp]", "# Time and importer of the FIRST import; an identical "
+        lines += _cell_lines(e, context, checkout, full)
+    lines += ["", STAMP_HEADER, "# Time and importer of the FIRST import; an identical "
               "rerun leaves this file byte-for-byte as it was."]
-    lines += [f"{key}: {stamp[key]}" for key in STAMP_KEYS]
+    lines += [f"{key}: {context['stamp'][key]}" for key in STAMP_KEYS]
     return "\n".join(lines) + "\n"
 
 
@@ -667,8 +734,8 @@ def main(argv=None):
           f"{result['dest_dir']}")
     print(f"manifest: {result['manifest']} (staged, verified, installed in one move; "
           f"{result['installed']})")
-    print(f"attestation: {result['attestation']} (what every cell was validated as; its "
-          "sha256 is in the manifest)")
+    print(f"attestation: {result['attestation']} (per section: configured, caller-supplied, "
+          "verified, re-read or recorded; its sha256 is in the manifest)")
     print("add these rows to worklog/worklog_yixun/gen_model_comparison.py::ROWS, "
           "force-add the JSONs + manifest + attestation, regenerate, commit and push:")
     for row in result["row_specs"]:

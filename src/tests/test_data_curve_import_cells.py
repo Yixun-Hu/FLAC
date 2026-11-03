@@ -517,7 +517,8 @@ def cell_headers(K, seed):
     return (f"[cell K{K} s{seed} (verified: C3-C13 passed for this cell)]",
             f"[cell K{K} s{seed} bundle (re-read: prediction_bundle read once after "
             "validation -- hashed and loaded from the same bytes; nothing compared)]",
-            f"[cell K{K} s{seed} recorded (recorded: copied or hashed; compared with nothing)]")
+            f"[cell K{K} s{seed} recorded (recorded: copied or hashed; compared with "
+            "nothing)]")
 
 
 def full_no(n):
@@ -716,7 +717,8 @@ def test_c2_credits_the_caller_and_no_round_v_overclaim_survives(tmp_path):
     contract = parse_attestation(text)["validation contract"]
     assert list(contract) == [f"C{i}" for i in range(1, 14)]
     assert "to the caller-supplied --expect-ckpt-sha256 (syntax + equality verified; " \
-           "provenance of the expected digest is not verified by the importer)" in contract["C2"]
+           "provenance of the expected digest is not verified by the importer)" \
+           in contract["C2"]
     assert "step=40000" in contract["C1"] and "record.ckpt_sha256" in contract["C4"]
     assert "fa_invariant / [0.0] / 0.0 / bf16" in contract["C5"]
     assert f"== {N_ITEMS} and predictions" in contract["C7"]
