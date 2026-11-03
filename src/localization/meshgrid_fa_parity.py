@@ -741,7 +741,8 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
         score_stability=by_k, **context,
         digest_chains={name: [side.hexdigest() for side in sides]
                        for name, sides in chains.items()},
-        score_tolerance=me.SCORE_TOLERANCE, declared_partition=declared_partition,
+        score_tolerance=None if measurement else me.SCORE_TOLERANCE,
+        declared_partition=declared_partition,
         inputs={"queries": [entry["inputs"]["query_id"] for entry in entries],
                 "batch_rows": int(batch_rows), "source_chunk": int(source_chunk),
                 "num_samples": int(num_samples), "micro_batch": micro, "seed": int(seed),

@@ -2485,3 +2485,26 @@ def test_a_vanilla_merge_refuses_a_shard_carrying_a_frame_average_partition(tmp_
     report = me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "m2"), plan, records,
                              totals=totals)
     assert report["fa_partition_executed"] is None
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F2 (Codex code review rB-F1), finding 1: the drift measurement G3D
+# carries no tolerance of any kind (plan r2 amendment A6 iii)
+# --------------------------------------------------------------------------- #
+def test_g3_carries_its_numeric_tolerances_and_g3d_carries_none(tmp_path):
+    """A6 (iii): ``tolerance``, ``score_tolerance`` and ``match`` are the registered numbers
+    (and a boolean) for the G3 logic gate and null for G3D -- in the gate's report, in its
+    finalized evidence and in the JSON a reader re-loads."""
+    gate = _g3_registered(tmp_path / "g3")
+    measurement = _g3_registered(tmp_path / "g3d", measurement=True)
+    for report in (gate, fp.finalize_evidence(gate, device="cpu", environment=CLEAN_ENVIRONMENT)):
+        for payload in (report, json.loads(json.dumps(report))):
+            assert payload["tolerance"] == 1e-3
+            assert payload["score_tolerance"] == me.SCORE_TOLERANCE
+            assert isinstance(payload["match"], bool)
+    for report in (measurement, fp.finalize_evidence(measurement, device="cpu",
+                                                     environment=CLEAN_ENVIRONMENT)):
+        for payload in (report, json.loads(json.dumps(report))):
+            assert payload["verdict"] == "measurement"
+            assert payload["tolerance"] is None and payload["score_tolerance"] is None
+            assert payload["match"] is None

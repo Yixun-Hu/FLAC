@@ -1,0 +1,4 @@
+# rB-F2 cycle 1 RED (Codex rB-F1 finding 1 HIGH, plan A6 iii: G3D carries no tolerance of any kind), HEAD 1c2b0bfa40b18a10927d7dade21b0eb2d410fda0, 2026-11-03T13:14:25-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_carries_its_numeric_tolerances_and_g3d_carries_none
+1 failed, 144 passed, 11 warnings in 47.98s
+  reason: E   assert (None is None and 0.001 is None)  -- G3D publishes tolerance null but score_tolerance 0.001 (meshgrid_fa_parity.py:744)
