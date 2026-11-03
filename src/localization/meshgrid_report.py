@@ -202,6 +202,16 @@ CKPT_SHA256_NOTE = (
     "their identity by authority after the extract rsync never arrived, so the wrapped digests "
     "are the registered ones. A canonical report refuses any other checkpoint")
 
+#: exp_22 rA-F1 (plan r2 §1 "Controls reused, not rerun"; Codex rA HIGH): the
+#: sparse AGREE retrieval control is ONE completed canonical run, cited -- never
+#: rerun -- by every arm. Its handoff is pinned by digest: the exact bytes the
+#: canonical P1 off-grid probe consumed (offgrid_probe_report.json,
+#: run_gate.retrieval_handoff.sha256; Codex r9z7 APPROVE), committed beside the
+#: exp_22 worklog as retrieval_control_handoff.json. Any other bytes are not the
+#: registered control and are never cited as it.
+REGISTERED_RETRIEVAL_HANDOFF_SHA256 = (
+    "1bf62c05d1bf796025590fc2585ca4041a695471fba6fd460e947cbbf351bbf9")
+
 #: A run that is not the census-gated merge of every shard is not the canonical
 #: pass, and the difference has to be visible in the artifact.
 SINGLE_SHARD_NOTE_TEMPLATE = (
