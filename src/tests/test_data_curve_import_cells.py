@@ -481,7 +481,8 @@ ATTESTATION = "ATTESTATION.txt"
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_BY_K = {1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
                8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
-CONTRACT = "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+CONTRACT = ("clamped/padded callback input "
+            "(float32 cast and 8000-sample crop are scoring-internal)")
 #: A fixed import time, so the stamp is predictable (the importer reads the clock once).
 STAMP_TIME = "2026-11-02T16:00:00-05:00"
 
@@ -593,7 +594,8 @@ def test_the_stock_arm_s_attestation_names_its_own_backbone_and_protocol(tmp_pat
     result, _, _, _ = run_import(tmp_path, arm="van", tag="075")
     sections = read_attestation(result)
     assert sections["run"]["backbone"] == "stock DINOv3-S"
-    assert sections["rows"]["label"] == "data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)"
+    assert sections["rows"]["label"] == \
+        "data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)"
     assert sections["rows"]["protocol"] == "vanilla eval"
     assert sections["rows"]["protocol_flags"] == \
         "cond_method=vanilla frame_avg_angles=null rotate_deg=0.0 cond_autocast=bf16"
@@ -711,7 +713,8 @@ def test_the_clock_is_local_iso_8601_to_the_second():
     assert len(stamp) == len(STAMP_TIME) and stamp[10] == "T" and stamp[-6] in "+-"
 
 
-def test_an_identical_rerun_keeps_the_first_import_s_stamp_byte_for_byte(tmp_path, monkeypatch):
+def test_an_identical_rerun_keeps_the_first_import_s_stamp_byte_for_byte(tmp_path,
+                                                                         monkeypatch):
     times = iter(["2026-11-02T10:00:00-05:00", "2026-11-03T11:11:11-05:00"])
     monkeypatch.setattr(import_cells, "_now_iso", lambda: next(times))
     nas, _, digest = make_run(tmp_path)

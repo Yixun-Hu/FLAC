@@ -40,11 +40,13 @@ published. What this repository can prove -- and does, in
 as one of the generator's own four-field ROWS entries and carries no forbidden substring.
 """
 import argparse
+import datetime
 import glob
 import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 from src.tools.data_curve import names
@@ -307,13 +309,72 @@ def _contract_lines(protocol, n_items, ks, seeds):
     ]
 
 
+#: The ``[import stamp]`` keys, in file order. The only time- or environment-dependent part
+#: of an attestation; ``imported_at`` and ``importer_git_sha`` are echoed in every cell.
+STAMP_KEYS = ("imported_at", "importer", "importer_git_sha", "importer_tracked_tree",
+              "importer_worktree")
+
+
+def _now_iso():
+    """Local time, ISO 8601 to the second with its UTC offset (the worklog's clock)."""
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _importer_identity():
+    """Which code wrote the attestation: the kit worktree's HEAD and its tracked state.
+
+    A record, not a gate -- without git the stamp says ``unavailable`` and the import
+    goes on. Untracked files (run logs) are ignored; any modified tracked file flags the
+    tree as ``modified``, because then HEAD alone does not name the code that ran.
+    """
+    def git(*args):
+        return subprocess.run(["git", "-C", names.REPO_ROOT, *args], capture_output=True,
+                              text=True, timeout=60, check=True).stdout
+    try:
+        sha = git("rev-parse", "HEAD").strip()
+        dirty = git("status", "--porcelain", "--untracked-files=no").strip()
+    except (OSError, subprocess.SubprocessError) as err:
+        sha = " ".join(f"unavailable ({type(err).__name__}: {err})".split())   # one line
+        tree = "unavailable"
+    else:
+        tree = "clean" if not dirty else "modified (tracked files differ from HEAD)"
+    return {"importer": "src.tools.data_curve.import_cells", "importer_git_sha": sha,
+            "importer_tracked_tree": tree, "importer_worktree": names.REPO_ROOT}
+
+
+def _existing_stamp(dest_dir):
+    """The ``[import stamp]`` of an attestation already installed at ``dest_dir``, or None.
+
+    An identical rerun renders with THIS stamp instead of a fresh one, so its bytes -- and
+    the manifest line that hashes them -- match what the first import installed, and the
+    unchanged ``_identical`` comparison still decides. It is never written anywhere: a
+    destination that differs in anything else is refused before any write.
+    """
+    try:
+        with open(os.path.join(dest_dir, ATTESTATION_BASENAME)) as fin:
+            text = fin.read()
+    except OSError:
+        return None
+    stamp, inside = {}, False
+    for line in text.splitlines():
+        if line.startswith("["):
+            inside = line == "[import stamp]"
+        elif inside and not line.startswith("#"):
+            key, sep, value = line.partition(": ")
+            if sep and key in STAMP_KEYS:
+                stamp[key] = value
+    return stamp if set(stamp) == set(STAMP_KEYS) else None
+
+
 def _render_attestation(context, files, checkout):
     """``ATTESTATION.txt``: ``[section]`` headers over ``key: value`` lines; ``#`` = comment.
 
-    Built only from values this import validated (the contract below) or hashed; nothing in
-    it is time-dependent, so an identical rerun renders identical bytes.
+    Built only from values this import validated (the contract below) or hashed, plus
+    ``context["stamp"]`` -- the one time-dependent part, which ``_stage_and_install`` takes
+    from an already-installed attestation when there is one.
     """
     arm, protocol, n_items = context["arm"], context["protocol"], context["n_items"]
+    stamp = context["stamp"]
     full = (f"yes ({n_items} items = names.N_ITEMS_UNSEEN, the full unseen split)"
             if n_items == names.N_ITEMS_UNSEEN else
             f"NO -- fixture override expect_n={n_items}; the full unseen split is "
@@ -354,7 +415,12 @@ def _render_attestation(context, files, checkout):
                   f"prediction_bundle_sha256: {e['bundle_sha256']}",
                   "bundle_artifact_contract: "
                   f"{json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
-                  f"record_source_sha: {e['record_source_sha']}"]
+                  f"record_source_sha: {e['record_source_sha']}",
+                  f"importer_git_sha: {stamp['importer_git_sha']}",
+                  f"imported_at: {stamp['imported_at']}"]
+    lines += ["", "[import stamp]", "# Time and importer of the FIRST import; an identical "
+              "rerun leaves this file byte-for-byte as it was."]
+    lines += [f"{key}: {stamp[key]}" for key in STAMP_KEYS]
     return "\n".join(lines) + "\n"
 
 
@@ -374,8 +440,9 @@ def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files, attestatio
     rooted at the FLAC checkout; the upper half is commented out (``sha256sum`` skips ``#``
     lines) and names the NAS path each copy came from, which is the half a reader needs and
     ``sha256sum`` has no room for. The attestation's line closes the lower half, so
-    ``sha256sum -c`` from the checkout root verifies it with the cells. Nothing in it is
-    time-dependent, so an identical rerun produces identical bytes -- which is what makes
+    ``sha256sum -c`` from the checkout root verifies it with the cells. Its one
+    time-dependent input is that digest, and an identical rerun re-renders the attestation
+    with the installed stamp, so it still produces identical bytes -- which is what makes
     the idempotent path checkable.
     """
     path = os.path.join(staging, MANIFEST_BASENAME)
@@ -402,8 +469,9 @@ def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256, contex
     Installation is all-or-nothing, not just validation (codex D3 finding 3). The complete
     published directory -- ten cells, their attestation AND the manifest -- is assembled in
     a sibling staging directory, every copied byte re-hashed there, and only then moved
-    into place with a single ``os.rename``. A failure at any point therefore leaves no destination at all,
-    rather than a partial one that the generator's glob would average without noticing.
+    into place with a single ``os.rename``. A failure at any point therefore leaves no
+    destination at all, rather than a partial one that the generator's glob would average
+    without noticing.
 
     An existing destination is never merged into: byte-identical means the import already
     happened and this is an idempotent rerun; anything else is a refusal, because a stale
@@ -425,6 +493,8 @@ def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256, contex
                         f"{entry['sha256']} -- nothing was imported"], None
             entry["dest"] = os.path.join(dest_dir, basename)
             entry["record_source_sha"] = _recorded_source_sha(staged)
+        context = dict(context, stamp=_existing_stamp(dest_dir)
+                       or dict(_importer_identity(), imported_at=_now_iso()))
         attestation = (_write_attestation(staging, checkout, context, files),
                        os.path.join(dest_dir, ATTESTATION_BASENAME))
         _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files, attestation)
