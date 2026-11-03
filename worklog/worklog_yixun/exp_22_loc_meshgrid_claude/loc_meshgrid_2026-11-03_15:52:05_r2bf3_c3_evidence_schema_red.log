@@ -1,0 +1,17 @@
+# exp_22 rB-F3 cycle 3 RED (the full evidence schema; the systematic type-substitution sweep; Codex rB-F2 finding 4 part 2), HEAD 45f492e9 + working tree (new tests only), 2026-11-03T15:52:05-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest -k 'systematic_type_substitution or unregistered_field' --tb=line
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('created_ut...tc', {}), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('batched', ...ed', []), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('created_ut...tc', {}), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('context', ...xt', []), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('created_ut...tc', {}), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3432: AssertionError: assert [('created_ut...tc', {}), ...] == []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3445: AssertionError: (['tolerance_override'], [])
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[G1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[G2]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[G3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[G3D]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[G0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_systematic_type_substitution_is_always_a_named_reason[GV]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_unregistered_field_or_an_edited_registered_text_does_not_re_verify
+7 failed, 275 deselected in 11.03s

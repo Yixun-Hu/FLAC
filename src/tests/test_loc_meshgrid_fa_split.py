@@ -3390,3 +3390,56 @@ def test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator(
     # the very validator the ledger reader applies to every segment's counts
     assert any(needle in reason for reason in me.counts_reasons(
         edited["executed_partition"]["counts"], "executed partition")[0])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 4 (part 2): the FULL evidence schema --
+# every top-level and inputs field of each gate, exactly, each of its JSON type -- so a
+# systematic type substitution is always a named reason, never an exception
+# --------------------------------------------------------------------------- #
+SUBSTITUTES = [None, "x", 7, 2.5, True, [], {}]
+
+
+def _kind(value):
+    return {bool: "bool", int: "int", float: "float", str: "str", list: "list", dict: "dict",
+            type(None): "null"}[type(value)]
+
+
+def _real_evidence(tmp_path, monkeypatch, gate):
+    if gate in ("G3", "G3D"):
+        return _registered_gate3(tmp_path, monkeypatch, gate)[1]
+    return _real_gate_evidence(tmp_path, monkeypatch, gate)
+
+
+@pytest.mark.parametrize("gate", ["G1", "G2", "G3", "G3D", "G0", "GV"])
+def test_a_systematic_type_substitution_is_always_a_named_reason(tmp_path, monkeypatch,
+                                                                 clean_env, gate):
+    """Every top-level and ``inputs`` field of a real evidence, replaced by a value of each
+    other JSON type, and deleted: ``reverify_gate_evidence`` names a reason every time and
+    never raises (Codex rB-F2: "validate the full evidence schema")."""
+    evidence = json.loads(json.dumps(_real_evidence(tmp_path, monkeypatch, gate)))
+    assert fp.reverify_gate_evidence(evidence) == []
+    missed = []
+    for path in [[field] for field in evidence] + [["inputs", field]
+                                                   for field in evidence["inputs"]]:
+        original = evidence[path[0]] if len(path) == 1 else evidence["inputs"][path[1]]
+        for value in [s for s in SUBSTITUTES if _kind(s) != _kind(original)] + ["<deleted>"]:
+            edited = (_tamper(evidence, path, delete=True) if value == "<deleted>"
+                      else _tamper(evidence, path, value))
+            reasons = fp.reverify_gate_evidence(edited)
+            if not (reasons and all(isinstance(reason, str) for reason in reasons)):
+                missed.append((".".join(path), value))
+    assert missed == []
+    top, inputs = fp.EVIDENCE_SCHEMA[gate]
+    assert set(evidence) == set(top) and set(evidence["inputs"]) == set(inputs)
+
+
+def test_an_unregistered_field_or_an_edited_registered_text_does_not_re_verify(
+        tmp_path, monkeypatch, clean_env):
+    evidence = _real_evidence(tmp_path, monkeypatch, "G3")
+    for path, value, needle in ((["tolerance_override"], 1.0, "unregistered fields"),
+                                (["inputs", "smuggled"], 1, "unregistered fields"),
+                                (["note"], "a different note", "registered text"),
+                                (["reverify_note"], "trust me", "registered text")):
+        reasons = fp.reverify_gate_evidence(_tamper(evidence, path, value))
+        assert any(needle in reason for reason in reasons), (path, reasons)

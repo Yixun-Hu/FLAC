@@ -1350,6 +1350,71 @@ def _reverify_replay(evidence, inputs):
     return reasons
 
 
+def _schema(spec):
+    """``"field:kind field:kind ..."`` -> ``{field: kind}``."""
+    return dict(item.split(":") for item in spec.split())
+
+
+_TOP = ("gate:str name:str verdict:str reasons:list note:str inputs:dict provenance:dict "
+        "verdict_clauses:dict reverify_note:str created_utc:str")
+_INPUTS = ("binding:dict identity:dict cond_autocast_requested:str cond_autocast_enabled:bool "
+           "cond_autocast_dtype:str cond_autocast_device_type:str batch_rows:int "
+           "source_chunk:int ckpt_path:str device:str")
+_QUERY = ("angles:list candidate_indices:list micro_batch:int n_candidates:int position:int "
+          "query_id:str receiver_id:str room_id:str")
+_PRODUCTION = ("coverage:dict declared_partition:dict digest_chains:dict executed_partition:dict "
+               "per_key:dict probe_queries:dict queries:list score_stability:dict")
+_PRODUCTION_INPUTS = ("anchor_key_set_equal:bool angles:list micro_batch:int noise_policy:str "
+                      "num_samples:int prefixes:list probe_report:dict queries:list seed:int "
+                      "tau:float")
+#: every gate's evidence SCHEMA (Codex rB-F2 finding 4): each top-level and ``inputs`` field
+#: and its JSON type -- a missing, extra or retyped field is a named reason
+EVIDENCE_SCHEMA = {gate: (_schema(f"{_TOP} {top}"), _schema(f"{_INPUTS} {inputs}"))
+                   for gate, (top, inputs) in {
+    "G1": ("match:bool tolerance:float chunks:list coverage:dict executed_partition:dict "
+           "per_key:dict", _QUERY),
+    "G2": ("match:bool tolerance:float batched:dict counter_tests:dict executed_partition:dict "
+           "memoization:dict per_key:dict", _QUERY),
+    "G3": (f"match:bool tolerance:float score_tolerance:float {_PRODUCTION}", _PRODUCTION_INPUTS),
+    "G3D": (f"match:null tolerance:null score_tolerance:null complete:bool context:dict "
+            f"{_PRODUCTION}", _PRODUCTION_INPUTS),
+    "G0": ("match:bool tolerance:float executed_partition:null probe_queries:dict queries:list",
+           "anchor_key_set_equal:bool expected_observation_bank_sha256:str "
+           "observation_bank_sha256:str probe_report:dict published_binding:dict "
+           "published_binding_sha256:str queries:list run_dir:str"),
+    "GV": ("match:bool tolerance:float vanilla_cache_parity:dict",
+           "n_candidates:int query_id:str")}.items()}
+
+
+def _is_kind(value, kind):
+    if kind == "null" or isinstance(value, bool):
+        return value is None if kind == "null" else kind == "bool"
+    return isinstance(value, {"str": str, "int": int, "float": float, "dict": dict,
+                              "list": list, "bool": bool}[kind])
+
+
+def _shape_reasons(where, payload, schema):
+    missing, extra = sorted(set(schema) - set(payload)), sorted(set(payload) - set(schema))
+    reasons = ([f"schema: {where} lacks {missing}"] if missing else []) + (
+        [f"schema: {where} carries unregistered fields {extra}"] if extra else [])
+    return reasons + [f"schema: {where}.{field} is {type(payload[field]).__name__}, not {kind}"
+                      for field, kind in schema.items()
+                      if field in payload and not _is_kind(payload[field], kind)]
+
+
+def schema_reasons(gate, evidence):
+    """The evidence's own shape (Codex rB-F2 finding 4): every top-level and ``inputs`` field
+    of :data:`EVIDENCE_SCHEMA`, exactly, each of its JSON type, and the registered texts."""
+    top, inputs = EVIDENCE_SCHEMA[gate]
+    reasons = _shape_reasons("evidence", evidence, top)
+    if isinstance(evidence.get("inputs"), dict):
+        reasons += _shape_reasons("inputs", evidence["inputs"], inputs)
+    return reasons + [f"schema: the evidence's {field} is not the registered text"
+                      for field, text in (("note", GATE_NOTES[gate]), ("reverify_note",
+                                                                       REVERIFY_NOTE))
+                      if evidence.get(field) != text]
+
+
 #: the gates :func:`reverify_gate_evidence` re-verifies, by their comparison clauses
 REVERIFIERS = {"G1": _reverify_split, "G2": _reverify_cache, "G3": _reverify_production,
                "G3D": _reverify_production, "G0": _reverify_replay,
@@ -1367,7 +1432,8 @@ def reverify_gate_evidence(evidence):
     gate = evidence.get("gate") if isinstance(evidence, dict) else None
     if not isinstance(gate, str) or gate not in REVERIFIERS:
         return [f"gate: {gate!r} is not one of the re-verifiable gates {sorted(REVERIFIERS)}"]
-    inputs, clauses = evidence.get("inputs") or {}, {}
+    inputs, clauses, schema = evidence.get("inputs") or {}, {}, []
+    _collect(schema, "schema", lambda: schema_reasons(gate, evidence))
     for name, check in (("comparison", lambda: REVERIFIERS[gate](evidence, inputs)),
                         ("autocast", lambda: autocast_reasons(gate, inputs)),
                         ("identity", lambda: _reverify_identity(gate, inputs)),
@@ -1382,4 +1448,4 @@ def reverify_gate_evidence(evidence):
         verdict = _verdict_reasons(gate, evidence, clauses)
     except MALFORMED as error:
         verdict = [f"verdict: the evidence is malformed ({type(error).__name__}: {error})"]
-    return [reason for why in clauses.values() for reason in why] + verdict
+    return schema + [reason for why in clauses.values() for reason in why] + verdict
