@@ -212,6 +212,30 @@ def coverage(sizes, micro):
     return {"full": full, "tail": tail, "complete": bool(full and tail)}
 
 
+def probe_query_set(registered, consumed):
+    """The registered probe-query set against the cases a gate consumed (Codex rB finding 1;
+    plan r2 amendment A4 v): every one, once, nothing else -- ordered keys and digests."""
+    from src.localization.crossarm import canonical_sha256
+
+    registered = [str(query) for query in (registered or [])]
+    consumed = [str(query) for query in consumed]
+    block = {"registered": registered, "registered_sha256": canonical_sha256(registered),
+             "consumed": consumed, "consumed_sha256": canonical_sha256(consumed),
+             "n_registered": len(registered), "n_consumed": len(consumed),
+             "missing": [query for query in registered if query not in set(consumed)],
+             "unexpected": [query for query in consumed if query not in set(registered)],
+             "repeated": sorted({query for query in consumed if consumed.count(query) > 1})}
+    reasons = [] if registered else ["no registered probe-query set was declared; a gate over "
+                                     "an unstated set proves nothing"]
+    reasons += [f"{len(block[name])} {what} (first {block[name][:3]}); a gate consumes every "
+                f"registered probe query exactly once" for name, what in (
+                    ("missing", "registered probe queries were not consumed"),
+                    ("unexpected", "consumed queries are not registered probe queries"),
+                    ("repeated", "registered probe queries were consumed twice")) if block[name]]
+    block["complete"] = not reasons
+    return block, reasons
+
+
 def gate_report(gate, reasons, **fields):
     """The verdict block every gate shares."""
     return {"gate": gate, "name": GATE_NAMES[gate], "verdict": "FAIL" if reasons else "PASS",
@@ -519,7 +543,7 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
 
 def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me.NUM_SAMPLES,
                       seed=me.SEED, noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU,
-                      prefixes=me.K_PREFIXES, declared_partition=None):
+                      prefixes=me.K_PREFIXES, declared_partition=None, expected_queries=None):
     """G3 -- production batching against a faithful replay, with score/argmax stability."""
     split = require_split(engine)
     view = gate_engine(engine)
@@ -534,6 +558,9 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                                        chains=chains)
         entries.append(entry)
         reasons += [f"{case['query'].query_id}: {item}" for item in why]
+    queries, why_queries = probe_query_set(expected_queries,
+                                           [entry["inputs"]["query_id"] for entry in entries])
+    reasons += why_queries
     covered = {"scored": coverage(sizes["scored"], micro),
                "source": coverage(sizes["source"], int(source_chunk))}
     reasons += [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
@@ -554,7 +581,8 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
             block["n_argmax_equal"] += int(facts["argmax_equal"])
             block["n_at_risk"] += int(facts["at_risk"])
     return gate_report(
-        "G3", reasons, queries=entries, per_key=per_key, coverage=covered, score_stability=by_k,
+        "G3", reasons, queries=entries, probe_queries=queries, per_key=per_key, coverage=covered,
+        score_stability=by_k,
         digest_chains={name: [side.hexdigest() for side in sides]
                        for name, sides in chains.items()},
         score_tolerance=me.SCORE_TOLERANCE, declared_partition=declared_partition,
@@ -607,7 +635,7 @@ ANCHOR_EVIDENCE = ("path", "sha256", "pinned_sha256", "query_ids", "query_ids_sh
 def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_bank_sha256,
                               expected_observation_bank_sha256=FROZEN_OBSERVATION_BANK_SHA256,
                               run_binding=None, seed=me.SEED, num_samples=me.NUM_SAMPLES,
-                              noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU):
+                              noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU, expected_queries=None):
     """G0 -- the vanilla path still reproduces the published P1 rows of the probe queries."""
     from src.localization import meshgrid_drift_measurement as dm
     from src.localization import meshgrid_offgrid_probe as mop
@@ -654,14 +682,15 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
             reasons.append(f"{query.query_id}: the float32 aggregate moved by "
                            f"{matched['aggregate']['max_abs_delta']:.3g}")
         entries.append(entry)
-    if not entries:
-        reasons.append("no registered probe query was replayed")
+    queries, why_queries = probe_query_set(expected_queries,
+                                           [entry["query_id"] for entry in entries])
+    reasons += why_queries
     key_set_equal = (sorted(entry["query_id"] for entry in entries)
                      == sorted(anchor.get("query_ids") or []) == sorted(frozen_digests))
     if not key_set_equal:
         reasons.append("the replayed queries are not exactly the anchor's key set "
                        f"({len(entries)} replayed, {len(anchor.get('query_ids') or [])} frozen)")
-    return gate_report("G0", reasons, queries=entries,
+    return gate_report("G0", reasons, queries=entries, probe_queries=queries,
                        inputs={"run_dir": str(run_dir), "published_binding_sha256": published_sha,
                                "probe_report": {key: anchor.get(key) for key in ANCHOR_EVIDENCE},
                                "anchor_key_set_equal": key_set_equal,

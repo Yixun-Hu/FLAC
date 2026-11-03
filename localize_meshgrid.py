@@ -181,8 +181,9 @@ def parse_args(argv=None):
                              "<out-dir>/vanilla_replay_regression.json")
     parser.add_argument("--replay-probe-report", default=None,
                         help="where the committed canonical P1 off-grid probe report lives "
-                             "(default: its worklog path); its bytes must hash to the pinned "
-                             "8c5fd5e8... or the gate refuses (Codex rB finding 2)")
+                             "(default: its worklog path): G0's frozen grid anchor and the "
+                             "registered 16 probe queries G0 and G3 consume; its bytes must hash "
+                             "to the pinned 8c5fd5e8... or the gate refuses (Codex rB 1/2)")
     parser.add_argument("--dataset-root", default="AcousticRooms",
                         help="where the observed RIRs the frozen observation bank hashes live")
     parser.add_argument("--parity-candidates", type=int, default=None,
@@ -293,9 +294,9 @@ def validate_args(args):
         _refuse("--replay-against is the vanilla no-regression form of --replay-check")
     if args.replay_against and str(args.cond_method) != "vanilla":
         _refuse("--replay-against replays the published P1 rows through the vanilla path")
-    if args.probe is None and args.probe_room and not (args.fa_production_parity_check
-                                                       or args.replay_against):
-        _refuse("--probe-room only bounds the throughput probe (or gate 3); pass --probe too")
+    if args.probe is None and args.probe_room:
+        _refuse("--probe-room only bounds the throughput probe (pass --probe too); a parity gate "
+                "consumes all 16 registered probe queries (plan r2 amendment A4 v)")
     if args.probe is not None:
         if int(args.probe) < 1:
             _refuse("--probe must cover at least one query")
@@ -729,11 +730,12 @@ def _run_replay_check(args, engine, plan, records, loader, binding=None):
             anchor = fp.load_probe_anchor(args.replay_probe_report or fp.COMMITTED_PROBE_REPORT)
         except (OSError, ValueError, KeyError) as error:
             _refuse(f"G0 anchor: {error}")
+        probes, ordered, anchor = _registered_probes(args, plan, anchor)
         bank = mop.compute_observation_bank_digest(args.audit_report, args.context_manifest,
                                                    dataset_root=args.dataset_root)
         report = fp.vanilla_replay_regression(
-            engine, _probe_cases(args, plan, records, loader), args.replay_against,
-            anchor=anchor,
+            engine, _probe_cases(args, plan, records, loader, probes), args.replay_against,
+            anchor=anchor, expected_queries=ordered,
             observation_bank_sha256=bank["observation_bank_sha256"], run_binding=binding,
             seed=args.seed, num_samples=args.num_samples, noise_policy=args.noise_policy,
             tau=args.tau)
@@ -772,15 +774,31 @@ def _first_query(plan, records, loader):
     _refuse("the stream ended before the first registered query")
 
 
-def _probe_cases(args, plan, records, loader):
-    """Gate 3's cases: the registered probe queries (one room with --probe-room), streamed."""
+def _registered_probes(args, plan, anchor=None):
+    """``(probes, ordered ids, anchor)``: the audit's registered probe queries, which must be
+    exactly the 16 the pinned committed probe report holds (plan r2 amendment A4 v)."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    if anchor is None:
+        try:
+            anchor = fp.load_probe_anchor(args.replay_probe_report or fp.COMMITTED_PROBE_REPORT)
+        except (OSError, ValueError, KeyError) as error:
+            _refuse(f"probe anchor: {error}")
+    probes = me.registered_probe_queries(plan)
+    ordered = [probes[room] for room in sorted(probes)]
+    if sorted(ordered) != sorted(anchor["query_ids"]):
+        _refuse(f"the audit's {len(ordered)} registered probe queries are not the "
+                f"{anchor['n_queries']} of the committed probe report "
+                f"{anchor['sha256'][:12]}...; a gate runs over the registered set only")
+    return probes, ordered, anchor
+
+
+def _probe_cases(args, plan, records, loader, probes=None):
+    """The gates' cases: EVERY registered probe query, streamed -- or a refusal (Codex rB 1)."""
     from src.localization.meshgrid_fa_parity import probe_case
 
-    probes = me.registered_probe_queries(plan)
-    if args.probe_room and args.probe_room not in probes:
-        _refuse(f"--probe-room {args.probe_room!r} is not one of the {len(probes)} audited rooms")
-    rooms = [args.probe_room] if args.probe_room else sorted(probes)
-    wanted = {probes[room]: room for room in rooms}
+    probes = me.registered_probe_queries(plan) if probes is None else probes
+    wanted = {query_id: room for room, query_id in probes.items()}
     by_position = {int(record["position"]): record for record in records}
     remaining = set(wanted)
     for position, (obs, md) in enumerate(_iter_items(loader)):
@@ -795,6 +813,9 @@ def _probe_cases(args, plan, records, loader):
         yield probe_case(room, query, guarded, obs)
         if not remaining:          # the rest of the stream decides nothing for these cases
             return
+    _refuse(f"the stream ended with {len(remaining)} of the {len(wanted)} registered probe "
+            f"queries unconsumed (first {sorted(remaining)[:3]}); a gate covers every one "
+            "(plan r2 amendment A4 v)")
 
 
 def _gate_inputs(args, binding):
@@ -824,8 +845,10 @@ def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
         report = fp.split_parity(engine, query, me.GuardedMetadata(md), micro_batch=micro,
                                  n_candidates=args.parity_candidates)
     else:
+        probes, ordered, _anchor = _registered_probes(args, plan)
         report = fp.production_parity(
-            engine, _probe_cases(args, plan, records, loader), batch_rows=args.batch_rows,
+            engine, _probe_cases(args, plan, records, loader, probes), expected_queries=ordered,
+            batch_rows=args.batch_rows,
             source_chunk=args.source_chunk, num_samples=args.num_samples, seed=args.seed,
             noise_policy=args.noise_policy, tau=args.tau,
             prefixes=tuple(int(k) for k in args.k_prefixes),

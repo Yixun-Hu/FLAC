@@ -996,6 +996,17 @@ def _g3_cases(tmp_path, positions=(0, 3)):
 G3_KW = {"batch_rows": 8, "source_chunk": 3, "num_samples": 4, "prefixes": (1, 4)}
 
 
+def _ids(cases):
+    """The registered probe-query set a gate over ``cases`` must consume (in case order)."""
+    return [case["query"].query_id for case in cases]
+
+
+def _g3(engine, cases, **kwargs):
+    """Gate 3 over ``cases`` with exactly those cases registered."""
+    kwargs.setdefault("expected_queries", _ids(cases))
+    return fp.production_parity(engine, cases, **kwargs)
+
+
 def _quality_keys(payload, found=None):
     found = set() if found is None else found
     if isinstance(payload, dict):
@@ -1023,7 +1034,7 @@ def test_a_probe_case_carries_the_receivers_whole_union_in_camera_frame(tmp_path
 
 
 def test_gate3_passes_on_a_batch_invariant_stack_and_covers_full_and_tail_batches(tmp_path):
-    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+    report = _g3(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
                                   declared_partition=FA_DECLARED)
     assert report["gate"] == "G3" and report["name"] == "fa_production_parity"
     assert report["tolerance"] == 1e-3 and report["score_tolerance"] == me.SCORE_TOLERANCE
@@ -1048,7 +1059,7 @@ def test_gate3_passes_on_a_batch_invariant_stack_and_covers_full_and_tail_batche
 def test_gate3_tolerates_backbone_batch_noise_within_the_registered_bound(tmp_path):
     engine = FaSyntheticEngine()
     engine.conditioner = BatchSensitiveFa()               # 1e-4 per row of batch size
-    report = fp.production_parity(engine, _g3_cases(tmp_path), **G3_KW,
+    report = _g3(engine, _g3_cases(tmp_path), **G3_KW,
                                   declared_partition=FA_DECLARED)
     assert report["verdict"] == "PASS", report["reasons"]
     worst = max(entry["max_abs_diff"] for key, entry in report["per_key"].items()
@@ -1063,7 +1074,7 @@ def test_gate3_fails_above_the_registered_bound_and_names_the_keys(tmp_path):
 
     engine = FaSyntheticEngine()
     engine.conditioner = Noisy()
-    report = fp.production_parity(engine, _g3_cases(tmp_path), **G3_KW,
+    report = _g3(engine, _g3_cases(tmp_path), **G3_KW,
                                   declared_partition=FA_DECLARED)
     assert report["verdict"] == "FAIL"
     assert any("context_audio" in reason for reason in report["reasons"])
@@ -1071,7 +1082,7 @@ def test_gate3_fails_above_the_registered_bound_and_names_the_keys(tmp_path):
 
 def test_gate3_refuses_an_executed_partition_that_is_not_the_declared_one(tmp_path):
     declared = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=16)
-    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+    report = _g3(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
                                   declared_partition=declared)
     assert report["verdict"] == "FAIL"
     assert any("source_cache.candidate_micro_batch" in reason for reason in report["reasons"])
@@ -1081,14 +1092,14 @@ def test_gate3_without_a_tail_batch_does_not_pass(tmp_path):
     cases = _g3_cases(tmp_path)
     sizes = [case["query"].n_candidates for case in cases]
     # one candidate per scored batch: every scored batch is full, none is a tail
-    report = fp.production_parity(FaSyntheticEngine(), cases, batch_rows=4, source_chunk=3,
-                                  num_samples=4, prefixes=(1, 4))
+    report = _g3(FaSyntheticEngine(), cases, batch_rows=4, source_chunk=3,
+                 num_samples=4, prefixes=(1, 4))
     assert report["coverage"]["scored"] == {"full": sum(sizes), "tail": 0, "complete": False}
     assert report["verdict"] == "FAIL" and any("coverage" in r for r in report["reasons"])
 
 
 def test_gate3_evidence_reads_no_localization_quality(tmp_path):
-    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+    report = _g3(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
                                   declared_partition=FA_DECLARED)
     evidence = fp.finalize_evidence(report, device="cpu",
                                     environment={"git_sha": "a" * 40, "git_status_dirty": False,
@@ -1125,7 +1136,7 @@ def test_the_gate_modes_validate_their_registered_conditions(tmp_path):
         driver.validate_args(_gate_args(tmp_path, "--fa-split-parity-check",
                                         protocol=_off(ENG._VANILLA_PROTOCOL)))
     # gate 3 is the PRODUCTION batching and autocast, nothing else
-    g3 = _gate_args(tmp_path, "--fa-production-parity-check", "--probe-room", "B/B_idx_2")
+    g3 = _gate_args(tmp_path, "--fa-production-parity-check")
     assert driver.validate_args(g3) and driver.writes_query_artifacts(g3) is False
     for protocol, flag in ((_off(ENG._FA_PROTOCOL), "--cond-autocast"),
                            ([t if t != "256" else "64" for t in ENG._FA_PROTOCOL], "--batch-rows"),
@@ -1190,11 +1201,22 @@ def test_the_drivers_cache_parity_runs_gate2_under_fa_and_the_vanilla_proof_othe
     assert not os.path.exists(tmp_path / "vanilla_gates" / "fa_cache_parity.json")
 
 
-def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsys):
+def _fixture_anchor(tmp_path, monkeypatch, plan):
+    """The fixture's registered probe queries pinned as the committed probe report."""
+    probes = me.registered_probe_queries(plan)
+    anchor = _fake_anchor(tmp_path, monkeypatch, {
+        probes[room]: {"row_sha256": "1" * 64, "sims_sha256": "2" * 64} for room in sorted(probes)},
+        name="fixture_probe_report.json")
+    return anchor
+
+
+def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsys, monkeypatch):
     import localize_meshgrid as driver
 
     plan, records, loader = _driver_stack(tmp_path)
-    args = _gate_args(tmp_path, "--fa-production-parity-check")
+    anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
+    args = _gate_args(tmp_path, "--fa-production-parity-check", "--replay-probe-report",
+                      anchor["path"])
     args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
     binding = {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"}
     code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
@@ -1205,11 +1227,11 @@ def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsy
     assert evidence["executed_partition"]["executed"] == FA_DECLARED
     assert code == (0 if evidence["verdict"] == "PASS" else 1)
     assert f"GATE G3 fa_production_parity: {evidence['verdict']}" in capsys.readouterr().out
-    # --probe-room bounds it to that room's registered probe query
-    args.probe_room = "B/B_idx_2"
-    driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
-    evidence = json.load(open(tmp_path / "gates" / "fa_production_parity.json"))
-    assert evidence["inputs"]["queries"] == [probes["B/B_idx_2"]]
+    # the exact ordered registered set and its digest travel with the verdict
+    ordered = [probes[room] for room in sorted(probes)]
+    assert evidence["probe_queries"]["registered"] == ordered
+    assert evidence["probe_queries"]["registered_sha256"] == canonical_sha256(ordered)
+    assert evidence["probe_queries"]["complete"] is True
 
 
 # --------------------------------------------------------------------------- #
@@ -1277,7 +1299,8 @@ def test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly(tmp_path, 
     anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
     report = fp.vanilla_replay_regression(
         ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
-        expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
+        expected_observation_bank_sha256="o" * 64, run_binding=binding,
+        expected_queries=_ids(cases), **G0_KW)
     assert report["gate"] == "G0" and report["name"] == "vanilla_replay_regression"
     assert report["verdict"] == "PASS", report["reasons"]
     assert len(report["queries"]) == 2
@@ -1379,8 +1402,8 @@ def test_the_driver_runs_the_vanilla_regression_replay(tmp_path, monkeypatch, ca
 def test_gate3_publishes_a_digest_chain_per_key_and_side(tmp_path):
     """Per-chunk digests of 5,000-candidate queries would bloat the evidence; an ordered
     sha256 chain of them per key and side is compact and re-derivable by a re-run."""
-    first = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path / "a"), **G3_KW)
-    second = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path / "b"), **G3_KW)
+    first = _g3(FaSyntheticEngine(), _g3_cases(tmp_path / "a"), **G3_KW)
+    second = _g3(FaSyntheticEngine(), _g3_cases(tmp_path / "b"), **G3_KW)
     chains = first["digest_chains"]
     assert set(chains) >= set(FA_IDS)
     for key in FA_IDS:
@@ -1391,7 +1414,7 @@ def test_gate3_publishes_a_digest_chain_per_key_and_side(tmp_path):
 
     engine = FaSyntheticEngine()
     engine.conditioner = BatchSensitiveFa()
-    noisy = fp.production_parity(engine, _g3_cases(tmp_path / "c"), **G3_KW)
+    noisy = _g3(engine, _g3_cases(tmp_path / "c"), **G3_KW)
     assert noisy["digest_chains"]["context_audio"][0] != noisy["digest_chains"]["context_audio"][1]
 
 
@@ -1486,8 +1509,8 @@ def test_gate3_holds_on_the_real_conditioning_classes(tmp_path):
     # a bounded slice keeps the CPU cost small: the first 9 candidates of the query
     query.candidate_indices = query.candidate_indices[:9]
     # source chunk 4: the union of 99 leaves a tail of 3 (chunk 3 would leave none)
-    report = fp.production_parity(TinyRealEngine(), [case], batch_rows=8, source_chunk=4,
-                                  num_samples=4, prefixes=(1, 4))
+    report = _g3(TinyRealEngine(), [case], batch_rows=8, source_chunk=4,
+                 num_samples=4, prefixes=(1, 4))
     assert report["verdict"] == "PASS", report["reasons"]
     assert report["executed_partition"]["violations"] == []
 
@@ -1496,20 +1519,17 @@ def test_the_gate_cases_stop_the_stream_after_the_last_wanted_query(tmp_path):
     import localize_meshgrid as driver
 
     plan, records, loader = _driver_stack(tmp_path)
-    args = _gate_args(tmp_path, "--fa-production-parity-check", "--probe-room", "A/A_idx_1")
+    args = _gate_args(tmp_path, "--fa-production-parity-check")
     pulled = []
 
     def stream():
-        for position, item in enumerate(loader):
+        for position, item in enumerate(list(loader) + [loader[-1]]):   # one item past the end
             pulled.append(position)
             yield item
 
     cases = list(driver._probe_cases(args, plan, records, stream()))
-    assert [case["query"].position for case in cases] == [0]
-    assert pulled == [0]                       # nothing after the last wanted query is loaded
-    args.probe_room = "Nowhere/Nowhere_idx_1"
-    with pytest.raises(SystemExit, match="probe-room"):
-        list(driver._probe_cases(args, plan, records, iter(loader)))
+    assert [case["query"].position for case in cases] == [0, 3]
+    assert pulled == [0, 1, 2, 3]              # nothing after the last wanted query is loaded
 
 
 def test_gate2_on_a_single_candidate_cannot_pass_and_does_not_crash(tmp_path):
@@ -1603,3 +1623,89 @@ def test_gate0_refuses_an_anchor_that_is_not_the_pinned_report(tmp_path, monkeyp
         expected_observation_bank_sha256="o" * 64, run_binding=binding, **G0_KW)
     assert report["verdict"] == "FAIL"
     assert any("pinned" in reason for reason in report["reasons"])
+
+
+@pytest.mark.parametrize("deleted", ["early", "late"])
+def test_the_gate_cases_refuse_a_stream_missing_a_registered_probe_query(tmp_path, deleted):
+    """Codex rB finding 1: a partial stream used to reach the gate."""
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    probes = me.registered_probe_queries(plan)
+    ordered = [probes[room] for room in sorted(probes)]
+    gone = ordered[0] if deleted == "early" else ordered[-1]
+    kept = [record for record in records if record["query_id"] != gone]
+    args = _gate_args(tmp_path, "--fa-production-parity-check")
+    with pytest.raises(SystemExit, match="registered probe quer"):
+        list(driver._probe_cases(args, plan, kept, iter(loader)))
+
+
+@pytest.mark.parametrize("deleted", ["early", "late"])
+def test_gate3_and_gate0_fail_on_a_partial_probe_query_set(tmp_path, monkeypatch, deleted):
+    cases = _g3_cases(tmp_path / "g3")
+    registered = _ids(cases)
+    partial = cases[1:] if deleted == "early" else cases[:-1]
+    report = fp.production_parity(FaSyntheticEngine(), partial, **G3_KW,
+                                  declared_partition=FA_DECLARED, expected_queries=registered)
+    assert report["verdict"] == "FAIL" and report["probe_queries"]["complete"] is False
+    missing = registered[0] if deleted == "early" else registered[-1]
+    assert report["probe_queries"]["missing"] == [missing]
+    assert any("registered probe quer" in reason for reason in report["reasons"])
+    # an unstated set is never a complete one
+    report = fp.production_parity(FaSyntheticEngine(), cases, **G3_KW,
+                                  declared_partition=FA_DECLARED)
+    assert report["verdict"] == "FAIL" and report["probe_queries"]["complete"] is False
+
+    out, binding, frozen, g0_cases = _published_vanilla_run(tmp_path / "g0")
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+    partial = g0_cases[1:] if deleted == "early" else g0_cases[:-1]
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), partial, out, anchor=anchor, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding,
+        expected_queries=_ids(g0_cases), **G0_KW)
+    assert report["verdict"] == "FAIL" and report["probe_queries"]["complete"] is False
+    assert any("registered probe quer" in reason for reason in report["reasons"])
+
+
+def test_the_probe_query_set_records_the_exact_ordered_keys_and_their_digest():
+    block, reasons = fp.probe_query_set(["b", "a", "c"], ["a", "b", "c"])
+    assert reasons == [] and block["complete"] is True
+    assert block["registered"] == ["b", "a", "c"] and block["consumed"] == ["a", "b", "c"]
+    assert block["registered_sha256"] == canonical_sha256(["b", "a", "c"])
+    assert block["consumed_sha256"] == canonical_sha256(["a", "b", "c"])
+    assert block["n_registered"] == block["n_consumed"] == 3
+    for consumed, field in ((["a", "b"], "missing"), (["a", "b", "c", "d"], "unexpected"),
+                            (["a", "b", "c", "a"], "repeated")):
+        block, reasons = fp.probe_query_set(["b", "a", "c"], consumed)
+        assert block["complete"] is False and block[field] and reasons, field
+
+
+def test_a_gate_may_not_be_bounded_to_one_room(tmp_path):
+    """Plan r2 amendment A4 (v): G3 and G0 consume all 16 registered probe queries."""
+    import localize_meshgrid as driver
+
+    with pytest.raises(SystemExit, match="16 registered"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
+                                        "--probe-room", "B/B_idx_2"))
+    with pytest.raises(SystemExit, match="16 registered"):
+        driver.validate_args(driver.parse_args(
+            ["--ckpt-path", "x.ckpt", "--replay-check", "--replay-against", "run",
+             "--probe-room", "B/B_idx_2"] + ENG._VANILLA_PROTOCOL))
+
+
+def test_gate3_refuses_an_audit_whose_probe_set_is_not_the_committed_one(tmp_path, monkeypatch):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    probes = me.registered_probe_queries(plan)
+    first = probes[sorted(probes)[0]]
+    anchor = _fake_anchor(tmp_path, monkeypatch, {first: {"row_sha256": "1" * 64,
+                                                          "sims_sha256": "2" * 64}})
+    args = _gate_args(tmp_path, "--fa-production-parity-check", "--replay-probe-report",
+                      anchor["path"])
+    args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
+    engine = FaSyntheticEngine()
+    with pytest.raises(SystemExit, match="committed probe report"):
+        driver._run_fa_gate(args, engine, plan, records, loader, "G3",
+                            {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"})
+    assert engine.n_sampler_rows == 0
