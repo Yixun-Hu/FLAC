@@ -21,6 +21,11 @@ fails quietly, which is what this module is for:
   cells before a single byte is copied, the copy lands in a staging directory whose files
   are re-hashed before they are moved into place, and every digest is recorded beside the
   source path it came from in ``MANIFEST.sha256``.
+* **What the pair proved does not survive the copy (codex T finding F6 / M5).** Only the
+  metrics JSONs are installed, and they cannot say which K, seed, split or protocol they
+  were scored under. ``ATTESTATION.txt`` -- plain text, so no ``*.json`` row glob matches
+  it -- is installed in the same rename and keeps, per cell, the values the import
+  validated or hashed, plus the contract they passed. The manifest lists its digest.
 
 No GPU, no network, and nothing in the destination checkout is committed or force-added
 here: this module copies and prints, the analyst commits.
@@ -37,6 +42,7 @@ as one of the generator's own four-field ROWS entries and carries no forbidden s
 import argparse
 import glob
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -56,6 +62,9 @@ ARM_PROTOCOL_LABEL = {"cyl": "fa eval", "van": "vanilla eval"}
 #: unmodified DINOv3 ViT-S/16 of exp_07 P1.
 ARM_BACKBONE_LABEL = {"cyl": "CylDINO", "van": "stock DINOv3-S"}
 MANIFEST_BASENAME = "MANIFEST.sha256"
+#: Installed beside the cells (codex T F6 / M5). Not ``*.json``, so no row glob of the
+#: generator can ever match it, and free of ``exp14_``.
+ATTESTATION_BASENAME = "ATTESTATION.txt"
 EXIT_OK = names.EXIT_OK
 EXIT_INPUT_ERROR = names.EXIT_INPUT_ERROR
 EXIT_REFUSED = names.EXIT_BUNDLE_VIOLATION
@@ -68,6 +77,12 @@ def seed_glob(seeds=names.SEEDS):
         raise ValueError(f"seeds {sorted(seeds)} are not one contiguous decade, so a "
                          "single character-class glob cannot name exactly them")
     return f"s{low // 10}[{low % 10}-{high % 10}]"
+
+
+def _row_label(arm, tag):
+    """The rows' first field -- shared by ``row_spec`` and the attestation's header."""
+    pct = int(round(names.FRACTIONS[tag] * 100))
+    return f"data-curve {arm} f={pct}% @40k (exp_14 data-curve, {ARM_BACKBONE_LABEL[arm]})"
 
 
 def row_spec(arm, tag, K, run=None, seeds=names.SEEDS):
@@ -85,8 +100,7 @@ def row_spec(arm, tag, K, run=None, seeds=names.SEEDS):
     run = run or names.run_id(arm, tag)
     if K not in names.K_VALUES:
         raise ValueError(f"unplanned K={K!r}; the experiment evaluates {names.K_VALUES}")
-    pct = int(round(names.FRACTIONS[tag] * 100))
-    label = f"data-curve {arm} f={pct}% @40k (exp_14 data-curve, {ARM_BACKBONE_LABEL[arm]})"
+    label = _row_label(arm, tag)
     pattern = f"{IMPORT_SUBDIR}/{run}/*_K{K}_{seed_glob(seeds)}*.json"
     names.assert_no_forbidden_substring(label)
     names.assert_no_forbidden_substring(pattern)
@@ -213,15 +227,156 @@ def _identical(staging, dest_dir):
     return True, ""
 
 
-def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files):
+def _validated_protocol(arm):
+    """The four conditioning values every cell of ``arm`` was checked against (C5, C10).
+
+    Derived as ``validate_cells`` / ``names.check_metrics`` derive them: the evaluator
+    records angles only on the frame-averaged path, so a vanilla cell's are ``None``.
+    """
+    method = names.ARM_COND_METHOD[arm]
+    angles = ([float(a) for a in str(names.FRAME_AVG_ANGLES).split(",")]
+              if method == "fa_invariant" else None)
+    return {"cond_method": method, "frame_avg_angles": angles,
+            "rotate_deg": float(names.ROTATE_DEG), "cond_autocast": names.COND_AUTOCAST}
+
+
+def _attest_cells(files, arm, tag, ckpt):
+    """Add to each validated cell what its attestation keeps beyond the metrics record.
+
+    Nothing here is a check. The bundle and config paths are the ones ``check_bundle``
+    accepted; their digests are recorded, never compared -- the evaluator stamps no bundle
+    digest anywhere and names the config by path only. The ten bundle reads (~2.6 GB per
+    arm) are this round's one addition to the import's NAS read budget.
+    """
+    for entry in files:
+        K, seed = entry["K"], entry["seed"]
+        entry["eval_name"] = names.eval_name(arm, tag, K, seed)
+        entry["bundle"] = names.predictions_pt_path(ckpt, arm, tag, K, seed)
+        entry["bundle_sha256"] = _sha256(entry["bundle"])
+        entry["dataset_config"] = names.EVAL_DATASET_CONFIGS[K]
+        entry["dataset_config_sha256"] = names.eval_dataset_config_sha256(K)
+    return files
+
+
+def _recorded_source_sha(path):
+    """The record's own ``source_sha``, or ``"absent"`` (the kit evaluator writes none).
+
+    Read from the STAGED copy, just verified against the validated source's digest, so the
+    value comes from the bytes being published.
+    """
+    with open(path) as fin:
+        record = json.load(fin)
+    value = record.get("source_sha") if isinstance(record, dict) else None
+    return "absent" if value is None else str(value)
+
+
+def _value(v):
+    return v if isinstance(v, str) else json.dumps(v)
+
+
+def _contract_lines(protocol, n_items, ks, seeds):
+    """C1-C13: what every attested cell passed -- ``import_run`` + ``validate_cells``."""
+    flags = " / ".join(_value(v) for v in protocol.values())
+    configs = ", ".join(f"K={K}: {names.EVAL_DATASET_CONFIGS[K]}" for K in ks)
+    return [
+        f"C1: the run directory holds exactly one *step={names.MAX_STEPS}.ckpt, the final "
+        "checkpoint above; a --ckpt-path override may only name that same file",
+        "C2: that checkpoint hashes, through one open descriptor with fstat before and after,"
+        " to the --expect-ckpt-sha256 the launcher validated, and its (device, inode, size, "
+        "mtime_ns) is unchanged after every cell was validated and every bundle hashed",
+        f"C3: per cell (K in {list(ks)} x seed in {list(seeds)}) the metrics record exists at "
+        "the evaluator's output path and is a JSON object with a non-empty metrics object",
+        "C4: record.ckpt_path is the final checkpoint and record.ckpt_sha256 is its digest",
+        f"C5: record.cond_method / frame_avg_angles / rotate_deg / cond_autocast are {flags}",
+        "C6: the sibling prediction bundle exists and loads (torch, CPU) as a dict of "
+        "predictions and a meta dict",
+        f"C7: meta.n_items (and meta.n_samples, if present) == {n_items} and predictions is an"
+        f" all-finite tensor of shape ({n_items}, 1, {names.SAMPLE_LEN})",
+        "C8: meta.seed is the cell's seed and meta.eval_name is dc_<arm>_f<tag>_K<K>_s<seed>",
+        f"C9: meta.dataset_config is exactly the full unseen-eval config of the cell's K "
+        f"({configs}) and that file is readable in the importer's worktree",
+        "C10: meta.cond_method / frame_avg_angles / rotate_deg / cond_autocast equal C5's",
+        f"C11: meta.steps == {names.EVAL_STEPS}, meta.cfg_scale == {names.EVAL_CFG_SCALE}, "
+        "meta.stored_after_clamp_pad is true and meta.artifact_contract == "
+        f"{json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
+        "C12: meta.ckpt_path is the final checkpoint and meta.ckpt_sha256 is its digest",
+        "C13: all cells pass or nothing is copied; each staged copy re-hashes to its source's "
+        f"digest; the cells, this file and {MANIFEST_BASENAME} are installed with one rename;"
+        " an existing destination must be byte-identical to what this import would publish, "
+        "or nothing is touched",
+    ]
+
+
+def _render_attestation(context, files, checkout):
+    """``ATTESTATION.txt``: ``[section]`` headers over ``key: value`` lines; ``#`` = comment.
+
+    Built only from values this import validated (the contract below) or hashed; nothing in
+    it is time-dependent, so an identical rerun renders identical bytes.
+    """
+    arm, protocol, n_items = context["arm"], context["protocol"], context["n_items"]
+    full = (f"yes ({n_items} items = names.N_ITEMS_UNSEEN, the full unseen split)"
+            if n_items == names.N_ITEMS_UNSEEN else
+            f"NO -- fixture override expect_n={n_items}; the full unseen split is "
+            f"{names.N_ITEMS_UNSEEN} items")
+    lines = [f"# exp_14 data-curve import attestation -- {context['run']}",
+             "# Written by src.tools.data_curve.import_cells and installed in the same rename "
+             f"as the cells; {MANIFEST_BASENAME} lists its sha256.",
+             "# Every value below was validated (see [validation contract]) or hashed by "
+             "that import; none of it is a further check.",
+             "", "[run]", f"run_id: {context['run']}", f"arm: {arm}",
+             f"backbone: {ARM_BACKBONE_LABEL[arm]}",
+             f"fraction: {names.FRACTIONS[context['tag']]}", f"fraction_tag: {context['tag']}",
+             f"final_checkpoint: {context['ckpt']}",
+             f"final_checkpoint_sha256: {context['ckpt_sha256']}",
+             f"imported_to: {os.path.relpath(context['dest_dir'], checkout)}",
+             "", "[rows]", f"label: {_row_label(arm, context['tag'])}",
+             f"protocol: {ARM_PROTOCOL_LABEL[arm]}",
+             "protocol_flags: " + " ".join(f"{k}={_value(v)}" for k, v in protocol.items())]
+    lines += [f"row_K{K}: {row}" for K, row in zip(context["ks"], context["row_specs"])]
+    lines += ["", "[validation contract]"]
+    lines += _contract_lines(protocol, n_items, context["ks"], context["seeds"])
+    lines += ["", "# dataset_config_sha256: that file in the importer's worktree, hashed at "
+              "import time (C9 found it readable; the evaluator records only its path).",
+              "# prediction_bundle_sha256: hashed after validation -- recorded, not compared: "
+              "no evaluator records a bundle digest."]
+    for e in files:
+        lines += ["", f"[cell K{e['K']} s{e['seed']}]", f"K: {e['K']}", f"seed: {e['seed']}",
+                  f"eval_name: {e['eval_name']}", f"dataset_config: {e['dataset_config']}",
+                  f"dataset_config_sha256: {e['dataset_config_sha256']}",
+                  f"prediction_bundle_items: {n_items}", f"full_unseen_split: {full}"]
+        lines += [f"{k}: {_value(v)}" for k, v in protocol.items()]
+        lines += [f"steps: {names.EVAL_STEPS}", f"cfg_scale: {names.EVAL_CFG_SCALE}",
+                  f"checkpoint: {context['ckpt']}",
+                  f"checkpoint_sha256: {context['ckpt_sha256']}",
+                  f"metrics_record: {e['source']}", f"metrics_record_sha256: {e['sha256']}",
+                  f"imported_copy: {os.path.relpath(e['dest'], checkout)}",
+                  f"prediction_bundle: {e['bundle']}",
+                  f"prediction_bundle_sha256: {e['bundle_sha256']}",
+                  "bundle_artifact_contract: "
+                  f"{json.dumps(names.PREDICTIONS_ARTIFACT_CONTRACT)}",
+                  f"record_source_sha: {e['record_source_sha']}"]
+    return "\n".join(lines) + "\n"
+
+
+def _write_attestation(staging, checkout, context, files):
+    """Write ``ATTESTATION.txt`` into the staging directory; return its sha256."""
+    path = os.path.join(staging, names.assert_no_forbidden_substring(ATTESTATION_BASENAME))
+    with open(path, "w") as fout:
+        fout.write(_render_attestation(context, files, checkout))
+    return _sha256(path)
+
+
+def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files, attestation):
     """``MANIFEST.sha256``: the sources above, the imported copies below.
 
     Written INTO the staging directory, so it travels with the files it describes and the
     destination never exists without it. The lower half is a plain ``sha256sum -c`` list
     rooted at the FLAC checkout; the upper half is commented out (``sha256sum`` skips ``#``
     lines) and names the NAS path each copy came from, which is the half a reader needs and
-    ``sha256sum`` has no room for. Nothing in it is time-dependent, so an identical rerun
-    produces identical bytes -- which is what makes the idempotent path checkable.
+    ``sha256sum`` has no room for. The attestation's line closes the lower half, so
+    ``sha256sum -c`` from the checkout root verifies it with the cells. Nothing in it is
+    time-dependent, so an identical rerun produces identical bytes -- which is what makes
+    the idempotent path checkable.
     """
     path = os.path.join(staging, MANIFEST_BASENAME)
     lines = [f"# exp_14 data-curve import -- {run}",
@@ -233,18 +388,21 @@ def _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files):
     lines += ["#", "# --- imported copies (sha256  path relative to the FLAC checkout) ---"]
     lines += [f"{entry['sha256']}  {os.path.relpath(entry['dest'], checkout)}"
               for entry in files]
+    digest, dest = attestation
+    lines += ["#", "# --- attestation of the cells above (sha256  path relative to the FLAC "
+              "checkout) ---", f"{digest}  {os.path.relpath(dest, checkout)}"]
     with open(path, "w") as fout:
         fout.write("\n".join(lines) + "\n")
     return path
 
 
-def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256):
+def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256, context):
     """``(violations, "new"|"identical")`` -- build the whole directory, then move it once.
 
     Installation is all-or-nothing, not just validation (codex D3 finding 3). The complete
-    published directory -- ten cells AND their manifest -- is assembled in a sibling staging
-    directory, every copied byte re-hashed there, and only then moved into place with a
-    single ``os.rename``. A failure at any point therefore leaves no destination at all,
+    published directory -- ten cells, their attestation AND the manifest -- is assembled in
+    a sibling staging directory, every copied byte re-hashed there, and only then moved
+    into place with a single ``os.rename``. A failure at any point therefore leaves no destination at all,
     rather than a partial one that the generator's glob would average without noticing.
 
     An existing destination is never merged into: byte-identical means the import already
@@ -266,7 +424,10 @@ def _stage_and_install(files, dest_dir, checkout, run, ckpt, ckpt_sha256):
                 return [f"{basename}: the copy hashes to {digest}, not the source's "
                         f"{entry['sha256']} -- nothing was imported"], None
             entry["dest"] = os.path.join(dest_dir, basename)
-        _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files)
+            entry["record_source_sha"] = _recorded_source_sha(staged)
+        attestation = (_write_attestation(staging, checkout, context, files),
+                       os.path.join(dest_dir, ATTESTATION_BASENAME))
+        _write_manifest(staging, checkout, run, ckpt, ckpt_sha256, files, attestation)
         if os.path.exists(dest_dir):
             same, why = _identical(staging, dest_dir)
             if same:
@@ -297,7 +458,7 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     names.assert_no_forbidden_substring(os.path.join(IMPORT_SUBDIR, run))
     result = {"run_id": run, "arm": arm, "fraction_tag": tag, "run_dir": run_dir,
               "dest_dir": dest_dir, "ckpt": ckpt, "ckpt_sha256": expect_ckpt_sha256,
-              "files": [], "manifest": None, "installed": None,
+              "files": [], "manifest": None, "attestation": None, "installed": None,
               "row_specs": [row_spec(arm, tag, K, run) for K in ks]}
     # Discovery is unconditional (codex D3 finding 4). An override used to SKIP it, so an
     # internally consistent step-2500 checkpoint -- its own artifacts, its own digest, the
@@ -322,6 +483,9 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
                                        expect_n)
     if violations:
         return result, violations
+    # Recorded, never compared (codex T F6/M5) -- and hashed BEFORE the identity re-check
+    # below, so the window that check covers includes these reads too.
+    _attest_cells(files, arm, tag, ckpt)
     # The one hash above is only worth something if the file is still the one it read.
     try:
         still = _file_identity(ckpt)
@@ -330,9 +494,14 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     if still != identity:
         return result, [f"{run}: {ckpt} changed while this import was reading it "
                         f"({identity} -> {still}); nothing was published"]
+    context = {"run": run, "arm": arm, "tag": tag, "ckpt": ckpt,
+               "ckpt_sha256": expect_ckpt_sha256, "dest_dir": dest_dir,
+               "n_items": names.N_ITEMS_UNSEEN if expect_n is None else expect_n,
+               "protocol": _validated_protocol(arm), "ks": tuple(ks), "seeds": tuple(seeds),
+               "row_specs": result["row_specs"]}
     try:
         violations, installed = _stage_and_install(files, dest_dir, flac_checkout, run,
-                                                   ckpt, expect_ckpt_sha256)
+                                                   ckpt, expect_ckpt_sha256, context)
     except OSError as err:
         return result, [f"{run}: the install failed and nothing was published "
                         f"({type(err).__name__}: {err})"]
@@ -341,6 +510,7 @@ def import_run(nas_root, arm, tag, flac_checkout, expect_ckpt_sha256, seeds=name
     result["files"] = files
     result["installed"] = installed
     result["manifest"] = os.path.join(dest_dir, MANIFEST_BASENAME)
+    result["attestation"] = os.path.join(dest_dir, ATTESTATION_BASENAME)
     return result, []
 
 
@@ -380,8 +550,10 @@ def main(argv=None):
           f"{result['dest_dir']}")
     print(f"manifest: {result['manifest']} (staged, verified, installed in one move; "
           f"{result['installed']})")
+    print(f"attestation: {result['attestation']} (what every cell was validated as; its "
+          "sha256 is in the manifest)")
     print("add these rows to worklog/worklog_yixun/gen_model_comparison.py::ROWS, "
-          "force-add the JSONs + manifest, regenerate, commit and push:")
+          "force-add the JSONs + manifest + attestation, regenerate, commit and push:")
     for row in result["row_specs"]:
         print(f" {row}")
     return EXIT_OK
