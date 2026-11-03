@@ -2364,6 +2364,37 @@ def assert_release_rng_state(manifest):
     return True
 
 
+def cond_autocast_context(device, enabled, dtype):
+    """The conditioners' autocast context, exactly as :func:`build_mesh_engine` enters it."""
+    import contextlib
+
+    if not enabled:
+        return contextlib.nullcontext()
+    if dtype is None:
+        return torch.amp.autocast(device)
+    return torch.amp.autocast(device, dtype=dtype)
+
+
+def cond_autocast_state(device, mode):
+    """The conditioners' autocast AS EXECUTED (Codex rB finding 6; plan r2 amendment A4 iii).
+
+    ``eval_FLAC.resolve_cond_autocast`` maps the flag; the engine's own context is
+    then ENTERED and torch is asked what it runs -- so ``default`` is published as
+    its resolved state (float16 on CUDA, bfloat16 on CPU), never as the word.
+    Disabled autocast runs the conditioners in their float32 parameters.
+    """
+    from eval_FLAC import resolve_cond_autocast
+
+    enabled, dtype = resolve_cond_autocast(mode)
+    kind = torch.device(str(device)).type
+    with cond_autocast_context(device, enabled, dtype):
+        live = bool(torch.is_autocast_enabled(kind))
+        resolved = torch.get_autocast_dtype(kind) if live else torch.float32
+    return {"cond_autocast_requested": str(mode), "cond_autocast_enabled": live,
+            "cond_autocast_dtype": str(resolved).replace("torch.", ""),
+            "cond_autocast_device_type": kind}
+
+
 def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method="vanilla",
                       cond_autocast="default", steps=STEPS, cfg_scale=CFG_SCALE, ckpt=None,
                       readout=SCORER_READOUT, frame_avg_angles=None):
@@ -2377,7 +2408,6 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
     conditioning caches need. fa_invariant is built under the five-way split over
     ``frame_avg_angles`` (exp_22 R2-B); without that orbit it is refused.
     """
-    import contextlib
     import copy
 
     from eval_FLAC import check_load_integrity, resolve_cond_autocast
@@ -2417,15 +2447,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
         latent_samples = model_config["sample_size"]
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
 
-    def cond_autocast_ctx():
-        if not ac_enabled:
-            return contextlib.nullcontext()
-        if ac_dtype is None:
-            return torch.amp.autocast(device)
-        return torch.amp.autocast(device, dtype=ac_dtype)
-
     def conditioner(metadata, _device, only_ids=None):
-        with cond_autocast_ctx():
+        with cond_autocast_context(device, ac_enabled, ac_dtype):
             with torch.no_grad():
                 return module.diffusion.conditioner(metadata, module.device, only_ids=only_ids)
 
@@ -2454,7 +2477,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
                         cond_method=cond_method, split=split)
     context = {"module": module, "model": model, "model_config": model_config,
                "weights_source": weights_source, "device": device,
-               "latent_shape": engine.latent_shape}
+               "latent_shape": engine.latent_shape,
+               "cond_autocast": cond_autocast_state(device, cond_autocast)}
     return engine, context
 
 def _pair_diff(left, right):

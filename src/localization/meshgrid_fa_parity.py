@@ -11,10 +11,13 @@ diagnostic that writes one evidence JSON for the Planner to commit:
   outputs, their masks and the inputs the DiT consumes.
 * **G2** ``fa_cache_parity`` -- cached against uncached memoization at matched
   batching, with candidate-perturbation counter-tests: bit-exact.
-* **G3** ``fa_production_parity`` -- production batching (256/16, the registered
-  autocast) against a faithful replay of the released path per scored batch:
-  per-key max |diff| within the pre-registered 1e-3, plus score and argmax
-  stability, full and tail micro-batches covered.
+* **G3** ``fa_production_parity`` -- production batching (256/16) against a
+  faithful replay of the released path per scored batch, with autocast OFF (fp32;
+  plan r2 amendment A4 i): per-key max |diff| within the pre-registered 1e-3,
+  plus score and argmax stability, full and tail micro-batches covered.
+* **G3D** ``fa_production_drift`` -- the same comparison under the resolved
+  production autocast (``default``: float16 on CUDA), PUBLISHED AS A DISCLOSED
+  DRIFT MEASUREMENT with no pass/fail verdict (A4 ii).
 
 Evidence carries its inputs, per-key digests and deltas, the verdict, the
 EXECUTED partition, the git SHA (and whether the tree was tracked-clean), the
@@ -34,8 +37,14 @@ from src.localization import meshgrid_engine as me
 #: the gates, their artifact stems and their PRE-REGISTERED tolerances (plan r2
 #: §3 R2-B). A tolerance is not an argument: a bar the caller picks can be argued down.
 GATE_NAMES = {"G1": "fa_split_parity", "G2": "fa_cache_parity", "G3": "fa_production_parity",
-              "G0": "vanilla_replay_regression"}
-GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3, "G0": 0.0}
+              "G3D": "fa_production_drift", "G0": "vanilla_replay_regression"}
+#: ``None``: a measurement, not a gate -- no tolerance exists to pass or fail (A4 ii)
+GATE_TOLERANCES = {"G1": 0.0, "G2": 0.0, "G3": 1e-3, "G3D": None, "G0": 0.0}
+#: the autocast each gate is registered at (A4 i/ii): G1 and the G3 logic gate run with
+#: autocast OFF; the drift measurement runs the production flag, resolved by the device
+GATE_AUTOCAST = {"G1": ("off", False), "G3": ("off", False), "G3D": ("default", True)}
+#: the engine's own vanilla batching caveat, the drift measurement's published context
+VANILLA_BATCHING_CAVEAT_MAX_ABS_DIFF = 3.9e-3
 
 #: the vanilla no-regression gate's frozen inputs: the observation-bank digest of
 #: the 16 registered probe queries (loc_meshgrid_preregistered_digests.json, frozen
@@ -67,10 +76,11 @@ GATE_NOTES = {
           "cache, unaveraged ViT ids, swapped candidate rows) must each be DETECTED, or the "
           "comparison could not have failed. The production-batching difference is reported "
           "as informational (gate 3 owns it)",
-    "G3": "GATE 3 (plan r2 §3 R2-B, Codex H3): the PRODUCTION path at production batching (the "
-          "per-query context at batch 1, the receiver cache over the receiver's whole union at "
-          "--source-chunk, context_poses per scored batch of --batch-rows / K candidates, the "
-          "registered --cond-autocast) against a faithful replay -- exp_20's released "
+    "G3": "GATE 3 (plan r2 §3 R2-B, Codex H3; amendment A4 i): the PRODUCTION path at "
+          "production batching (the per-query context at batch 1, the receiver cache over the "
+          "receiver's whole union at --source-chunk, context_poses per scored batch of "
+          "--batch-rows / K candidates) with --cond-autocast off (fp32) against a faithful "
+          "replay -- exp_20's released "
           "fa_conditioning over each scored batch's candidates -- with per-key max |diff| <= "
           "1e-3 on the five tensors, their masks and the DiT inputs, the executed partition "
           "equal to the declared one, and score/argmax stability: each probe query generated "
@@ -78,6 +88,13 @@ GATE_NOTES = {
           "argmax moved at any K. Full AND tail scored and source batches must be covered. The "
           "evidence carries no prediction, score or margin -- only deltas, agreement booleans and "
           "at-risk flags -- so no BF localization quality is read before the pass",
+    "G3D": "DRIFT MEASUREMENT (plan r2 amendment A4 ii): gate 3's comparison run under the "
+           "resolved PRODUCTION autocast (--cond-autocast default: float16 on CUDA) and published "
+           "with NO pass/fail verdict -- per-key deltas, score deltas, argmax agreement -- beside "
+           "the engine's own vanilla batching caveat (3.9e-3 between a batch-1 and an "
+           "8-candidate context call under fp16) as context. No fp16 tolerance is chosen before "
+           "or after the BF values are seen. 'complete' says only that the comparison's "
+           "structure held (every probe query, full and tail batches, the declared partition)",
     "G0": "VANILLA NO-REGRESSION (plan r2 §3 R2-B): after the R2-B change, the vanilla path "
           "replays each registered probe query of the published P1 run at the row's OWN stamped "
           "batching (the matched-batching tie of the r9s/r9u probe, meshgrid_drift_measurement."
@@ -140,7 +157,7 @@ def tensor_pair(left, right, tolerance):
                                 "storage are not parity")
     if not facts["finite"]:
         facts["reasons"].append("a non-finite value is present; a verdict over it is meaningless")
-    if facts["max_abs_diff"] > float(tolerance):
+    if tolerance is not None and facts["max_abs_diff"] > float(tolerance):
         facts["reasons"].append(f"max |diff| {facts['max_abs_diff']:.3g} > {tolerance}")
     return facts
 
@@ -237,10 +254,27 @@ def probe_query_set(registered, consumed):
 
 
 def gate_report(gate, reasons, **fields):
-    """The verdict block every gate shares."""
-    return {"gate": gate, "name": GATE_NAMES[gate], "verdict": "FAIL" if reasons else "PASS",
-            "match": not reasons, "reasons": list(reasons),
-            "tolerance": GATE_TOLERANCES[gate], "note": GATE_NOTES[gate], **fields}
+    """The verdict block every gate shares; a measurement (no tolerance) carries none."""
+    if GATE_TOLERANCES[gate] is None:
+        verdict, match, fields = "measurement", None, dict(fields, complete=not reasons)
+    else:
+        verdict, match = ("FAIL" if reasons else "PASS"), not reasons
+    return {"gate": gate, "name": GATE_NAMES[gate], "verdict": verdict, "match": match,
+            "reasons": list(reasons), "tolerance": GATE_TOLERANCES[gate],
+            "note": GATE_NOTES[gate], **fields}
+
+
+def autocast_reasons(gate, inputs):
+    """A gate registered at an autocast (A4 i/ii) names the RESOLVED state it ran, or fails."""
+    if gate not in GATE_AUTOCAST:
+        return []
+    requested, enabled = GATE_AUTOCAST[gate]
+    found = (inputs.get("cond_autocast_requested"), inputs.get("cond_autocast_enabled"))
+    if found != (requested, enabled) or not inputs.get("cond_autocast_dtype"):
+        return [f"autocast: {GATE_NAMES[gate]} is registered at --cond-autocast {requested} "
+                f"(enabled={enabled}), but the evidence records requested/enabled/dtype "
+                f"{found + (inputs.get('cond_autocast_dtype'),)}"]
+    return []
 
 
 def query_inputs(query, n, **extra):
@@ -302,6 +336,10 @@ def split_parity(engine, query, md, *, micro_batch, n_candidates=None):
                        executed_partition=recorder.report())
 
 
+GATE_REPORT_KEYS = ("gate", "name", "verdict", "match", "reasons", "tolerance", "note",
+                    "complete")
+
+
 def finalize_evidence(report, device, environment=None, runtime=None, inputs=None):
     """The gate's evidence: its report plus the run's provenance (record-free diagnostic)."""
     from src.localization import meshgrid_offgrid_probe as mop
@@ -313,6 +351,11 @@ def finalize_evidence(report, device, environment=None, runtime=None, inputs=Non
     dirty = environment.get("git_status_dirty")
     evidence = dict(report)
     evidence["inputs"] = dict(report.get("inputs") or {}, **(inputs or {}))
+    late = autocast_reasons(report["gate"], evidence["inputs"])
+    if late:
+        evidence = dict(gate_report(report["gate"], list(report["reasons"]) + late,
+                                    **{key: value for key, value in evidence.items()
+                                       if key not in GATE_REPORT_KEYS}))
     evidence["provenance"] = {
         "git_sha": environment.get("git_sha"),
         "tracked_clean": None if dirty is None else not bool(dirty),
@@ -457,7 +500,7 @@ def probe_case(room_plan, query, md, obs_wav):
             "union_positions": positions}
 
 
-def _score_deltas(production, replayed, indices, tau, prefixes):
+def _score_deltas(production, replayed, indices, tau, prefixes, enforce=True):
     """Per-K score and argmax stability -- deltas and booleans, never a score itself."""
     out, why = {}, []
     left = me.nested_scores(production, tau=tau, prefixes=prefixes)
@@ -468,6 +511,8 @@ def _score_deltas(production, replayed, indices, tau, prefixes):
         equal = me.argmax_by_global_index(a, indices) == me.argmax_by_global_index(b, indices)
         out[str(k)] = {"max_abs_delta": delta, "argmax_equal": bool(equal),
                        "at_risk": not me.is_argmax_stable(me.top1_margin(a))}
+        if not enforce:                # the drift measurement publishes, it does not judge
+            continue
         if delta > me.SCORE_TOLERANCE:
             why.append(f"K={k}: score |diff| {delta:.3g} > SCORE_TOLERANCE {me.SCORE_TOLERANCE}")
         if not equal:
@@ -486,7 +531,7 @@ def _chain(chains, conditioning, inputs):
 
 
 def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, num_samples,
-                      seed, noise_policy, tau, prefixes, per_key, sizes, chains):
+                      seed, noise_policy, tau, prefixes, per_key, sizes, chains, tolerance):
     from src.localization.scoring import cosine_sims
 
     query, md = case["query"], case["md"]
@@ -510,9 +555,9 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
         replayed_partition = []
         replay = released_conditioning(engine, md, candidate["positions"][start:start + micro],
                                        view.split.angles, records=replayed_partition)
-        conditioning, w_cond = compare_conditioning(produced, replay, GATE_TOLERANCES["G3"])
+        conditioning, w_cond = compare_conditioning(produced, replay, tolerance)
         inputs, w_inputs = compare_inputs(engine.cond_inputs_fn(produced),
-                                          engine.cond_inputs_fn(replay), GATE_TOLERANCES["G3"])
+                                          engine.cond_inputs_fn(replay), tolerance)
         fold_per_key(per_key, conditioning, inputs)
         _chain(chains, conditioning, inputs)
         why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]
@@ -536,15 +581,18 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
     sizes["source"] += [min(int(source_chunk), union - start)
                         for start in range(0, union, int(source_chunk))]
     scores, why_scores = _score_deltas(production, torch.cat(parts, dim=0), indices, tau,
-                                       prefixes)
+                                       prefixes, enforce=tolerance is not None)
     return ({"inputs": query_inputs(query, len(indices), n_union=union), "chunks": chunks,
              "score_stability": scores}, why + why_scores)
 
 
 def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me.NUM_SAMPLES,
                       seed=me.SEED, noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU,
-                      prefixes=me.K_PREFIXES, declared_partition=None, expected_queries=None):
-    """G3 -- production batching against a faithful replay, with score/argmax stability."""
+                      prefixes=me.K_PREFIXES, declared_partition=None, expected_queries=None,
+                      measurement=False):
+    """G3 -- production batching against a faithful replay, with score/argmax stability; with
+    ``measurement`` the same comparison as G3D, the drift measurement (no verdict, A4 ii)."""
+    gate = "G3D" if measurement else "G3"
     split = require_split(engine)
     view = gate_engine(engine)
     micro = max(1, int(batch_rows) // int(num_samples))
@@ -555,7 +603,7 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                                        source_chunk=source_chunk, num_samples=num_samples,
                                        seed=seed, noise_policy=noise_policy, tau=tau,
                                        prefixes=prefixes, per_key=per_key, sizes=sizes,
-                                       chains=chains)
+                                       chains=chains, tolerance=GATE_TOLERANCES[gate])
         entries.append(entry)
         reasons += [f"{case['query'].query_id}: {item}" for item in why]
     queries, why_queries = probe_query_set(expected_queries,
@@ -580,9 +628,12 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
             block["n_queries"] += 1
             block["n_argmax_equal"] += int(facts["argmax_equal"])
             block["n_at_risk"] += int(facts["at_risk"])
+    context = {} if not measurement else {"context": {
+        "vanilla_batching_caveat_max_abs_diff": VANILLA_BATCHING_CAVEAT_MAX_ABS_DIFF,
+        "batching_caveat": me.BATCHING_CAVEAT}}
     return gate_report(
-        "G3", reasons, queries=entries, probe_queries=queries, per_key=per_key, coverage=covered,
-        score_stability=by_k,
+        gate, reasons, queries=entries, probe_queries=queries, per_key=per_key, coverage=covered,
+        score_stability=by_k, **context,
         digest_chains={name: [side.hexdigest() for side in sides]
                        for name, sides in chains.items()},
         score_tolerance=me.SCORE_TOLERANCE, declared_partition=declared_partition,

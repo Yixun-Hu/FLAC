@@ -1135,12 +1135,14 @@ def test_the_gate_modes_validate_their_registered_conditions(tmp_path):
     with pytest.raises(SystemExit, match="fa_invariant"):
         driver.validate_args(_gate_args(tmp_path, "--fa-split-parity-check",
                                         protocol=_off(ENG._VANILLA_PROTOCOL)))
-    # gate 3 is the PRODUCTION batching and autocast, nothing else
-    g3 = _gate_args(tmp_path, "--fa-production-parity-check")
+    # gate 3 is the PRODUCTION batching with autocast OFF (fp32; plan r2 amendment A4 i)
+    g3 = _gate_args(tmp_path, "--fa-production-parity-check", protocol=_off(ENG._FA_PROTOCOL))
     assert driver.validate_args(g3) and driver.writes_query_artifacts(g3) is False
-    for protocol, flag in ((_off(ENG._FA_PROTOCOL), "--cond-autocast"),
-                           ([t if t != "256" else "64" for t in ENG._FA_PROTOCOL], "--batch-rows"),
-                           ([t if t != "16" else "8" for t in ENG._FA_PROTOCOL], "--source-chunk")):
+    for protocol, flag in ((ENG._FA_PROTOCOL, "--cond-autocast off"),
+                           ([t if t != "256" else "64" for t in _off(ENG._FA_PROTOCOL)],
+                            "--batch-rows"),
+                           ([t if t != "16" else "8" for t in _off(ENG._FA_PROTOCOL)],
+                            "--source-chunk")):
         with pytest.raises(SystemExit, match=flag):
             driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
                                             protocol=protocol))
@@ -1153,7 +1155,8 @@ def test_the_gate_modes_validate_their_registered_conditions(tmp_path):
                                         "--fa-production-parity-check"))
     with pytest.raises(SystemExit, match="record-free"):
         driver.validate_args(_gate_args(tmp_path, "--fa-production-parity-check",
-                                        "--launch-record", "l.json"))
+                                        "--launch-record", "l.json",
+                                        protocol=_off(ENG._FA_PROTOCOL)))
 
 
 def _driver_stack(tmp_path):
@@ -1174,7 +1177,11 @@ def test_the_driver_runs_gate1_and_writes_its_evidence(tmp_path, capsys):
     evidence = json.load(open(tmp_path / "gates" / "fa_split_parity.json"))
     assert evidence["verdict"] == "PASS" and evidence["gate"] == "G1"
     assert evidence["inputs"]["binding"] == binding
-    assert evidence["inputs"]["cond_autocast"] == "off"
+    # the RESOLVED autocast state, never the flag's word (Codex rB finding 6; A4 iii)
+    assert "cond_autocast" not in evidence["inputs"]
+    assert evidence["inputs"]["cond_autocast_requested"] == "off"
+    assert evidence["inputs"]["cond_autocast_enabled"] is False
+    assert evidence["inputs"]["cond_autocast_dtype"] == "float32"
     assert evidence["coverage"]["complete"] is True             # 48 = 32 + a tail of 16
     assert evidence["provenance"]["record_free"] is True
     assert "GATE G1 fa_split_parity: PASS" in capsys.readouterr().out
@@ -1216,7 +1223,7 @@ def test_the_driver_runs_gate3_over_the_registered_probe_queries(tmp_path, capsy
     plan, records, loader = _driver_stack(tmp_path)
     anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
     args = _gate_args(tmp_path, "--fa-production-parity-check", "--replay-probe-report",
-                      anchor["path"])
+                      anchor["path"], protocol=_off(ENG._FA_PROTOCOL))
     args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
     binding = {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"}
     code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, "G3", binding)
@@ -1709,3 +1716,114 @@ def test_gate3_refuses_an_audit_whose_probe_set_is_not_the_committed_one(tmp_pat
         driver._run_fa_gate(args, engine, plan, records, loader, "G3",
                             {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"})
     assert engine.n_sampler_rows == 0
+
+
+
+# --------------------------------------------------------------------------- #
+# plan r2 amendment A4 (i)-(iii): G3 is the fp32 LOGIC gate; the production
+# autocast run is a disclosed drift MEASUREMENT; evidence names the resolved state
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("mode, enabled, dtype", [("off", False, "float32"),
+                                                  ("default", True, "bfloat16"),
+                                                  ("bf16", True, "bfloat16")])
+def test_the_autocast_state_is_read_back_from_the_context_the_conditioner_runs_in(mode, enabled,
+                                                                                  dtype):
+    """On CPU torch's default autocast dtype is bfloat16 (on CUDA, float16) -- the state is
+    whatever the engine's own context resolves to on this device, read back from torch."""
+    state = me.cond_autocast_state("cpu", mode)
+    assert state == {"cond_autocast_requested": mode, "cond_autocast_enabled": enabled,
+                     "cond_autocast_dtype": dtype, "cond_autocast_device_type": "cpu"}
+    with me.cond_autocast_context("cpu", *__import__("eval_FLAC").resolve_cond_autocast(mode)):
+        assert torch.is_autocast_enabled("cpu") is enabled
+
+
+def test_the_registered_default_resolves_to_float16_on_cuda_not_bf16():
+    """The plan-text erratum (A4 iii): `default` is torch's per-device default -- fp16 on cuda."""
+    from eval_FLAC import resolve_cond_autocast
+
+    assert resolve_cond_autocast("default") == (True, None)
+    assert torch.get_autocast_dtype("cuda") == torch.float16
+
+
+def test_the_drift_measurement_mode_is_the_production_autocast_and_batching(tmp_path):
+    import localize_meshgrid as driver
+
+    drift = _gate_args(tmp_path, "--fa-production-drift-measurement")
+    assert driver.validate_args(drift) and driver.writes_query_artifacts(drift) is False
+    for protocol, flag in ((_off(ENG._FA_PROTOCOL), "--cond-autocast default"),
+                           ([t if t != "256" else "64" for t in ENG._FA_PROTOCOL], "--batch-rows"),
+                           ([t if t != "16" else "8" for t in ENG._FA_PROTOCOL], "--source-chunk"),
+                           (ENG._VANILLA_PROTOCOL, "fa_invariant")):
+        with pytest.raises(SystemExit, match=flag):
+            driver.validate_args(_gate_args(tmp_path, "--fa-production-drift-measurement",
+                                            protocol=protocol))
+    with pytest.raises(SystemExit, match="one diagnostic"):
+        driver.validate_args(_gate_args(tmp_path, "--fa-production-drift-measurement",
+                                        "--fa-production-parity-check"))
+
+
+class Noisy(BatchSensitiveFa):
+    OFFSET = 1e-2
+
+
+def test_the_drift_measurement_publishes_deltas_without_a_verdict(tmp_path):
+    engine = FaSyntheticEngine()
+    engine.conditioner = Noisy()                       # far above the gate's 1e-3
+    cases = _g3_cases(tmp_path)
+    report = _g3(engine, cases, **G3_KW, declared_partition=FA_DECLARED, measurement=True)
+    assert report["gate"] == "G3D" and report["name"] == "fa_production_drift"
+    assert report["verdict"] == "measurement" and report["match"] is None
+    assert report["tolerance"] is None and report["complete"] is True
+    assert report["reasons"] == []                     # no threshold is applied to a measurement
+    assert max(entry["max_abs_diff"] for entry in report["per_key"].values()) > 1e-3
+    assert report["context"]["vanilla_batching_caveat_max_abs_diff"] == 3.9e-3
+    assert report["context"]["batching_caveat"] == me.BATCHING_CAVEAT
+    # the same comparison as the gate: per-key deltas, score/argmax agreement, chains
+    gate = _g3(engine, _g3_cases(tmp_path / "gate"), **G3_KW, declared_partition=FA_DECLARED)
+    assert gate["verdict"] == "FAIL" and set(gate["per_key"]) == set(report["per_key"])
+    assert set(report["score_stability"]) == set(gate["score_stability"])
+    # structure still decides whether the measurement is COMPLETE (here: no source tail)
+    report = _g3(engine, cases[1:], **G3_KW, declared_partition=FA_DECLARED, measurement=True)
+    assert report["complete"] is False and report["verdict"] == "measurement"
+    assert any("coverage" in reason for reason in report["reasons"])
+    evidence = fp.finalize_evidence(report, device="cpu", environment={
+        "git_sha": "a" * 40, "git_status_dirty": False, "hostname": "box"})
+    assert _quality_keys(json.loads(json.dumps(evidence))) == set()
+
+
+def test_the_evidence_holds_each_gate_to_its_registered_autocast(tmp_path):
+    report = _g3(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+                 declared_partition=FA_DECLARED)
+    environment = {"git_sha": "a" * 40, "git_status_dirty": False, "hostname": "box"}
+    passing = fp.finalize_evidence(report, device="cpu", environment=environment,
+                                   inputs=me.cond_autocast_state("cpu", "off"))
+    assert passing["verdict"] == "PASS"
+    failing = fp.finalize_evidence(report, device="cpu", environment=environment,
+                                   inputs=me.cond_autocast_state("cpu", "default"))
+    assert failing["verdict"] == "FAIL" and failing["match"] is False
+    assert any("autocast" in reason for reason in failing["reasons"])
+    unstated = fp.finalize_evidence(report, device="cpu", environment=environment)
+    assert unstated["verdict"] == "FAIL"
+
+
+def test_the_driver_runs_the_drift_measurement_and_writes_its_own_evidence(tmp_path, monkeypatch,
+                                                                         capsys):
+    import localize_meshgrid as driver
+
+    plan, records, loader = _driver_stack(tmp_path)
+    anchor = _fixture_anchor(tmp_path, monkeypatch, plan)
+    args = _gate_args(tmp_path, "--fa-production-drift-measurement", "--replay-probe-report",
+                      anchor["path"])
+    args.batch_rows, args.source_chunk, args.num_samples, args.k_prefixes = 8, 3, 4, [1, 4]
+    engine = FaSyntheticEngine()
+    engine.conditioner = Noisy()
+    code = driver._run_fa_gate(args, engine, plan, records, loader, "G3D",
+                               {"fa_partition": FA_DECLARED, "cond_method": "fa_invariant"})
+    evidence = json.load(open(tmp_path / "gates" / "fa_production_drift.json"))
+    assert evidence["verdict"] == "measurement" and evidence["complete"] is True
+    assert evidence["inputs"]["cond_autocast_requested"] == "default"
+    assert evidence["inputs"]["cond_autocast_enabled"] is True
+    assert "cond_autocast" not in evidence["inputs"]
+    assert code == 0
+    assert not os.path.exists(tmp_path / "gates" / "fa_production_parity.json")
+    assert "fa_production_drift: measurement" in capsys.readouterr().out

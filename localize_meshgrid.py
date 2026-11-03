@@ -170,10 +170,14 @@ def parse_args(argv=None):
                              "invariant_conditioning at identical batching, --cond-autocast off; "
                              "writes <out-dir>/fa_split_parity.json and exits")
     parser.add_argument("--fa-production-parity-check", action="store_true",
-                        help="GATE 3 (exp_22 R2-B): production batching (256/16, default "
-                             "autocast) vs a faithful replay over the registered probe queries "
-                             "(--probe-room bounds it to one room); writes "
-                             "<out-dir>/fa_production_parity.json and exits")
+                        help="GATE 3 (exp_22 R2-B; plan amendment A4 i): production batching "
+                             "(256/16) with --cond-autocast off (fp32) vs a faithful replay over "
+                             "all 16 registered probe queries; writes "
+                             "<out-dir>/fa_production_parity.json (PASS/FAIL) and exits")
+    parser.add_argument("--fa-production-drift-measurement", action="store_true",
+                        help="DRIFT MEASUREMENT (plan amendment A4 ii): gate 3's comparison under "
+                             "the production --cond-autocast default (fp16 on CUDA), published "
+                             "with NO verdict to <out-dir>/fa_production_drift.json")
     parser.add_argument("--replay-against", default=None,
                         help="VANILLA NO-REGRESSION (exp_22 R2-B): with --replay-check, replay "
                              "the registered probe queries of this PUBLISHED run at their rows' "
@@ -225,21 +229,25 @@ def validate_gate_flags(args):
     """The fa parity gates' registered conditions (plan r2 §3 R2-B, Codex H3)."""
     from src.localization import meshgrid_report as mr
 
-    gate = args.fa_split_parity_check or args.fa_production_parity_check
+    production = args.fa_production_parity_check or args.fa_production_drift_measurement
+    gate = args.fa_split_parity_check or production
     if gate and str(args.cond_method) != "fa_invariant":
         _refuse("the fa parity gates compare the five-way split: pass --cond-method fa_invariant "
                 "--frame-avg-angles 0 90 180 270")
     if args.fa_split_parity_check and args.cond_autocast != "off":
         _refuse("gate 1 is registered bit-exact with autocast OFF: pass --cond-autocast off")
-    if args.fa_production_parity_check:
-        for flag, registered, found in (("--cond-autocast", "default", args.cond_autocast),
+    if production:
+        # A4 (i): the logic gate is fp32; (ii): the drift measurement is the production flag
+        autocast = "off" if args.fa_production_parity_check else "default"
+        for flag, registered, found in (("--cond-autocast", autocast, args.cond_autocast),
                                         ("--batch-rows", mr.REGISTERED_BATCH_ROWS,
                                          args.batch_rows),
                                         ("--source-chunk", mr.REGISTERED_SOURCE_CHUNK,
                                          args.source_chunk)):
             if found != registered:
-                _refuse(f"gate 3 runs the PRODUCTION batching and autocast: {flag} {registered}, "
-                        f"not {found}")
+                _refuse(f"gate 3 / its drift measurement run the PRODUCTION batching at the "
+                        f"registered autocast (amendment A4): pass {flag} {registered}, not "
+                        f"{found}")
     return True
 
 
@@ -287,7 +295,9 @@ def validate_args(args):
                                    ("--replay-check", args.replay_check),
                                    ("--fa-split-parity-check", args.fa_split_parity_check),
                                    ("--fa-production-parity-check",
-                                    args.fa_production_parity_check)) if on]
+                                    args.fa_production_parity_check),
+                                   ("--fa-production-drift-measurement",
+                                    args.fa_production_drift_measurement)) if on]
     if len(modes) > 1:
         _refuse(f"{modes} are separate diagnostics: run one diagnostic per invocation")
     if args.replay_against and not args.replay_check:
@@ -484,7 +494,7 @@ def writes_query_artifacts(args):
     """
     return (args.probe is None and not args.cache_parity_check and not args.replay_check
             and not args.fa_split_parity_check and not args.fa_production_parity_check
-            and args.merge_shards is None)
+            and not args.fa_production_drift_measurement and args.merge_shards is None)
 
 
 def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256):
@@ -624,6 +634,8 @@ def main(argv=None):
         return _run_fa_gate(args, engine, plan, records, loader, "G1", run_binding)
     if args.fa_production_parity_check:
         return _run_fa_gate(args, engine, plan, records, loader, "G3", run_binding)
+    if args.fa_production_drift_measurement:
+        return _run_fa_gate(args, engine, plan, records, loader, "G3D", run_binding)
     if args.replay_check:
         return _run_replay_check(args, engine, plan, records, loader, binding=run_binding)
 
@@ -819,7 +831,10 @@ def _probe_cases(args, plan, records, loader, probes=None):
 
 
 def _gate_inputs(args, binding):
-    return {"binding": dict(binding or {}), "cond_autocast": args.cond_autocast,
+    """What the evidence says ran: the binding, the RESOLVED autocast (never the bare flag
+    word; Codex rB finding 6, A4 iii), the batching, the checkpoint and the device."""
+    return {"binding": dict(binding or {}), **me.cond_autocast_state(args.device,
+                                                                      args.cond_autocast),
             "batch_rows": int(args.batch_rows), "source_chunk": int(args.source_chunk),
             "ckpt_path": args.ckpt_path, "device": args.device}
 
@@ -829,10 +844,12 @@ def _publish_gate(args, report, binding):
 
     evidence = fp.finalize_evidence(report, args.device, inputs=_gate_inputs(args, binding))
     path = fp.write_evidence(args.out_dir, evidence)
-    print(f"GATE {report['gate']} {report['name']}: {report['verdict']} -> {path}")
-    for reason in report["reasons"][:10]:
+    print(f"GATE {evidence['gate']} {evidence['name']}: {evidence['verdict']} -> {path}")
+    for reason in evidence["reasons"][:10]:
         print(f"  {reason}")
-    return 0 if report["match"] else 1
+    if evidence["verdict"] == "measurement":        # exit 0 iff the measurement is complete
+        return 0 if evidence["complete"] else 1
+    return 0 if evidence["verdict"] == "PASS" else 1
 
 
 def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
@@ -844,7 +861,7 @@ def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
         query, md, _obs = _first_query(plan, records, loader)
         report = fp.split_parity(engine, query, me.GuardedMetadata(md), micro_batch=micro,
                                  n_candidates=args.parity_candidates)
-    else:
+    else:                          # G3, or G3D: the same comparison as a measurement
         probes, ordered, _anchor = _registered_probes(args, plan)
         report = fp.production_parity(
             engine, _probe_cases(args, plan, records, loader, probes), expected_queries=ordered,
@@ -852,7 +869,7 @@ def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
             source_chunk=args.source_chunk, num_samples=args.num_samples, seed=args.seed,
             noise_policy=args.noise_policy, tau=args.tau,
             prefixes=tuple(int(k) for k in args.k_prefixes),
-            declared_partition=(binding or {}).get("fa_partition"))
+            declared_partition=(binding or {}).get("fa_partition"), measurement=gate == "G3D")
     return _publish_gate(args, report, binding)
 
 
