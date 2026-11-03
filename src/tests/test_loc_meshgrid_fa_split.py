@@ -1484,3 +1484,14 @@ def test_the_gate_cases_stop_the_stream_after_the_last_wanted_query(tmp_path):
     args.probe_room = "Nowhere/Nowhere_idx_1"
     with pytest.raises(SystemExit, match="probe-room"):
         list(driver._probe_cases(args, plan, records, iter(loader)))
+
+
+def test_gate2_on_a_single_candidate_cannot_pass_and_does_not_crash(tmp_path):
+    query, md = _gate_query(tmp_path)
+    query.candidate_indices = query.candidate_indices[:1]
+    report = fp.cache_parity(FaSyntheticEngine(), query, md, source_chunk=2, micro_batch=3)
+    assert report["inputs"]["n_candidates"] == 1
+    assert report["memoization"]["match"] is True
+    # candidate dependence cannot be shown on one candidate: the gate says so
+    assert report["verdict"] == "FAIL"
+    assert any("per_query_context_poses did not bite" in r for r in report["reasons"])

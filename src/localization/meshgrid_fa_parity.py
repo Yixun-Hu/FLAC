@@ -360,8 +360,8 @@ def cache_parity(engine, query, md, *, n_candidates=None, source_chunk=me.SOURCE
                  micro_batch=1):
     """G2 -- the caches are an exact memoization at matched batching, and the check bites."""
     split = require_split(engine)
-    n = max(2, min(query.n_candidates,
-                   2 * int(source_chunk) if n_candidates is None else int(n_candidates)))
+    wanted = 2 * int(source_chunk) if n_candidates is None else int(n_candidates)
+    n = min(query.n_candidates, max(2, wanted))
     indices = [int(i) for i in query.candidate_indices[:n]]
     positions = me.candidate_inputs(engine, query, md)["positions"][:n]
     uncached = released_conditioning(engine, md, positions, split.angles, per_candidate=True)
