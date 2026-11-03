@@ -414,3 +414,26 @@ rows `9e23f520` +143, `955ee0a1` +58, `2d889aa8` +7, `bb79a369` +180, `a58ed1d8`
 | `9831a2a4` | rB 7 (HIGH) | replay orbit partition a hard clause (G3 and G1); absent-mask digests/dtypes/shapes; masks in the G3 digest chains and per-key facts; isolated negatives: score drift, argmax movement, source-tail omission, batched replay orbit, 4 mask-only corruptions, DiT-input-only corruption | +21 |
 | `b6735a7b` | rB 5 part 1 (HIGH), NIT 8 | executed partition read off the calls (largest base batch / rotated forward, counted orbit), configured stride as consistency violations; exact-schema comparison both ways; tail-only-prefix rule before each row, exact final check; `split_reasons` in `assert_cacheable` / `require_split`; + the cycle-5 delete-the-check mutation log (13/13) | +48 (+74/−26) |
 | `0c696c78` | rB 5 part 2 (HIGH) | durable `fa_partition_ledger.json` (segment per invocation, rewritten before every row), run summary = sum over segments with counts digest; `merge_shards` re-derives every shard's partition, checks its summary, sums, keeps the ledger, publishes the block in `merge_report.json`; synthetic BF report fixture writes its ledger (`synthetic_fa_evidence`) | +115 (+121/−6) |
+
+## Round exp22-rB-F2 (fix round closing Codex code review rB-F1: HIGH 1–4, NIT 5–6; plan amendments A4–A6)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `1c2b0bfa`. Coder:
+Claude Opus 5.5 subagent; every code commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants count as code; the scratchpad counter reproduces the rB-F1
+rows `d6361fc2` +34, `b18cd9ed` +42, `f382a582` +63, `65a7b825` +83, `9831a2a4` +21,
+`b6735a7b` +48, `0c696c78` +115). Total +532/−97, net +435 (`meshgrid_fa_parity.py` +357/−49,
+`meshgrid_engine.py` +166/−46, `localize_meshgrid.py` +8/−2, `meshgrid_report.py` +1/−0 —
+the one disclosed out-of-scope line). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `82c73c1a` | rB-F1 1 (HIGH), A6 iii | G3D's `score_tolerance` is null beside `tolerance` and `match`; G3 keeps 1e-3 / `SCORE_TOLERANCE`; schema test over report, evidence and re-loaded JSON | +1 (+2/−1) |
+| `50ce4e33` | rB-F1 2 (HIGH) part 1 | the pinned anchor travels into G3/G3D (`inputs.probe_report` = G0's block, `anchor_key_set_equal`, `anchor_reasons` clause: no anchor → FAIL); each chunk publishes the COMPLETE replay record and its per-key tensor / mask / DiT-input facts; `executed_partition.counts`; contract change: `chunk["replay_partition"]` is the record dict | +25 (+34/−9) |
+| `787b2efa` | rB-F1 2 part 2 (refactor) | the gates judge with predicates over serialized facts: `pair_reasons`, `mask_reasons`, `score_reasons`, `score_summary`, `chunk_summary`, `source_sizes`, `key_set_equal`; texts unchanged, a NaN |diff| / |dS| now also fails its tolerance clause | +20 (+60/−40) |
+| `4b2af1f5` | rB-F1 2 part 2 | `reverify_gate_evidence(evidence) -> list[str]` for G3 / G3D: every PASS clause from the JSON alone (registered production conditions, anchored probe set, chunk tiling, replay records, per-key facts at the registered tolerance, score clause, re-derived per-key fold / chains / coverage / per-K summary, executed partition from its counts, autocast, identity from the binding, provenance, verdict / tolerances / clauses); 18 G3 tampers + G3D cases | +151 (+154/−3) |
+| `9f60dede` | rB-F1 2 part 3 | the re-verifier covers G1, G2, GV and G0; G0 publishes each query's `frozen_digests` and `inputs.published_binding`; every finalized evidence carries `reverify_note`; 21 tampers | +112 (+115/−3) |
+| `659e0d4b` | rB-F1 3 (HIGH) | ONE validating ledger reader `read_fa_ledger` for `open_fa_ledger`, the driver's preflight (before the engine / any write) and `fa_partition_census` (exact): declaration, segment indices 0..n−1 once, non-negative integer counts, canonical counts + segment digests, stored merged block, run-summary block (whole ledger at merge, a prefix at reopen), JSON validity, the declared partition; vanilla carries none | +77 (+116/−39) |
+| `fc8836a7` | rB-F1 5 (NIT), A6 iv | `partition_check_failed.json` written by a scored fa pass whose final (or before-row) partition check fails; `assert_admissible` refuses it by name in the reader (reopen + merge census), `_read_shard` and `meshgrid_report.evaluate_run` (one disclosed line); probe writes none; "publishes nothing" wording fixed | +46 (+53/−7) |
+| `3163658c` | self-review | an unknown-branch counts row is a named reader reason; the partition refusal reads the same in every caller | +3 (+6/−3) |
+| `01f693cb` | proof | delete-the-check mutations of the round's 20 new clauses (19/20 at once; the merge test gained "the only invocation failed" → 20/20) | 0 |
