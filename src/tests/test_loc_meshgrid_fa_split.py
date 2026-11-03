@@ -3581,3 +3581,154 @@ def test_a_pass_adopts_only_the_ledger_opened_for_its_out_dir_declaration_and_re
                           fa_partition=FA_DECLARED, **FA_SHAPES)
     assert summary["fa_partition_executed"]["executed"] == FA_DECLARED
     assert len(_ledger(out)["segments"]) == 1                    # adopted, not a second one
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 1 (BLOCKING): the merged BF ledger is
+# valid under its own reader -- one index space, each segment keeping its shard origin --
+# and the canonical per-arm report re-reads it and joins it to merge_report.json's receipt
+# --------------------------------------------------------------------------- #
+def _noop_resume(out, stack, rooms):
+    """A no-op resume of a finished fa shard: one more (empty) ledger segment + its summary."""
+    plan, records, items = stack
+    done, _rejected = me.completed_queries(out)
+    bound = json.load(open(os.path.join(out, me.BINDING_FILENAME)))["binding_sha256"]
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done, rooms=rooms,
+                          binding_sha256=bound, fa_partition=FA_DECLARED, **FA_SHAPES)
+    assert summary["n_scored"] == 0
+    me.write_json(_fa_files(out)[1], summary)
+
+
+@pytest.mark.parametrize("extra", [0, 1, 2])
+def test_the_merged_ledger_is_valid_under_its_own_reader(tmp_path, extra):
+    """Codex rB-F2: two one-segment shards merged to segment indices [0, 0], which the reader
+    itself refuses. The merge renumbers 0..n-1 (shard order, then each shard's own order) and
+    keeps each segment's origin; the merged ledger reads EXACTLY."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
+        for _ in range(extra):
+            _noop_resume(dirs[name], _fa_aligned(tmp_path / f"stack_{name}"), rooms)
+    origins = [(dirs[name], segment) for name in ("a", "b")
+               for segment in _ledger(dirs[name])["segments"]]
+    merged = str(tmp_path / "merged")
+    report = me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    kept = _ledger(merged)
+    assert [s["segment_index"] for s in kept["segments"]] == list(range(2 * (1 + extra)))
+    for segment, (shard, origin) in zip(kept["segments"], origins):
+        assert (segment["shard"], segment["shard_segment_index"]) == (shard,
+                                                                      origin["segment_index"])
+        assert {k: v for k, v in segment.items()
+                if k not in ("segment_index", "shard", "shard_segment_index")} == {
+            k: v for k, v in origin.items() if k != "segment_index"}
+    found = me.read_fa_ledger(merged, FA_DECLARED, exact=True)
+    assert found["n_segments"] == 2 * (1 + extra)
+    assert found["counts_sha256"] == report["fa_partition_executed"]["counts_sha256"]
+    assert [entry["n_segments"] for entry in report["fa_partition_executed"]["per_shard"]] == [
+        1 + extra, 1 + extra]
+    with pytest.raises(ValueError, match="never reopened"):              # a merged run is final
+        me.read_fa_ledger(merged, FA_DECLARED)
+
+
+def _bf_merged(tmp_path):
+    import test_loc_meshgrid_report as RPT
+
+    fixture = RPT.build_fixture_run(tmp_path, merged=True, arm="BF",
+                                    launch=RPT.fixture_launch(tmp_path, "BF"))
+    assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "BF"     # admissible
+    return RPT, fixture
+
+
+def _edit_json(path, edit):
+    payload = json.load(open(path))
+    edit(payload)
+    me.write_json(path, payload)
+
+
+def _resign_merged(ledger):
+    """An edited merged ledger with every SELF-digest recomputed, so only the join to the
+    receipt (or the origin rule) can catch the edit."""
+    _resummed(ledger)
+    return ledger
+
+
+MERGED_CORRUPTIONS = {
+    "ledger deleted": ("ledger", None, "publishes no fa_partition_ledger.json"),
+    "receipt deleted": ("receipt", lambda r: r.pop("fa_partition_executed"), "receipt"),
+    "receipt null": ("receipt", lambda r: r.update(fa_partition_executed=None), "receipt"),
+    "receipt digest moved": ("receipt", lambda r: r["fa_partition_executed"].update(
+        counts_sha256="0" * 64), "receipt"),
+    "receipt executed moved": ("receipt", lambda r: r["fa_partition_executed"]["executed"].update(
+        orbit_size=5), "receipt"),
+    "receipt census moved": ("receipt", lambda r: r["fa_partition_executed"]["per_shard"][0].update(
+        n_segments=2), "receipt"),
+    "a count edited, self-digests recomputed": ("ledger", lambda l: (
+        l["segments"][0]["counts"][0].update(count=l["segments"][0]["counts"][0]["count"] + 1),
+        _resign_merged(l)), "receipt"),
+    "indices duplicated": ("ledger", lambda l: l["segments"][1].update(segment_index=0),
+                           "segment indices"),
+    "an origin dropped": ("ledger", lambda l: l["segments"][1].pop("shard_segment_index"),
+                          "shard"),
+    "shard blocks swapped": ("ledger", lambda l: (l["segments"].reverse(), [
+        s.update(segment_index=i) for i, s in enumerate(l["segments"])]), "receipt"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(MERGED_CORRUPTIONS))
+def test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join(
+        tmp_path, name):
+    """Codex rB-F2: the report checked only the failure marker, so the merged ledger or the
+    receipt could change after the merge without invalidating the per-arm (or crossarm)
+    report. It now re-reads the ledger exactly and joins it to the receipt."""
+    from src.localization import meshgrid_crossarm as mx
+
+    RPT, fixture = _bf_merged(tmp_path)
+    run = fixture["run_dir"]
+    where, edit, needle = MERGED_CORRUPTIONS[name]
+    if edit is None:
+        os.remove(os.path.join(run, me.FA_LEDGER_FILENAME))
+    else:
+        _edit_json(os.path.join(run, me.FA_LEDGER_FILENAME if where == "ledger"
+                                else "merge_report.json"), edit)
+    with pytest.raises(ValueError, match=re_escape(needle)):
+        RPT.evaluate_fixture(fixture)
+    with pytest.raises(ValueError, match=re_escape(needle)):              # the crossarm inherits
+        mx.admit_run(run, "BF", audit_report=fixture["audit_report"],
+                     context_manifest=fixture["context_manifest"],
+                     metadata_root=fixture["metadata_root"],
+                     expect_metadata_bank_sha256=fixture["metadata_bank_sha256"],
+                     totals=fixture["totals"], require_manifest_census=False)
+
+
+def test_a_single_shard_bf_report_re_reads_its_ledger_against_its_run_summary(tmp_path):
+    import test_loc_meshgrid_report as RPT
+
+    fixture = RPT.build_fixture_run(tmp_path, merged=False, arm="BF")
+    assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "BF"
+    _edit_json(os.path.join(fixture["run_dir"], "run_summary.json"),
+               lambda s: s["fa_partition_executed"]["ledger"].update(counts_sha256="0" * 64))
+    with pytest.raises(ValueError, match="run summary"):
+        RPT.evaluate_fixture(fixture)
+
+
+@pytest.mark.parametrize("state, refused", [("no block, legacy shape", False),
+                                            ("null receipt", False),
+                                            ("a ledger file", True),
+                                            ("a non-null receipt", True)])
+def test_a_vanilla_report_admits_no_fa_ledger_and_no_fa_receipt(tmp_path, state, refused):
+    """The vanilla side of the join: an fa ledger or a non-null receipt in a P1 / YAW run is
+    refused; absent (the Aug-2026 P1 merged run carries neither) or null is admitted."""
+    import test_loc_meshgrid_report as RPT
+
+    fixture = RPT.build_fixture_run(tmp_path)                        # the P1 fixture, merged
+    report_path = os.path.join(fixture["run_dir"], "merge_report.json")
+    if state == "no block, legacy shape":
+        _edit_json(report_path, lambda r: r.pop("fa_partition_executed"))
+    elif state == "a ledger file":
+        me.write_json(os.path.join(fixture["run_dir"], me.FA_LEDGER_FILENAME), {"segments": []})
+    elif state == "a non-null receipt":
+        _edit_json(report_path, lambda r: r.update(fa_partition_executed={"executed": {}}))
+    if refused:
+        with pytest.raises(ValueError, match="vanilla run carries no frame-average"):
+            RPT.evaluate_fixture(fixture)
+    else:
+        assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "P1"

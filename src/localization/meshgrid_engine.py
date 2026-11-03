@@ -938,6 +938,38 @@ def _summary_reasons(summary, segments, merged, exact):
             f"segment(s) (differs on {moved})"] if moved else []
 
 
+def _merged_reasons(segments, receipt, merged):
+    """``(reasons, shard blocks)`` of a MERGED ledger (Codex rB-F2 finding 1): every segment
+    names its shard and its shard-local index; each shard is one contiguous block numbered
+    0..k-1 in its own order; and the merge report's receipt is exactly what the segments
+    yield -- the summed partition, its digest, and each shard's census in shard order."""
+    blocks = []
+    for segment in segments:
+        shard, local = segment.get("shard"), segment.get("shard_segment_index")
+        if not (isinstance(shard, str) and shard and _count(local)):
+            return [f"merged segment {segment.get('segment_index')!r} does not name its shard "
+                    "and its shard-local index"], None
+        if blocks and blocks[-1][0] == shard:
+            blocks[-1][1].append(segment)
+        elif shard in [name for name, _block in blocks]:
+            return [f"the merged segments of shard {shard} are not one contiguous block"], None
+        else:
+            blocks.append((shard, [segment]))
+    reasons = [f"shard {shard}'s merged segments are not its segments 0..{len(block) - 1} in order"
+               for shard, block in blocks
+               if [s["shard_segment_index"] for s in block] != list(range(len(block)))]
+    wanted = {"executed": merged.executed(), "violations": merged.violations(),
+              "counts_sha256": counts_sha256(merged), "per_shard": [
+                  {"dir": shard, "counts_sha256": counts_sha256(FaPartitionRecorder.from_counts(
+                      *[s["counts"] for s in block])), "n_segments": len(block)}
+                  for shard, block in blocks]}
+    if not isinstance(receipt, dict):
+        return reasons + ["the merge report carries no fa_partition_executed receipt"], blocks
+    moved = sorted(key for key in set(wanted) | set(receipt) if receipt.get(key) != wanted.get(key))
+    return reasons + ([f"the merge report's fa_partition_executed receipt is not its merged "
+                       f"ledger's (differs on {moved})"] if moved else []), blocks
+
+
 def _read_object(path):
     """A JSON object from ``path``, or a refusal that names the file."""
     try:
@@ -985,10 +1017,16 @@ def read_fa_ledger(out_dir, declared, exact=False):
     path = os.path.join(out_dir, FA_LEDGER_FILENAME)
     summary_path = os.path.join(out_dir, RUN_SUMMARY_FILENAME)
     summary = _read_object(summary_path) if os.path.isfile(summary_path) else None
+    # a MERGED run (it publishes the merge report) is joined to the merge report's receipt
+    merge_path = os.path.join(out_dir, MERGE_REPORT_FILENAME)
+    merge_report = _read_object(merge_path) if os.path.isfile(merge_path) else None
+    receipt = (merge_report or {}).get("fa_partition_executed")
     if declared is None:
-        if os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None:
+        if (os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None
+                or receipt is not None):
             raise ValueError(f"{out_dir}: a vanilla run carries no frame-average executed "
-                             f"partition, but it carries a {FA_LEDGER_FILENAME} or a summary block")
+                             f"partition, but it carries a {FA_LEDGER_FILENAME}, a summary "
+                             "block or a non-null merge-report receipt")
         return None
     if not os.path.isfile(path):
         fresh, found = fresh_out_dir(out_dir)
@@ -1002,7 +1040,11 @@ def read_fa_ledger(out_dir, declared, exact=False):
         return None
     payload = _read_object(path)
     reasons, merged = _ledger_reasons(payload, declared)
-    if not reasons:
+    if not reasons and merge_report is not None:
+        reasons = (_merged_reasons(payload["segments"], receipt, merged)[0] if exact
+                   else ["it is a merged run's ledger, which is final: a merged directory is "
+                         "never reopened"])
+    elif not reasons:
         reasons = _summary_reasons(summary, payload["segments"], merged, exact)
     if not reasons and (exact or any(merged.counts.values())):   # nothing ran yet: a prefix
         try:
@@ -1070,7 +1112,10 @@ def fa_executed_block(declared, merged, n_segments):
 def fa_partition_census(shards, declared):
     """Each shard's ledger read through THE validating reader (:func:`read_fa_ledger`,
     exactly: integrity, a run summary covering every segment, the exact declared partition),
-    then the sum over shards -- or ``None`` for a vanilla run, whose shards carry none."""
+    then the sum over shards: ``{"ledger", "receipt"}`` -- the merged ledger (ONE index space
+    0..n-1 in shard order, each segment keeping its ``shard`` and ``shard_segment_index``)
+    and the merge report's receipt, both verified as the reader verifies a merged run
+    (Codex rB-F2 finding 1) -- or ``None`` for a vanilla run, whose shards carry none."""
     per_shard, segments, recorders = [], [], []
     for shard in shards:
         # THE reader, exactly: integrity, the whole-ledger summary, the exact partition
@@ -1079,15 +1124,25 @@ def fa_partition_census(shards, declared):
             continue
         per_shard.append({"dir": shard["dir"], "counts_sha256": ledger["counts_sha256"],
                           "n_segments": ledger["n_segments"]})
-        segments += [dict(segment, shard=shard["dir"]) for segment in ledger["payload"]["segments"]]
+        for segment in ledger["payload"]["segments"]:
+            segments.append(dict(segment, segment_index=len(segments), shard=shard["dir"],
+                                 shard_segment_index=segment["segment_index"]))
         recorders.append(ledger["merged"])
     if declared is None:
         return None
     union = FaPartitionRecorder.from_counts(*[recorder.to_counts() for recorder in recorders])
     report = assert_fa_partition_executed(declared, union)
-    return {"executed": report["executed"], "violations": report["violations"],
-            "counts_sha256": counts_sha256(union), "per_shard": per_shard,
-            "segments": segments, "declared": declared}
+    receipt = {"executed": report["executed"], "violations": report["violations"],
+               "counts_sha256": counts_sha256(union), "per_shard": per_shard}
+    merged = {"declared": declared, "segments": segments, "note": FA_LEDGER_NOTE,
+              "merged": {"counts_sha256": receipt["counts_sha256"],
+                         "executed": union.executed(), "violations": union.violations()}}
+    reasons, summed = _ledger_reasons(merged, declared)
+    reasons = reasons or _merged_reasons(segments, receipt, summed)[0]
+    if reasons:
+        raise ValueError("the merged executed-partition ledger would not verify under its own "
+                         "reader: " + "; ".join(reasons))
+    return {"ledger": merged, "receipt": receipt}
 
 
 # --------------------------------------------------------------------------- #
@@ -3183,9 +3238,7 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
 
     write_binding(out_dir, base, advisory=advisory, declared_rooms=sorted(declared))
     if fa is not None:
-        write_json(os.path.join(out_dir, FA_LEDGER_FILENAME), {
-            "declared": fa["declared"], "segments": fa["segments"], "note": FA_LEDGER_NOTE,
-            "merged": {key: fa[key] for key in ("counts_sha256", "executed", "violations")}})
+        write_json(os.path.join(out_dir, FA_LEDGER_FILENAME), fa["ledger"])
     provenance = (ms.merge_ledgers(rows_by_shard, out_dir) if recorded else
                   {"generation": "legacy_r1_binding", "complete": False, "records": [],
                    "note": "the shards carry the legacy R1 binding, which predates launch "
@@ -3193,9 +3246,7 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
                            "without them (plan r2 §1 legacy-provenance exception)"})
     report = {"experiment": "exp_22 loc_meshgrid I1 shard merge", "ok": True,
               "launch_provenance": provenance,
-              "fa_partition_executed": None if fa is None else {
-                  key: fa[key] for key in ("executed", "violations", "counts_sha256",
-                                           "per_shard")},
+              "fa_partition_executed": None if fa is None else fa["receipt"],
               "binding_sha256": binding_sha256, "advisory": advisory,
               "declared_rooms": sorted(declared), "n_rows": len(rows),
               "shards": [{"dir": shard["dir"], "rooms": shard["declared_rooms"],
@@ -3215,5 +3266,5 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
               "registered_totals": totals,
               "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
               "batching_caveat": BATCHING_CAVEAT}
-    write_json(os.path.join(out_dir, "merge_report.json"), report)
+    write_json(os.path.join(out_dir, MERGE_REPORT_FILENAME), report)
     return report

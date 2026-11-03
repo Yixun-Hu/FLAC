@@ -2432,6 +2432,10 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     run_dir = str(run_dir)
     me.assert_admissible(run_dir)          # exp_22 rB-F2: plan r2 amendment A6 (iv), by name
     binding, binding_sha = load_published_binding(run_dir)
+    # exp_22 rB-F3 (Codex rB-F2 finding 1): the executed-partition ledger re-read EXACTLY by
+    # the engine's reader and joined to the merge receipt (or the run summary); a vanilla run
+    # may carry neither a ledger nor a non-null receipt
+    me.read_fa_ledger(run_dir, binding.get("fa_partition"), exact=True)
     plan = me.load_audit_plan(audit_report, branch=binding["branch"])
     artifacts = assert_artifact_hashes(binding, plan, context_manifest)
     registered = assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
