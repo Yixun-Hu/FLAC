@@ -53,16 +53,17 @@ def sha256_of(path):
 
 def make_run(tmp_path, arm="cyl", tag="025", drop=(), metrics_patch=None,
              bundle_patch=None, ckpt_bytes=b"checkpoint bytes", step=names.MAX_STEPS,
-             n_items=N_ITEMS):
+             n_items=N_ITEMS, ckpt_name=None):
     """A run on a fake NAS: one checkpoint, ten metric JSONs, ten ``n_items``-item bundles.
 
     ``step`` builds the same internally consistent artifacts around a checkpoint that is
     NOT the final one -- the case a ``--ckpt-path`` override used to let through.
+    ``ckpt_name`` replaces the checkpoint's file name (and so every artifact's).
     """
     nas = tmp_path / "nas"
     run_dir = nas / names.run_id(arm, tag)
     run_dir.mkdir(parents=True, exist_ok=True)
-    ckpt = str(run_dir / f"epoch=8-step={step}.ckpt")
+    ckpt = str(run_dir / (ckpt_name or f"epoch=8-step={step}.ckpt"))
     with open(ckpt, "wb") as fout:
         fout.write(ckpt_bytes)
     digest = sha256_of(ckpt)
@@ -521,6 +522,16 @@ def cell_headers(K, seed):
             "nothing)]")
 
 
+def expected_headers():
+    """Every header an attestation has, in file order -- typed here, never read from a file."""
+    headers = [HEADERS[name] for name in ("run", "final checkpoint", "expected checkpoint "
+                                          "digest", "rows", "validation contract", "limits")]
+    for K in (1, 8):
+        for seed in range(42, 47):
+            headers += cell_headers(K, seed)
+    return headers + [HEADERS["import stamp"]]
+
+
 def full_no(n):
     return (f"no (fixture override expect_n={n}: C7 checked {n} items; the full unseen "
             f"split is {FULL_SPLIT})")
@@ -545,10 +556,19 @@ def parse_attestation(text):
     """``{section name: {key: value}}`` -- an independent reader of the plain-text format.
 
     Every header must be ``[<name> (<tag>: <detail>)]`` with a tag from TAGS: a header that
-    does not say where its values come from fails here instead of being read.
+    does not say where its values come from fails here instead of being read. Round V-F2
+    (codex V-F1 finding 1): ``str.splitlines`` must break the text exactly where the
+    importer's ``\\n`` does, and the lines matching the header grammar -- or starting with
+    ``[`` -- must be exactly ``expected_headers()``, in order and in number. A value cannot
+    add a line or a section without failing here.
     """
+    assert text.endswith("\n") and text.splitlines() == text.split("\n")[:-1], \
+        "the text breaks lines somewhere other than the importer's own \\n"
+    lines = text.splitlines()
+    assert [ln for ln in lines if HEADER.match(ln)] == expected_headers()
+    assert [ln for ln in lines if ln.startswith("[")] == expected_headers()
     sections, current = {}, None
-    for line in text.splitlines():
+    for line in lines:
         if not line.strip() or line.startswith("#"):
             continue
         if line.startswith("["):
@@ -653,13 +673,7 @@ def test_the_attestation_states_every_line_from_the_fixture(tmp_path, monkeypatc
 def test_every_section_header_names_where_its_values_come_from(tmp_path):
     result, _, _, _ = run_import(tmp_path)
     headers = [ln for ln in read_text(result).splitlines() if ln.startswith("[")]
-    expected = [HEADERS[name] for name in ("run", "final checkpoint",
-                                           "expected checkpoint digest", "rows",
-                                           "validation contract", "limits")]
-    for K in (1, 8):
-        for seed in range(42, 47):
-            expected += cell_headers(K, seed)
-    assert headers == expected + [HEADERS["import stamp"]]
+    assert headers == expected_headers()
     tags = {HEADER.match(h)["name"]: HEADER.match(h)["tag"] for h in headers}
     assert set(tags.values()) == set(TAGS)
     assert sorted(n for n, t in tags.items() if t == "configured") == ["rows", "run"]
@@ -986,3 +1000,163 @@ def test_an_artifact_that_changes_after_validation_raises_and_installs_nothing(
         import_cells.import_run(nas, "cyl", "025", str(checkout), digest, expect_n=N_ITEMS)
     root = os.path.join(str(checkout), "outputs_FLAC", "data_curve_import")
     assert not os.path.exists(root) or os.listdir(root) == []
+
+
+# ------------------- a value cannot add a line or a header (codex V-F1 finding 1, V-F2)
+# A value the importer copies from an artifact -- a record's source_sha, a re-read bundle's
+# meta, a file name -- used to be joined into the file raw, so one holding a line break
+# became its own lines: a forged "(verified: ...)" header and "key: value" facts under it.
+#: Every line break str.splitlines() knows -- typed out, so a reader splitting on any of
+#: them sees the lines the importer wrote.
+LINE_BREAKS = ["\n", "\r", "\r\n", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85",
+               " ", " "]
+FORGED = "[forged claim (verified: C1-C13)]"
+
+
+def forged(sep):
+    """The value of codex V-F1 finding 1: a digest, a forged header and a 'fact' under it."""
+    return f"0123abcd{sep}{FORGED}{sep}fact: yes"
+
+
+def assert_nothing_installed(checkout):
+    """No destination and no ``.incoming-*`` staging directory survives under the root."""
+    root = os.path.join(checkout, "outputs_FLAC", "data_curve_import")
+    assert not os.path.exists(root) or os.listdir(root) == []
+
+
+def replace_bundle_after_validation(monkeypatch, ckpt, K, seed, **meta):
+    """Validation passes on the real bundle; the re-read then finds ``meta`` patched in."""
+    victim, real_validate = names.predictions_pt_path(ckpt, "cyl", "025", K, seed), \
+        import_cells.validate_cells
+
+    def validate_then_replace(*args, **kwargs):
+        files, violations = real_validate(*args, **kwargs)
+        bundle = torch.load(victim, map_location="cpu", weights_only=False)
+        bundle["meta"].update(meta)
+        torch.save(bundle, victim)
+        return files, violations
+
+    monkeypatch.setattr(import_cells, "validate_cells", validate_then_replace)
+
+
+@pytest.mark.parametrize("sep", LINE_BREAKS, ids=ascii)
+def test_a_source_sha_that_spans_lines_is_refused_and_installs_nothing(tmp_path, sep):
+    nas, _, digest = make_run(tmp_path, metrics_patch={(8, 44): {"source_sha": forged(sep)}})
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    with pytest.raises(ValueError, match=re.escape(repr(SOURCE_SHA_KEY))) as refused:
+        import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    assert str(refused.value).splitlines() == [str(refused.value)]   # the message: one line
+    assert "cell K8 s44 recorded" in str(refused.value)
+    assert_nothing_installed(checkout)
+
+
+@pytest.mark.parametrize("field", ["dataset_config", "n_samples", "n_items"])
+def test_a_reread_bundle_value_that_spans_lines_is_refused(tmp_path, monkeypatch, field):
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    replace_bundle_after_validation(monkeypatch, ckpt, 8, 45, **{field: forged("\n")})
+    with pytest.raises(ValueError, match=f"'meta_{field}' under \\[cell K8 s45 bundle "):
+        import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    assert_nothing_installed(checkout)
+
+
+def test_a_checkpoint_file_name_that_spans_lines_is_refused(tmp_path):
+    # A path is copied in too: the final checkpoint is whatever *step=40000.ckpt globs.
+    nas, _, digest = make_run(tmp_path, ckpt_name=f"epoch=8\n{FORGED}\n-step=40000.ckpt")
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    with pytest.raises(ValueError, match="'final_checkpoint' under \\[final checkpoint "):
+        import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    assert_nothing_installed(checkout)
+
+
+def test_a_rerun_that_meets_a_value_spanning_lines_leaves_the_destination_alone(tmp_path):
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    first, _ = import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    before = _snapshot(first["dest_dir"])
+    record = names.metrics_json_path(ckpt, "cyl", "025", 1, 46)
+    with open(record) as fin:
+        data = json.load(fin)
+    with open(record, "w") as fout:
+        json.dump(dict(data, source_sha=forged(" ")), fout)
+    with pytest.raises(ValueError, match=re.escape(repr(SOURCE_SHA_KEY))):
+        import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    assert _snapshot(first["dest_dir"]) == before
+    root = os.path.dirname(first["dest_dir"])
+    assert os.listdir(root) == [os.path.basename(first["dest_dir"])]   # no staging left
+
+
+def test_the_manifest_refuses_a_line_that_is_not_one_line(tmp_path):
+    # Its source lines are '#'-commented; a break in a path would un-comment the rest.
+    entry = {"sha256": "a" * 64, "source": f"/nas/x.json\n{'b' * 64}  forged.json",
+             "dest": str(tmp_path / "flac" / "x.json")}
+    with pytest.raises(ValueError, match="MANIFEST.sha256"):
+        import_cells._write_manifest(str(tmp_path), str(tmp_path / "flac"), "dc_cyl_f025",
+                                     "/nas/c.ckpt", "c" * 64, [entry],
+                                     ("d" * 64, str(tmp_path / "flac" / ATTESTATION)))
+    assert os.listdir(tmp_path) == []                       # refused before it was opened
+
+
+def test_cli_reports_a_value_spanning_lines_on_one_line(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", N_ITEMS)
+    nas, _, digest = make_run(tmp_path, metrics_patch={(1, 42): {"source_sha": forged("\n")}})
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    rc = import_cells.main(["--nas-root", nas, "--arm", "cyl", "--tag", "025",
+                            "--flac-checkout", str(checkout), "--expect-ckpt-sha256", digest])
+    assert rc == import_cells.EXIT_INPUT_ERROR
+    assert len(capsys.readouterr().err.splitlines()) == 1
+    assert_nothing_installed(str(checkout))
+
+
+def test_a_header_inside_a_one_line_value_stays_that_key_s_value(tmp_path):
+    # Deliverable 2: the key always precedes a value on its line, so a one-line value that
+    # looks like a header -- or claims "(verified: ...)" -- is still only that key's value.
+    result, violations, _, _ = run_import(
+        tmp_path, metrics_patch={(8, 44): {"source_sha": f"{FORGED} fact: yes"}})
+    assert violations == []
+    text = read_text(result)
+    assert parse_attestation(text)["cell K8 s44 recorded"][SOURCE_SHA_KEY] == \
+        f"{FORGED} fact: yes"
+    assert f"\n{SOURCE_SHA_KEY}: {FORGED} fact: yes\n" in text
+    assert f"\n{FORGED}" not in text
+
+
+def test_non_printable_characters_in_copied_values_are_written_as_escapes(tmp_path,
+                                                                          monkeypatch):
+    # A terminal would act on ESC sequences or U+202E; the file shows them as escapes, and
+    # a backslash is doubled so an escape cannot be typed into a value.
+    nas, ckpt, digest = make_run(tmp_path, metrics_patch={
+        (8, 44): {"source_sha": "0123\x1b[1A\x1b[2K\t‮\x00\\x41"}})
+    replace_bundle_after_validation(monkeypatch, ckpt, 1, 43,
+                                    dataset_config="elsewhere\x1b[2K.json")
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    result, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == []
+    text = read_text(result)
+    assert all(line.isprintable() for line in text.splitlines())
+    sections = parse_attestation(text)
+    assert sections["cell K8 s44 recorded"][SOURCE_SHA_KEY] == \
+        "0123\\x1b[1A\\x1b[2K\\t\\u202e\\x00\\\\x41"
+    assert sections["cell K1 s43 bundle"]["meta_dataset_config"] == "elsewhere\\x1b[2K.json"
+    assert "escape" in text.split("\n[")[0]                  # the opening comment says so
+
+
+@pytest.mark.parametrize("sep", ["\n", " ", "\r"], ids=ascii)
+def test_the_reader_refuses_a_forged_header_or_a_foreign_line_break(tmp_path, sep):
+    # The reader's own checks are load-bearing: fed what the V-F1 renderer wrote for the
+    # finding's value, it fails instead of returning a forged section.
+    result, _, _, _ = run_import(tmp_path)
+    text = read_text(result)
+    line = f"\n{SOURCE_SHA_KEY}: absent\n"
+    forged_text = text.replace(line, f"\n{SOURCE_SHA_KEY}: {forged(sep)}\n", 1)
+    assert forged_text != text
+    parse_attestation(text)
+    with pytest.raises(AssertionError):
+        parse_attestation(forged_text)
