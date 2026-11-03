@@ -605,3 +605,76 @@ def test_a_production_size_import_attests_the_full_unseen_split(tmp_path, monkey
         if name.startswith("cell "):
             assert body["full_unseen_split"] == \
                 f"yes ({N_ITEMS} items = names.N_ITEMS_UNSEEN, the full unseen split)"
+
+
+def test_the_manifest_lists_the_attestation_and_every_line_verifies(tmp_path):
+    result, _, checkout, _ = run_import(tmp_path)
+    attestation = os.path.join(result["dest_dir"], ATTESTATION)
+    assert result["attestation"] == attestation
+    assert import_cells.ATTESTATION_BASENAME == ATTESTATION
+    with open(result["manifest"]) as fin:
+        checkable = [ln for ln in fin.read().splitlines() if ln and not ln.startswith("#")]
+    assert f"{sha256_of(attestation)}  outputs_FLAC/data_curve_import/dc_cyl_f025/" \
+           f"{ATTESTATION}" in checkable
+    for line in checkable:
+        digest, rel = line.split("  ", 1)
+        assert sha256_of(os.path.join(checkout, rel)) == digest
+    if shutil.which("sha256sum"):           # what a later reader actually runs
+        done = subprocess.run(["sha256sum", "--check", "--strict", "--quiet",
+                               result["manifest"]], cwd=checkout, capture_output=True)
+        assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_the_row_globs_match_the_ten_cells_and_never_the_attestation(tmp_path):
+    result, _, checkout, _ = run_import(tmp_path)
+    dest = result["dest_dir"]
+    cells = sorted(os.path.join(dest, os.path.basename(e["dest"])) for e in result["files"])
+    assert os.path.exists(os.path.join(dest, ATTESTATION))
+    matched = []
+    for row in result["row_specs"]:
+        _, _, K, patterns = ast.literal_eval(row.rstrip(","))
+        hits = sorted(glob.glob(os.path.join(glob.escape(checkout), patterns[0]),
+                                recursive=True))
+        assert len(hits) == 5 and all(f"_K{K}_" in os.path.basename(h) for h in hits)
+        matched += hits
+    assert sorted(matched) == cells
+    assert sorted(glob.glob(os.path.join(glob.escape(dest), "*.json"))) == cells
+    assert names.FORBIDDEN_SUBSTRING not in ATTESTATION
+
+
+def _snapshot(directory):
+    return {name: sha256_of(os.path.join(directory, name)) for name in os.listdir(directory)}
+
+
+def test_an_existing_attestation_that_differs_is_refused_and_nothing_changes(tmp_path):
+    nas, _, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    first, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                expect_n=N_ITEMS)
+    assert violations == []
+    attestation = os.path.join(first["dest_dir"], ATTESTATION)
+    with open(attestation) as fin:
+        text = fin.read()
+    with open(attestation, "w") as fout:            # someone else's attestation
+        fout.write(text.replace("seed: 43\n", "seed: 99\n", 1))
+    before = _snapshot(first["dest_dir"])
+    second, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                                 expect_n=N_ITEMS)
+    assert any("already exists" in v and ATTESTATION in v for v in violations)
+    assert second["installed"] is None
+    assert _snapshot(first["dest_dir"]) == before
+
+
+def test_a_destination_without_an_attestation_is_refused_and_nothing_changes(tmp_path):
+    # e.g. a directory installed by the pre-round-V importer: never merged into.
+    nas, _, digest = make_run(tmp_path)
+    checkout = str(tmp_path / "flac")
+    os.makedirs(checkout)
+    first, _ = import_cells.import_run(nas, "cyl", "025", checkout, digest, expect_n=N_ITEMS)
+    os.remove(os.path.join(first["dest_dir"], ATTESTATION))
+    before = _snapshot(first["dest_dir"])
+    _, violations = import_cells.import_run(nas, "cyl", "025", checkout, digest,
+                                            expect_n=N_ITEMS)
+    assert any("already exists" in v and ATTESTATION in v for v in violations)
+    assert _snapshot(first["dest_dir"]) == before
