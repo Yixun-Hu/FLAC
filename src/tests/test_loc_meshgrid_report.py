@@ -11,6 +11,7 @@ engine's own ``run_pass``, so the rows, the sidecars, the digests and the bindin
 are produced by exactly the code the production pass uses. No GPU is involved.
 """
 import json
+import types
 import math
 import os
 
@@ -297,9 +298,15 @@ def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None, ledger=N
         n = int(block["candidate_micro_batch"])
         rotated = [(n, True)] * (orbit - 1) if branch in me.FA_ORBIT_BRANCHES else []
         recorder.observe(branch, [(n, False)] + rotated, cap=n, configured=n, orbit_size=orbit)
-    # the ledger was opened BEFORE the binding, as the driver opens it (Codex rB-F2 finding 3)
+    # the ledger was opened BEFORE the binding, as the driver opens it (Codex rB-F2 finding 3);
+    # every row carries a stamp of the ledger state it was published under: one persisted
+    # state per row (all the synthetic calls fall on the first), its stamp file beside it
     ledger = ledger or me.open_fa_ledger(out_dir, declared, launch_record_sha256)
-    merged = me.persist_fa_ledger(ledger, recorder)
+    merged = me.persist_fa_ledger(ledger, recorder, query=False)
+    for row in me.read_rows(out_dir):
+        merged = me.persist_fa_ledger(ledger, recorder)
+        me.write_fa_stamp(out_dir, types.SimpleNamespace(
+            room_id=row["room_id"], position=row["position"], query_id=row["query_id"]), ledger)
     return me.fa_executed_block(declared, merged, len(ledger["payload"]["segments"]))
 
 

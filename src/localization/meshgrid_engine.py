@@ -834,7 +834,10 @@ FA_LEDGER_NOTE = (
     "resume adds a segment instead of replacing the evidence. The run's executed partition is "
     "the sum of its segments' counts; the merge re-derives each shard's, and the sum over all "
     "shards, from these counts and refuses any disagreement with the declaration or with the "
-    "shard's own run summary")
+    "shard's own run summary. Each segment also keeps delta_counts (the calls since its state "
+    "at n_queries - 1), and every published row has a stamp (fa_ledger_stamps/) of the state "
+    "persisted just before it: each segment's state is its last row's, or exactly one query "
+    "ahead of it after a crash (Codex rB-F2 finding 3)")
 
 
 def counts_sha256(recorder):
@@ -879,7 +882,8 @@ def counts_reasons(counts, what):
 
 def _segment_reasons(index, segment):
     """``(reasons, recorder)`` for one segment: a non-negative query count, canonical counts
-    (:func:`counts_reasons`), and the digest it stores of them."""
+    (:func:`counts_reasons`) and the digest it stores of them, and a canonical
+    ``delta_counts`` INSIDE them (the calls since its state at n_queries - 1)."""
     reasons = [] if _count(segment.get("n_queries")) else [
         f"segment {index}'s n_queries {segment.get('n_queries')!r} is not a non-negative integer"]
     why, recorder = counts_reasons(segment.get("counts"), f"segment {index}")
@@ -887,7 +891,142 @@ def _segment_reasons(index, segment):
         return reasons + why, None
     if segment.get("counts_sha256") != counts_sha256(recorder):
         why.append(f"segment {index}'s counts do not hash to its counts_sha256")
-    return reasons + why, recorder
+    delta, _delta = counts_reasons(segment.get("delta_counts"), f"segment {index}'s delta")
+    if not delta and _counts_minus(segment["counts"], segment["delta_counts"]) is None:
+        delta = [f"segment {index}'s delta_counts are not inside its counts"]
+    return reasons + why + delta, recorder
+
+
+def _counts_minus(counts, delta):
+    """``counts`` minus ``delta`` (canonical rows) as a recorder, or ``None`` when ``delta`` is
+    not inside ``counts``."""
+    left = FaPartitionRecorder.from_counts(counts)
+    for entry in delta:
+        bucket = left.counts[entry["branch"]]
+        key = (entry["configured"], entry["cap"], tuple(entry["base"]), tuple(entry["orbit"]),
+               entry["orbit_size"])
+        rest = bucket.get(key, 0) - entry["count"]
+        if rest < 0:
+            return None
+        if rest:
+            bucket[key] = rest
+        else:
+            bucket.pop(key, None)
+    return left
+
+
+#: the ledger state an fa row is published under (Codex rB-F2 finding 3), kept in a stamp file
+#: BESIDE the rows -- ``<out-dir>/fa_ledger_stamps/<room>/q<position>.json`` -- so a BF row's
+#: bytes keep the vanilla row schema the crossarm pairs arms on (its row whitelist is fixed)
+STAMP_FIELDS = ("segment_index", "n_queries", "counts_sha256")
+FA_STAMPS_DIRNAME = "fa_ledger_stamps"
+
+
+def fa_ledger_state(ledger):
+    """The state of this invocation's segment, persisted just before a row: the row's stamp."""
+    segment = ledger["payload"]["segments"][-1]
+    return {field: segment[field] for field in STAMP_FIELDS}
+
+
+def fa_stamp_path(out_dir, room_id, position):
+    return os.path.join(str(out_dir), FA_STAMPS_DIRNAME, room_stem(room_id),
+                        f"q{int(position):05d}.json")
+
+
+def write_fa_stamp(out_dir, query, ledger):
+    """Publish the stamp of ``query``'s row, after the ledger write and BEFORE the row."""
+    path = fa_stamp_path(out_dir, query.room_id, query.position)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return write_json(path, dict(fa_ledger_state(ledger), query_id=query.query_id))
+
+
+def read_fa_stamp(out_dir, row):
+    """``(query id, stamp or None, launch record)`` of one published row (rB-F2 finding 3)."""
+    path = fa_stamp_path(out_dir, row["room_id"], row["position"])
+    return (row["query_id"], _read_object(path) if os.path.isfile(path) else None,
+            row.get("launch_record_sha256"))
+
+
+def _shapes(counts):
+    return {(e["branch"], e["configured"], e["cap"], tuple(e["base"]), tuple(e["orbit"]),
+             e["orbit_size"]) for e in counts}
+
+
+def _row_binding_reasons(segments, stamps, exact, blocks=None):
+    """Every segment's stored state against its OWN rows' stamps (Codex rB-F2 finding 3).
+    ``stamps`` = ``(query id, stamp, row launch record)`` of every self-verifying row;
+    ``blocks`` = a merged ledger's shard blocks (rows then map by launch record and shard-local
+    index). With N the segment's n_queries and M its rows' highest: N == M -> its counts are
+    the state its last row was stamped with (empty when M is 0); N == M + 1 -> ONE query
+    ahead (the ledger is written before the row) -> its counts minus its delta are; anything
+    else is refused. At a merge a one-ahead state is admitted only off its shard's last
+    invocation, and only if every call shape of the lost attempt was executed again later."""
+    merged_mode, blocks = blocks is not None, blocks or [(None, list(segments))]
+    if merged_mode:
+        lookup = {(s.get("launch_record_sha256"), s["shard_segment_index"]): s
+                  for s in segments if s.get("launch_record_sha256") is not None}
+    else:
+        lookup = {s["segment_index"]: s for s in segments}
+    reasons, top, seen = [], {}, set()
+    for query_id, stamp, launch in stamps:
+        if not (isinstance(stamp, dict) and sorted(stamp) == sorted(STAMP_FIELDS + ("query_id",))
+                and stamp["query_id"] == query_id and _count(stamp["segment_index"])
+                and _count(stamp["n_queries"]) and stamp["n_queries"] >= 1
+                and isinstance(stamp["counts_sha256"], str)):
+            reasons.append(f"row {query_id}: its ledger stamp {stamp!r} is not a "
+                           f"{list(STAMP_FIELDS)} state")
+            continue
+        segment = lookup.get((launch, stamp["segment_index"]) if merged_mode
+                             else stamp["segment_index"])
+        if segment is None or segment.get("launch_record_sha256") != launch:
+            reasons.append(f"row {query_id}: its stamp names segment {stamp['segment_index']} "
+                           f"(launch record {launch!r}), which the ledger does not hold")
+            continue
+        key = (id(segment), stamp["n_queries"])
+        if key in seen or stamp["n_queries"] > segment["n_queries"]:
+            reasons.append(f"row {query_id}: its stamp claims a state twice or beyond its "
+                           f"segment's {segment['n_queries']} queries")
+            continue
+        seen.add(key)
+        if stamp["n_queries"] > top.get(id(segment), (0, None))[0]:
+            top[id(segment)] = (stamp["n_queries"], stamp["counts_sha256"])
+    for _shard, block in blocks:
+        for position, segment in enumerate(block):
+            reasons += _segment_binding(segment, top.get(id(segment), (0, None)), exact,
+                                        last=position == len(block) - 1,
+                                        later=set().union(*[_shapes(s["counts"])
+                                                            for s in block[position + 1:]]))
+    return reasons
+
+
+def _segment_binding(segment, top, exact, last, later):
+    name, (m, stamped), n = f"segment {segment['segment_index']}", top, segment["n_queries"]
+    stamped = counts_sha256(FaPartitionRecorder()) if m == 0 else stamped
+    if n not in (m, m + 1):
+        return [f"{name} holds {n} queries but its rows show {m}: a ledger state is at most "
+                "one query ahead of its last row"]
+    state = (segment["counts_sha256"] if n == m
+             else counts_sha256(_counts_minus(segment["counts"], segment["delta_counts"])))
+    if state != stamped:
+        return [f"{name}'s state is not the one its last row was published under"]
+    if n == m + 1 and exact and last:
+        return [f"{name} is one query ahead of its rows, but it is its shard's last invocation, "
+                "which completed"]
+    if n == m + 1 and exact and not _shapes(segment["delta_counts"]) <= later:
+        return [f"{name}'s lost attempt made call shapes no later segment executed again"]
+    return []
+
+
+def _stamp_reasons(out_dir, segments, exact, blocks=None):
+    """The row binding over the rows ON DISK whose own digest verifies (an unverifiable row is
+    regenerated by a resume and refused by the merge, never trusted here), each with its stamp."""
+    try:
+        stamps = [read_fa_stamp(out_dir, row) for row in read_rows(out_dir)
+                  if row.get("row_sha256") == row_digest(row)]
+    except (KeyError, TypeError, ValueError) as error:
+        return [f"its rows cannot be read for their ledger stamps ({type(error).__name__}: "
+                f"{error})"]
+    return _row_binding_reasons(segments, stamps, exact, blocks)
 
 
 def _ledger_reasons(payload, declared):
@@ -1040,12 +1179,15 @@ def read_fa_ledger(out_dir, declared, exact=False):
         return None
     payload = _read_object(path)
     reasons, merged = _ledger_reasons(payload, declared)
+    blocks = None
     if not reasons and merge_report is not None:
-        reasons = (_merged_reasons(payload["segments"], receipt, merged)[0] if exact
-                   else ["it is a merged run's ledger, which is final: a merged directory is "
-                         "never reopened"])
+        reasons, blocks = (_merged_reasons(payload["segments"], receipt, merged) if exact else (
+            ["it is a merged run's ledger, which is final: a merged directory is never "
+             "reopened"], None))
     elif not reasons:
         reasons = _summary_reasons(summary, payload["segments"], merged, exact)
+    if not reasons:           # every ledger state bound to the published rows (rB-F2 3)
+        reasons = _stamp_reasons(out_dir, payload["segments"], exact, blocks)
     if not reasons and (exact or any(merged.counts.values())):   # nothing ran yet: a prefix
         try:
             assert_fa_partition_executed(declared, merged, final=exact)
@@ -1089,8 +1231,15 @@ def adopt_fa_ledger(ledger, out_dir, declared, launch_record_sha256):
 def persist_fa_ledger(ledger, recorder, query=True):
     """Rewrite the ledger with this segment's counts so far; the run's summed recorder."""
     segment = ledger["payload"]["segments"][-1]
+    # the state at n_queries - 1: the last query state, or (a non-query rewrite) the same base
+    prior = (segment["counts"] if query else _counts_minus(
+        segment["counts"], segment.get("delta_counts", [])).to_counts())
+    delta = _counts_minus(recorder.to_counts(), prior)
+    if delta is None:
+        raise ValueError("the split's recorder holds fewer calls than its ledger segment already "
+                         "published; the executed partition only ever accumulates")
     segment.update(counts=recorder.to_counts(), counts_sha256=counts_sha256(recorder),
-                   n_queries=segment["n_queries"] + int(query))
+                   n_queries=segment["n_queries"] + int(query), delta_counts=delta.to_counts())
     merged = FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["payload"]["segments"]])
     ledger["payload"]["merged"] = {"counts_sha256": counts_sha256(merged),
                                    "executed": merged.executed(),
@@ -1138,11 +1287,13 @@ def fa_partition_census(shards, declared):
               "merged": {"counts_sha256": receipt["counts_sha256"],
                          "executed": union.executed(), "violations": union.violations()}}
     reasons, summed = _ledger_reasons(merged, declared)
-    reasons = reasons or _merged_reasons(segments, receipt, summed)[0]
+    blocks = None
+    if not reasons:
+        reasons, blocks = _merged_reasons(segments, receipt, summed)
     if reasons:
         raise ValueError("the merged executed-partition ledger would not verify under its own "
                          "reader: " + "; ".join(reasons))
-    return {"ledger": merged, "receipt": receipt}
+    return {"ledger": merged, "receipt": receipt, "blocks": blocks}
 
 
 # --------------------------------------------------------------------------- #
@@ -2772,6 +2923,7 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                         raise
                     if fa_ledger is not None:          # on disk BEFORE the row (rB 5)
                         persist_fa_ledger(fa_ledger, engine.split.recorder)
+                        write_fa_stamp(out_dir, query, fa_ledger)       # rB-F2 finding 3
                 state["n_candidate_query_pairs"] += query.n_candidates
                 state["n_generated"] += query.n_candidates * int(num_samples)
                 for name, value in query_timer.totals.items():
@@ -3221,6 +3373,13 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
             raise ValueError(f"the merged census fails on {name}: the shards account for "
                              f"{found:,} but the registered total is {int(wanted):,}")
 
+    if fa is not None:        # the merged ledger binds the very rows it is published with
+        unbound = _row_binding_reasons(fa["ledger"]["segments"], [
+            read_fa_stamp(owner[query_id], row) for query_id, row in rows.items()], True,
+            fa["blocks"])
+        if unbound:
+            raise ValueError("the merged rows do not bind the merged ledger: " + "; ".join(unbound))
+
     # only now does anything reach disk
     os.makedirs(out_dir, exist_ok=True)
     for query_id, row in rows.items():
@@ -3230,6 +3389,10 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         os.makedirs(target["dir"], exist_ok=True)
         shutil.copy2(paths["row"], target["row"])
         shutil.copy2(paths["sims"], target["sims"])
+        if fa is not None:                    # each fa row's ledger stamp travels with it
+            stamp = fa_stamp_path(out_dir, row["room_id"], row["position"])
+            os.makedirs(os.path.dirname(stamp), exist_ok=True)
+            shutil.copy2(fa_stamp_path(shard_dir, row["room_id"], row["position"]), stamp)
         if row.get("waveform_path"):
             source = os.path.join(shard_dir, row["waveform_path"])
             destination = os.path.join(out_dir, row["waveform_path"])

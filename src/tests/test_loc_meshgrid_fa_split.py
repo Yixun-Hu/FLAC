@@ -3732,3 +3732,212 @@ def test_a_vanilla_report_admits_no_fa_ledger_and_no_fa_receipt(tmp_path, state,
             RPT.evaluate_fixture(fixture)
     else:
         assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "P1"
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 3 (part 2): every ledger state is bound to
+# the published rows -- each fa row carries the state persisted just before it, and every
+# reader (reopen, merge, report) holds each segment's stored state to its own last row
+# --------------------------------------------------------------------------- #
+def _crashed_pass(tmp_path, monkeypatch, crash_at=3):
+    """A pass killed between the ledger write and the row write of its ``crash_at``-th row:
+    the ledger is left exactly one query AHEAD of the rows (it is written first)."""
+    real, written = me.write_query_artifact, []
+
+    def crash(*args, **kwargs):
+        if len(written) == crash_at - 1:
+            raise RuntimeError("killed between the ledger write and the row write")
+        written.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(me, "write_query_artifact", crash)
+    plan, records, items = _fa_aligned(tmp_path)
+    out = str(tmp_path / "run")
+    with pytest.raises(RuntimeError, match="killed"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, out, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    monkeypatch.setattr(me, "write_query_artifact", real)
+    return out, (plan, records, items)
+
+
+def _stamps(out):
+    return sorted((me.read_fa_stamp(out, row)[1] for row in me.read_rows(out)),
+                  key=lambda stamp: stamp["n_queries"])
+
+
+def _stamp_file(out, row):
+    return me.fa_stamp_path(out, row["room_id"], row["position"])
+
+
+def test_every_fa_row_carries_the_ledger_state_it_was_published_under(tmp_path):
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segment = _ledger(out)["segments"][0]
+    stamps = _stamps(out)
+    assert [s["n_queries"] for s in stamps] == list(range(1, segment["n_queries"] + 1))
+    assert {s["segment_index"] for s in stamps} == {0}
+    assert stamps[-1]["counts_sha256"] == segment["counts_sha256"]          # exact at the end
+    assert sorted(stamps[0]) == ["counts_sha256", "n_queries", "query_id", "segment_index"]
+    # the stamp lives BESIDE the row: an fa row keeps exactly the vanilla row schema, so the
+    # crossarm's pairing of BF rows with P1 / YAW rows is unchanged
+    plan, records, items = ENG._aligned(tmp_path / "vanilla")
+    me.run_pass(ENG.SyntheticEngine(), items, records, plan, str(tmp_path / "vanilla_run"),
+                **{k: v for k, v in FA_SHAPES.items()})
+    assert {frozenset(row) for row in me.read_rows(out)} == {
+        frozenset(row) for row in me.read_rows(str(tmp_path / "vanilla_run"))}
+    # the delta binds the state at n - 1: counts minus delta hashes to the previous row's stamp
+    prior = me.FaPartitionRecorder.from_counts(segment["counts"])
+    for entry in segment["delta_counts"]:
+        key = (entry["configured"], entry["cap"], tuple(entry["base"]), tuple(entry["orbit"]),
+               entry["orbit_size"])
+        bucket = prior.counts[entry["branch"]]
+        bucket[key] -= entry["count"]
+        if not bucket[key]:
+            del bucket[key]
+    assert me.counts_sha256(prior) == stamps[-2]["counts_sha256"]
+
+
+def _truncate_tail(ledger, dropped, delta_policy):
+    """Codex rB-F2's probe: drop call rows of the tail segment -- its full-size source-cache
+    rows (an unsaturated, tail-only prefix) or every tail-size row (the executed block
+    unchanged: lost call counts only) -- and recompute every self-digest; ``delta_policy``
+    keeps the delta inside the truncated counts, or also claims one query ahead."""
+    segment = ledger["segments"][-1]
+    full = {"full-size source calls": lambda e: e["branch"] == "source_cache"
+                                                and e["base"] == [e["configured"]],
+            "tail-size calls": lambda e: e["base"] != [e["configured"]]}[dropped]
+    segment["counts"] = [entry for entry in segment["counts"] if not full(entry)]
+    segment["delta_counts"] = []
+    if delta_policy == "one ahead":
+        segment["n_queries"] += 1
+    return _resummed(ledger)
+
+
+@pytest.mark.parametrize("dropped", ["full-size source calls", "tail-size calls"])
+@pytest.mark.parametrize("delta_policy", ["emptied", "one ahead"])
+def test_codex_rbf2s_truncated_tail_probe_is_refused_at_reopen(tmp_path, dropped, delta_policy):
+    """A truncated tail segment with recomputed self-digests and no summary passed the
+    prefix rule at rB-F2 (and full-size calls of a resume could then saturate the maxima):
+    its rows' stamps now bind the state, so the reopen is refused before anything is
+    written -- the reader alone already refuses it."""
+    _engine, _summary, out, (plan, records, items) = _fa_pass(tmp_path)
+    assert not os.path.exists(_fa_files(out)[1])                    # no summary, as in the probe
+    ledger = _truncate_tail(_ledger(out), dropped, delta_policy)
+    me.write_json(_fa_files(out)[0], ledger)
+    with pytest.raises(ValueError, match="last row was published under"):
+        me.read_fa_ledger(out, FA_DECLARED)
+    before = _snapshot(out)
+    done, _rejected = me.completed_queries(out)
+    engine = FaSyntheticEngine()
+    with pytest.raises(ValueError, match="last row was published under"):
+        me.run_pass(engine, items, records, plan, out, done=done, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    assert _snapshot(out) == before and engine.conditioner.calls == []
+
+
+def test_a_state_one_query_ahead_is_admitted_at_reopen_and_bound_by_its_prefix(tmp_path,
+                                                                              monkeypatch):
+    out, (plan, records, items) = _crashed_pass(tmp_path, monkeypatch)
+    segment = _ledger(out)["segments"][0]
+    assert segment["n_queries"] == 3 and len(me.read_rows(out)) == 2         # one ahead
+    assert me.read_fa_ledger(out, FA_DECLARED)["n_segments"] == 1              # admitted
+    for edit, needle in ((lambda s: s.update(delta_counts=[]), "last row was published under"),
+                         (lambda s: s.update(n_queries=4), "its rows show 2"),
+                         (lambda s: s.update(n_queries=1), "beyond its segment's 1 queries")):
+        ledger = _ledger(out)
+        edit(ledger["segments"][0])
+        me.write_json(_fa_files(out)[0], _resummed(ledger))
+        with pytest.raises(ValueError, match=re_escape(needle)):
+            me.read_fa_ledger(out, FA_DECLARED)
+        me.write_json(_fa_files(out)[0], _restore(out, segment))
+
+
+def _restore(out, segment):
+    ledger = _ledger(out)
+    ledger["segments"] = [segment]
+    return _resummed(ledger)
+
+
+def test_at_a_merge_the_last_invocation_is_exact_and_a_lost_attempt_was_executed_again(
+        tmp_path, monkeypatch):
+    """A crashed segment stays one query ahead forever (its lost row is regenerated by the
+    resume): admitted at the merge only if it is not the shard's last invocation and every
+    call shape its lost attempt made was executed again by a later segment."""
+    out, (plan, records, items) = _crashed_pass(tmp_path, monkeypatch)
+    done, _rejected = me.completed_queries(out)
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done,
+                          fa_partition=FA_DECLARED, **FA_SHAPES)
+    me.write_json(_fa_files(out)[1], summary)
+    assert me.read_fa_ledger(out, FA_DECLARED, exact=True)["n_segments"] == 2   # merge-ready
+    # a call shape (a source chunk of 2) that no invocation of this shard ever executed
+    phantom = {"branch": "source_cache", "configured": 3, "cap": 2, "base": [2],
+               "orbit": [2, 2, 2], "orbit_size": 4, "count": 1}
+    assert all(entry["base"] != [2] for segment in _ledger(out)["segments"]
+               for entry in segment["counts"] if entry["branch"] == "source_cache")
+    for edit, needle in (
+            (lambda l: [l["segments"][0][field].append(dict(phantom))
+                        for field in ("counts", "delta_counts")], "executed again"),
+            # the last invocation one query ahead, its prefix consistent (an empty lost attempt)
+            (lambda l: l["segments"][1].update(n_queries=l["segments"][1]["n_queries"] + 1,
+                                               delta_counts=[]), "last invocation")):
+        ledger = _ledger(out)
+        edit(ledger)
+        for segment in ledger["segments"]:
+            for field in ("counts", "delta_counts"):
+                segment[field] = me.FaPartitionRecorder.from_counts(segment[field]).to_counts()
+        _resummed(ledger)
+        summary["fa_partition_executed"] = me.fa_executed_block(
+            FA_DECLARED, me.FaPartitionRecorder.from_counts(
+                *[s["counts"] for s in ledger["segments"]]), 2)
+        me.write_json(_fa_files(out)[0], ledger)
+        me.write_json(_fa_files(out)[1], summary)
+        with pytest.raises(ValueError, match=needle):
+            me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda stamp: stamp.update(counts_sha256="0" * 64), "published under"),
+    (lambda stamp: stamp.update(segment_index=7), "does not hold"),
+    (lambda stamp: stamp.update(n_queries=True), "not a"),
+    (lambda stamp: stamp.update(query_id="9|another"), "not a"),
+    (lambda stamp: stamp.pop("counts_sha256"), "not a"),
+    (None, "not a"),                                            # the stamp file deleted
+])
+def test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused(tmp_path, edit, needle):
+    """A moved stamp of the last row (the coordinated edit a ledger self-digest cannot catch)
+    no longer binds its segment's state -- refused at reopen and at merge."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    last = max(me.read_rows(out), key=lambda row: me.read_fa_stamp(out, row)[1]["n_queries"])
+    if edit is None:
+        os.remove(_stamp_file(out, last))
+    else:
+        _edit_json(_stamp_file(out, last), edit)
+    for exact in (False, True):
+        with pytest.raises(ValueError, match=needle):
+            me.read_fa_ledger(out, FA_DECLARED, exact=exact)
+
+
+def test_two_rows_may_not_carry_the_same_ledger_state(tmp_path):
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    rows = sorted(me.read_rows(out), key=lambda row: me.read_fa_stamp(out, row)[1]["n_queries"])
+    me.write_json(_stamp_file(out, rows[0]), dict(me.read_fa_stamp(out, rows[1])[1],
+                                                  query_id=rows[0]["query_id"]))
+    with pytest.raises(ValueError, match="twice"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_the_merged_report_binds_every_merged_row_to_its_shards_segment(tmp_path):
+    RPT, fixture = _bf_merged(tmp_path)
+    run = fixture["run_dir"]
+    rows = me.read_rows(run)
+    assert all(sorted(me.read_fa_stamp(run, row)[1]) == ["counts_sha256", "n_queries",
+                                                         "query_id", "segment_index"]
+               for row in rows)
+    # the LAST row of a segment carries the state its segment's stored state is bound to
+    last = max(rows, key=lambda row: me.read_fa_stamp(run, row)[1]["n_queries"])
+    _edit_json(_stamp_file(run, last), lambda stamp: stamp.update(counts_sha256="0" * 64))
+    with pytest.raises(ValueError, match="published under"):
+        RPT.evaluate_fixture(fixture)
+    os.remove(_stamp_file(run, rows[0]))
+    with pytest.raises(ValueError, match="not a"):
+        RPT.evaluate_fixture(fixture)
