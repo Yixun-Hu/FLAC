@@ -581,6 +581,29 @@ def assert_block(text, block):
     assert start + len(block) == len(lines) or lines[start + len(block)] == ""
 
 
+def expected_header_lines(arm, tag, ckpt):
+    """[run], [final checkpoint], [expected checkpoint digest], [rows] -- typed out."""
+    pct, frac = {"025": (25, "0.25"), "050": (50, "0.5"), "075": (75, "0.75")}[tag]
+    backbone = {"cyl": "CylDINO", "van": "stock DINOv3-S"}[arm]
+    protocol = {"cyl": "fa eval", "van": "vanilla eval"}[arm]
+    flags = {"cyl": "cond_method=fa_invariant frame_avg_angles=[0.0]",
+             "van": "cond_method=vanilla frame_avg_angles=null"}[arm]
+    label = f"data-curve {arm} f={pct}% @40k (exp_14 data-curve, {backbone})"
+    rows = [f'row_K{K}: ("{label}", "{protocol}", {K}, ["outputs_FLAC/data_curve_import/'
+            f'dc_{arm}_f{tag}/*_K{K}_s4[2-6]*.json"]),' for K in (1, 8)]
+    return [HEADERS["run"], f"run_id: dc_{arm}_f{tag}", f"arm: {arm}", f"backbone: {backbone}",
+            f"fraction: {frac}", f"fraction_tag: {tag}",
+            f"imported_to: outputs_FLAC/data_curve_import/dc_{arm}_f{tag}", "",
+            HEADERS["final checkpoint"], f"final_checkpoint: {ckpt}",
+            f"final_checkpoint_sha256: {sha256_of(ckpt)}", "",
+            HEADERS["expected checkpoint digest"], f"expect_ckpt_sha256: {sha256_of(ckpt)}",
+            "syntax: verified (64 lowercase hex characters, names._check_ckpt_sha256)",
+            "equals_final_checkpoint_bytes: verified (C2)",
+            "provenance: not verified (see [limits] N3)", "",
+            HEADERS["rows"], f"label: {label}", f"protocol: {protocol}",
+            f"protocol_flags: {flags} rotate_deg=0.0 cond_autocast=bf16", *rows]
+
+
 def expected_cell_lines(arm, tag, K, seed, ckpt, n=N_ITEMS, full=None, source_sha="absent"):
     """One cell's three sections, line for line, from the fixture's own known values."""
     run_dir, ckpt_stem = os.path.dirname(ckpt), os.path.basename(ckpt)[:-len(".ckpt")]
@@ -620,9 +643,29 @@ def test_the_attestation_states_every_line_from_the_fixture(tmp_path, monkeypatc
     result, violations, _, ckpt = run_import(tmp_path, arm=arm, tag=tag)
     assert violations == []
     text = read_text(result)
+    assert_block(text, expected_header_lines(arm, tag, ckpt))
     for K in (1, 8):
         for seed in range(42, 47):
             assert_block(text, expected_cell_lines(arm, tag, K, seed, ckpt))
+
+
+def test_every_section_header_names_where_its_values_come_from(tmp_path):
+    result, _, _, _ = run_import(tmp_path)
+    headers = [ln for ln in read_text(result).splitlines() if ln.startswith("[")]
+    expected = [HEADERS[name] for name in ("run", "final checkpoint",
+                                           "expected checkpoint digest", "rows",
+                                           "validation contract", "limits")]
+    for K in (1, 8):
+        for seed in range(42, 47):
+            expected += cell_headers(K, seed)
+    assert headers == expected + [HEADERS["import stamp"]]
+    tags = {HEADER.match(h)["name"]: HEADER.match(h)["tag"] for h in headers}
+    assert set(tags.values()) == set(TAGS)
+    assert sorted(n for n, t in tags.items() if t == "configured") == ["rows", "run"]
+    assert [n for n, t in tags.items() if t == "caller-supplied"] == \
+        ["expected checkpoint digest"]
+    for tag in TAGS:                       # the opening comment spells out the vocabulary
+        assert f"\n#   {tag} -- " in read_text(result)
 
 
 def test_the_stock_arm_s_attestation_names_its_own_backbone_and_protocol(tmp_path):
@@ -637,26 +680,147 @@ def test_the_stock_arm_s_attestation_names_its_own_backbone_and_protocol(tmp_pat
     assert "vanilla / null / 0.0 / bf16" in sections["validation contract"]["C5"]
 
 
-def test_a_record_s_source_sha_is_carried_into_the_attestation_when_present(tmp_path):
+def test_a_record_s_source_sha_is_labelled_as_recorded_and_unvalidated(tmp_path):
+    # codex V finding 1: any string in the record's source_sha is published (here a fake
+    # '0123abcd'), so it must never read as something the import checked.
     result, violations, _, _ = run_import(
         tmp_path, metrics_patch={(8, 44): {"source_sha": "0123abcd"}})
     assert violations == []
-    cells = read_attestation(result)
-    assert cells["cell K8 s44"]["record_source_sha"] == "0123abcd"
-    assert cells["cell K1 s44"]["record_source_sha"] == "absent"
+    sections = read_attestation(result)
+    assert sections["cell K8 s44 recorded"][SOURCE_SHA_KEY] == "0123abcd"
+    assert sections["cell K1 s44 recorded"][SOURCE_SHA_KEY] == "absent"
+    assert [name for name, body in sections.items()
+            if any(key.startswith("record_source_sha") for key in body)] == \
+        [f"cell K{K} s{seed} recorded" for K in (1, 8) for seed in range(42, 47)]
+    assert "\nrecord_source_sha: " not in read_text(result)
 
 
-def test_a_production_size_import_attests_the_full_unseen_split(tmp_path, monkeypatch):
+def test_a_production_size_import_says_the_full_contract_passed(tmp_path, monkeypatch):
     monkeypatch.setattr(names, "N_ITEMS_UNSEEN", N_ITEMS)
     nas, _, digest = make_run(tmp_path)
     checkout = tmp_path / "flac"
     checkout.mkdir()
     result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest)
     assert violations == []
-    for name, body in read_attestation(result).items():
-        if name.startswith("cell "):
-            assert body["full_unseen_split"] == \
-                f"yes ({N_ITEMS} items = names.N_ITEMS_UNSEEN, the full unseen split)"
+    sections = read_attestation(result)
+    for K in (1, 8):
+        for seed in range(42, 47):
+            assert sections[f"cell K{K} s{seed}"]["full_unseen_contract_passed"] == \
+                full_yes(N_ITEMS)
+            assert sections[f"cell K{K} s{seed} bundle"]["meta_n_items"] == str(N_ITEMS)
+
+
+def test_c2_credits_the_caller_and_no_round_v_overclaim_survives(tmp_path):
+    result, _, _, _ = run_import(tmp_path)
+    text = read_text(result)
+    contract = parse_attestation(text)["validation contract"]
+    assert list(contract) == [f"C{i}" for i in range(1, 14)]
+    assert "to the caller-supplied --expect-ckpt-sha256 (syntax + equality verified; " \
+           "provenance of the expected digest is not verified by the importer)" in contract["C2"]
+    assert "step=40000" in contract["C1"] and "record.ckpt_sha256" in contract["C4"]
+    assert "fa_invariant / [0.0] / 0.0 / bf16" in contract["C5"]
+    assert f"== {N_ITEMS} and predictions" in contract["C7"]
+    assert f"({N_ITEMS}, 1, 10240) -- counts and shape, not which items" in contract["C7"]
+    assert "meta.seed" in contract["C8"] and "meta.eval_name" in contract["C8"]
+    assert CONFIG_BY_K[1] in contract["C9"] and CONFIG_BY_K[8] in contract["C9"]
+    assert json.dumps(CONTRACT) in contract["C11"] and "meta.steps == 1" in contract["C11"]
+    assert "meta.ckpt_sha256" in contract["C12"]
+    assert "launcher" not in text and "full_unseen_split" not in text
+    assert "or hashed by that import" not in text           # the round-V blanket sentence
+
+
+def test_the_limits_section_names_what_no_check_establishes(tmp_path):
+    result, _, _, _ = run_import(tmp_path)
+    limits = read_attestation(result)["limits"]
+    assert list(limits) == [f"N{i}" for i in range(1, 7)]
+    assert limits["N1"].startswith("item identity") and \
+        "C7 checks counts and shape only" in limits["N1"]
+    assert "no run contract, split file, model config or training log is read" in limits["N2"]
+    assert "--expect-ckpt-sha256" in limits["N3"] and "not its provenance" in limits["N3"]
+    assert limits["N4"].startswith("record_source_sha")
+    assert "nothing compares the two reads" in limits["N5"]
+    assert limits["N6"].startswith("that dataset_config_sha256 is the file the evaluator read")
+
+
+@pytest.mark.parametrize("n", [N_ITEMS, 3])
+def test_a_fixture_override_states_its_real_item_count_and_never_yes(tmp_path, n):
+    # codex V5: round V checked only which branch rendered. The bundles hold n items, so
+    # the file says n -- and never that the full-split contract passed (C7 checked n).
+    result, violations, _, _ = run_import(tmp_path, n_items=n)
+    assert violations == []
+    sections = read_attestation(result)
+    for K in (1, 8):
+        for seed in range(42, 47):
+            passed = sections[f"cell K{K} s{seed}"]["full_unseen_contract_passed"]
+            assert passed == full_no(n) and not passed.startswith("yes")
+            bundle = sections[f"cell K{K} s{seed} bundle"]
+            assert (bundle["meta_n_items"], bundle["meta_n_samples"],
+                    bundle["predictions_shape"], bundle["predictions_finite"]) == \
+                (str(n), str(n), f"({n}, 1, 10240)", "yes")
+    assert f"== {n} and predictions" in sections["validation contract"]["C7"]
+
+
+def test_a_production_import_of_a_reduced_split_is_refused_and_attests_nothing(tmp_path):
+    # No fixture override: 2-item bundles fail the full split, so nothing at all is written.
+    nas, _, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest)
+    assert any(f"meta.n_items is 2, expected {FULL_SPLIT}" in v for v in violations)
+    assert any(f"predictions shape is (2, 1, 10240), expected ({FULL_SPLIT}, 1, 10240)" in v
+               for v in violations)
+    assert result["attestation"] is None and result["installed"] is None
+    assert glob.glob(os.path.join(glob.escape(str(tmp_path)), "**", ATTESTATION),
+                     recursive=True) == []
+    _nothing_was_copied(result, str(checkout))
+
+
+def test_the_bundle_section_states_what_the_reread_found_not_what_the_contract_required(
+        tmp_path, monkeypatch):
+    # READ, not derived from the contract: a bundle replaced after validation is stated as
+    # it now is -- nothing compares the two reads ([limits] N5).
+    nas, ckpt, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    victim = names.predictions_pt_path(ckpt, "cyl", "025", 8, 45)
+    real_validate = import_cells.validate_cells
+
+    def validate_then_replace(*args, **kwargs):
+        files, violations = real_validate(*args, **kwargs)
+        predictions = torch.zeros(5, 1, names.SAMPLE_LEN)
+        predictions[0, 0, 0] = float("nan")
+        torch.save({"predictions": predictions,
+                    "meta": {"n_items": 5, "dataset_config": "elsewhere/other.json"}}, victim)
+        return files, violations
+
+    monkeypatch.setattr(import_cells, "validate_cells", validate_then_replace)
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == []
+    sections = read_attestation(result)
+    assert sections["cell K8 s45 bundle"] == {
+        "prediction_bundle_sha256": sha256_of(victim), "meta_n_items": "5",
+        "meta_n_samples": "absent", "predictions_shape": "(5, 1, 10240)",
+        "predictions_finite": "no", "meta_dataset_config": "elsewhere/other.json"}
+    assert sections["cell K8 s45"]["full_unseen_contract_passed"] == full_no(N_ITEMS)
+    assert sections["cell K8 s44 bundle"]["meta_n_items"] == str(N_ITEMS)
+
+
+def test_a_bundle_without_n_samples_says_absent(tmp_path):
+    # check_bundle compares meta.n_samples only when present; the file must not invent one.
+    nas, ckpt, digest = make_run(tmp_path)
+    path = names.predictions_pt_path(ckpt, "cyl", "025", 1, 42)
+    bundle = torch.load(path, map_location="cpu", weights_only=False)
+    del bundle["meta"]["n_samples"]
+    torch.save(bundle, path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
+                                                 expect_n=N_ITEMS)
+    assert violations == []
+    sections = read_attestation(result)
+    assert sections["cell K1 s42 bundle"]["meta_n_samples"] == "absent"
+    assert sections["cell K1 s43 bundle"]["meta_n_samples"] == str(N_ITEMS)
 
 
 def test_the_manifest_lists_the_attestation_and_every_line_verifies(tmp_path):
@@ -782,12 +946,12 @@ def test_without_git_the_stamp_says_so_and_the_import_still_happens(tmp_path, mo
     assert stamp["importer_tracked_tree"] == "unavailable"
 
 
-@pytest.mark.parametrize("vanishes", ["bundle", "record"])
+@pytest.mark.parametrize("vanishes", ["bundle", "record", "garbled bundle"])
 def test_an_artifact_that_changes_after_validation_raises_and_installs_nothing(
         tmp_path, monkeypatch, vanishes):
-    # The attestation reads two things validation did not keep: the bundle's bytes (to hash
-    # them) and the staged record (for source_sha). If either is gone or garbled by then,
-    # the import raises -- and nothing, not even a staging directory, is left behind.
+    # The attestation reads two things validation did not keep: the bundle (to hash and
+    # re-read it) and the staged record (for source_sha). If either is gone or garbled by
+    # then, the import raises -- and nothing, not even a staging directory, is left behind.
     nas, ckpt, digest = make_run(tmp_path)
     checkout = tmp_path / "flac"
     checkout.mkdir()
@@ -801,9 +965,18 @@ def test_an_artifact_that_changes_after_validation_raises_and_installs_nothing(
     def garbled(path):
         raise json.JSONDecodeError("Expecting value", "", 0)
 
+    def validate_then_garble_a_bundle(*args, **kwargs):
+        files, violations = real_validate(*args, **kwargs)
+        with open(names.predictions_pt_path(ckpt, "cyl", "025", 8, 45), "wb") as fout:
+            fout.write(b"not a prediction bundle")
+        return files, violations
+
     if vanishes == "bundle":
         monkeypatch.setattr(import_cells, "validate_cells", validate_then_lose_a_bundle)
         expected = OSError
+    elif vanishes == "garbled bundle":
+        monkeypatch.setattr(import_cells, "validate_cells", validate_then_garble_a_bundle)
+        expected = ValueError
     else:
         monkeypatch.setattr(import_cells, "_recorded_source_sha", garbled)
         expected = ValueError
