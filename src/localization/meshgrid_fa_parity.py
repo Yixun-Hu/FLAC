@@ -26,6 +26,7 @@ import os
 
 from datetime import datetime, timezone
 
+import numpy as np
 import torch
 
 from src.localization import meshgrid_engine as me
@@ -49,6 +50,17 @@ GATE_NOTES = {
           "cache, unaveraged ViT ids, swapped candidate rows) must each be DETECTED, or the "
           "comparison could not have failed. The production-batching difference is reported "
           "as informational (gate 3 owns it)",
+    "G3": "GATE 3 (plan r2 §3 R2-B, Codex H3): the PRODUCTION path at production batching (the "
+          "per-query context at batch 1, the receiver cache over the receiver's whole union at "
+          "--source-chunk, context_poses per scored batch of --batch-rows / K candidates, the "
+          "registered --cond-autocast) against a faithful replay -- exp_20's released "
+          "fa_conditioning over each scored batch's candidates -- with per-key max |diff| <= "
+          "1e-3 on the five tensors, their masks and the DiT inputs, the executed partition "
+          "equal to the declared one, and score/argmax stability: each probe query generated "
+          "under both conditionings with the same keyed noise, |dS| <= SCORE_TOLERANCE and no "
+          "argmax moved at any K. Full AND tail scored and source batches must be covered. The "
+          "evidence carries no prediction, score or margin -- only deltas, agreement booleans and "
+          "at-risk flags -- so no BF localization quality is read before the pass",
 }
 
 #: the counter-tests of gate 2 and the ids each one must move
@@ -153,16 +165,18 @@ def fold_per_key(per_key, conditioning, inputs):
     rows += [(f"dit_inputs.{name}", facts, None) for name, facts in inputs.items()]
     for name, facts, mask in rows:
         entry = per_key.setdefault(name, {"max_abs_diff": 0.0, "mask_max_abs_diff": 0.0,
-                                          "bitwise": True, "finite": True, "dtypes": []})
+                                          "bitwise": True, "finite": True, "dtypes": [],
+                                          "shapes": []})
         entry["max_abs_diff"] = max(entry["max_abs_diff"], facts["max_abs_diff"])
         entry["bitwise"] = bool(entry["bitwise"] and facts["bitwise"]
                                 and (mask is None or mask["bitwise"]))
         entry["finite"] = bool(entry["finite"] and facts["finite"])
         if mask is not None:
             entry["mask_max_abs_diff"] = max(entry["mask_max_abs_diff"], mask["max_abs_diff"])
-        dtypes = "/".join(facts.get("dtype") or [])
-        if dtypes and dtypes not in entry["dtypes"]:
-            entry["dtypes"].append(dtypes)
+        for field, value in (("dtypes", "/".join(facts.get("dtype") or [])),
+                             ("shapes", "/".join(str(shape) for shape in facts.get("shape") or []))):
+            if value and value not in entry[field]:
+                entry[field].append(value)
     return per_key
 
 
@@ -303,17 +317,23 @@ def production_conditioning(view, query, md, indices, positions, *, source_chunk
                           for start in range(0, len(indices), micro)])
 
 
-def released_conditioning(engine, md, positions, angles, per_candidate=False):
+def released_conditioning(engine, md, positions, angles, per_candidate=False, records=None):
     """exp_20's ``fa_conditioning`` (the released path) over the candidates: all in one
-    call, or each candidate alone (``per_candidate``)."""
+    call, or each candidate alone (``per_candidate``); ``records`` collects each call's
+    executed orbit partition."""
     from src.localization.candidates import candidate_metadata
     from src.localization.crossarm import fa_conditioning
 
     free = without_target(md)
     groups = [[p] for p in positions] if per_candidate else [list(positions)]
-    return concat_blocks([fa_conditioning(engine.conditioner,
-                                          [candidate_metadata(free, p) for p in group],
-                                          engine.device, angles) for group in groups])
+    records = [] if records is None else records
+    blocks = []
+    for group in groups:
+        records.append({})
+        blocks.append(fa_conditioning(engine.conditioner,
+                                      [candidate_metadata(free, p) for p in group],
+                                      engine.device, angles, record=records[-1]))
+    return concat_blocks(blocks)
 
 
 def cache_parity(engine, query, md, *, n_candidates=None, source_chunk=me.SOURCE_CHUNK,
@@ -374,3 +394,133 @@ def cache_parity(engine, query, md, *, n_candidates=None, source_chunk=me.SOURCE
         inputs=query_inputs(query, n, source_chunk=int(source_chunk),
                             micro_batch=int(micro_batch), angles=list(split.angles)),
         executed_partition=memo_view.split.recorder.report())
+
+
+def probe_case(room_plan, query, md, obs_wav):
+    """One gate-3 case: the query, its metadata and observation, and its receiver's WHOLE
+    candidate union in camera frame -- the source cache the production pass builds."""
+    group = next(group for group in me.receiver_groups(room_plan)
+                 if any(entry.query_id == query.query_id for entry in group.queries))
+    union = [int(index) for index in group.union]
+    positions = (np.asarray(room_plan.base, dtype=np.float64)[np.asarray(union, dtype=np.int64)]
+                 - np.asarray(group.receiver_xyz, dtype=np.float64))
+    return {"query": query, "md": md, "obs_wav": obs_wav, "union": union,
+            "union_positions": positions}
+
+
+def _score_deltas(production, replayed, indices, tau, prefixes):
+    """Per-K score and argmax stability -- deltas and booleans, never a score itself."""
+    out, why = {}, []
+    left = me.nested_scores(production, tau=tau, prefixes=prefixes)
+    right = me.nested_scores(replayed, tau=tau, prefixes=prefixes)
+    for k in left:
+        a, b = left[k]["scores"], right[k]["scores"]
+        delta = float((a.double() - b.double()).abs().max())
+        equal = me.argmax_by_global_index(a, indices) == me.argmax_by_global_index(b, indices)
+        out[str(k)] = {"max_abs_delta": delta, "argmax_equal": bool(equal),
+                       "at_risk": not me.is_argmax_stable(me.top1_margin(a))}
+        if delta > me.SCORE_TOLERANCE:
+            why.append(f"K={k}: score |diff| {delta:.3g} > SCORE_TOLERANCE {me.SCORE_TOLERANCE}")
+        if not equal:
+            why.append(f"K={k}: the argmax moved between production and replay")
+    return out, why
+
+
+def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, num_samples,
+                      seed, noise_policy, tau, prefixes, per_key, sizes):
+    from src.localization.scoring import cosine_sims
+
+    query, md = case["query"], case["md"]
+    obs = engine.embedder(torch.as_tensor(case["obs_wav"]).to(engine.device))[0].float().cpu()
+    context = me.query_context(view, md)
+    cache = me.ReceiverCache.build(view.conditioner, query.receiver_id, {"depth": md["depth"]},
+                                   case["union"], case["union_positions"], view.device,
+                                   chunk=source_chunk, fa=view.split)
+    candidate = me.candidate_inputs(view, query, md)
+    production = me._score_one_query(                                 # noqa: SLF001 -- THE path
+        view, query, context, cache, obs, seed=seed, num_samples=num_samples,
+        noise_policy=noise_policy, batch_rows=batch_rows, timer=me._Timer(view.device),
+        candidate=candidate)
+    indices = [int(i) for i in query.candidate_indices]
+    rows_all, parts, why, chunks = cache.rows_for(indices), [], [], []
+    for start in range(0, len(indices), micro):
+        slice_indices = indices[start:start + micro]
+        produced = me.scored_conditioning(view, context, cache, rows_all[start:start + micro],
+                                          candidate, start=start, stop=start + micro,
+                                          num_samples=1, configured=micro, record=False)
+        replayed_partition = []
+        replay = released_conditioning(engine, md, candidate["positions"][start:start + micro],
+                                       view.split.angles, records=replayed_partition)
+        conditioning, w_cond = compare_conditioning(produced, replay, GATE_TOLERANCES["G3"])
+        inputs, w_inputs = compare_inputs(engine.cond_inputs_fn(produced),
+                                          engine.cond_inputs_fn(replay), GATE_TOLERANCES["G3"])
+        fold_per_key(per_key, conditioning, inputs)
+        why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]
+        sizes["scored"].append(len(slice_indices))
+        chunks.append({"start": start, "n": len(slice_indices),
+                       "max_abs_diff": max(e["tensor"]["max_abs_diff"]
+                                           for e in conditioning.values()),
+                       "bitwise": all(e["tensor"]["bitwise"] and e["mask"]["bitwise"]
+                                      for e in conditioning.values()),
+                       "replay_partition": replayed_partition[0].get("partition")})
+        # the replay's own generation: the production chunking and the same keyed noise
+        noise = me.noise_block(seed, query.query_id, slice_indices, num_samples,
+                               engine.latent_shape, policy=noise_policy, device=engine.device)
+        rows = torch.arange(len(slice_indices)).repeat_interleave(int(num_samples))
+        merged = {key: me._select(entry, rows.to(entry[0].device))   # noqa: SLF001
+                  for key, entry in replay.items()}
+        wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
+        parts.append(cosine_sims(obs, engine.embedder(wavs).reshape(
+            len(slice_indices), int(num_samples), -1)).float().cpu())
+    union = len(case["union"])
+    sizes["source"] += [min(int(source_chunk), union - start)
+                        for start in range(0, union, int(source_chunk))]
+    scores, why_scores = _score_deltas(production, torch.cat(parts, dim=0), indices, tau,
+                                       prefixes)
+    return ({"inputs": query_inputs(query, len(indices), n_union=union), "chunks": chunks,
+             "score_stability": scores}, why + why_scores)
+
+
+def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me.NUM_SAMPLES,
+                      seed=me.SEED, noise_policy=me.NOISE_KEY_POLICY, tau=me.TAU,
+                      prefixes=me.K_PREFIXES, declared_partition=None):
+    """G3 -- production batching against a faithful replay, with score/argmax stability."""
+    split = require_split(engine)
+    view = gate_engine(engine)
+    micro = max(1, int(batch_rows) // int(num_samples))
+    entries, per_key, reasons, sizes = [], {}, [], {"scored": [], "source": []}
+    for case in cases:
+        entry, why = _production_query(view, engine, case, micro=micro, batch_rows=batch_rows,
+                                       source_chunk=source_chunk, num_samples=num_samples,
+                                       seed=seed, noise_policy=noise_policy, tau=tau,
+                                       prefixes=prefixes, per_key=per_key, sizes=sizes)
+        entries.append(entry)
+        reasons += [f"{case['query'].query_id}: {item}" for item in why]
+    covered = {"scored": coverage(sizes["scored"], micro),
+               "source": coverage(sizes["source"], int(source_chunk))}
+    reasons += [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
+                "covers both" for name, facts in covered.items() if not facts["complete"]]
+    executed = view.split.recorder.report()
+    if declared_partition is not None:
+        reasons += [f"executed partition differs from the declared one at {path}"
+                    for path in me.fa_partition_differences(declared_partition,
+                                                            executed["executed"])]
+        reasons += [f"executed partition violation: {item}" for item in executed["violations"]]
+    by_k = {}
+    for entry in entries:
+        for k, facts in entry["score_stability"].items():
+            block = by_k.setdefault(k, {"max_abs_delta": 0.0, "n_queries": 0,
+                                        "n_argmax_equal": 0, "n_at_risk": 0})
+            block["max_abs_delta"] = max(block["max_abs_delta"], facts["max_abs_delta"])
+            block["n_queries"] += 1
+            block["n_argmax_equal"] += int(facts["argmax_equal"])
+            block["n_at_risk"] += int(facts["at_risk"])
+    return gate_report(
+        "G3", reasons, queries=entries, per_key=per_key, coverage=covered, score_stability=by_k,
+        score_tolerance=me.SCORE_TOLERANCE, declared_partition=declared_partition,
+        inputs={"queries": [entry["inputs"]["query_id"] for entry in entries],
+                "batch_rows": int(batch_rows), "source_chunk": int(source_chunk),
+                "num_samples": int(num_samples), "micro_batch": micro, "seed": int(seed),
+                "noise_policy": str(noise_policy), "tau": float(tau),
+                "prefixes": [int(k) for k in prefixes], "angles": list(split.angles)},
+        executed_partition=executed)

@@ -1,0 +1,12 @@
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'probe_case'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'production_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'production_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'production_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'production_parity'
+E                   AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'probe_case'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'production_parity'
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_probe_case_carries_the_receivers_whole_union_in_camera_frame
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_passes_on_a_batch_invariant_stack_and_covers_full_and_tail_batches
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_tolerates_backbone_batch_noise_within_the_registered_bound
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_fails_above_the_registered_bound_and_names_the_keys
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_refuses_an_executed_partition_that_is_not_the_declared_one

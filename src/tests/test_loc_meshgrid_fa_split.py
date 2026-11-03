@@ -975,3 +975,122 @@ def test_the_vanilla_parity_refuses_an_engine_with_the_split(tmp_path):
     query, md = _gate_query(tmp_path)
     with pytest.raises(ValueError, match="fa_cache_parity"):
         me.cache_parity_check(FaSyntheticEngine(), query, md, n_candidates=3, source_chunk=2)
+
+
+# --------------------------------------------------------------------------- #
+# gate 3 -- production batching vs a faithful replay, scores and argmax included
+# --------------------------------------------------------------------------- #
+def _g3_cases(tmp_path, positions=(0, 3)):
+    """Gate-3 cases for the fixture queries at ``positions`` (each with its receiver union)."""
+    plan, _records, items = _fa_aligned(tmp_path)
+    cases = []
+    for room_id in ("A/A_idx_1", "B/B_idx_2"):
+        room = me.load_room_plan(plan, room_id)
+        for query in room.queries:
+            if query.position in positions:
+                obs, md = items[query.position]
+                cases.append(fp.probe_case(room, query, me.GuardedMetadata(md), obs))
+    return cases
+
+
+G3_KW = {"batch_rows": 8, "source_chunk": 3, "num_samples": 4, "prefixes": (1, 4)}
+
+
+def _quality_keys(payload, found=None):
+    found = set() if found is None else found
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in ("prediction_index", "prediction_row", "prediction_xyz", "scores_hex",
+                       "margin", "scores", "sims", "e_loc", "mean_scores_hex"):
+                found.add(key)
+            _quality_keys(value, found)
+    elif isinstance(payload, list):
+        for value in payload:
+            _quality_keys(value, found)
+    return found
+
+
+def test_a_probe_case_carries_the_receivers_whole_union_in_camera_frame(tmp_path):
+    plan, _records, items = _fa_aligned(tmp_path)
+    room = me.load_room_plan(plan, "A/A_idx_1")
+    query = room.queries[0]
+    case = fp.probe_case(room, query, me.GuardedMetadata(items[0][1]), items[0][0])
+    group = next(g for g in me.receiver_groups(room) if query in g.queries)
+    assert case["union"] == [int(i) for i in group.union]
+    assert np.array_equal(case["union_positions"],
+                          room.base[np.asarray(group.union)] - group.receiver_xyz)
+    assert case["query"] is query
+
+
+def test_gate3_passes_on_a_batch_invariant_stack_and_covers_full_and_tail_batches(tmp_path):
+    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+                                  declared_partition=FA_DECLARED)
+    assert report["gate"] == "G3" and report["name"] == "fa_production_parity"
+    assert report["tolerance"] == 1e-3 and report["score_tolerance"] == me.SCORE_TOLERANCE
+    assert report["verdict"] == "PASS", report["reasons"]
+    assert report["coverage"]["scored"]["complete"] and report["coverage"]["source"]["complete"]
+    assert len(report["queries"]) == 2
+    for entry in report["queries"]:
+        for k in ("1", "4"):
+            assert entry["score_stability"][k]["max_abs_delta"] == 0.0
+            assert entry["score_stability"][k]["argmax_equal"] is True
+    assert report["score_stability"]["4"]["n_argmax_equal"] == 2
+    assert report["executed_partition"]["executed"] == FA_DECLARED
+    assert set(report["per_key"]) >= set(FA_IDS)
+    # shapes, dtypes and masks per key; the replay's own orbit partition per batch
+    for key in FA_IDS:
+        assert report["per_key"][key]["shapes"] and report["per_key"][key]["dtypes"]
+        assert report["per_key"][key]["mask_max_abs_diff"] == 0.0
+    for entry in report["queries"]:
+        assert all(chunk["replay_partition"] == [chunk["n"]] * 3 for chunk in entry["chunks"])
+
+
+def test_gate3_tolerates_backbone_batch_noise_within_the_registered_bound(tmp_path):
+    engine = FaSyntheticEngine()
+    engine.conditioner = BatchSensitiveFa()               # 1e-4 per row of batch size
+    report = fp.production_parity(engine, _g3_cases(tmp_path), **G3_KW,
+                                  declared_partition=FA_DECLARED)
+    assert report["verdict"] == "PASS", report["reasons"]
+    worst = max(entry["max_abs_diff"] for key, entry in report["per_key"].items()
+                if not key.startswith("dit_inputs"))
+    assert 0.0 < worst <= 1e-3
+    assert any(not entry["bitwise"] for entry in report["per_key"].values())
+
+
+def test_gate3_fails_above_the_registered_bound_and_names_the_keys(tmp_path):
+    class Noisy(BatchSensitiveFa):
+        OFFSET = 1e-2
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = Noisy()
+    report = fp.production_parity(engine, _g3_cases(tmp_path), **G3_KW,
+                                  declared_partition=FA_DECLARED)
+    assert report["verdict"] == "FAIL"
+    assert any("context_audio" in reason for reason in report["reasons"])
+
+
+def test_gate3_refuses_an_executed_partition_that_is_not_the_declared_one(tmp_path):
+    declared = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=16)
+    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+                                  declared_partition=declared)
+    assert report["verdict"] == "FAIL"
+    assert any("source_cache.candidate_micro_batch" in reason for reason in report["reasons"])
+
+
+def test_gate3_without_a_tail_batch_does_not_pass(tmp_path):
+    cases = _g3_cases(tmp_path)
+    sizes = [case["query"].n_candidates for case in cases]
+    # one candidate per scored batch: every scored batch is full, none is a tail
+    report = fp.production_parity(FaSyntheticEngine(), cases, batch_rows=4, source_chunk=3,
+                                  num_samples=4, prefixes=(1, 4))
+    assert report["coverage"]["scored"] == {"full": sum(sizes), "tail": 0, "complete": False}
+    assert report["verdict"] == "FAIL" and any("coverage" in r for r in report["reasons"])
+
+
+def test_gate3_evidence_reads_no_localization_quality(tmp_path):
+    report = fp.production_parity(FaSyntheticEngine(), _g3_cases(tmp_path), **G3_KW,
+                                  declared_partition=FA_DECLARED)
+    evidence = fp.finalize_evidence(report, device="cpu",
+                                    environment={"git_sha": "a" * 40, "git_status_dirty": False,
+                                                 "hostname": "box"})
+    assert _quality_keys(json.loads(json.dumps(evidence))) == set()

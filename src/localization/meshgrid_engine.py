@@ -1917,12 +1917,13 @@ def candidate_rows(engine, candidate, start, stop, num_samples, configured, reco
 
 
 def scored_conditioning(engine, context, cache, rows, candidate=None, *, start=0, stop=None,
-                        num_samples=1, configured=None):
+                        num_samples=1, configured=None, record=True):
     """What the DiT is conditioned on for one scored batch: the two caches expanded
     over ``rows`` and -- under the split -- the batch's own ``context_poses``."""
     merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
     if candidate is not None:
-        merged.update(candidate_rows(engine, candidate, start, stop, num_samples, configured))
+        merged.update(candidate_rows(engine, candidate, start, stop, num_samples, configured,
+                                     record=record))
     return merged
 
 
