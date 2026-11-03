@@ -21,9 +21,12 @@ them, because a half-published arm is exactly what a glob would average without 
 CPU-only; the fixtures store 2-item prediction tensors instead of 6,337-item ones.
 """
 import ast
+import glob
 import hashlib
 import json
 import os
+import shutil
+import subprocess
 
 import pytest
 import torch
@@ -123,7 +126,9 @@ def test_the_manifest_records_a_digest_and_its_source_for_every_file(tmp_path):
         assert os.path.basename(entry["dest"]) in manifest
     # The un-commented half is a plain `sha256sum -c` list rooted at the FLAC checkout.
     checkable = [ln for ln in manifest.splitlines() if ln and not ln.startswith("#")]
-    assert len(checkable) == 10
+    assert len(checkable) == 11                     # ten cells + the attestation (round V)
+    assert len([ln for ln in checkable if ln.endswith(".json")]) == 10
+    assert len([ln for ln in checkable if ln.endswith("/ATTESTATION.txt")]) == 1
     assert all(ln.split("  ", 1)[1].startswith("outputs_FLAC/data_curve_import/")
                for ln in checkable)
 
@@ -142,7 +147,8 @@ def test_the_row_spec_names_the_arms_own_protocol_and_the_import_glob(tmp_path):
 
 def test_no_emitted_path_row_or_basename_carries_the_forbidden_substring(tmp_path):
     result, _, _, _ = run_import(tmp_path)
-    emitted = [result["dest_dir"], result["manifest"]] + result["row_specs"] \
+    emitted = [result["dest_dir"], result["manifest"], result["attestation"]] \
+        + result["row_specs"] \
         + [entry["dest"] for entry in result["files"]]
     assert all(names.FORBIDDEN_SUBSTRING not in text for text in emitted)
 
@@ -232,6 +238,7 @@ def test_cli_imports_and_prints_the_row_specs(tmp_path, capsys, monkeypatch):
     printed = capsys.readouterr().out
     assert '"fa eval", 8,' in printed
     assert "MANIFEST.sha256" in printed
+    assert "ATTESTATION.txt" in printed
 
 
 def test_cli_refuses_and_exits_non_zero(tmp_path, monkeypatch):
@@ -278,13 +285,13 @@ def test_the_destination_appears_whole_manifest_included(tmp_path):
     assert result["installed"] == "new"
     assert sorted(os.listdir(result["dest_dir"])) == sorted(
         [os.path.basename(e["dest"]) for e in result["files"]]
-        + [import_cells.MANIFEST_BASENAME])
+        + [import_cells.MANIFEST_BASENAME, "ATTESTATION.txt"])
     # no staging directory survives anywhere under the import root
     root = os.path.join(checkout, "outputs_FLAC", "data_curve_import")
     assert [name for name in os.listdir(root) if name.startswith(".")] == []
 
 
-@pytest.mark.parametrize("victim", ["os.rename", "manifest"])
+@pytest.mark.parametrize("victim", ["os.rename", "manifest", "attestation"])
 def test_an_install_that_fails_half_way_leaves_no_destination(tmp_path, monkeypatch, victim):
     nas, _, digest = make_run(tmp_path)
     checkout = tmp_path / "flac"
@@ -292,8 +299,10 @@ def test_an_install_that_fails_half_way_leaves_no_destination(tmp_path, monkeypa
     boom = lambda *a, **k: (_ for _ in ()).throw(OSError("disk went away"))
     if victim == "os.rename":
         monkeypatch.setattr(import_cells.os, "rename", boom)
-    else:
+    elif victim == "manifest":
         monkeypatch.setattr(import_cells, "_write_manifest", boom)
+    else:
+        monkeypatch.setattr(import_cells, "_write_attestation", boom)
     result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest,
                                                  expect_n=N_ITEMS)
     assert violations
@@ -460,3 +469,139 @@ def test_every_row_is_a_four_field_entry_with_a_truthful_backbone(arm, tag, K):
     assert "cyl-dinov3" not in row
     if arm == "van":                        # the stock arm's description names no CylDINO
         assert "cyl" not in label.split("(", 1)[1].lower()
+
+
+# ------------------------------------- the attestation file (codex T finding F6 / M5)
+# The metrics JSON alone does not say which seed, K, split or protocol it was scored under;
+# the importer proved all of that from the pair before copying, and ATTESTATION.txt keeps
+# the proof beside the cells. Every expectation below is rebuilt here from the fixture --
+# paths typed out, digests re-hashed -- never by asking the importer.
+ATTESTATION = "ATTESTATION.txt"
+#: The repository the tests (and the importer) run from: src/tests -> src -> root.
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CONFIG_BY_K = {1: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
+               8: "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json"}
+CONTRACT = "clamped/padded callback input (float32 cast and 8000-sample crop are scoring-internal)"
+
+
+def parse_attestation(text):
+    """``{section: {key: value}}`` -- an independent reader of the plain-text format."""
+    sections, current = {}, None
+    for line in text.splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            assert line[1:-1] not in sections, f"duplicate section {line!r}"
+            current = sections[line[1:-1]] = {}
+            continue
+        key, sep, value = line.partition(": ")
+        assert sep and current is not None, f"not a 'key: value' line: {line!r}"
+        assert key not in current, f"duplicate key {key!r} in {line!r}"
+        current[key] = value
+    return sections
+
+
+def read_attestation(result):
+    with open(os.path.join(result["dest_dir"], ATTESTATION)) as fin:
+        return parse_attestation(fin.read())
+
+
+def expected_cell(arm, tag, K, seed, ckpt):
+    run_dir, ckpt_stem = os.path.dirname(ckpt), os.path.basename(ckpt)[:-len(".ckpt")]
+    stem = f"1_1.0_dc_{arm}_f{tag}_K{K}_s{seed}" + ("_fa_invariant_a1" if arm == "cyl" else "")
+    record = os.path.join(run_dir, f"{ckpt_stem}_metrics_{stem}.json")
+    bundle = os.path.join(run_dir, f"{ckpt_stem}_predictions_{stem}.pt")
+    return {
+        "K": str(K), "seed": str(seed), "eval_name": f"dc_{arm}_f{tag}_K{K}_s{seed}",
+        "dataset_config": CONFIG_BY_K[K],
+        "dataset_config_sha256": sha256_of(os.path.join(REPO, CONFIG_BY_K[K])),
+        "prediction_bundle_items": str(N_ITEMS),
+        "full_unseen_split": f"NO -- fixture override expect_n={N_ITEMS}; "
+                             "the full unseen split is 6337 items",
+        "cond_method": {"cyl": "fa_invariant", "van": "vanilla"}[arm],
+        "frame_avg_angles": {"cyl": "[0.0]", "van": "null"}[arm],
+        "rotate_deg": "0.0", "cond_autocast": "bf16", "steps": "1", "cfg_scale": "1.0",
+        "checkpoint": ckpt, "checkpoint_sha256": sha256_of(ckpt),
+        "metrics_record": record, "metrics_record_sha256": sha256_of(record),
+        "imported_copy": f"outputs_FLAC/data_curve_import/dc_{arm}_f{tag}/"
+                         f"{os.path.basename(record)}",
+        "prediction_bundle": bundle, "prediction_bundle_sha256": sha256_of(bundle),
+        "bundle_artifact_contract": json.dumps(CONTRACT),
+        "record_source_sha": "absent",
+    }
+
+
+@pytest.mark.parametrize("arm, tag", [("cyl", "025"), ("van", "050")])
+def test_the_attestation_records_every_cell_exactly_as_validated(tmp_path, arm, tag):
+    result, violations, _, ckpt = run_import(tmp_path, arm=arm, tag=tag)
+    assert violations == []
+    sections = read_attestation(result)
+    cells = {name: body for name, body in sections.items() if name.startswith("cell ")}
+    assert sorted(cells) == sorted(f"cell K{K} s{s}" for K in (1, 8) for s in range(42, 47))
+    for K in (1, 8):
+        for seed in range(42, 47):
+            assert cells[f"cell K{K} s{seed}"] == expected_cell(arm, tag, K, seed, ckpt)
+
+
+def test_the_attestation_header_names_the_run_its_rows_and_its_contract(tmp_path):
+    result, _, _, ckpt = run_import(tmp_path)
+    sections = read_attestation(result)
+    assert sections["run"] == {
+        "run_id": "dc_cyl_f025", "arm": "cyl", "backbone": "CylDINO",
+        "fraction": "0.25", "fraction_tag": "025",
+        "final_checkpoint": ckpt, "final_checkpoint_sha256": sha256_of(ckpt),
+        "imported_to": "outputs_FLAC/data_curve_import/dc_cyl_f025",
+    }
+    assert sections["rows"] == {
+        "label": "data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)",
+        "protocol": "fa eval",
+        "protocol_flags": "cond_method=fa_invariant frame_avg_angles=[0.0] rotate_deg=0.0 "
+                          "cond_autocast=bf16",
+        "row_K1": EXPECTED_ROWS[("cyl", "025", 1)],
+        "row_K8": '("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8, '
+                  '["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K8_s4[2-6]*.json"]),',
+    }
+    contract = sections["validation contract"]
+    assert list(contract) == [f"C{i}" for i in range(1, 14)]
+    assert "step=40000" in contract["C1"]
+    assert "--expect-ckpt-sha256" in contract["C2"]
+    assert "record.ckpt_sha256" in contract["C4"]
+    assert "fa_invariant / [0.0] / 0.0 / bf16" in contract["C5"]
+    assert f"== {N_ITEMS}" in contract["C7"] and f"({N_ITEMS}, 1, 10240)" in contract["C7"]
+    assert "meta.seed" in contract["C8"] and "meta.eval_name" in contract["C8"]
+    assert CONFIG_BY_K[1] in contract["C9"] and CONFIG_BY_K[8] in contract["C9"]
+    assert json.dumps(CONTRACT) in contract["C11"] and "meta.steps == 1" in contract["C11"]
+    assert "meta.ckpt_sha256" in contract["C12"]
+
+
+def test_the_stock_arm_s_attestation_names_its_own_backbone_and_protocol(tmp_path):
+    result, _, _, _ = run_import(tmp_path, arm="van", tag="075")
+    sections = read_attestation(result)
+    assert sections["run"]["backbone"] == "stock DINOv3-S"
+    assert sections["rows"]["label"] == "data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)"
+    assert sections["rows"]["protocol"] == "vanilla eval"
+    assert sections["rows"]["protocol_flags"] == \
+        "cond_method=vanilla frame_avg_angles=null rotate_deg=0.0 cond_autocast=bf16"
+    assert "vanilla / null / 0.0 / bf16" in sections["validation contract"]["C5"]
+
+
+def test_a_record_s_source_sha_is_carried_into_the_attestation_when_present(tmp_path):
+    result, violations, _, _ = run_import(
+        tmp_path, metrics_patch={(8, 44): {"source_sha": "0123abcd"}})
+    assert violations == []
+    cells = read_attestation(result)
+    assert cells["cell K8 s44"]["record_source_sha"] == "0123abcd"
+    assert cells["cell K1 s44"]["record_source_sha"] == "absent"
+
+
+def test_a_production_size_import_attests_the_full_unseen_split(tmp_path, monkeypatch):
+    monkeypatch.setattr(names, "N_ITEMS_UNSEEN", N_ITEMS)
+    nas, _, digest = make_run(tmp_path)
+    checkout = tmp_path / "flac"
+    checkout.mkdir()
+    result, violations = import_cells.import_run(nas, "cyl", "025", str(checkout), digest)
+    assert violations == []
+    for name, body in read_attestation(result).items():
+        if name.startswith("cell "):
+            assert body["full_unseen_split"] == \
+                f"yes ({N_ITEMS} items = names.N_ITEMS_UNSEEN, the full unseen split)"
