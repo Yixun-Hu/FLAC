@@ -278,7 +278,7 @@ def fixture_totals(plan=None, branch="z_band"):
             "generated_waveforms": pairs * FIXTURE_SAMPLES}
 
 
-def build_fixture_run(tmp_path, merged=True):
+def build_fixture_run(tmp_path, merged=True, arm=None, launch=None, engine=None):
     """A complete, self-consistent fixture: G1 audit, D1 manifest, MERGED run.
 
     ``merged=True`` (the default) scores each room as its own shard and combines
@@ -286,6 +286,13 @@ def build_fixture_run(tmp_path, merged=True):
     a real census-gated merge -- merge report, declared rooms, pinned advisory
     and all. A report that skipped the merge gates could not be caught by a
     hand-assembled fixture, which is exactly what the r9 review found.
+
+    exp_22 R2-A: ``arm`` re-registers the run as that arm (its checkpoint digest
+    and its complete R2 method); ``launch(out_dir)`` returns ``(record_path,
+    admission)`` for each shard invocation, whose segment is opened and stamped
+    into every row; ``engine`` replaces the synthetic stack (a different
+    "checkpoint" generates different numbers). The defaults are the P1 fixture,
+    unchanged.
     """
     audit_report = _fixture_audit(tmp_path)
     plan = me.load_audit_plan(audit_report)
@@ -307,15 +314,26 @@ def build_fixture_run(tmp_path, merged=True):
     }, require_census=False)
 
     binding = _fixture_binding(plan, manifest_path)
+    if arm is not None:
+        binding.update(ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                       **mr.REGISTERED_ARM_PROTOCOL[arm])
     binding_sha = me.binding_sha256(binding)
     totals = fixture_totals(plan)
 
     def _score(out_dir, rooms=None):
+        from src.localization import meshgrid_segments as ms
+
         me.write_binding(out_dir, binding, advisory=FIXTURE_ADVISORY, declared_rooms=rooms)
-        summary = me.run_pass(SyntheticEngine(), items, records, plan, out_dir,
+        sha = None
+        if launch is not None:
+            record_path, admission = launch(out_dir)
+            sha = ms.open_segment(out_dir, record_path, admission,
+                                  resume=False)["launch_record_sha256"]
+        summary = me.run_pass(engine or SyntheticEngine(), items, records, plan, out_dir,
                               tau=FIXTURE_TAU, num_samples=FIXTURE_SAMPLES,
                               prefixes=FIXTURE_PREFIXES, batch_rows=8, source_chunk=2,
-                              rooms=rooms, binding_sha256=binding_sha)
+                              rooms=rooms, binding_sha256=binding_sha,
+                              launch_record_sha256=sha)
         me.write_json(os.path.join(out_dir, "run_summary.json"), summary)
         return out_dir
 
@@ -2406,3 +2424,107 @@ def test_the_report_applies_the_embedded_protocol_when_given_the_checkpoint(tmp_
     me.write_json(binding_path, published)
     with pytest.raises(ValueError, match="embedded training protocol"):
         mr.assert_checkpoint_protocol(path, published, arm=None)
+
+
+#: the P1 wording of the two notes as they stood at base 3f595e19, verbatim
+P1_NON_CANONICAL_NOTE_AT_BASE = (
+    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
+    "was relaxed or could not be met. The reasons are listed beside this note; every number "
+    "below is a diagnostic and none may be quoted as the canonical result")
+P1_SINGLE_SHARD_TAIL_AT_BASE = ("These numbers are a shard-local diagnostic and are not the "
+                                "canonical 5,337-query P1 result")
+
+
+def fixture_launch(tmp_path, tag):
+    """``launch(out_dir)`` for build_fixture_run: emit + admit on the injected machine."""
+    import test_loc_meshgrid_launch_record as LR
+
+    def launch(out_dir):
+        name = f"{tag}_{os.path.basename(str(out_dir))}"
+        argv = [token if token != "out" else name for token in LR.ARGV]
+        path = LR.emit(tmp_path, argv=argv, name=f"{name}_launch.json")
+        return path, LR.admit(path, argv=argv)
+
+    return launch
+
+
+def test_the_notes_carry_the_arm_and_p1_keeps_its_words():
+    assert mr.NON_CANONICAL_NOTE == P1_NON_CANONICAL_NOTE_AT_BASE
+    assert mr.non_canonical_note("P1") == mr.NON_CANONICAL_NOTE
+    assert mr.SINGLE_SHARD_NOTE.endswith(P1_SINGLE_SHARD_TAIL_AT_BASE)
+    assert mr.single_shard_note("P1") == mr.SINGLE_SHARD_NOTE
+    for arm in ("YAW", "BF"):
+        for note in (mr.non_canonical_note(arm), mr.single_shard_note(arm)):
+            assert f"5,337-query {arm} result" in note and "P1" not in note
+
+
+def test_a_legacy_p1_run_is_canonical_under_the_flagged_exception(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    provenance = evaluated["launch_provenance"]
+    assert provenance["generation"] == "none" and provenance["complete"] is False
+    assert provenance["legacy_provenance"] is True and provenance["acceptable"] is True
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    assert report["arm"] == "P1" and report["legacy_provenance"] is True
+    assert report["canonical_status"]["canonical"] is True
+    markdown = mr.render_markdown(report)
+    assert markdown.splitlines()[0] == "# exp_22 — mesh-grid localization report (P1 arm)"
+    assert mr.LEGACY_PROVENANCE_NOTE in markdown
+
+
+def test_an_arm_run_with_complete_records_publishes_every_segment(tmp_path):
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    evaluated = evaluate_fixture(fixture, expect_arm="YAW")
+    provenance = evaluated["launch_provenance"]
+    assert provenance["complete"] is True and provenance["legacy_provenance"] is False
+    assert sorted(r["position_ranges"] for r in provenance["records"]) == [[[0, 2]], [[3, 3]]]
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    assert report["arm"] == "YAW" and report["legacy_provenance"] is False
+    assert report["canonical_status"]["canonical"] is True
+    published = report["provenance"]["launch_provenance"]
+    assert {r["launch_record_sha256"] for r in published["records"]} == {
+        r["launch_record_sha256"] for r in provenance["records"]}
+    markdown = mr.render_markdown(report)
+    assert "(YAW arm)" in markdown.splitlines()[0]
+    for record in provenance["records"]:
+        assert record["launch_record_sha256"] in markdown
+
+
+def test_a_missing_record_makes_the_report_non_canonical(tmp_path):
+    from src.localization import meshgrid_segments as ms
+
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    ledger = ms.read_ledger(fixture["run_dir"])
+    os.remove(os.path.join(fixture["run_dir"], ledger["segments"][0]["record_file"]))
+    evaluated = evaluate_fixture(fixture)
+    assert evaluated["launch_provenance"]["acceptable"] is False
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    assert [reason["gate"] for reason in status["reasons"]] == ["launch_provenance"]
+    assert status["note"] == mr.non_canonical_note("YAW")
+    assert mr.non_canonical_note("YAW") in mr.render_markdown(report)
+
+
+def test_the_legacy_exception_never_extends_to_another_arm(tmp_path):
+    fixture = build_fixture_run(tmp_path, merged=False, arm="YAW")
+    evaluated = evaluate_fixture(fixture)
+    provenance = evaluated["launch_provenance"]
+    assert provenance["legacy_provenance"] is False and provenance["acceptable"] is False
+    status = mr.canonical_status(evaluated)
+    gates = [reason["gate"] for reason in status["reasons"]]
+    assert "launch_provenance" in gates and "merge_report" in gates
+    assert any("P1" in reason["why"] for reason in status["reasons"]
+               if reason["gate"] == "launch_provenance")
+
+
+def test_the_report_cli_takes_the_expected_arm_and_the_checkpoint():
+    args = mr.parse_args(["--run-dir", "r", "--out-dir", "o", "--expect-arm", "YAW",
+                          "--ckpt-path", "weights/exp20/YAW_40k.ckpt"])
+    assert args.expect_arm == "YAW" and args.ckpt_path == "weights/exp20/YAW_40k.ckpt"
+    assert mr.parse_args(["--run-dir", "r", "--out-dir", "o"]).expect_arm is None
+    with pytest.raises(SystemExit):
+        mr.parse_args(["--run-dir", "r", "--out-dir", "o", "--expect-arm", "P2"])

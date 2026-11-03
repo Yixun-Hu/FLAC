@@ -204,13 +204,27 @@ CKPT_SHA256_NOTE = (
 
 #: A run that is not the census-gated merge of every shard is not the canonical
 #: pass, and the difference has to be visible in the artifact.
-SINGLE_SHARD_NOTE = (
+SINGLE_SHARD_NOTE_TEMPLATE = (
     "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
     "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
     "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
     "source-row census -- were NOT applied. The artifact-hash joins, the identity join, the "
     "row/sidecar digests and the row-derived batching and source-row derivations still were. "
-    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query P1 result")
+    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query {arm} "
+    "result")
+
+
+def _arm_label(arm):
+    return str(arm) if arm else "unregistered-checkpoint"
+
+
+def single_shard_note(arm=LEGACY_PROTOCOL_ARM):
+    """The shard-local note, naming the arm it is NOT the canonical result of."""
+    return SINGLE_SHARD_NOTE_TEMPLATE.format(arm=_arm_label(arm))
+
+
+#: the P1 wording, unchanged (the off-grid probe is a P1-only control)
+SINGLE_SHARD_NOTE = single_shard_note("P1")
 
 #: Why a merge receipt is re-derived rather than believed.
 MERGE_DERIVATION_NOTE = (
@@ -245,10 +259,25 @@ TRUTH_BINDING_NOTE = (
     "argument, which is why it is not offered as one")
 
 #: What a run that is not the canonical P1 result must say about itself.
-NON_CANONICAL_NOTE = (
-    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
-    "was relaxed or could not be met. The reasons are listed beside this note; every number "
-    "below is a diagnostic and none may be quoted as the canonical result")
+NON_CANONICAL_NOTE_TEMPLATE = (
+    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query {arm} "
+    "result was relaxed or could not be met. The reasons are listed beside this note; every "
+    "number below is a diagnostic and none may be quoted as the canonical result")
+
+
+def non_canonical_note(arm=LEGACY_PROTOCOL_ARM):
+    return NON_CANONICAL_NOTE_TEMPLATE.format(arm=_arm_label(arm))
+
+
+#: the P1 wording, unchanged
+NON_CANONICAL_NOTE = non_canonical_note("P1")
+
+#: plan r2 §1 legacy-provenance exception (Codex B4/N3), printed wherever it applies.
+LEGACY_PROVENANCE_NOTE = (
+    "LEGACY LAUNCH PROVENANCE (plan r2 §1, Codex B4/N3): this is the published Aug-2026 P1 "
+    "comparator, which predates full-pass launch records (its binding predates the R2 protocol "
+    "fields too). It stays canonical AS PUBLISHED under this registered exception; the exception "
+    "extends to no other arm and to no run produced by the R2 driver")
 
 #: How the metadata-bank digest is pre-registered.
 METADATA_BANK_PREREGISTRATION_NOTE = (
@@ -691,6 +720,30 @@ def assert_checkpoint_protocol(ckpt_path, binding, arm):
         raise ValueError("the checkpoint's embedded training protocol contradicts the run: "
                          + "; ".join(verdict["reasons"]))
     return dict(verdict, ckpt_path=str(ckpt_path), sha256=digest)
+
+
+def launch_provenance(run_dir, rows, registered):
+    """The segment census, re-derived here, and whether it may stand (plan r2 §3 R2-A).
+
+    Never a refusal: a run whose rows do not all resolve to a present, verified
+    record is reported NON-CANONICAL with the census's reasons. The one
+    exception is the published P1 comparator -- arm P1, legacy binding, and no
+    record anywhere -- which is canonical as published and flagged as such.
+    """
+    from src.localization import meshgrid_segments as ms
+
+    census = ms.provenance_census(run_dir, rows)
+    unrecorded = census["generation"] == "none" and census["n_unstamped"] == census["n_rows"]
+    legacy = bool(unrecorded and registered.get("arm") == LEGACY_PROTOCOL_ARM
+                  and registered.get("legacy_binding"))
+    reasons = list(census["reasons"])
+    if unrecorded and not legacy:
+        reasons.append(f"the legacy-provenance exception covers only the published "
+                       f"{LEGACY_PROTOCOL_ARM} comparator (legacy binding, no records); this is "
+                       f"arm {_arm_label(registered.get('arm'))}")
+    return dict(census, reasons=reasons, legacy_provenance=legacy,
+                acceptable=bool(census["complete"] or legacy),
+                legacy_note=LEGACY_PROVENANCE_NOTE if legacy else None)
 
 
 def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False,
@@ -2307,6 +2360,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
     rows, sims_by_id, snapshot = verify_rows_with_sidecars(run_dir, binding_sha)
+    provenance = launch_provenance(run_dir, rows, registered)
     # the receipt is checked against the ROWS, so the rows come first now
     derived = derive_run_facts(rows)
     batching = assert_uniform_batching(rows, binding.get("advisory"))
@@ -2370,6 +2424,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             "rows_by_id": rows_by_id, "plans_by_id": plans_by_id, "results": results,
             "census": census, "protocol": protocol, "artifacts": artifacts,
             "registered_protocol": registered, "checkpoint_protocol": checkpoint_protocol,
+            "launch_provenance": provenance,
             "merge": merge, "derived": derived,
             "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
@@ -2389,10 +2444,19 @@ def canonical_status(evaluated, report=None):
     disagree about whether a number may be quoted as canonical.
     """
     reasons = []
+    arm = evaluated["registered_protocol"].get("arm")
     if evaluated["single_shard"]:
         reasons.append({"gate": "merge_report",
                         "why": "the directory publishes no census-gated merge receipt",
-                        "note": SINGLE_SHARD_NOTE})
+                        "note": single_shard_note(arm)})
+    provenance = evaluated.get("launch_provenance") or {}
+    if not provenance.get("acceptable"):
+        from src.localization.meshgrid_segments import SEGMENT_NOTE
+
+        reasons.append({"gate": "launch_provenance",
+                        "why": "; ".join(provenance.get("reasons") or
+                                         ["no launch-provenance census was taken"])[:2000],
+                        "note": SEGMENT_NOTE})
     if not evaluated["registered_protocol"]["is_registered"]:
         reasons.append({"gate": "registered_protocol",
                         "why": f"the run binding deviates on "
@@ -2417,7 +2481,7 @@ def canonical_status(evaluated, report=None):
                                    "component, so the latency endpoint is non-canonical",
                             "note": LATENCY_NON_CANONICAL_NOTE})
     return {"canonical": not reasons, "reasons": reasons,
-            "note": None if not reasons else NON_CANONICAL_NOTE}
+            "note": None if not reasons else non_canonical_note(arm)}
 
 
 def sidecar_summary(results):
@@ -2482,8 +2546,11 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                for aggregator in AGGREGATORS}
 
     merge_path = os.path.join(str(run_dir), "merge_report.json")
+    arm = evaluated["registered_protocol"].get("arm")
     report = {
         "experiment": "exp_22 loc_meshgrid R1 report",
+        "arm": arm,
+        "legacy_provenance": bool(evaluated["launch_provenance"]["legacy_provenance"]),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "labels": {
             "subset": SUBSET_LABEL,
@@ -2514,7 +2581,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                                     (me.file_sha256(merge_path)
                                      if os.path.isfile(merge_path) else None)),
             "single_shard": evaluated["single_shard"],
-            "single_shard_note": SINGLE_SHARD_NOTE if evaluated["single_shard"] else None,
+            "single_shard_note": single_shard_note(arm) if evaluated["single_shard"] else None,
+            "launch_provenance": evaluated["launch_provenance"],
+            "checkpoint_protocol": evaluated.get("checkpoint_protocol"),
             "derived_from_rows": evaluated["derived"],
             "effective_batching": evaluated["batching"],
         },
@@ -2668,11 +2737,31 @@ def _sensitivity_banners(report):
     return lines
 
 
+def _provenance_lines(report):
+    """The legacy exception, loudly; otherwise every launch segment with its rows."""
+    provenance = report["provenance"].get("launch_provenance") or {}
+    if report.get("legacy_provenance"):
+        return [f"> **{LEGACY_PROVENANCE_NOTE}**", ""]
+    lines = ["## Launch provenance — one segment per invocation", "",
+             "| # | shard | launch record sha256 | rows | positions | git | host | card | "
+             "resume | verified |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for record in provenance.get("records") or []:
+        lines.append(
+            f"| {record.get('segment_index')} | `{os.path.basename(str(record.get('shard')))}` | "
+            f"`{record['launch_record_sha256']}` | {record['n_rows']:,} | "
+            f"{record['position_ranges']} | `{str(record.get('git_sha'))[:12]}` | "
+            f"{record.get('hostname')} | `{record.get('execution_gpu_uuid')}` | "
+            f"{format_number(record.get('resume'))} | {format_number(record.get('verified'))} |")
+    lines.append("")
+    return lines
+
+
 def render_markdown(report):
     """The human-readable summary. Every table carries the three stamps."""
     lines = []
     provenance, protocol, census = report["provenance"], report["protocol"], report["census"]
-    lines.append("# exp_22 R1 — mesh-grid localization report")
+    lines.append(f"# exp_22 — mesh-grid localization report ({_arm_label(report.get('arm'))} "
+                 "arm)")
     lines.append("")
     lines.append(f"Generated {report['created_utc']} from `{provenance['run_dir']}`.")
     lines.append("")
@@ -2697,6 +2786,7 @@ def render_markdown(report):
                  f"{protocol['bootstrap']['seed']}.")
     lines.append("")
     lines.extend(_sensitivity_banners(report))
+    lines.extend(_provenance_lines(report))
 
     for aggregator in AGGREGATORS:
         lines.append(f"## {aggregator.upper()} — {report['labels']['aggregator_roles'][aggregator]}")
@@ -2955,6 +3045,12 @@ def parse_args(argv=None):
                              "merge_report.json. Relaxes only the merge-only gates; the "
                              "artifact-hash joins, the identity join and every digest still "
                              "apply, and the artifact is stamped as non-canonical")
+    parser.add_argument("--expect-arm", default=None, choices=sorted(REGISTERED_ARM_PROTOCOL),
+                        help="refuse unless the run's checkpoint is this registered arm; the "
+                             "binding is then held to that arm's complete method")
+    parser.add_argument("--ckpt-path", default=None,
+                        help="the checkpoint the binding names; when given it is hashed and its "
+                             "EMBEDDED training protocol must agree with the arm and the binding")
     parser.add_argument("--expect-ckpt-sha256", default=None,
                         help="narrow the admissible checkpoint to exactly this digest; by "
                              "default any of the three registered arms is accepted")
@@ -3030,7 +3126,7 @@ def main(argv=None):
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
     print(f"SUBSET: {SUBSET_LABEL}")
     if args.single_shard:
-        print(f"\n{SINGLE_SHARD_NOTE}\n")
+        print("\nSINGLE-SHARD MODE: a shard-local diagnostic, never the canonical result\n")
 
     evaluated = evaluate_run(args.run_dir, args.audit_report, args.context_manifest,
                              args.metadata_root, baseline_seeds=args.baseline_seeds,
@@ -3039,7 +3135,13 @@ def main(argv=None):
                              expect_ckpt_sha256=args.expect_ckpt_sha256,
                              expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
                              allow_protocol_deviation=args.allow_protocol_deviation,
-                             allow_unpinned_metadata_bank=args.non_canonical)
+                             allow_unpinned_metadata_bank=args.non_canonical,
+                             expect_arm=args.expect_arm, ckpt_path=args.ckpt_path)
+    provenance = evaluated["launch_provenance"]
+    print(f"arm {_arm_label(evaluated['registered_protocol']['arm'])}; launch provenance: "
+          + ("LEGACY P1 EXCEPTION" if provenance["legacy_provenance"] else
+             f"{len(provenance['records'])} segment(s), "
+             f"{'complete' if provenance['complete'] else 'INCOMPLETE'}"))
     print(f"gates passed: binding {evaluated['binding_sha256'][:12]}..., "
           f"{evaluated['census']['n_queries']:,} queries / "
           f"{evaluated['census']['n_rooms']} rooms, identity join over "
