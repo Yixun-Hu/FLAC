@@ -1,0 +1,14 @@
+# rB-F1 cycle 6 RED (HIGH 5 part 1: call-derived executed partition, exact-schema comparison, tail-prefix rule; NIT 8 whole-split check), HEAD 9831a2a46a25524341a2f5bcb6393d1db39bdc92, CPU
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_mixed_micro_batches_two_angles_per_forward_and_cap_violations_are_refused
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_executed_partition_is_read_off_the_calls_not_the_configured_values
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_declared_vs_executed_compares_the_exact_schema_both_ways
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tail_only_prefix_passes_the_per_row_check_but_not_the_final_one
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_non_orbit_branch_never_makes_rotated_forwards
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_pass_whose_scored_batches_never_fill_refuses_at_the_end_but_a_probe_reports_it
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split0-recorder]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split1-recorder]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split2-orbit]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split3-identity]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split4-repeats]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_assert_cacheable_refuses_a_malformed_split[split5-finite]
+12 failed, 122 passed, 11 warnings in 46.72s

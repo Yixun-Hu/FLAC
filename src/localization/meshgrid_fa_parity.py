@@ -125,11 +125,13 @@ COUNTER_KEYS = {"moved_candidates": ("source", "source_vit", "context_poses"),
 
 
 def require_split(engine):
-    """The gates compare the ENGAGED split; an engine without one has nothing to gate."""
+    """The gates compare the ENGAGED split; an engine without one -- or with a malformed
+    one (Codex rB NIT 8) -- has nothing to gate."""
     if not isinstance(getattr(engine, "split", None), me.FaSplit):
         raise ValueError("the frame-average parity gates need an engine built with the five-way "
                          "split engaged (--cond-method fa_invariant --frame-avg-angles 0 90 180 "
                          "270); this engine has no split")
+    me.assert_cacheable(getattr(engine, "cond_method", None), engine.split)
     return engine.split
 
 

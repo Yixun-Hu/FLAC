@@ -402,8 +402,12 @@ def test_mixed_micro_batches_two_angles_per_forward_and_cap_violations_are_refus
     split = _split()
     _run_production_shapes(split)
     _run_production_shapes(split, source_chunk=12)            # a second, different chunking
-    assert "source_cache.candidate_micro_batch" in me.fa_partition_differences(
-        DECLARED, split.recorder.executed())
+    # the executed micro-batch is read off the calls (16 is still the largest observed), so a
+    # second chunking is a VIOLATION of the one-stride rule rather than a moved headline
+    assert any("more than one configured micro-batch" in reason
+               for reason in split.recorder.violations())
+    with pytest.raises(ValueError, match="violations"):
+        me.assert_fa_partition_executed(DECLARED, split.recorder)
 
     recorder = me.FaPartitionRecorder()
     # an orbit that put two angles in one forward, then one: not the per-angle plan
@@ -2207,3 +2211,121 @@ def test_gate3_chains_and_per_key_facts_carry_the_masks(tmp_path, monkeypatch):
     report = _g3_registered(tmp_path / "absent")
     production, replay = report["digest_chains"]["source.mask"]
     assert production != replay                     # mask presence is part of the chain
+
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB finding 5 (part 1): the executed partition is CALL-derived and compared
+# over the exact schema both ways; NIT 8: assert_cacheable checks the whole split
+# --------------------------------------------------------------------------- #
+def _observe_production(recorder, *, scored=(32, 8), source=(16, 4), vit=(1,), configured=None,
+                        orbit_size=4):
+    configured = configured or {}
+    for n in vit:
+        recorder.observe("context_vit", [(n, False)] + [(n, True)] * 3, cap=n,
+                         configured=configured.get("context_vit", 1), orbit_size=orbit_size)
+    for n in scored:
+        recorder.observe("context_scored_batch", [(n, False)], cap=n,
+                         configured=configured.get("context_scored_batch", 32),
+                         orbit_size=orbit_size)
+    for n in source:
+        recorder.observe("source_cache", [(n, False)] + [(n, True)] * 3, cap=n,
+                         configured=configured.get("source_cache", 16), orbit_size=orbit_size)
+    return recorder
+
+
+def test_the_executed_partition_is_read_off_the_calls_not_the_configured_values():
+    full = _observe_production(me.FaPartitionRecorder())
+    assert full.executed() == DECLARED
+    assert all(entry["saturated"] for entry in full.report()["branches"].values())
+    # the loop SAYS 32 and 16, but every call it made was smaller: that is what ran
+    tails = _observe_production(me.FaPartitionRecorder(), scored=(20, 7), source=(9,))
+    executed = tails.executed()
+    assert executed["context_scored_batch"]["candidate_micro_batch"] == 20
+    assert executed["source_cache"] == {"candidate_micro_batch": 9, "frame_avg_fwd_cap": 9}
+    branches = tails.report()["branches"]
+    assert branches["context_scored_batch"]["saturated"] is False
+    assert branches["context_scored_batch"]["observed_max_base_batch"] == 20
+    assert branches["context_vit"]["saturated"] is True
+    # the orbit size is counted from the passes made, not copied from the argument
+    short = me.FaPartitionRecorder()
+    short.observe("source_cache", [(16, False), (16, True), (16, True)], cap=16, configured=16,
+                  orbit_size=4)
+    assert short.executed()["orbit_size"] == 3
+
+
+def test_declared_vs_executed_compares_the_exact_schema_both_ways():
+    executed = _observe_production(me.FaPartitionRecorder()).executed()
+    assert me.fa_partition_differences(DECLARED, executed) == []
+    extra_top = dict(executed, surprise=1)
+    extra_nested = dict(executed, context_scored_batch=dict(executed["context_scored_batch"],
+                                                            frame_avg_fwd_cap=32))
+    missing_nested = dict(executed, source_cache={"candidate_micro_batch": 16})
+    flattened = dict(executed, context_vit=1)
+    missing_top = {key: value for key, value in executed.items() if key != "orbit_size"}
+    for found, path in ((extra_top, "surprise"),
+                        (extra_nested, "context_scored_batch.frame_avg_fwd_cap"),
+                        (missing_nested, "source_cache.frame_avg_fwd_cap"),
+                        (flattened, "context_vit"), (missing_top, "orbit_size")):
+        assert me.fa_partition_differences(DECLARED, found) == [path], path
+        # and the other way round: a declaration with the extra key is not this execution
+        assert me.fa_partition_differences(found, executed) == [path], path
+
+
+def test_a_tail_only_prefix_passes_the_per_row_check_but_not_the_final_one():
+    """Bathrooms_idx_14's z_band queries all have < 32 candidates: a per-row check over a
+    prefix that has not yet run a full scored batch is consistent, not a difference; the
+    pass's FINAL check needs every declared micro-batch observed at full size."""
+    tails = _observe_production(me.FaPartitionRecorder(), scored=(24, 31))
+    assert me.assert_fa_partition_executed(DECLARED, tails, final=False)["violations"] == []
+    with pytest.raises(ValueError, match=r"context_scored_batch\.candidate_micro_batch"):
+        me.assert_fa_partition_executed(DECLARED, tails)
+    # a LARGER batch than declared is never a prefix, nor is a loop at another stride
+    over = _observe_production(me.FaPartitionRecorder(), scored=(40,),
+                               configured={"context_scored_batch": 40})
+    with pytest.raises(ValueError, match=r"context_scored_batch\.candidate_micro_batch"):
+        me.assert_fa_partition_executed(DECLARED, over, final=False)
+    rechunked = _observe_production(me.FaPartitionRecorder(), source=(8, 8, 4),
+                                    configured={"source_cache": 8})
+    with pytest.raises(ValueError, match=r"source_cache\.candidate_micro_batch"):
+        me.assert_fa_partition_executed(DECLARED, rechunked, final=False)
+
+
+def test_a_non_orbit_branch_never_makes_rotated_forwards():
+    recorder = _observe_production(me.FaPartitionRecorder())
+    recorder.observe("context_scored_batch", [(32, False), (32, True)], cap=32, configured=32,
+                     orbit_size=4)
+    assert any("context_scored_batch" in reason and "rotated" in reason
+               for reason in recorder.violations())
+
+
+def test_a_pass_whose_scored_batches_never_fill_refuses_at_the_end_but_a_probe_reports_it(
+        tmp_path):
+    """Micro-batch 200 exceeds every fixture query: each row passes the prefix rule, the
+    pass's final check refuses, and the no-quality probe publishes what ran instead."""
+    declared = me.declared_fa_partition(list(C4), batch_rows=800, num_samples=4, source_chunk=3)
+    with pytest.raises(ValueError, match=r"context_scored_batch\.candidate_micro_batch"):
+        _fa_pass(tmp_path / "pass", batch_rows=800, fa_partition=declared)
+    _engine, summary, _out, _ = _fa_pass(tmp_path / "probe", batch_rows=800,
+                                         fa_partition=declared, probe=1)
+    executed = summary["fa_partition_executed"]
+    assert executed["executed"]["context_scored_batch"]["candidate_micro_batch"] < 200
+    assert executed["branches"]["context_scored_batch"]["saturated"] is False
+
+
+@pytest.mark.parametrize("split, why", [
+    (me.FaSplit(angles=C4), "recorder"),
+    (me.FaSplit(angles=C4, recorder=object()), "recorder"),
+    (me.FaSplit(angles=(), recorder=me.FaPartitionRecorder()), "orbit"),
+    (me.FaSplit(angles=(90.0, 0.0, 180.0, 270.0), recorder=me.FaPartitionRecorder()), "identity"),
+    (me.FaSplit(angles=(0.0, 90.0, 90.0), recorder=me.FaPartitionRecorder()), "repeats"),
+    (me.FaSplit(angles=(0.0, float("nan")), recorder=me.FaPartitionRecorder()), "finite"),
+])
+def test_assert_cacheable_refuses_a_malformed_split(split, why):
+    """Codex rB NIT 8: a hand-built FaSplit is checked whole, not by name alone."""
+    with pytest.raises(ValueError, match=why):
+        me.assert_cacheable("fa_invariant", split)
+    engine = FaSyntheticEngine()
+    engine.split = split
+    with pytest.raises(ValueError, match=why):
+        fp.require_split(engine)

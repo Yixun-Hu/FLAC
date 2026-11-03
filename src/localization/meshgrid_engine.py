@@ -526,12 +526,17 @@ FA_ORBIT_BRANCHES = ("context_vit", "source_cache")
 FA_QUERY_KEYS = ("depth", "context_poses_vit", "context_audio")
 
 FA_EXECUTION_NOTE = (
-    "EXECUTED PARTITION (Codex rA A8; announcement 06): derived at run time from the calls the "
-    "five-way split actually made -- per batch, its micro-batch (the loop's configured size; "
-    "tails are smaller), its cap (= the call's own batch, exp_20's candidate_micro_batch "
-    "policy), its base pass and every rotated forward -- never from the command line. A pass "
-    "whose executed partition differs from the declared run_binding.json fa_partition publishes "
-    "nothing")
+    "EXECUTED PARTITION (Codex rA A8, rB finding 5; announcement 06): derived at run time from "
+    "the calls the five-way split actually made -- per batch, the LARGEST base batch observed "
+    "(the micro-batch), the largest rotated forward (the cap), the passes counted into the "
+    "orbit size, every rotated forward -- never from the command line or the loop's declared "
+    "size, which is kept only as a consistency check (one stride per batch, no call above it). "
+    "Before every row a prefix whose batches have not yet filled a declared micro-batch is "
+    "consistent; the pass's final check, the merge and gate 3 need every declared micro-batch "
+    "observed at full size. A pass whose executed partition differs from the declared "
+    "run_binding.json fa_partition publishes nothing")
+#: the micro-batch fields a tail-only prefix may leave below their declared value
+FA_BATCH_FIELDS = ("candidate_micro_batch", "frame_avg_fwd_cap")
 
 
 class _BranchConditioner:
@@ -631,7 +636,13 @@ class FaPartitionRecorder:
     def violations(self):
         found = set()
         for branch, bucket in self.counts.items():
+            strides = sorted({key[0] for key in bucket})
+            if len(strides) > 1:
+                found.add(f"{branch}: ran at more than one configured micro-batch {strides}")
             for configured, cap, base, orbit, _size in bucket:
+                if orbit and branch not in FA_ORBIT_BRANCHES:
+                    found.add(f"{branch}: made rotated forwards {list(orbit)}, but its ids are "
+                              "never orbit-averaged")
                 if len(base) != 1:
                     found.add(f"{branch}: an invocation made {len(base)} base passes")
                     continue
@@ -645,26 +656,34 @@ class FaPartitionRecorder:
                     found.add(f"{branch}: an orbit forward of {list(orbit)} rows splits an angle")
         return sorted(found)
 
+    def observed(self, branch):
+        """``(largest base batch, largest rotated forward)`` the branch's calls made."""
+        bucket = self.counts[branch]
+        base = [rows for key in bucket for rows in key[2]]
+        orbit = [rows for key in bucket for rows in key[3]]
+        return (max(base) if base else None), (max(orbit) if orbit else None)
+
     def executed(self):
+        """Declared_fa_partition's schema, every value read off the calls (Codex rB 5)."""
         keys = {branch: list(bucket) for branch, bucket in self.counts.items()}
         every = [key for branch in FA_BRANCHES for key in keys[branch]]
         orbit = [key for branch in FA_ORBIT_BRANCHES for key in keys[branch]
                  if len(key[2]) == 1]
         per_chunk = _one(rows // key[2][0] for key in orbit for rows in key[3])
         caps_ok = bool(every) and all(len(key[2]) == 1 and key[1] == key[2][0] for key in every)
-        micro = {branch: _one(key[0] for key in keys[branch]) for branch in FA_BRANCHES}
+        seen = {branch: self.observed(branch) for branch in FA_BRANCHES}
         return {"frame_avg_chunk_plan": "per_angle" if per_chunk == 1 else "batched",
                 "cap_policy": "candidate_micro_batch" if caps_ok else "violated",
-                "orbit_size": _one(key[4] for key in every),
+                "orbit_size": _one(1 + sum(key[3]) // key[2][0] for key in orbit),
                 "angles_per_chunk": per_chunk,
                 "n_orbit_forwards": _one(len(key[3]) for key in orbit),
                 "shared_angle_count": per_chunk,
-                "context_vit": {"candidate_micro_batch": micro["context_vit"],
-                                "frame_avg_fwd_cap": micro["context_vit"]},
+                "context_vit": {"candidate_micro_batch": seen["context_vit"][0],
+                                "frame_avg_fwd_cap": seen["context_vit"][1]},
                 "context_scored_batch": {
-                    "candidate_micro_batch": micro["context_scored_batch"]},
-                "source_cache": {"candidate_micro_batch": micro["source_cache"],
-                                 "frame_avg_fwd_cap": micro["source_cache"]}}
+                    "candidate_micro_batch": seen["context_scored_batch"][0]},
+                "source_cache": {"candidate_micro_batch": seen["source_cache"][0],
+                                 "frame_avg_fwd_cap": seen["source_cache"][1]}}
 
     def report(self):
         """The executed block, its violations and the per-batch evidence it rests on."""
@@ -676,37 +695,66 @@ class FaPartitionRecorder:
                     base[rows] = base.get(rows, 0) + count
                 for rows in orbits:
                     orbit[rows] = orbit.get(rows, 0) + count
+            largest, _ = self.observed(branch)
             branches[branch] = {
                 "invocations": int(sum(bucket.values())),
                 "configured": sorted({key[0] for key in bucket}),
                 "base_batch_histogram": {str(k): v for k, v in sorted(base.items())},
                 "orbit_forward_histogram": {str(k): v for k, v in sorted(orbit.items())},
+                "observed_max_base_batch": largest,
+                # a full micro-batch was observed: the loop's stride is evidenced by a call
+                "saturated": bool(bucket) and largest == max(key[0] for key in bucket),
                 "full_micro_batch_observed": any(len(key[2]) == 1 and key[2][0] == key[0]
                                                  for key in bucket)}
         return {"executed": self.executed(), "violations": self.violations(),
                 "branches": branches, "note": FA_EXECUTION_NOTE}
 
 
+def _union(left, right):
+    """Keys of both sides, ``left``'s order first: a key on one side only is a difference."""
+    return list(left) + [key for key in right if key not in left]
+
+
 def fa_partition_differences(declared, executed):
-    """The dotted paths at which an executed partition is not the declared one."""
-    paths = []
-    for field, wanted in (declared or {}).items():
-        found = (executed or {}).get(field)
-        if isinstance(wanted, dict):
-            found = found if isinstance(found, dict) else {}
-            paths += [f"{field}.{key}" for key in wanted if found.get(key) != wanted[key]]
-        elif found != wanted:
+    """The dotted paths at which an executed partition is not the declared one, over the
+    EXACT schema both ways: a key missing or extra on either side is a difference."""
+    declared, executed, paths = declared or {}, executed or {}, []
+    for field in _union(declared, executed):
+        wanted, found = declared.get(field), executed.get(field)
+        if field not in declared or field not in executed:
+            paths.append(field)
+        elif isinstance(wanted, dict) and isinstance(found, dict):
+            paths += [f"{field}.{key}" for key in _union(wanted, found)
+                      if key not in wanted or key not in found or found[key] != wanted[key]]
+        elif isinstance(wanted, dict) or isinstance(found, dict) or found != wanted:
             paths.append(field)
     return paths
 
 
-def assert_fa_partition_executed(declared, recorder):
-    """The split ran the DECLARED partition, or nothing is published (Codex rA A8)."""
+def _tail_prefix(path, declared, report):
+    """A micro-batch not yet observed at full size: the loop runs at the DECLARED stride (its
+    one configured value) and every call so far was smaller -- tails only, not a re-chunking."""
+    branch, _, field = path.partition(".")
+    wanted = (declared.get(branch) or {}).get(field)
+    found = (report["executed"].get(branch) or {}).get(field)
+    stride = (report["branches"].get(branch) or {}).get("configured")
+    return (field in FA_BATCH_FIELDS and isinstance(wanted, int) and isinstance(found, int)
+            and 0 < found < wanted and stride == [wanted])
+
+
+def assert_fa_partition_executed(declared, recorder, final=True):
+    """The split ran the DECLARED partition, or nothing is published (Codex rA A8, rB 5).
+
+    ``final=False`` is the check before every row: a micro-batch only ever observed
+    BELOW its declared size is a tail-only prefix (a room whose queries are all
+    smaller than the batch), consistent so far. The final check is exact.
+    """
     if not isinstance(declared, dict) or not declared:
         raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
                          "(run_binding.json fa_partition) before anything runs against it")
     report = recorder.report()
-    differing = fa_partition_differences(declared, report["executed"])
+    differing = [path for path in fa_partition_differences(declared, report["executed"])
+                 if final or not _tail_prefix(path, declared, report)]
     if differing or report["violations"]:
         raise ValueError(f"the executed frame-average partition is not the declared one: "
                          f"{differing} differ (executed {report['executed']}); violations "
@@ -1854,6 +1902,23 @@ class MeshEngine:
     split: object = None
 
 
+def split_reasons(split):
+    """Why ``split`` is not a complete engaged five-way split (Codex rB NIT 8), or ``[]``."""
+    if not isinstance(split, FaSplit):
+        return [f"{type(split).__name__} is not a FaSplit"]
+    angles = tuple(split.angles or ())
+    reasons = [] if split.name == FA_SPLIT else [f"the split is named {split.name!r}"]
+    if not isinstance(split.recorder, FaPartitionRecorder):
+        reasons.append("the split has no engaged executed-partition recorder")
+    if not angles or not all(isinstance(a, (int, float)) and np.isfinite(a) for a in angles):
+        reasons.append(f"the orbit {list(angles)} is empty or not finite")
+    elif float(angles[0]) != 0.0:
+        reasons.append(f"the orbit {list(angles)} does not start at the identity 0.0")
+    if len(set(angles)) != len(angles):
+        reasons.append(f"the orbit {list(angles)} repeats an angle")
+    return reasons
+
+
 def assert_cacheable(cond_method, split=None):
     """The §1.5 caches are valid for vanilla conditioning with no split, and for
     fa_invariant ONLY under the engaged five-way split (exp_22 R2-B, plan r2 §2).
@@ -1866,12 +1931,13 @@ def assert_cacheable(cond_method, split=None):
     method = str(cond_method)
     if method == "vanilla" and split is None:
         return True
-    if method == "fa_invariant" and isinstance(split, FaSplit) and split.name == FA_SPLIT:
+    malformed = split_reasons(split) if method == "fa_invariant" and split is not None else []
+    if method == "fa_invariant" and split is not None and not malformed:
         return True
     raise ValueError(f"the per-query context cache is registered for vanilla conditioning with "
                      f"no split and for fa_invariant under the {FA_SPLIT!r} split only, but this "
                      f"engine runs cond_method={method!r} with split "
-                     f"{getattr(split, 'name', split)!r}; under fa_invariant the released "
+                     f"{getattr(split, 'name', split)!r} {malformed}; under fa_invariant the released "
                      "cylindrical transform makes context_poses candidate-dependent (inherited "
                      "plan §1.5), so it may only be cached the way the split caches it")
 
@@ -2234,7 +2300,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
         # hold to the declaration; anything that ran was held to it before its row
         ran = any(engine.split.recorder.counts.values())
         state["fa_partition_executed"] = (
-            assert_fa_partition_executed(fa_partition, engine.split.recorder) if ran
+            assert_fa_partition_executed(fa_partition, engine.split.recorder,
+                                         final=probe is None) if ran
             else engine.split.recorder.report())
     return state
 
@@ -2288,8 +2355,10 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                     candidate=candidate_inputs(engine, query, context))
                 if engine.split is not None:
                     # Codex rA A8: the executed partition is the declared one before
-                    # this query's row (or probe record, or dump) can exist
-                    assert_fa_partition_executed(fa_partition, engine.split.recorder)
+                    # this query's row (or probe record, or dump) can exist -- a
+                    # prefix that has not yet filled a micro-batch is consistent
+                    assert_fa_partition_executed(fa_partition, engine.split.recorder,
+                                                 final=False)
                 state["n_candidate_query_pairs"] += query.n_candidates
                 state["n_generated"] += query.n_candidates * int(num_samples)
                 for name, value in query_timer.totals.items():
