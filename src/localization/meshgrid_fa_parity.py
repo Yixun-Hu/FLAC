@@ -95,14 +95,18 @@ GATE_NOTES = {
           "under both conditionings with the same keyed noise, |dS| <= SCORE_TOLERANCE and no "
           "argmax moved at any K. Full AND tail scored and source batches must be covered. The "
           "evidence carries no prediction, score or margin -- only deltas, agreement booleans and "
-          "at-risk flags -- so no BF localization quality is read before the pass",
+          "at-risk flags -- so no BF localization quality is read before the pass. The probe set "
+          "is anchored by the pinned committed probe report, and every clause re-verifies from "
+          "this JSON alone (meshgrid_fa_parity.reverify_gate_evidence; Codex rB-F1 finding 2)",
     "G3D": "DRIFT MEASUREMENT (plan r2 amendment A4 ii): gate 3's comparison run under the "
            "resolved PRODUCTION autocast (--cond-autocast default: float16 on CUDA) and published "
            "with NO pass/fail verdict -- per-key deltas, score deltas, argmax agreement -- beside "
            "the engine's own vanilla batching caveat (3.9e-3 between a batch-1 and an "
            "8-candidate context call under fp16) as context. No fp16 tolerance is chosen before "
-           "or after the BF values are seen. 'complete' says only that the comparison's "
-           "structure held (every probe query, full and tail batches, the declared partition)",
+           "or after the BF values are seen: tolerance, score_tolerance and match are null (A6 "
+           "iii). 'complete' says only that the comparison's structure held (every probe query "
+           "of the pinned anchor, full and tail batches, the declared partition); it re-verifies "
+           "from this JSON alone (meshgrid_fa_parity.reverify_gate_evidence)",
     "GV": "VANILLA CACHE PARITY AS A GATE (plan r2 §3 R2-C step 1; Codex rB finding 3): the "
           "§1.5 cached-vs-uncached memoization proof and its counter-test on the first registered "
           "query, run under the arm --expect-arm names (YAW for R2) and held to that arm's "
@@ -938,3 +942,191 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
                                "queries": [entry["query_id"] for entry in entries]},
                        executed_partition=None)
 
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F2 (Codex rB-F1 finding 2): every PASS clause re-verified from the JSON alone
+# --------------------------------------------------------------------------- #
+#: the five conditioner ids every fa comparison block covers
+FA_IDS = tuple(key for ids in me.FA_BRANCH_IDS.values() for key in ids)
+#: the identity block's fields, re-derived from the evidence's own binding
+IDENTITY_FIELDS = ("gate", "registered_arms", "expect_arm", "admitted_deviations", "arm",
+                   "deviations", "ckpt_sha256", "registered_for_gate")
+MALFORMED = (KeyError, TypeError, ValueError, AttributeError, IndexError)
+
+
+def conditioning_reasons(conditioning, tolerance, ids=FA_IDS):
+    """The per-key clauses of one serialized comparison block: every id, tensor and mask."""
+    reasons = [f"{key}: absent from the comparison" for key in ids if key not in conditioning]
+    for key, entry in conditioning.items():
+        reasons += [f"{key}.tensor: {why}" for why in pair_reasons(entry["tensor"], tolerance)]
+        reasons += [f"{key}.mask: {why}" for why in mask_reasons(entry["mask"], tolerance)]
+    return reasons
+
+
+def inputs_reasons(dit_inputs, tolerance):
+    """The DiT-input clauses of one serialized block (a one-sided input carries no shape)."""
+    if not dit_inputs:
+        return ["dit_inputs: the inputs the DiT consumes were not compared"]
+    return [f"dit_inputs.{name}: {why}" for name, facts in dit_inputs.items()
+            for why in (["present on one side only"] if "shape" not in facts
+                        else pair_reasons(facts, tolerance))]
+
+
+def executed_reasons(executed, declared):
+    """The executed partition re-derived from its raw call counts, held to the declaration."""
+    again = me.FaPartitionRecorder.from_counts(executed.get("counts") or []).report()
+    reasons = [] if all(executed.get(key) == again[key] for key in (
+        "executed", "violations", "branches")) else [
+        "executed partition: the published block is not the one its call counts yield"]
+    reasons += [f"executed partition differs from the declared one at {path}"
+                for path in me.fa_partition_differences(declared, again["executed"])]
+    return reasons + [f"executed partition violation: {item}" for item in again["violations"]]
+
+
+def _reverify_production(evidence, inputs):
+    """G3 / G3D over the serialized evidence: the registered production conditions, the
+    anchored probe set, each query's chunk tiling, replay record, per-key facts and score
+    stability, the summaries re-derived from the chunks, coverage, the executed partition."""
+    from src.localization import meshgrid_report as mr
+
+    tolerance, binding = GATE_TOLERANCES[evidence["gate"]], inputs.get("binding") or {}
+    micro, chunk_size = int(inputs["micro_batch"]), int(inputs["source_chunk"])
+    bound = {"batch_rows": mr.REGISTERED_BATCH_ROWS, "source_chunk": mr.REGISTERED_SOURCE_CHUNK,
+             "num_samples": binding.get("num_samples"), "prefixes": binding.get("k_prefixes"),
+             "tau": binding.get("tau"), "seed": binding.get("seed"),
+             "noise_policy": binding.get("noise_policy"),
+             "angles": binding.get("frame_avg_angles"),
+             "micro_batch": mr.REGISTERED_BATCH_ROWS // int(binding.get("num_samples") or 1)}
+    reasons = [f"inputs: {field} {inputs.get(field)!r} is not the registered / bound {value!r}"
+               for field, value in bound.items() if inputs.get(field) != value]
+    if evidence.get("declared_partition") != binding.get("fa_partition"):
+        reasons.append("partition: the declared partition is not the run binding's fa_partition")
+    queries = evidence.get("queries") or []
+    consumed = [str(entry["inputs"]["query_id"]) for entry in queries]
+    block, why = probe_query_set((evidence.get("probe_queries") or {}).get("registered"), consumed)
+    reasons += why
+    if evidence.get("probe_queries") != block or inputs.get("queries") != consumed:
+        reasons.append("probe_queries: the published set is not the one its registered and "
+                       "consumed ids yield")
+    equal = key_set_equal(inputs.get("probe_report"), block["registered"], consumed)
+    reasons += anchor_reasons(inputs.get("probe_report"), equal)
+    if inputs.get("anchor_key_set_equal") is not equal:
+        reasons.append("anchor: the published anchor_key_set_equal is not the recomputed one")
+    scored, source, per_key, chains = [], [], {}, {}
+    prefixes = sorted(str(int(k)) for k in inputs.get("prefixes") or [])
+    for entry in queries:
+        query = entry["inputs"]
+        n, qid = int(query["n_candidates"]), query["query_id"]
+        tiling = [[start, min(micro, n - start)] for start in range(0, n, micro)]
+        if ([[chunk.get("start"), chunk.get("n")] for chunk in entry["chunks"]] != tiling
+                or len(query.get("candidate_indices") or []) != n):
+            reasons.append(f"{qid}: its chunks do not tile its {n} candidates at micro {micro}")
+        for chunk in entry["chunks"]:
+            cond, dit = chunk["conditioning"], chunk["dit_inputs"]
+            why = conditioning_reasons(cond, tolerance) + inputs_reasons(dit, tolerance)
+            why += replay_partition_reasons(chunk.get("replay_partition"), chunk["n"],
+                                            len(inputs.get("angles") or []))
+            if {key: chunk.get(key) for key in ("max_abs_diff", "bitwise")} != chunk_summary(cond):
+                why.append("its max |diff| / bitwise headline is not its facts'")
+            reasons += [f"{qid}: chunk@{chunk.get('start')}: {item}" for item in why]
+            fold_per_key(per_key, cond, dit)
+            _chain(chains, cond, dit)
+            scored.append(chunk["n"])
+        source += source_sizes(query["n_union"], chunk_size)
+        if sorted(entry["score_stability"]) != prefixes:
+            reasons.append(f"{qid}: its score stability is not published for exactly K {prefixes}")
+        if tolerance is not None:
+            reasons += [f"{qid}: {item}" for k, facts in entry["score_stability"].items()
+                        for item in score_reasons(k, facts)]
+    if per_key != evidence.get("per_key"):
+        reasons.append("per_key: the published per-key summary is not the fold of its chunks")
+    if {name: [side.hexdigest() for side in sides] for name, sides in chains.items()} != \
+            evidence.get("digest_chains"):
+        reasons.append("digest_chains: the published chains are not its chunks' digests")
+    covered = {"scored": coverage(scored, micro), "source": coverage(source, chunk_size)}
+    reasons += [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
+                "covers both" for name, facts in covered.items() if not facts["complete"]]
+    if covered != evidence.get("coverage"):
+        reasons.append("coverage: the published coverage is not the one its chunks yield")
+    if score_summary(queries) != evidence.get("score_stability"):
+        reasons.append("score_stability: the published summary is not its queries'")
+    return reasons + executed_reasons(evidence.get("executed_partition") or {},
+                                      evidence.get("declared_partition"))
+
+
+def _reverify_identity(gate, inputs):
+    """The arm identity re-derived from the evidence's own run binding (Codex rB finding 3)."""
+    binding = inputs.get("binding")
+    if not isinstance(binding, dict):
+        return ["identity: the evidence carries no run binding to re-derive its identity from"]
+    stored = inputs.get("identity") or {}
+    block, reasons = gate_identity(gate, binding, stored.get("expect_arm"))
+    moved = [field for field in IDENTITY_FIELDS if stored.get(field) != block[field]]
+    return reasons + ([f"identity: the published {moved} differ from the binding's"]
+                      if moved else [])
+
+
+def _reverify_provenance(provenance):
+    reasons = provenance_reasons(provenance)
+    if provenance.get("complete") is not (not reasons) or provenance.get("reasons") != reasons:
+        reasons.append("provenance: the published complete / reasons are not its fields'")
+    return reasons
+
+
+def _verdict_reasons(gate, evidence, clauses):
+    """The published verdict, tolerances and clause flags against the re-verified clauses."""
+    failed = any(clauses.values())
+    reasons = [] if evidence.get("name") == GATE_NAMES[gate] else [
+        f"verdict: the evidence is named {evidence.get('name')!r}, not {GATE_NAMES[gate]!r}"]
+    if evidence.get("tolerance") != GATE_TOLERANCES[gate]:
+        reasons.append(f"tolerance: the evidence publishes {evidence.get('tolerance')!r}, not the "
+                       f"registered {GATE_TOLERANCES[gate]!r}")
+    wanted = {"G3": me.SCORE_TOLERANCE, "G3D": None}
+    if gate in wanted and evidence.get("score_tolerance") != wanted[gate]:
+        reasons.append(f"score_tolerance: the evidence publishes "
+                       f"{evidence.get('score_tolerance')!r}, not {wanted[gate]!r}")
+    if GATE_TOLERANCES[gate] is None:
+        if (evidence.get("verdict"), evidence.get("match")) != ("measurement", None):
+            reasons.append("verdict: a measurement carries verdict 'measurement' and match null")
+        if evidence.get("complete") is not (not failed) or (evidence.get("reasons") and not failed):
+            reasons.append(f"complete: published {evidence.get('complete')!r}, re-verified "
+                           f"{not failed}")
+    elif (evidence.get("verdict"), evidence.get("match"), evidence.get("reasons")) != (
+            "PASS", True, []):
+        reasons.append(f"verdict: the evidence claims {evidence.get('verdict')!r} (match "
+                       f"{evidence.get('match')!r}, reasons {len(evidence.get('reasons') or [])}"
+                       "), not a clean PASS")
+    published = evidence.get("verdict_clauses") or {}
+    return reasons + [f"verdict_clauses: {name} is published {published.get(name)!r} but "
+                      f"re-verifies {not why}" for name, why in clauses.items()
+                      if published.get(name) is not (not why)]
+
+
+#: the gates :func:`reverify_gate_evidence` re-verifies, by their comparison clauses
+REVERIFIERS = {"G3": _reverify_production, "G3D": _reverify_production}
+
+
+def reverify_gate_evidence(evidence):
+    """Every PASS clause of a gate's evidence recomputed FROM THE SERIALIZED JSON ONLY (Codex
+    rB-F1 finding 2): ``[]`` iff it re-verifies as the clean PASS it claims -- for the G3D
+    measurement, as COMPLETE -- else every named reason. No file, model or tensor is read:
+    the clause predicates the gates themselves apply run over the published facts, every
+    summary is re-derived from the parts it summarizes, the identity from the published
+    binding, and the registered constants (tolerances, the pinned anchor, the production
+    batching) come from this code, never from the evidence."""
+    gate = evidence.get("gate") if isinstance(evidence, dict) else None
+    if gate not in REVERIFIERS:
+        return [f"gate: {gate!r} is not one of the re-verifiable gates {sorted(REVERIFIERS)}"]
+    inputs, clauses = evidence.get("inputs") or {}, {}
+    for name, check in (("comparison", lambda: REVERIFIERS[gate](evidence, inputs)),
+                        ("autocast", lambda: autocast_reasons(gate, inputs)),
+                        ("identity", lambda: _reverify_identity(gate, inputs)),
+                        ("provenance",
+                         lambda: _reverify_provenance(evidence.get("provenance") or {}))):
+        try:
+            clauses[name] = list(check())
+        except MALFORMED as error:
+            clauses[name] = [f"{name}: the evidence is malformed ({type(error).__name__}: "
+                             f"{error})"]
+    return [reason for why in clauses.values() for reason in why] + _verdict_reasons(
+        gate, evidence, clauses)

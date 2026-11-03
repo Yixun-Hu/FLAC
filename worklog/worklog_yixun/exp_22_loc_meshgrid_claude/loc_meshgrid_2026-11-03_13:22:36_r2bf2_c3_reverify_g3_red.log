@@ -1,0 +1,24 @@
+# rB-F2 cycle 3 RED (Codex rB-F1 finding 2 HIGH, part 2: reverify_gate_evidence recomputes every G3/G3D PASS clause from the serialized JSON alone), HEAD 50ce4e335a287e86b446e377e15204a86ba90550, 2026-11-03T13:23:51-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_real_gate3_evidence_re_verifies_from_its_json_alone[G3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_real_gate3_evidence_re_verifies_from_its_json_alone[G3D]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[per-key delta above tolerance]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[per-key summary edited]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[missing chunk]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[wrong replay-partition field]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[anchor digest mismatch]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[anchor ids not their digest]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[missing probe query]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[provenance clause flipped]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[verdict clause flipped]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[score drift]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[argmax moved]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[executed counts edited]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[declared partition edited]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[binding moved]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[autocast edited]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[tolerance raised]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[coverage edited]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_tampered_gate3_evidence_names_what_does_not_re_verify[verdict without its clauses]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_re_verifies_without_judging_its_deltas
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_unknown_or_unregistered_evidence_does_not_re_verify
+22 failed, 150 passed, 11 warnings in 71.55s (0:01:11)

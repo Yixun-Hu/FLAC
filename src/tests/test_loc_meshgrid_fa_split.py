@@ -2534,7 +2534,7 @@ REPLAY_RECORD_FIELDS = {"partition", "frame_avg_fwd_cap", "candidate_micro_batch
                         "shared_angle_count", "cond_method"}
 
 
-def _registered_gate3(tmp_path, monkeypatch, gate="G3"):
+def _registered_gate3(tmp_path, monkeypatch, gate="G3", conditioner=None):
     """A driver-run G3 (fp32 logic gate) or G3D (drift measurement) at the REGISTERED
     256 / 16 / K = 8 over the fixture's registered probe queries -- the real evidence."""
     import localize_meshgrid as driver
@@ -2546,7 +2546,9 @@ def _registered_gate3(tmp_path, monkeypatch, gate="G3"):
     args = _gate_args(tmp_path, mode, "--replay-probe-report", anchor["path"], protocol=protocol)
     assert driver.validate_args(args)
     binding = _registered_binding("BF", **({"cond_autocast": "off"} if gate == "G3" else {}))
-    code = driver._run_fa_gate(args, FaSyntheticEngine(), plan, records, loader, gate, binding)
+    engine = FaSyntheticEngine()
+    engine.conditioner = conditioner or engine.conditioner
+    code = driver._run_fa_gate(args, engine, plan, records, loader, gate, binding)
     name = "fa_production_parity.json" if gate == "G3" else "fa_production_drift.json"
     return code, json.load(open(tmp_path / "gates" / name)), anchor
 
@@ -2606,3 +2608,99 @@ def test_each_gate3_chunk_serializes_its_complete_replay_record_and_per_key_fact
     again = me.FaPartitionRecorder.from_counts(executed["counts"]).report()
     assert {key: again[key] for key in ("executed", "violations", "branches")} == {
         key: executed[key] for key in ("executed", "violations", "branches")}
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB-F1 finding 2 (part 2): ``reverify_gate_evidence`` recomputes every PASS
+# clause of a gate FROM ITS SERIALIZED JSON ALONE and names what does not hold
+# --------------------------------------------------------------------------- #
+import copy                                                              # noqa: E402
+
+
+def _tamper(evidence, path, value=None, delete=False, scale=None):
+    """A deep copy of ``evidence`` with the field at ``path`` (keys / list indices) replaced,
+    scaled or deleted -- the reader's JSON, edited."""
+    edited = copy.deepcopy(json.loads(json.dumps(evidence)))
+    target = edited
+    for step in path[:-1]:
+        target = target[step]
+    if delete:
+        del target[path[-1]]
+    elif scale is not None:
+        target[path[-1]] = target[path[-1]] * scale
+    else:
+        target[path[-1]] = value
+    return edited
+
+
+@pytest.mark.parametrize("gate", ["G3", "G3D"])
+def test_a_real_gate3_evidence_re_verifies_from_its_json_alone(tmp_path, monkeypatch, clean_env,
+                                                               gate):
+    code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, gate)
+    assert code == 0 and evidence["verdict"] == ("PASS" if gate == "G3" else "measurement")
+    assert fp.reverify_gate_evidence(evidence) == []
+    assert fp.reverify_gate_evidence(json.loads(json.dumps(evidence))) == []
+
+
+G3_TAMPERS = [
+    # (name, path, edit, the reason's needle)
+    ("per-key delta above tolerance", ["queries", 0, "chunks", 0, "conditioning", "source",
+                                       "tensor", "max_abs_diff"], {"value": 2e-3},
+     "source.tensor: max |diff| 0.002 > 0.001"),
+    ("per-key summary edited", ["per_key", "source", "max_abs_diff"], {"value": 2e-3}, "per_key"),
+    ("missing chunk", ["queries", 1, "chunks", 1], {"delete": True}, "do not tile"),
+    ("wrong replay-partition field", ["queries", 0, "chunks", 0, "replay_partition",
+                                      "frame_avg_fwd_cap"], {"scale": 2}, "replay orbit partition"),
+    ("anchor digest mismatch", ["inputs", "probe_report", "sha256"], {"value": "0" * 64},
+     "pinned committed probe report"),
+    ("anchor ids not their digest", ["inputs", "probe_report", "query_ids_sha256"],
+     {"value": "0" * 64}, "digest or count"),
+    ("missing probe query", ["queries", 1], {"delete": True},
+     "registered probe queries were not consumed"),
+    ("provenance clause flipped", ["provenance", "tracked_clean"], {"value": False},
+     "provenance: the tracked tree"),
+    ("verdict clause flipped", ["verdict_clauses", "provenance"], {"value": False},
+     "verdict_clauses"),
+    ("score drift", ["queries", 0, "score_stability", "8", "max_abs_delta"], {"value": 0.5},
+     "score |diff|"),
+    ("argmax moved", ["queries", 0, "score_stability", "1", "argmax_equal"], {"value": False},
+     "argmax moved"),
+    ("executed counts edited", ["executed_partition", "counts", 0, "base"], {"value": [7]},
+     "executed partition"),
+    ("declared partition edited", ["declared_partition", "source_cache",
+                                   "candidate_micro_batch"], {"value": 8}, "declared"),
+    ("binding moved", ["inputs", "binding", "tau"], {"value": 0.05}, "identity"),
+    ("autocast edited", ["inputs", "cond_autocast_enabled"], {"value": True}, "autocast"),
+    ("tolerance raised", ["tolerance"], {"value": 1.0}, "tolerance"),
+    ("coverage edited", ["coverage", "source", "tail"], {"value": 99}, "coverage"),
+    ("verdict without its clauses", ["reasons"], {"value": ["anything"]}, "verdict"),
+]
+
+
+@pytest.mark.parametrize("name, path, edit, needle", G3_TAMPERS, ids=[t[0] for t in G3_TAMPERS])
+def test_a_tampered_gate3_evidence_names_what_does_not_re_verify(tmp_path, monkeypatch, clean_env,
+                                                                 name, path, edit, needle):
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3")
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, path, **edit))
+    assert any(needle in reason for reason in reasons), (name, reasons)
+
+
+def test_a_drift_measurement_re_verifies_without_judging_its_deltas(tmp_path, monkeypatch,
+                                                                   clean_env):
+    """G3D publishes deltas far above 1e-3 and still re-verifies: there is no tolerance (A6
+    iii). Its structure is re-verified, and a threshold smuggled into it is named."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3D", conditioner=Noisy())
+    assert max(entry["max_abs_diff"] for entry in evidence["per_key"].values()) > 1e-3
+    assert fp.reverify_gate_evidence(evidence) == []
+    for path, edit, needle in ((["score_tolerance"], {"value": 1e-3}, "score_tolerance"),
+                               (["match"], {"value": True}, "match"),
+                               (["complete"], {"value": False}, "complete"),
+                               (["queries", 1, "chunks", 1], {"delete": True}, "do not tile"),
+                               (["inputs", "probe_report", "pinned_sha256"], {"value": "1" * 64},
+                                "pinned committed probe report")):
+        reasons = fp.reverify_gate_evidence(_tamper(evidence, path, **edit))
+        assert any(needle in reason for reason in reasons), (path, reasons)
+
+
+def test_an_unknown_or_unregistered_evidence_does_not_re_verify():
+    assert fp.reverify_gate_evidence({}) and fp.reverify_gate_evidence({"gate": "G9"})
