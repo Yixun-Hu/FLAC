@@ -1,0 +1,19 @@
+# rA-F1 cycle 3 RED (sparse-retrieval handoff consumed for citation, next to the reviewed helpers) -- 2026-11-02T22:00:11-05:00 -- HEAD b55bd7f6d17f08c3e26b9f33319cf566e8925037
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider src/tests/test_loc_meshgrid_offgrid_probe.py -k 'handoff or citation or reconciled or reviewed_refusals'
+     11 E   AttributeError: module 'src.localization.meshgrid_offgrid_probe' has no attribute 'consume_retrieval_handoff'. Did you mean: 'read_retrieval_handoff'?
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_without_a_handoff_the_entry_is_not_reconciled_and_never_stale
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_the_reviewed_refusals_still_refuse
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_the_registered_handoff_is_the_one_the_canonical_p1_probe_consumed
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_the_handoff_is_read_once_and_hashed_from_the_parsed_bytes
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_the_completed_canonical_handoff_is_consumed_for_citation
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes6-headline]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes5-report digest]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes4-registered census]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes3-registered census]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes2-COMPLETED canonical run]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes1-COMPLETED canonical run]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_each_citation_check_stands_on_its_own[changes0-COMPLETED canonical run]
+      1 FAILED src/tests/test_loc_meshgrid_offgrid_probe.py::test_a_handoff_that_is_not_the_registered_one_is_not_reconciled
+      1 E   AttributeError: module 'src.localization.meshgrid_report' has no attribute 'REGISTERED_RETRIEVAL_HANDOFF_SHA256'
+      1 E   AttributeError: module 'src.localization.meshgrid_offgrid_probe' has no attribute 'unreconciled_retrieval_entry'
+      1 13 failed, 1 passed, 173 deselected in 3.22s

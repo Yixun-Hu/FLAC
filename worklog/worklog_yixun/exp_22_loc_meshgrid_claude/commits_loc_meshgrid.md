@@ -355,3 +355,19 @@ Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_D
 | `f09aea97` | B1–B3/H5/N3 | `run_crossarm`, `crossarm_r2.json` / `.md` (exp_20 verdict table, claim boundary, legacy exception), CLI | +188 |
 | `38603f29` | R2-C support | emission creates the shard directory the registered launch lines write the record into | +2 |
 | `4b5549a5` | self-review | `-0` folds to 0; read-once resume stamp; verified record copy at merge; unreadable ledger is a reason; per-arm census published | +18 |
+
+## Round exp22-rA-F1 (fix round closing Codex code review rA of R2-A: BLOCKING mixed-SHA, HIGH sparse-control handoff, 3 NITs)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `3dc94b9b`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed in the commit messages; the counter reproduces the R2-A rows `4b5549a5` +18,
+`38603f29` +2, `f09aea97` +188, `813651c5` +161). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `d9c3ac05` | rA BLOCKING / A2 | one reviewed pin per run: `provenance_census` reason on `len(git_shas) != 1` (every segment counts); `merge_ledgers` checks the union of shard SHAs before the dry-run return (engine merge refuses with nothing written); `open_segment` refuses a resume at another commit before touching the ledger | +26 |
+| `b55bd7f6` | rA NITs | `run_crossarm` holds EVERY registered room and both endpoints to the arm's own report (exact equality); tests: every pinned whitelist member individually (24), every non-member refused (fixture's own fields + a never-seen one), every concrete pairing axis has a case, the COMPLETE P1 single-shard note pinned | +15 |
+| `e2adccba` | rA HIGH (1/3) | `REGISTERED_RETRIEVAL_HANDOFF_SHA256` (the bytes the canonical P1 probe consumed); next to the reviewed helpers in `meshgrid_offgrid_probe`: `_parse_retrieval_handoff` (one buffer; `read_retrieval_handoff` output unchanged), `consume_retrieval_handoff` (digest, completed+canonical, census, report digest, headline), `unreconciled_retrieval_entry` | +69 |
+| `166caa18` | rA HIGH (2/3) | per-arm report: stale "built (r9b), run pending" gone; `retrieval_control` block + reconciled/NOT RECONCILED entry; gate `retrieval_handoff` for every non-legacy run; legacy P1 branch documented and never gated; `--retrieval-handoff`; `admit_run` defers that gate to the crossarm | +84 |
+| `05b9c455` | rA HIGH (3/3) | crossarm: the unconditional "reused" sentence removed; the handoff consumed once (`--retrieval-handoff`, before admission); own `canonical_status` (NON-CANONICAL when not reconciled); "REUSED, NOT RERUN" only after reconciliation; controls section with digests + headline | +78 |

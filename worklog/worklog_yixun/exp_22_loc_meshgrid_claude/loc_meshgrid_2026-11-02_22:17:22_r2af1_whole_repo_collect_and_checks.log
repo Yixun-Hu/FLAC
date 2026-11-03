@@ -1,0 +1,24 @@
+# rA-F1 whole-repo collection + static checks -- 2026-11-02T22:17:34-05:00 -- HEAD 05b9c4556d91790c2fb23bc90bbe129ff22a2111 -- CPU only
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider --collect-only   (exit 0; full per-test listing kept out of the repo: 4908 lines)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+4885 tests collected in 8.55s
+# py_compile of every module and test file touched by rA-F1
+py_compile OK
+# git diff 3dc94b9b HEAD --check
+diff --check clean
+# files changed in the round (code + tests):
+ src/localization/meshgrid_crossarm.py            | 136 +++++++++++-
+ src/localization/meshgrid_offgrid_probe.py       |  92 +++++++-
+ src/localization/meshgrid_report.py              | 155 ++++++++++++-
+ src/localization/meshgrid_segments.py            |  48 +++-
+ src/tests/test_loc_meshgrid_crossarm.py          | 237 ++++++++++++++++++--
+ src/tests/test_loc_meshgrid_launch_record.py     | 121 +++++++++++
+ src/tests/test_loc_meshgrid_offgrid_probe.py     | 122 +++++++++++
+ src/tests/test_loc_meshgrid_report.py            | 266 ++++++++++++++++++++++-
+ src/tests/test_loc_meshgrid_retrieval_control.py |   4 +-
+ 9 files changed, 1128 insertions(+), 53 deletions(-)
+# nothing under src/data, src/models, train.py, eval_FLAC.py, configs, gen_model_comparison.py, localize_meshgrid.py, meshgrid_engine.py:
+none
+# assert_cacheable still refuses fa_invariant (R2-B not in scope):
+2:1631-    """The §1.5 split is only valid for vanilla conditioning.
+9:1638-    if str(cond_method) != "vanilla":

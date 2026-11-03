@@ -1,0 +1,20 @@
+# rA-F1 cycle 5 RED (the crossarm consumes the handoff once; its own canonical status; no unconditional 'reused') -- 2026-11-02T22:12:04-05:00 -- HEAD 166caa18e3a640df218956c558401b94d6fb3549
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider src/tests/test_loc_meshgrid_crossarm.py -k 'cites_the_control or not_reconciled or never_cited or consumes_the_handoff'
+E   TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_crossarm.py:761: TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+E   KeyError: 'canonical_status'
+src/tests/test_loc_meshgrid_crossarm.py:781: KeyError: 'canonical_status'
+E   TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_crossarm.py:801: TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_crossarm.py:801: TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_crossarm.py:801: TypeError: run_crossarm() got an unexpected keyword argument 'retrieval_handoff'
+E   SystemExit: 2
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_comparison_cites_the_control_after_consuming_the_handoff
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_without_the_handoff_the_comparison_is_not_reconciled
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_a_tampered_handoff_is_never_cited_by_the_comparison[changes0]
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_a_tampered_handoff_is_never_cited_by_the_comparison[changes1]
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_a_tampered_handoff_is_never_cited_by_the_comparison[changes2]
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_cli_consumes_the_handoff_once_and_refuses_a_foreign_one
+6 failed, 107 deselected, 3 warnings in 6.09s
