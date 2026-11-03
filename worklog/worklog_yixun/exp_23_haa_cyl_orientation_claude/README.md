@@ -112,3 +112,8 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
   holds checkpoints 100–500 (unevaluated; resumable with `--ckpt-path` on the step-500 file). The
   P1 seed-43 run never started. The two-seed robustness check is therefore **incomplete**; the
   headline (seed-42) tables stand as published in `results_cylori.md`. Nothing deleted.
+- 2026-11-03 (exp_21 session, on Yixun's explicit go relayed via the overview session): resuming
+  CYLORI27_s43 500→1000 per `INTERRUPTION_2026-09-16_seed43.md`, then its ckpt-1000 endpoint grid,
+  then P1_s43 FULL + grid — `resume_seed43_nov03.sh`, one card co-tenant beside CERPA, GPU pinned.
+  Seeds 44–46 explicitly NOT run. Resumed ckpt read via the Sep-30 NAS symlink farm (verified
+  readable). PL resume: optimizer/EMA restored, RNG not — non-bit-exact, disclosed.
