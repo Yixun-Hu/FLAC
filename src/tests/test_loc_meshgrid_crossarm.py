@@ -418,17 +418,23 @@ def test_two_admitted_arms_pair_and_only_whitelisted_fields_differ(arm_runs):
     assert mx.pair_runs(admitted["YAW"], admitted["BF"])["paired"] is True
 
 
+#: the whitelist, pinned HERE (not read from the module) so the tests below
+#: exercise a list the code cannot quietly grow (Codex rA NIT).
+PINNED_WHITELIST = {
+    "binding": ("ckpt_sha256", "binding_sha256", "cond_method", "frame_avg_angles",
+                "rotate_deg", "cond_autocast", "fa_partition"),
+    "row": ("by_k", "timings_s", "launch_record_sha256", "binding_sha256", "row_sha256",
+            "sims_sha256", "_row_path", "waveform_path", "waveform_sha256",
+            "waveform_candidate_indices", "waveform_content_rule"),
+    "run": ("arm", "launch_provenance", "predictions_scores_margins", "sidecar_disagreements",
+            "latency", "registered_protocol.arm_protocol"),
+}
+
+
 def test_the_whitelist_is_explicit_and_the_sparse_bank_is_not_an_axis():
-    assert mx.PAIRING_WHITELIST["binding"] == (
-        "ckpt_sha256", "binding_sha256", "cond_method", "frame_avg_angles", "rotate_deg",
-        "cond_autocast", "fa_partition")
-    assert set(mx.PAIRING_WHITELIST["row"]) == {
-        "by_k", "timings_s", "launch_record_sha256", "binding_sha256", "row_sha256",
-        "sims_sha256", "_row_path", "waveform_path", "waveform_sha256",
-        "waveform_candidate_indices", "waveform_content_rule"}
-    assert set(mx.PAIRING_WHITELIST["run"]) == {
-        "arm", "launch_provenance", "predictions_scores_margins", "sidecar_disagreements",
-        "latency", "registered_protocol.arm_protocol"}
+    assert mx.PAIRING_WHITELIST["binding"] == PINNED_WHITELIST["binding"]
+    assert mx.PAIRING_WHITELIST["row"] == PINNED_WHITELIST["row"]
+    assert mx.PAIRING_WHITELIST["run"] == PINNED_WHITELIST["run"]
     assert not any("sparse" in axis for axis in mx.PAIRING_AXES)
 
 
@@ -448,7 +454,7 @@ def _first(admitted):
     return admitted["results"][0]["query_id"]
 
 
-@pytest.mark.parametrize("axis, mutate", [
+AXIS_CASES = [
     ("query_identities", lambda r: _mutate(r, ["results"], lambda rs: rs[::-1])),
     ("query_identities", lambda r: _mutate(r, ["results"], lambda rs: rs + rs[:1])),
     ("row.position", lambda r: _mutate(r, ["rows", _first(r), "position"], 99)),
@@ -504,7 +510,18 @@ def _first(admitted):
     ("metadata_bank_unpinned", lambda r: _mutate(r, ["metadata_bank", "pinned"], False)),
     ("non_canonical", lambda r: _mutate(r, ["canonical_status", "canonical"], False)),
     ("launch_provenance", lambda r: _mutate(r, ["launch_provenance", "complete"], False)),
-])
+    ("aggregate_policy", lambda r: _mutate(r, ["aggregate_policy", "tie_break"], "largest")),
+]
+
+
+def test_every_named_pairing_axis_has_a_refusal_case():
+    """``arm`` is the same-arm test below; the two ``<every field ...>`` axes are
+    proven field by field against the fixture's own fields further down."""
+    named = {axis for axis in mx.PAIRING_AXES if "<" not in axis}
+    assert named - {axis for axis, _mutate_fn in AXIS_CASES} == {"arm"}
+
+
+@pytest.mark.parametrize("axis, mutate", AXIS_CASES)
 def test_each_pairing_axis_refuses(arm_runs, axis, mutate):
     _runs, admitted = arm_runs
     verdict = mx.pair_runs(admitted["P1"], mutate(admitted["YAW"]))
@@ -520,18 +537,74 @@ def test_the_same_arm_twice_is_not_a_pair(arm_runs):
     assert "arm" in {mismatch["axis"] for mismatch in verdict["mismatches"]}
 
 
-@pytest.mark.parametrize("path, value", [
-    (["rows", None, "timings_s"], {"sampling": 99.0}),
-    (["rows", None, "launch_record_sha256"], "f" * 64),
-    (["rows", None, "by_k"], lambda b: {k: dict(v, margin=9.9) for k, v in b.items()}),
-    (["binding", "ckpt_sha256"], "e" * 64),
-    (["launch_provenance", "records"], []),
-])
-def test_a_whitelisted_difference_never_breaks_the_pair(arm_runs, path, value):
+def _changed_by(admitted, path):
+    """A value that differs from whatever ``path`` holds (absent included)."""
+    return f"<changed {'.'.join(str(key) for key in path)}>"
+
+
+def _bump_by(entry):
+    return dict(entry, prediction_index=-1, best_score=9.9, margin=9.9)
+
+
+#: how each RUN-level member is changed: it names generated outputs or provenance
+#: the pairing gate must ignore, wherever the admitted run carries them.
+RUN_MEMBER_MUTATIONS = {
+    "arm": lambda r: _mutate(r, ["arm"], "BF"),
+    "launch_provenance": lambda r: _mutate(
+        r, ["launch_provenance", "records"],
+        lambda records: records + [{"launch_record_sha256": "f" * 64}]),
+    "predictions_scores_margins": lambda r: _mutate(
+        r, ["results"], lambda rs: [dict(x, by={a: {k: _bump_by(e) for k, e in by.items()}
+                                                for a, by in x["by"].items()}) for x in rs]),
+    "sidecar_disagreements": lambda r: _mutate(
+        _mutate(r, ["sidecar_summary", "argmax_disagreements"], [{"query_id": "x"}]),
+        ["results"], lambda rs: [dict(x, sidecar={}) for x in rs]),
+    "latency": lambda r: _mutate(r, ["results"],
+                                 lambda rs: [dict(x, latency_s={"sampling": 99.0}) for x in rs]),
+    "registered_protocol.arm_protocol": lambda r: _mutate(
+        r, ["registered_protocol", "arm_protocol"], mr.REGISTERED_ARM_PROTOCOL["BF"]),
+}
+
+WHITELIST_CASES = [(kind, name) for kind in ("binding", "row", "run")
+                   for name in PINNED_WHITELIST[kind]]
+
+
+@pytest.mark.parametrize("kind, name", WHITELIST_CASES)
+def test_every_whitelisted_difference_never_breaks_the_pair(arm_runs, kind, name):
+    """EVERY member of the pinned whitelist, one at a time (Codex rA NIT)."""
     _runs, admitted = arm_runs
-    path = [(_first(admitted["YAW"]) if key is None else key) for key in path]
-    verdict = mx.pair_runs(admitted["P1"], _mutate(admitted["YAW"], path, value))
+    yaw = admitted["YAW"]
+    if kind == "run":
+        mutated = RUN_MEMBER_MUTATIONS[name](yaw)
+    else:
+        path = ["binding", name] if kind == "binding" else ["rows", _first(yaw), name]
+        value = ((lambda b: {k: dict(v, margin=9.9) for k, v in b.items()})
+                 if name == "by_k" else _changed_by(yaw, path))
+        mutated = _mutate(yaw, path, value)
+    verdict = mx.pair_runs(admitted["P1"], mutated)
     assert verdict["paired"] is True, verdict["mismatches"]
+    if kind in ("binding", "row"):
+        assert f"{kind}.{name}" in verdict["whitelisted_differences"]
+    elif name in ("arm", "launch_provenance"):
+        assert name in verdict["whitelisted_differences"]
+
+
+def test_every_binding_and_row_field_outside_the_whitelist_is_refused(arm_runs):
+    """The complement, from the fixture's OWN fields -- never a hand-picked subset --
+    plus a field neither side has seen before (fail-closed for future fields)."""
+    _runs, admitted = arm_runs
+    yaw = admitted["YAW"]
+    first = _first(yaw)
+    for kind, base in (("binding", ["binding"]), ("row", ["rows", first])):
+        target = yaw["binding"] if kind == "binding" else yaw["rows"][first]
+        outside = sorted(set(target) - set(PINNED_WHITELIST[kind])) + ["a_future_field"]
+        assert len(outside) > 3
+        for field in outside:
+            verdict = mx.pair_runs(admitted["P1"],
+                                   _mutate(yaw, base + [field], _changed_by(yaw, [field])))
+            assert verdict["paired"] is False, (kind, field)
+            assert f"{kind}.{field}" in {m["axis"] for m in verdict["mismatches"]}, \
+                (kind, field, verdict["mismatches"])
 
 
 # --------------------------------------------------------------------------- #
@@ -638,3 +711,31 @@ def test_each_arm_publishes_its_census(arm_runs):
                           ("n_queries", "n_rooms", "candidate_query_pairs",
                            "generated_waveforms")}
         assert census["n_queries"] == 4
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA NIT): every room, both endpoints, not only the mean
+# --------------------------------------------------------------------------- #
+def test_the_crossarm_holds_every_registered_room_to_the_arms_own_report(arm_runs):
+    _runs, admitted = arm_runs
+    for arm in ("P1", "YAW", "BF"):
+        report_rooms = admitted[arm]["report_per_room"]
+        assert sorted(report_rooms) == sorted(admitted[arm]["census"]["rooms"])
+        assert sorted(report_rooms) == sorted(mx.room_statistics(admitted[arm]["results"]))
+    rooms = sorted(admitted["YAW"]["report_per_room"])
+    assert len(rooms) >= 2
+    for stat in mx.PRIMARY_ENDPOINTS:
+        # COMPENSATING per-room differences: the across-room mean does not move
+        broken = copy.deepcopy(admitted["YAW"])
+        broken["report_per_room"][rooms[0]][stat] += 0.25
+        broken["report_per_room"][rooms[1]][stat] -= 0.25
+        mean = np.mean([broken["report_per_room"][r][stat] for r in rooms])
+        assert mean == pytest.approx(admitted["YAW"]["report_headline"][stat]["point"],
+                                     abs=1e-12)
+        with pytest.raises(ValueError, match="per-room"):
+            mx.run_crossarm(admitted["P1"], yaw=broken, bf=admitted["BF"])
+    # a registered room the report does not carry is refused too
+    missing = copy.deepcopy(admitted["BF"])
+    del missing["report_per_room"][rooms[0]]
+    with pytest.raises(ValueError, match="per-room"):
+        mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=missing)

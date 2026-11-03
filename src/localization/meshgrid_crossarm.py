@@ -327,6 +327,8 @@ def admit_run(run_dir, arm, *, audit_report, context_manifest, metadata_root,
             "aggregate_policy": AGGREGATE_POLICY,
             "report_headline": report["metrics"][PRIMARY_AGGREGATOR][str(PRIMARY_K)][
                 "across_rooms"],
+            "report_per_room": report["metrics"][PRIMARY_AGGREGATOR][str(PRIMARY_K)][
+                "per_room"],
             "sidecar_summary": report["crosscheck"]["sidecar"]}
 
 
@@ -426,6 +428,26 @@ CLAIM_BOUNDARY = (
     "(random baseline, sparse retrieval) are reused, not rerun")
 
 
+def assert_per_room_agreement(arm, stats, run):
+    """EVERY registered room, both endpoints: crossarm == the arm's own report.
+
+    The across-room check alone would pass compensating per-room differences
+    (Codex rA NIT); both sides apply ``mr.room_block`` to the same authenticated
+    results in the same order, so the values must be EQUAL, not merely close.
+    """
+    reported = run["report_per_room"]
+    registered = sorted(run["census"]["rooms"])
+    if sorted(stats) != registered or sorted(reported) != registered:
+        raise ValueError(f"{arm}: the per-room sets differ -- registered {registered[:3]}..., "
+                         f"crossarm {sorted(stats)[:3]}..., report {sorted(reported)[:3]}...")
+    for room in registered:
+        for stat in PRIMARY_ENDPOINTS:
+            if float(stats[room][stat]) != float(reported[room][stat]):
+                raise ValueError(f"{arm}: the per-room {stat} of {room} recomputed here "
+                                 f"({stats[room][stat]!r}) is not the arm's own report's "
+                                 f"({reported[room][stat]!r}); every room must agree")
+
+
 def run_crossarm(p1, yaw=None, bf=None):
     """Pair every admitted treatment with P1 (and with each other), then test the family."""
     from datetime import datetime, timezone
@@ -461,6 +483,7 @@ def run_crossarm(p1, yaw=None, bf=None):
             if abs(per_arm[arm][stat] - float(headline[stat]["point"])) > 1e-12:
                 raise ValueError(f"{arm}: the room-first {stat} recomputed here differs from the "
                                  "arm's own report headline; the two derivations disagree")
+        assert_per_room_agreement(arm, stats, admitted[arm])
     return {"experiment": "exp_22 loc_meshgrid R2 paired cross-arm comparison",
             "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "estimand": "unweighted mean over the registered rooms of the paired room deltas "

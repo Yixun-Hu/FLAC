@@ -2431,8 +2431,15 @@ P1_NON_CANONICAL_NOTE_AT_BASE = (
     "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
     "was relaxed or could not be met. The reasons are listed beside this note; every number "
     "below is a diagnostic and none may be quoted as the canonical result")
-P1_SINGLE_SHARD_TAIL_AT_BASE = ("These numbers are a shard-local diagnostic and are not the "
-                                "canonical 5,337-query P1 result")
+#: the COMPLETE P1 single-shard note at base 3f595e19 (`git show 3f595e19:src/localization/
+#: meshgrid_report.py`, SINGLE_SHARD_NOTE), verbatim -- not only its tail (Codex rA NIT)
+P1_SINGLE_SHARD_NOTE_AT_BASE = (
+    "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
+    "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
+    "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
+    "source-row census -- were NOT applied. The artifact-hash joins, the identity join, the "
+    "row/sidecar digests and the row-derived batching and source-row derivations still were. "
+    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query P1 result")
 
 
 def fixture_launch(tmp_path, tag):
@@ -2451,7 +2458,7 @@ def fixture_launch(tmp_path, tag):
 def test_the_notes_carry_the_arm_and_p1_keeps_its_words():
     assert mr.NON_CANONICAL_NOTE == P1_NON_CANONICAL_NOTE_AT_BASE
     assert mr.non_canonical_note("P1") == mr.NON_CANONICAL_NOTE
-    assert mr.SINGLE_SHARD_NOTE.endswith(P1_SINGLE_SHARD_TAIL_AT_BASE)
+    assert mr.SINGLE_SHARD_NOTE == P1_SINGLE_SHARD_NOTE_AT_BASE
     assert mr.single_shard_note("P1") == mr.SINGLE_SHARD_NOTE
     for arm in ("YAW", "BF"):
         for note in (mr.non_canonical_note(arm), mr.single_shard_note(arm)):
