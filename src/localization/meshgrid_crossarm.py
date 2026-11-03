@@ -218,3 +218,194 @@ def secondary_descriptives(results_by_arm, draws=None):
                                "role": CI_ROLE}
             out[arm][f"K{k}"] = cells
     return out
+
+
+# --------------------------------------------------------------------------- #
+# admission through the report, and the pairing gate (Codex B3 / H1)
+# --------------------------------------------------------------------------- #
+LEGACY_EXCEPTION_NOTE = (
+    "P1 LEGACY-PROVENANCE EXCEPTION (plan r2 §1, Codex B4/N3): the P1 comparator is the "
+    "published Aug-2026 run, which predates full-pass launch records. It is admitted as "
+    "canonical AS PUBLISHED only because --allow-legacy-p1-provenance was passed; the exception "
+    "does not extend to BF or YAW, whose every row must resolve to a verified launch record")
+
+#: what two admitted runs MAY differ on -- everything else is a pairing axis.
+PAIRING_WHITELIST = {
+    "binding": ("ckpt_sha256", "binding_sha256") + tuple(mr.ARM_PROTOCOL_FIELDS),
+    "row": ("by_k", "timings_s", "launch_record_sha256", "binding_sha256", "row_sha256",
+            "sims_sha256", "_row_path", "waveform_path", "waveform_sha256",
+            "waveform_candidate_indices", "waveform_content_rule"),
+    "run": ("arm", "launch_provenance", "predictions_scores_margins", "sidecar_disagreements",
+            "latency", "registered_protocol.arm_protocol"),
+}
+PAIRING_AXES = ("query_identities", "row.<every field outside the row whitelist>",
+                "by_k_prefixes", "candidate_coordinates", "truth_xyz",
+                "binding.<every field outside the binding whitelist>", "effective_batching",
+                "sidecar_argmax_policy", "merge_receipt", "census", "metadata_bank_sha256",
+                "noise_keys", "aggregate_policy", "single_shard", "protocol_deviation",
+                "metadata_bank_unpinned", "non_canonical", "launch_provenance", "arm")
+MERGE_RECEIPT_FIELDS = ("declared_rooms", "advisory", "n_rows", "totals",
+                        "source_rows_derived_from", "source_rows_from_g1_plan",
+                        "source_rows_from_rows", "receipt_cross_checked_against_rows")
+AGGREGATE_POLICY = {"aggregators": list(mr.AGGREGATORS),
+                    "headline": [mr.HEADLINE_AGGREGATOR, mr.HEADLINE_K],
+                    "tie_break": "smallest global candidate index"}
+
+
+def whitelist_names():
+    return ([f"binding.{field}" for field in PAIRING_WHITELIST["binding"]]
+            + [f"row.{field}" for field in PAIRING_WHITELIST["row"]]
+            + list(PAIRING_WHITELIST["run"]))
+
+
+def _digest(value):
+    from src.localization.crossarm import canonical_sha256
+
+    return canonical_sha256(mr.jsonable(value))
+
+
+def noise_keys_digest(binding, results, rows):
+    """The derivable CRN keys of every query's K draws (seed, policy, query, draw)."""
+    from src.localization import meshgrid_engine as me
+
+    keys = {}
+    for result in results:
+        first = int(rows[result["query_id"]]["candidate_indices"][0])
+        keys[result["query_id"]] = [int(me.noise_key_for(binding["noise_policy"],
+                                                         int(binding["seed"]),
+                                                         result["query_id"], first, k))
+                                    for k in range(int(binding["num_samples"]))]
+    return _digest(keys)
+
+
+def admit_run(run_dir, arm, *, audit_report, context_manifest, metadata_root,
+              expect_metadata_bank_sha256, allow_legacy_p1_provenance=False, ckpt_path=None,
+              totals=None, require_manifest_census=True,
+              sidecar_argmax_policy=mr.SIDECAR_ARGMAX_POLICY):
+    """One arm, admitted through the report's own gates, canonical or refused."""
+    if not expect_metadata_bank_sha256:
+        raise ValueError("a cross-arm comparison requires the pre-registered pair-metadata "
+                         "bank digest; the truths behind every e_loc must be the registered ones")
+    evaluated = mr.evaluate_run(
+        run_dir, audit_report, context_manifest, metadata_root, totals=totals,
+        sidecar_argmax_policy=sidecar_argmax_policy,
+        require_manifest_census=require_manifest_census, single_shard=False,
+        expect_ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm], expect_arm=arm,
+        expect_metadata_bank_sha256=expect_metadata_bank_sha256,
+        allow_protocol_deviation=False, allow_unpinned_metadata_bank=False, ckpt_path=ckpt_path)
+    report = mr.build_report(evaluated, run_dir, audit_report, context_manifest, metadata_root,
+                             sidecar_argmax_policy=sidecar_argmax_policy)
+    status = report["canonical_status"]
+    if not status["canonical"]:
+        raise ValueError(f"the {arm} run at {run_dir} is not canonical: "
+                         + "; ".join(f"{r['gate']}: {r['why']}" for r in status["reasons"]))
+    provenance = evaluated["launch_provenance"]
+    if provenance["legacy_provenance"] and not allow_legacy_p1_provenance:
+        raise ValueError(f"the {arm} run carries no launch records; it may enter only as the "
+                         "published P1 comparator under the registered exception, which must "
+                         f"be requested explicitly with --allow-legacy-p1-provenance. "
+                         f"{LEGACY_EXCEPTION_NOTE}")
+    results, rows = evaluated["results"], evaluated["rows_by_id"]
+    plans = evaluated["plans_by_id"]
+    return {"arm": arm, "run_dir": str(run_dir), "binding": evaluated["binding"],
+            "binding_sha256": evaluated["binding_sha256"], "results": results, "rows": rows,
+            "candidate_coordinates_sha256": {
+                qid: hashlib.sha256(np.ascontiguousarray(
+                    np.asarray(plan.coordinates, dtype=np.float64)).tobytes()).hexdigest()
+                for qid, plan in plans.items()},
+            "truth_xyz": {r["query_id"]: [float(v) for v in r["truth_xyz"]] for r in results},
+            "noise_keys_sha256": noise_keys_digest(evaluated["binding"], results, rows),
+            "census": evaluated["census"], "merge": evaluated["merge"],
+            "batching": evaluated["batching"], "metadata_bank": evaluated["metadata_bank"],
+            "registered_protocol": evaluated["registered_protocol"],
+            "launch_provenance": provenance, "canonical_status": status,
+            "single_shard": evaluated["single_shard"],
+            "sidecar_argmax_policy": str(sidecar_argmax_policy),
+            "legacy_provenance_allowed": bool(allow_legacy_p1_provenance),
+            "aggregate_policy": AGGREGATE_POLICY,
+            "report_headline": report["metrics"][PRIMARY_AGGREGATOR][str(PRIMARY_K)][
+                "across_rooms"],
+            "sidecar_summary": report["crosscheck"]["sidecar"]}
+
+
+def _run_flags(run):
+    """Absence of every diagnostic / relaxed gate, and verified launch provenance."""
+    registered, provenance = run["registered_protocol"], run["launch_provenance"]
+    failed = []
+    if run["single_shard"]:
+        failed.append(("single_shard", "a single-shard diagnostic is not a canonical run"))
+    if registered.get("deviation_allowed") or not registered.get("is_registered"):
+        failed.append(("protocol_deviation", "the binding is a protocol deviation"))
+    if not run["metadata_bank"].get("pinned"):
+        failed.append(("metadata_bank_unpinned", "the pair-metadata bank was not pinned"))
+    if not run["canonical_status"].get("canonical"):
+        failed.append(("non_canonical", "the run's own report is non-canonical"))
+    if not (provenance.get("complete") or (provenance.get("legacy_provenance")
+                                           and run.get("legacy_provenance_allowed"))):
+        failed.append(("launch_provenance", "rows do not all resolve to verified launch "
+                                            "records and no permitted legacy exception applies"))
+    return [{"axis": axis, "detail": f"{run['arm']}: {why}"} for axis, why in failed]
+
+
+def pair_runs(a, b):
+    """Two admitted runs may be paired only if they agree outside the whitelist (H1)."""
+    mismatches, whitelisted = [], set()
+
+    def check(axis, left, right, detail=None):
+        if left != right:
+            mismatches.append({"axis": axis, "detail": detail or f"{a['arm']} != {b['arm']}"})
+
+    for run in (a, b):
+        mismatches += _run_flags(run)
+    check("arm", a["arm"] == b["arm"], False, f"both runs are arm {a['arm']}")
+    ids = [[(r["query_id"], int(r["position"])) for r in run["results"]] for run in (a, b)]
+    for run, identities in zip((a, b), ids):
+        if len({qid for qid, _ in identities}) != len(identities):
+            check("query_identities", "duplicates", None, f"{run['arm']} repeats a query")
+    check("query_identities", ids[0], ids[1], "the ordered (query, position) streams differ")
+
+    binding_skip = set(PAIRING_WHITELIST["binding"])
+    for key in sorted(set(a["binding"]) | set(b["binding"])):
+        if key in binding_skip:
+            if a["binding"].get(key) != b["binding"].get(key):
+                whitelisted.add(f"binding.{key}")
+            continue
+        check(f"binding.{key}", a["binding"].get(key), b["binding"].get(key))
+
+    row_skip, by_axis = set(PAIRING_WHITELIST["row"]), {}
+    common = [qid for qid, _ in ids[0] if qid in a["rows"] and qid in b["rows"]]
+    for qid in common:
+        ra, rb = a["rows"][qid], b["rows"][qid]
+        for key in set(ra) | set(rb):
+            if key in row_skip:
+                if ra.get(key) != rb.get(key):
+                    whitelisted.add(f"row.{key}")
+            elif ra.get(key) != rb.get(key):
+                by_axis.setdefault(f"row.{key}", []).append(qid)
+        if sorted(ra.get("by_k") or {}) != sorted(rb.get("by_k") or {}):
+            by_axis.setdefault("by_k_prefixes", []).append(qid)
+        for axis, field in (("candidate_coordinates", "candidate_coordinates_sha256"),
+                            ("truth_xyz", "truth_xyz")):
+            if a[field].get(qid) != b[field].get(qid):
+                by_axis.setdefault(axis, []).append(qid)
+    for axis, queries in sorted(by_axis.items()):
+        mismatches.append({"axis": axis, "detail": f"{len(queries)} queries differ "
+                                                   f"(first {queries[:2]})"})
+
+    check("effective_batching", a["batching"].get("batching"), b["batching"].get("batching"))
+    check("sidecar_argmax_policy", a["sidecar_argmax_policy"], b["sidecar_argmax_policy"])
+    check("merge_receipt", {f: (a["merge"] or {}).get(f) for f in MERGE_RECEIPT_FIELDS},
+          {f: (b["merge"] or {}).get(f) for f in MERGE_RECEIPT_FIELDS})
+    check("census", a["census"], b["census"])
+    check("metadata_bank_sha256", a["metadata_bank"].get("metadata_bank_sha256"),
+          b["metadata_bank"].get("metadata_bank_sha256"))
+    check("noise_keys", a["noise_keys_sha256"], b["noise_keys_sha256"])
+    check("aggregate_policy", a["aggregate_policy"], b["aggregate_policy"])
+    if a["arm"] != b["arm"]:
+        whitelisted.add("arm")
+    if _digest(a["launch_provenance"].get("records")) != _digest(
+            b["launch_provenance"].get("records")):
+        whitelisted.add("launch_provenance")
+    return {"paired": not mismatches, "arms": [a["arm"], b["arm"]], "mismatches": mismatches,
+            "n_queries": len(ids[0]), "whitelisted_differences": sorted(whitelisted),
+            "axes": list(PAIRING_AXES), "whitelist": PAIRING_WHITELIST}

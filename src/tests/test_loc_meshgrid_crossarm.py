@@ -289,3 +289,246 @@ def test_the_secondaries_are_descriptive_deltas_only():
     assert set(yaw) == {"K1", "K4", "K8"}
     assert "median_e_loc" not in yaw["K8"]                       # primaries live elsewhere
     assert "median_e_loc" in yaw["K1"]
+
+
+# --------------------------------------------------------------------------- #
+# admission through the report, and the pairing gate (Codex B3 / H1)
+# --------------------------------------------------------------------------- #
+import copy                                                   # noqa: E402
+
+import test_loc_meshgrid_report as RF                         # noqa: E402  (pytest prepends src/tests)
+
+
+def shifted_engine(shift):
+    """A different "checkpoint": the same synthetic stack, different generations."""
+    engine = RF.SyntheticEngine()
+    engine.sampler = lambda noise, cond: (noise * (1.0 + shift)
+                                          + cond["cond"].mean(dim=-1).reshape(-1, 1, 1))
+    return engine
+
+
+def build_arm_runs(root):
+    """The P1 legacy comparator plus YAW and BF runs with complete launch records.
+
+    The BF run is SYNTHETIC: its binding is BF's registered method, but no fa path
+    executes in R2-A -- it exists to exercise admission, pairing and statistics.
+    Every arm builds its own D1/G1/metadata, byte-identical across arms (the
+    fixture is deterministic), exactly as the real arms share one frozen set.
+    """
+    runs = {}
+    for arm, shift in (("P1", None), ("YAW", 0.5), ("BF", -0.25)):
+        sub = root / arm
+        sub.mkdir()
+        runs[arm] = RF.build_fixture_run(
+            sub, arm=None if arm == "P1" else arm,
+            launch=None if arm == "P1" else RF.fixture_launch(sub, arm),
+            engine=None if shift is None else shifted_engine(shift))
+    return runs
+
+
+def admit(runs, arm, run_dir=None, **overrides):
+    shared = runs["P1"]
+    kwargs = dict(audit_report=shared["audit_report"],
+                  context_manifest=shared["context_manifest"],
+                  metadata_root=shared["metadata_root"],
+                  expect_metadata_bank_sha256=shared["metadata_bank_sha256"],
+                  totals=shared["totals"], require_manifest_census=False,
+                  allow_legacy_p1_provenance=(arm == "P1"))
+    kwargs.update(overrides)
+    return mx.admit_run(run_dir or runs[arm]["run_dir"], arm, **kwargs)
+
+
+@pytest.fixture(scope="module")
+def arm_runs(tmp_path_factory):
+    runs = build_arm_runs(tmp_path_factory.mktemp("arms"))
+    admitted = {arm: admit(runs, arm) for arm in ("P1", "YAW", "BF")}
+    return runs, admitted
+
+
+def test_every_arm_is_admitted_through_the_reports_own_gate(arm_runs, monkeypatch):
+    runs, admitted = arm_runs
+    calls = []
+    real = mr.evaluate_run
+    monkeypatch.setattr(mr, "evaluate_run", lambda *a, **k: (calls.append(k), real(*a, **k))[1])
+    again = admit(runs, "YAW")
+    assert len(calls) == 1
+    # admission is held to the arm, the arm's checkpoint, the pinned bank and every gate
+    assert calls[0]["expect_arm"] == "YAW"
+    assert calls[0]["expect_ckpt_sha256"] == mr.REGISTERED_CKPT_SHA256["YAW"]
+    assert calls[0]["allow_protocol_deviation"] is False
+    assert calls[0]["allow_unpinned_metadata_bank"] is False
+    assert calls[0]["single_shard"] is False
+    assert again["canonical_status"]["canonical"] is True
+    for arm in ("P1", "YAW", "BF"):
+        assert admitted[arm]["arm"] == arm and admitted[arm]["canonical_status"]["canonical"]
+    assert admitted["P1"]["launch_provenance"]["legacy_provenance"] is True
+    assert admitted["YAW"]["launch_provenance"]["complete"] is True
+
+
+def test_the_per_query_numbers_are_the_authenticated_results(arm_runs):
+    runs, admitted = arm_runs
+    evaluated = RF.evaluate_fixture(runs["YAW"])
+    expected = {r["query_id"]: r["by"]["lme"][8]["e_loc"] for r in evaluated["results"]}
+    assert {r["query_id"]: r["by"]["lme"][8]["e_loc"]
+            for r in admitted["YAW"]["results"]} == expected
+    # and the arm's room-first statistic IS its own report's headline
+    stats = mx.room_statistics(admitted["YAW"]["results"])
+    headline = admitted["YAW"]["report_headline"]["median_e_loc"]["point"]
+    assert np.mean([block["median_e_loc"] for block in stats.values()]) == \
+        pytest.approx(headline, abs=1e-12)
+
+
+def test_the_legacy_p1_exception_needs_an_explicit_flag(arm_runs):
+    runs, _admitted = arm_runs
+    with pytest.raises(ValueError, match="--allow-legacy-p1-provenance"):
+        admit(runs, "P1", allow_legacy_p1_provenance=False)
+
+
+def test_a_run_is_admitted_only_as_its_own_arm(arm_runs):
+    runs, _admitted = arm_runs
+    with pytest.raises(ValueError, match="--expect-arm"):
+        admit(runs, "BF", run_dir=runs["YAW"]["run_dir"])
+    with pytest.raises(ValueError, match="pre-registered"):
+        admit(runs, "YAW", expect_metadata_bank_sha256=None)
+
+
+def test_a_non_canonical_run_is_refused(tmp_path):
+    from src.localization import meshgrid_segments as ms
+
+    runs = {"P1": RF.build_fixture_run(tmp_path / "P1")}
+    (tmp_path / "YAW").mkdir()
+    runs["YAW"] = RF.build_fixture_run(tmp_path / "YAW", arm="YAW",
+                                       launch=RF.fixture_launch(tmp_path / "YAW", "YAW"))
+    ledger = ms.read_ledger(runs["YAW"]["run_dir"])
+    os.remove(os.path.join(runs["YAW"]["run_dir"], ledger["segments"][0]["record_file"]))
+    with pytest.raises(ValueError, match="not canonical"):
+        admit(runs, "YAW")
+
+
+def test_two_admitted_arms_pair_and_only_whitelisted_fields_differ(arm_runs):
+    _runs, admitted = arm_runs
+    verdict = mx.pair_runs(admitted["P1"], admitted["YAW"])
+    assert verdict["paired"] is True, verdict["mismatches"]
+    assert verdict["n_queries"] == 4
+    differing = set(verdict["whitelisted_differences"])
+    assert {"arm", "binding.ckpt_sha256", "binding.frame_avg_angles", "binding.rotate_deg",
+            "row.launch_record_sha256", "row.by_k", "launch_provenance"} <= differing
+    assert set(verdict["whitelisted_differences"]) <= set(mx.whitelist_names())
+    assert mx.pair_runs(admitted["P1"], admitted["BF"])["paired"] is True
+    assert mx.pair_runs(admitted["YAW"], admitted["BF"])["paired"] is True
+
+
+def test_the_whitelist_is_explicit_and_the_sparse_bank_is_not_an_axis():
+    assert mx.PAIRING_WHITELIST["binding"] == (
+        "ckpt_sha256", "binding_sha256", "cond_method", "frame_avg_angles", "rotate_deg",
+        "cond_autocast", "fa_partition")
+    assert set(mx.PAIRING_WHITELIST["row"]) == {
+        "by_k", "timings_s", "launch_record_sha256", "binding_sha256", "row_sha256",
+        "sims_sha256", "_row_path", "waveform_path", "waveform_sha256",
+        "waveform_candidate_indices", "waveform_content_rule"}
+    assert set(mx.PAIRING_WHITELIST["run"]) == {
+        "arm", "launch_provenance", "predictions_scores_margins", "sidecar_disagreements",
+        "latency", "registered_protocol.arm_protocol"}
+    assert not any("sparse" in axis for axis in mx.PAIRING_AXES)
+
+
+def _mutate(admitted, path, value):
+    run = copy.deepcopy(admitted)
+    target = run
+    for key in path[:-1]:
+        target = target[key]
+    if callable(value):
+        target[path[-1]] = value(target[path[-1]])
+    else:
+        target[path[-1]] = value
+    return run
+
+
+def _first(admitted):
+    return admitted["results"][0]["query_id"]
+
+
+@pytest.mark.parametrize("axis, mutate", [
+    ("query_identities", lambda r: _mutate(r, ["results"], lambda rs: rs[::-1])),
+    ("query_identities", lambda r: _mutate(r, ["results"], lambda rs: rs + rs[:1])),
+    ("row.position", lambda r: _mutate(r, ["rows", _first(r), "position"], 99)),
+    ("row.room_id", lambda r: _mutate(r, ["rows", _first(r), "room_id"], "Z/Z_idx_9")),
+    ("row.receiver_id", lambda r: _mutate(r, ["rows", _first(r), "receiver_id"], "x")),
+    ("row.receiver_xyz", lambda r: _mutate(r, ["rows", _first(r), "receiver_xyz"],
+                                           [9.0, 9.0, 9.0])),
+    ("row.candidate_indices", lambda r: _mutate(r, ["rows", _first(r), "candidate_indices"],
+                                                lambda c: c[::-1])),
+    ("candidate_coordinates", lambda r: _mutate(r, ["candidate_coordinates_sha256",
+                                                    _first(r)], "0" * 64)),
+    ("row.branch", lambda r: _mutate(r, ["rows", _first(r), "branch"], "full_height")),
+    ("row.z_band", lambda r: _mutate(r, ["rows", _first(r), "z_band"], [0.0, 9.0])),
+    ("row.n_contexts", lambda r: _mutate(r, ["rows", _first(r), "n_contexts"], 7)),
+    ("truth_xyz", lambda r: _mutate(r, ["truth_xyz", _first(r)], [9.0, 9.0, 9.0])),
+    ("by_k_prefixes", lambda r: _mutate(r, ["rows", _first(r), "by_k"],
+                                        lambda b: {k: v for k, v in b.items() if k != "4"})),
+    ("binding.k_prefixes", lambda r: _mutate(r, ["binding", "k_prefixes"], [1, 8])),
+    ("binding.tau", lambda r: _mutate(r, ["binding", "tau"], 0.2)),
+    ("binding.num_samples", lambda r: _mutate(r, ["binding", "num_samples"], 4)),
+    ("binding.steps", lambda r: _mutate(r, ["binding", "steps"], 2)),
+    ("binding.cfg_scale", lambda r: _mutate(r, ["binding", "cfg_scale"], 2.0)),
+    ("binding.scorer_readout", lambda r: _mutate(r, ["binding", "scorer_readout"], "sample")),
+    ("binding.noise_policy", lambda r: _mutate(r, ["binding", "noise_policy"],
+                                               "per_candidate")),
+    ("binding.seed", lambda r: _mutate(r, ["binding", "seed"], 7)),
+    ("binding.d1_manifest_sha256", lambda r: _mutate(r, ["binding", "d1_manifest_sha256"],
+                                                     "0" * 64)),
+    ("binding.g1_report_sha256", lambda r: _mutate(r, ["binding", "g1_report_sha256"],
+                                                   "0" * 64)),
+    ("binding.room_manifest_sha256", lambda r: _mutate(r, ["binding", "room_manifest_sha256"],
+                                                       {})),
+    ("binding.model_config_sha256", lambda r: _mutate(r, ["binding", "model_config_sha256"],
+                                                      "0" * 64)),
+    ("binding.dataset_config_sha256", lambda r: _mutate(
+        r, ["binding", "dataset_config_sha256"], "0" * 64)),
+    ("binding.agree_ckpt_sha256", lambda r: _mutate(r, ["binding", "agree_ckpt_sha256"],
+                                                    "0" * 64)),
+    ("binding.advisory", lambda r: _mutate(r, ["binding", "advisory"],
+                                           {"batch_rows": 64, "source_chunk": 16})),
+    ("effective_batching", lambda r: _mutate(r, ["batching", "batching"],
+                                             {"batch_rows": 64, "source_chunk": 16})),
+    ("row.sims_dtype", lambda r: _mutate(r, ["rows", _first(r), "sims_dtype"], "float32")),
+    ("sidecar_argmax_policy", lambda r: _mutate(r, ["sidecar_argmax_policy"], "strict")),
+    ("merge_receipt", lambda r: _mutate(r, ["merge", "n_rows"], 3)),
+    ("census", lambda r: _mutate(r, ["census", "candidate_query_pairs"], 1)),
+    ("metadata_bank_sha256", lambda r: _mutate(r, ["metadata_bank", "metadata_bank_sha256"],
+                                               "0" * 64)),
+    ("noise_keys", lambda r: _mutate(r, ["noise_keys_sha256"], "0" * 64)),
+    ("single_shard", lambda r: _mutate(r, ["single_shard"], True)),
+    ("protocol_deviation", lambda r: _mutate(r, ["registered_protocol", "deviation_allowed"],
+                                             True)),
+    ("metadata_bank_unpinned", lambda r: _mutate(r, ["metadata_bank", "pinned"], False)),
+    ("non_canonical", lambda r: _mutate(r, ["canonical_status", "canonical"], False)),
+    ("launch_provenance", lambda r: _mutate(r, ["launch_provenance", "complete"], False)),
+])
+def test_each_pairing_axis_refuses(arm_runs, axis, mutate):
+    _runs, admitted = arm_runs
+    verdict = mx.pair_runs(admitted["P1"], mutate(admitted["YAW"]))
+    assert verdict["paired"] is False
+    assert axis in {mismatch["axis"] for mismatch in verdict["mismatches"]}, \
+        verdict["mismatches"]
+
+
+def test_the_same_arm_twice_is_not_a_pair(arm_runs):
+    _runs, admitted = arm_runs
+    verdict = mx.pair_runs(admitted["YAW"], admitted["YAW"])
+    assert verdict["paired"] is False
+    assert "arm" in {mismatch["axis"] for mismatch in verdict["mismatches"]}
+
+
+@pytest.mark.parametrize("path, value", [
+    (["rows", None, "timings_s"], {"sampling": 99.0}),
+    (["rows", None, "launch_record_sha256"], "f" * 64),
+    (["rows", None, "by_k"], lambda b: {k: dict(v, margin=9.9) for k, v in b.items()}),
+    (["binding", "ckpt_sha256"], "e" * 64),
+    (["launch_provenance", "records"], []),
+])
+def test_a_whitelisted_difference_never_breaks_the_pair(arm_runs, path, value):
+    _runs, admitted = arm_runs
+    path = [(_first(admitted["YAW"]) if key is None else key) for key in path]
+    verdict = mx.pair_runs(admitted["P1"], _mutate(admitted["YAW"], path, value))
+    assert verdict["paired"] is True, verdict["mismatches"]
