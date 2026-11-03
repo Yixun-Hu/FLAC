@@ -25,6 +25,7 @@ host and -- on a GPU -- the CUDA runtime's own card UUID.
 """
 import hashlib
 import json
+import math
 import os
 import re
 
@@ -51,6 +52,15 @@ GATE_IDENTITY = {"G0": (("P1",), {}), "G1": (("BF",), {"cond_autocast": "off"}),
 #: the autocast each gate is registered at (A4 i/ii): G1 and the G3 logic gate run with
 #: autocast OFF; the drift measurement runs the production flag, resolved by the device
 GATE_AUTOCAST = {"G1": ("off", False), "G3": ("off", False), "G3D": ("default", True)}
+#: what a registered ``--cond-autocast`` token RESOLVES to on each device type (A4 iii, A6 i;
+#: Codex rB-F2 finding 4): ``eval_FLAC.resolve_cond_autocast`` enters torch's per-device
+#: autocast default -- float16 on CUDA, bfloat16 on CPU -- and ``off`` runs float32
+RESOLVED_AUTOCAST = {("default", "cuda"): (True, "float16"), ("default", "cpu"): (True, "bfloat16"),
+                     ("off", "cuda"): (False, "float32"), ("off", "cpu"): (False, "float32")}
+#: the inputs the registered DiT consumes (Codex rB-F2 finding 4): ``get_conditioning_inputs``
+#: over FLAC_AR.json's cross-attention ids (context_poses_vit, context_poses, context_audio)
+#: and global ids (source, source_vit); its input-concat / prepend inputs are None, never compared
+REGISTERED_DIT_INPUTS = ("cross_attn_cond", "cross_attn_mask", "global_cond")
 #: the engine's own vanilla batching caveat, the drift measurement's published context
 VANILLA_BATCHING_CAVEAT_MAX_ABS_DIFF = 3.9e-3
 
@@ -188,10 +198,18 @@ def pair_reasons(facts, tolerance):
     if facts.get("finite") is not True:
         reasons.append("a non-finite value is present; a verdict over it is meaningless")
     found = facts.get("max_abs_diff")
-    if tolerance is not None and not (isinstance(found, (int, float))
-                                      and found <= float(tolerance)):
+    if tolerance is None:            # the drift measurement: no threshold, but a measured number
+        if not _measured(found):
+            reasons.append(f"max |diff| {_fmt(found)} is not a finite number >= 0")
+    elif not (_measured(found) and found <= float(tolerance)):
         reasons.append(f"max |diff| {_fmt(found)} > {tolerance}")
     return reasons
+
+
+def _measured(value):
+    """A measured |diff|: a real, finite, non-negative number -- never a bool, NaN or inf."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value >= 0)
 
 
 def mask_reasons(facts, tolerance):
@@ -260,7 +278,15 @@ def compare_inputs(left, right, tolerance):
         else:
             out[name] = tensor_pair(a, b, tolerance)
         reasons += [f"dit_inputs.{name}: {why}" for why in out[name]["reasons"]]
-    return out, reasons
+    return out, reasons + dit_input_reasons(out)
+
+
+def dit_input_reasons(names):
+    """The compared DiT inputs are EXACTLY the registered ones (Codex rB-F2 finding 4)."""
+    names = sorted(str(name) for name in names)
+    return [] if names == sorted(REGISTERED_DIT_INPUTS) else [
+        f"dit_inputs: the compared DiT inputs {names} are not exactly the registered DiT inputs "
+        f"{list(REGISTERED_DIT_INPUTS)}"]
 
 
 def fold_per_key(per_key, conditioning, inputs):
@@ -399,16 +425,22 @@ def gate_report(gate, reasons, **fields):
 
 
 def autocast_reasons(gate, inputs):
-    """A gate registered at an autocast (A4 i/ii) names the RESOLVED state it ran, or fails."""
+    """A gate registered at an autocast (A4 i/ii) publishes the EXACT state its token resolves
+    to on the device its evidence names -- the token, enabled, dtype and device type (Codex
+    rB-F2 finding 4) -- or it fails."""
     if gate not in GATE_AUTOCAST:
         return []
-    requested, enabled = GATE_AUTOCAST[gate]
-    found = (inputs.get("cond_autocast_requested"), inputs.get("cond_autocast_enabled"))
-    if found != (requested, enabled) or not inputs.get("cond_autocast_dtype"):
-        return [f"autocast: {GATE_NAMES[gate]} is registered at --cond-autocast {requested} "
-                f"(enabled={enabled}), but the evidence records requested/enabled/dtype "
-                f"{found + (inputs.get('cond_autocast_dtype'),)}"]
-    return []
+    requested, device = GATE_AUTOCAST[gate][0], inputs.get("device")
+    kind = device.partition(":")[0] if isinstance(device, str) else None
+    enabled, dtype = RESOLVED_AUTOCAST.get((requested, kind), (None, None))
+    found = tuple(inputs.get(f"cond_autocast_{field}")
+                  for field in ("requested", "enabled", "dtype", "device_type"))
+    if (dtype is not None and found[0] == requested and found[1] is enabled
+            and found[2] == dtype and found[3] == kind):
+        return []
+    return [f"autocast: {GATE_NAMES[gate]} is registered at --cond-autocast {requested}, which on "
+            f"device {device!r} resolves to enabled={enabled} dtype={dtype} (device type "
+            f"{kind}); the evidence records requested/enabled/dtype/device type {found}"]
 
 
 def query_inputs(query, n, **extra):
@@ -545,6 +577,7 @@ def finalize_evidence(report, device, environment=None, runtime=None, inputs=Non
         runtime = mop.runtime_gpu_uuid(device)
     dirty = environment.get("git_status_dirty")
     merged = dict(report.get("inputs") or {}, **(inputs or {}))
+    merged.setdefault("device", str(device))    # the autocast clause resolves on it
     provenance = {
         "git_sha": environment.get("git_sha"),
         "tracked_clean": None if dirty is None else not bool(dirty),
@@ -711,8 +744,8 @@ def _score_deltas(production, replayed, indices, tau, prefixes, enforce=True):
         equal = me.argmax_by_global_index(a, indices) == me.argmax_by_global_index(b, indices)
         out[str(k)] = {"max_abs_delta": delta, "argmax_equal": bool(equal),
                        "at_risk": not me.is_argmax_stable(me.top1_margin(a))}
-        if enforce:                    # the drift measurement publishes, it does not judge
-            why += score_reasons(k, out[str(k)])
+        # the drift measurement publishes measured numbers; it does not judge them
+        why += (score_reasons if enforce else measurement_reasons)(k, out[str(k)])
     return out, why
 
 
@@ -725,6 +758,16 @@ def score_reasons(k, facts):
     if facts.get("argmax_equal") is not True:
         why.append(f"K={k}: the argmax moved between production and replay")
     return why
+
+
+def measurement_reasons(k, facts):
+    """The drift measurement's facts of one K (A6 iii: no threshold) are measurements: a finite,
+    non-negative |dS| and the two agreement booleans (Codex rB-F2 finding 4)."""
+    delta = facts.get("max_abs_delta")
+    why = [] if _measured(delta) else [f"K={k}: score |diff| {_fmt(delta)} is not a finite "
+                                       "number >= 0"]
+    return why + [f"K={k}: {name} is not a boolean" for name in ("argmax_equal", "at_risk")
+                  if not isinstance(facts.get(name), bool)]
 
 
 def score_summary(entries):
@@ -1002,7 +1045,8 @@ FA_IDS = tuple(key for ids in me.FA_BRANCH_IDS.values() for key in ids)
 #: the identity block's fields, re-derived from the evidence's own binding
 IDENTITY_FIELDS = ("gate", "registered_arms", "expect_arm", "admitted_deviations", "arm",
                    "deviations", "ckpt_sha256", "registered_for_gate")
-MALFORMED = (KeyError, TypeError, ValueError, AttributeError, IndexError)
+MALFORMED = (KeyError, TypeError, ValueError, AttributeError, IndexError, ArithmeticError,
+             RecursionError)
 
 
 def conditioning_reasons(conditioning, tolerance, ids=FA_IDS):
@@ -1015,20 +1059,27 @@ def conditioning_reasons(conditioning, tolerance, ids=FA_IDS):
 
 
 def inputs_reasons(dit_inputs, tolerance):
-    """The DiT-input clauses of one serialized block (a one-sided input carries no shape)."""
-    if not dit_inputs:
+    """The DiT-input clauses of one serialized block: exactly the registered inputs, each a
+    tensor pair (a one-sided input carries no shape)."""
+    if not isinstance(dit_inputs, dict) or not dit_inputs:
         return ["dit_inputs: the inputs the DiT consumes were not compared"]
-    return [f"dit_inputs.{name}: {why}" for name, facts in dit_inputs.items()
-            for why in (["present on one side only"] if "shape" not in facts
-                        else pair_reasons(facts, tolerance))]
+    return dit_input_reasons(dit_inputs) + [
+        f"dit_inputs.{name}: {why}" for name, facts in dit_inputs.items()
+        for why in (["present on one side only"] if "shape" not in facts
+                    else pair_reasons(facts, tolerance))]
 
 
 def executed_reasons(executed, declared):
-    """The executed partition re-derived from its raw call counts, held to the declaration."""
-    again = me.FaPartitionRecorder.from_counts(executed.get("counts") or []).report()
-    reasons = [] if all(executed.get(key) == again[key] for key in (
+    """The executed partition re-derived from its raw call counts -- canonical rows through the
+    ledger's own validator (``me.counts_reasons``; Codex rB-F2 finding 4) -- and held to the
+    declaration."""
+    why, recorder = me.counts_reasons(executed.get("counts"), "executed partition")
+    if recorder is None:
+        return why
+    again = recorder.report()
+    reasons = why + ([] if all(executed.get(key) == again[key] for key in (
         "executed", "violations", "branches")) else [
-        "executed partition: the published block is not the one its call counts yield"]
+        "executed partition: the published block is not the one its call counts yield"])
     reasons += [f"executed partition differs from the declared one at {path}"
                 for path in me.fa_partition_differences(declared, again["executed"])]
     return reasons + [f"executed partition violation: {item}" for item in again["violations"]]
@@ -1064,45 +1115,70 @@ def _reverify_production(evidence, inputs):
     if inputs.get("anchor_key_set_equal") is not equal:
         reasons.append("anchor: the published anchor_key_set_equal is not the recomputed one")
     scored, source, per_key, chains = [], [], {}, {}
-    prefixes = sorted(str(int(k)) for k in inputs.get("prefixes") or [])
-    for entry in queries:
-        query = entry["inputs"]
-        n, qid = int(query["n_candidates"]), query["query_id"]
-        tiling = [[start, min(micro, n - start)] for start in range(0, n, micro)]
-        if ([[chunk.get("start"), chunk.get("n")] for chunk in entry["chunks"]] != tiling
-                or len(query.get("candidate_indices") or []) != n):
-            reasons.append(f"{qid}: its chunks do not tile its {n} candidates at micro {micro}")
-        for chunk in entry["chunks"]:
-            cond, dit = chunk["conditioning"], chunk["dit_inputs"]
-            why = conditioning_reasons(cond, tolerance) + inputs_reasons(dit, tolerance)
-            why += replay_partition_reasons(chunk.get("replay_partition"), chunk["n"],
-                                            len(inputs.get("angles") or []))
-            if {key: chunk.get(key) for key in ("max_abs_diff", "bitwise")} != chunk_summary(cond):
-                why.append("its max |diff| / bitwise headline is not its facts'")
-            reasons += [f"{qid}: chunk@{chunk.get('start')}: {item}" for item in why]
-            fold_per_key(per_key, cond, dit)
-            _chain(chains, cond, dit)
-            scored.append(chunk["n"])
-        source += source_sizes(query["n_union"], chunk_size)
-        if sorted(entry["score_stability"]) != prefixes:
-            reasons.append(f"{qid}: its score stability is not published for exactly K {prefixes}")
-        if tolerance is not None:
-            reasons += [f"{qid}: {item}" for k, facts in entry["score_stability"].items()
-                        for item in score_reasons(k, facts)]
+    shape = {"micro": micro, "chunk_size": chunk_size, "tolerance": tolerance,
+             "n_angles": len(inputs.get("angles") or []),
+             "prefixes": sorted(str(int(k)) for k in inputs.get("prefixes") or [])}
+    for entry in queries:      # one malformed query is named and never hides the others' reasons
+        _collect(reasons, "query", lambda entry=entry: _production_query_reasons(
+            entry, reasons, shape, scored, source, per_key, chains))
     if per_key != evidence.get("per_key"):
         reasons.append("per_key: the published per-key summary is not the fold of its chunks")
     if {name: [side.hexdigest() for side in sides] for name, sides in chains.items()} != \
             evidence.get("digest_chains"):
         reasons.append("digest_chains: the published chains are not its chunks' digests")
-    covered = {"scored": coverage(scored, micro), "source": coverage(source, chunk_size)}
-    reasons += [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
-                "covers both" for name, facts in covered.items() if not facts["complete"]]
-    if covered != evidence.get("coverage"):
-        reasons.append("coverage: the published coverage is not the one its chunks yield")
-    if score_summary(queries) != evidence.get("score_stability"):
-        reasons.append("score_stability: the published summary is not its queries'")
+    _collect(reasons, "coverage", lambda: _coverage_reasons(
+        evidence, {"scored": coverage(scored, micro), "source": coverage(source, chunk_size)}))
+    _collect(reasons, "score_stability", lambda: [] if score_summary(queries) == evidence.get(
+        "score_stability") else ["score_stability: the published summary is not its queries'"])
     return reasons + executed_reasons(evidence.get("executed_partition") or {},
                                       evidence.get("declared_partition"))
+
+
+def _collect(reasons, name, check):
+    """Extend ``reasons`` with ``check()``'s -- or, where the evidence is malformed, with one
+    reason naming it, keeping every reason already collected (Codex rB-F2 finding 4)."""
+    try:
+        reasons += list(check())
+    except MALFORMED as error:
+        reasons.append(f"{name}: the evidence is malformed ({type(error).__name__}: {error})")
+
+
+def _production_query_reasons(entry, reasons, shape, scored, source, per_key, chains):
+    """One G3 / G3D query re-verified: its tiling, each chunk's clauses -- appended BEFORE the
+    summaries that could raise on a malformed fact -- and its per-K score facts."""
+    query, micro = entry["inputs"], shape["micro"]
+    n, qid = int(query["n_candidates"]), query["query_id"]
+    tiling = [[start, min(micro, n - start)] for start in range(0, n, micro)]
+    if ([[chunk.get("start"), chunk.get("n")] for chunk in entry["chunks"]] != tiling
+            or len(query.get("candidate_indices") or []) != n):
+        reasons.append(f"{qid}: its chunks do not tile its {n} candidates at micro {micro}")
+    check = score_reasons if shape["tolerance"] is not None else measurement_reasons
+    reasons += [f"{qid}: {item}" for k, facts in entry["score_stability"].items()
+                for item in check(k, facts)]
+    if sorted(entry["score_stability"]) != shape["prefixes"]:
+        reasons.append(f"{qid}: its score stability is not published for exactly K "
+                       f"{shape['prefixes']}")
+    for chunk in entry["chunks"]:
+        cond, dit, where = chunk["conditioning"], chunk["dit_inputs"], chunk.get("start")
+        why = conditioning_reasons(cond, shape["tolerance"])
+        why += inputs_reasons(dit, shape["tolerance"]) + replay_partition_reasons(
+            chunk.get("replay_partition"), chunk["n"], shape["n_angles"])
+        reasons += [f"{qid}: chunk@{where}: {item}" for item in why]
+        if {key: chunk.get(key) for key in ("max_abs_diff", "bitwise")} != chunk_summary(cond):
+            reasons.append(f"{qid}: chunk@{where}: its max |diff| / bitwise headline is not its "
+                           "facts'")
+        fold_per_key(per_key, cond, dit)
+        _chain(chains, cond, dit)
+        scored.append(chunk["n"])
+    source += source_sizes(query["n_union"], shape["chunk_size"])
+    return []
+
+
+def _coverage_reasons(evidence, covered):
+    reasons = [f"coverage: {name} batches {facts['full']} full / {facts['tail']} tail; a gate "
+               "covers both" for name, facts in covered.items() if not facts["complete"]]
+    return reasons + ([] if covered == evidence.get("coverage") else [
+        "coverage: the published coverage is not the one its chunks yield"])
 
 
 def _reverify_identity(gate, inputs):
@@ -1289,7 +1365,7 @@ def reverify_gate_evidence(evidence):
     binding, and the registered constants (tolerances, the pinned anchor, the production
     batching) come from this code, never from the evidence."""
     gate = evidence.get("gate") if isinstance(evidence, dict) else None
-    if gate not in REVERIFIERS:
+    if not isinstance(gate, str) or gate not in REVERIFIERS:
         return [f"gate: {gate!r} is not one of the re-verifiable gates {sorted(REVERIFIERS)}"]
     inputs, clauses = evidence.get("inputs") or {}, {}
     for name, check in (("comparison", lambda: REVERIFIERS[gate](evidence, inputs)),
@@ -1302,5 +1378,8 @@ def reverify_gate_evidence(evidence):
         except MALFORMED as error:
             clauses[name] = [f"{name}: the evidence is malformed ({type(error).__name__}: "
                              f"{error})"]
-    return [reason for why in clauses.values() for reason in why] + _verdict_reasons(
-        gate, evidence, clauses)
+    try:                       # the verdict too: malformed input is a named reason, never raised
+        verdict = _verdict_reasons(gate, evidence, clauses)
+    except MALFORMED as error:
+        verdict = [f"verdict: the evidence is malformed ({type(error).__name__}: {error})"]
+    return [reason for why in clauses.values() for reason in why] + verdict

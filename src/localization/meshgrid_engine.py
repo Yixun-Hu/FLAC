@@ -852,30 +852,41 @@ def _count(value):
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def _segment_reasons(index, segment):
-    """``(reasons, recorder)`` for one segment: a non-negative query count, canonical counts
-    of non-negative integers, and the digest it stores of them."""
-    reasons = [] if _count(segment.get("n_queries")) else [
-        f"segment {index}'s n_queries {segment.get('n_queries')!r} is not a non-negative integer"]
-    counts = segment.get("counts")
+def counts_reasons(counts, what):
+    """``(reasons, recorder or None)``: ``counts`` are a recorder's canonical call-count rows --
+    exactly its seven fields, real non-negative integers (bools refused) with a count of at
+    least one, a known branch, sorted, once each. THE validator the ledger's segments and the
+    gate evidence's executed counts share (Codex rB-F2 finding 4)."""
     if not (isinstance(counts, list) and all(
             isinstance(entry, dict) and sorted(entry) == sorted(LEDGER_ENTRY_FIELDS)
             and isinstance(entry["base"], list) and isinstance(entry["orbit"], list)
             for entry in counts)):
-        return reasons + [f"segment {index}'s counts are not {list(LEDGER_ENTRY_FIELDS)} rows"], None
+        return [f"{what}'s counts are not {list(LEDGER_ENTRY_FIELDS)} rows"], None
     if not all(_count(value) for entry in counts for value in (
             entry["configured"], entry["cap"], entry["orbit_size"], entry["count"],
             *entry["base"], *entry["orbit"])):
-        return reasons + [f"segment {index} holds a count that is not a non-negative integer"], None
+        return [f"{what} holds a count that is not a non-negative integer"], None
+    if not all(entry["count"] >= 1 for entry in counts):
+        return [f"{what} holds a zero count (a call shape no recorder observed)"], None
     try:
         recorder = FaPartitionRecorder.from_counts(counts)
     except ValueError as error:                        # an unknown branch
-        return reasons + [f"segment {index}: {error}"], None
-    if recorder.to_counts() != counts:
-        reasons.append(f"segment {index}'s counts are not canonical (repeated or unsorted rows)")
+        return [f"{what}: {error}"], None
+    return ([] if recorder.to_counts() == counts else [
+        f"{what}'s counts are not canonical (repeated or unsorted rows)"]), recorder
+
+
+def _segment_reasons(index, segment):
+    """``(reasons, recorder)`` for one segment: a non-negative query count, canonical counts
+    (:func:`counts_reasons`), and the digest it stores of them."""
+    reasons = [] if _count(segment.get("n_queries")) else [
+        f"segment {index}'s n_queries {segment.get('n_queries')!r} is not a non-negative integer"]
+    why, recorder = counts_reasons(segment.get("counts"), f"segment {index}")
+    if recorder is None:
+        return reasons + why, None
     if segment.get("counts_sha256") != counts_sha256(recorder):
-        reasons.append(f"segment {index}'s counts do not hash to its counts_sha256")
-    return reasons, recorder
+        why.append(f"segment {index}'s counts do not hash to its counts_sha256")
+    return reasons + why, recorder
 
 
 def _ledger_reasons(payload, declared):

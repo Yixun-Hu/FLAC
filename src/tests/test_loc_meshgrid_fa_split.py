@@ -438,13 +438,31 @@ def test_an_empty_or_undeclared_partition_is_refused():
 # the split wired through the pass: caches, scored batches, refusals
 # --------------------------------------------------------------------------- #
 class FaSyntheticEngine(ENG.SyntheticEngine):
-    """The engine fixture's synthetic stack, conditioned through the engaged split."""
+    """The engine fixture's synthetic stack, conditioned through the engaged split. Its DiT
+    inputs are the three REGISTERED ones (``fp.REGISTERED_DIT_INPUTS``, Codex rB-F2 finding
+    4): ``get_conditioning_inputs``' concatenation for FLAC_AR's id lists over the fake's
+    tensors, with a CONSTANT cross-attention mask so that a mask corruption stays in the mask
+    clause and a DiT-input corruption in the DiT-input clause, each isolated (Codex rB finding
+    7). The vanilla SyntheticEngine, whose digests are frozen, keeps its own inputs."""
 
     def __init__(self, angles=C4):
         super().__init__()
         self.conditioner = FaFakeConditioner()
         self.cond_method = "fa_invariant"
         self.split = me.split_for("fa_invariant", angles)
+
+    @staticmethod
+    def _cond_inputs(conditioning):
+        cross = ("context_poses_vit", "context_poses", "context_audio")
+        return {"cross_attn_cond": torch.cat([conditioning[k][0] for k in cross], dim=-1),
+                "cross_attn_mask": torch.ones(conditioning["context_audio"][0].shape[0], 3),
+                "global_cond": torch.cat([conditioning[k][0] for k in ("source", "source_vit")],
+                                         dim=-1)}
+
+    def _sample(self, noise, cond):
+        self.n_sampler_rows += int(noise.shape[0])
+        level = torch.cat([cond["cross_attn_cond"], cond["global_cond"]], dim=-1).mean(dim=-1)
+        return noise + level.reshape(-1, 1, 1)
 
 
 def _fa_aligned(tmp_path):
@@ -824,7 +842,9 @@ def test_gate1_passes_bit_for_bit_and_records_full_and_tail_batches(tmp_path):
             assert entry["mask"]["bitwise"]
             assert entry["tensor"]["digest"][0] == entry["tensor"]["digest"][1]
         assert all(entry["bitwise"] for entry in chunk["dit_inputs"].values())
-    assert set(report["per_key"]) == set(FA_IDS) | {"dit_inputs.cond"}
+    assert set(report["per_key"]) == set(FA_IDS) | {"dit_inputs.cross_attn_cond",
+                                                    "dit_inputs.cross_attn_mask",
+                                                    "dit_inputs.global_cond"}
     assert report["inputs"]["candidate_indices"] == [int(i) for i in
                                                      query.candidate_indices[:7]]
     assert set(report["executed_partition"]) >= {"executed", "violations", "branches"}
@@ -2788,8 +2808,8 @@ OTHER_TAMPERS = [
     ("G1", ["chunks", 1, "released_partition", "frame_avg_fwd_cap"], {"scale": 2},
      "replay orbit partition"),
     ("G1", ["chunks", 1], {"delete": True}, "do not tile"),
-    ("G1", ["chunks", 0, "dit_inputs", "cond", "dtype", 1], {"value": "torch.float16"},
-     "dit_inputs.cond: dtype"),
+    ("G1", ["chunks", 0, "dit_inputs", "cross_attn_cond", "dtype", 1],
+     {"value": "torch.float16"}, "dit_inputs.cross_attn_cond: dtype"),
     ("G1", ["inputs", "identity", "arm"], {"value": "YAW"}, "identity"),
     ("G2", ["memoization", "conditioning", "context_poses", "mask", "max_abs_diff"],
      {"value": 1e-9}, "memoization: context_poses.mask: max |diff|"),
@@ -3212,3 +3232,161 @@ def test_a_coordinated_swap_of_g0s_frozen_and_published_maps_does_not_re_verify(
     claimed = _tamper(evidence, ["inputs", "probe_report", "frozen_digests_sha256"], "0" * 64)
     assert any("frozen grid-digest map is not the registered content" in reason
                for reason in fp.reverify_gate_evidence(claimed))
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 4 (part 1): ``reverify_gate_evidence``
+# always returns named reasons, and its autocast / G3D / DiT-input / executed-count
+# clauses are complete
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("evidence", [
+    {"gate": "G3", "verdict_clauses": "malformed"}, {"gate": "G3D", "verdict_clauses": 7},
+    {"gate": "G1", "chunks": 7, "inputs": "x"}, {"gate": ["G3"]}, {"gate": {"G0": 1}},
+    {"gate": "G0", "queries": "x", "inputs": []}, {"gate": "GV", "provenance": "x"},
+    "not a dict", None, []])
+def test_a_malformed_evidence_is_named_never_raised(evidence):
+    """Codex rB-F2: ``_verdict_reasons`` ran outside the MALFORMED guard, so
+    ``{"gate": "G3", "verdict_clauses": "malformed"}`` raised AttributeError."""
+    reasons = fp.reverify_gate_evidence(evidence)
+    assert reasons and all(isinstance(reason, str) for reason in reasons)
+
+
+def test_the_registered_autocast_resolution_is_torchs():
+    """``default`` is torch's per-device autocast default (float16 on CUDA, bfloat16 on CPU),
+    ``off`` the float32 parameters -- read from torch and from the engine's own context."""
+    assert fp.RESOLVED_AUTOCAST[("default", "cuda")] == (
+        True, str(torch.get_autocast_dtype("cuda")).replace("torch.", "")) == (True, "float16")
+    for mode in ("default", "off"):
+        state = me.cond_autocast_state("cpu", mode)
+        assert fp.RESOLVED_AUTOCAST[(mode, "cpu")] == (state["cond_autocast_enabled"],
+                                                        state["cond_autocast_dtype"])
+    assert fp.RESOLVED_AUTOCAST[("off", "cuda")] == (False, "float32")
+    for token, enabled in fp.GATE_AUTOCAST.values():        # the two registrations agree
+        assert all(fp.RESOLVED_AUTOCAST[(token, kind)][0] is enabled for kind in ("cpu", "cuda"))
+
+
+def _autocast(gate, on, **overrides):
+    """A gate's inputs carrying the autocast state its registered token resolves to on ``on``,
+    with ``overrides`` (``"<deleted>"`` drops a field)."""
+    requested = fp.GATE_AUTOCAST[gate][0]
+    kind = on.partition(":")[0]
+    enabled, dtype = {"off": (False, "float32"), "default": (
+        True, "float16" if kind == "cuda" else "bfloat16")}[requested]
+    inputs = {"device": on, "cond_autocast_requested": requested,
+              "cond_autocast_enabled": enabled, "cond_autocast_dtype": dtype,
+              "cond_autocast_device_type": kind}
+    inputs.update(overrides)
+    return {key: value for key, value in inputs.items() if value != "<deleted>"}
+
+
+@pytest.mark.parametrize("gate", ["G1", "G3", "G3D"])
+@pytest.mark.parametrize("device", ["cpu", "cuda:0", "cuda:1"])
+def test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device(gate, device):
+    assert fp.autocast_reasons(gate, _autocast(gate, device)) == []
+    kind = device.partition(":")[0]
+    wrong_dtype = {"float32": "float16", "float16": "bfloat16", "bfloat16": "float16"}
+    broken = [{"cond_autocast_device_type": "<deleted>", "cond_autocast_dtype": "banana"},
+              {"cond_autocast_device_type": "<deleted>"},
+              {"cond_autocast_dtype": "banana"},
+              {"cond_autocast_dtype": wrong_dtype[_autocast(gate, device)[
+                  "cond_autocast_dtype"]]},
+              {"cond_autocast_device_type": "cpu" if kind == "cuda" else "cuda"},
+              {"device": "mps:0", "cond_autocast_device_type": "mps"},
+              {"device": None}, {"device": "<deleted>"},
+              {"cond_autocast_enabled": int(_autocast(gate, device)["cond_autocast_enabled"])},
+              {"cond_autocast_requested": "bf16"}]
+    for overrides in broken:
+        assert fp.autocast_reasons(gate, _autocast(gate, device, **overrides)), overrides
+
+
+def test_codex_rbf2s_autocast_probe_does_not_re_verify(tmp_path, monkeypatch, clean_env):
+    """Codex rB-F2: a missing device type and dtype ``banana`` returned []."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3")
+    probe = _tamper(_tamper(evidence, ["inputs", "cond_autocast_device_type"], delete=True),
+                    ["inputs", "cond_autocast_dtype"], "banana")
+    assert any(reason.startswith("autocast:") for reason in fp.reverify_gate_evidence(probe))
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1.0, "0.0", None, True])
+def test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete(
+        tmp_path, monkeypatch, clean_env, value):
+    """Codex rB-F2: G3D 'complete' did not require its score deltas -- nor, threshold-free,
+    its per-key deltas -- to be finite numeric measurements."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3D", conditioner=Noisy())
+    assert fp.reverify_gate_evidence(evidence) == []
+    for path in (["queries", 0, "chunks", 0, "conditioning", "source", "tensor", "max_abs_diff"],
+                 ["queries", 1, "chunks", 0, "dit_inputs", "global_cond", "max_abs_diff"],
+                 ["queries", 0, "score_stability", "4", "max_abs_delta"]):
+        reasons = fp.reverify_gate_evidence(_tamper(evidence, path, value))
+        assert any("not a finite number" in reason for reason in reasons), (path, reasons)
+    # the live measurement holds its own deltas to the same rule
+    assert fp.measurement_reasons("8", {"max_abs_delta": value, "argmax_equal": True,
+                                        "at_risk": False})
+    assert fp.measurement_reasons("8", {"max_abs_delta": 0.5, "argmax_equal": True,
+                                        "at_risk": False}) == []
+
+
+def test_the_registered_dit_inputs_are_flac_ars_conditioning_inputs():
+    """The registered set is what ``get_conditioning_inputs`` returns non-None for FLAC_AR's id
+    lists -- derived from the model config, not copied."""
+    from src.models.diffusion import ConditionedDiffusionModelWrapper
+
+    config = json.load(open(os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                         "FLAC_AR.json")))["model"]["diffusion"]
+    holder = type("Ids", (), {"cross_attn_cond_ids": config["cross_attention_cond_ids"],
+                              "global_cond_ids": config["global_cond_ids"],
+                              "input_concat_ids": config.get("input_concat_ids", []),
+                              "prepend_cond_ids": config.get("prepend_cond_ids", [])})()
+    tensors = {key: [torch.zeros(2, 4), torch.ones(2, 4)] for key in FA_IDS}
+    produced = ConditionedDiffusionModelWrapper.get_conditioning_inputs(holder, tensors)
+    assert sorted(name for name, value in produced.items() if value is not None) == sorted(
+        fp.REGISTERED_DIT_INPUTS)
+
+
+@pytest.mark.parametrize("edit", ["drop", "extra", "rename"])
+def test_the_dit_input_clause_requires_exactly_the_registered_inputs(tmp_path, monkeypatch,
+                                                                     clean_env, edit):
+    """Codex rB-F2: ``inputs_reasons`` required a non-empty DiT-input map, not the registered
+    key set -- in the live gates and in the re-verification."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3")
+    chunk = ["queries", 0, "chunks", 0, "dit_inputs"]
+    facts = evidence["queries"][0]["chunks"][0]["dit_inputs"]
+    edited = {"drop": {k: v for k, v in facts.items() if k != "global_cond"},
+              "extra": dict(facts, prepend_cond=facts["global_cond"]),
+              "rename": {("cond" if k == "global_cond" else k): v for k, v in facts.items()}}
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, chunk, edited[edit]))
+    assert any("registered DiT inputs" in reason for reason in reasons), reasons
+    engine = FaSyntheticEngine()
+    inner = engine.cond_inputs_fn
+    engine.cond_inputs_fn = lambda block: {k: v for k, v in inner(block).items()
+                                           if k != "global_cond"}
+    query, md = _gate_query(tmp_path / "live")
+    live = fp.split_parity(engine, query, md, micro_batch=3, n_candidates=7)
+    assert live["verdict"] == "FAIL" and any("registered DiT inputs" in reason
+                                             for reason in live["reasons"])
+
+
+@pytest.mark.parametrize("edit, needle", [
+    (lambda counts: counts[0].update(count=True), "not a non-negative integer"),
+    (lambda counts: counts[0].update(count=-1), "not a non-negative integer"),
+    (lambda counts: counts[0].update(configured="32"), "not a non-negative integer"),
+    (lambda counts: counts[0].update(count=0), "zero count"),
+    (lambda counts: counts[0].update(extra=1), "rows"),
+    (lambda counts: counts[0].update(base=7), "rows"),
+    (lambda counts: counts[0].update(branch="nowhere"), "names branch 'nowhere'"),
+    (lambda counts: counts.reverse(), "not canonical"),
+    (lambda counts: counts.append(dict(counts[0])), "not canonical"),
+])
+def test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator(
+        tmp_path, monkeypatch, clean_env, edit, needle):
+    """Codex rB-F2: G3 / G3D raw executed counts were not checked for canonical shape,
+    non-negative integers or booleans as the ledger's are -- one validator now serves both."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3")
+    edited = copy.deepcopy(evidence)
+    edit(edited["executed_partition"]["counts"])
+    reasons = fp.reverify_gate_evidence(edited)
+    assert any(reason.startswith("executed partition") and needle in reason
+               for reason in reasons), reasons
+    # the very validator the ledger reader applies to every segment's counts
+    assert any(needle in reason for reason in me.counts_reasons(
+        edited["executed_partition"]["counts"], "executed partition")[0])
