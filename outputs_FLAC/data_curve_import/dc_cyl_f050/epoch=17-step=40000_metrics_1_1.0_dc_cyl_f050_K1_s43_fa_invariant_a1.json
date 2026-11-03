@@ -1,0 +1,23 @@
+{
+    "metrics": {
+        "T60": 10.8935,
+        "Invalid T60": 0.0,
+        "C50": 1.1124,
+        "EDT": 45.448,
+        "FD": 0.3305,
+        "RIR_to_GT_RIR_R@1": 4.6552,
+        "RIR_to_GT_RIR_R@5": 15.0702,
+        "RIR_to_GT_RIR_R@10": 22.7079,
+        "RIR_to_geom_R@1": 3.8977,
+        "RIR_to_geom_R@5": 12.4665,
+        "RIR_to_geom_R@10": 19.252
+    },
+    "ckpt_path": "/media/diskstation/yixunhu/FLAC/checkpoints/exp14_data_curve/dc_cyl_f050/epoch=17-step=40000.ckpt",
+    "rotate_deg": 0.0,
+    "cond_method": "fa_invariant",
+    "frame_avg_angles": [
+        0.0
+    ],
+    "cond_autocast": "bf16",
+    "ckpt_sha256": "cc4e9e24c68c9b6a4df30979c99fe52c43054aa45bcfeed25d078ec8be9c67a1"
+}

@@ -12,8 +12,8 @@ is only that the row spec it prints literal-parses as one of the generator's own
 generator over a fixture repo root holding a complete two-arm import directory and pins:
 
 * five files per K are found and aggregated (``n`` is 5, not 10 and not 6: neither the
-  ``MANIFEST.sha256`` the importer writes beside the cells nor the prediction bundle is
-  swallowed by the trailing ``*`` of the registered glob);
+  ``MANIFEST.sha256`` + ``ATTESTATION.txt`` the importer installs beside the cells nor a
+  stray ``.pt`` prediction bundle is swallowed by the trailing ``*`` of the registered glob);
 * the rendered ``mean ± sd`` equal the hand-computed values at the printed precision;
 * the cyl rows carry the generator's fa-eval protocol label and the van rows the vanilla
   one, and NEITHER arm is routed to the exp_14 yaw validator or the exp_11 orbit validator
@@ -26,7 +26,8 @@ INJECTION. The generator's row table is the module-level ``ROWS`` constant -- it
 row list or config on its CLI -- so these tests monkeypatch ``G.ROWS`` with the
 importer-style specs. The tracked default table is therefore never edited, and an autouse
 guard asserts the committed ``model_comparison.md`` is byte-unchanged by every test in this
-module (this is a shared checkout).
+module (this is a shared checkout). Since round P the tracked ``ROWS`` also registers the
+twelve real data-curve rows; section 7 pins them, and their globs against the imported files.
 
 The five "documented trap" tests at the end record generator behaviour that is NOT what a
 reader would assume; each names the importer contract that is the only thing protecting the
@@ -37,6 +38,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 
 import pytest
 
@@ -65,14 +67,44 @@ DEFAULT_ROWS = list(G.ROWS)               # the tracked table, captured before a
 # --------------------------------------------------------------------------- #
 #: printed verbatim by src.tools.data_curve.import_cells.row_spec(arm, "025", K)
 IMPORTER_ROW_SPECS = [
-    ("data-curve cyl f=25% @40k (exp_14 cyl-dinov3)", "fa eval", 1,
+    ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1,
      ["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K1_s4[2-6]*.json"]),
-    ("data-curve cyl f=25% @40k (exp_14 cyl-dinov3)", "fa eval", 8,
+    ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8,
      ["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K8_s4[2-6]*.json"]),
-    ("data-curve van f=25% @40k (exp_14 cyl-dinov3)", "vanilla eval", 1,
+    ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1,
      ["outputs_FLAC/data_curve_import/dc_van_f025/*_K1_s4[2-6]*.json"]),
-    ("data-curve van f=25% @40k (exp_14 cyl-dinov3)", "vanilla eval", 8,
+    ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8,
      ["outputs_FLAC/data_curve_import/dc_van_f025/*_K8_s4[2-6]*.json"]),
+]
+#: The twelve lines import_cells printed for the six real imports (round P), typed here --
+#: never derived from the importer or the generator. Yixun 2026-11-02: published as-is,
+#: default ``table`` contract (four fields), the generator's existing labels.
+_DC = "outputs_FLAC/data_curve_import/dc_"
+PUBLISHED_ROW_SPECS = [
+    ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1,
+     [_DC + "cyl_f025/*_K1_s4[2-6]*.json"]),
+    ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8,
+     [_DC + "cyl_f025/*_K8_s4[2-6]*.json"]),
+    ("data-curve cyl f=50% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1,
+     [_DC + "cyl_f050/*_K1_s4[2-6]*.json"]),
+    ("data-curve cyl f=50% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8,
+     [_DC + "cyl_f050/*_K8_s4[2-6]*.json"]),
+    ("data-curve cyl f=75% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1,
+     [_DC + "cyl_f075/*_K1_s4[2-6]*.json"]),
+    ("data-curve cyl f=75% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8,
+     [_DC + "cyl_f075/*_K8_s4[2-6]*.json"]),
+    ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1,
+     [_DC + "van_f025/*_K1_s4[2-6]*.json"]),
+    ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8,
+     [_DC + "van_f025/*_K8_s4[2-6]*.json"]),
+    ("data-curve van f=50% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1,
+     [_DC + "van_f050/*_K1_s4[2-6]*.json"]),
+    ("data-curve van f=50% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8,
+     [_DC + "van_f050/*_K8_s4[2-6]*.json"]),
+    ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1,
+     [_DC + "van_f075/*_K1_s4[2-6]*.json"]),
+    ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8,
+     [_DC + "van_f075/*_K8_s4[2-6]*.json"]),
 ]
 SEEDS = (42, 43, 44, 45, 46)
 KS = (1, 8)
@@ -120,8 +152,12 @@ EXPECTED_CELLS = {
 }
 
 
+#: the importer's ARM_BACKBONE_LABEL (round V): each row names its own arm's backbone
+ARM_BACKBONE = {"cyl": "CylDINO", "van": "stock DINOv3-S"}
+
+
 def _label(arm):
-    return f"data-curve {arm} f=25% @40k (exp_14 cyl-dinov3)"
+    return f"data-curve {arm} f=25% @40k (exp_14 data-curve, {ARM_BACKBONE[arm]})"
 
 
 def metrics_basename(arm, k, seed):
@@ -188,7 +224,10 @@ def build_fixture_root(tmp_path, exp10_evidence, arms=ARMS):
         # exactly what import_cells installs beside the ten cells...
         with open(os.path.join(target, "MANIFEST.sha256"), "w") as fh:
             fh.write(f"# exp_14 data-curve import -- dc_{arm}_f025\n")
-        # ...and the prediction bundle each cell is proved by, which shares the stem
+        with open(os.path.join(target, "ATTESTATION.txt"), "w") as fh:
+            fh.write(f"# exp_14 data-curve import attestation -- dc_{arm}_f025\n")
+        # ...plus a prediction bundle sharing the cells' stem. The importer does NOT install
+        # one (bundles stay on the NAS); it is planted as a hostile neighbour of the glob.
         with open(os.path.join(target, f"{CKPT_STEM}_predictions_1_1.0_dc_{arm}"
                                        f"_f025_K8_s42{ARM_SUFFIX[arm]}.pt"), "wb") as fh:
             fh.write(b"not a metrics file")
@@ -312,8 +351,9 @@ def test_the_registered_glob_matches_exactly_the_five_cells_of_its_k(tmp_path):
 
     The pattern ends in ``*.json``, so anything else ``.json``-suffixed sitting beside the
     cells would join them (the exp_11 rows carry the same warning about their sidecars).
-    What the importer installs beside them is ``MANIFEST.sha256`` and the ``.pt`` bundle --
-    neither matches -- so the cell is exactly its five seeds."""
+    What the importer installs beside them is ``MANIFEST.sha256`` and ``ATTESTATION.txt``,
+    and the fixture adds a stray ``.pt`` bundle -- none matches -- so the cell is exactly its
+    five seeds."""
     root = build_fixture_root(tmp_path, exp10_evidence=True)
     for arm in ARMS:
         for k in KS:
@@ -550,5 +590,47 @@ def test_the_default_row_table_still_renders(tmp_path):
         proto = G.protocol_label(proto, G.is_batched_orbit_row(pats),
                                  G.exp10_evidence_present(str(root)))
         assert (label, proto, str(k)) in present, spec[0]
-    for arm in ARMS:
-        assert _label(arm) not in text, "a data-curve row leaked into the tracked table"
+    # round P: the twelve registered data-curve rows render (pending here: the fixture root
+    # holds no evidence), and no other data-curve row does
+    assert sorted((c[0], c[2]) for c in rows if c[0].startswith("data-curve ")) == sorted(
+        (label, str(k)) for label, _proto, k, _pats in PUBLISHED_ROW_SPECS)
+
+
+# --------------------------------------------------------------------------- #
+# 7. round P: the tracked ROWS table registers the twelve imported rows
+# --------------------------------------------------------------------------- #
+def _is_data_curve(spec):
+    """A row is a data-curve row if its label OR any of its globs says so."""
+    return spec[0].startswith("data-curve ") or any("data_curve_import" in p for p in spec[3])
+
+
+def test_the_tracked_rows_register_exactly_the_twelve_data_curve_rows():
+    """In order, nothing missing, nothing extra, four fields each (default contract)."""
+    registered = [spec for spec in DEFAULT_ROWS if _is_data_curve(spec)]
+    assert registered == PUBLISHED_ROW_SPECS
+    assert all(len(spec) == 4 for spec in registered)
+
+
+@pytest.mark.parametrize("spec", PUBLISHED_ROW_SPECS,
+                         ids=lambda s: f"{s[3][0].split('/')[2]}_K{s[2]}")
+def test_each_registered_glob_resolves_to_one_imported_file_per_seed(spec):
+    """The TRACKED spec's glob, resolved in this worktree: seeds 42-46, one file each, all
+    in that run's import directory and of that K -- never a manifest, an attestation or a
+    neighbouring run's cell."""
+    label, _proto, k, _pats = spec
+    hits = [s for s in DEFAULT_ROWS if s[0] == label and s[2] == k]
+    assert len(hits) == 1, f"{label} K={k}: registered {len(hits)} times"
+    (pattern,) = hits[0][3]
+    run = re.search(r"/(dc_(cyl|van)_f(025|050|075))/", pattern)
+    assert run, pattern
+    run_dir = os.path.join(_REPO_ROOT, "outputs_FLAC", "data_curve_import", run.group(1))
+    name = re.compile(rf"epoch=\d+-step=40000_metrics_1_1\.0_{run.group(1)}_K{k}_s(4[2-6])"
+                      + re.escape(ARM_SUFFIX[run.group(2)]) + r"\.json")
+    files = sorted(globmod.glob(os.path.join(_REPO_ROOT, pattern), recursive=True))
+    seeds = []
+    for path in files:
+        assert os.path.dirname(path) == run_dir, path
+        match = name.fullmatch(os.path.basename(path))
+        assert match, path
+        seeds.append(int(match.group(1)))
+    assert len(files) == G.MIN_SEEDS == 5 and sorted(seeds) == list(SEEDS), files

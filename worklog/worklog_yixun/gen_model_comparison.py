@@ -165,6 +165,20 @@ ROWS = [
   [f"outputs_FLAC/exp25_depth_canon/{arm}/*_metrics_1_1.0_exp25_{arm}_T_S40000_K{k}_s4[2-6]"
    + ("_canon" if arm == "CANON" else "") + ".json"], "exp25")
  for arm in ("CANON", "P1", "YAW") for k in (1, 8)
+] + [
+ # --- exp_14 data_curve (cyl-dinov3 numbering; Yixun 2026-11-02: published as-is under the generator's existing label, default table contract, no header disclosure) ---
+ ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1, ["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K1_s4[2-6]*.json"]),
+ ("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8, ["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K8_s4[2-6]*.json"]),
+ ("data-curve cyl f=50% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1, ["outputs_FLAC/data_curve_import/dc_cyl_f050/*_K1_s4[2-6]*.json"]),
+ ("data-curve cyl f=50% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8, ["outputs_FLAC/data_curve_import/dc_cyl_f050/*_K8_s4[2-6]*.json"]),
+ ("data-curve cyl f=75% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1, ["outputs_FLAC/data_curve_import/dc_cyl_f075/*_K1_s4[2-6]*.json"]),
+ ("data-curve cyl f=75% @40k (exp_14 data-curve, CylDINO)", "fa eval", 8, ["outputs_FLAC/data_curve_import/dc_cyl_f075/*_K8_s4[2-6]*.json"]),
+ ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1, ["outputs_FLAC/data_curve_import/dc_van_f025/*_K1_s4[2-6]*.json"]),
+ ("data-curve van f=25% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f025/*_K8_s4[2-6]*.json"]),
+ ("data-curve van f=50% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1, ["outputs_FLAC/data_curve_import/dc_van_f050/*_K1_s4[2-6]*.json"]),
+ ("data-curve van f=50% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f050/*_K8_s4[2-6]*.json"]),
+ ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 1, ["outputs_FLAC/data_curve_import/dc_van_f075/*_K1_s4[2-6]*.json"]),
+ ("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, ["outputs_FLAC/data_curve_import/dc_van_f075/*_K8_s4[2-6]*.json"]),
 ]
 
 EXP11_VALIDATOR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_11_fa_orbit_claude",
