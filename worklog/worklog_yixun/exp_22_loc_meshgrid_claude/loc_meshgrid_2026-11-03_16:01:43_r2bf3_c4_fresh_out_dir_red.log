@@ -1,0 +1,34 @@
+# exp_22 rB-F3 cycle 4 RED (a missing ledger only in a fresh out-dir; real-int segment indices; the ledger opened before the binding; Codex rB-F2 finding 3 part 1), HEAD ea6b0fa7 + working tree (new tests only), 2026-11-03T16:01:43-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest -k 'missing_ledger or segment_index_is_a_real or opens_the_ledger_before or adopts_only' --tb=line
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3465: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3465: AssertionError: Regex pattern did not match.
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3503: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3518: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3518: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3518: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3553: AssertionError: assert False
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_refused_in_an_out_dir_that_already_holds_a_run[deleted0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_refused_in_an_out_dir_that_already_holds_a_run[deleted1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[a half-written ledger]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[a probe record]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[a row]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[anything else]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[binding]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[launch records dir]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[launch segments]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[merge report]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir[run summary]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_ledger_segment_index_is_a_real_integer[indices0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_ledger_segment_index_is_a_real_integer[indices1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_ledger_segment_index_is_a_real_integer[indices2]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_opens_the_ledger_before_it_writes_the_binding
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_pass_adopts_only_the_ledger_opened_for_its_out_dir_declaration_and_record
+16 failed, 1 passed, 282 deselected in 7.58s

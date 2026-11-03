@@ -629,15 +629,16 @@ def _claim(tmp_path, argv_extra=(), name="launch.json"):
 def test_claiming_the_out_dir_opens_one_segment_per_invocation(tmp_path):
     advisory = {"source_chunk": 16, "batch_rows": 256}
     args, binding, launch = _claim(tmp_path)
-    done, segment = driver.claim_out_dir(args, binding, advisory, launch)
+    done, segment, ledger = driver.claim_out_dir(args, binding, advisory, launch)
     assert done == set() and segment["segment_index"] == 0 and segment["resume"] is False
+    assert ledger is None                                    # a vanilla pass keeps none
     assert ms.ledger_shas(args.out_dir) == [launch["sha256"]]
     # the same record cannot vouch for a second invocation
     with pytest.raises(ValueError, match="one invocation"):
         driver.claim_out_dir(args, binding, advisory, launch)
     # a resume is a new invocation under a new record: a new segment
     resumed, binding2, launch2 = _claim(tmp_path, ("--resume",), name="resume.json")
-    done, segment = driver.claim_out_dir(resumed, binding2, advisory, launch2)
+    done, segment, _ledger = driver.claim_out_dir(resumed, binding2, advisory, launch2)
     assert segment["segment_index"] == 1 and segment["resume"] is True
     assert ms.ledger_shas(args.out_dir) == [launch["sha256"], launch2["sha256"]]
 

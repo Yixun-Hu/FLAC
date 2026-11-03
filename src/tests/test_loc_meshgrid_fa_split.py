@@ -2461,6 +2461,25 @@ def test_a_probe_writes_no_ledger(tmp_path):
     assert not os.path.exists(os.path.join(out, me.FA_LEDGER_FILENAME))
 
 
+def _claim_fa(tmp_path, out, binding, rooms, record=None):
+    """The driver's claim, in its order: the ledger FIRST (Codex rB-F2 finding 3), then the
+    binding, then -- with a ``record`` name -- the launch segment. ``(ledger, sha)``."""
+    from src.localization import meshgrid_segments as ms
+
+    path = admission = None
+    if record is not None:
+        argv = [token if token != "out" else os.path.basename(out) for token in LR.ARGV]
+        path = LR.emit(tmp_path, argv=argv, name=record)
+        admission = LR.admit(path, argv=argv)
+    sha = None if admission is None else admission["sha256"]
+    ledger = me.open_fa_ledger(out, binding["fa_partition"], sha)
+    me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                     declared_rooms=rooms)
+    if admission is not None:
+        ms.open_segment(out, path, admission, resume=False)
+    return ledger, sha
+
+
 def _fa_shards(tmp_path):
     """Two record-carrying fa shards of the fixture, published like the real ones."""
     plan, records, items = _fa_aligned(tmp_path)
@@ -2468,12 +2487,9 @@ def _fa_shards(tmp_path):
     dirs = {}
     for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
         out = str(tmp_path / name)
-        me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
-                         declared_rooms=rooms)
-        argv = [token if token != "out" else name for token in LR.ARGV]
-        sha = LR._segment(tmp_path, out, f"{name}.json", argv=argv)["launch_record_sha256"]
+        ledger, sha = _claim_fa(tmp_path, out, binding, rooms, record=f"{name}.json")
         summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, rooms=rooms,
-                              binding_sha256=me.binding_sha256(binding),
+                              binding_sha256=me.binding_sha256(binding), fa_ledger=ledger,
                               launch_record_sha256=sha, fa_partition=FA_DECLARED, **FA_SHAPES)
         me.write_json(os.path.join(out, "run_summary.json"), summary)
         dirs[name] = out
@@ -3111,11 +3127,10 @@ def test_the_merge_refuses_a_non_admissible_shard_by_name_with_nothing_written(t
             _two_segment_run(shard, stack, rooms=["B/B_idx_2"])
         else:
             binding = _r2_binding(fa_partition=FA_DECLARED)
-            me.write_binding(shard, binding, advisory={"batch_rows": 8, "source_chunk": 3},
-                             declared_rooms=["B/B_idx_2"])
+            ledger, _sha = _claim_fa(tmp_path, shard, binding, ["B/B_idx_2"])
             me.run_pass(FaSyntheticEngine(), stack[2], stack[1], stack[0], shard,
                         rooms=["B/B_idx_2"], binding_sha256=me.binding_sha256(binding),
-                        fa_partition=FA_DECLARED, **FA_SHAPES)
+                        fa_ledger=ledger, fa_partition=FA_DECLARED, **FA_SHAPES)
     monkeypatch.setattr(me, "assert_fa_partition_executed", real)
     assert os.path.exists(os.path.join(shard, me.FA_FAILURE_FILENAME))
     assert os.path.exists(_fa_files(shard)[1]) is (when == "a later invocation")
@@ -3443,3 +3458,126 @@ def test_an_unregistered_field_or_an_edited_registered_text_does_not_re_verify(
                                 (["reverify_note"], "trust me", "registered text")):
         reasons = fp.reverify_gate_evidence(_tamper(evidence, path, value))
         assert any(needle in reason for reason in reasons), (path, reasons)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F3 (Codex code review rB-F2), finding 3 (part 1): a missing ledger is admitted
+# only in a FRESH out-dir; every ledger integer is a real int; the ledger is opened -- and on
+# disk -- before the binding, a launch segment or a row is written
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("deleted", [("ledger", "summary"), ("ledger",)])
+def test_a_missing_ledger_is_refused_in_an_out_dir_that_already_holds_a_run(tmp_path, deleted):
+    """Codex rB-F2: deleting the ledger and the run summary let a reopen bootstrap a
+    replacement ledger over existing rows."""
+    _engine, summary, out, (plan, records, items) = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    for path, name in zip(_fa_files(out), ("ledger", "summary")):
+        if name in deleted:
+            os.remove(path)
+    before = _snapshot(out)
+    done, _rejected = me.completed_queries(out)
+    engine = FaSyntheticEngine()
+    with pytest.raises(ValueError, match="not a fresh out-dir"):
+        me.run_pass(engine, items, records, plan, out, done=done, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    assert _snapshot(out) == before and engine.conditioner.calls == []
+    with pytest.raises(ValueError, match="not a fresh out-dir"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+RUN_ARTIFACTS = {
+    "binding": lambda out: me.write_binding(out, _registered_binding("BF")),
+    "run summary": lambda out: me.write_json(os.path.join(out, "run_summary.json"), {}),
+    "launch segments": lambda out: me.write_json(os.path.join(out, "launch_segments.json"),
+                                                 {"segments": []}),
+    "launch records dir": lambda out: os.makedirs(os.path.join(out, "launch_records")),
+    "a row": lambda out: (os.makedirs(os.path.join(out, "rows", "A_A_idx_1")),
+                          me.write_json(os.path.join(out, "rows", "A_A_idx_1", "q00000.json"),
+                                        {})),
+    "merge report": lambda out: me.write_json(os.path.join(out, "merge_report.json"), {}),
+    "a half-written ledger": lambda out: open(os.path.join(
+        out, me.FA_LEDGER_FILENAME + ".tmp"), "w").write("{"),
+    "a probe record": lambda out: me.write_json(os.path.join(out, "diagnostics_probe.json"), {}),
+    "anything else": lambda out: open(os.path.join(out, "notes.txt"), "w").write("x"),
+}
+
+
+@pytest.mark.parametrize("artifact", sorted(RUN_ARTIFACTS))
+def test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir(tmp_path, artifact):
+    """Fresh = absent, or holding only the operator's emitted launch records (top-level
+    *.json files the run never writes) -- the registered launch lines emit the record into
+    the shard directory before its first run."""
+    out = str(tmp_path / "shard")
+    assert me.read_fa_ledger(out, FA_DECLARED) is None                       # absent
+    os.makedirs(out)
+    assert me.read_fa_ledger(out, FA_DECLARED) is None                       # empty
+    for name in ("launch_record.json", "launch_record_resume1.json"):
+        me.write_json(os.path.join(out, name), {"argv": []})
+    assert me.read_fa_ledger(out, FA_DECLARED) is None                       # emitted records
+    RUN_ARTIFACTS[artifact](out)
+    with pytest.raises(ValueError, match="not a fresh out-dir"):
+        me.read_fa_ledger(out, FA_DECLARED)
+    assert me.read_fa_ledger(out, None) is None or artifact == "merge report"
+
+
+@pytest.mark.parametrize("indices", [[False, True], [0, True], [0.0, 1], ["0", 1]])
+def test_every_ledger_segment_index_is_a_real_integer(tmp_path, indices):
+    """Codex rB-F2: segment indices accepted False / True as 0 / 1."""
+    _engine, summary, out, stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    _two_segment_run(out, stack)
+    ledger = _ledger(out)
+    for segment, index in zip(ledger["segments"], indices):
+        segment["segment_index"] = index
+    me.write_json(_fa_files(out)[0], ledger)
+    with pytest.raises(ValueError, match="segment indices"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_the_driver_opens_the_ledger_before_it_writes_the_binding(tmp_path, monkeypatch):
+    """claim_out_dir opens (and publishes) this invocation's ledger segment FIRST, so the
+    binding and the launch segment never exist in an out-dir without a ledger."""
+    import localize_meshgrid as driver
+
+    # claim_out_dir's own inputs (a record-free namespace: the record is the driver's business)
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--out-dir", str(tmp_path / "shard")]
+                             + ENG._FA_PROTOCOL)
+    os.makedirs(args.out_dir)
+    me.write_json(os.path.join(args.out_dir, "launch_record.json"), {"argv": []})
+    binding, advisory = _registered_binding("BF"), {"source_chunk": 16, "batch_rows": 256}
+    seen, real = [], me.write_binding
+    monkeypatch.setattr(me, "write_binding", lambda out, *a, **k: (seen.append(os.path.isfile(
+        os.path.join(out, me.FA_LEDGER_FILENAME))), real(out, *a, **k))[1])
+    _done, _segment, ledger = driver.claim_out_dir(args, binding, advisory, None)
+    assert seen == [True]
+    on_disk = _ledger(args.out_dir)
+    assert [(s["segment_index"], s["n_queries"], s["counts"]) for s in on_disk["segments"]] == [
+        (0, 0, [])] and on_disk == ledger["payload"]
+    args.resume = True                                  # a reopen appends ITS segment first
+    _done, _segment, ledger = driver.claim_out_dir(args, binding, advisory, None)
+    assert [s["segment_index"] for s in _ledger(args.out_dir)["segments"]] == [0, 1]
+    # a vanilla claim opens no ledger, exactly as before
+    args.out_dir, args.resume = str(tmp_path / "vanilla"), False
+    assert driver.claim_out_dir(args, _registered_binding("YAW"), advisory, None)[2] is None
+    assert not os.path.exists(os.path.join(args.out_dir, me.FA_LEDGER_FILENAME))
+
+
+def test_a_pass_adopts_only_the_ledger_opened_for_its_out_dir_declaration_and_record(tmp_path):
+    plan, records, items = _fa_aligned(tmp_path)
+    out = str(tmp_path / "run")
+    ledger = me.open_fa_ledger(out, FA_DECLARED, None)
+    assert os.path.isfile(os.path.join(out, me.FA_LEDGER_FILENAME))          # on disk at once
+    for kwargs in ({"out_dir": str(tmp_path / "elsewhere")},
+                   {"fa_partition": me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4,
+                                                            source_chunk=5)},
+                   {"launch_record_sha256": "f" * 64}):
+        call = dict({"out_dir": out, "fa_partition": FA_DECLARED, "launch_record_sha256": None},
+                    **kwargs)
+        with pytest.raises(ValueError, match="not the one just opened"):
+            me.run_pass(FaSyntheticEngine(), items, records, plan, call["out_dir"],
+                        fa_ledger=ledger, fa_partition=call["fa_partition"],
+                        launch_record_sha256=call["launch_record_sha256"], **FA_SHAPES)
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, fa_ledger=ledger,
+                          fa_partition=FA_DECLARED, **FA_SHAPES)
+    assert summary["fa_partition_executed"]["executed"] == FA_DECLARED
+    assert len(_ledger(out)["segments"]) == 1                    # adopted, not a second one

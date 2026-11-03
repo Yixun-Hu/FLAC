@@ -278,7 +278,7 @@ def fixture_totals(plan=None, branch="z_band"):
             "generated_waveforms": pairs * FIXTURE_SAMPLES}
 
 
-def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None):
+def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None, ledger=None):
     """The SYNTHETIC BF fixture's executed-partition ledger and summary block (exp_22 rB-F1).
 
     The fixture's BF arm binds BF's registered method but runs the synthetic
@@ -297,7 +297,8 @@ def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None):
         n = int(block["candidate_micro_batch"])
         rotated = [(n, True)] * (orbit - 1) if branch in me.FA_ORBIT_BRANCHES else []
         recorder.observe(branch, [(n, False)] + rotated, cap=n, configured=n, orbit_size=orbit)
-    ledger = me.open_fa_ledger(out_dir, declared, launch_record_sha256)
+    # the ledger was opened BEFORE the binding, as the driver opens it (Codex rB-F2 finding 3)
+    ledger = ledger or me.open_fa_ledger(out_dir, declared, launch_record_sha256)
     merged = me.persist_fa_ledger(ledger, recorder)
     return me.fa_executed_block(declared, merged, len(ledger["payload"]["segments"]))
 
@@ -347,20 +348,22 @@ def build_fixture_run(tmp_path, merged=True, arm=None, launch=None, engine=None)
     def _score(out_dir, rooms=None):
         from src.localization import meshgrid_segments as ms
 
+        record_path, admission = launch(out_dir) if launch is not None else (None, None)
+        sha = None if admission is None else admission["sha256"]
+        # a frame-averaged shard opens its ledger FIRST, as the driver does (rB-F2 finding 3)
+        ledger = (me.open_fa_ledger(out_dir, binding["fa_partition"], sha)
+                  if isinstance(binding.get("fa_partition"), dict) else None)
         me.write_binding(out_dir, binding, advisory=FIXTURE_ADVISORY, declared_rooms=rooms)
-        sha = None
-        if launch is not None:
-            record_path, admission = launch(out_dir)
-            sha = ms.open_segment(out_dir, record_path, admission,
-                                  resume=False)["launch_record_sha256"]
+        if admission is not None:
+            ms.open_segment(out_dir, record_path, admission, resume=False)
         summary = me.run_pass(engine or SyntheticEngine(), items, records, plan, out_dir,
                               tau=FIXTURE_TAU, num_samples=FIXTURE_SAMPLES,
                               prefixes=FIXTURE_PREFIXES, batch_rows=8, source_chunk=2,
                               rooms=rooms, binding_sha256=binding_sha,
                               launch_record_sha256=sha)
-        if isinstance(binding.get("fa_partition"), dict):
+        if ledger is not None:
             summary["fa_partition_executed"] = synthetic_fa_evidence(
-                out_dir, binding["fa_partition"], sha)
+                out_dir, binding["fa_partition"], sha, ledger=ledger)
         me.write_json(os.path.join(out_dir, "run_summary.json"), summary)
         return out_dir
 

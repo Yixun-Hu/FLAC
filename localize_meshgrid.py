@@ -432,21 +432,26 @@ def gate_of(args):
 
 
 def claim_out_dir(args, run_binding, advisory, launch):
-    """Publish or continue the binding, open this invocation's segment, list what to skip."""
+    """Open the executed-partition ledger (a scored fa pass: BEFORE anything else is written --
+    Codex rB-F2 finding 3), publish or continue the binding, open this invocation's segment,
+    list what to skip. Returns ``(done, segment, ledger)``."""
     from src.localization import meshgrid_segments as ms
 
     if args.resume:
         assert_resumable(args, args.out_dir)
-    if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
-        moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory,
-                                  declared_rooms=args.rooms)
-        if moved is not True:
-            me.record_advisory_change(args.out_dir, moved, advisory=advisory)
-            print(f"NOTE: batching changed since the published pass: {moved}\n  "
-                  f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
-    else:
+    published = os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME))
+    moved = (me.assert_binding(args.out_dir, run_binding, advisory=advisory,
+                               declared_rooms=args.rooms) if published else True)
+    ledger = (me.open_fa_ledger(args.out_dir, run_binding["fa_partition"],
+                                (launch or {}).get("sha256"))
+              if isinstance(run_binding.get("fa_partition"), dict) else None)
+    if not published:
         me.write_binding(args.out_dir, run_binding, advisory=advisory,
                          declared_rooms=args.rooms)
+    elif moved is not True:
+        me.record_advisory_change(args.out_dir, moved, advisory=advisory)
+        print(f"NOTE: batching changed since the published pass: {moved}\n  "
+              f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
     segment = (ms.open_segment(args.out_dir, args.launch_record, launch, resume=args.resume)
                if launch else None)
     done = set()
@@ -458,7 +463,7 @@ def claim_out_dir(args, run_binding, advisory, launch):
               f"and regenerated")
         for verdict in rejected[:5]:
             print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
-    return done, segment
+    return done, segment, ledger
 
 
 def validate_checkpoint(args, model_config, ckpt):
@@ -636,9 +641,9 @@ def main(argv=None):
     print(f"weights: {context['weights_source']}, latent {context['latent_shape']}")
 
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
-    done, segment = set(), None
+    done, segment, fa_ledger = set(), None, None
     if writes_query_artifacts(args):
-        done, segment = claim_out_dir(args, run_binding, advisory, launch)
+        done, segment, fa_ledger = claim_out_dir(args, run_binding, advisory, launch)
 
     admitted = dump_allowance(args, plan)
     dump_queries = admitted["query_ids"]
@@ -677,7 +682,7 @@ def main(argv=None):
                           dump_queries=dump_queries, dump_top_n=args.dump_top_n,
                           binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms,
                           launch_record_sha256=(launch or {}).get("sha256"),
-                          fa_partition=run_binding.get("fa_partition"))
+                          fa_partition=run_binding.get("fa_partition"), fa_ledger=fa_ledger)
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT

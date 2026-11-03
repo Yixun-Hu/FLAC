@@ -844,6 +844,7 @@ def counts_sha256(recorder):
 
 
 RUN_SUMMARY_FILENAME = "run_summary.json"
+MERGE_REPORT_FILENAME = "merge_report.json"
 #: one row of a ledger segment's counts (``FaPartitionRecorder.to_counts``)
 LEDGER_ENTRY_FIELDS = ("branch", "configured", "cap", "base", "orbit", "orbit_size", "count")
 
@@ -899,7 +900,8 @@ def _ledger_reasons(payload, declared):
             and all(isinstance(segment, dict) for segment in segments)):
         return ["it holds no list of segments"], None
     indices = [segment.get("segment_index") for segment in segments]
-    reasons = [] if indices == list(range(len(segments))) else [
+    # real integers only: False / True would pass as 0 / 1 (Codex rB-F2 finding 3)
+    reasons = [] if all(map(_count, indices)) and indices == list(range(len(segments))) else [
         f"its segment indices {indices} are not 0..{len(segments) - 1} once each (a segment is "
         "missing or duplicated)"]
     found = [_segment_reasons(index, segment) for index, segment in enumerate(segments)]
@@ -948,6 +950,25 @@ def _read_object(path):
     return payload
 
 
+def fresh_out_dir(out_dir):
+    """``(fresh, entries)``: an out-dir that is absent, or holds nothing but the operator's
+    emitted launch records (top-level ``*.json`` files no pass writes) -- the only place a
+    ledger may START (Codex rB-F2 finding 3); ``entries`` names everything else in it."""
+    from src.localization import meshgrid_segments as ms
+
+    out_dir = str(out_dir)
+    if not os.path.exists(out_dir):
+        return True, []
+    if not os.path.isdir(out_dir):
+        return False, [out_dir]
+    written = (BINDING_FILENAME, RUN_SUMMARY_FILENAME, MERGE_REPORT_FILENAME, FA_LEDGER_FILENAME,
+               FA_FAILURE_FILENAME, ms.SEGMENTS_FILENAME)
+    found = sorted(name for name in os.listdir(out_dir)
+                   if not (name.endswith(".json") and os.path.isfile(os.path.join(out_dir, name)))
+                   or name in written or name.startswith("diagnostics_"))
+    return not found, found
+
+
 def read_fa_ledger(out_dir, declared, exact=False):
     """THE validating reader of a run's executed-partition ledger (Codex rB-F1 finding 3) --
     the one every reopen (``open_fa_ledger``, the driver's preflight) and the merge
@@ -970,16 +991,20 @@ def read_fa_ledger(out_dir, declared, exact=False):
                              f"partition, but it carries a {FA_LEDGER_FILENAME} or a summary block")
         return None
     if not os.path.isfile(path):
-        if exact or (summary or {}).get("fa_partition_executed") is not None:
+        fresh, found = fresh_out_dir(out_dir)
+        if exact or (summary or {}).get("fa_partition_executed") is not None or not fresh:
             raise ValueError(f"{out_dir} publishes no {FA_LEDGER_FILENAME}: its executed "
                              "frame-average partition is not on disk, so it can be neither "
-                             "resumed nor merged")
+                             "resumed nor merged" + ("" if fresh else (
+                                 f"; and it is not a fresh out-dir (it holds {found[:4]}), the "
+                                 "only place a ledger may start -- restart the shard in a "
+                                 "fresh out-dir (Codex rB-F2 finding 3)")))
         return None
     payload = _read_object(path)
     reasons, merged = _ledger_reasons(payload, declared)
     if not reasons:
         reasons = _summary_reasons(summary, payload["segments"], merged, exact)
-    if not reasons:
+    if not reasons and (exact or any(merged.counts.values())):   # nothing ran yet: a prefix
         try:
             assert_fa_partition_executed(declared, merged, final=exact)
         except ValueError as error:
@@ -992,14 +1017,31 @@ def read_fa_ledger(out_dir, declared, exact=False):
 
 def open_fa_ledger(out_dir, declared, launch_record_sha256=None):
     """This invocation's (new) segment of the run's ledger, opened only on a ledger that
-    verifies (:func:`read_fa_ledger`) -- before anything is written."""
+    verifies (:func:`read_fa_ledger`) or, in a fresh out-dir, a new one -- and PUBLISHED at
+    once, so the binding, a launch segment or a row never exists without it (rB-F2 3)."""
     found = read_fa_ledger(out_dir, declared)
     path = os.path.join(str(out_dir), FA_LEDGER_FILENAME)
     payload = (found["payload"] if found is not None
                else {"declared": declared, "segments": [], "note": FA_LEDGER_NOTE})
     payload["segments"].append({"segment_index": len(payload["segments"]), "n_queries": 0,
                                 "launch_record_sha256": launch_record_sha256, "counts": []})
-    return {"path": path, "payload": payload}
+    ledger = {"path": path, "payload": payload}
+    persist_fa_ledger(ledger, FaPartitionRecorder(), query=False)
+    return ledger
+
+
+def adopt_fa_ledger(ledger, out_dir, declared, launch_record_sha256):
+    """The ledger the driver opened for THIS invocation before it wrote anything else (its
+    out-dir, declaration and launch record, its segment still empty), or a refusal."""
+    segment = (((ledger or {}).get("payload") or {}).get("segments") or [{}])[-1]
+    if (os.path.abspath(str(ledger.get("path"))) != os.path.abspath(
+            os.path.join(str(out_dir), FA_LEDGER_FILENAME))
+            or ledger["payload"].get("declared") != declared
+            or (segment.get("launch_record_sha256"), segment.get("n_queries"),
+                segment.get("counts")) != (launch_record_sha256, 0, [])):
+        raise ValueError("the executed-partition ledger handed to this pass is not the one just "
+                         "opened for its out-dir, declaration and launch record")
+    return ledger
 
 
 def persist_fa_ledger(ledger, recorder, query=True):
@@ -2453,7 +2495,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
              geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None,
-             launch_record_sha256=None, fa_partition=None):
+             launch_record_sha256=None, fa_partition=None, fa_ledger=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -2473,10 +2515,17 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     if engine.split is not None and not isinstance(fa_partition, dict):
         raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
                          "(run_binding.json fa_partition) before anything runs against it")
-    # a scored fa pass keeps its executed partition on disk, one segment per invocation
-    fa_ledger = (open_fa_ledger(out_dir, fa_partition, launch_record_sha256)
-                 if engine.split is not None and probe is None else None)
     assert_registered_noise_policy(noise_policy, allow_unregistered_noise_policy)
+    # a scored fa pass keeps its executed partition on disk, one segment per invocation --
+    # opened here, or by the driver before it wrote the binding (``fa_ledger``, adopted)
+    if engine.split is None or probe is not None:
+        if fa_ledger is not None:
+            raise ValueError("only a scored frame-averaged pass carries an executed-partition "
+                             "ledger")
+    elif fa_ledger is None:
+        fa_ledger = open_fa_ledger(out_dir, fa_partition, launch_record_sha256)
+    else:
+        adopt_fa_ledger(fa_ledger, out_dir, fa_partition, launch_record_sha256)
     excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
     done = set(done)
     by_position = {int(record["position"]): record for record in records}
