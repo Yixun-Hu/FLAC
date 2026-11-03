@@ -41,7 +41,21 @@ GATE_NOTES = {
           "candidates themselves), with --cond-autocast off -- bit-exact on all five conditioner "
           "outputs, their masks and the inputs the DiT consumes. It proves WHICH inputs each "
           "tensor is computed from; gate 2 proves the caches, gate 3 the production batching",
+    "G2": "GATE 2 (plan r2 §3 R2-B, Codex H3): cached against uncached at MATCHED batching (one "
+          "candidate per call on both sides): the production path -- the per-query context "
+          "branch, the receiver cache built through ReceiverCache, each scored batch's own "
+          "context_poses -- against the released fa_conditioning of each candidate alone, "
+          "bit-exact; the four counter-tests (moved candidates, a per-query context_poses "
+          "cache, unaveraged ViT ids, swapped candidate rows) must each be DETECTED, or the "
+          "comparison could not have failed. The production-batching difference is reported "
+          "as informational (gate 3 owns it)",
 }
+
+#: the counter-tests of gate 2 and the ids each one must move
+COUNTER_KEYS = {"moved_candidates": ("source", "source_vit", "context_poses"),
+                "per_query_context_poses": ("context_poses",),
+                "unaveraged_vit": ("source_vit", "context_poses_vit"),
+                "swapped_candidates": ("source", "source_vit", "context_poses")}
 
 
 def require_split(engine):
@@ -252,3 +266,111 @@ def write_evidence(out_dir, evidence):
     os.makedirs(str(out_dir), exist_ok=True)
     path = os.path.join(str(out_dir), f"{evidence['name']}.json")
     return me.write_json(path, evidence)
+
+
+def gate_engine(engine, angles=None, record=True):
+    """A shallow view of ``engine`` with its OWN split, so a gate never writes into a pass."""
+    import copy
+
+    view = copy.copy(engine)
+    view.split = me.FaSplit(angles=tuple(engine.split.angles if angles is None else angles),
+                            recorder=me.FaPartitionRecorder() if record else None)
+    return view
+
+
+def concat_blocks(blocks):
+    """Per-batch ``{id: [tensor, mask]}`` blocks concatenated along the candidate axis."""
+    out = {}
+    for key in blocks[0]:
+        masks = [block[key][1] for block in blocks]
+        out[key] = [torch.cat([block[key][0] for block in blocks], dim=0),
+                    None if masks[0] is None else torch.cat(masks, dim=0)]
+    return out
+
+
+def production_conditioning(view, query, md, indices, positions, *, source_chunk, micro):
+    """The PRODUCTION code path at the given batching, one row per candidate: the per-query
+    context, the receiver cache (``ReceiverCache.build``) and ``scored_conditioning``."""
+    context = me.query_context(view, md)
+    cache = me.ReceiverCache.build(view.conditioner, query.receiver_id, {"depth": md["depth"]},
+                                   indices, positions, view.device, chunk=source_chunk,
+                                   fa=view.split)
+    candidate = {"context_poses": md["context_poses"], "positions": positions}
+    rows_all = cache.rows_for(indices)
+    return concat_blocks([me.scored_conditioning(view, context, cache, rows_all[start:start + micro],
+                                                 candidate, start=start, stop=start + micro,
+                                                 num_samples=1, configured=micro)
+                          for start in range(0, len(indices), micro)])
+
+
+def released_conditioning(engine, md, positions, angles, per_candidate=False):
+    """exp_20's ``fa_conditioning`` (the released path) over the candidates: all in one
+    call, or each candidate alone (``per_candidate``)."""
+    from src.localization.candidates import candidate_metadata
+    from src.localization.crossarm import fa_conditioning
+
+    free = without_target(md)
+    groups = [[p] for p in positions] if per_candidate else [list(positions)]
+    return concat_blocks([fa_conditioning(engine.conditioner,
+                                          [candidate_metadata(free, p) for p in group],
+                                          engine.device, angles) for group in groups])
+
+
+def cache_parity(engine, query, md, *, n_candidates=None, source_chunk=me.SOURCE_CHUNK,
+                 micro_batch=1):
+    """G2 -- the caches are an exact memoization at matched batching, and the check bites."""
+    split = require_split(engine)
+    n = max(2, min(query.n_candidates,
+                   2 * int(source_chunk) if n_candidates is None else int(n_candidates)))
+    indices = [int(i) for i in query.candidate_indices[:n]]
+    positions = me.candidate_inputs(engine, query, md)["positions"][:n]
+    uncached = released_conditioning(engine, md, positions, split.angles, per_candidate=True)
+    memo_view = gate_engine(engine)
+    cached = production_conditioning(memo_view, query, md, indices, positions, source_chunk=1,
+                                     micro=1)
+    conditioning, why = compare_conditioning(cached, uncached, GATE_TOLERANCES["G2"])
+    inputs, why_inputs = compare_inputs(memo_view.cond_inputs_fn(cached),
+                                        engine.cond_inputs_fn(uncached), GATE_TOLERANCES["G2"])
+    reasons = [f"memoization: {item}" for item in why + why_inputs]
+
+    blind = gate_engine(engine, record=False)
+    mutants = {
+        "moved_candidates": production_conditioning(blind, query, md, indices, positions + 1.0,
+                                                    source_chunk=1, micro=1),
+        "per_query_context_poses": dict(cached, context_poses=[
+            cached["context_poses"][0][:1].expand_as(cached["context_poses"][0]),
+            cached["context_poses"][1]]),
+        "unaveraged_vit": production_conditioning(gate_engine(engine, angles=(0.0,), record=False),
+                                                  query, md, indices, positions, source_chunk=1,
+                                                  micro=1),
+        "swapped_candidates": {key: [value[0].flip(0), value[1]]
+                               for key, value in cached.items()}}
+    counters = {}
+    for name, mutant in mutants.items():
+        moved = {key: tensor_pair(mutant[key][0], uncached[key][0], 0.0)["max_abs_diff"]
+                 for key in COUNTER_KEYS[name]}
+        counters[name] = {"keys": moved, "detected": all(value > 0.0 for value in moved.values())}
+        if not counters[name]["detected"]:
+            reasons.append(f"counter-test {name} did not bite on {sorted(COUNTER_KEYS[name])}: "
+                           "a comparison that cannot fail proves nothing")
+
+    batched_view = gate_engine(engine)
+    production = production_conditioning(batched_view, query, md, indices, positions,
+                                         source_chunk=source_chunk, micro=int(micro_batch))
+    batched, _ = compare_conditioning(production, released_conditioning(
+        engine, md, positions, split.angles), float("inf"))
+    per_key = fold_per_key({}, conditioning, inputs)
+    return gate_report(
+        "G2", reasons, per_key=per_key, counter_tests=counters,
+        memoization={"match": not why and not why_inputs, "conditioning": conditioning,
+                     "dit_inputs": inputs},
+        batched={"informational": True, "keys": batched,
+                 "max_abs_diff": max(entry["tensor"]["max_abs_diff"]
+                                     for entry in batched.values()),
+                 "executed_partition": batched_view.split.recorder.report(),
+                 "note": "production chunks against ONE released call over all candidates: a "
+                         "nonzero value is the backbone's own batch-shape nondeterminism; gate 3 "
+                         "owns the production comparison"},
+        inputs=query_inputs(query, n, source_chunk=int(source_chunk),
+                            micro_batch=int(micro_batch), angles=list(split.angles)),
+        executed_partition=memo_view.split.recorder.report())

@@ -889,3 +889,89 @@ def test_a_bfloat16_tensor_is_digested_without_numpy():
     assert facts["digest"][0] == facts["digest"][1] and len(facts["digest"][0]) == 64
     other = fp.tensor_pair(value, value.float(), 0.0)
     assert other["bitwise"] is False and any("dtype" in r for r in other["reasons"])
+
+
+# --------------------------------------------------------------------------- #
+# gate 2 -- cached vs uncached memoization at matched batching, with counter-tests
+# --------------------------------------------------------------------------- #
+COUNTERS = {"moved_candidates": {"source", "source_vit", "context_poses"},
+            "per_query_context_poses": {"context_poses"},
+            "unaveraged_vit": {"source_vit", "context_poses_vit"},
+            "swapped_candidates": {"source", "source_vit", "context_poses"}}
+
+
+def test_gate2_memoization_is_bit_exact_and_every_counter_test_bites(tmp_path):
+    query, md = _gate_query(tmp_path)
+    report = fp.cache_parity(FaSyntheticEngine(), query, md, n_candidates=5, source_chunk=2,
+                             micro_batch=3)
+    assert report["gate"] == "G2" and report["name"] == "fa_cache_parity"
+    assert report["verdict"] == "PASS" and report["reasons"] == []
+    memo = report["memoization"]
+    assert memo["match"] is True
+    for key in FA_IDS:
+        assert memo["conditioning"][key]["tensor"]["bitwise"]
+        assert memo["conditioning"][key]["mask"]["bitwise"]
+    assert all(entry["bitwise"] for entry in memo["dit_inputs"].values())
+    assert set(report["counter_tests"]) == set(COUNTERS)
+    for name, keys in COUNTERS.items():
+        counter = report["counter_tests"][name]
+        assert set(counter["keys"]) == keys and counter["detected"] is True, name
+        assert all(value > 0.0 for value in counter["keys"].values()), name
+    # matched batching IS one candidate per call, on both sides
+    executed = report["executed_partition"]["executed"]
+    assert executed["context_vit"]["candidate_micro_batch"] == 1
+    assert executed["context_scored_batch"]["candidate_micro_batch"] == 1
+    assert executed["source_cache"]["candidate_micro_batch"] == 1
+    assert report["batched"]["informational"] is True
+    assert report["inputs"]["source_chunk"] == 2 and report["inputs"]["n_candidates"] == 5
+
+
+def test_gate2_separates_batch_nondeterminism_from_a_cache_error(tmp_path):
+    query, md = _gate_query(tmp_path)
+    engine = FaSyntheticEngine()
+    engine.conditioner = BatchSensitiveFa()
+    report = fp.cache_parity(engine, query, md, n_candidates=5, source_chunk=2, micro_batch=3)
+    assert report["verdict"] == "PASS"                         # matched batching is exact
+    assert report["batched"]["max_abs_diff"] > 0.0             # production shapes are not
+
+
+def test_gate2_fails_on_a_cache_that_serves_something_else(tmp_path):
+    query, md = _gate_query(tmp_path)
+
+    class Unfaithful(FaFakeConditioner):
+        """The source batch's rotated pass computes source_vit differently."""
+
+        def __call__(self, batch_metadata, device, only_ids=None):
+            out = super().__call__(batch_metadata, device, only_ids=only_ids)
+            if only_ids is not None and list(only_ids) == ["source_vit"]:
+                out["source_vit"] = [out["source_vit"][0] + 0.5, out["source_vit"][1]]
+            return out
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = Unfaithful()
+    report = fp.cache_parity(engine, query, md, n_candidates=5, source_chunk=2, micro_batch=3)
+    assert report["verdict"] == "FAIL" and report["memoization"]["match"] is False
+    assert any(reason.startswith("memoization: source_vit") for reason in report["reasons"])
+
+
+def test_gate2_fails_when_a_counter_test_cannot_bite(tmp_path):
+    query, md = _gate_query(tmp_path)
+
+    class Blind(FaFakeConditioner):
+        """A backbone that ignores every pose: no comparison over it can fail."""
+
+        def _row(self, key, row):
+            return torch.zeros(3)
+
+    engine = FaSyntheticEngine()
+    engine.conditioner = Blind()
+    report = fp.cache_parity(engine, query, md, n_candidates=5, source_chunk=2, micro_batch=3)
+    assert report["memoization"]["match"] is True
+    assert report["verdict"] == "FAIL"
+    assert any("did not bite" in reason for reason in report["reasons"])
+
+
+def test_the_vanilla_parity_refuses_an_engine_with_the_split(tmp_path):
+    query, md = _gate_query(tmp_path)
+    with pytest.raises(ValueError, match="fa_cache_parity"):
+        me.cache_parity_check(FaSyntheticEngine(), query, md, n_candidates=3, source_chunk=2)

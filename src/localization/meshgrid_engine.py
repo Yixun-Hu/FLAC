@@ -2482,6 +2482,9 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
     """
     from src.localization.candidates import candidate_metadata
 
+    if getattr(engine, "split", None) is not None:
+        raise ValueError("cache_parity_check is the VANILLA proof; an engine with the fa split "
+                         "is gated by meshgrid_fa_parity.cache_parity (fa_cache_parity, gate 2)")
     # the source branch needs depth and a candidate pose -- never the target
     md = md.without_target() if isinstance(md, GuardedMetadata) else md
     # default to MORE candidates than one production chunk, so the batched half
