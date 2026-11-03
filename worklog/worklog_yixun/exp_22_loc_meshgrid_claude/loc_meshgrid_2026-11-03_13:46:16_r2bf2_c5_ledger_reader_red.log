@@ -1,0 +1,23 @@
+# rB-F2 cycle 5 RED (Codex rB-F1 finding 3 HIGH: one central validating ledger reader for reopen and merge), HEAD 9f60dede3e96fd2154f001868fa09948aae1b8da, 2026-11-03T13:47:48-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[duplicated segment index]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[missing segment index]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[negative count]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[summary block mismatch]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[summary digest mismatch]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[summary names a missing ledger]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[tampered count]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[tampered merged block]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[tampered segment digest]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[duplicated segment index]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[missing segment index]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[negative count]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[tampered count]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[tampered merged block]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[tampered segment digest]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[stale summary]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_refuses_a_corrupted_ledger_before_it_writes_or_touches_a_device
+17 failed, 202 passed, 11 warnings in 88.63s (0:01:28)
+## the garbled-ledger case (added while going green), RED against the HEAD engine/driver, 2026-11-03T14:04:10-05:00
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[garbled ledger]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[garbled ledger]
+2 failed, 219 deselected, 3 warnings in 6.10s

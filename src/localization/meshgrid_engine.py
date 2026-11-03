@@ -802,16 +802,145 @@ def counts_sha256(recorder):
     return canonical_sha256(recorder.to_counts())
 
 
-def open_fa_ledger(out_dir, declared, launch_record_sha256=None):
-    """This invocation's (new) segment of the run's ledger; refused for another declaration."""
-    path = os.path.join(str(out_dir), FA_LEDGER_FILENAME)
-    payload = {"declared": declared, "segments": [], "note": FA_LEDGER_NOTE}
-    if os.path.isfile(path):
+RUN_SUMMARY_FILENAME = "run_summary.json"
+#: one row of a ledger segment's counts (``FaPartitionRecorder.to_counts``)
+LEDGER_ENTRY_FIELDS = ("branch", "configured", "cap", "base", "orbit", "orbit_size", "count")
+
+
+def _count(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _segment_reasons(index, segment):
+    """``(reasons, recorder)`` for one segment: a non-negative query count, canonical counts
+    of non-negative integers, and the digest it stores of them."""
+    reasons = [] if _count(segment.get("n_queries")) else [
+        f"segment {index}'s n_queries {segment.get('n_queries')!r} is not a non-negative integer"]
+    counts = segment.get("counts")
+    if not (isinstance(counts, list) and all(
+            isinstance(entry, dict) and sorted(entry) == sorted(LEDGER_ENTRY_FIELDS)
+            and isinstance(entry["base"], list) and isinstance(entry["orbit"], list)
+            for entry in counts)):
+        return reasons + [f"segment {index}'s counts are not {list(LEDGER_ENTRY_FIELDS)} rows"], None
+    if not all(_count(value) for entry in counts for value in (
+            entry["configured"], entry["cap"], entry["orbit_size"], entry["count"],
+            *entry["base"], *entry["orbit"])):
+        return reasons + [f"segment {index} holds a count that is not a non-negative integer"], None
+    recorder = FaPartitionRecorder.from_counts(counts)
+    if recorder.to_counts() != counts:
+        reasons.append(f"segment {index}'s counts are not canonical (repeated or unsorted rows)")
+    if segment.get("counts_sha256") != counts_sha256(recorder):
+        reasons.append(f"segment {index}'s counts do not hash to its counts_sha256")
+    return reasons, recorder
+
+
+def _ledger_reasons(payload, declared):
+    """``(reasons, summed recorder or None)``: the ledger's own integrity -- its declaration,
+    segment indices 0..n-1 once each, every segment, and the stored merged block."""
+    if not isinstance(payload, dict) or payload.get("declared") != declared:
+        return ["it is the ledger of another declaration (or of none)"], None
+    segments = payload.get("segments")
+    if not (isinstance(segments, list) and segments
+            and all(isinstance(segment, dict) for segment in segments)):
+        return ["it holds no list of segments"], None
+    indices = [segment.get("segment_index") for segment in segments]
+    reasons = [] if indices == list(range(len(segments))) else [
+        f"its segment indices {indices} are not 0..{len(segments) - 1} once each (a segment is "
+        "missing or duplicated)"]
+    found = [_segment_reasons(index, segment) for index, segment in enumerate(segments)]
+    reasons += [reason for why, _recorder in found for reason in why]
+    if any(recorder is None for _why, recorder in found):
+        return reasons, None
+    merged = FaPartitionRecorder.from_counts(*[segment["counts"] for segment in segments])
+    wanted = {"counts_sha256": counts_sha256(merged), "executed": merged.executed(),
+              "violations": merged.violations()}
+    stored = payload.get("merged") if isinstance(payload.get("merged"), dict) else {}
+    moved = sorted(key for key in set(wanted) | set(stored) if stored.get(key) != wanted.get(key))
+    if moved:
+        reasons.append(f"its stored merged block differs from the sum of its segments on {moved}")
+    return reasons, merged
+
+
+def _summary_reasons(summary, segments, merged, exact):
+    """The run summary's ``fa_partition_executed`` against the ledger: at a merge, exactly the
+    whole ledger; at a reopen absent, or exactly its first ``n_segments`` (an invocation
+    finished, a later one crashed after adding a segment)."""
+    block = (summary or {}).get("fa_partition_executed")
+    if not isinstance(block, dict):
+        return (["the run summary carries no fa_partition_executed block for it"]
+                if exact or summary is not None else [])
+    k = (block.get("ledger") or {}).get("n_segments")
+    if not (_count(k) and 1 <= k <= len(segments)) or (exact and k != len(segments)):
+        return [f"the run summary's ledger block covers {k!r} of its {len(segments)} segments"]
+    prefix = merged if k == len(segments) else FaPartitionRecorder.from_counts(
+        *[segment["counts"] for segment in segments[:k]])
+    wanted = dict(prefix.report(), ledger={"file": FA_LEDGER_FILENAME, "n_segments": k,
+                                           "counts_sha256": counts_sha256(prefix)})
+    moved = sorted(key for key in set(wanted) | set(block) if block.get(key) != wanted.get(key))
+    return [f"the run summary's fa_partition_executed is not its ledger's first {k} "
+            f"segment(s) (differs on {moved})"] if moved else []
+
+
+def _read_object(path):
+    """A JSON object from ``path``, or a refusal that names the file."""
+    try:
         with open(path) as handle:
             payload = json.load(handle)
-        if payload.get("declared") != declared:
-            raise ValueError(f"{path} is the executed-partition ledger of another declaration; "
-                             "this pass may not add a segment to it")
+    except ValueError as error:
+        raise ValueError(f"{path} is not valid JSON ({error})") from None
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return payload
+
+
+def read_fa_ledger(out_dir, declared, exact=False):
+    """THE validating reader of a run's executed-partition ledger (Codex rB-F1 finding 3) --
+    the one every reopen (``open_fa_ledger``, the driver's preflight) and the merge
+    (``fa_partition_census``, ``exact=True``) go through. It refuses, naming every broken
+    check: another declaration; segment indices not 0..n-1 once each; a count or query count
+    that is not a non-negative integer; counts not canonical or not hashing to their
+    segment's ``counts_sha256``; a stored merged block (digest, executed, violations) that
+    is not the sum of the segments; a run summary block that is not the whole ledger (merge)
+    or a prefix of it (reopen); an executed partition not the declared one (exactly at a
+    merge, as a consistent prefix at a reopen). A vanilla run carries no ledger and no block.
+    Returns ``None`` when no ledger is on disk and none is required."""
+    out_dir = str(out_dir)
+    path = os.path.join(out_dir, FA_LEDGER_FILENAME)
+    summary_path = os.path.join(out_dir, RUN_SUMMARY_FILENAME)
+    summary = _read_object(summary_path) if os.path.isfile(summary_path) else None
+    if declared is None:
+        if os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None:
+            raise ValueError(f"{out_dir}: a vanilla run carries no frame-average executed "
+                             f"partition, but it carries a {FA_LEDGER_FILENAME} or a summary block")
+        return None
+    if not os.path.isfile(path):
+        if exact or (summary or {}).get("fa_partition_executed") is not None:
+            raise ValueError(f"{out_dir} publishes no {FA_LEDGER_FILENAME}: its executed "
+                             "frame-average partition is not on disk, so it can be neither "
+                             "resumed nor merged")
+        return None
+    payload = _read_object(path)
+    reasons, merged = _ledger_reasons(payload, declared)
+    if not reasons:
+        reasons = _summary_reasons(summary, payload["segments"], merged, exact)
+    if not reasons:
+        try:
+            assert_fa_partition_executed(declared, merged, final=exact)
+        except ValueError as error:
+            reasons.append(str(error))
+    if reasons:
+        raise ValueError(f"{path} does not verify: " + "; ".join(reasons))
+    return {"path": path, "payload": payload, "merged": merged,
+            "counts_sha256": counts_sha256(merged), "n_segments": len(payload["segments"])}
+
+
+def open_fa_ledger(out_dir, declared, launch_record_sha256=None):
+    """This invocation's (new) segment of the run's ledger, opened only on a ledger that
+    verifies (:func:`read_fa_ledger`) -- before anything is written."""
+    found = read_fa_ledger(out_dir, declared)
+    path = os.path.join(str(out_dir), FA_LEDGER_FILENAME)
+    payload = (found["payload"] if found is not None
+               else {"declared": declared, "segments": [], "note": FA_LEDGER_NOTE})
     payload["segments"].append({"segment_index": len(payload["segments"]), "n_queries": 0,
                                 "launch_record_sha256": launch_record_sha256, "counts": []})
     return {"path": path, "payload": payload}
@@ -841,42 +970,21 @@ def fa_executed_block(declared, merged, n_segments):
 
 
 def fa_partition_census(shards, declared):
-    """Each shard's executed partition re-derived from its ledger and held to the declaration
-    and to its own run summary, then the sum over shards -- or ``None`` for a vanilla run."""
-    if declared is None:
-        carrying = [shard["dir"] for shard in shards if shard["summary"].get(
-            "fa_partition_executed") is not None or os.path.exists(
-                os.path.join(shard["dir"], FA_LEDGER_FILENAME))]
-        if carrying:
-            raise ValueError(f"a vanilla run's shards carry no frame-average executed partition, "
-                             f"but {carrying} do")
-        return None
+    """Each shard's ledger read through THE validating reader (:func:`read_fa_ledger`,
+    exactly: integrity, a run summary covering every segment, the exact declared partition),
+    then the sum over shards -- or ``None`` for a vanilla run, whose shards carry none."""
     per_shard, segments, recorders = [], [], []
     for shard in shards:
-        path = os.path.join(shard["dir"], FA_LEDGER_FILENAME)
-        if not os.path.isfile(path):
-            raise ValueError(f"{shard['dir']} publishes no {FA_LEDGER_FILENAME}: its executed "
-                             "frame-average partition is not on disk, so it cannot enter a merge")
-        with open(path) as handle:
-            ledger = json.load(handle)
-        recorder = FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["segments"]])
-        try:
-            if ledger.get("declared") != declared:
-                raise ValueError("its ledger records another declaration")
-            report = assert_fa_partition_executed(declared, recorder)
-        except ValueError as error:
-            raise ValueError(f"{shard['dir']}: {error}") from None
-        published, digest = shard["summary"].get("fa_partition_executed") or {}, \
-            counts_sha256(recorder)
-        if (published.get("executed") != report["executed"]
-                or (published.get("ledger") or {}).get("counts_sha256") != digest):
-            raise ValueError(f"{shard['dir']}: the run summary's executed partition is not its "
-                             f"ledger's ({digest[:12]}...); finish the shard so its summary covers "
-                             "every segment")
-        per_shard.append({"dir": shard["dir"], "counts_sha256": digest,
-                          "n_segments": len(ledger["segments"])})
-        segments += [dict(segment, shard=shard["dir"]) for segment in ledger["segments"]]
-        recorders.append(recorder)
+        # THE reader, exactly: integrity, the whole-ledger summary, the exact partition
+        ledger = read_fa_ledger(shard["dir"], declared, exact=True)
+        if declared is None:
+            continue
+        per_shard.append({"dir": shard["dir"], "counts_sha256": ledger["counts_sha256"],
+                          "n_segments": ledger["n_segments"]})
+        segments += [dict(segment, shard=shard["dir"]) for segment in ledger["payload"]["segments"]]
+        recorders.append(ledger["merged"])
+    if declared is None:
+        return None
     union = FaPartitionRecorder.from_counts(*[recorder.to_counts() for recorder in recorders])
     report = assert_fa_partition_executed(declared, union)
     return {"executed": report["executed"], "violations": report["violations"],

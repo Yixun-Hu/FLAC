@@ -406,6 +406,13 @@ def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256
     # the split the engine will be built under (R2-B): fa is admitted only with it
     me.assert_cacheable(args.cond_method,
                         me.split_for(args.cond_method, resolved_protocol(args)[0]))
+    if writes_query_artifacts(args):
+        # the out-dir's executed-partition state through THE reader, before the engine is
+        # built and before claim_out_dir writes anything (Codex rB-F1 finding 3)
+        try:
+            me.read_fa_ledger(args.out_dir, binding.get("fa_partition"))
+        except (OSError, ValueError) as error:
+            _refuse(f"out-dir {args.out_dir}: {error}")
     return binding, {"registered": registered, "embedded": embedded,
                      "cond_binding": cond_binding, "gate_identity": identity}
 

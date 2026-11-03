@@ -2814,3 +2814,162 @@ def test_every_finalized_evidence_tells_its_reader_how_to_re_verify_it(tmp_path)
                                     environment=CLEAN_ENVIRONMENT, inputs=_g1_inputs())
     assert evidence["reverify_note"] == fp.REVERIFY_NOTE
     assert "reverify_gate_evidence" in fp.REVERIFY_NOTE
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB-F1 finding 3: ONE validating ledger reader, used by every reopen (resume,
+# the driver's preflight) and by the merge -- the ledger is tamper-evident across both
+# --------------------------------------------------------------------------- #
+def _fa_files(out):
+    ledger_path = os.path.join(out, me.FA_LEDGER_FILENAME)
+    summary_path = os.path.join(out, "run_summary.json")
+    return ledger_path, summary_path
+
+
+def _two_segment_run(out, stack):
+    """A finished fa run ``out`` plus a final no-op resume: two ledger segments and the
+    run summary the driver writes after each invocation."""
+    plan, records, items = stack
+    done, _rejected = me.completed_queries(out)
+    summary = me.run_pass(FaSyntheticEngine(), items, records, plan, out, done=done,
+                          fa_partition=FA_DECLARED, **FA_SHAPES)
+    me.write_json(_fa_files(out)[1], summary)
+    assert len(_ledger(out)["segments"]) == 2
+    return done
+
+
+def _resummed(ledger):
+    """Recompute every stored digest of ``ledger`` from its (edited) counts, so that only
+    the check under test can catch the edit."""
+    for segment in ledger["segments"]:
+        segment["counts_sha256"] = me.counts_sha256(
+            me.FaPartitionRecorder.from_counts(segment["counts"]))
+    merged = me.FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["segments"]])
+    ledger["merged"] = {"counts_sha256": me.counts_sha256(merged),
+                        "executed": merged.executed(), "violations": merged.violations()}
+    return ledger
+
+
+def _bump(ledger):
+    ledger["segments"][0]["counts"][0]["count"] += 1
+
+
+def _negative(ledger):
+    ledger["segments"][0]["counts"][0]["count"] = -1
+    _resummed(ledger)
+
+
+LEDGER_CORRUPTIONS = {
+    # name: (edit the ledger, edit the run summary, the refusal's needle)
+    "tampered count": (_bump, None, "segment 0's counts do not hash to its counts_sha256"),
+    "tampered segment digest": (lambda l: l["segments"][1].update(counts_sha256="0" * 64), None,
+                                "segment 1's counts do not hash"),
+    "tampered merged block": (lambda l: l["merged"]["executed"].update(orbit_size=5), None,
+                              "merged block"),
+    "missing segment index": (lambda l: l["segments"].pop(0), None, "segment indices"),
+    "duplicated segment index": (lambda l: l["segments"][1].update(segment_index=0), None,
+                                 "segment indices"),
+    "negative count": (_negative, None, "not a non-negative integer"),
+    "summary digest mismatch": (None, lambda s: s["fa_partition_executed"]["ledger"].update(
+        counts_sha256="0" * 64), "run summary"),
+    "summary block mismatch": (None, lambda s: s["fa_partition_executed"]["executed"].update(
+        orbit_size=5), "run summary"),
+    "summary names a missing ledger": ("delete", None, "not on disk"),
+    "garbled ledger": ("garble", None, "is not valid JSON"),
+}
+
+
+def _corrupt(out, name):
+    edit_ledger, edit_summary, needle = LEDGER_CORRUPTIONS[name]
+    ledger_path, summary_path = _fa_files(out)
+    if edit_ledger == "delete":
+        os.remove(ledger_path)
+    elif edit_ledger == "garble":
+        open(ledger_path, "w").write('{"declared": ')
+    elif edit_ledger is not None:
+        ledger = _ledger(out)
+        edit_ledger(ledger)
+        me.write_json(ledger_path, ledger)
+    if edit_summary is not None:
+        summary = json.load(open(summary_path))
+        edit_summary(summary)
+        me.write_json(summary_path, summary)
+    return needle
+
+
+def _snapshot(directory):
+    """Every file under ``directory`` and the sha256 of its bytes."""
+    import hashlib
+
+    found = {}
+    for root, _dirs, files in os.walk(directory):
+        for name in files:
+            path = os.path.join(root, name)
+            found[os.path.relpath(path, directory)] = hashlib.sha256(
+                open(path, "rb").read()).hexdigest()
+    return found
+
+
+@pytest.mark.parametrize("name", sorted(LEDGER_CORRUPTIONS))
+def test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything(tmp_path,
+                                                                                      name):
+    _engine, summary, out, stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    done = _two_segment_run(out, stack)
+    assert me.read_fa_ledger(out, FA_DECLARED)["n_segments"] == 2       # the honest run reads
+    needle = _corrupt(out, name)
+    before = _snapshot(out)
+    engine = FaSyntheticEngine()
+    plan, records, items = stack
+    with pytest.raises(ValueError, match=re_escape(needle)):
+        me.run_pass(engine, items, records, plan, out, done=done, fa_partition=FA_DECLARED,
+                    **FA_SHAPES)
+    assert _snapshot(out) == before and engine.conditioner.calls == []
+    with pytest.raises(ValueError, match=re_escape(needle)):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def re_escape(text):
+    import re
+
+    return re.escape(text)
+
+
+@pytest.mark.parametrize("name", sorted(LEDGER_CORRUPTIONS) + ["stale summary"])
+def test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written(tmp_path, name):
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    shard = dirs["b"]
+    _two_segment_run(shard, _fa_aligned(tmp_path / "stack"))
+    if name == "stale summary":            # a reopen admits it (a crash after the segment);
+        summary_path = _fa_files(shard)[1]  # the merge needs the summary of EVERY segment
+        summary = json.load(open(summary_path))
+        prefix = me.FaPartitionRecorder.from_counts(_ledger(shard)["segments"][0]["counts"])
+        summary["fa_partition_executed"] = me.fa_executed_block(FA_DECLARED, prefix, 1)
+        me.write_json(summary_path, summary)
+        assert me.read_fa_ledger(shard, FA_DECLARED)["n_segments"] == 2
+        needle = "run summary"
+    else:
+        needle = _corrupt(shard, name)
+    merged = str(tmp_path / "merged")
+    with pytest.raises(ValueError, match=re_escape(needle)):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    assert not os.path.exists(merged)
+
+
+def test_the_driver_refuses_a_corrupted_ledger_before_it_writes_or_touches_a_device(tmp_path):
+    """The driver's preflight reads the out-dir through the same reader, BEFORE the engine is
+    built and before claim_out_dir writes the binding or opens a launch segment."""
+    # the fixture run at the REGISTERED shapes, so its declaration is the driver's binding's
+    _engine, summary, out, stack = _fa_pass(tmp_path / "run", batch_rows=256, num_samples=8,
+                                            prefixes=(1, 4, 8), source_chunk=16,
+                                            fa_partition=DECLARED)
+    me.write_json(_fa_files(out)[1], summary)
+    args = _preflight_args(tmp_path / "pre", "--resume", "--launch-record", "x.json",
+                           protocol=ENG._FA_PROTOCOL)
+    args.out_dir = out
+    assert _preflight(args, "BF")[0]["fa_partition"] == DECLARED       # the honest run reopens
+    _corrupt(out, "tampered count")
+    before = _snapshot(out)
+    with pytest.raises(SystemExit, match="counts do not hash to its counts_sha256"):
+        _preflight(args, "BF")
+    assert _snapshot(out) == before
