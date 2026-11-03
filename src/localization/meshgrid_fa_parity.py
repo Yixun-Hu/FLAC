@@ -151,28 +151,49 @@ def _digest(tensor):
                           + tensor.view(torch.int16).numpy().tobytes()).hexdigest()
 
 
+def _fmt(value):
+    return f"{value:.3g}" if isinstance(value, (int, float)) else repr(value)
+
+
+def pair_reasons(facts, tolerance):
+    """The tensor clause over a pair's SERIALIZED facts -- one predicate, applied by the gates
+    and again by :func:`reverify_gate_evidence`: one shape, one dtype, finite values and (for
+    a gate) max |diff| within the registered tolerance (a NaN is never within it)."""
+    shape, dtype = facts.get("shape") or [None, None], facts.get("dtype") or [None, None]
+    reasons = [f"shape {shape[0]} vs {shape[1]}"] if shape[0] != shape[1] else []
+    if dtype[0] != dtype[1]:
+        reasons.append(f"dtype {dtype[0]} vs {dtype[1]}: equal values in different storage are "
+                       "not parity")
+    if facts.get("finite") is not True:
+        reasons.append("a non-finite value is present; a verdict over it is meaningless")
+    found = facts.get("max_abs_diff")
+    if tolerance is not None and not (isinstance(found, (int, float))
+                                      and found <= float(tolerance)):
+        reasons.append(f"max |diff| {_fmt(found)} > {tolerance}")
+    return reasons
+
+
+def mask_reasons(facts, tolerance):
+    """The mask clause: present on both sides or on neither, then the tensor clause."""
+    if "none" in facts:
+        return [] if facts.get("none") == [True, True] else ["a mask is present on one side only"]
+    return pair_reasons(facts, tolerance)
+
+
 def tensor_pair(left, right, tolerance):
     """Exact facts about two tensors: shapes, dtypes, digests, finiteness, max |diff|."""
     a = torch.as_tensor(left).detach().cpu()
     b = torch.as_tensor(right).detach().cpu()
     facts = {"shape": [list(a.shape), list(b.shape)], "dtype": [str(a.dtype), str(b.dtype)],
              "digest": [_digest(a), _digest(b)],
-             "finite": bool(torch.isfinite(a.double()).all() and torch.isfinite(b.double()).all()),
-             "reasons": []}
+             "finite": bool(torch.isfinite(a.double()).all() and torch.isfinite(b.double()).all())}
     if a.shape != b.shape:
         facts.update(max_abs_diff=float("inf"), bitwise=False)
-        facts["reasons"].append(f"shape {list(a.shape)} vs {list(b.shape)}")
     else:
         facts["max_abs_diff"] = (float((a.double() - b.double()).abs().max())
                                  if a.numel() else 0.0)
         facts["bitwise"] = bool(a.dtype == b.dtype and torch.equal(a, b))
-    if a.dtype != b.dtype:
-        facts["reasons"].append(f"dtype {a.dtype} vs {b.dtype}: equal values in different "
-                                "storage are not parity")
-    if not facts["finite"]:
-        facts["reasons"].append("a non-finite value is present; a verdict over it is meaningless")
-    if tolerance is not None and facts["max_abs_diff"] > float(tolerance):
-        facts["reasons"].append(f"max |diff| {facts['max_abs_diff']:.3g} > {tolerance}")
+    facts["reasons"] = pair_reasons(facts, tolerance)
     return facts
 
 
@@ -182,13 +203,13 @@ def _mask_pair(left, right, tolerance):
     same = left is None and right is None
     sides = [None if mask is None else torch.as_tensor(mask).detach().cpu()
              for mask in (left, right)]
-    return {"none": [left is None, right is None], "bitwise": same,
-            "max_abs_diff": 0.0 if same else float("inf"), "finite": True,
-            # presence is a fact of the comparison: it enters the digest chain too
-            "digest": ["none" if side is None else _digest(side) for side in sides],
-            "dtype": ["none" if side is None else str(side.dtype) for side in sides],
-            "shape": [None if side is None else list(side.shape) for side in sides],
-            "reasons": [] if same else ["a mask is present on one side only"]}
+    facts = {"none": [left is None, right is None], "bitwise": same,
+             "max_abs_diff": 0.0 if same else float("inf"), "finite": True,
+             # presence is a fact of the comparison: it enters the digest chain too
+             "digest": ["none" if side is None else _digest(side) for side in sides],
+             "dtype": ["none" if side is None else str(side.dtype) for side in sides],
+             "shape": [None if side is None else list(side.shape) for side in sides]}
+    return dict(facts, reasons=mask_reasons(facts, tolerance))
 
 
 def compare_conditioning(left, right, tolerance):
@@ -314,9 +335,14 @@ def anchor_reasons(block, key_set_equal):
 def anchor_evidence(anchor, registered, consumed):
     """``(block, key_set_equal, reasons)``: the anchor as G0 publishes it, for G3 / G3D."""
     block = {key: (anchor or {}).get(key) for key in ANCHOR_EVIDENCE}
-    ids = sorted(str(query) for query in block["query_ids"] or [])
-    equal = bool(ids) and ids == sorted(registered or []) == sorted(consumed)
+    equal = key_set_equal(block, registered, consumed)
     return block, equal, anchor_reasons(block if anchor else None, equal)
+
+
+def key_set_equal(block, registered, consumed):
+    """The anchor's query ids are exactly the registered AND the consumed ones."""
+    ids = sorted(str(query) for query in (block or {}).get("query_ids") or [])
+    return bool(ids) and ids == sorted(registered or []) == sorted(consumed or [])
 
 
 def gate_report(gate, reasons, **fields):
@@ -642,13 +668,46 @@ def _score_deltas(production, replayed, indices, tau, prefixes, enforce=True):
         equal = me.argmax_by_global_index(a, indices) == me.argmax_by_global_index(b, indices)
         out[str(k)] = {"max_abs_delta": delta, "argmax_equal": bool(equal),
                        "at_risk": not me.is_argmax_stable(me.top1_margin(a))}
-        if not enforce:                # the drift measurement publishes, it does not judge
-            continue
-        if delta > me.SCORE_TOLERANCE:
-            why.append(f"K={k}: score |diff| {delta:.3g} > SCORE_TOLERANCE {me.SCORE_TOLERANCE}")
-        if not equal:
-            why.append(f"K={k}: the argmax moved between production and replay")
+        if enforce:                    # the drift measurement publishes, it does not judge
+            why += score_reasons(k, out[str(k)])
     return out, why
+
+
+def score_reasons(k, facts):
+    """The score clause of one K over its serialized facts: |dS| within SCORE_TOLERANCE (a
+    NaN never is) and the argmax unmoved."""
+    delta, why = facts.get("max_abs_delta"), []
+    if not (isinstance(delta, (int, float)) and delta <= me.SCORE_TOLERANCE):
+        why.append(f"K={k}: score |diff| {_fmt(delta)} > SCORE_TOLERANCE {me.SCORE_TOLERANCE}")
+    if facts.get("argmax_equal") is not True:
+        why.append(f"K={k}: the argmax moved between production and replay")
+    return why
+
+
+def score_summary(entries):
+    """Per-K stability over the queries: the worst |dS| and the agreement counts."""
+    by_k = {}
+    for entry in entries:
+        for k, facts in entry["score_stability"].items():
+            block = by_k.setdefault(k, {"max_abs_delta": 0.0, "n_queries": 0,
+                                        "n_argmax_equal": 0, "n_at_risk": 0})
+            block["max_abs_delta"] = max(block["max_abs_delta"], facts["max_abs_delta"])
+            block["n_queries"] += 1
+            block["n_argmax_equal"] += int(facts["argmax_equal"])
+            block["n_at_risk"] += int(facts["at_risk"])
+    return by_k
+
+
+def chunk_summary(conditioning):
+    """A chunk's headline over its five tensors: the worst |diff| and bitwise identity."""
+    return {"max_abs_diff": max(e["tensor"]["max_abs_diff"] for e in conditioning.values()),
+            "bitwise": all(e["tensor"]["bitwise"] and e["mask"]["bitwise"]
+                           for e in conditioning.values())}
+
+
+def source_sizes(union, chunk):
+    """The source-cache batch sizes a receiver union of ``union`` makes at ``chunk``."""
+    return [min(int(chunk), int(union) - start) for start in range(0, int(union), int(chunk))]
 
 
 def _chain(chains, conditioning, inputs):
@@ -697,11 +756,7 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
         _chain(chains, conditioning, inputs)
         why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]
         sizes["scored"].append(len(slice_indices))
-        chunks.append({"start": start, "n": len(slice_indices),
-                       "max_abs_diff": max(e["tensor"]["max_abs_diff"]
-                                           for e in conditioning.values()),
-                       "bitwise": all(e["tensor"]["bitwise"] and e["mask"]["bitwise"]
-                                      for e in conditioning.values()),
+        chunks.append({"start": start, "n": len(slice_indices), **chunk_summary(conditioning),
                        # what the verdict was judged on, whole (Codex rB-F1 finding 2)
                        "replay_partition": dict(replayed_partition[0]),
                        "conditioning": conditioning, "dit_inputs": inputs})
@@ -715,8 +770,7 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
         parts.append(cosine_sims(obs, engine.embedder(wavs).reshape(
             len(slice_indices), int(num_samples), -1)).float().cpu())
     union = len(case["union"])
-    sizes["source"] += [min(int(source_chunk), union - start)
-                        for start in range(0, union, int(source_chunk))]
+    sizes["source"] += source_sizes(union, source_chunk)
     scores, why_scores = _score_deltas(production, torch.cat(parts, dim=0), indices, tau,
                                        prefixes, enforce=tolerance is not None)
     return ({"inputs": query_inputs(query, len(indices), n_union=union), "chunks": chunks,
@@ -757,15 +811,7 @@ def production_parity(engine, cases, *, batch_rows, source_chunk, num_samples=me
                     for path in me.fa_partition_differences(declared_partition,
                                                             executed["executed"])]
         reasons += [f"executed partition violation: {item}" for item in executed["violations"]]
-    by_k = {}
-    for entry in entries:
-        for k, facts in entry["score_stability"].items():
-            block = by_k.setdefault(k, {"max_abs_delta": 0.0, "n_queries": 0,
-                                        "n_argmax_equal": 0, "n_at_risk": 0})
-            block["max_abs_delta"] = max(block["max_abs_delta"], facts["max_abs_delta"])
-            block["n_queries"] += 1
-            block["n_argmax_equal"] += int(facts["argmax_equal"])
-            block["n_at_risk"] += int(facts["at_risk"])
+    by_k = score_summary(entries)
     context = {} if not measurement else {"context": {
         "vanilla_batching_caveat_max_abs_diff": VANILLA_BATCHING_CAVEAT_MAX_ABS_DIFF,
         "batching_caveat": me.BATCHING_CAVEAT}}
@@ -891,3 +937,4 @@ def vanilla_replay_regression(engine, cases, run_dir, *, anchor, observation_ban
                                    str(expected_observation_bank_sha256),
                                "queries": [entry["query_id"] for entry in entries]},
                        executed_partition=None)
+
