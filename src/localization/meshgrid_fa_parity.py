@@ -178,8 +178,14 @@ def _mask_pair(left, right, tolerance):
     if left is not None and right is not None:
         return tensor_pair(left, right, tolerance)
     same = left is None and right is None
+    sides = [None if mask is None else torch.as_tensor(mask).detach().cpu()
+             for mask in (left, right)]
     return {"none": [left is None, right is None], "bitwise": same,
             "max_abs_diff": 0.0 if same else float("inf"), "finite": True,
+            # presence is a fact of the comparison: it enters the digest chain too
+            "digest": ["none" if side is None else _digest(side) for side in sides],
+            "dtype": ["none" if side is None else str(side.dtype) for side in sides],
+            "shape": [None if side is None else list(side.shape) for side in sides],
             "reasons": [] if same else ["a mask is present on one side only"]}
 
 
@@ -227,11 +233,27 @@ def fold_per_key(per_key, conditioning, inputs):
         entry["finite"] = bool(entry["finite"] and facts["finite"])
         if mask is not None:
             entry["mask_max_abs_diff"] = max(entry["mask_max_abs_diff"], mask["max_abs_diff"])
+            for field, value in (("mask_dtypes", "/".join(mask.get("dtype") or [])),
+                                 ("mask_shapes", "/".join(str(s) for s in mask.get("shape")
+                                                          or []))):
+                if value not in entry.setdefault(field, []):
+                    entry[field].append(value)
         for field, value in (("dtypes", "/".join(facts.get("dtype") or [])),
                              ("shapes", "/".join(str(shape) for shape in facts.get("shape") or []))):
             if value and value not in entry[field]:
                 entry[field].append(value)
     return per_key
+
+
+def replay_partition_reasons(record, n, orbit_size):
+    """The released replay's OWN orbit partition is exp_20's per-angle plan at cap = its
+    batch, or the comparison was not against the released path (Codex rB finding 7)."""
+    wanted = {"partition": [int(n)] * (int(orbit_size) - 1), "frame_avg_fwd_cap": int(n),
+              "candidate_micro_batch": int(n), "angles_per_chunk": 1,
+              "n_orbit_forwards": int(orbit_size) - 1}
+    found = {key: (record or {}).get(key) for key in wanted}
+    return [] if found == wanted else [f"replay orbit partition {found} is not exp_20's "
+                                       f"per-angle plan {wanted}"]
 
 
 def coverage(sizes, micro):
@@ -333,6 +355,7 @@ def split_parity(engine, query, md, *, micro_batch, n_candidates=None):
         inputs, why_inputs = compare_inputs(engine.cond_inputs_fn(parts),
                                             engine.cond_inputs_fn(released),
                                             GATE_TOLERANCES["G1"])
+        why += replay_partition_reasons(record, len(chunk), len(split.angles))
         reasons += [f"chunk@{start}: {item}" for item in why + why_inputs]
         fold_per_key(per_key, conditioning, inputs)
         chunks.append({"start": start, "n": len(chunk), "full": len(chunk) == micro,
@@ -597,8 +620,10 @@ def _score_deltas(production, replayed, indices, tau, prefixes, enforce=True):
 
 
 def _chain(chains, conditioning, inputs):
-    """Extend each key's ordered per-side sha256 chain with this chunk's tensor digests."""
+    """Extend each key's ordered per-side sha256 chain with this chunk's tensor and mask
+    digests (an absent mask chains as ``none``)."""
     rows = [(key, entry["tensor"]) for key, entry in conditioning.items()]
+    rows += [(f"{key}.mask", entry["mask"]) for key, entry in conditioning.items()]
     rows += [(f"dit_inputs.{name}", facts) for name, facts in inputs.items()]
     for name, facts in rows:
         sides = chains.setdefault(name, [hashlib.sha256(), hashlib.sha256()])
@@ -634,6 +659,8 @@ def _production_query(view, engine, case, *, micro, batch_rows, source_chunk, nu
         conditioning, w_cond = compare_conditioning(produced, replay, tolerance)
         inputs, w_inputs = compare_inputs(engine.cond_inputs_fn(produced),
                                           engine.cond_inputs_fn(replay), tolerance)
+        w_cond += replay_partition_reasons(replayed_partition[0], len(slice_indices),
+                                           len(view.split.angles))
         fold_per_key(per_key, conditioning, inputs)
         _chain(chains, conditioning, inputs)
         why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]

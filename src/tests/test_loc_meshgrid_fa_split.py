@@ -2065,3 +2065,145 @@ def test_gate3_passes_end_to_end_at_the_registered_numbers_and_identity(tmp_path
     assert evidence["executed_partition"]["executed"] == mr.REGISTERED_ARM_PROTOCOL["BF"][
         "fa_partition"]
     assert evidence["probe_queries"]["complete"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Codex rB finding 7: one isolated negative per G3 (and G1) verdict clause --
+# each mutation breaks exactly ONE clause, and the verdict must say which
+# --------------------------------------------------------------------------- #
+def _only(reasons, needle):
+    """``reasons`` is non-empty and every reason belongs to the clause ``needle`` names."""
+    assert reasons, "the mutation was not detected"
+    assert all(needle in reason for reason in reasons), reasons
+
+
+def _g3_registered(tmp_path, cases=None, **kwargs):
+    kwargs = dict(G3_KW, declared_partition=FA_DECLARED, **kwargs)
+    return _g3(FaSyntheticEngine(), _g3_cases(tmp_path) if cases is None else cases, **kwargs)
+
+
+def test_gate3_fails_on_score_drift_alone(tmp_path, monkeypatch):
+    """Identical conditioning, every replay similarity shifted by 0.01: |dS| = 0.01 at every
+    K with the argmax unmoved -- only the score clause can catch it."""
+    from src.localization import scoring
+
+    state, real_sims = {"replay": False}, scoring.cosine_sims
+    real_score, real_released = me._score_one_query, fp.released_conditioning
+    monkeypatch.setattr(me, "_score_one_query", lambda *a, **k: (
+        state.update(replay=False), real_score(*a, **k))[1])
+    monkeypatch.setattr(fp, "released_conditioning", lambda *a, **k: (
+        real_released(*a, **k), state.update(replay=True))[0])
+    monkeypatch.setattr(scoring, "cosine_sims", lambda *a, **k: real_sims(*a, **k) + (
+        0.01 if state["replay"] else 0.0))
+    report = _g3_registered(tmp_path)
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "score |diff|")
+    assert all(entry["n_argmax_equal"] == entry["n_queries"]
+               for entry in report["score_stability"].values())
+
+
+def test_gate3_fails_on_argmax_movement_alone(tmp_path, monkeypatch):
+    """Identical conditioning and scores; the replay side's argmax reported elsewhere."""
+    calls, real = [], me.argmax_by_global_index
+
+    def moved(scores, indices):
+        calls.append(1)
+        found = real(scores, indices)
+        return found if len(calls) % 2 else found + 1      # the second of each pair moves
+
+    monkeypatch.setattr(me, "argmax_by_global_index", moved)
+    report = _g3_registered(tmp_path)
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "argmax moved")
+    assert all(entry["max_abs_delta"] == 0.0 for entry in report["score_stability"].values())
+
+
+def test_gate3_fails_without_a_source_tail_alone(tmp_path):
+    """Query 3's union of 99 at source chunk 3: 33 full source batches and no tail, while
+    its 99 candidates at micro 2 still leave a scored tail."""
+    cases = [case for case in _g3_cases(tmp_path) if case["query"].position == 3]
+    assert len(cases[0]["union"]) == 99
+    report = _g3_registered(tmp_path, cases=cases)
+    assert report["coverage"]["source"] == {"full": 33, "tail": 0, "complete": False}
+    assert report["coverage"]["scored"]["complete"] is True
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "coverage: source")
+
+
+def test_gate3_and_gate1_fail_on_a_replay_orbit_that_is_not_per_angle(tmp_path, monkeypatch):
+    """The replay batched two angles per forward (cap = 2 x batch): per-row values are
+    unchanged, so only the replay-partition clause can catch it."""
+    from src.localization import crossarm
+
+    monkeypatch.setattr(crossarm, "fa_max_fwd_samples", lambda metadata: 2 * len(metadata))
+    report = _g3_registered(tmp_path)
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "replay orbit partition")
+    assert all(entry["max_abs_diff"] == 0.0 for entry in report["per_key"].values())
+    query, md = _gate_query(tmp_path / "g1")
+    g1 = fp.split_parity(FaSyntheticEngine(), query, md, micro_batch=3, n_candidates=7)
+    assert g1["verdict"] == "FAIL"
+    _only(g1["reasons"], "replay orbit partition")
+
+
+def _corrupt_the_compared_production_block(monkeypatch, mutate):
+    """Mutate ONLY the production block gate 3 compares (``scored_conditioning(record=False)``):
+    the generated waveforms on both sides stay untouched."""
+    real = me.scored_conditioning
+
+    def corrupted(*args, **kwargs):
+        block = real(*args, **kwargs)
+        return block if kwargs.get("record", True) else mutate(block)
+
+    monkeypatch.setattr(me, "scored_conditioning", corrupted)
+
+
+@pytest.mark.parametrize("mutation", ["values", "dtype", "absent", "shape"])
+def test_gate3_fails_on_a_mask_only_corruption(tmp_path, monkeypatch, mutation):
+    def mutate(block):
+        tensor, mask = block["context_audio"]
+        mask = {"values": lambda m: 1.0 - m, "dtype": lambda m: m.bool(),
+                "absent": lambda m: None, "shape": lambda m: torch.cat([m, m], dim=1)}[
+                    mutation](mask)
+        return dict(block, context_audio=[tensor, mask])
+
+    _corrupt_the_compared_production_block(monkeypatch, mutate)
+    report = _g3_registered(tmp_path)
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "context_audio.mask")
+    assert report["per_key"]["context_audio"]["max_abs_diff"] == 0.0     # the tensor is clean
+    assert all(entry["max_abs_delta"] == 0.0 for entry in report["score_stability"].values())
+
+
+def test_gate3_fails_on_a_dit_input_only_corruption(tmp_path, monkeypatch):
+    """The five blocks agree, but what the DiT is handed for the production block does not."""
+
+    class Tagged(dict):
+        pass
+
+    _corrupt_the_compared_production_block(monkeypatch, Tagged)
+    engine = FaSyntheticEngine()
+    inner = engine.cond_inputs_fn
+    engine.cond_inputs_fn = lambda block: {key: value + (0.5 if isinstance(block, Tagged) else 0.0)
+                                           for key, value in inner(block).items()}
+    report = _g3(engine, _g3_cases(tmp_path), **G3_KW, declared_partition=FA_DECLARED)
+    assert report["verdict"] == "FAIL"
+    _only(report["reasons"], "dit_inputs.")
+    assert all(report["per_key"][key]["max_abs_diff"] == 0.0 for key in FA_IDS)
+
+
+def test_gate3_chains_and_per_key_facts_carry_the_masks(tmp_path, monkeypatch):
+    report = _g3_registered(tmp_path)
+    for key in FA_IDS:
+        production, replay = report["digest_chains"][f"{key}.mask"]
+        assert len(production) == 64 and production == replay
+        assert report["per_key"][key]["mask_dtypes"] == ["torch.float32/torch.float32"]
+        assert report["per_key"][key]["mask_shapes"]
+
+    def drop(block):
+        return dict(block, source=[block["source"][0], None])
+
+    _corrupt_the_compared_production_block(monkeypatch, drop)
+    report = _g3_registered(tmp_path / "absent")
+    production, replay = report["digest_chains"]["source.mask"]
+    assert production != replay                     # mask presence is part of the chain
