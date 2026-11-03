@@ -49,6 +49,12 @@ IMPORT_SUBDIR = os.path.join("outputs_FLAC", "data_curve_import")
 #: already in its ROWS table ("fa eval" for frame-averaged arms, "vanilla eval" for stock),
 #: so an exp_14 row reads in the same vocabulary as every row beside it.
 ARM_PROTOCOL_LABEL = {"cyl": "fa eval", "van": "vanilla eval"}
+#: What each arm's row calls its backbone (codex T finding F7 / N6). Both labels used to end
+#: "(exp_14 cyl-dinov3)" -- the experiment's repository, not the model -- so the stock
+#: baseline read as CylDINOv3. "CylDINO" is the plan's name for the cyl arm (the exp_09
+#: core method: cylindrical DINOv3 ViT-S/16 + its pose-feature path); the van arm is the
+#: unmodified DINOv3 ViT-S/16 of exp_07 P1.
+ARM_BACKBONE_LABEL = {"cyl": "CylDINO", "van": "stock DINOv3-S"}
 MANIFEST_BASENAME = "MANIFEST.sha256"
 EXIT_OK = names.EXIT_OK
 EXIT_INPUT_ERROR = names.EXIT_INPUT_ERROR
@@ -70,12 +76,17 @@ def row_spec(arm, tag, K, run=None, seeds=names.SEEDS):
     ``(label, protocol, K, [glob])`` -- the four-field form every row there uses. The glob
     is relative to the FLAC checkout's root, which is what the generator resolves against.
     ``names.run_id`` does the arm/tag validation, so an unknown arm cannot reach the label.
+
+    The label reads ``data-curve <arm> f=<pct>% @40k (exp_14 data-curve, <backbone>)``:
+    the experiment and its curve, then the arm's own backbone from ``ARM_BACKBONE_LABEL``
+    -- ``CylDINO`` or ``stock DINOv3-S`` -- so neither arm is named after the other. The
+    experiment is spelled ``exp_14``; the underscore keeps it clear of ``exp14_``.
     """
     run = run or names.run_id(arm, tag)
     if K not in names.K_VALUES:
         raise ValueError(f"unplanned K={K!r}; the experiment evaluates {names.K_VALUES}")
     pct = int(round(names.FRACTIONS[tag] * 100))
-    label = f"data-curve {arm} f={pct}% @40k (exp_14 cyl-dinov3)"
+    label = f"data-curve {arm} f={pct}% @40k (exp_14 data-curve, {ARM_BACKBONE_LABEL[arm]})"
     pattern = f"{IMPORT_SUBDIR}/{run}/*_K{K}_{seed_glob(seeds)}*.json"
     names.assert_no_forbidden_substring(label)
     names.assert_no_forbidden_substring(pattern)
