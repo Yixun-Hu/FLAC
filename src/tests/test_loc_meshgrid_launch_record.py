@@ -653,3 +653,49 @@ def test_emission_may_write_into_the_shard_directory_before_it_exists(tmp_path):
     assert driver.emit_launch_record(emit_args, emit_argv, environment=OPT._environment(),
                                      runtime=OPT._runtime(OPT._FIXTURE_GPUS[0]["uuid"], 0)) == 0
     assert json.load(open(path))["argv"] == argv
+
+
+# --------------------------------------------------------------------------- #
+# hardening (self-review before hand-back)
+# --------------------------------------------------------------------------- #
+def test_a_negative_zero_binds_exactly_as_zero():
+    """Python says -0.0 == 0.0; the canonical digest does not, so shards would not merge."""
+    base = ["--ckpt-path", "x.ckpt", "--cond-method", "vanilla", "--cond-autocast", "default",
+            "--batch-rows", "256", "--source-chunk", "16"]
+    plain = driver.parse_args(base + ["--frame-avg-angles", "0", "--rotate-deg", "0"])
+    negative = driver.parse_args(base + ["--frame-avg-angles", "-0", "--rotate-deg", "-0"])
+    assert driver.protocol_binding(plain) == driver.protocol_binding(negative)
+    from src.localization.crossarm import canonical_sha256
+
+    assert canonical_sha256(driver.protocol_binding(negative)) == \
+        canonical_sha256(driver.protocol_binding(plain))
+
+
+def test_a_resume_reads_the_segment_stamp_from_the_verified_buffer(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    out = str(tmp_path / "run")
+    _score(out, items, records, plan, binding, sha="a" * 64)
+    path = me.query_artifact_paths(out, "A/A_idx_1", 0)["row"]
+    assert me.verify_query_artifact(path)["launch_record_sha256"] == "a" * 64
+
+
+def test_an_unreadable_ledger_is_a_reason_never_a_legacy_run(tmp_path):
+    out = tmp_path / "run"
+    out.mkdir()
+    (out / ms.SEGMENTS_FILENAME).write_text("{not json")
+    census = ms.provenance_census(str(out), [{"query_id": "0|q", "position": 0}])
+    assert census["complete"] is False and census["generation"] == "unreadable"
+    assert any("not readable" in reason for reason in census["reasons"])
+
+
+def test_a_record_copied_into_the_merge_is_re_verified_on_the_copied_bytes(tmp_path):
+    source = tmp_path / "record.json"
+    source.write_bytes(b'{"a": 1}')
+    digest = hashlib.sha256(b'{"a": 1}').hexdigest()
+    target = tmp_path / "out" / "copy.json"
+    ms.copy_verified(str(source), str(target), digest)
+    assert target.read_bytes() == b'{"a": 1}'
+    with pytest.raises(ValueError, match="changed"):
+        ms.copy_verified(str(source), str(tmp_path / "out" / "other.json"), "0" * 64)
+    assert not (tmp_path / "out" / "other.json").exists()

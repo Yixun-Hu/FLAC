@@ -627,3 +627,14 @@ def test_the_cli_refuses_an_incomplete_or_unsafe_invocation(arm_runs, tmp_path):
         mx.validate_args(mx.parse_args(no_bank[:position] + no_bank[position + 2:]))
     with pytest.raises(SystemExit, match="out-dir"):
         mx.validate_args(mx.parse_args(_cli(runs, runs["YAW"]["run_dir"])))
+
+
+def test_each_arm_publishes_its_census(arm_runs):
+    _runs, admitted = arm_runs
+    payload = mx.run_crossarm(admitted["P1"], yaw=admitted["YAW"], bf=admitted["BF"])
+    for arm in ("P1", "YAW", "BF"):
+        census = payload["per_arm"][arm]["census"]
+        assert census == {key: admitted[arm]["census"][key] for key in
+                          ("n_queries", "n_rooms", "candidate_query_pairs",
+                           "generated_waveforms")}
+        assert census["n_queries"] == 4

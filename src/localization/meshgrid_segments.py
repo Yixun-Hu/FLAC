@@ -67,6 +67,20 @@ def position_ranges(positions):
     return ranges
 
 
+def copy_verified(source, target, sha256):
+    """Copy a record's bytes only if they still hash to ``sha256`` (one read)."""
+    with open(str(source), "rb") as handle:
+        raw = handle.read()
+    if hashlib.sha256(raw).hexdigest() != str(sha256):
+        raise ValueError(f"the launch record {source!r} changed after its census "
+                         f"(it no longer hashes to {str(sha256)[:12]}...)")
+    os.makedirs(os.path.dirname(str(target)), exist_ok=True)
+    with open(str(target) + ".tmp", "wb") as handle:
+        handle.write(raw)
+    os.replace(str(target) + ".tmp", str(target))
+    return str(target)
+
+
 def read_ledger(run_dir):
     """The run's segment ledger, or ``None`` when it has never had one."""
     path = os.path.join(str(run_dir), SEGMENTS_FILENAME)
@@ -210,7 +224,10 @@ def provenance_census(run_dir, rows):
     A ledger that states row ranges (a merged one) must state the ones the rows
     themselves yield.
     """
-    ledger = read_ledger(run_dir)
+    try:
+        ledger, unreadable = read_ledger(run_dir), None
+    except ValueError as error:                                  # noqa: BLE001 -- a reason
+        ledger, unreadable = None, f"the run's {SEGMENTS_FILENAME} is not readable: {error}"
     segments = (ledger or {}).get("segments", [])
     by_sha = {}
     for row in rows:
@@ -218,8 +235,8 @@ def provenance_census(run_dir, rows):
     unstamped = by_sha.pop(None, [])
     known = {str(s["launch_record_sha256"]) for s in segments}
     unknown = {sha: positions for sha, positions in by_sha.items() if sha not in known}
-    reasons = []
-    if ledger is None:
+    reasons = [unreadable] if unreadable else []
+    if ledger is None and not unreadable:
         reasons.append(f"the run publishes no {SEGMENTS_FILENAME}: it has no launch provenance")
     if unstamped:
         reasons.append(f"{len(unstamped)} row(s) carry no launch record (first positions "
@@ -245,7 +262,9 @@ def provenance_census(run_dir, rows):
                         "n_rows": len(positions), "position_ranges": ranges,
                         "verified": verdict["ok"], "opened_utc": entry.get("opened_utc"),
                         "closed_utc": entry.get("closed_utc"), **verdict["facts"]})
-    return {"generation": "launch_records" if ledger is not None else "none",
+    generation = ("unreadable" if unreadable else
+                  "launch_records" if ledger is not None else "none")
+    return {"generation": generation,
             "complete": not reasons, "reasons": reasons, "n_rows": len(rows),
             "n_unstamped": len(unstamped),
             "n_unknown": sum(len(p) for p in unknown.values()),
@@ -280,18 +299,17 @@ def merge_ledgers(rows_by_shard, out_dir, dry_run=False):
     os.makedirs(str(out_dir), exist_ok=True)
     segments = []
     for index, (shard_dir, entry, record) in enumerate(merged):
-        source = os.path.join(str(shard_dir), entry["record_file"])
-        target = os.path.join(str(out_dir), entry["record_file"])
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        with open(source, "rb") as handle:
-            raw = handle.read()
-        with open(target + ".tmp", "wb") as handle:
-            handle.write(raw)
-        os.replace(target + ".tmp", target)
+        copy_verified(os.path.join(str(shard_dir), entry["record_file"]),
+                      os.path.join(str(out_dir), entry["record_file"]),
+                      entry["launch_record_sha256"])
         segments.append(dict(entry, segment_index=index, shard=str(shard_dir),
                              shard_segment_index=entry.get("segment_index"),
                              n_rows=record["n_rows"],
                              position_ranges=record["position_ranges"]))
     me.write_json(os.path.join(str(out_dir), SEGMENTS_FILENAME),
                   {"segments": segments, "note": SEGMENT_NOTE})
-    return provenance_census(out_dir, [row for rows in rows_by_shard.values() for row in rows])
+    census = provenance_census(out_dir, [row for rows in rows_by_shard.values() for row in rows])
+    if not census["complete"]:
+        raise ValueError("the merged launch provenance does not re-verify: "
+                         + "; ".join(census["reasons"][:3]))
+    return census

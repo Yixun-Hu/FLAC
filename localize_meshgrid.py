@@ -88,7 +88,9 @@ def resolved_protocol(args):
     if angles is None and str(args.cond_method) == "vanilla":
         angles = VANILLA_FRAME_AVG_ANGLES
     rotate = REGISTERED_ROTATE_DEG if args.rotate_deg is None else args.rotate_deg
-    return (None if angles is None else [float(a) for a in angles]), float(rotate)
+    # `+ 0.0` folds -0.0 into 0.0: equal in Python, different canonical digests
+    return ((None if angles is None else [float(a) + 0.0 for a in angles]),
+            float(rotate) + 0.0)
 
 
 def parse_args(argv=None):

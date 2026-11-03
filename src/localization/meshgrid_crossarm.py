@@ -447,6 +447,8 @@ def run_crossarm(p1, yaw=None, bf=None):
                         for stat in PRIMARY_ENDPOINTS}
         per_arm[arm].update(
             per_room=stats, n_rooms=len(stats), n_queries=len(admitted[arm]["results"]),
+            census={key: admitted[arm]["census"][key] for key in
+                    ("n_queries", "n_rooms", "candidate_query_pairs", "generated_waveforms")},
             run_dir=admitted[arm]["run_dir"],
             ckpt_sha256=admitted[arm]["binding"]["ckpt_sha256"],
             binding_sha256=admitted[arm]["binding_sha256"],

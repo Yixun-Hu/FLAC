@@ -1199,7 +1199,8 @@ def verify_query_artifact(row_path, binding_sha256=None):
             return dict(verdict, reason="the waveform dump does not match the digest the row "
                                         "records")
     return {"ok": True, "query_id": row.get("query_id"), "row": row_path, "reason": None,
-            "position": row.get("position"), "room_id": row.get("room_id")}
+            "position": row.get("position"), "room_id": row.get("room_id"),
+            "launch_record_sha256": row.get("launch_record_sha256")}
 
 
 def assert_published_matches(out_dir, query, binding_sha256=None):
@@ -1341,8 +1342,8 @@ def completed_queries(out_dir, binding_sha256=None, launch_records=None):
             verdict = verify_query_artifact(os.path.join(room_dir, name),
                                             binding_sha256=binding_sha256)
             if verdict["ok"] and launch_records is not None:
-                with open(os.path.join(room_dir, name)) as handle:
-                    stamp = json.load(handle).get("launch_record_sha256")
+                # the stamp of the very row that verified -- no second read
+                stamp = verdict.get("launch_record_sha256")
                 if stamp not in set(launch_records):
                     verdict = dict(verdict, ok=False,
                                    reason=f"the row names launch record {stamp!r}, which this "
