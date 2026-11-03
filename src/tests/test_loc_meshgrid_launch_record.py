@@ -699,3 +699,124 @@ def test_a_record_copied_into_the_merge_is_re_verified_on_the_copied_bytes(tmp_p
     with pytest.raises(ValueError, match="changed"):
         ms.copy_verified(str(source), str(tmp_path / "out" / "other.json"), "0" * 64)
     assert not (tmp_path / "out" / "other.json").exists()
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA BLOCKING; plan r2 amendment A2): ONE reviewed pin per run
+# --------------------------------------------------------------------------- #
+SHA_B = "b" * 40
+
+
+def _at_commit(git_sha):
+    """The executing machine at another commit (the record AND the admission see it)."""
+    return OPT._environment(git_sha=git_sha, git_sha_capture=OPT._ok(git_sha))
+
+
+def _hand_appended_segment(tmp_path, out, name, argv, environment, resume=True):
+    """A segment appended WITHOUT open_segment: a run assembled by hand (or by old code)."""
+    path = emit(tmp_path, argv=argv, name=name, environment=environment)
+    admission = admit(path, argv=argv, environment=environment)
+    digest = admission["sha256"]
+    ms.copy_verified(path, os.path.join(out, ms.record_relpath(digest)), digest)
+    ledger = ms.read_ledger(out)
+    ledger["segments"].append({
+        "segment_index": len(ledger["segments"]), "launch_record_sha256": digest,
+        "record_file": ms.record_relpath(digest), "resume": bool(resume),
+        "opened_utc": "2026-11-02T00:00:00+00:00",
+        "admission": {field: admission.get(field) for field in ms.ADMISSION_FIELDS}})
+    me.write_json(os.path.join(out, ms.SEGMENTS_FILENAME), ledger)
+    return digest
+
+
+def test_a_resume_at_another_commit_is_refused_before_it_opens_a_segment(tmp_path):
+    out = str(tmp_path / "shard")
+    first = emit(tmp_path, name="first.json")
+    ms.open_segment(out, first, admit(first), resume=False)
+    before = open(os.path.join(out, ms.SEGMENTS_FILENAME), "rb").read()
+    resumed = ARGV + ["--resume"]
+    second = emit(tmp_path, argv=resumed, name="second.json", environment=_at_commit(SHA_B))
+    admission = admit(second, argv=resumed, environment=_at_commit(SHA_B))
+    assert admission["environment_verified"] is True        # a healthy record, other commit
+    with pytest.raises(ValueError, match="one reviewed pin"):
+        ms.open_segment(out, second, admission, resume=True)
+    # refused before anything moved: the ledger and the records are as they were
+    assert open(os.path.join(out, ms.SEGMENTS_FILENAME), "rb").read() == before
+    assert not os.path.exists(os.path.join(out, ms.record_relpath(admission["sha256"])))
+    # the same resume at the run's own commit opens normally
+    again = emit(tmp_path, argv=resumed, name="third.json")
+    assert ms.open_segment(out, again, admit(again, argv=resumed), resume=True)[
+        "segment_index"] == 1
+
+
+def test_a_census_over_segments_at_two_commits_is_incomplete(tmp_path):
+    out, entry = _opened(tmp_path)
+    resumed = ARGV + ["--resume"]
+    other = _hand_appended_segment(tmp_path, out, "other.json", resumed, _at_commit(SHA_B))
+    rows = _rows(entry["launch_record_sha256"], [0, 1]) + _rows(other, [2])
+    census = ms.provenance_census(out, rows)
+    assert census["git_shas"] == ["a" * 40, SHA_B]
+    assert all(record["verified"] for record in census["records"])   # each record is fine
+    assert census["complete"] is False
+    assert any("2 git SHAs" in reason and "one reviewed pin" in reason
+               for reason in census["reasons"])
+    # a segment that produced no row still belongs to the run: still refused
+    assert ms.provenance_census(out, rows[:2])["complete"] is False
+
+
+def test_a_single_commit_run_keeps_a_complete_census(tmp_path):
+    out, entry = _opened(tmp_path)
+    resumed = ARGV + ["--resume"]
+    other = _hand_appended_segment(tmp_path, out, "same.json", resumed, None)
+    census = ms.provenance_census(out, _rows(entry["launch_record_sha256"], [0])
+                                  + _rows(other, [1]))
+    assert census["git_shas"] == ["a" * 40] and census["complete"] is True, census["reasons"]
+
+
+def _two_commit_shards(tmp_path):
+    shards = {}
+    for name, positions, environment in (("cafe", [0, 1], None),
+                                         ("rest", [2, 3, 4], _at_commit(SHA_B))):
+        argv = [token if token != "out" else name for token in ARGV]
+        path = emit(tmp_path, argv=argv, name=f"{name}.json", environment=environment)
+        out = str(tmp_path / name)
+        entry = ms.open_segment(out, path, admit(path, argv=argv, environment=environment),
+                                resume=False)
+        shards[out] = _rows(entry["launch_record_sha256"], positions)
+    return shards
+
+
+def test_a_merge_of_shards_at_two_commits_is_refused_before_anything_is_written(tmp_path):
+    shards = _two_commit_shards(tmp_path)
+    # each shard on its own is a complete single-commit census ...
+    assert all(ms.provenance_census(out, rows)["complete"] for out, rows in shards.items())
+    merged = str(tmp_path / "merged")
+    # ... but the run they would form is not: the dry run refuses, and so does the merge
+    with pytest.raises(ValueError, match="one reviewed pin"):
+        ms.merge_ledgers(shards, merged, dry_run=True)
+    with pytest.raises(ValueError, match="one reviewed pin"):
+        ms.merge_ledgers(shards, merged)
+    assert not os.path.exists(merged)
+
+
+def test_the_engine_merge_refuses_shards_at_two_commits_and_writes_nothing(tmp_path):
+    plan, records, items = ENG._aligned(tmp_path)
+    binding = ENG._r2_binding()
+    dirs = {}
+    for name, rooms, environment in (("a", ["A/A_idx_1"], None),
+                                     ("b", ["B/B_idx_2"], _at_commit(SHA_B))):
+        out = str(tmp_path / name)
+        me.write_binding(out, binding, advisory={"batch_rows": 8, "source_chunk": 3},
+                         declared_rooms=rooms)
+        argv = [token if token != "out" else name for token in ARGV]
+        path = emit(tmp_path, argv=argv, name=f"{name}.json", environment=environment)
+        sha = ms.open_segment(out, path, admit(path, argv=argv, environment=environment),
+                              resume=False)["launch_record_sha256"]
+        _score(out, items, records, plan, binding, rooms=rooms, sha=sha)
+        dirs[name] = out
+    pairs, unions = ENG._fixture_totals()
+    totals = {"rooms": 2, "queries": len(records), "candidate_query_pairs": pairs,
+              "source_rows": unions, "generated_waveforms": pairs * 4}
+    merged = str(tmp_path / "merged")
+    with pytest.raises(ValueError, match="one reviewed pin"):
+        me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    assert not os.path.exists(merged)

@@ -2528,3 +2528,60 @@ def test_the_report_cli_takes_the_expected_arm_and_the_checkpoint():
     assert mr.parse_args(["--run-dir", "r", "--out-dir", "o"]).expect_arm is None
     with pytest.raises(SystemExit):
         mr.parse_args(["--run-dir", "r", "--out-dir", "o", "--expect-arm", "P2"])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA BLOCKING; plan r2 amendment A2): one reviewed pin per run
+# --------------------------------------------------------------------------- #
+def restamp_segment(tmp_path, run_dir, index, git_sha):
+    """Hand-assemble a run whose segment ``index`` was produced at ANOTHER commit.
+
+    A healthy record at ``git_sha`` replaces the segment's own; every row that
+    segment produced is re-stamped and re-sealed, so each row, record and
+    segment still verifies on its own -- only the run as a whole spans two
+    commits, which is what neither the merge (it would refuse) nor the report
+    may let through.
+    """
+    import test_loc_meshgrid_launch_record as LR
+    from src.localization import meshgrid_segments as ms
+
+    ledger = ms.read_ledger(run_dir)
+    entry = ledger["segments"][index]
+    old = entry["launch_record_sha256"]
+    environment = LR._at_commit(git_sha)
+    argv = [token if token != "out" else f"restamped_{index}" for token in LR.ARGV]
+    path = LR.emit(tmp_path, argv=argv, name=f"restamped_{index}.json",
+                   environment=environment)
+    admission = LR.admit(path, argv=argv, environment=environment)
+    new = admission["sha256"]
+    ms.copy_verified(path, os.path.join(run_dir, ms.record_relpath(new)), new)
+    entry.update(launch_record_sha256=new, record_file=ms.record_relpath(new),
+                 admission={field: admission.get(field) for field in ms.ADMISSION_FIELDS})
+    me.write_json(os.path.join(run_dir, ms.SEGMENTS_FILENAME), ledger)
+    for row_path in mr.iter_row_paths(run_dir):
+        row = json.load(open(row_path))
+        if row.get("launch_record_sha256") == old:
+            row["launch_record_sha256"] = new
+            row["row_sha256"] = me.row_digest(row)
+            me.write_json(row_path, row)
+    return new
+
+
+def test_a_report_over_segments_at_two_commits_is_non_canonical(tmp_path):
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    # the control: the single-commit run passes the launch-provenance gate
+    single = evaluate_fixture(fixture, expect_arm="YAW")["launch_provenance"]
+    assert single["acceptable"] is True and single["git_shas"] == ["a" * 40]
+    restamp_segment(tmp_path, fixture["run_dir"], 1, "b" * 40)
+    evaluated = evaluate_fixture(fixture, expect_arm="YAW")
+    provenance = evaluated["launch_provenance"]
+    assert all(record["verified"] for record in provenance["records"])
+    assert provenance["git_shas"] == ["a" * 40, "b" * 40]
+    assert provenance["acceptable"] is False
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    why = [reason["why"] for reason in status["reasons"] if reason["gate"] == "launch_provenance"]
+    assert why and "one reviewed pin" in why[0]
+    assert "one reviewed pin" in mr.render_markdown(report)

@@ -15,7 +15,10 @@ this module adds is the segment model the full pass needs around it:
 * the record's bytes are copied into the run directory at admission, so the run
   carries the very file that vouched for it and anyone can re-hash it later;
 * a census -- every row resolves to a present, hash-verified,
-  environment-verified record -- gates the merge and is re-derived by the report.
+  environment-verified record -- gates the merge and is re-derived by the report;
+* one reviewed pin per run (plan r2 amendment A2, Codex rA): all of a run's
+  segments carry one git SHA, checked at every resume, at the merge (before
+  anything is written) and in the census the report re-derives.
 """
 import hashlib
 import json
@@ -41,11 +44,30 @@ SEGMENT_NOTE = (
     "report re-derives that census, and any gap makes the report NON-CANONICAL. The run "
     "binding is untouched: it stays common to all shards")
 
+#: plan r2 amendment A2 (the Planner's ruling on the R2-A Coder's concern; Codex rA
+#: BLOCKING): a canonical run is produced at ONE reviewed commit.
+ONE_PIN_NOTE = (
+    "ONE REVIEWED PIN PER RUN (plan r2 amendment A2, Codex rA): every launch-record segment of a "
+    "canonical run -- every shard and every resume -- must carry the SAME git SHA. A resume at "
+    "another commit is refused before it opens a segment, a merge of shards at different "
+    "commits is refused before it writes anything, and a run assembled any other way is "
+    "reported NON-CANONICAL. Resume at the run's own commit, or restart the shard")
+
 #: what a segment keeps of the admission verdict -- enough to re-check it later.
 ADMISSION_FIELDS = ("sha256", "argv", "git_sha", "git_status_dirty", "hostname",
                     "executing_device", "execution_gpu_uuid", "execution_gpu_name",
                     "environment_comparison", "environment_axes_passed",
                     "environment_axes_expected", "environment_verified", "recorded_utc")
+
+
+def one_pin_reason(git_shas):
+    """``None`` when the records name exactly one commit, else why the run is not one pin."""
+    shas = sorted({str(sha) for sha in git_shas})
+    if len(shas) == 1:
+        return None
+    return (f"the run's launch records carry {len(shas)} git SHAs "
+            f"{[sha[:12] for sha in shas]}, but one reviewed pin per run is the rule. "
+            f"{ONE_PIN_NOTE}")
 
 
 def record_relpath(sha256):
@@ -116,6 +138,12 @@ def open_segment(out_dir, record_path, admission, *, resume, at_utc=None):
         raise ValueError(f"launch record {digest[:12]}... already opened a segment of this run; a "
                          "record vouches for one invocation only -- emit a new one for this "
                          "invocation (a --resume is a new segment)")
+    pinned = {str((s.get("admission") or {}).get("git_sha")) for s in ledger["segments"]}
+    if pinned and pinned != {str(admission.get("git_sha"))}:
+        raise ValueError(f"this invocation runs at git {str(admission.get('git_sha'))[:12]}... "
+                         f"but the run's segments were opened at "
+                         f"{sorted(sha[:12] for sha in pinned)}: one reviewed pin per run. "
+                         f"{ONE_PIN_NOTE}")
     target = os.path.join(str(out_dir), record_relpath(digest))
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(target + ".tmp", "wb") as handle:
@@ -264,12 +292,16 @@ def provenance_census(run_dir, rows):
                         "closed_utc": entry.get("closed_utc"), **verdict["facts"]})
     generation = ("unreadable" if unreadable else
                   "launch_records" if ledger is not None else "none")
+    git_shas = sorted({str(r["git_sha"]) for r in records if r.get("git_sha")})
+    # every segment counts, including one that produced no row (amendment A2)
+    if generation == "launch_records" and one_pin_reason(git_shas):
+        reasons.append(one_pin_reason(git_shas))
     return {"generation": generation,
             "complete": not reasons, "reasons": reasons, "n_rows": len(rows),
             "n_unstamped": len(unstamped),
             "n_unknown": sum(len(p) for p in unknown.values()),
             "records": records,
-            "git_shas": sorted({str(r["git_sha"]) for r in records if r.get("git_sha")}),
+            "git_shas": git_shas,
             "note": SEGMENT_NOTE}
 
 
@@ -277,12 +309,15 @@ def merge_ledgers(rows_by_shard, out_dir, dry_run=False):
     """Carry every shard's records into the merged run, after each shard's census.
 
     ``rows_by_shard`` is ``{shard_dir: [rows]}``. Nothing is written unless every
-    shard's census is complete and no record appears in two shards; ``dry_run``
-    applies exactly those checks and writes nothing (the merge's check phase).
+    shard's census is complete, no record appears in two shards and every shard
+    was produced at the SAME git SHA (amendment A2: each shard's census already
+    holds one commit, so this is the union across shards); ``dry_run`` applies
+    exactly those checks and writes nothing (the merge's check phase).
     """
-    merged, seen = [], {}
+    merged, seen, git_shas = [], {}, set()
     for shard_dir, rows in rows_by_shard.items():
         census = provenance_census(shard_dir, rows)
+        git_shas.update(census["git_shas"])
         if not census["complete"]:
             raise ValueError(f"{shard_dir}: the launch provenance census fails -- "
                              + "; ".join(census["reasons"][:3]) + f". {SEGMENT_NOTE}")
@@ -294,6 +329,9 @@ def merge_ledgers(rows_by_shard, out_dir, dry_run=False):
                                  "invocation")
             seen[sha] = shard_dir
             merged.append((shard_dir, entry, record))
+    if one_pin_reason(git_shas):
+        raise ValueError(f"the shards were produced at different commits: "
+                         f"{one_pin_reason(git_shas)}")
     if dry_run:
         return {"complete": True, "n_records": len(merged)}
     os.makedirs(str(out_dir), exist_ok=True)
