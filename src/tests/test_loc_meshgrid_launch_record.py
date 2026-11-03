@@ -506,9 +506,12 @@ def test_validate_args_no_longer_preempts_the_fa_refusal(tmp_path):
     assert args.cond_method == "fa_invariant"          # reached here: no early refusal
 
 
-def test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check(tmp_path,
-                                                                           monkeypatch):
-    """The ordering the plan registers: binding checks FIRST, engine refusal SECOND."""
+def test_fa_flags_reach_the_engine_gate_only_after_every_binding_check(tmp_path, monkeypatch):
+    """The ordering the plan registers: binding checks FIRST, the engine's gate SECOND.
+
+    exp_22 R2-B (contract change, disclosed): the engine's gate now ADMITS fa
+    under the engaged five-way split, so (a) passes where R2-A refused it.
+    """
     calls = []
     for name, module in (("assert_registered_protocol", mr),
                          ("checkpoint_protocol_reasons", mr), ("assert_cacheable", me)):
@@ -521,11 +524,13 @@ def test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check(tmp_pa
 
     args, _argv, plan = _args(tmp_path, protocol=ENG._FA_PROTOCOL)
     # (a) a BF checkpoint trained fa, the registered orbit and partition: every
-    # binding check passes, and only then does the engine refuse fa
-    with pytest.raises(ValueError, match="fa_invariant"):
-        _preflight(args, plan, "BF", FA_TRAINING)
+    # binding check passes, and only then is the engine's gate asked -- which
+    # admits fa with the split engaged (R2-B)
+    binding, verdict = _preflight(args, plan, "BF", FA_TRAINING)
     assert calls == ["assert_registered_protocol", "checkpoint_protocol_reasons",
                      "validate_checkpoint", "assert_cacheable"]
+    assert verdict["registered"]["arm"] == "BF" and verdict["registered"]["is_registered"]
+    assert binding["fa_partition"] == mr.REGISTERED_ARM_PROTOCOL["BF"]["fa_partition"]
     # (b) the same flags against the P1 checkpoint: the ARM check names the
     # mismatch and the engine is never asked
     calls.clear()

@@ -1,0 +1,9 @@
+        built, passed = {}, {}
+            passed.update(kwargs)
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_engine_builder_admits_fa_with_its_orbit_and_goes_on_to_the_checkpoint
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_probe_artifact_serializes_the_whole_r2_binding_and_the_executed_partition
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_preflight_engages_the_split_it_will_build
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_builds_the_split_and_hands_the_pass_the_declared_partition
+FAILED src/tests/test_loc_meshgrid_engine.py::test_the_engine_builder_refuses_fa_without_its_orbit_and_any_unknown_method
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_gate_only_after_every_binding_check
+6 failed, 231 passed, 1 skipped, 5 warnings in 18.76s

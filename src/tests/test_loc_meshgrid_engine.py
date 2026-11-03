@@ -1292,10 +1292,19 @@ def test_the_release_rng_state_is_checked_before_the_iterator_is_created():
     assert me.assert_release_rng_state(live) is True
 
 
-def test_the_engine_builder_refuses_a_non_vanilla_conditioning_method():
+def test_the_engine_builder_refuses_fa_without_its_orbit_and_any_unknown_method():
+    """exp_22 R2-B (contract change, disclosed): fa_invariant is built under the
+    five-way split over its DECLARED orbit -- without one, or for any method the
+    split does not cover, the builder refuses before reading a byte."""
     with pytest.raises(ValueError, match="fa_invariant"):
         me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
                              cond_method="fa_invariant")
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
+                             cond_method="fa_invariant", frame_avg_angles=[90.0, 0.0])
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
+                             cond_method="bogus")
 
 
 def test_the_driver_pins_every_registered_default():

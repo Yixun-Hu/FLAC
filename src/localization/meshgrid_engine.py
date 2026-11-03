@@ -1761,8 +1761,12 @@ def project_cost(records, totals=None):
 
 
 def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sha256=None,
-                        advisory=None, totals=None):
-    """Publish probe timings under a diagnostics stem, never as query artifacts."""
+                        advisory=None, totals=None, fa_partition_executed=None):
+    """Publish probe timings under a diagnostics stem, never as query artifacts.
+
+    The binding is serialized over ``binding_fields`` -- the R2 protocol fields
+    included (Codex rA A8) -- and an fa probe carries its executed partition.
+    """
     for record in records:
         assert_no_scores(record)
     if binding is not None:
@@ -1775,7 +1779,7 @@ def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sh
         # immutable provenance: a cost decision has to be checkable against the
         # artifacts it was measured on, not against the shell history
         "binding": None if binding is None else {field: binding[field]
-                                                 for field in RUN_BINDING_FIELDS
+                                                 for field in binding_fields(binding)
                                                  if field in binding},
         "binding_sha256": binding_sha256,
         "advisory": dict(advisory or {}),
@@ -1784,7 +1788,9 @@ def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sh
         "determinism_contract": DETERMINISM_CONTRACT,
         "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
         "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
-        "records": list(records)})
+        "records": list(records),
+        **({} if fa_partition_executed is None
+           else {"fa_partition_executed": fa_partition_executed})})
     return path
 
 
@@ -2359,7 +2365,7 @@ def assert_release_rng_state(manifest):
 
 def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method="vanilla",
                       cond_autocast="default", steps=STEPS, cfg_scale=CFG_SCALE, ckpt=None,
-                      readout=SCORER_READOUT):
+                      readout=SCORER_READOUT, frame_avg_angles=None):
     """Build the frozen generator and wrap it as a :class:`MeshEngine`.
 
     Follows ``eval_FLAC.evaluate_model``'s lines of record through
@@ -2367,7 +2373,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
     load-integrity check, wrapper construction, eval/no-grad, latent length from
     the pretransform ratio -- so exp_22 scores the same generative process the
     release evaluation runs. The only addition is the ``only_ids`` seam the two
-    conditioning caches need.
+    conditioning caches need. fa_invariant is built under the five-way split over
+    ``frame_avg_angles`` (exp_22 R2-B); without that orbit it is refused.
     """
     import contextlib
     import copy
@@ -2379,7 +2386,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
     from src.models.factory import create_model_from_config
     from src.training.factory import create_training_wrapper_from_config
 
-    assert_cacheable(cond_method)
+    split = split_for(cond_method, frame_avg_angles)
+    assert_cacheable(cond_method, split)
     torch.set_float32_matmul_precision("medium")
     model_config = copy.deepcopy(model_config)
     file_model_config = copy.deepcopy(model_config)
@@ -2442,7 +2450,7 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
                         conditioner=conditioner,
                         cond_inputs_fn=module.diffusion.get_conditioning_inputs,
                         sampler=sampler, decoder=decoder, embedder=embedder,
-                        cond_method=cond_method)
+                        cond_method=cond_method, split=split)
     context = {"module": module, "model": model, "model_config": model_config,
                "weights_source": weights_source, "device": device,
                "latent_shape": engine.latent_shape}

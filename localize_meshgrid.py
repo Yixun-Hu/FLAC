@@ -326,7 +326,9 @@ def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256
     for reason in embedded["reasons"]:
         _refuse(f"embedded training protocol: {reason}")
     cond_binding = validate_checkpoint(args, model_config, checkpoint)
-    me.assert_cacheable(args.cond_method)
+    # the split the engine will be built under (R2-B): fa is admitted only with it
+    me.assert_cacheable(args.cond_method,
+                        me.split_for(args.cond_method, resolved_protocol(args)[0]))
     return binding, {"registered": registered, "embedded": embedded,
                      "cond_binding": cond_binding}
 
@@ -530,7 +532,8 @@ def main(argv=None):
     engine, context = me.build_mesh_engine(
         args.ckpt_path, model_config, agree, device=args.device,
         cond_method=args.cond_method, cond_autocast=args.cond_autocast,
-        steps=args.steps, cfg_scale=args.cfg_scale, ckpt=ckpt)
+        steps=args.steps, cfg_scale=args.cfg_scale, ckpt=ckpt,
+        frame_avg_angles=resolved_protocol(args)[0])
     print(f"weights: {context['weights_source']}, latent {context['latent_shape']}")
 
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
@@ -568,7 +571,8 @@ def main(argv=None):
                           probe=args.probe, probe_room=args.probe_room,
                           dump_queries=dump_queries, dump_top_n=args.dump_top_n,
                           binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms,
-                          launch_record_sha256=(launch or {}).get("sha256"))
+                          launch_record_sha256=(launch or {}).get("sha256"),
+                          fa_partition=run_binding.get("fa_partition"))
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT
@@ -581,7 +585,8 @@ def main(argv=None):
         path = me.write_probe_records(args.out_dir, summary.pop("probe_records"),
                                       stem=args.probe_stem, binding=run_binding,
                                       binding_sha256=me.binding_sha256(run_binding),
-                                      advisory=advisory)
+                                      advisory=advisory,
+                                      fa_partition_executed=summary.get("fa_partition_executed"))
         projection = json.load(open(path))["projection"]
         hours = projection["projected_gpu_hours"]
         print(f"probe: {summary['n_generated']} generated waveforms over "

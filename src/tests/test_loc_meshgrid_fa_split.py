@@ -637,3 +637,136 @@ def test_a_resume_that_conditions_nothing_reports_an_empty_partition_without_ref
                           fa_partition=FA_DECLARED, **FA_SHAPES)
     assert summary["n_scored"] == 0 and engine.conditioner.calls == []
     assert summary["fa_partition_executed"]["branches"]["source_cache"]["invocations"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# the real stack's builder, the driver and the probe artifact
+# --------------------------------------------------------------------------- #
+class _ReachedTheCheckpoint(Exception):
+    """Raised by a stubbed checkpoint read: the builder got past every gate."""
+
+
+def test_the_engine_builder_admits_fa_with_its_orbit_and_goes_on_to_the_checkpoint(monkeypatch):
+    model_config = json.load(open(os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                               "FLAC_AR.json")))
+    monkeypatch.setattr(torch, "set_float32_matmul_precision", lambda _value: None)
+
+    def _stop(*_args, **_kwargs):
+        raise _ReachedTheCheckpoint()
+
+    monkeypatch.setattr(torch, "load", _stop)
+    with pytest.raises(_ReachedTheCheckpoint):
+        me.build_mesh_engine("weights/exp20/BF_40k.ckpt", model_config, None,
+                             cond_method="fa_invariant", frame_avg_angles=list(C4))
+
+
+def _r2_binding(**overrides):
+    payload = dict(ENG._binding(), frame_avg_angles=list(C4), rotate_deg=0.0,
+                   cond_method="fa_invariant", fa_partition=DECLARED)
+    payload.update(overrides)
+    return payload
+
+
+def test_the_probe_artifact_serializes_the_whole_r2_binding_and_the_executed_partition(tmp_path):
+    """Codex rA A8 / rA-F1 F6(b): the probe artifact used to keep only the R1 fields."""
+    record = me.probe_record("q", "R", 3, 8, {"conditioning": 0.5, "sampling": 1.0},
+                             receiver_id="r", n_union=3)
+    split = _split()
+    _run_production_shapes(split)
+    executed = split.recorder.report()
+    binding = _r2_binding()
+    path = me.write_probe_records(str(tmp_path), [record], binding=binding,
+                                  binding_sha256=me.binding_sha256(binding),
+                                  fa_partition_executed=executed)
+    payload = json.load(open(path))
+    assert payload["binding"] == {field: binding[field] for field in me.binding_fields(binding)}
+    for field in me.RUN_BINDING_PROTOCOL_FIELDS:
+        assert payload["binding"][field] == binding[field]
+    assert payload["fa_partition_executed"]["executed"] == DECLARED
+    # a legacy binding serializes exactly as before, and no executed block appears
+    legacy = ENG._binding()
+    path = me.write_probe_records(str(tmp_path / "legacy"), [record], binding=legacy,
+                                  binding_sha256=me.binding_sha256(legacy))
+    payload = json.load(open(path))
+    assert payload["binding"] == {field: legacy[field] for field in me.RUN_BINDING_FIELDS}
+    assert "fa_partition_executed" not in payload
+
+
+def test_the_driver_preflight_engages_the_split_it_will_build(tmp_path, monkeypatch):
+    import localize_meshgrid as driver
+
+    seen = []
+    real = me.assert_cacheable
+    monkeypatch.setattr(me, "assert_cacheable",
+                        lambda method, split=None: (seen.append((method, split)),
+                                                    real(method, split))[1])
+    out_dir, report_path, _base = ENG._fixture_audit(tmp_path)
+    manifest = tmp_path / "d1.json"
+    manifest.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    args = driver.parse_args(["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+                              "--context-manifest", str(manifest), "--probe", "1"]
+                             + ENG._FA_PROTOCOL)
+    driver.validate_args(args)
+    model_config = json.load(open(os.path.join("src", "configs", "model_configs", "FLAC", "AR",
+                                               "FLAC_AR.json")))
+    from src.localization import meshgrid_report as mr
+
+    driver.preflight(args, me.load_audit_plan(report_path), model_config,
+                     {"model_config": {"training": {"cond_method": "fa_invariant",
+                                                    "frame_avg_angles": list(C4)}}},
+                     ckpt_sha256=mr.REGISTERED_CKPT_SHA256["BF"],
+                     agree_sha256=mr.REGISTERED_ARTIFACT_SHA256["agree_ckpt_sha256"],
+                     model_config_sha256=mr.REGISTERED_ARTIFACT_SHA256["model_config_sha256"])
+    (method, split), = seen
+    assert method == "fa_invariant" and isinstance(split, me.FaSplit) and split.angles == C4
+
+
+def test_the_driver_builds_the_split_and_hands_the_pass_the_declared_partition(tmp_path,
+                                                                              monkeypatch):
+    """The BF throughput probe's wiring, end to end through ``main`` with the stack stubbed."""
+    import types
+
+    import localize_meshgrid as driver
+    from src.localization import agree_embed
+    from src.localization import meshgrid_queries as mq
+
+    out_dir, report_path, _base = ENG._fixture_audit(tmp_path)
+    manifest = tmp_path / "d1.json"
+    manifest.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    ckpt, agree = tmp_path / "bf.ckpt", tmp_path / "agree.pt"
+    ckpt.write_bytes(b"bf")
+    agree.write_bytes(b"agree")
+    probe_out = tmp_path / "probe"
+    argv = (["--ckpt-path", str(ckpt), "--agree-ckpt", str(agree), "--audit-report", report_path,
+             "--context-manifest", str(manifest), "--out-dir", str(probe_out), "--probe", "1",
+             "--probe-room", "B/B_idx_2"] + ENG._FA_PROTOCOL)
+    built, passed = {}, {}
+    monkeypatch.setattr(mq, "load_manifest", lambda _path: {"records": []})
+    monkeypatch.setattr(mq, "with_resolved_agree", lambda _config: {
+        "training": {"metrics": {"AGREE_ckpt": str(agree)}}})
+    monkeypatch.setattr(torch, "load", lambda *_a, **_k: {
+        "model_config": {"training": {"cond_method": "fa_invariant",
+                                      "frame_avg_angles": list(C4)}}})
+    monkeypatch.setattr(agree_embed, "load_agree_audio", lambda path, device: types.SimpleNamespace(
+        ckpt_sha256=me.file_sha256(path)))
+
+    def _build(ckpt_path, model_config, scorer, **kwargs):
+        built.update(kwargs)
+        return FaSyntheticEngine(), {"weights_source": "stub", "latent_shape": (2, 4)}
+
+    def _pass(engine, stream, records, plan, out, **kwargs):
+        passed.update(kwargs)
+        return {"probe_records": [], "n_generated": 0, "n_candidate_query_pairs": 0,
+                "timings_s": {}, "fa_partition_executed": {"executed": DECLARED}}
+
+    monkeypatch.setattr(me, "build_mesh_engine", _build)
+    monkeypatch.setattr(me, "run_pass", _pass)
+    monkeypatch.setattr(mq, "build_release_stack", lambda *_a: ([], {"call_graph": "stub"}))
+    monkeypatch.setattr(me, "assert_release_rng_state", lambda _manifest: True)
+    assert driver.main(argv) == 0
+    assert built["cond_method"] == "fa_invariant" and built["frame_avg_angles"] == list(C4)
+    assert passed["fa_partition"] == DECLARED
+    payload = json.load(open(probe_out / "diagnostics_probe.json"))
+    assert payload["binding"]["fa_partition"] == DECLARED
+    assert payload["binding"]["frame_avg_angles"] == list(C4)
+    assert payload["fa_partition_executed"] == {"executed": DECLARED}
