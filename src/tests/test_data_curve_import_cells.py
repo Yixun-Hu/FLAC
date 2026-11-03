@@ -424,3 +424,39 @@ def test_a_checkpoint_rewritten_under_the_hash_publishes_nothing(tmp_path, monke
                                                  expect_n=N_ITEMS)
     assert any("rewritten while it was being hashed" in v for v in violations)
     _nothing_was_copied(result, str(checkout))
+
+
+# ------------------------------------------- row labels (codex T finding F7 / N6)
+#: Typed out, never derived: the label used to end "(exp_14 cyl-dinov3)" for BOTH arms,
+#: which reads as if the stock baseline were CylDINOv3. Each arm now names its own backbone.
+EXPECTED_ROWS = {
+    ("cyl", "025", 1):
+        '("data-curve cyl f=25% @40k (exp_14 data-curve, CylDINO)", "fa eval", 1, '
+        '["outputs_FLAC/data_curve_import/dc_cyl_f025/*_K1_s4[2-6]*.json"]),',
+    ("van", "075", 8):
+        '("data-curve van f=75% @40k (exp_14 data-curve, stock DINOv3-S)", "vanilla eval", 8, '
+        '["outputs_FLAC/data_curve_import/dc_van_f075/*_K8_s4[2-6]*.json"]),',
+}
+
+
+@pytest.mark.parametrize("arm, tag, K", sorted(EXPECTED_ROWS))
+def test_each_arm_s_row_names_its_own_backbone(arm, tag, K):
+    assert import_cells.row_spec(arm, tag, K) == EXPECTED_ROWS[(arm, tag, K)]
+
+
+@pytest.mark.parametrize("K", names.K_VALUES)
+@pytest.mark.parametrize("tag", sorted(names.FRACTIONS))
+@pytest.mark.parametrize("arm", names.ARMS)
+def test_every_row_is_a_four_field_entry_with_a_truthful_backbone(arm, tag, K):
+    row = import_cells.row_spec(arm, tag, K)
+    assert names.assert_no_forbidden_substring(row) == row
+    label, protocol, k, patterns = ast.literal_eval(row.rstrip(","))
+    pct = {"025": 25, "050": 50, "075": 75}[tag]
+    backbone = {"cyl": "CylDINO", "van": "stock DINOv3-S"}[arm]
+    assert label == f"data-curve {arm} f={pct}% @40k (exp_14 data-curve, {backbone})"
+    assert protocol == {"cyl": "fa eval", "van": "vanilla eval"}[arm]
+    assert k == K
+    assert patterns == [f"outputs_FLAC/data_curve_import/dc_{arm}_f{tag}/*_K{K}_s4[2-6]*.json"]
+    assert "cyl-dinov3" not in row
+    if arm == "van":                        # the stock arm's description names no CylDINO
+        assert "cyl" not in label.split("(", 1)[1].lower()
