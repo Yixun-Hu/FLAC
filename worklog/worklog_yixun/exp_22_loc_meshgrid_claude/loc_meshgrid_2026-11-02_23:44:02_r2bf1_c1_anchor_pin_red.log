@@ -1,0 +1,31 @@
+# rB-F1 cycle 1 RED (BLOCKING 2, G0 anchor pinned), HEAD e837e17301f64d449c376554910a7ce72b678822, CPU
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+        with pytest.raises(ValueError, match="vanilla"):
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'COMMITTED_PROBE_REPORT_SHA256'. Did you mean: 'COMMITTED_PROBE_REPORT'?
+src/tests/test_loc_meshgrid_fa_split.py:1534: AttributeError
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'load_probe_anchor'
+src/tests/test_loc_meshgrid_fa_split.py:1549: AttributeError
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+E       AttributeError: <module 'src.localization.meshgrid_fa_parity' from '/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py'> has no attribute 'COMMITTED_PROBE_REPORT_SHA256'
+src/tests/test_loc_meshgrid_fa_split.py:1267: AttributeError
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_fails_when_the_vanilla_path_moves
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_fails_on_moved_frozen_digests_a_moved_bank_or_another_protocol
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_refuses_an_engine_with_the_split
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_the_vanilla_regression_replay
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_g0_anchor_is_pinned_to_the_committed_probe_report_digest
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_replaced_probe_report_is_refused_as_the_anchor
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_refuses_a_replaced_g0_anchor_before_any_replay
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_requires_the_anchor_key_set_to_be_exactly_the_replayed_queries
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_refuses_an_anchor_that_is_not_the_pinned_report
+10 failed, 1 passed, 61 deselected, 3 warnings in 6.79s

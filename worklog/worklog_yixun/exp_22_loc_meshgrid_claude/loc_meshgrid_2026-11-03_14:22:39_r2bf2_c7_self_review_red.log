@@ -1,0 +1,4 @@
+# rB-F2 cycle 7 RED (self-review: an unknown-branch ledger row is a named reader reason, not a bare from_counts error), HEAD fc8836a74bb760f5789815e8dfbe06e9b92a0b73, 2026-11-03T14:23:00-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything[unknown branch]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written[unknown branch]
+2 failed, 22 passed, 205 deselected, 5 warnings in 17.27s

@@ -1,0 +1,54 @@
+# rB-F1 cycle 5 delete-the-check mutations: each clause removed in turn, its isolated negative must FAIL; HEAD 9831a2a46a25524341a2f5bcb6393d1db39bdc92 (tracked-clean before and after), CPU
+## M1 score clause: src/localization/meshgrid_fa_parity.py
+  - 'if delta > me.SCORE_TOLERANCE:'
+  + 'if False:'
+  -> 1 failed, 122 deselected, 3 warnings in 5.68s
+## M2 argmax clause: src/localization/meshgrid_fa_parity.py
+  - 'if not equal:'
+  + 'if False:'
+  -> 1 failed, 122 deselected, 3 warnings in 5.51s
+## M3 source coverage: src/localization/meshgrid_fa_parity.py
+  - '"source": coverage(sizes["source"], int(source_chunk))}'
+  + '"source": {"full": 1, "tail": 1, "complete": True}}'
+  -> 1 failed, 122 deselected, 3 warnings in 5.19s
+## M4 replay partition: src/localization/meshgrid_fa_parity.py
+  - 'found = {key: (record or {}).get(key) for key in wanted}'
+  + 'found = dict(wanted)'
+  -> 1 failed, 122 deselected, 3 warnings in 5.52s
+## M5 mask comparison: src/localization/meshgrid_fa_parity.py
+  - 'for kind in ("tensor", "mask"):'
+  + 'for kind in ("tensor",):'
+  -> 4 failed, 119 deselected, 3 warnings in 8.53s
+## M6 DiT-input comparison (G3): src/localization/meshgrid_fa_parity.py
+  - 'why += [f"chunk@{start}: {item}" for item in w_cond + w_inputs]'
+  + 'why += [f"chunk@{start}: {item}" for item in w_cond]'
+  -> 1 failed, 122 deselected, 3 warnings in 5.57s
+## M7 probe-query-set clause (G3): src/localization/meshgrid_fa_parity.py
+  - '[entry["inputs"]["query_id"] for entry in entries])\n    reasons += why_queries'
+  + '[entry["inputs"]["query_id"] for entry in entries])'
+  -> 2 failed, 121 deselected, 3 warnings in 5.58s
+## M8 provenance clause: src/localization/meshgrid_fa_parity.py
+  - '"provenance": provenance_reasons(provenance)}'
+  + '"provenance": []}'
+  -> 7 failed, 116 deselected, 3 warnings in 5.66s
+## M9 identity clause (evidence): src/localization/meshgrid_fa_parity.py
+  - '"identity": identity_reasons(merged)'
+  + '"identity": []'
+  -> 1 failed, 122 deselected, 3 warnings in 4.79s
+## M10 identity refusal (preflight): localize_meshgrid.py
+  - 'if reasons:\n            _refuse(f"gate {gate} identity: "'
+  + 'if False:\n            _refuse(f"gate {gate} identity: "'
+  -> 1 failed, 122 deselected, 5 warnings in 6.58s
+## M11 stream-end refusal (driver): localize_meshgrid.py
+  - '_refuse(f"the stream ended with {len(remaining)}'
+  + 'return\n    _refuse(f"the stream ended with {len(remaining)}'
+  -> 2 failed, 121 deselected, 3 warnings in 4.71s
+## M12 anchor pin: src/localization/meshgrid_fa_parity.py
+  - 'if digest != COMMITTED_PROBE_REPORT_SHA256:'
+  + 'if False:'
+  -> 2 failed, 121 deselected, 3 warnings in 5.00s
+## M13 autocast clause: src/localization/meshgrid_fa_parity.py
+  - 'clauses = {"autocast": autocast_reasons(report["gate"], merged),'
+  + 'clauses = {"autocast": [],'
+  -> 1 failed, 122 deselected, 3 warnings in 5.56s
+## restored: git diff vs HEAD = EMPTY

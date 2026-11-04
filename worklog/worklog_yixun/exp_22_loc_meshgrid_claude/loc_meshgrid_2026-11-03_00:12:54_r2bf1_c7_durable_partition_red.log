@@ -1,0 +1,13 @@
+# rB-F1 cycle 7 RED (HIGH 5 part 2: durable per-query executed-partition ledger across resume; every shard re-derived at merge), HEAD b6735a7b6862fa2511ad56ba8df8ace4483c6d59, CPU
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_resume_that_conditions_nothing_keeps_the_runs_executed_partition
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_recorder_counts_round_trip_exactly
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_ledger_is_written_before_every_row_and_survives_a_crash
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_ledger_for_another_declaration_is_refused
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_probe_writes_no_ledger
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_fa_merge_re_derives_every_shards_executed_partition_and_keeps_it
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold[ledger_missing-fa_partition_ledger]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold[ledger_counts_edited-violations]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold[summary_disagrees-run summary]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold[summary_missing_block-run summary]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_vanilla_merge_refuses_a_shard_carrying_a_frame_average_partition
+11 failed, 133 passed, 11 warnings in 48.75s

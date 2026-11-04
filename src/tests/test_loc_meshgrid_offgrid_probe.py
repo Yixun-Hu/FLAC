@@ -3392,3 +3392,125 @@ def test_the_verified_record_publishes_the_designation(tmp_path):
     assert verified["recorded_execution_device"] == "cuda:0"
     assert verified["git_status_dirty"] is False           # a real bool, not a coercion
     assert verified["environment_verified"] is True
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA HIGH; plan r2 §1 "Controls reused, not rerun"): a report
+# that CITES the sparse control consumes its completed canonical handoff
+# --------------------------------------------------------------------------- #
+_RECORDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir,
+                        "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude")
+#: the committed, completed canonical handoff of the P1 phase and the report it names
+REAL_HANDOFF = os.path.normpath(os.path.join(_RECORDS, "retrieval_control_handoff.json"))
+REAL_RETRIEVAL_REPORT = os.path.normpath(os.path.join(_RECORDS, "retrieval_control_report.json"))
+REAL_PROBE_REPORT = os.path.normpath(os.path.join(_RECORDS, "offgrid_probe_report.json"))
+RETRIEVAL_KEY = "agree_oracle_retrieval_over_the_metadata_bank"
+
+
+def _tampered(tmp_path, name="handoff.json", **changes):
+    payload = json.load(open(REAL_HANDOFF))
+    payload.update(changes)
+    path = str(tmp_path / name)
+    me.write_json(path, payload)
+    return path
+
+
+def test_the_registered_handoff_is_the_one_the_canonical_p1_probe_consumed():
+    assert me.file_sha256(REAL_HANDOFF) == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    probe = json.load(open(REAL_PROBE_REPORT))
+    assert probe["canonical_status"]["canonical"] is True
+    assert probe["run_gate"]["retrieval_handoff"]["sha256"] == \
+        mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    # and the report that handoff names is the committed one beside it
+    assert me.file_sha256(REAL_RETRIEVAL_REPORT) == json.load(open(REAL_HANDOFF))[
+        "report_sha256"]
+
+
+def test_the_completed_canonical_handoff_is_consumed_for_citation():
+    consumed = op.consume_retrieval_handoff(REAL_HANDOFF)
+    assert consumed["reconciled"] is True and consumed["reasons"] == []
+    payload = json.load(open(REAL_HANDOFF))
+    assert consumed["sha256"] == me.file_sha256(REAL_HANDOFF)
+    assert consumed["report_sha256"] == payload["report_sha256"]
+    assert consumed["status"] == op.RETRIEVAL_COMPLETED_STATUS and consumed["canonical"] is True
+    assert consumed["census"] == {"n_queries": 5337, "n_rooms": 16}
+    assert consumed["headline"] == payload["headline"]
+    assert consumed["binding_sha256"] == payload["binding_sha256"]
+    # the citable entry is the reviewed reconciliation, verbatim
+    assert consumed["entry"] == op.reconcile_controls_elsewhere(
+        op.read_retrieval_handoff(REAL_HANDOFF))[RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" not in consumed["entry"]
+    assert "median_e_loc 1.943 m" in consumed["entry"]
+
+
+def test_the_handoff_is_read_once_and_hashed_from_the_parsed_bytes(monkeypatch):
+    opened = []
+    real_open = open
+
+    def counting_open(path, *args, **kwargs):
+        opened.append(os.path.abspath(str(path)))
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(op, "open", counting_open, raising=False)
+    consumed = op.consume_retrieval_handoff(REAL_HANDOFF)
+    assert opened.count(os.path.abspath(REAL_HANDOFF)) == 1
+    assert consumed["sha256"] == me.file_sha256(REAL_HANDOFF)
+
+
+def test_the_probes_own_reader_is_unchanged_by_the_shared_parse():
+    read = op.read_retrieval_handoff(REAL_HANDOFF)
+    assert sorted(read) == ["canonical", "control_key", "created_utc", "headline", "note",
+                            "path", "report_json", "report_sha256", "sha256", "status"]
+    assert read["sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+
+
+@pytest.mark.parametrize("changes, match", [
+    ({"status": "run (NON-CANONICAL)", "canonical": False}, "COMPLETED canonical run"),
+    ({"status": "run pending"}, "COMPLETED canonical run"),
+    ({"canonical": "true"}, "COMPLETED canonical run"),
+    ({"census": {"n_queries": 4, "n_rooms": 2}}, "registered census"),
+    ({"census": None}, "registered census"),
+    ({"report_sha256": None}, "report digest"),
+    ({"headline": {"median_e_loc": {"point": 1.9}}}, "headline"),
+])
+def test_each_citation_check_stands_on_its_own(tmp_path, changes, match):
+    """Each check alone: the tampered file's own digest is passed as the expected one."""
+    path = _tampered(tmp_path, **changes)
+    consumed = op.consume_retrieval_handoff(path, expected_sha256=me.file_sha256(path))
+    assert consumed["reconciled"] is False
+    assert len(consumed["reasons"]) == 1 and match in consumed["reasons"][0], consumed["reasons"]
+    assert consumed["entry"].startswith(
+        "src/localization/meshgrid_retrieval_control.py -- STATUS NOT RECONCILED")
+    assert "reused" not in consumed["entry"].lower()
+
+
+def test_a_handoff_that_is_not_the_registered_one_is_not_reconciled(tmp_path):
+    headline = json.load(open(REAL_HANDOFF))["headline"]
+    edited = dict(headline, median_e_loc=dict(headline["median_e_loc"], point=0.5))
+    path = _tampered(tmp_path, headline=edited)
+    consumed = op.consume_retrieval_handoff(path)
+    assert consumed["reconciled"] is False
+    assert any("registered" in reason and mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256[:12] in reason
+               for reason in consumed["reasons"])
+    assert "STATUS NOT RECONCILED" in consumed["entry"] and "0.500 m" not in consumed["entry"]
+
+
+def test_the_reviewed_refusals_still_refuse(tmp_path):
+    with pytest.raises(ValueError, match="not this .2 control's handoff"):
+        op.consume_retrieval_handoff(_tampered(tmp_path, control_key="something_else"))
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    with pytest.raises(ValueError, match="not readable JSON"):
+        op.consume_retrieval_handoff(str(broken))
+    payload = json.load(open(REAL_HANDOFF))
+    del payload["status"]
+    me.write_json(str(tmp_path / "fieldless.json"), payload)
+    with pytest.raises(ValueError, match="does not state 'status'"):
+        op.consume_retrieval_handoff(str(tmp_path / "fieldless.json"))
+
+
+def test_without_a_handoff_the_entry_is_not_reconciled_and_never_stale():
+    entry = op.unreconciled_retrieval_entry(None)
+    assert entry == op.reconcile_controls_elsewhere(None)[RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" in entry and "run pending" not in entry
+    assert "reused" not in entry.lower()

@@ -1,0 +1,1289 @@
+# exp_22 rB-F6 declaration tooling (scratchpad, Coder tooling; NOT the proof), HEAD a3b1c000b6f46514de8d12ce04248d31688e53f5, 2026-11-04T09:03:28-05:00
+# These aids LOCATED the candidate tests of each new statement / effect deletion and rendered the hand-written
+# declarations into the driver; the proof (its own log) re-runs exactly the declared ids in the worktree.
+# ---- lanes_rbf6.sh, verbatim:
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F6 scratch lanes (Coder tooling; exploration and iteration only -- NEVER the proof):
+#   # lane0 = a byte export of the worktree's HEAD (git archive); lane1..laneN = hardlinked copies of
+#   # lane0 with the four production files and the fa_split test file broken out as REAL copies (a
+#   # mutation written into one lane never reaches another lane or the worktree).
+#   # Usage: bash lanes_rbf6.sh <N lanes>
+#   set -euo pipefail
+#   REPO=/home/yixunhu/codespace/exp-22-r2-bf-yaw
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   N=${1:-12}
+#   OWN="localize_meshgrid.py src/localization/meshgrid_engine.py src/localization/meshgrid_fa_parity.py
+#        src/localization/meshgrid_report.py src/tests/test_loc_meshgrid_fa_split.py"
+#   HEAD=$(git -C "$REPO" rev-parse HEAD)
+#   rm -rf "$S/lane0" && mkdir -p "$S/lane0"
+#   git -C "$REPO" archive "$HEAD" | tar -x -C "$S/lane0"
+#   echo "$HEAD" > "$S/lane0/.lane_head"
+#   for i in $(seq 1 "$N"); do
+#     rm -rf "$S/lane$i"
+#     cp -al "$S/lane0" "$S/lane$i"
+#     for f in $OWN; do cp --remove-destination "$S/lane0/$f" "$S/lane$i/$f"; done
+#     mkdir -p "$S/tmproot$i"
+#   done
+#   for f in $OWN; do
+#     for i in 0 $(seq 1 "$N"); do
+#       cmp -s "$REPO/$f" "$S/lane$i/$f" || { echo "lane$i $f differs from the worktree"; exit 1; }
+#     done
+#   done
+#   echo "lanes 0..$N at $HEAD (production + fa_split byte-identical to the worktree; links broken out)"
+# ---- trace_plugin_rbf6.py, verbatim:
+#   """exp_22 rB-F6 exploration plugin (Coder tooling, scratchpad; NOT the proof): which lines of the
+#   four in-scope production modules each test executes (setup, call and teardown), by sys.settrace.
+#   Used only to find the CANDIDATE tests of a statement deletion; the proof selects exactly its
+#   declared required ids and never reads this map. Lines a session- or module-scoped fixture runs
+#   are attributed to the test that first builds it; module-level lines run at import, outside any
+#   test. Output: TRACE_OUT = {node id: [[module, line], ...]}."""
+#   import json
+#   import os
+#   import sys
+#   import threading
+#   
+#   import pytest
+#   
+#   FILES = ("localize_meshgrid.py", "src/localization/meshgrid_engine.py",
+#            "src/localization/meshgrid_fa_parity.py", "src/localization/meshgrid_report.py")
+#   TARGETS, DATA, LINES = {}, {}, [set()]
+#   
+#   
+#   def pytest_configure(config):
+#       for rel in FILES:
+#           TARGETS[os.path.realpath(os.path.join(str(config.rootpath), rel))] = rel
+#   
+#   
+#   def _local(rel):
+#       def local(frame, event, arg):
+#           if event == "line":
+#               LINES[0].add((rel, frame.f_lineno))
+#           return local
+#       return local
+#   
+#   
+#   def _tracer(frame, event, arg):
+#       rel = TARGETS.get(os.path.realpath(frame.f_code.co_filename))
+#       if rel is None:
+#           return None
+#       LINES[0].add((rel, frame.f_lineno))
+#       return _local(rel)
+#   
+#   
+#   @pytest.hookimpl(hookwrapper=True)
+#   def pytest_runtest_protocol(item, nextitem):
+#       LINES[0] = set()
+#       sys.settrace(_tracer)
+#       threading.settrace(_tracer)
+#       try:
+#           yield
+#       finally:
+#           sys.settrace(None)
+#           threading.settrace(None)
+#           DATA[item.nodeid] = sorted(LINES[0])
+#   
+#   
+#   def pytest_sessionfinish(session):
+#       with open(os.environ["TRACE_OUT"], "w") as handle:
+#           json.dump(DATA, handle)
+# ---- trace_run_rbf6.sh, verbatim:
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F6 exploration (scratch): trace each of the ten localization test files in lane0, in
+#   # parallel (one process per file, its own pytest temp root); CPU only.
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+#   mkdir -p "$S/trace"
+#   for f in test_loc_meshgrid_crossarm test_loc_meshgrid_launch_record test_loc_meshgrid_report \
+#            test_loc_meshgrid_engine test_loc_meshgrid_offgrid_probe test_loc_crossarm \
+#            test_loc_meshgrid_queries test_loc_meshgrid_retrieval_control \
+#            test_loc_meshgrid_drift_measurement test_loc_meshgrid_fa_split; do
+#     mkdir -p "$S/trace/tmp_$f"
+#     (cd "$S/lane0" && CUDA_VISIBLE_DEVICES="" PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$S" \
+#        PYTEST_DEBUG_TEMPROOT="$S/trace/tmp_$f" TRACE_OUT="$S/trace/$f.json" \
+#        "$PY" -m pytest -p no:cacheprovider -p no:warnings -p trace_plugin_rbf6 -q \
+#        "src/tests/$f.py" > "$S/trace/$f.out" 2>&1; echo "$f exit $?" >> "$S/trace/done.txt") &
+#   done
+#   wait
+#   echo TRACE DONE >> "$S/trace/done.txt"
+# ---- trace_chunks_rbf6.sh, verbatim:
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F6 exploration (scratch): trace fa_split in 12 parallel chunks of its node ids (lane0)
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+#   N=12
+#   for i in $(seq 0 $((N - 1))); do
+#     awk -v i=$i -v n=$N 'NR % n == i' "$S/trace/fa_split_ids.txt" > "$S/trace/fa_chunk_$i.txt"
+#     mkdir -p "$S/trace/tmp_fa_$i"
+#     (cd "$S/lane0" && CUDA_VISIBLE_DEVICES="" PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$S" \
+#        PYTEST_DEBUG_TEMPROOT="$S/trace/tmp_fa_$i" TRACE_OUT="$S/trace/fa_split_$i.json" \
+#        "$PY" -c "import sys, pytest; sys.exit(pytest.main(['-p', 'no:cacheprovider', '-p', 'no:warnings', '-p', 'trace_plugin_rbf6', '-q'] + open(sys.argv[1]).read().splitlines()))" \
+#        "$S/trace/fa_chunk_$i.txt" > "$S/trace/fa_split_$i.out" 2>&1; \
+#        echo "fa_chunk $i exit $?" >> "$S/trace/done.txt") &
+#   done
+#   wait
+#   echo "FA CHUNKS DONE" >> "$S/trace/done.txt"
+# ---- build_spec_rbf6.py, verbatim:
+#   """exp_22 rB-F6 exploration spec (Coder tooling, scratchpad; NOT the proof): every stmt atom the
+#   890 rB-F5 rows leave without an own (AST-exact) deletion, with its generated deletion edit, and
+#   every nested effect atom without an own mutation, with a hand-written effect-deletion edit; each
+#   with its CANDIDATE tests -- the tests that executed the statement's first line (trace map),
+#   capped per test function; module-level statements get every fa_split test (they run at import).
+#   Usage: python build_spec_rbf6.py <repo> <out json>"""
+#   import ast
+#   import collections
+#   import glob
+#   import json
+#   import os
+#   import sys
+#   
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   sys.path.insert(0, HERE)
+#   import atoms_rbf6 as A                                          # noqa: E402
+#   import mutate_rbf6 as D                                         # noqa: E402
+#   
+#   #: the nested effect calls' effect deletions (the call replaced by the value it stands for when
+#   #: it does nothing): atom path / line -> (old, new)
+#   EFFECT_EDITS = {
+#       ("localize_meshgrid.py", 445): (
+#           '    ledger = (me.open_fa_ledger(args.out_dir, run_binding["fa_partition"],\n'
+#           '                                (launch or {}).get("sha256"))\n',
+#           '    ledger = (None\n'),
+#       ("src/localization/meshgrid_fa_parity.py", 1122): (
+#           '        _collect(reasons, "query", lambda entry=entry: _production_query_reasons(\n'
+#           '            entry, reasons, shape, scored, source, per_key, chains))\n',
+#           '        _collect(reasons, "query", lambda entry=entry: [])\n'),
+#   }
+#   
+#   
+#   def main(repo, out_path):
+#       rows = D._all(repo)
+#       found = A.collect(repo)
+#       texts = {path: open(f"{repo}/{path}", encoding="utf-8").read()
+#                for path in {a["path"] for a in found}}
+#       muts = [(row[0], row[4], row[5]) for row in rows]
+#       stmt_map = A.stmt_mapping(found, muts, texts)
+#       word_map = A.mapping([a for a in found if "stmt" not in a["roles"]], muts, texts)
+#       trace = {}
+#       for path in glob.glob(os.path.join(HERE, "trace", "*.json")):
+#           trace.update(json.load(open(path)))
+#       by_line = collections.defaultdict(set)
+#       for node, lines in trace.items():
+#           for module, line in lines:
+#               by_line[(module, line)].add(node)
+#       fa_split = sorted(n for n in trace if n.startswith("src/tests/test_loc_meshgrid_fa_split.py"))
+#       spec, report = [], collections.Counter()
+#       for atom in found:
+#           if "stmt" in atom["roles"]:
+#               if any(way == "own" for _n, way in stmt_map[atom["id"]]):
+#                   continue
+#               old, new = A.deletion_edit(atom)
+#               kind = "stmt"
+#           elif "effect" in atom["roles"]:
+#               if any(way == "own" for _n, way in word_map[atom["id"]]):
+#                   continue
+#               edit = EFFECT_EDITS.get((atom["path"], atom["line"]))
+#               if edit is None:
+#                   report["effect without an edit"] += 1
+#                   print("NO EDIT", atom["id"], atom["path"], atom["line"], atom["segment"][:60])
+#                   continue
+#               old, new = edit
+#               kind = "effect"
+#           else:
+#               continue
+#           if atom["func"] == "<module>":
+#               # the tests that executed a line READING a name this statement binds, and the
+#               # tests that imported the module lazily (executed the statement itself) -- another
+#               # file's tests first: fa_split may not even collect without the binding
+#               node = atom["node"]
+#               names = ({alias.asname or alias.name.split(".")[0] for alias in node.names}
+#                        if isinstance(node, (ast.Import, ast.ImportFrom)) else
+#                        {sub.id for target in getattr(node, "targets", []) for sub in ast.walk(target)
+#                         if isinstance(sub, ast.Name)})
+#               lines = {sub.lineno for sub in ast.walk(atom["source"].tree)
+#                        if isinstance(sub, ast.Name) and sub.id in names
+#                        and isinstance(sub.ctx, ast.Load)} | {atom["line"]}
+#               hits = sorted({node for line in lines for node in by_line.get((atom["path"], line), ())},
+#                             key=lambda node: (node.startswith("src/tests/test_loc_meshgrid_fa_split"),
+#                                               node))
+#               per = collections.defaultdict(list)
+#               for node in hits:
+#                   per[node.split("[")[0]].append(node)
+#               tests = [node for group in per.values() for node in group[:2]][:160]
+#           else:
+#               hits = sorted(by_line.get((atom["path"], atom["line"]), ()))
+#               per = collections.defaultdict(list)
+#               for node in hits:
+#                   per[node.split("[")[0]].append(node)
+#               tests = [node for group in per.values() for node in group[:3]][:160]
+#           report[f"{kind}: {'tests' if tests else 'NO candidate test'}"] += 1
+#           spec.append({"id": f"{atom['id']}", "atom": atom["id"], "kind": kind, "path": atom["path"],
+#                        "line": atom["line"], "col": atom["col"], "func": atom["func"],
+#                        "type": atom["type"], "segment": atom["segment"].splitlines()[0][:120],
+#                        "old": old, "new": new, "tests": tests, "n_hits": len(by_line.get(
+#                            (atom["path"], atom["line"]), ()))})
+#       json.dump(spec, open(out_path, "w"), indent=1)
+#       print(dict(report), "->", len(spec), "specs")
+#   
+#   
+#   if __name__ == "__main__":
+#       main(sys.argv[1], sys.argv[2])
+# ---- explore_rbf6.py, verbatim:
+#   """exp_22 rB-F6 EXPLORATION runner (Coder tooling, scratchpad; NOT the proof): for each candidate
+#   mutation, write the mutant into ONE scratch lane's copy of its production file, run the given
+#   candidate tests there (junit), restore the file and byte-compare it, and record every failed /
+#   errored test with its first message line and the deepest test-file frame. Its findings only
+#   LOCATE the tests that observe a deletion; the proof's required ids are declared from the tests'
+#   designs and the proof re-runs exactly them in the worktree.
+#   Usage: python explore_rbf6.py <lane dir> <spec json> <out json> <lane index> <n lanes>
+#   spec = [{"id", "path", "old", "new", "tests": [full node ids]}]"""
+#   import json
+#   import os
+#   import re
+#   import subprocess
+#   import sys
+#   import tempfile
+#   import xml.etree.ElementTree as ElementTree
+#   
+#   PYTHON = "/home/yixunhu/miniconda3/envs/flac/bin/python"
+#   FRAME = re.compile(r"(?m)^\S*(src/tests/test_\w+\.py):(\d+): in (\w+)")
+#   
+#   
+#   def junit(path):
+#       cases, errors = {}, 0
+#       root = ElementTree.parse(path).getroot()
+#       for suite in root.iter("testsuite"):
+#           errors += int(suite.get("errors") or 0)
+#       for case in root.iter("testcase"):
+#           module = (case.get("classname") or "").replace(".", "/") + ".py"
+#           node = f"{module}::{case.get('name')}"
+#           bad = [child for child in case if child.tag in ("failure", "error")]
+#           skipped = any(child.tag == "skipped" for child in case)
+#           message = ((bad[0].get("message") or "").splitlines() or [""])[0] if bad else ""
+#           frames = FRAME.findall(bad[0].text or "") if bad else []
+#           cases[node] = {"outcome": bad[0].tag if bad else ("skipped" if skipped else "passed"),
+#                          "message": message[:300], "frame": frames[-1] if frames else None}
+#       return cases, errors
+#   
+#   
+#   def main(lane, spec_path, out_path, index, lanes):
+#       spec = [item for k, item in enumerate(json.load(open(spec_path))) if k % lanes == index]
+#       out = json.load(open(out_path)) if os.path.isfile(out_path) else {}
+#       env = {"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin",
+#              "HOME": "/home/yixunhu", "PYTEST_DEBUG_TEMPROOT": os.environ["PYTEST_DEBUG_TEMPROOT"]}
+#       for item in spec:
+#           if item["id"] in out:
+#               continue
+#           if not item["tests"]:            # never a bare pytest (it would run the whole repository)
+#               out[item["id"]] = {"rc": None, "summary": "NO CANDIDATE TEST", "collection_errors": 0,
+#                                  "n": 0, "bad": {}, "stdout_tail": ""}
+#               json.dump(out, open(out_path, "w"), indent=1)
+#               continue
+#           full = os.path.join(lane, item["path"])
+#           original = open(full, "rb").read()
+#           text = original.decode("utf-8")
+#           if text.count(item["old"]) != 1:
+#               raise SystemExit(f"{item['id']}: its edit text occurs {text.count(item['old'])} times")
+#           report = os.path.join(tempfile.mkdtemp(prefix="rbf6_explore_"), "junit.xml")
+#           open(full, "w", encoding="utf-8").write(text.replace(item["old"], item["new"]))
+#           try:
+#               result = subprocess.run([PYTHON, "-m", "pytest", "-p", "no:cacheprovider", "-p",
+#                                        "no:warnings", "-q", "--tb=short", f"--junitxml={report}",
+#                                        *item["tests"]], cwd=lane, capture_output=True, text=True,
+#                                       env=env, timeout=3600)
+#           finally:
+#               open(full, "wb").write(original)
+#           if open(full, "rb").read() != original:
+#               raise SystemExit(f"{item['path']} was not restored after {item['id']}")
+#           cases, errors = junit(report) if os.path.isfile(report) else ({}, -1)
+#           summary = (result.stdout.strip().splitlines() or ["(no output)"])[-1]
+#           out[item["id"]] = {"rc": result.returncode, "summary": summary, "collection_errors": errors,
+#                              "n": len(cases), "bad": {node: case for node, case in cases.items()
+#                                                       if case["outcome"] in ("failure", "error")},
+#                              "stdout_tail": result.stdout[-1500:] if result.returncode not in (0, 1)
+#                              else ""}
+#           json.dump(out, open(out_path, "w"), indent=1)
+#           print(f"{item['id']}: rc {result.returncode} {summary}", flush=True)
+#   
+#   
+#   if __name__ == "__main__":
+#       main(sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5]))
+# ---- explore_run_rbf6.sh, verbatim:
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F6 exploration (scratch lanes 1..12, parallel; NOT the proof)
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   SPEC=${1:-$S/explore/spec.json}
+#   TAG=${2:-ex1}
+#   N=12
+#   for i in $(seq 1 $N); do
+#     (PYTEST_DEBUG_TEMPROOT=$S/tmproot$i /home/yixunhu/miniconda3/envs/flac/bin/python $S/explore_rbf6.py \
+#        $S/lane$i $SPEC $S/explore/$TAG.lane$i.json $((i - 1)) $N > $S/explore/$TAG.lane$i.out 2>&1;
+#      echo "lane $i exit $?" >> $S/explore/$TAG.done) &
+#   done
+#   wait
+#   echo "EXPLORATION DONE" >> $S/explore/$TAG.done
+# ---- related_rbf6.py, verbatim:
+#   """exp_22 rB-F6 declaration aid (Coder tooling, scratchpad; NOT the proof): for every statement
+#   row to declare, the EXISTING rows that are own for an atom nested in the statement's span (their
+#   code, kind and declared required ids -- the tests already built to assert those atoms' reasons),
+#   beside the exploration's failures. Output: related.json {atom id: [[number, code, kind, atom
+#   id, required tokens], ...]}.
+#   Usage: python related_rbf6.py <repo> <spec json> <out json>"""
+#   import json
+#   import os
+#   import sys
+#   
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   sys.path.insert(0, HERE)
+#   import atoms_rbf6 as A                                          # noqa: E402
+#   import mutate_rbf6 as D                                         # noqa: E402
+#   
+#   repo, spec_path, out_path = sys.argv[1:4]
+#   rows = D._all(repo)[:890]
+#   found = A.collect(repo)
+#   texts = {path: open(f"{repo}/{path}", encoding="utf-8").read() for path in {a["path"] for a in found}}
+#   words = [atom for atom in found if D._word_roles(atom)]
+#   mapped = A.mapping(words, [(row[0], row[4], row[5]) for row in rows], texts)
+#   by_number = {row[0]: row for row in rows}
+#   by_id = {atom["id"]: atom for atom in found}
+#   out = {}
+#   for item in json.load(open(spec_path)):
+#       statement = by_id[item["atom"]]
+#       related = []
+#       for atom in words:
+#           if (atom["path"] == statement["path"] and statement["start"] <= atom["start"]
+#                   and atom["end"] <= statement["end"]):
+#               for number, way in mapped.get(atom["id"], []):
+#                   if way == "own":
+#                       row = by_number[number]
+#                       related.append([number, row[1], row[2], atom["id"], row[6]])
+#       out[item["atom"]] = sorted(related)
+#   json.dump(out, open(out_path, "w"), indent=1)
+#   print(len(out), "statements;", sum(1 for v in out.values() if v), "with related rows")
+# ---- propose_rbf6.py, verbatim:
+#   """exp_22 rB-F6 declaration PROPOSALS (Coder tooling, scratchpad; NOT the proof): a draft kind and
+#   required-id set per statement row, from (a) the related existing rows (own for an atom nested in
+#   the statement; their declared ids assert those atoms' reasons) and (b) the exploration's failures
+#   (preferring a test's own assertion over a crash). Every proposal is then REVIEWED by hand against
+#   the statement and the tests' designs; the reviewed table (decisions.json) is what the driver
+#   embeds. Output: proposals.json {atom id: {...}}.
+#   Usage: python propose_rbf6.py <spec json> <related json> <result glob> <out json>"""
+#   import glob
+#   import json
+#   import sys
+#   
+#   spec = json.load(open(sys.argv[1]))
+#   related = json.load(open(sys.argv[2]))
+#   results = {}
+#   for path in glob.glob(sys.argv[3]):
+#       results.update(json.load(open(path)))
+#   CRASH = ("NameError", "UnboundLocalError", "TypeError", "AttributeError", "KeyError", "IndexError",
+#            "FileNotFoundError", "ValueError", "RecursionError", "OSError", "SystemExit")
+#   FA = "src/tests/test_loc_meshgrid_fa_split.py::"
+#   
+#   
+#   def bare(node):
+#       return node[len(FA):] if node.startswith(FA) else node
+#   
+#   
+#   out = {}
+#   for item in spec:
+#       result = results.get(item["id"], {"bad": {}, "rc": None})
+#       bad = {bare(node): case for node, case in result["bad"].items() if case["outcome"] == "failure"}
+#       asserts = sorted(node for node, case in bad.items() if not case["message"].startswith(CRASH))
+#       crashes = sorted(node for node, case in bad.items() if case["message"].startswith(CRASH))
+#       rel = related.get(item["atom"], [])
+#       rel_ids = []
+#       for _number, _code, _kind, _atom, required in rel:
+#           for token in required:
+#               if token not in rel_ids:
+#                   rel_ids.append(token)
+#       proposal = [node for node in rel_ids if node in bad][:3]
+#       source = "related ∩ failed"
+#       if not proposal and asserts:
+#           proposal, source = asserts[:2], "failed (assert)"
+#       if not proposal and crashes:
+#           proposal, source = crashes[:2], "failed (crash)"
+#       if not proposal and rel_ids:
+#           proposal, source = rel_ids[:2], "related (not among the explored failures)"
+#       kinds = sorted({kind for _n, _c, kind, _a, _r in rel})
+#       out[item["atom"]] = {"path": item["path"], "line": item["line"], "col": item["col"],
+#                            "func": item["func"], "type": item["type"], "segment": item["segment"],
+#                            "rc": result.get("rc"), "n_failed": len(bad), "asserts": asserts[:6],
+#                            "crashes": crashes[:4], "related_kinds": kinds,
+#                            "related_codes": sorted({c for _n, c, _k, _a, _r in rel}),
+#                            "proposal": proposal, "source": source,
+#                            "messages": {node: bad[node]["message"][:140] for node in proposal
+#                                         if node in bad}}
+#   json.dump(out, open(sys.argv[4], "w"), indent=1)
+#   print(len(out), "proposals;", sum(1 for p in out.values() if not p["proposal"]), "without one")
+# ---- summarize_rbf6.py, verbatim:
+#   """exp_22 rB-F6 exploration summary (Coder tooling, scratchpad; NOT the proof): per explored
+#   deletion, its statement and every failing test with the first line of its message and the frame
+#   where it surfaced, labelled `crash` (an exception from production: NameError, TypeError, ...) or
+#   `assert` (the test's own assertion). It informs the declaration; it declares nothing.
+#   Usage: python summarize_rbf6.py <spec json> <result json glob> [function filter]"""
+#   import glob
+#   import json
+#   import sys
+#   
+#   spec = {item["id"]: item for item in json.load(open(sys.argv[1]))}
+#   results = {}
+#   for path in glob.glob(sys.argv[2]):
+#       results.update(json.load(open(path)))
+#   wanted = sys.argv[3] if len(sys.argv) > 3 else None
+#   CRASH = ("NameError", "UnboundLocalError", "TypeError", "AttributeError", "KeyError", "IndexError",
+#            "FileNotFoundError", "ValueError", "RecursionError", "ZeroDivisionError", "OSError",
+#            "json.decoder", "StopIteration", "SystemExit", "RuntimeError")
+#   for atom_id in sorted(spec, key=lambda a: (spec[a]["path"], spec[a]["line"])):
+#       item = spec[atom_id]
+#       if wanted and wanted not in item["func"] and wanted not in item["path"]:
+#           continue
+#       result = results.get(atom_id)
+#       head = (f"== {atom_id} {item['path'].split('/')[-1]}:{item['line']} {item['func']} "
+#               f"{item['type']} `{item['segment'][:90]}`")
+#       if result is None:
+#           print(head + " -- NOT EXPLORED")
+#           continue
+#       bad = result["bad"]
+#       print(head + f" -- rc {result['rc']}, {len(bad)} of {result['n']} failed/errored"
+#             + (f" ({result['summary']})" if result["rc"] not in (0, 1) else ""))
+#       for node, case in sorted(bad.items()):
+#           message = case["message"]
+#           label = "crash" if message.startswith(CRASH) else "assert"
+#           frame = case["frame"]
+#           where = f"{frame[2]}:{frame[1]}" if frame else "-"
+#           print(f"   [{label}] {case['outcome'][:4]} {node.split('::', 1)[1][:95]} @ {where} :: {message[:110]}")
+# ---- review_rbf6.py, verbatim:
+#   """exp_22 rB-F6 review sheet (scratch): proposals with their evidence, for a line range of a file."""
+#   import json, sys
+#   p = json.load(open("explore/proposals.json"))
+#   path, lo, hi = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+#   for atom, v in sorted(p.items(), key=lambda kv: (kv[1]["path"], kv[1]["line"])):
+#       if not v["path"].endswith(path) or not lo <= v["line"] <= hi:
+#           continue
+#       print(f"== {atom} {v['line']} {v['func']} {v['type']} `{v['segment'][:100]}` rc {v['rc']} failed {v['n_failed']} related {v['related_codes']} {v['related_kinds']}")
+#       print(f"   PROPOSAL ({v['source']}): {v['proposal']}")
+#       for node, msg in v["messages"].items():
+#           print(f"     msg {node[:80]}: {msg[:120]}")
+#       others = [a for a in v["asserts"] if a not in v["proposal"]][:3]
+#       if others:
+#           print(f"   other asserts: {others}")
+# ---- q.py, verbatim:
+#   """scratch: an atom's explored failures (optionally filtered), and its related rows' ids."""
+#   import glob, json, sys
+#   res = {}
+#   for p in glob.glob("/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6/explore/ex1.lane*.json"):
+#       res.update(json.load(open(p)))
+#   rel = json.load(open("/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6/explore/related.json"))
+#   atom = sys.argv[1]
+#   subs = sys.argv[2:]
+#   bad = res.get(atom, {}).get("bad", {})
+#   for node, case in sorted(bad.items()):
+#       short = node.split("::", 1)[1] if "fa_split" in node else node
+#       if not subs or any(s in node for s in subs):
+#           print(f"  {case['outcome'][:4]} {short[:120]} :: {case['message'][:110]}")
+#   for number, code, kind, a, req in rel.get(atom, []):
+#       print(f"  related M{number:03d} {code} {kind} {a}: {req[:4]}")
+# ---- red_check_rbf6.py, verbatim:
+#   """exp_22 rB-F6 RED check (Coder tooling, scratchpad; lane13 only; NOT the proof): apply ONE
+#   statement's generated deletion (atoms_rbf6.deletion_edit, from the frozen worktree content) to
+#   lane13's copy, run the given tests there, restore and byte-compare.
+#   Usage: python red_check_rbf6.py <path> <line> <col or -> <pytest -k expression>"""
+#   import os
+#   import subprocess
+#   import sys
+#   
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   sys.path.insert(0, HERE)
+#   import atoms_rbf6 as A                                          # noqa: E402
+#   
+#   REPO, LANE = "/home/yixunhu/codespace/exp-22-r2-bf-yaw", os.path.join(HERE, "lane13")
+#   path, line, col, expr = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+#   atom = next(a for a in A.collect(REPO) if "stmt" in a["roles"] and a["path"] == path
+#               and a["line"] == line and (col == "-" or a["col"] == int(col)))
+#   old, new = A.deletion_edit(atom)
+#   full = os.path.join(LANE, path)
+#   original = open(full, "rb").read()
+#   open(full, "w", encoding="utf-8").write(original.decode("utf-8").replace(old, new))
+#   try:
+#       result = subprocess.run(["/home/yixunhu/miniconda3/envs/flac/bin/python", "-m", "pytest", "-p",
+#                                "no:cacheprovider", "-p", "no:warnings", "-q", "--tb=line",
+#                                "src/tests/test_loc_meshgrid_fa_split.py", "-k", expr],
+#                               cwd=LANE, capture_output=True, text=True,
+#                               env={"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1",
+#                                    "PATH": "/usr/bin:/bin", "HOME": "/home/yixunhu",
+#                                    "PYTEST_DEBUG_TEMPROOT": os.path.join(HERE, "tmproot13")})
+#   finally:
+#       open(full, "wb").write(original)
+#   assert open(full, "rb").read() == original, "NOT RESTORED"
+#   print(f"{atom['id']} {path}:{line} `{atom['segment'].splitlines()[0][:60]}` -> rc {result.returncode}")
+#   print("\n".join(l for l in result.stdout.splitlines() if l.startswith(("FAILED", "ERROR", "/")) or "passed" in l or "failed" in l)[-2500:])
+# ---- decisions_rbf6.py, verbatim:
+#   """exp_22 rB-F6 DECLARATIONS (Coder, by hand, after reading each statement, the tests' designs and
+#   the exploration's locator): atom id -> (kind, required ids, what the deletion does). The ids are
+#   fa_split node ids (bare) or full node ids of another localization test file. P rows carry their
+#   written no-admission argument in P_ARGS. gen_tables_rbf6.py renders them into the driver."""
+#   DRIFT_HONEST = "src/tests/test_loc_meshgrid_drift_measurement.py::test_the_honest_maximum_is_taken_over_every_measured_slice"
+#   PROBE_ONCE = "src/tests/test_loc_meshgrid_offgrid_probe.py::test_the_digest_reads_each_observation_exactly_once"
+#   REPORT_ONCE = "src/tests/test_loc_meshgrid_report.py::test_a_full_evaluation_reads_every_row_and_sidecar_exactly_once"
+#   FA_PASS = "test_a_synthetic_fa_pass_scores_every_query_under_its_declared_partition"
+#   SENTINEL = "test_the_sentinel_is_on_disk_exactly_while_each_partition_check_runs"
+#   MERGED_VALID = "test_the_merged_ledger_is_valid_under_its_own_reader[0]"
+#   COUNTS = "test_the_counts_validator_names_each_malformation_by_its_own_reason"
+#   SEG_DELTA = "test_a_segment_delta_that_is_not_canonical_counts_is_refused_by_its_own_reason"
+#   CORRUPTED = "test_a_corrupted_ledger_is_refused_at_reopen_before_a_no_op_resume_writes_anything"
+#   RESIDUAL = "test_counts_minus_leaves_the_exact_residual_of_every_call_shape"
+#   ONE_AHEAD = "test_a_state_one_query_ahead_is_admitted_at_reopen_and_bound_by_its_prefix"
+#   EVERY_ROW = "test_every_fa_row_carries_the_ledger_state_it_was_published_under"
+#   MAIN_CLAIM = "test_a_scored_pass_through_main_claims_its_out_dir_before_the_pass_runs"
+#   
+#   DECISIONS = {
+#       # ---- localize_meshgrid.py: claim_out_dir, main
+#       "A0001": ("D", ["test_the_driver_records_an_advisory_change_into_the_published_binding",
+#                       "test_the_driver_opens_the_ledger_before_it_writes_the_binding"],
+#                 "`published` unbound: the claim cannot tell a published out-dir from a fresh one"),
+#       "A0002": ("N", ["test_the_driver_refuses_a_reopen_under_another_binding_before_it_touches_the_out_dir",
+#                       "test_the_driver_records_an_advisory_change_into_the_published_binding"],
+#                 "the published binding's assertion gone: its named refusal of another binding becomes a NameError"),
+#       "A0004": ("D", ["test_the_driver_opens_its_ledger_segment_under_its_launch_record",
+#                       "test_the_driver_opens_the_ledger_before_it_writes_the_binding"],
+#                 "the ledger the claim opens (before the binding) and returns"),
+#       "A0009": ("D", ["test_the_driver_opens_the_ledger_before_it_writes_the_binding",
+#                       "test_the_driver_records_an_advisory_change_into_the_published_binding"],
+#                 "neither the binding published (a fresh out-dir) nor an advisory change recorded"),
+#       "A0011": ("D", ["test_the_driver_records_an_advisory_change_into_the_published_binding",
+#                       "test_the_driver_announces_an_advisory_change_on_the_console"],
+#                 "an advisory (batching) change neither recorded in the binding nor announced"),
+#       "A0015": ("D", ["test_the_driver_opens_its_ledger_segment_under_its_launch_record",
+#                       "src/tests/test_loc_meshgrid_launch_record.py::test_claiming_the_out_dir_opens_one_segment_per_invocation"],
+#                 "the claim returns nothing: no skip set, segment or ledger reaches the pass"),
+#       "A0016": ("D", ["test_the_driver_builds_the_split_and_hands_the_pass_the_declared_partition"],
+#                 "a diagnostic pass has no skip set / segment / ledger defaults"),
+#       "A0017": ("N", [MAIN_CLAIM],
+#                 "a scored pass never claims its out-dir: no binding, no ledger, no refusal of another binding"),
+#       "A0018": ("N", [MAIN_CLAIM],
+#                 "a scored pass never claims its out-dir: no binding, no ledger, no refusal of another binding"),
+#       "A0019": ("D", ["test_the_driver_builds_the_split_and_hands_the_pass_the_declared_partition", MAIN_CLAIM],
+#                 "the pass never runs (its summary unbound)"),
+#       # ---- meshgrid_engine.py: the sentinel, admissibility
+#       "A0020": ("P", [DRIFT_HONEST, PROBE_ONCE],
+#                 "FA_PENDING_FILENAME unbound: every admissibility check and freshness verdict raises NameError"),
+#       "A0021": ("P", [FA_PASS, SENTINEL], "FA_PENDING_NOTE unbound: publishing a sentinel raises NameError"),
+#       "A0022": ("P", [FA_PASS, SENTINEL], "datetime unbound: publishing a sentinel raises NameError"),
+#       "A0023": ("D", [SENTINEL, "test_a_shard_killed_inside_a_partition_check_is_non_admissible[inside the final check]"],
+#                 "the pending-check sentinel never published"),
+#       "A0025": ("N", ["test_the_merge_and_the_report_refuse_a_directory_carrying_the_sentinel",
+#                       "test_a_shard_killed_inside_a_partition_check_is_non_admissible[inside the final check]"],
+#                 "a directory still carrying the sentinel is admitted"),
+#       "A0028": ("P", [FA_PASS, MERGED_VALID], "FA_LEDGER_NOTE unbound: opening or merging a ledger raises NameError"),
+#       "A0029": ("P", [REPORT_ONCE, DRIFT_HONEST],
+#                 "MERGE_REPORT_FILENAME unbound: every ledger reader and freshness verdict raises NameError"),
+#       # ---- counts_reasons
+#       "A0030": ("N", [f"{COUNTS}[not_a_list_but_a_dict]", f"{COUNTS}[an_entry_not_a_dict]", f"{COUNTS}[a_missing_field]"],
+#                 "counts that are not the seven-field rows pass the shape check"),
+#       "A0039": ("N", [f"{COUNTS}[configured_a_float]", f"{COUNTS}[count_a_bool]", f"{COUNTS}[a_base_element_a_float]"],
+#                 "a count that is not a non-negative integer passes"),
+#       "A0042": ("N", [f"{COUNTS}[a_zero_count]", "test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-zero count]"],
+#                 "a zero count passes"),
+#       "A0046": ("N", [f"{COUNTS}[an_unknown_branch]", "test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-names branch 'nowhere']"],
+#                 "the recorder never built: an unknown branch's named refusal (and every canonical check) a NameError"),
+#       "A0047": ("D", [f"{COUNTS}[a_row_repeated]", "test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not canonical0]"],
+#                 "the recorder the canonical check and the ledger are computed from never built"),
+#       "A0049": ("N", [f"{COUNTS}[rows_reversed]", f"{COUNTS}[a_row_repeated]"],
+#                 "the validator returns nothing: its canonical-order verdict and recorder lost"),
+#       # ---- _segment_reasons
+#       "A0051": ("N", ["test_a_segment_query_count_that_is_not_a_real_integer_is_refused[*]"],
+#                 "a segment's query-count reason never built (a NameError for every segment)"),
+#       "A0053": ("N", [f"{SEG_DELTA}[missing]", MERGED_VALID],
+#                 "a segment's counts never validated (its reasons and recorder unbound)"),
+#       "A0057": ("N", [f"{CORRUPTED}[tampered count]", f"{CORRUPTED}[tampered segment digest]"],
+#                 "counts that do not hash to the segment's counts_sha256 pass"),
+#       "A0059": ("N", [f"{SEG_DELTA}[a_bool_count]", f"{SEG_DELTA}[an_unknown_branch]"],
+#                 "a segment's delta never validated (its reasons unbound)"),
+#       "A0065": ("N", [f"{SEG_DELTA}[a_bool_count]", MERGED_VALID],
+#                 "a segment's reasons and recorder never returned"),
+#       # ---- _counts_minus (Codex rB-F5's `bucket[key] = rest` among them)
+#       "A0066": ("D", [RESIDUAL, ONE_AHEAD], "the recorder the subtraction starts from never built"),
+#       "A0067": ("N", [RESIDUAL, "test_a_segment_whose_delta_counts_are_outside_its_counts_is_refused",
+#                       "test_the_ledger_only_ever_accumulates"],
+#                 "no subtraction at all: a delta outside its counts is never detected (None never returned)"),
+#       "A0068": ("D", [RESIDUAL, ONE_AHEAD], "the branch bucket unbound (a NameError per subtraction)"),
+#       "A0069": ("D", [RESIDUAL, ONE_AHEAD], "the call-shape key unbound (a NameError per subtraction)"),
+#       "A0070": ("D", [RESIDUAL, ONE_AHEAD], "the residual unbound (a NameError per subtraction)"),
+#       "A0074": ("D", [RESIDUAL, EVERY_ROW], "a consumed shape neither reduced nor dropped"),
+#       "A0076": ("D", [RESIDUAL, EVERY_ROW], "a shape consumed in part keeps its whole count (Codex rB-F5's named statement)"),
+#       "A0078": ("D", [RESIDUAL, ONE_AHEAD], "the difference never returned"),
+#   }
+#   
+#   P_ARGS = {
+#       "A0020": ("FA_PENDING_FILENAME is read unconditionally by assert_admissible, fresh_out_dir and the sentinel's two "
+#                 "writers; unbound, each raises NameError, which no handler on any path catches (the handlers catch "
+#                 "ValueError / OSError / KeyError / TypeError / MALFORMED, never NameError): every reader, merge, "
+#                 "report and fa pass crashes -- nothing is admitted"),
+#       "A0021": ("FA_PENDING_NOTE is read only by begin_partition_check's payload; unbound, publishing the sentinel "
+#                 "raises NameError (uncaught on every path): every scored fa pass crashes at its first check -- no row, "
+#                 "ledger state or verdict is published, nothing is admitted"),
+#       "A0022": ("datetime / timezone are read only by begin_partition_check's payload (a local import); unbound, "
+#                 "publishing the sentinel raises NameError (uncaught): every scored fa pass crashes at its first check "
+#                 "-- nothing is admitted"),
+#       "A0028": ("FA_LEDGER_NOTE is read only by open_fa_ledger's new payload and fa_partition_census's merged "
+#                 "ledger; unbound, opening or merging a ledger raises NameError (uncaught): every fa pass / merge "
+#                 "crashes -- no ledger, row or merge report is published, nothing is admitted"),
+#       "A0029": ("MERGE_REPORT_FILENAME is read unconditionally by read_fa_ledger, fresh_out_dir and merge_shards; "
+#                 "unbound, each raises NameError (uncaught on every path): every reader, reopen, merge and report "
+#                 "crashes -- nothing is admitted"),
+#   }
+#   
+#   STAMP_PUB = "test_write_fa_stamp_publishes_exactly_the_state_its_row_is_published_under"
+#   TRACKER_FORGED = "test_a_one_query_segment_is_bound_by_its_highest_stamped_state[another_state-expected1]"
+#   STAMPS_BIND = "test_stamps_bind_a_segment_by_their_highest_state_in_any_read_order"
+#   LOST_ATTEMPT = "test_at_a_merge_the_last_invocation_is_exact_and_a_lost_attempt_was_executed_again"
+#   EXACT_STATE = "test_an_exact_segment_is_bound_by_its_stored_state_not_its_prefix"
+#   PREFIX_STATE = "test_a_segment_claiming_one_more_query_than_its_rows_is_bound_by_its_prefix"
+#   OTHER_LAUNCH = "test_a_ledger_segment_naming_another_launch_record_than_its_rows_is_refused"
+#   NOT_HELD = "test_a_refused_stamp_is_returned_by_its_own_reason_and_never_binds[a_segment_the_ledger_does_not_hold]"
+#   DECISIONS.update({
+#       # ---- the stamps
+#       "A0079": ("P", [FA_PASS, EVERY_ROW], "STAMP_FIELDS unbound: stamping and binding raise NameError"),
+#       "A0080": ("P", [FA_PASS, EVERY_ROW], "FA_STAMPS_DIRNAME unbound: every stamp path raises NameError"),
+#       "A0081": ("D", [STAMP_PUB, EVERY_ROW], "the segment whose state a stamp records unbound"),
+#       "A0082": ("D", [STAMP_PUB, EVERY_ROW], "no ledger state for a row's stamp"),
+#       "A0083": ("D", [STAMP_PUB, EVERY_ROW], "no stamp path"),
+#       "A0084": ("D", [STAMP_PUB, EVERY_ROW], "the stamp's path unbound"),
+#       "A0086": ("D", [STAMP_PUB, EVERY_ROW], "the stamp never published (Codex rB-F5's named statement)"),
+#       "A0087": ("D", [EVERY_ROW, ONE_AHEAD], "a row's stamp path unbound at reading"),
+#       "A0088": ("D", ["test_each_stamp_form_conjunct_is_refused_by_its_own_reason[no_stamp_object-reopen]", EVERY_ROW],
+#                 "a row's (query id, stamp, launch record) never read"),
+#       "A0090": ("D", [LOST_ATTEMPT], "no call shapes: a lost attempt's shapes cannot be compared"),
+#       # ---- the row binding
+#       "A0091": ("D", ["test_at_a_merge_a_stamp_naming_its_global_segment_index_binds_no_segment", MERGED_VALID, STAMPS_BIND],
+#                 "the binding's mode and blocks unbound"),
+#       "A0095": ("D", ["test_at_a_merge_a_row_without_a_launch_record_binds_no_segment", STAMPS_BIND],
+#                 "no segment lookup at all"),
+#       "A0097": ("D", ["test_at_a_merge_a_row_without_a_launch_record_binds_no_segment", MERGED_VALID],
+#                 "a merged ledger's lookup (launch record, shard-local index) never built"),
+#       "A0099": ("D", [STAMPS_BIND, ONE_AHEAD], "a shard ledger's lookup never built"),
+#       "A0100": ("D", [STAMPS_BIND, ONE_AHEAD], "the binding's reasons / highest states / seen states unbound"),
+#       "A0101": ("N", ["test_each_stamp_form_conjunct_is_refused_by_its_own_reason[an_extra_field-reopen]",
+#                       "test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-not a1]", TRACKER_FORGED],
+#                 "no stamp is read: every stamp refusal gone and no segment has a stamped state"),
+#       "A0102": ("N", ["test_each_stamp_form_conjunct_is_refused_by_its_own_reason[an_extra_field-reopen]",
+#                       "test_each_stamp_form_conjunct_is_refused_by_its_own_reason[an_extra_field-merge]"],
+#                 "a stamp that is not a state passes its form check"),
+#       "A0113": ("D", [MERGED_VALID, STAMPS_BIND], "the segment a stamp names unbound"),
+#       "A0115": ("N", [OTHER_LAUNCH, NOT_HELD], "a stamp naming a segment the ledger does not hold passes"),
+#       "A0121": ("D", ["test_two_rows_may_not_carry_the_same_ledger_state", ONE_AHEAD], "a stamp's state key unbound"),
+#       "A0122": ("N", ["test_two_rows_may_not_carry_the_same_ledger_state",
+#                       "test_a_stamp_claiming_a_state_beyond_its_segment_is_refused_by_its_own_reason"],
+#                 "a state claimed twice, or beyond its segment, passes"),
+#       "A0129": ("N", [TRACKER_FORGED, STAMPS_BIND],
+#                 "no highest stamped state is kept: a one-query segment binds to the empty prefix (a forged stamp admitted)"),
+#       "A0131": ("N", [TRACKER_FORGED, STAMPS_BIND],
+#                 "the highest-state tracker never updated (Codex rB-F5's named statement): a forged one-query stamp admitted"),
+#       "A0132": ("N", [LOST_ATTEMPT, EXACT_STATE, PREFIX_STATE], "no segment is bound to its rows at all"),
+#       "A0133": ("N", [LOST_ATTEMPT, EXACT_STATE, PREFIX_STATE], "no segment of a block is bound to its rows"),
+#       "A0134": ("N", [LOST_ATTEMPT, EXACT_STATE, PREFIX_STATE], "a segment's binding reasons dropped"),
+#       "A0136": ("N", [OTHER_LAUNCH, NOT_HELD], "the binding returns None: every binding refusal read as none"),
+#       # ---- _segment_binding
+#       "A0137": ("D", [EXACT_STATE, ONE_AHEAD], "the segment's name / highest state / query count unbound"),
+#       "A0140": ("N", ["test_the_segment_binding_holds_its_own_range", ONE_AHEAD],
+#                 "a state more than one query ahead of its rows passes"),
+#       "A0143": ("D", [PREFIX_STATE, EXACT_STATE], "the segment's bound state unbound"),
+#       "A0145": ("N", ["test_the_merged_report_binds_every_merged_row_to_its_shards_segment", TRACKER_FORGED],
+#                 "a segment whose state is not its last row's stamp passes"),
+#       "A0148": ("N", ["test_at_a_merge_every_shards_last_invocation_is_exact",
+#                       "test_the_per_arm_report_reads_a_single_shard_ledger_exactly"],
+#                 "a shard's completed last invocation may be one query ahead"),
+#       "A0154": ("N", [LOST_ATTEMPT], "a lost attempt's call shapes need not be executed again"),
+#       "A0161": ("P", ["test_the_segment_binding_holds_its_own_range", ONE_AHEAD],
+#                 "a segment that passes every check returns None (reasons += None raises)"),
+#       # ---- _stamp_reasons
+#       "A0162": ("N", ["test_an_unreadable_ledger_stamp_is_named[*]", "test_an_unverifiable_rows_stamp_is_never_trusted"],
+#                 "no stamp is read: an unreadable stamp's named refusal and every binding become a NameError"),
+#       "A0163": ("D", ["test_an_unverifiable_rows_stamp_is_never_trusted",
+#                       "test_at_a_merge_an_unverifiable_last_rows_stamp_cannot_vouch_for_its_segment"],
+#                 "the stamps of the verifying rows unbound"),
+#       "A0166": ("N", [OTHER_LAUNCH, "test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-does not hold]"],
+#                 "the row binding returns None: its refusals read as none"),
+#   })
+#   P_ARGS.update({
+#       "A0079": ("STAMP_FIELDS is read unconditionally by fa_ledger_state (every stamp) and the binding's form check; "
+#                 "unbound, both raise NameError (uncaught on every path): every fa pass, reopen, merge and report "
+#                 "crashes -- nothing is admitted"),
+#       "A0080": ("FA_STAMPS_DIRNAME is read only by fa_stamp_path; unbound, every stamp write, read and copy raises "
+#                 "NameError (uncaught): every fa pass, reopen and merge crashes -- nothing is admitted"),
+#       "A0161": ("the final `return []` is reached only by a segment that passed every check above it; without it the "
+#                 "function returns None and the caller's `reasons += None` raises TypeError, which no handler on the "
+#                 "binding's path catches (read_fa_ledger, merge_shards and the report do not catch it): an honest "
+#                 "binding crashes, and every refused segment returned its reason before -- nothing is admitted"),
+#   })
+#   
+#   ORIGIN = "test_each_merged_origin_conjunct_is_refused_by_its_own_reason"
+#   HONEST_BLOCKS = "test_an_honest_merged_case_joins_and_splits_into_its_shard_blocks"
+#   OMITTED = "test_a_merge_receipt_omitting_a_shards_later_segments_is_refused"
+#   LOCAL_IDX = "test_a_shards_merged_local_indices_must_be_0_to_k_minus_1_in_order"
+#   PER_ARM = "test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join"
+#   RECEIPT_FIELD = "test_every_field_of_the_merge_receipt_is_joined[*]"
+#   MERGED_DIR = "test_a_directory_publishing_a_merge_report_is_read_as_a_merged_run"
+#   VANILLA_REPORT = "test_a_vanilla_report_admits_no_fa_ledger_and_no_fa_receipt"
+#   MISSING_HOLDS = "test_a_missing_ledger_is_refused_in_an_out_dir_that_already_holds_a_run[deleted0]"
+#   NO_LEDGER_FRESH = "test_a_merge_or_report_reading_no_ledger_refuses_even_a_fresh_directory"
+#   MISSING_FRESH = "test_a_missing_ledger_is_admitted_only_in_a_fresh_out_dir"
+#   SINGLE_SHARD = "test_a_single_shard_bf_report_re_reads_its_ledger_against_its_run_summary"
+#   ADOPTS = "test_a_pass_adopts_only_the_ledger_opened_for_its_out_dir_declaration_and_record"
+#   ALREADY_RAN = "test_a_ledger_handle_whose_segment_already_ran_is_not_adopted"
+#   ACCUMULATES = "test_the_ledger_only_ever_accumulates"
+#   FA_MERGE = "test_an_fa_merge_re_derives_every_shards_executed_partition_and_keeps_it"
+#   MERGED_VALID1 = "test_the_merged_ledger_is_valid_under_its_own_reader[1]"
+#   MERGE_REFUSES = "test_the_merge_refuses_a_merged_ledger_its_reader_would_refuse"
+#   CENSUS_OWN = "test_the_census_verifies_the_merged_ledgers_own_integrity_before_any_write"
+#   FRESH_VERDICT = "test_fresh_out_dirs_verdict_is_that_it_holds_nothing_but_launch_records"
+#   DECISIONS.update({
+#       # ---- _ledger_reasons / _merged_reasons
+#       "A0167": ("N", ["test_every_ledger_segment_index_is_a_real_integer[indices0]",
+#                       "test_every_ledger_segment_index_is_a_real_integer[indices1]"],
+#                 "segment indices that are not the real ints 0..n-1 pass (the reasons list unbound)"),
+#       "A0171": ("D", [HONEST_BLOCKS, OMITTED], "the shard blocks unbound"),
+#       "A0172": ("N", [f"{ORIGIN}[shard_empty]", f"{PER_ARM}[an origin dropped]"],
+#                 "no merged segment is checked or routed: every origin refusal gone"),
+#       "A0173": ("D", [HONEST_BLOCKS, f"{ORIGIN}[shard_empty]"], "a merged segment's origin unbound"),
+#       "A0174": ("N", [f"{ORIGIN}[shard_empty]", f"{ORIGIN}[local_index_a_bool]"],
+#                 "a merged segment without its shard origin passes"),
+#       "A0180": ("N", ["test_merged_segments_returning_to_an_earlier_shard_are_refused",
+#                       "test_two_shards_merged_segments_are_never_one_block", HONEST_BLOCKS],
+#                 "no block routing at all"),
+#       "A0185": ("N", ["test_merged_segments_returning_to_an_earlier_shard_are_refused", HONEST_BLOCKS],
+#                 "a shard returning after another passes and a new shard opens no block"),
+#       "A0189": ("N", [f"{LOCAL_IDX}[duplicate]", f"{LOCAL_IDX}[gap]"],
+#                 "a shard's local indices not 0..k-1 in order pass (the reasons unbound)"),
+#       "A0191": ("D", [OMITTED, HONEST_BLOCKS], "the receipt the merged segments yield unbound"),
+#       "A0192": ("N", [f"{PER_ARM}[receipt deleted]", f"{PER_ARM}[receipt null]"],
+#                 "a merge report without its receipt: the named refusal becomes a TypeError"),
+#       "A0196": ("N", [RECEIPT_FIELD, OMITTED], "the receipt's differing fields unbound"),
+#       "A0198": ("N", [RECEIPT_FIELD, OMITTED], "the merged reasons and blocks never returned"),
+#       # ---- fresh_out_dir
+#       "A0200": ("P", ["test_a_file_a_pass_writes_is_never_taken_for_an_emitted_launch_record[launch_segments.json]",
+#                       f"{FRESH_VERDICT}[only_launch_records]"],
+#                 "meshgrid_segments unbound: the verdict on an existing directory raises NameError"),
+#       "A0201": ("R", ["test_fresh_out_dir_names_its_entries_as_strings_whatever_path_type_it_is_given"],
+#                 "the out-dir not normalised to a string (its only production caller already passes one)"),
+#       "A0202": ("P", [f"{MISSING_FRESH}[*]", f"{FRESH_VERDICT}[nothing]"],
+#                 "an absent out-dir is not fresh"),
+#       "A0205": ("N", ["test_an_out_dir_that_is_a_file_or_holds_a_json_named_directory_is_not_fresh[a_regular_file]"],
+#                 "a file out-dir is listed as a directory: its named verdict becomes NotADirectoryError"),
+#       "A0208": ("D", ["test_a_file_a_pass_writes_is_never_taken_for_an_emitted_launch_record[fa_partition_ledger.json]",
+#                       f"{FRESH_VERDICT}[a_binding]"],
+#                 "the names a pass writes unbound"),
+#       "A0209": ("N", [f"{MISSING_FRESH}[a half-written ledger]",
+#                       "test_an_out_dir_that_is_a_file_or_holds_a_json_named_directory_is_not_fresh[a_json_named_directory]"],
+#                 "nothing found in an out-dir (the entries unbound): every non-fresh refusal gone"),
+#       "A0216": ("N", [f"{FRESH_VERDICT}[a_binding]", f"{FRESH_VERDICT}[a_rows_directory]", MISSING_HOLDS],
+#                 "no verdict returned"),
+#       # ---- read_fa_ledger
+#       "A0218": ("D", [MERGED_DIR, ONE_AHEAD], "the merge report's path unbound"),
+#       "A0219": ("N", [MERGED_DIR, f"{VANILLA_REPORT}[a non-null receipt-True]"],
+#                 "the merge report never read: the merged reading and the vanilla receipt refusal lost"),
+#       "A0221": ("D", [f"{VANILLA_REPORT}[a non-null receipt-True]", MERGED_VALID], "the merge receipt unbound"),
+#       "A0224": ("N", [f"{VANILLA_REPORT}[a non-null receipt-True]",
+#                       "test_a_vanilla_merge_refuses_a_shard_carrying_a_frame_average_partition"],
+#                 "a vanilla run is read as an fa run: its named refusal becomes another one"),
+#       "A0225": ("N", [f"{VANILLA_REPORT}[a non-null receipt-True]", f"{VANILLA_REPORT}[a ledger file-True]",
+#                       "test_a_vanilla_run_carrying_an_fa_summary_block_is_refused"],
+#                 "a vanilla run carrying a ledger, a summary block or a receipt passes"),
+#       "A0233": ("N", [MISSING_HOLDS, NO_LEDGER_FRESH], "a missing ledger reads as one (FileNotFoundError)"),
+#       "A0234": ("D", [MISSING_HOLDS, f"{MISSING_FRESH}[a half-written ledger]"], "the freshness verdict unbound"),
+#       "A0235": ("N", [MISSING_HOLDS, NO_LEDGER_FRESH,
+#                       "test_a_summary_block_without_its_ledger_is_refused_even_if_freshness_were_misjudged"],
+#                 "a missing ledger is admitted everywhere"),
+#       "A0244": ("D", [ONE_AHEAD, SINGLE_SHARD], "a shard run's blocks unbound"),
+#       "A0245": ("N", [MERGED_DIR, SINGLE_SHARD], "neither the merged reading nor the run summary's check"),
+#       "A0249": ("N", [MERGED_DIR, f"{PER_ARM}[an origin dropped]"],
+#                 "a merged run is neither verified as merged nor refused at a reopen"),
+#       "A0251": ("N", [SINGLE_SHARD, "test_an_fa_merge_refuses_a_shard_whose_executed_partition_does_not_hold[summary_disagrees-run summary]"],
+#                 "the run summary is never held to the ledger"),
+#       "A0253": ("N", [OTHER_LAUNCH, "test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-does not hold]"],
+#                 "no ledger state is bound to the published rows"),
+#       "A0255": ("N", [OTHER_LAUNCH, "test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-does not hold]"],
+#                 "the row binding's reasons dropped"),
+#       "A0256": ("N", ["test_a_shard_that_executed_nothing_is_refused_at_a_merge_by_its_partition_check",
+#                       "test_a_ledger_whose_declaration_was_rewritten_is_refused_at_reopen_by_what_it_executed"],
+#                 "the executed partition is never held to the declaration"),
+#       # ---- open / adopt / persist
+#       "A0262": ("D", ["test_the_driver_opens_the_ledger_before_it_writes_the_binding", FA_PASS], "the opened ledger's handle unbound"),
+#       "A0264": ("D", [ADOPTS, "test_the_driver_opens_its_ledger_segment_under_its_launch_record"], "the opened ledger never returned"),
+#       "A0265": ("D", [ADOPTS, f"{ALREADY_RAN}[a_query]"], "the handed segment unbound"),
+#       "A0272": ("N", [f"{ALREADY_RAN}[a_query]", f"{ALREADY_RAN}[a_call]",
+#                       "test_a_handed_ledger_without_a_segment_is_refused_by_name[empty]"],
+#                 "a ledger not opened for this out-dir, declaration and record is adopted"),
+#       "A0278": ("D", [f"{ALREADY_RAN}[a_call]", f"{ALREADY_RAN}[a_query]"], "the adopted ledger never returned"),
+#       "A0279": ("D", [EVERY_ROW, ONE_AHEAD], "the state at n_queries - 1 unbound"),
+#       "A0281": ("D", [EVERY_ROW, ACCUMULATES], "the delta since that state unbound"),
+#       "A0282": ("N", [ACCUMULATES], "a recorder holding fewer calls than the ledger is published"),
+#       "A0285": ("D", [EVERY_ROW, ONE_AHEAD], "the segment's counts / digest / query count / delta never updated"),
+#       # ---- fa_partition_census
+#       "A0286": ("N", [MERGED_VALID1, FA_MERGE, f"{'test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written'}[duplicated segment index]"],
+#                 "no shard is read through the reader: a corrupted shard's named refusals become another one"),
+#       "A0287": ("D", [MERGED_VALID1, FA_MERGE], "no segment joins the merged ledger"),
+#       "A0288": ("D", [MERGED_VALID1, FA_MERGE], "a shard's segment never joins the merged ledger"),
+#       "A0289": ("D", [FA_MERGE, MERGED_VALID1], "the merge receipt unbound"),
+#       "A0290": ("D", [FA_MERGE, MERGED_VALID1], "the merged ledger unbound"),
+#       "A0291": ("R", [CENSUS_OWN, MERGED_VALID1], "the census's own integrity verdict unbound"),
+#       "A0293": ("R", [MERGE_REFUSES, CENSUS_OWN], "the merged ledger's origins and receipt never re-verified by the census"),
+#       "A0295": ("R", [MERGE_REFUSES, CENSUS_OWN], "the census's merged verdict and blocks dropped"),
+#       "A0296": ("R", [MERGE_REFUSES, CENSUS_OWN], "the census never refuses a merged ledger its reader would refuse"),
+#       "A0299": ("N", [MERGE_REFUSES, FA_MERGE],
+#                 "the census returns None: the merge reads an fa run as vanilla and refuses nothing"),
+#   })
+#   P_ARGS.update({
+#       "A0200": ("meshgrid_segments (a local import) is read only for SEGMENTS_FILENAME in the names a pass writes; "
+#                 "unbound, the verdict on an EXISTING directory raises NameError (uncaught: read_fa_ledger catches "
+#                 "nothing around it) -- an absent directory still returns fresh before it, and every existing one "
+#                 "crashes instead of being judged: freshness can only be lost, never gained -- nothing is admitted"),
+#       "A0202": ("an absent out-dir then falls to `not os.path.isdir` and is NOT fresh (as EN-95 / EN-201): freshness "
+#                 "only shrinks, so a missing ledger is admitted in fewer directories -- never in more"),
+#   })
+#   EXCLUSIONS6 = {
+#       "A0292": ("equivalent: fa_partition_census's `blocks = None`. `blocks` is read only by the final return; when "
+#                 "_ledger_reasons names a reason the function raises before it, and when it names none "
+#                 "`reasons, blocks = _merged_reasons(...)` rebinds blocks first -- no input reads the initial None"),
+#   }
+#   
+#   MERGED_BINDS = "test_the_merged_report_binds_every_merged_row_to_its_shards_segment"
+#   HANDED = "test_a_vanilla_or_probe_pass_handed_a_ledger_is_refused"
+#   DECISIONS.update({
+#       # ---- run_pass / _run_room
+#       "A0300": ("N", [HANDED, ADOPTS], "no ledger dispatch: a vanilla / probe pass keeps a handed ledger and no handle is adopted"),
+#       "A0304": ("N", [HANDED], "a vanilla or probe pass handed a ledger is not refused"),
+#       "A0307": ("N", [ADOPTS, FA_PASS], "a scored pass neither opens a ledger nor checks the one it is handed"),
+#       "A0309": ("D", [EVERY_ROW, f"{'test_a_corrupted_shard_ledger_is_refused_at_the_merge_with_nothing_written'}[duplicated segment index]"],
+#                 "a scored pass handed no ledger opens none"),
+#       "A0311": ("N", ["test_a_pass_whose_final_partition_check_fails_marks_itself_non_admissible",
+#                       "test_a_pass_whose_scored_batches_never_fill_refuses_at_the_end_but_a_probe_reports_it"],
+#                 "the final executed-partition check never runs"),
+#       "A0314": ("D", [EVERY_ROW, ONE_AHEAD], "no receiver group of the room is scored"),
+#       "A0315": ("D", [EVERY_ROW, ONE_AHEAD], "no runnable query of the group is scored"),
+#       "A0316": ("D", [EVERY_ROW, ONE_AHEAD], "no runnable query of the group is scored"),
+#       "A0317": ("N", ["test_a_declared_partition_the_pass_does_not_execute_is_refused_before_any_row",
+#                       "test_a_shard_killed_inside_a_partition_check_is_non_admissible[inside the before-row check]", EVERY_ROW],
+#                 "the before-row executed-partition check never runs"),
+#       "A0321": ("D", [EVERY_ROW, ONE_AHEAD], "neither the ledger state nor the stamp is on disk before the row"),
+#       # ---- merge_shards
+#       "A0324": ("R", [MERGE_REFUSES], "the merge never binds the merged rows to the merged ledger"),
+#       "A0326": ("R", [MERGE_REFUSES, MERGED_VALID], "the merged rows' binding verdict unbound"),
+#       "A0327": ("R", [MERGE_REFUSES], "an unbound merged row is not refused by the merge"),
+#       "A0330": ("D", [MERGED_VALID, MERGED_BINDS], "no merged row (nor its stamp) is published"),
+#       "A0331": ("D", [MERGED_VALID, MERGED_BINDS], "no fa row's stamp travels with it"),
+#       "A0333": ("D", [MERGED_VALID, MERGED_BINDS], "the merged stamp's path unbound"),
+#       "A0336": ("D", [MERGED_VALID, MERGED_BINDS], "the merged ledger never published"),
+#       "A0338": ("D", [MERGED_VALID, "src/tests/test_loc_meshgrid_engine.py::test_a_merge_publishes_a_fresh_directory_only_after_its_census_passes"],
+#                 "the merge report unbound"),
+#   })
+#   
+#   OTHER_REAL = "test_every_other_real_gate_evidence_re_verifies_from_its_json_alone"
+#   GATE3_REAL = "test_a_real_gate3_evidence_re_verifies_from_its_json_alone"
+#   DRIFT_REVERIFY = "test_a_drift_measurement_re_verifies_without_judging_its_deltas"
+#   AUTOCAST_EXACT = "test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device"
+#   COMPONENT = "test_each_autocast_component_alone_is_refused_by_the_autocast_clause"
+#   DIT_EXACT = "test_the_dit_input_clause_requires_exactly_the_registered_inputs"
+#   ANCHOR_CLAIMING = "test_an_anchor_claiming_the_pinned_digest_over_other_content_is_refused"
+#   SWAP = "test_a_coordinated_swap_of_g0s_frozen_and_published_maps_does_not_re_verify"
+#   DECISIONS.update({
+#       # ---- meshgrid_fa_parity.py: module bindings and registered constants
+#       "A0341": ("P", [f"{OTHER_REAL}[G1]", f"{GATE3_REAL}[G3]"], "math unbound: every measured number raises NameError"),
+#       "A0342": ("C", ["test_the_registered_autocast_resolution_is_torchs", f"{AUTOCAST_EXACT}[cpu-G1]"],
+#                 "the registered autocast resolution unbound"),
+#       "A0343": ("C", ["test_the_registered_dit_inputs_are_flac_ars_conditioning_inputs", f"{DIT_EXACT}[drop]"],
+#                 "the registered DiT inputs unbound"),
+#       "A0344": ("C", ["test_the_registered_anchor_content_is_the_committed_reports",
+#                       "test_the_loader_holds_the_ordered_ids_and_the_frozen_map_each_to_its_registration[the_frozen_map]"],
+#                 "the registered anchor ids digest unbound"),
+#       "A0345": ("C", ["test_the_registered_anchor_content_is_the_committed_reports",
+#                       "test_the_loader_holds_the_ordered_ids_and_the_frozen_map_each_to_its_registration[the_ordered_ids]"],
+#                 "the registered anchor frozen-map digest unbound"),
+#       # ---- pair_reasons / _measured / compare_inputs / dit_input_reasons
+#       "A0346": ("N", ["test_pair_reasons_judges_against_a_tolerance_only_when_one_is_registered[a_registered_tolerance]",
+#                       "test_pair_reasons_judges_against_a_tolerance_only_when_one_is_registered[no_tolerance]"],
+#                 "a pair's measured difference is judged neither as a number nor against its tolerance"),
+#       "A0351": ("N", ["test_a_negative_or_boolean_delta_is_never_within_a_registered_tolerance[bool]",
+#                       "test_a_negative_or_boolean_delta_is_never_within_a_registered_tolerance[negative]"],
+#                 "a difference beyond (or not a number under) the registered tolerance passes"),
+#       "A0355": ("P", [DRIFT_REVERIFY, "test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[0.0]"],
+#                 "_measured returns None: every measured number reads as not measured"),
+#       "A0361": ("N", [f"{DIT_EXACT}[drop]", "test_the_driver_runs_gate1_and_writes_its_evidence"],
+#                 "the compared inputs and their reasons never returned: a live gate's named DiT-input refusal becomes a TypeError"),
+#       "A0362": ("P", [DRIFT_REVERIFY, f"{OTHER_REAL}[G1]"], "the compared input names not normalised (str, sorted)"),
+#       "A0363": ("N", [f"{DIT_EXACT}[drop]", f"{DIT_EXACT}[extra]"],
+#                 "the DiT-input clause returns None: its named refusal becomes a TypeError"),
+#       # ---- anchor_reasons / _content_reasons
+#       "A0365": ("N", [ANCHOR_CLAIMING], "an anchor whose ordered ids are not the registered content passes"),
+#       "A0368": ("N", [ANCHOR_CLAIMING, SWAP], "an anchor whose frozen map is not the registered content passes"),
+#       "A0371": ("P", [f"{OTHER_REAL}[G0]", SWAP], "canonical_sha256 unbound: every content check raises NameError"),
+#       "A0372": ("N", ["test_gate0_fails_on_ordered_query_ids_that_are_not_the_registered_content", f"{OTHER_REAL}[G0]"],
+#                 "ordered ids that are not the registered content pass (the reasons unbound)"),
+#       "A0376": ("N", ["test_gate0_fails_on_a_frozen_map_that_is_not_the_registered_content", SWAP],
+#                 "the content clause returns None: its named refusals become a TypeError"),
+#       # ---- autocast_reasons
+#       "A0378": ("D", [f"{AUTOCAST_EXACT}[cpu-G1]", f"{COMPONENT}[cpu-G1-dtype]"], "the requested autocast and the device unbound"),
+#       "A0379": ("D", [f"{COMPONENT}[cpu-G1-device_not_a_string]", f"{AUTOCAST_EXACT}[cpu-G1]"], "the device type unbound"),
+#       "A0381": ("D", [f"{AUTOCAST_EXACT}[cpu-G1]", f"{COMPONENT}[cpu-G1-dtype]"], "the resolved autocast state unbound"),
+#       "A0382": ("D", [f"{AUTOCAST_EXACT}[cpu-G1]", f"{COMPONENT}[cpu-G1-dtype]"], "the published autocast state unbound"),
+#       "A0383": ("P", [f"{OTHER_REAL}[G1]", "test_the_driver_runs_gate1_and_writes_its_evidence"],
+#                 "the exact resolved state is never admitted: every autocast-registered gate refused"),
+#       "A0391": ("N", [f"{AUTOCAST_EXACT}[cpu-G1]", f"{AUTOCAST_EXACT}[cpu-G3D]"],
+#                 "a state that is not the resolved one returns None, read as no autocast reason"),
+#   })
+#   P_ARGS.update({
+#       "A0341": ("math is read only by _measured (math.isfinite); unbound, every measured number raises NameError, which "
+#                 "neither _collect nor reverify_gate_evidence catches (MALFORMED holds no NameError): every live gate and "
+#                 "re-verification crashes -- nothing is admitted"),
+#       "A0355": ("_measured then returns None for every value -- falsy, so every difference / delta reads as NOT a finite "
+#                 "non-negative number: pair_reasons and measurement_reasons only ADD the non-finite reason, and no caller "
+#                 "admits on a falsy _measured -- honest evidence is refused, nothing more is admitted"),
+#       "A0362": ("the given names are then compared unsorted and un-stringified against sorted(REGISTERED_DIT_INPUTS): a "
+#                 "list equal to the sorted registered names compares equal either way, any other list only unequal -- the "
+#                 "deletion can only refuse honest inputs given in another order or as non-strings, never admit a set the "
+#                 "frozen clause refuses"),
+#       "A0371": ("canonical_sha256 (a local import) is read on both of _content_reasons' paths; unbound, every anchor "
+#                 "content check raises NameError (uncaught: MALFORMED holds none) -- G0, G3 and their re-verifications "
+#                 "crash, nothing is admitted"),
+#       "A0383": ("the If's body is the clause's ONLY `return []`; without it every gate registered at an autocast falls to "
+#                 "the refusal return -- the exact resolved state included: honest evidence is refused, and every state the "
+#                 "frozen clause refuses is still refused by the same return"),
+#   })
+#   
+#   MALFORMED_PART = "test_a_malformed_part_is_named_by_its_own_collector_and_hides_no_other_reason"
+#   HEADLINE = "test_a_chunk_headline_that_is_not_its_facts_is_named"
+#   TAMPERED3 = "test_a_tampered_gate3_evidence_names_what_does_not_re_verify"
+#   DRIFT_NONFINITE = "test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete"
+#   AGREEMENT = "test_a_drift_measurement_agreement_flag_that_is_not_a_boolean_is_named"
+#   NOT_TILE = "test_a_query_whose_candidate_index_list_is_not_its_count_does_not_tile"
+#   LOADER = "test_the_loader_holds_the_ordered_ids_and_the_frozen_map_each_to_its_registration"
+#   DECISIONS.update({
+#       # ---- _score_deltas / measurement_reasons
+#       "A0393": ("N", ["test_gate3_fails_on_score_drift_alone", "test_gate3_fails_on_argmax_movement_alone",
+#                       "test_the_live_drift_measurement_names_a_score_delta_that_is_not_a_measurement"],
+#                 "no K's score delta is judged"),
+#       "A0394": ("N", ["test_gate3_fails_on_score_drift_alone", "test_gate3_fails_on_argmax_movement_alone",
+#                       "test_the_live_drift_measurement_names_a_score_delta_that_is_not_a_measurement"],
+#                 "a K's score-delta reasons dropped"),
+#       "A0396": ("D", [f"{AGREEMENT}[argmax_equal]", f"{DRIFT_NONFINITE}[None]"], "the measured delta unbound"),
+#       "A0397": ("N", [f"{DRIFT_NONFINITE}[None]", f"{DRIFT_NONFINITE}[-1.0]"],
+#                 "a delta that is not a finite number passes (the reasons unbound)"),
+#       "A0399": ("N", [f"{AGREEMENT}[argmax_equal]", f"{AGREEMENT}[at_risk]"],
+#                 "the measurement returns None: its named reasons lost"),
+#       # ---- load_probe_anchor / G0
+#       "A0402": ("D", ["test_a_report_with_the_pinned_bytes_digest_but_other_content_is_refused_at_load",
+#                       "test_the_registered_anchor_content_is_the_committed_reports"], "the frozen map unbound"),
+#       "A0403": ("D", ["test_a_report_with_the_pinned_bytes_digest_but_other_content_is_refused_at_load",
+#                       "test_the_registered_anchor_content_is_the_committed_reports"], "the content digests unbound"),
+#       "A0404": ("N", ["test_a_report_with_the_pinned_bytes_digest_but_other_content_is_refused_at_load",
+#                       f"{LOADER}[the_ordered_ids]"], "a report whose content is not the registered one loads"),
+#       "A0407": ("D", ["test_the_registered_anchor_content_is_the_committed_reports", SWAP], "the loader returns no anchor"),
+#       "A0408": ("P", [f"{OTHER_REAL}[G0]", f"{GATE3_REAL}[G3]"], "ANCHOR_EVIDENCE unbound: an anchor's published block raises NameError"),
+#       "A0409": ("N", ["test_gate0_fails_on_a_frozen_map_that_is_not_the_registered_content",
+#                       "test_gate0_names_an_anchor_without_its_ordered_query_ids"],
+#                 "G0's live content clause dropped"),
+#       "A0412": ("N", ["test_a_malformed_evidence_is_named_never_raised[evidence0]", f"{MALFORMED_PART}[query]",
+#                       "test_a_systematic_type_substitution_is_always_a_named_reason[G1]"],
+#                 "MALFORMED unbound: a malformed input raises NameError instead of its named reason"),
+#       # ---- inputs_reasons / executed_reasons
+#       "A0413": ("N", ["test_the_dit_input_clause_names_an_uncompared_or_one_sided_input[empty]",
+#                       "test_the_dit_input_clause_names_an_uncompared_or_one_sided_input[a_string]"],
+#                 "an uncompared DiT-input map passes"),
+#       "A0418": ("N", [f"{DIT_EXACT}[drop]", DRIFT_REVERIFY],
+#                 "the DiT-input clauses return None: their named reasons become a malformed one"),
+#       "A0420": ("N", ["test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-zero count]",
+#                       f"{GATE3_REAL}[G3]"], "the executed counts never validated (the reasons unbound)"),
+#       "A0424": ("D", ["test_an_isolated_tamper_is_named_by_its_own_clause[G3-executed_partition.executed.orbit_size]",
+#                       f"{GATE3_REAL}[G3]"], "the executed partition re-derived from the counts unbound"),
+#       "A0425": ("N", ["test_an_isolated_tamper_is_named_by_its_own_clause[G3-executed_partition.executed.orbit_size]",
+#                       "test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not canonical0]"],
+#                 "an executed partition that is not its counts' passes (the reasons unbound)"),
+#       # ---- _reverify_production / _collect
+#       "A0428": ("D", ["test_a_replay_record_planned_for_another_orbit_is_refused",
+#                       "test_score_stability_published_for_no_k_at_all_is_refused"], "the evidence's own shape unbound"),
+#       "A0433": ("N", [f"{MALFORMED_PART}[query]", HEADLINE], "no query of the evidence is re-verified"),
+#       "A0434": ("N", [f"{MALFORMED_PART}[query]", HEADLINE], "a query's re-verification never collected"),
+#       "A0435": ("N", [HEADLINE, DRIFT_REVERIFY],
+#                 "the per-query re-verification (and the folds it builds) never runs -- the effect deletion"),
+#       "A0436": ("N", [f"{MALFORMED_PART}[coverage]"], "the coverage clause never collected"),
+#       "A0437": ("N", [f"{MALFORMED_PART}[score_stability]"], "the score-stability clause never collected"),
+#       "A0439": ("N", ["test_collect_adds_the_reasons_of_its_check", f"{MALFORMED_PART}[query]"],
+#                 "a check's reasons are neither collected nor its malformation named"),
+#       "A0440": ("N", ["test_collect_adds_the_reasons_of_its_check",
+#                       "test_an_unregistered_field_or_an_edited_registered_text_does_not_re_verify"],
+#                 "a check's reasons are never added"),
+#       # ---- _production_query_reasons
+#       "A0442": ("D", [NOT_TILE, f"{GATE3_REAL}[G3]"], "the query's inputs / micro-batch unbound"),
+#       "A0443": ("D", [NOT_TILE, f"{GATE3_REAL}[G3]"], "the query's candidate count / id unbound"),
+#       "A0444": ("D", [NOT_TILE, f"{GATE3_REAL}[G3]"], "the registered tiling unbound"),
+#       "A0445": ("N", [NOT_TILE, "test_a_query_without_its_candidate_index_list_does_not_tile"],
+#                 "chunks that do not tile the query pass"),
+#       "A0452": ("D", [f"{TAMPERED3}[argmax moved]", DRIFT_REVERIFY], "the score check (logic gate or measurement) unbound"),
+#       "A0455": ("N", ["test_a_query_whose_score_stability_is_not_published_for_exactly_the_registered_k",
+#                       "test_score_stability_published_for_no_k_at_all_is_refused"],
+#                 "score stability published for other K passes"),
+#       "A0458": ("N", [HEADLINE, "test_a_published_chunk_summary_that_was_emptied_is_refused[per_key]",
+#                       "test_a_published_chunk_summary_that_was_emptied_is_refused[digest_chains]"],
+#                 "no chunk of the query is re-verified"),
+#       "A0459": ("D", [HEADLINE, f"{GATE3_REAL}[G3]"], "a chunk's conditioning / DiT inputs / start unbound"),
+#       "A0460": ("N", [f"{TAMPERED3}[argmax moved]", HEADLINE], "a chunk's conditioning reasons never built"),
+#       "A0461": ("N", ["test_a_replay_record_planned_for_another_orbit_is_refused",
+#                       "test_the_dit_input_clause_names_an_uncompared_or_one_sided_input[a_string]"],
+#                 "a chunk's DiT-input and replay-partition reasons dropped"),
+#       "A0463": ("N", [HEADLINE], "a chunk headline that is not its facts passes"),
+#       "A0470": ("P", [DRIFT_REVERIFY, f"{GATE3_REAL}[G3]"], "a query that passes every check returns None"),
+#       # ---- _coverage_reasons
+#       "A0471": ("N", ["test_the_coverage_clause_requires_both_a_full_and_a_tail_batch"],
+#                 "a coverage without a full and a tail batch passes (the reasons unbound)"),
+#       "A0473": ("N", [f"{TAMPERED3}[coverage edited]", DRIFT_REVERIFY],
+#                 "the coverage clause returns None: its named refusal becomes a malformed one"),
+#   })
+#   P_ARGS.update({
+#       "A0408": ("ANCHOR_EVIDENCE is read only where an anchor's block is published into the evidence (G0 / G3 / G3D); "
+#                 "unbound, building that block raises NameError (uncaught: MALFORMED holds none) -- the gate crashes "
+#                 "before it writes a verdict, nothing is admitted"),
+#       "A0470": ("the final `return []` is reached only by a query that passed every check above it; without it the "
+#                 "function returns None and _collect's `list(check())` raises TypeError, which _collect names as a "
+#                 "malformed query -- an honest query is refused, and every refused query returned its reasons before"),
+#   })
+#   
+#   MANIFEST = "test_the_evidence_schema_registration_is_the_frozen_manifest"
+#   REAL_FIELDS = "test_a_real_evidence_carries_exactly_the_frozen_manifests_fields"
+#   LAZY_IMPORT = "src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_gate_only_after_every_binding_check"
+#   IS_KIND = "test_is_kind_answers_the_json_kind_exactly"
+#   MISSING_FIELD = "test_a_missing_schema_field_is_named_by_its_own_reason"
+#   UNREGISTERED = "test_an_unregistered_field_or_an_edited_registered_text_does_not_re_verify"
+#   MALFORMED_EV = "test_a_malformed_evidence_is_named_never_raised"
+#   DECISIONS.update({
+#       # ---- _reverify_replay and the schema registration
+#       "A0475": ("N", [SWAP], "G0's re-verified content clause dropped"),
+#       "A0476": ("C", [MANIFEST, f"{REAL_FIELDS}[G1]"], "_schema returns None: every gate's registration is None"),
+#       "A0477": ("C", [LAZY_IMPORT], "_TOP unbound: the module no longer imports (EVIDENCE_SCHEMA's construction raises NameError)"),
+#       "A0488": ("C", [LAZY_IMPORT], "_INPUTS unbound: the module no longer imports"),
+#       "A0499": ("C", [LAZY_IMPORT], "_QUERY unbound: the module no longer imports"),
+#       "A0508": ("C", [LAZY_IMPORT], "_PRODUCTION unbound: the module no longer imports"),
+#       "A0517": ("C", [LAZY_IMPORT], "_PRODUCTION_INPUTS unbound: the module no longer imports"),
+#       "A0528": ("C", [MANIFEST, f"{REAL_FIELDS}[G1]"], "the evidence schema registration unbound"),
+#       # ---- _is_kind / _shape_reasons / schema_reasons
+#       "A0568": ("N", [f"{IS_KIND}[int-bool]", f"{IS_KIND}[null-null]"],
+#                 "a bool is judged as an int (and null by the type table, a KeyError)"),
+#       "A0572": ("N", [f"{IS_KIND}[int-bool]", f"{IS_KIND}[null-null]"],
+#                 "the bool / null answer gone: a bool passes as an int"),
+#       "A0576": ("P", [f"{IS_KIND}[str-str]", f"{REAL_FIELDS}[G1]"], "every non-bool, non-null value reads as no kind (None)"),
+#       "A0578": ("D", ["test_a_missing_schema_field_is_named_never_raised", f"{MISSING_FIELD}[G1-evidence-name]"],
+#                 "the missing / extra fields unbound"),
+#       "A0579": ("N", ["test_a_missing_schema_field_is_named_never_raised", UNREGISTERED],
+#                 "a missing or extra field is not named (the reasons unbound)"),
+#       "A0582": ("N", ["test_a_missing_schema_field_is_named_never_raised",
+#                       "test_a_retyped_schema_field_is_named_by_its_own_reason[G1-evidence-name]"],
+#                 "the shape clause returns None: its named reasons lost"),
+#       "A0586": ("D", [f"{MISSING_FIELD}[G1-evidence-name]", f"{REAL_FIELDS}[G1]"], "the gate's registered schema unbound"),
+#       "A0587": ("N", [f"{MISSING_FIELD}[G1-evidence-name]", UNREGISTERED], "the evidence's top-level shape never checked"),
+#       "A0588": ("N", [UNREGISTERED, f"{MISSING_FIELD}[G1-inputs-binding]"], "the evidence's inputs shape never checked"),
+#       "A0591": ("N", [UNREGISTERED], "the schema clause returns None: its named reasons become a malformed one"),
+#       # ---- reverify_gate_evidence
+#       "A0593": ("N", ["test_an_unknown_gate_is_named_by_the_gate_clause_alone"], "an unknown gate is re-verified anyway"),
+#       "A0598": ("D", [f"{OTHER_REAL}[G1]", f"{OTHER_REAL}[G0]"], "the inputs / clauses / schema reasons unbound"),
+#       "A0602": ("N", [f"{MALFORMED_EV}[evidence0]", f"{MALFORMED_EV}[evidence1]"],
+#                 "the verdict clause never runs: its named reasons (and a malformed verdict's) lost"),
+#       "A0603": ("N", [f"{MALFORMED_EV}[evidence0]", f"{OTHER_REAL}[G1]"], "the verdict clause's reasons unbound"),
+#       "A0605": ("N", [SWAP, DRIFT_REVERIFY], "the re-verification returns None, read as no reason"),
+#   })
+#   P_ARGS.update({
+#       "A0576": ("_is_kind then returns None for every value that is neither a bool nor null: falsy, so every such field "
+#                 "reads as of another kind -- _shape_reasons only ADDS a retyped reason and no caller admits on a falsy "
+#                 "_is_kind; the bool / null branch above is unchanged: honest evidence is refused, nothing more is "
+#                 "admitted"),
+#   })
+#   
+#   # ---- corrections after the first iteration (each a declared test that does not assert the
+#   # ---- statement's own effect, replaced by one that does -- by the tests' designs; disclosed)
+#   DECISIONS["A0202"] = ("P", [f"{MISSING_FRESH}[*]"],
+#                         "an absent out-dir is not fresh")             # [nothing] = an EXISTING empty dir
+#   DECISIONS["A0293"] = ("R", [MERGE_REFUSES],
+#                         "the merged ledger's origins and receipt never re-verified by the census")
+#   DECISIONS["A0295"] = ("R", [MERGE_REFUSES], "the census's merged verdict and blocks dropped")
+#   DECISIONS["A0307"] = ("N", [ADOPTS, EVERY_ROW],
+#                         "a scored pass neither opens a ledger nor checks the one it is handed")
+#   DECISIONS["A0346"] = ("N", ["test_pair_reasons_judges_against_a_tolerance_only_when_one_is_registered[a_registered_tolerance]",
+#                               f"{DRIFT_NONFINITE}[-1.0]"],
+#                         "a pair's measured difference is judged neither as a number nor against its tolerance")
+#   DECISIONS["A0473"] = ("N", ["test_the_coverage_clause_requires_both_a_full_and_a_tail_batch", DRIFT_REVERIFY],
+#                         "the coverage clause returns None: its named refusals become a malformed one")
+# ---- gen_tables_rbf6.py, verbatim:
+#   """exp_22 rB-F6 table generator (Coder tooling, scratchpad): renders the hand-written declarations
+#   (decisions_rbf6.py) into the driver as LITERALS -- RBF6_STMT (one statement deletion per statement
+#   atom, named by path / line / column / first source line), RBF6_EFFECT (the nested effect call),
+#   the new rows' P arguments and the justified exclusion -- between two marker lines, so the driver
+#   (embedded verbatim in the proof log) carries every declaration itself.
+#   Usage: python gen_tables_rbf6.py <repo> <spec json>"""
+#   import json
+#   import os
+#   import sys
+#   
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   sys.path.insert(0, HERE)
+#   import atoms_rbf6 as A                                          # noqa: E402
+#   import decisions_rbf6 as DEC                                    # noqa: E402
+#   
+#   BEGIN = "# >>> RBF6 TABLES (generated by gen_tables_rbf6.py from the declarations) >>>\n"
+#   END = "# <<< RBF6 TABLES <<<\n"
+#   CONST = {"localize_meshgrid.py": "DRIVER", "src/localization/meshgrid_engine.py": "ENGINE",
+#            "src/localization/meshgrid_fa_parity.py": "PARITY",
+#            "src/localization/meshgrid_report.py": "REPORT"}
+#   ABBR = {"localize_meshgrid.py": "LM", "src/localization/meshgrid_engine.py": "EN",
+#           "src/localization/meshgrid_fa_parity.py": "FP", "src/localization/meshgrid_report.py": "RP"}
+#   ORDER = list(CONST)
+#   
+#   
+#   def main(repo, spec_path):
+#       spec = {item["atom"]: item for item in json.load(open(spec_path))}
+#       found = {atom["id"]: atom for atom in A.collect(repo)}
+#       stmt, effect, p_args, excluded = [], [], [], []
+#       for atom_id, (kind, required, what) in DEC.DECISIONS.items():
+#           item, atom = spec[atom_id], found[atom_id]
+#           if item["kind"] == "stmt":
+#               first = atom["segment"].splitlines()[0].strip()
+#               stmt.append((ORDER.index(item["path"]), item["line"],
+#                            f"    ({CONST[item['path']]}, {item['line']}, {atom['col']}, {first!r}, {kind!r},\n"
+#                            f"     {required!r},\n     {what!r}),\n"))
+#               code = f"SD:{ABBR[item['path']]}:{item['line']}"
+#           else:
+#               code = f"EF:{ABBR[item['path']]}:{item['line']}"
+#               predicate = (f"{atom['func']}: the nested effect call `{atom['segment'].splitlines()[0].strip()}...` "
+#                            f"deleted -- {what}")
+#               effect.append(f"    ({code!r}, {kind!r}, {predicate!r}, {CONST[item['path']]},\n"
+#                             f"     [({item['old']!r},\n       {item['new']!r})],\n     {required!r}),\n")
+#           if kind == "P":
+#               p_args.append(f"    {code!r}: {DEC.P_ARGS[atom_id]!r},\n")
+#       for atom_id, reason in DEC.EXCLUSIONS6.items():
+#           atom = found[atom_id]
+#           excluded.append(f"    ({CONST[atom['path']]}, {atom['line']}, {atom['col']}, {atom['segment']!r},\n"
+#                           f"     {reason!r}),\n")
+#       block = (BEGIN
+#                + "#: (path, line, col, first source line, kind, required ids, what its deletion does)\n"
+#                + "RBF6_STMT = [\n" + "".join(text for _o, _l, text in sorted(stmt)) + "]\n"
+#                + "#: (code, kind, predicate, path, edits, required ids)\n"
+#                + "RBF6_EFFECT = [\n" + "".join(effect) + "]\n"
+#                + "#: the new P rows' written no-admission arguments (by row code)\n"
+#                + "P_ARGUMENTS.update({\n" + "".join(p_args) + "})\n"
+#                + "#: the new justified exclusions (equivalent mutants)\n"
+#                + "EXCLUDED_ATOMS += [\n" + "".join(excluded) + "]\n" + END)
+#       path = os.path.join(HERE, "mutate_rbf6.py")
+#       text = open(path).read()
+#       if BEGIN in text:
+#           start, end = text.index(BEGIN), text.index(END) + len(END)
+#       else:
+#           start = text.index("#: (path, line, col, first source line, kind, required ids, what its deletion does)\n"
+#                              "RBF6_STMT = []\n")
+#           end = text.index("RBF6_EFFECT = []\n") + len("RBF6_EFFECT = []\n")
+#       open(path, "w").write(text[:start] + block + text[end:])
+#       print(f"rendered {len(stmt)} statement rows, {len(effect)} effect rows, {len(p_args)} P arguments, "
+#             f"{len(excluded)} exclusions")
+#   
+#   
+#   if __name__ == "__main__":
+#       main(sys.argv[1], sys.argv[2])
+# ---- iterate_rbf6.sh, verbatim:
+#   #!/bin/bash
+#   # exp_22 rB-F6 iteration (scratch lanes, parallel; NOT the proof): lane i runs every 12th row of
+#   # the given range with the real driver (exact required ids, the CAUGHT rule), --allow-dirty
+#   # Usage: bash iterate_rbf6.sh <first> <last> <tag>
+#   SP=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   REPO=/home/yixunhu/codespace/exp-22-r2-bf-yaw
+#   FIRST=$1; LAST=$2; TAG=$3; N=12
+#   for i in $(seq 1 $N); do
+#     cp --remove-destination $REPO/src/tests/test_loc_meshgrid_fa_split.py $SP/lane$i/src/tests/test_loc_meshgrid_fa_split.py
+#     cmp -s $REPO/src/tests/test_loc_meshgrid_fa_split.py $SP/lane$i/src/tests/test_loc_meshgrid_fa_split.py || exit 1
+#   done
+#   for i in $(seq 1 $N); do
+#     ONLY=$(python3 -c "print(','.join(str(n) for n in range($FIRST + $i - 1, $LAST + 1, $N)))")
+#     [ -z "$ONLY" ] && continue
+#     rm -f $SP/$TAG.lane$i.log
+#     (cd $SP && PYTEST_DEBUG_TEMPROOT=$SP/tmproot$i RBF6_GIT_REPO=$REPO \
+#        /home/yixunhu/miniconda3/envs/flac/bin/python mutate_rbf6.py $SP/lane$i $SP/$TAG.lane$i.log \
+#        --allow-dirty --only=$ONLY > $SP/$TAG.lane$i.out 2>&1; echo "lane $i exit $?" >> $SP/$TAG.done) &
+#   done
+#   wait
+#   echo "ITERATION DONE" >> $SP/$TAG.done
+# ---- tooling_log_rbf6.sh, verbatim:
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F6: the declaration-tooling log (Coder tooling, scratchpad): every exploration /
+#   # declaration aid of this round VERBATIM, with the summaries of the exploration and of the two
+#   # iteration runs that informed the declarations. Reads scratch files only.
+#   # Usage: bash tooling_log_rbf6.sh <out log>
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf6
+#   REPO=/home/yixunhu/codespace/exp-22-r2-bf-yaw
+#   OUT=$1
+#   PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+#   {
+#     echo "# exp_22 rB-F6 declaration tooling (scratchpad, Coder tooling; NOT the proof), HEAD $(git -C $REPO rev-parse HEAD), $(date -Iseconds)"
+#     echo "# These aids LOCATED the candidate tests of each new statement / effect deletion and rendered the hand-written"
+#     echo "# declarations into the driver; the proof (its own log) re-runs exactly the declared ids in the worktree."
+#     for f in lanes_rbf6.sh trace_plugin_rbf6.py trace_run_rbf6.sh trace_chunks_rbf6.sh build_spec_rbf6.py \
+#              explore_rbf6.py explore_run_rbf6.sh related_rbf6.py propose_rbf6.py summarize_rbf6.py \
+#              review_rbf6.py q.py red_check_rbf6.py decisions_rbf6.py gen_tables_rbf6.py iterate_rbf6.sh \
+#              tooling_log_rbf6.sh; do
+#       echo "# ---- $f, verbatim:"
+#       sed 's/^/#   /' "$S/$f"
+#     done
+#     echo "# ---- the exploration (explore/ex1: one candidate deletion per spec, its candidate tests run in a lane)"
+#     S="$S" $PY - <<'PYEOF'
+#   import glob, json, collections, os
+#   S = os.environ["S"]
+#   spec = json.load(open(f"{S}/explore/spec.json"))
+#   res = {}
+#   for p in glob.glob(f"{S}/explore/ex1.lane*.json"):
+#       res.update(json.load(open(p)))
+#   c = collections.Counter("no candidate" if r["rc"] is None else f"rc {r['rc']}" for r in res.values())
+#   print(f"#   {len(spec)} specs ({sum(1 for s in spec if s['kind'] == 'stmt')} statement, "
+#         f"{sum(1 for s in spec if s['kind'] == 'effect')} effect); explored {len(res)}: {dict(sorted(c.items()))}")
+#   for atom, r in sorted(res.items()):
+#       if r["rc"] != 1:
+#           s = next(x for x in spec if x["atom"] == atom)
+#           print(f"#   {atom} {s['path'].split('/')[-1]}:{s['line']} [{s['segment'][:70]}]: {r['summary']}")
+#   PYEOF
+#     echo "# ---- iteration 1 (lanes, the real driver and CAUGHT rule, M891-M1118):"
+#     grep -h "^TOTAL" $S/it1.lane*.out | sed 's/^/#   /'
+#     for f in $S/it1.lane*.log; do grep -h -E "^M[0-9]+ \|.*\| MISSED" "$f" | cut -c1-200 | sed 's/^/#   /'; done
+#     echo "# ---- iteration 2 (the six corrected rows):"
+#     grep -h -E "^M[0-9]+ \||^TOTAL" $S/it2.lane1.out | cut -c1-160 | sed 's/^/#   /'
+#   } > "$OUT"
+#   echo "wrote $OUT"
+# ---- the exploration (explore/ex1: one candidate deletion per spec, its candidate tests run in a lane)
+#   229 specs (228 statement, 1 effect); explored 229: {'no candidate': 1, 'rc 0': 6, 'rc 1': 222}
+#   A0017 localize_meshgrid.py:645 [if writes_query_artifacts(args):]: 1 passed in 10.71s
+#   A0018 localize_meshgrid.py:646 [done, segment, fa_ledger = claim_out_dir(args, run_binding, advisory, ]: NO CANDIDATE TEST
+#   A0042 meshgrid_engine.py:903 [if not all(entry["count"] >= 1 for entry in counts):]: 128 passed in 92.00s (0:01:32)
+#   A0192 meshgrid_engine.py:1135 [if not isinstance(receipt, dict):]: 25 passed in 19.15s
+#   A0201 meshgrid_engine.py:1160 [out_dir = str(out_dir)]: 120 passed in 59.73s
+#   A0292 meshgrid_engine.py:1325 [blocks = None]: 18 passed in 18.22s
+#   A0476 meshgrid_fa_parity.py:1355 [return dict(item.split(":") for item in spec.split())]: 1 passed in 9.57s
+# ---- iteration 1 (lanes, the real driver and CAUGHT rule, M891-M1118):
+#   TOTAL 19/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 18/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 18/19 caught
+#   TOTAL 17/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 18/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 19/19 caught
+#   TOTAL 18/19 caught
+#   M1094 | SD:FP:1180 | N | meshgrid_fa_parity.py:1180 | _coverage_reasons: the statement deleted -- the coverage clause returns None: its named refusal becomes a malformed one | `return reasons + ([] if
+#   M1013 | SD:EN:1326 | R | meshgrid_engine.py:1326 | fa_partition_census: the statement deleted -- the merged ledger's origins and receipt never re-verified by the census | `if not reasons:` | MISSED | 
+#   M978 | SD:EN:1161 | P | meshgrid_engine.py:1161 | fresh_out_dir: the statement deleted -- an absent out-dir is not fresh | `if not os.path.exists(out_dir):` | MISSED | rc 1 | selected 10, failed 9, er
+#   M1014 | SD:EN:1327 | R | meshgrid_engine.py:1327 | fa_partition_census: the statement deleted -- the census's merged verdict and blocks dropped | `reasons, blocks = _merged_reasons(segments, receipt, 
+#   M1040 | SD:FP:201 | N | meshgrid_fa_parity.py:201 | pair_reasons: the statement deleted -- a pair's measured difference is judged neither as a number nor against its tolerance | `if tolerance is None:
+#   M1019 | SD:EN:2766 | N | meshgrid_engine.py:2766 | run_pass: the statement deleted -- a scored pass neither opens a ledger nor checks the one it is handed | `elif fa_ledger is None:` | MISSED | rc 1 |
+# ---- iteration 2 (the six corrected rows):
+#   M978 | SD:EN:1161 | P | meshgrid_engine.py:1161 | fresh_out_dir: the statement deleted -- an absent out-dir is not fresh | `if not os.path.exists(out_dir):` | C
+#   M1013 | SD:EN:1326 | R | meshgrid_engine.py:1326 | fa_partition_census: the statement deleted -- the merged ledger's origins and receipt never re-verified by th
+#   M1014 | SD:EN:1327 | R | meshgrid_engine.py:1327 | fa_partition_census: the statement deleted -- the census's merged verdict and blocks dropped | `reasons, bloc
+#   M1019 | SD:EN:2766 | N | meshgrid_engine.py:2766 | run_pass: the statement deleted -- a scored pass neither opens a ledger nor checks the one it is handed | `el
+#   M1040 | SD:FP:201 | N | meshgrid_fa_parity.py:201 | pair_reasons: the statement deleted -- a pair's measured difference is judged neither as a number nor agains
+#   M1094 | SD:FP:1180 | N | meshgrid_fa_parity.py:1180 | _coverage_reasons: the statement deleted -- the coverage clause returns None: its named refusals become a 
+#   TOTAL 6/6 caught

@@ -1,0 +1,5 @@
+E       KeyError: 'digest_chains'
+E       AssertionError: ['coverage: source batches 33 full / 0 tail; a gate covers both']
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_publishes_a_digest_chain_per_key_and_side
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_holds_on_the_real_conditioning_classes
+2 failed, 63 passed, 11 warnings in 26.06s

@@ -1,0 +1,29 @@
+# exp_22 rB-F3 cycle 6 RED (every ledger state bound to the published rows: row stamps, the one-query-ahead state bound by its prefix, the last invocation exact at a merge, a lost attempt executed again; Codex rB-F2 finding 3 part 2), HEAD c0fbadf4 + working tree (new tests only), 2026-11-03T16:22:12-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest -k 'ledger_state_it_was_published or truncated_tail or one_query_ahead or last_invocation_is_exact or stamp_does_not_bind or same_ledger_state or binds_every_merged_row' --tb=line (the truncated-tail probe: 'DID NOT RAISE' = the reader ADMITTED it at HEAD)
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3766: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3811: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3811: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3811: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3811: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3834: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3859: KeyError: 'delta_counts'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3889: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3889: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3889: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3889: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3901: KeyError: 'fa_ledger_state'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3914: KeyError: 'fa_ledger_state'
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_every_fa_row_carries_the_ledger_state_it_was_published_under
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_codex_rbf2s_truncated_tail_probe_is_refused_at_reopen[emptied-full-size source calls]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_codex_rbf2s_truncated_tail_probe_is_refused_at_reopen[emptied-tail-size calls]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_codex_rbf2s_truncated_tail_probe_is_refused_at_reopen[one ahead-full-size source calls]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_codex_rbf2s_truncated_tail_probe_is_refused_at_reopen[one ahead-tail-size calls]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_state_one_query_ahead_is_admitted_at_reopen_and_bound_by_its_prefix
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_at_a_merge_the_last_invocation_is_exact_and_a_lost_attempt_was_executed_again
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-published under]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-does not hold]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-not a0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_row_whose_stamp_does_not_bind_its_ledger_is_refused[<lambda>-not a1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_two_rows_may_not_carry_the_same_ledger_state
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merged_report_binds_every_merged_row_to_its_shards_segment
+13 failed, 317 deselected in 11.09s

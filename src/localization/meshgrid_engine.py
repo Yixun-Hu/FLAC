@@ -353,12 +353,14 @@ SOURCE_CHUNK = 16
 
 
 def source_conditioning(conditioner, md, positions_cam, device, chunk=SOURCE_CHUNK,
-                        ids=SOURCE_COND_IDS):
+                        ids=SOURCE_COND_IDS, fa=None):
     """The source branch over ``[U, 3]`` camera-frame candidate positions.
 
     Chunked so a receiver's whole union never has to fit in one forward, and
     concatenated in the union's own order -- ``chunk`` therefore changes the
-    batching and nothing else, which the chunk-invariance test pins.
+    batching and nothing else, which the chunk-invariance test pins. ``fa`` (an
+    engaged :class:`FaSplit`, exp_22 R2-B) runs each chunk through the released
+    frame-average path instead: ``source`` cylindrical, ``source_vit`` C4-averaged.
     """
     from src.localization.candidates import candidate_metadata
 
@@ -370,7 +372,8 @@ def source_conditioning(conditioner, md, positions_cam, device, chunk=SOURCE_CHU
     for start in range(0, positions.shape[0], chunk):
         batch = [candidate_metadata(md, positions[row])
                  for row in range(start, min(start + chunk, positions.shape[0]))]
-        parts.append(_branch(conditioner, batch, device, ids))
+        parts.append(_branch(conditioner, batch, device, ids) if fa is None else
+                     fa.branch(conditioner, "source_cache", batch, device, configured=chunk))
     if not parts:
         raise ValueError("positions_cam is empty: a receiver union must have candidates")
     out = {}
@@ -446,7 +449,7 @@ class ReceiverCache:
 
     @classmethod
     def build(cls, conditioner, receiver_id, base_md, indices, positions_cam, device,
-              chunk=SOURCE_CHUNK):
+              chunk=SOURCE_CHUNK, fa=None):
         indices = [int(i) for i in indices]
         if len(set(indices)) != len(indices):
             raise ValueError(f"receiver {receiver_id!r}: the union repeats a candidate index")
@@ -454,7 +457,8 @@ class ReceiverCache:
         if positions.shape[0] != len(indices):
             raise ValueError(f"receiver {receiver_id!r}: {positions.shape[0]} positions for "
                              f"{len(indices)} candidates")
-        conditioning = source_conditioning(conditioner, base_md, positions, device, chunk=chunk)
+        conditioning = source_conditioning(conditioner, base_md, positions, device, chunk=chunk,
+                                           fa=fa)
         return cls(receiver_id, indices, conditioning, tensor_digest(base_md["depth"]))
 
     @property
@@ -494,6 +498,837 @@ class ReceiverCache:
                              f"({found[:12]}...) is not the one the source cache was built "
                              f"from ({self.depth_digest[:12]}...)")
         return True
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-B: the five-way frame-average split (plan r2 §2 table; Codex B5, rA A8)
+# --------------------------------------------------------------------------- #
+#: the split's registered name -- the only one under which fa_invariant is cached
+FA_SPLIT = "fa_five_way"
+
+#: The dependency table of plan r2 §2 as the three batches the split runs. Each
+#: goes through the RELEASED ``invariant_conditioning`` with the conditioner
+#: restricted to the batch's ids, so the cylindrical conversion, the ViT-only
+#: rotated passes, the accumulation order, the divisor and the base-pass masks
+#: are the released ones; only WHICH ids a call computes and ON WHICH batch differ.
+#: ``context_vit`` -- one query row: ``context_audio`` from the base pass only
+#: (never averaged), ``context_poses_vit`` C4-averaged. ``context_scored_batch``
+#: -- ``context_poses``, cylindrical against EACH candidate's reference azimuth
+#: (candidate-dependent, angle-invariant, never averaged). ``source_cache`` --
+#: ``source`` cylindrical base, ``source_vit`` C4-averaged, per receiver/candidate.
+FA_BRANCH_IDS = {"context_vit": ("context_poses_vit", "context_audio"),
+                 "context_scored_batch": ("context_poses",),
+                 "source_cache": SOURCE_COND_IDS}
+FA_BRANCHES = tuple(FA_BRANCH_IDS)
+#: the batches that carry a frame-averaged (ViT) id, i.e. that make rotated passes
+FA_ORBIT_BRANCHES = ("context_vit", "source_cache")
+#: what the per-query context batch reads -- the held-out target is never one
+FA_QUERY_KEYS = ("depth", "context_poses_vit", "context_audio")
+
+FA_EXECUTION_NOTE = (
+    "EXECUTED PARTITION (Codex rA A8, rB finding 5; announcement 06): derived at run time from "
+    "the calls the five-way split actually made -- per batch, the LARGEST base batch observed "
+    "(the micro-batch), the largest rotated forward (the cap), the passes counted into the "
+    "orbit size, every rotated forward -- never from the command line or the loop's declared "
+    "size, which is kept only as a consistency check (one stride per batch, no call above it). "
+    "Before every row a prefix whose batches have not yet filled a declared micro-batch is "
+    "consistent; the pass's final check, the merge and gate 3 need every declared micro-batch "
+    "observed at full size. A pass whose executed partition differs from the declared "
+    "run_binding.json fa_partition stops; the rows it already wrote stay on disk as "
+    "INCOMPLETE, NON-ADMISSIBLE artifacts -- the shard writes partition_check_failed.json and "
+    "every merge, report and reopen refuses it (plan r2 amendment A6 iv)")
+#: the micro-batch fields a tail-only prefix may leave below their declared value
+FA_BATCH_FIELDS = ("candidate_micro_batch", "frame_avg_fwd_cap")
+
+
+class _BranchConditioner:
+    """The conditioner restricted to ONE split batch's ids, recording every call it serves.
+
+    ``invariant_conditioning`` calls it for a base pass (no ``only_ids``: here,
+    exactly the batch's ids) and for rotated passes (the present ViT ids). Each
+    call goes through :func:`_branch`, so an answer short or long is refused.
+    """
+
+    def __init__(self, conditioner, ids):
+        self.conditioner, self.ids, self.calls = conditioner, tuple(ids), []
+
+    def __call__(self, metadata, device, only_ids=None):
+        wanted = self.ids if only_ids is None else tuple(only_ids)
+        outside = [key for key in wanted if key not in self.ids]
+        if outside:
+            raise ValueError(f"the {list(self.ids)} batch was asked for {outside}; a split batch "
+                             "computes its own ids only")
+        self.calls.append((len(metadata), only_ids is not None))
+        return _branch(self.conditioner, metadata, device, wanted)
+
+
+def fa_branch(conditioner, branch, metadata, device, angles, recorder=None, configured=None):
+    """One split batch through the released frame-average path, restricted to its ids.
+
+    The cap is the call's own batch (exp_20's ``candidate_micro_batch`` policy), so
+    every rotated angle is its own forward; ``configured`` is the micro-batch the
+    caller's loop runs at, recorded beside what was observed.
+    """
+    from src.data.yaw_rotation import invariant_conditioning
+
+    metadata = list(metadata)
+    restricted = _BranchConditioner(conditioner, FA_BRANCH_IDS[branch])
+    out = invariant_conditioning(restricted, metadata, device,
+                                 tuple(float(angle) for angle in angles),
+                                 max_fwd_samples=len(metadata))
+    if recorder is not None:
+        recorder.observe(branch, restricted.calls, cap=len(metadata),
+                         configured=len(metadata) if configured is None else configured,
+                         orbit_size=len(tuple(angles)))
+    return {key: out[key] for key in FA_BRANCH_IDS[branch]}
+
+
+@dataclass
+class FaSplit:
+    """The engaged five-way split: the orbit it averages over and what it executed."""
+    angles: tuple
+    recorder: object = None
+    name: str = FA_SPLIT
+
+    def branch(self, conditioner, branch, metadata, device, configured=None, record=True):
+        return fa_branch(conditioner, branch, metadata, device, self.angles,
+                         self.recorder if record else None, configured)
+
+
+def fa_query_conditioning(split, conditioner, md, device):
+    """The per-query fa context, ONE row: ``context_audio`` once, ``context_poses_vit`` averaged."""
+    row = {key: md[key] for key in FA_QUERY_KEYS}
+    return split.branch(conditioner, "context_vit", [row], device, configured=1)
+
+
+def fa_candidate_conditioning(split, conditioner, context_poses, positions_cam, device,
+                              configured=None, record=True):
+    """``context_poses`` for one scored candidate batch, cylindrical against EACH candidate."""
+    from src.localization.candidates import candidate_metadata
+
+    base = {"context_poses": context_poses}
+    batch = [candidate_metadata(base, position)
+             for position in np.asarray(positions_cam, dtype=np.float64).reshape(-1, 3)]
+    return split.branch(conditioner, "context_scored_batch", batch, device,
+                        configured=configured, record=record)
+
+
+def _one(values):
+    """The single value observed, else the sorted list (never equal to a declared int)."""
+    values = sorted(set(values))
+    return values[0] if len(values) == 1 else (values or None)
+
+
+class FaPartitionRecorder:
+    """What the split EXECUTED, read off its conditioner calls (Codex rA A8).
+
+    Counted, not logged: a full pass makes ~350 k batch invocations, so each
+    distinct ``(configured, cap, base batches, orbit batches, orbit size)`` is
+    one counter. :meth:`executed` derives ``declared_fa_partition``'s schema.
+    """
+
+    def __init__(self):
+        self.counts = {branch: {} for branch in FA_BRANCHES}
+
+    def observe(self, branch, calls, *, cap, configured, orbit_size):
+        key = (int(configured), int(cap), tuple(n for n, rotated in calls if not rotated),
+               tuple(n for n, rotated in calls if rotated), int(orbit_size))
+        self.counts[branch][key] = self.counts[branch].get(key, 0) + 1
+
+    def violations(self):
+        found = set()
+        for branch, bucket in self.counts.items():
+            strides = sorted({key[0] for key in bucket})
+            if len(strides) > 1:
+                found.add(f"{branch}: ran at more than one configured micro-batch {strides}")
+            for configured, cap, base, orbit, _size in bucket:
+                if orbit and branch not in FA_ORBIT_BRANCHES:
+                    found.add(f"{branch}: made rotated forwards {list(orbit)}, but its ids are "
+                              "never orbit-averaged")
+                if len(base) != 1:
+                    found.add(f"{branch}: an invocation made {len(base)} base passes")
+                    continue
+                if base[0] > configured:
+                    found.add(f"{branch}: a batch of {base[0]} exceeds its micro-batch "
+                              f"{configured}")
+                if cap != base[0]:
+                    found.add(f"{branch}: cap {cap} is not the call's batch {base[0]} "
+                              "(cap_policy candidate_micro_batch)")
+                if any(rows % base[0] for rows in orbit):
+                    found.add(f"{branch}: an orbit forward of {list(orbit)} rows splits an angle")
+        return sorted(found)
+
+    def observed(self, branch):
+        """``(largest base batch, largest rotated forward)`` the branch's calls made."""
+        bucket = self.counts[branch]
+        base = [rows for key in bucket for rows in key[2]]
+        orbit = [rows for key in bucket for rows in key[3]]
+        return (max(base) if base else None), (max(orbit) if orbit else None)
+
+    def executed(self):
+        """Declared_fa_partition's schema, every value read off the calls (Codex rB 5)."""
+        keys = {branch: list(bucket) for branch, bucket in self.counts.items()}
+        every = [key for branch in FA_BRANCHES for key in keys[branch]]
+        orbit = [key for branch in FA_ORBIT_BRANCHES for key in keys[branch]
+                 if len(key[2]) == 1]
+        per_chunk = _one(rows // key[2][0] for key in orbit for rows in key[3])
+        caps_ok = bool(every) and all(len(key[2]) == 1 and key[1] == key[2][0] for key in every)
+        seen = {branch: self.observed(branch) for branch in FA_BRANCHES}
+        return {"frame_avg_chunk_plan": "per_angle" if per_chunk == 1 else "batched",
+                "cap_policy": "candidate_micro_batch" if caps_ok else "violated",
+                "orbit_size": _one(1 + sum(key[3]) // key[2][0] for key in orbit),
+                "angles_per_chunk": per_chunk,
+                "n_orbit_forwards": _one(len(key[3]) for key in orbit),
+                "shared_angle_count": per_chunk,
+                "context_vit": {"candidate_micro_batch": seen["context_vit"][0],
+                                "frame_avg_fwd_cap": seen["context_vit"][1]},
+                "context_scored_batch": {
+                    "candidate_micro_batch": seen["context_scored_batch"][0]},
+                "source_cache": {"candidate_micro_batch": seen["source_cache"][0],
+                                 "frame_avg_fwd_cap": seen["source_cache"][1]}}
+
+    def to_counts(self):
+        """The counts as JSON rows, one per distinct call shape (the durable ledger's unit)."""
+        return [{"branch": branch, "configured": key[0], "cap": key[1], "base": list(key[2]),
+                 "orbit": list(key[3]), "orbit_size": key[4], "count": int(count)}
+                for branch in FA_BRANCHES for key, count in sorted(self.counts[branch].items())]
+
+    @classmethod
+    def from_counts(cls, *count_lists):
+        """A recorder holding the SUM of ``count_lists`` (segments, or shards)."""
+        recorder = cls()
+        for entries in count_lists:
+            for entry in entries:
+                if entry.get("branch") not in recorder.counts:
+                    raise ValueError(f"a ledger entry names branch {entry.get('branch')!r}, not "
+                                     f"one of {list(FA_BRANCHES)}")
+                key = (int(entry["configured"]), int(entry["cap"]),
+                       tuple(int(n) for n in entry["base"]),
+                       tuple(int(n) for n in entry["orbit"]), int(entry["orbit_size"]))
+                bucket = recorder.counts[entry["branch"]]
+                bucket[key] = bucket.get(key, 0) + int(entry["count"])
+        return recorder
+
+    def report(self):
+        """The executed block, its violations and the per-batch evidence it rests on."""
+        branches = {}
+        for branch, bucket in self.counts.items():
+            base, orbit = {}, {}
+            for (_configured, _cap, bases, orbits, _size), count in bucket.items():
+                for rows in bases:
+                    base[rows] = base.get(rows, 0) + count
+                for rows in orbits:
+                    orbit[rows] = orbit.get(rows, 0) + count
+            largest, _ = self.observed(branch)
+            branches[branch] = {
+                "invocations": int(sum(bucket.values())),
+                "configured": sorted({key[0] for key in bucket}),
+                "base_batch_histogram": {str(k): v for k, v in sorted(base.items())},
+                "orbit_forward_histogram": {str(k): v for k, v in sorted(orbit.items())},
+                "observed_max_base_batch": largest,
+                # a full micro-batch was observed: the loop's stride is evidenced by a call
+                "saturated": bool(bucket) and largest == max(key[0] for key in bucket),
+                "full_micro_batch_observed": any(len(key[2]) == 1 and key[2][0] == key[0]
+                                                 for key in bucket)}
+        return {"executed": self.executed(), "violations": self.violations(),
+                "branches": branches, "note": FA_EXECUTION_NOTE}
+
+
+def _union(left, right):
+    """Keys of both sides, ``left``'s order first: a key on one side only is a difference."""
+    return list(left) + [key for key in right if key not in left]
+
+
+def fa_partition_differences(declared, executed):
+    """The dotted paths at which an executed partition is not the declared one, over the
+    EXACT schema both ways: a key missing or extra on either side is a difference."""
+    declared, executed, paths = declared or {}, executed or {}, []
+    for field in _union(declared, executed):
+        wanted, found = declared.get(field), executed.get(field)
+        if field not in declared or field not in executed:
+            paths.append(field)
+        elif isinstance(wanted, dict) and isinstance(found, dict):
+            paths += [f"{field}.{key}" for key in _union(wanted, found)
+                      if key not in wanted or key not in found or found[key] != wanted[key]]
+        elif isinstance(wanted, dict) or isinstance(found, dict) or found != wanted:
+            paths.append(field)
+    return paths
+
+
+def _tail_prefix(path, declared, report):
+    """A micro-batch not yet observed at full size: the loop runs at the DECLARED stride (its
+    one configured value) and every call so far was smaller -- tails only, not a re-chunking."""
+    branch, _, field = path.partition(".")
+    wanted = (declared.get(branch) or {}).get(field)
+    found = (report["executed"].get(branch) or {}).get(field)
+    stride = (report["branches"].get(branch) or {}).get("configured")
+    return (field in FA_BATCH_FIELDS and isinstance(wanted, int) and isinstance(found, int)
+            and 0 < found < wanted and stride == [wanted])
+
+
+def assert_fa_partition_executed(declared, recorder, final=True):
+    """The split ran the DECLARED partition, or nothing is published (Codex rA A8, rB 5).
+
+    ``final=False`` is the check before every row: a micro-batch only ever observed
+    BELOW its declared size is a tail-only prefix (a room whose queries are all
+    smaller than the batch), consistent so far. The final check is exact.
+    """
+    if not isinstance(declared, dict) or not declared:
+        raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
+                         "(run_binding.json fa_partition) before anything runs against it")
+    report = recorder.report()
+    differing = [path for path in fa_partition_differences(declared, report["executed"])
+                 if final or not _tail_prefix(path, declared, report)]
+    if differing or report["violations"]:
+        raise ValueError(f"the executed frame-average partition is not the declared one: "
+                         f"{differing} differ (executed {report['executed']}); violations "
+                         f"{report['violations'][:3]}. A scored pass that fails this check is "
+                         f"NON-ADMISSIBLE ({FA_FAILURE_FILENAME}; plan r2 amendment A6 iv)")
+    return report
+
+
+FA_FAILURE_FILENAME = "partition_check_failed.json"
+FA_FAILURE_NOTE = (
+    "NON-ADMISSIBLE SHARD (plan r2 amendment A6 (iv); Codex rB-F1 NIT 5): an executed-partition "
+    "check of this scored pass failed, so the frame-average partition it ran is not the one its "
+    "run_binding.json declares. The rows it wrote are INCOMPLETE ARTIFACTS: every merge, "
+    "per-arm report, crossarm admission and reopen refuses this directory by name. Fix the "
+    "cause, then RESTART the shard in a fresh out-dir with fresh launch records -- never resume")
+
+
+def write_partition_failure(out_dir, declared, recorder, check, error, n_segments=None,
+                            launch_record_sha256=None):
+    """Mark ``out_dir`` NON-ADMISSIBLE (A6 iv) with what failed: which check, the declared and
+    executed blocks, the differing paths, the violations and the judged call counts."""
+    from datetime import datetime, timezone
+
+    report = recorder.report()
+    os.makedirs(str(out_dir), exist_ok=True)           # a pass refused before its first row
+    write_json(os.path.join(str(out_dir), FA_FAILURE_FILENAME), {
+        "note": FA_FAILURE_NOTE, "check": str(check), "error": str(error), "declared": declared,
+        "executed": report["executed"], "violations": report["violations"],
+        "differences": fa_partition_differences(declared, report["executed"]),
+        "branches": report["branches"], "counts": recorder.to_counts(),
+        "counts_sha256": counts_sha256(recorder),
+        "ledger": {"file": FA_LEDGER_FILENAME, "n_segments": n_segments},
+        "launch_record_sha256": launch_record_sha256,
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+
+
+FA_PENDING_FILENAME = "partition_check_pending.json"
+FA_PENDING_NOTE = (
+    "EXECUTED-PARTITION CHECK IN PROGRESS (Codex rB-F2 NIT 5; plan r2 amendment A6 (iv)): "
+    "published atomically before each executed-partition check of a scored fa pass -- before "
+    "every row and the final one -- and removed only once that check passed. A directory still "
+    "carrying it was killed between a check and its verdict: NON-ADMISSIBLE, refused by every "
+    "reopen, merge and per-arm report; restart the shard in a fresh out-dir")
+
+
+def begin_partition_check(out_dir, check, n_segments):
+    """Publish the pending-check sentinel: from here until :func:`end_partition_check`, a kill
+    leaves the shard non-admissible (conservative: whether the check held is unknown)."""
+    from datetime import datetime, timezone
+
+    write_json(os.path.join(str(out_dir), FA_PENDING_FILENAME), {
+        "note": FA_PENDING_NOTE, "check": str(check), "n_segments": int(n_segments),
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+
+
+def end_partition_check(out_dir):
+    """The check passed: remove the sentinel."""
+    os.remove(os.path.join(str(out_dir), FA_PENDING_FILENAME))
+
+
+def assert_admissible(run_dir):
+    """A6 (iv): a shard whose executed-partition check failed -- or was killed while a check
+    ran (Codex rB-F2 NIT 5) -- is refused by name: by the merge, the per-arm report and every
+    reopen (it is restarted, never resumed)."""
+    if os.path.exists(os.path.join(str(run_dir), FA_FAILURE_FILENAME)):
+        raise ValueError(f"{run_dir} is NON-ADMISSIBLE (plan r2 amendment A6 (iv)): an "
+                         f"executed-partition check of its pass failed ({FA_FAILURE_FILENAME}); "
+                         "its rows are incomplete artifacts that no merge, report or resume "
+                         "admits -- restart the shard in a fresh out-dir once the cause is fixed")
+    if os.path.exists(os.path.join(str(run_dir), FA_PENDING_FILENAME)):
+        raise ValueError(f"{run_dir} is NON-ADMISSIBLE (plan r2 amendment A6 (iv)): it was "
+                         f"killed while an executed-partition check ran ({FA_PENDING_FILENAME} "
+                         "is still on disk), so whether its partition held is unknown -- "
+                         "restart the shard in a fresh out-dir")
+    return True
+
+
+FA_LEDGER_FILENAME = "fa_partition_ledger.json"
+FA_LEDGER_NOTE = (
+    "EXECUTED-PARTITION LEDGER (Codex rB finding 5): the split's call counts, one segment per "
+    "invocation of a scored pass, rewritten atomically after each query's partition check and "
+    "BEFORE its row is written -- a crash leaves every published row's calls on disk, and a "
+    "resume adds a segment instead of replacing the evidence. The run's executed partition is "
+    "the sum of its segments' counts; the merge re-derives each shard's, and the sum over all "
+    "shards, from these counts and refuses any disagreement with the declaration or with the "
+    "shard's own run summary. Each segment also keeps delta_counts (the calls since its state "
+    "at n_queries - 1), and every published row has a stamp (fa_ledger_stamps/) of the state "
+    "persisted just before it: each segment's state is its last row's, or exactly one query "
+    "ahead of it after a crash (Codex rB-F2 finding 3)")
+
+
+def counts_sha256(recorder):
+    from src.localization.crossarm import canonical_sha256
+
+    return canonical_sha256(recorder.to_counts())
+
+
+RUN_SUMMARY_FILENAME = "run_summary.json"
+MERGE_REPORT_FILENAME = "merge_report.json"
+#: one row of a ledger segment's counts (``FaPartitionRecorder.to_counts``)
+LEDGER_ENTRY_FIELDS = ("branch", "configured", "cap", "base", "orbit", "orbit_size", "count")
+
+
+def _count(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def counts_reasons(counts, what):
+    """``(reasons, recorder or None)``: ``counts`` are a recorder's canonical call-count rows --
+    exactly its seven fields, real non-negative integers (bools refused) with a count of at
+    least one, a known branch, sorted, once each. THE validator the ledger's segments and the
+    gate evidence's executed counts share (Codex rB-F2 finding 4)."""
+    if not (isinstance(counts, list) and all(
+            isinstance(entry, dict) and sorted(entry) == sorted(LEDGER_ENTRY_FIELDS)
+            and isinstance(entry["base"], list) and isinstance(entry["orbit"], list)
+            for entry in counts)):
+        return [f"{what}'s counts are not {list(LEDGER_ENTRY_FIELDS)} rows"], None
+    if not all(_count(value) for entry in counts for value in (
+            entry["configured"], entry["cap"], entry["orbit_size"], entry["count"],
+            *entry["base"], *entry["orbit"])):
+        return [f"{what} holds a count that is not a non-negative integer"], None
+    if not all(entry["count"] >= 1 for entry in counts):
+        return [f"{what} holds a zero count (a call shape no recorder observed)"], None
+    try:
+        recorder = FaPartitionRecorder.from_counts(counts)
+    except ValueError as error:                        # an unknown branch
+        return [f"{what}: {error}"], None
+    return ([] if recorder.to_counts() == counts else [
+        f"{what}'s counts are not canonical (repeated or unsorted rows)"]), recorder
+
+
+def _segment_reasons(index, segment):
+    """``(reasons, recorder)`` for one segment: a non-negative query count, canonical counts
+    (:func:`counts_reasons`) and the digest it stores of them, and a canonical
+    ``delta_counts`` INSIDE them (the calls since its state at n_queries - 1)."""
+    reasons = [] if _count(segment.get("n_queries")) else [
+        f"segment {index}'s n_queries {segment.get('n_queries')!r} is not a non-negative integer"]
+    why, recorder = counts_reasons(segment.get("counts"), f"segment {index}")
+    if recorder is None:
+        return reasons + why, None
+    if segment.get("counts_sha256") != counts_sha256(recorder):
+        why.append(f"segment {index}'s counts do not hash to its counts_sha256")
+    delta, _delta = counts_reasons(segment.get("delta_counts"), f"segment {index}'s delta")
+    if not delta and _counts_minus(segment["counts"], segment["delta_counts"]) is None:
+        delta = [f"segment {index}'s delta_counts are not inside its counts"]
+    return reasons + why + delta, recorder
+
+
+def _counts_minus(counts, delta):
+    """``counts`` minus ``delta`` (canonical rows) as a recorder, or ``None`` when ``delta`` is
+    not inside ``counts``."""
+    left = FaPartitionRecorder.from_counts(counts)
+    for entry in delta:
+        bucket = left.counts[entry["branch"]]
+        key = (entry["configured"], entry["cap"], tuple(entry["base"]), tuple(entry["orbit"]),
+               entry["orbit_size"])
+        rest = bucket.get(key, 0) - entry["count"]
+        if rest < 0:
+            return None
+        if rest:
+            bucket[key] = rest
+        else:
+            bucket.pop(key, None)
+    return left
+
+
+#: the ledger state an fa row is published under (Codex rB-F2 finding 3), kept in a stamp file
+#: BESIDE the rows -- ``<out-dir>/fa_ledger_stamps/<room>/q<position>.json`` -- so a BF row's
+#: bytes keep the vanilla row schema the crossarm pairs arms on (its row whitelist is fixed)
+STAMP_FIELDS = ("segment_index", "n_queries", "counts_sha256")
+FA_STAMPS_DIRNAME = "fa_ledger_stamps"
+
+
+def fa_ledger_state(ledger):
+    """The state of this invocation's segment, persisted just before a row: the row's stamp."""
+    segment = ledger["payload"]["segments"][-1]
+    return {field: segment[field] for field in STAMP_FIELDS}
+
+
+def fa_stamp_path(out_dir, room_id, position):
+    return os.path.join(str(out_dir), FA_STAMPS_DIRNAME, room_stem(room_id),
+                        f"q{int(position):05d}.json")
+
+
+def write_fa_stamp(out_dir, query, ledger):
+    """Publish the stamp of ``query``'s row, after the ledger write and BEFORE the row."""
+    path = fa_stamp_path(out_dir, query.room_id, query.position)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return write_json(path, dict(fa_ledger_state(ledger), query_id=query.query_id))
+
+
+def read_fa_stamp(out_dir, row):
+    """``(query id, stamp or None, launch record)`` of one published row (rB-F2 finding 3)."""
+    path = fa_stamp_path(out_dir, row["room_id"], row["position"])
+    return (row["query_id"], _read_object(path) if os.path.isfile(path) else None,
+            row.get("launch_record_sha256"))
+
+
+def _shapes(counts):
+    return {(e["branch"], e["configured"], e["cap"], tuple(e["base"]), tuple(e["orbit"]),
+             e["orbit_size"]) for e in counts}
+
+
+def _row_binding_reasons(segments, stamps, exact, blocks=None):
+    """Every segment's stored state against its OWN rows' stamps (Codex rB-F2 finding 3).
+    ``stamps`` = ``(query id, stamp, row launch record)`` of every self-verifying row;
+    ``blocks`` = a merged ledger's shard blocks (rows then map by launch record and shard-local
+    index). With N the segment's n_queries and M its rows' highest: N == M -> its counts are
+    the state its last row was stamped with (empty when M is 0); N == M + 1 -> ONE query
+    ahead (the ledger is written before the row) -> its counts minus its delta are; anything
+    else is refused. At a merge a one-ahead state is admitted only off its shard's last
+    invocation, and only if every call shape of the lost attempt was executed again later."""
+    merged_mode, blocks = blocks is not None, blocks or [(None, list(segments))]
+    if merged_mode:
+        lookup = {(s.get("launch_record_sha256"), s["shard_segment_index"]): s
+                  for s in segments if s.get("launch_record_sha256") is not None}
+    else:
+        lookup = {s["segment_index"]: s for s in segments}
+    reasons, top, seen = [], {}, set()
+    for query_id, stamp, launch in stamps:
+        if not (isinstance(stamp, dict) and sorted(stamp) == sorted(STAMP_FIELDS + ("query_id",))
+                and stamp["query_id"] == query_id and _count(stamp["segment_index"])
+                and _count(stamp["n_queries"]) and stamp["n_queries"] >= 1
+                and isinstance(stamp["counts_sha256"], str)):
+            reasons.append(f"row {query_id}: its ledger stamp {stamp!r} is not a "
+                           f"{list(STAMP_FIELDS)} state")
+            continue
+        segment = lookup.get((launch, stamp["segment_index"]) if merged_mode
+                             else stamp["segment_index"])
+        if segment is None or segment.get("launch_record_sha256") != launch:
+            reasons.append(f"row {query_id}: its stamp names segment {stamp['segment_index']} "
+                           f"(launch record {launch!r}), which the ledger does not hold")
+            continue
+        key = (id(segment), stamp["n_queries"])
+        if key in seen or stamp["n_queries"] > segment["n_queries"]:
+            reasons.append(f"row {query_id}: its stamp claims a state twice or beyond its "
+                           f"segment's {segment['n_queries']} queries")
+            continue
+        seen.add(key)
+        if stamp["n_queries"] > top.get(id(segment), (0, None))[0]:
+            top[id(segment)] = (stamp["n_queries"], stamp["counts_sha256"])
+    for _shard, block in blocks:
+        for position, segment in enumerate(block):
+            reasons += _segment_binding(segment, top.get(id(segment), (0, None)), exact,
+                                        last=position == len(block) - 1,
+                                        later=set().union(*[_shapes(s["counts"])
+                                                            for s in block[position + 1:]]))
+    return reasons
+
+
+def _segment_binding(segment, top, exact, last, later):
+    name, (m, stamped), n = f"segment {segment['segment_index']}", top, segment["n_queries"]
+    stamped = counts_sha256(FaPartitionRecorder()) if m == 0 else stamped
+    if n not in (m, m + 1):
+        return [f"{name} holds {n} queries but its rows show {m}: a ledger state is at most "
+                "one query ahead of its last row"]
+    state = (segment["counts_sha256"] if n == m
+             else counts_sha256(_counts_minus(segment["counts"], segment["delta_counts"])))
+    if state != stamped:
+        return [f"{name}'s state is not the one its last row was published under"]
+    if n == m + 1 and exact and last:
+        return [f"{name} is one query ahead of its rows, but it is its shard's last invocation, "
+                "which completed"]
+    if n == m + 1 and exact and not _shapes(segment["delta_counts"]) <= later:
+        return [f"{name}'s lost attempt made call shapes no later segment executed again"]
+    return []
+
+
+def _stamp_reasons(out_dir, segments, exact, blocks=None):
+    """The row binding over the rows ON DISK whose own digest verifies (an unverifiable row is
+    regenerated by a resume and refused by the merge, never trusted here), each with its stamp."""
+    try:
+        stamps = [read_fa_stamp(out_dir, row) for row in read_rows(out_dir)
+                  if row.get("row_sha256") == row_digest(row)]
+    except (KeyError, TypeError, ValueError) as error:
+        return [f"its rows cannot be read for their ledger stamps ({type(error).__name__}: "
+                f"{error})"]
+    return _row_binding_reasons(segments, stamps, exact, blocks)
+
+
+def _ledger_reasons(payload, declared):
+    """``(reasons, summed recorder or None)``: the ledger's own integrity -- its declaration,
+    segment indices 0..n-1 once each, every segment, and the stored merged block."""
+    if not isinstance(payload, dict) or payload.get("declared") != declared:
+        return ["it is the ledger of another declaration (or of none)"], None
+    segments = payload.get("segments")
+    if not (isinstance(segments, list) and segments
+            and all(isinstance(segment, dict) for segment in segments)):
+        return ["it holds no list of segments"], None
+    indices = [segment.get("segment_index") for segment in segments]
+    # real integers only: False / True would pass as 0 / 1 (Codex rB-F2 finding 3)
+    reasons = [] if all(map(_count, indices)) and indices == list(range(len(segments))) else [
+        f"its segment indices {indices} are not 0..{len(segments) - 1} once each (a segment is "
+        "missing or duplicated)"]
+    found = [_segment_reasons(index, segment) for index, segment in enumerate(segments)]
+    reasons += [reason for why, _recorder in found for reason in why]
+    if any(recorder is None for _why, recorder in found):
+        return reasons, None
+    merged = FaPartitionRecorder.from_counts(*[segment["counts"] for segment in segments])
+    wanted = {"counts_sha256": counts_sha256(merged), "executed": merged.executed(),
+              "violations": merged.violations()}
+    stored = payload.get("merged") if isinstance(payload.get("merged"), dict) else {}
+    moved = sorted(key for key in set(wanted) | set(stored) if stored.get(key) != wanted.get(key))
+    if moved:
+        reasons.append(f"its stored merged block differs from the sum of its segments on {moved}")
+    return reasons, merged
+
+
+def _summary_reasons(summary, segments, merged, exact):
+    """The run summary's ``fa_partition_executed`` against the ledger: at a merge, exactly the
+    whole ledger; at a reopen absent, or exactly its first ``n_segments`` (an invocation
+    finished, a later one crashed after adding a segment)."""
+    block = (summary or {}).get("fa_partition_executed")
+    if not isinstance(block, dict):
+        return (["the run summary carries no fa_partition_executed block for it"]
+                if exact or summary is not None else [])
+    k = (block.get("ledger") or {}).get("n_segments")
+    if not (_count(k) and 1 <= k <= len(segments)) or (exact and k != len(segments)):
+        return [f"the run summary's ledger block covers {k!r} of its {len(segments)} segments"]
+    prefix = merged if k == len(segments) else FaPartitionRecorder.from_counts(
+        *[segment["counts"] for segment in segments[:k]])
+    wanted = dict(prefix.report(), ledger={"file": FA_LEDGER_FILENAME, "n_segments": k,
+                                           "counts_sha256": counts_sha256(prefix)})
+    moved = sorted(key for key in set(wanted) | set(block) if block.get(key) != wanted.get(key))
+    return [f"the run summary's fa_partition_executed is not its ledger's first {k} "
+            f"segment(s) (differs on {moved})"] if moved else []
+
+
+def _merged_reasons(segments, receipt, merged):
+    """``(reasons, shard blocks)`` of a MERGED ledger (Codex rB-F2 finding 1): every segment
+    names its shard and its shard-local index; each shard is one contiguous block numbered
+    0..k-1 in its own order; and the merge report's receipt is exactly what the segments
+    yield -- the summed partition, its digest, and each shard's census in shard order."""
+    blocks = []
+    for segment in segments:
+        shard, local = segment.get("shard"), segment.get("shard_segment_index")
+        if not (isinstance(shard, str) and shard and _count(local)):
+            return [f"merged segment {segment.get('segment_index')!r} does not name its shard "
+                    "and its shard-local index"], None
+        if blocks and blocks[-1][0] == shard:
+            blocks[-1][1].append(segment)
+        elif shard in [name for name, _block in blocks]:
+            return [f"the merged segments of shard {shard} are not one contiguous block"], None
+        else:
+            blocks.append((shard, [segment]))
+    reasons = [f"shard {shard}'s merged segments are not its segments 0..{len(block) - 1} in order"
+               for shard, block in blocks
+               if [s["shard_segment_index"] for s in block] != list(range(len(block)))]
+    wanted = {"executed": merged.executed(), "violations": merged.violations(),
+              "counts_sha256": counts_sha256(merged), "per_shard": [
+                  {"dir": shard, "counts_sha256": counts_sha256(FaPartitionRecorder.from_counts(
+                      *[s["counts"] for s in block])), "n_segments": len(block)}
+                  for shard, block in blocks]}
+    if not isinstance(receipt, dict):
+        return reasons + ["the merge report carries no fa_partition_executed receipt"], blocks
+    moved = sorted(key for key in set(wanted) | set(receipt) if receipt.get(key) != wanted.get(key))
+    return reasons + ([f"the merge report's fa_partition_executed receipt is not its merged "
+                       f"ledger's (differs on {moved})"] if moved else []), blocks
+
+
+def _read_object(path):
+    """A JSON object from ``path``, or a refusal that names the file."""
+    try:
+        with open(path) as handle:
+            payload = json.load(handle)
+    except ValueError as error:
+        raise ValueError(f"{path} is not valid JSON ({error})") from None
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return payload
+
+
+def fresh_out_dir(out_dir):
+    """``(fresh, entries)``: an out-dir that is absent, or holds nothing but the operator's
+    emitted launch records (top-level ``*.json`` files no pass writes) -- the only place a
+    ledger may START (Codex rB-F2 finding 3); ``entries`` names everything else in it."""
+    from src.localization import meshgrid_segments as ms
+
+    out_dir = str(out_dir)
+    if not os.path.exists(out_dir):
+        return True, []
+    if not os.path.isdir(out_dir):
+        return False, [out_dir]
+    written = (BINDING_FILENAME, RUN_SUMMARY_FILENAME, MERGE_REPORT_FILENAME, FA_LEDGER_FILENAME,
+               FA_FAILURE_FILENAME, FA_PENDING_FILENAME, ms.SEGMENTS_FILENAME)
+    found = sorted(name for name in os.listdir(out_dir)
+                   if not (name.endswith(".json") and os.path.isfile(os.path.join(out_dir, name)))
+                   or name in written or name.startswith("diagnostics_"))
+    return not found, found
+
+
+def read_fa_ledger(out_dir, declared, exact=False):
+    """THE validating reader of a run's executed-partition ledger (Codex rB-F1 finding 3) --
+    the one every reopen (``open_fa_ledger``, the driver's preflight), the merge
+    (``fa_partition_census``, ``exact=True``) and the per-arm report (``exact=True``) go
+    through. It refuses, naming every broken check: a non-admissible directory (a failure
+    marker or a pending-check sentinel); a missing ledger anywhere but in a FRESH out-dir;
+    another declaration; segment indices not the real ints 0..n-1 once each; a count or
+    query count that is not a non-negative integer; counts or a delta not canonical, a delta
+    not inside its counts, counts not hashing to their segment's ``counts_sha256``; a stored
+    merged block that is not the sum of the segments; a run summary block that is not the
+    whole ledger (merge) or a prefix of it (reopen) -- or, for a MERGED run, a merged segment
+    without its shard origin and a merge receipt that is not the ledger's (merged runs are
+    never reopened); a segment state not bound to its rows' stamps (rB-F2 finding 3); an
+    executed partition not the declared one (exactly at a merge, as a consistent prefix at a
+    reopen). A vanilla run carries no ledger, no block and no non-null receipt. Returns
+    ``None`` when no ledger is on disk and none is required."""
+    out_dir = str(out_dir)
+    assert_admissible(out_dir)                         # A6 (iv), before anything is read
+    path = os.path.join(out_dir, FA_LEDGER_FILENAME)
+    summary_path = os.path.join(out_dir, RUN_SUMMARY_FILENAME)
+    summary = _read_object(summary_path) if os.path.isfile(summary_path) else None
+    # a MERGED run (it publishes the merge report) is joined to the merge report's receipt
+    merge_path = os.path.join(out_dir, MERGE_REPORT_FILENAME)
+    merge_report = _read_object(merge_path) if os.path.isfile(merge_path) else None
+    receipt = (merge_report or {}).get("fa_partition_executed")
+    if declared is None:
+        if (os.path.exists(path) or (summary or {}).get("fa_partition_executed") is not None
+                or receipt is not None):
+            raise ValueError(f"{out_dir}: a vanilla run carries no frame-average executed "
+                             f"partition, but it carries a {FA_LEDGER_FILENAME}, a summary "
+                             "block or a non-null merge-report receipt")
+        return None
+    if not os.path.isfile(path):
+        fresh, found = fresh_out_dir(out_dir)
+        if exact or (summary or {}).get("fa_partition_executed") is not None or not fresh:
+            raise ValueError(f"{out_dir} publishes no {FA_LEDGER_FILENAME}: its executed "
+                             "frame-average partition is not on disk, so it can be neither "
+                             "resumed nor merged" + ("" if fresh else (
+                                 f"; and it is not a fresh out-dir (it holds {found[:4]}), the "
+                                 "only place a ledger may start -- restart the shard in a "
+                                 "fresh out-dir (Codex rB-F2 finding 3)")))
+        return None
+    payload = _read_object(path)
+    reasons, merged = _ledger_reasons(payload, declared)
+    blocks = None
+    if not reasons and merge_report is not None:
+        reasons, blocks = (_merged_reasons(payload["segments"], receipt, merged) if exact else (
+            ["it is a merged run's ledger, which is final: a merged directory is never "
+             "reopened"], None))
+    elif not reasons:
+        reasons = _summary_reasons(summary, payload["segments"], merged, exact)
+    if not reasons:           # every ledger state bound to the published rows (rB-F2 3)
+        reasons = _stamp_reasons(out_dir, payload["segments"], exact, blocks)
+    if not reasons and (exact or any(merged.counts.values())):   # nothing ran yet: a prefix
+        try:
+            assert_fa_partition_executed(declared, merged, final=exact)
+        except ValueError as error:
+            reasons.append(str(error))
+    if reasons:
+        raise ValueError(f"{path} does not verify: " + "; ".join(reasons))
+    return {"path": path, "payload": payload, "merged": merged,
+            "counts_sha256": counts_sha256(merged), "n_segments": len(payload["segments"])}
+
+
+def open_fa_ledger(out_dir, declared, launch_record_sha256=None):
+    """This invocation's (new) segment of the run's ledger, opened only on a ledger that
+    verifies (:func:`read_fa_ledger`) or, in a fresh out-dir, a new one -- and PUBLISHED at
+    once, so the binding, a launch segment or a row never exists without it (rB-F2 3)."""
+    found = read_fa_ledger(out_dir, declared)
+    path = os.path.join(str(out_dir), FA_LEDGER_FILENAME)
+    payload = (found["payload"] if found is not None
+               else {"declared": declared, "segments": [], "note": FA_LEDGER_NOTE})
+    payload["segments"].append({"segment_index": len(payload["segments"]), "n_queries": 0,
+                                "launch_record_sha256": launch_record_sha256, "counts": []})
+    ledger = {"path": path, "payload": payload}
+    persist_fa_ledger(ledger, FaPartitionRecorder(), query=False)
+    return ledger
+
+
+def adopt_fa_ledger(ledger, out_dir, declared, launch_record_sha256):
+    """The ledger the driver opened for THIS invocation before it wrote anything else (its
+    out-dir, declaration and launch record, its segment still empty), or a refusal."""
+    segment = (((ledger or {}).get("payload") or {}).get("segments") or [{}])[-1]
+    if (os.path.abspath(str(ledger.get("path"))) != os.path.abspath(
+            os.path.join(str(out_dir), FA_LEDGER_FILENAME))
+            or ledger["payload"].get("declared") != declared
+            or (segment.get("launch_record_sha256"), segment.get("n_queries"),
+                segment.get("counts")) != (launch_record_sha256, 0, [])):
+        raise ValueError("the executed-partition ledger handed to this pass is not the one just "
+                         "opened for its out-dir, declaration and launch record")
+    return ledger
+
+
+def persist_fa_ledger(ledger, recorder, query=True):
+    """Rewrite the ledger with this segment's counts so far; the run's summed recorder."""
+    segment = ledger["payload"]["segments"][-1]
+    # the state at n_queries - 1: the last query state, or (a non-query rewrite) the same base
+    prior = (segment["counts"] if query else _counts_minus(
+        segment["counts"], segment.get("delta_counts", [])).to_counts())
+    delta = _counts_minus(recorder.to_counts(), prior)
+    if delta is None:
+        raise ValueError("the split's recorder holds fewer calls than its ledger segment already "
+                         "published; the executed partition only ever accumulates")
+    segment.update(counts=recorder.to_counts(), counts_sha256=counts_sha256(recorder),
+                   n_queries=segment["n_queries"] + int(query), delta_counts=delta.to_counts())
+    merged = FaPartitionRecorder.from_counts(*[s["counts"] for s in ledger["payload"]["segments"]])
+    ledger["payload"]["merged"] = {"counts_sha256": counts_sha256(merged),
+                                   "executed": merged.executed(),
+                                   "violations": merged.violations()}
+    os.makedirs(os.path.dirname(ledger["path"]) or ".", exist_ok=True)
+    write_json(ledger["path"], ledger["payload"])
+    return merged
+
+
+def fa_executed_block(declared, merged, n_segments):
+    """A scored fa pass's ``fa_partition_executed``: the run's summed partition held to the
+    declaration (exactly) and the digest of the ledger counts it was derived from."""
+    report = (assert_fa_partition_executed(declared, merged) if any(merged.counts.values())
+              else merged.report())
+    return dict(report, ledger={"file": FA_LEDGER_FILENAME, "counts_sha256": counts_sha256(merged),
+                                "n_segments": int(n_segments)})
+
+
+def fa_partition_census(shards, declared):
+    """Each shard's ledger read through THE validating reader (:func:`read_fa_ledger`,
+    exactly: integrity, a run summary covering every segment, the exact declared partition),
+    then the sum over shards: ``{"ledger", "receipt"}`` -- the merged ledger (ONE index space
+    0..n-1 in shard order, each segment keeping its ``shard`` and ``shard_segment_index``)
+    and the merge report's receipt, both verified as the reader verifies a merged run
+    (Codex rB-F2 finding 1) -- or ``None`` for a vanilla run, whose shards carry none."""
+    per_shard, segments, recorders = [], [], []
+    for shard in shards:
+        # THE reader, exactly: integrity, the whole-ledger summary, the exact partition
+        ledger = read_fa_ledger(shard["dir"], declared, exact=True)
+        if declared is None:
+            continue
+        per_shard.append({"dir": shard["dir"], "counts_sha256": ledger["counts_sha256"],
+                          "n_segments": ledger["n_segments"]})
+        for segment in ledger["payload"]["segments"]:
+            segments.append(dict(segment, segment_index=len(segments), shard=shard["dir"],
+                                 shard_segment_index=segment["segment_index"]))
+        recorders.append(ledger["merged"])
+    if declared is None:
+        return None
+    union = FaPartitionRecorder.from_counts(*[recorder.to_counts() for recorder in recorders])
+    report = assert_fa_partition_executed(declared, union)
+    receipt = {"executed": report["executed"], "violations": report["violations"],
+               "counts_sha256": counts_sha256(union), "per_shard": per_shard}
+    merged = {"declared": declared, "segments": segments, "note": FA_LEDGER_NOTE,
+              "merged": {"counts_sha256": receipt["counts_sha256"],
+                         "executed": union.executed(), "violations": union.violations()}}
+    reasons, summed = _ledger_reasons(merged, declared)
+    blocks = None
+    if not reasons:
+        reasons, blocks = _merged_reasons(segments, receipt, summed)
+    if reasons:
+        raise ValueError("the merged executed-partition ledger would not verify under its own "
+                         "reader: " + "; ".join(reasons))
+    return {"ledger": merged, "receipt": receipt, "blocks": blocks}
 
 
 # --------------------------------------------------------------------------- #
@@ -910,6 +1745,50 @@ RUN_BINDING_FIELDS = (
     # it now asks for, so changing it is a different run
     "dump_cases_sha256", "dataset_config")
 
+#: exp_22 R2 (plan r2 §3 R2-A; Codex B6/H2): the eval-protocol flags every R2
+#: launch declares explicitly instead of inheriting -- the frame-average orbit
+#: (a vanilla arm binds the explicit canonical ``[0.0]``), the global rotation
+#: (registered 0) and the frame-average chunk plan (announcement 06; ``None`` for
+#: a vanilla arm). A binding carries ALL of them or NONE: none is the legacy R1
+#: generation -- exactly the published Aug-2026 P1 comparator, whose digest must
+#: not move -- and a partial set is refused rather than read as either.
+RUN_BINDING_PROTOCOL_FIELDS = ("frame_avg_angles", "rotate_deg", "fa_partition")
+
+
+def declared_fa_partition(angles, *, batch_rows, num_samples, source_chunk):
+    """The announcement-06 chunk plan a frame-averaged mesh pass DECLARES.
+
+    exp_20's per-angle plan (``cap_policy = candidate_micro_batch``, so every
+    rotated angle is its own forward) at the three batch shapes the R2 split
+    conditions with (plan r2 §2 table): the per-query context ViT orbit (one
+    query), the scored candidate batch ``context_poses`` is recomputed in
+    (``batch_rows // num_samples`` candidates; angle-invariant, never averaged)
+    and the receiver/source-cache chunk (``source_chunk``). R2-B executes the
+    split and must record the EXECUTED partition against this declaration.
+    """
+    orbit = len(list(angles))
+    source = int(source_chunk)
+    return {"frame_avg_chunk_plan": "per_angle", "cap_policy": "candidate_micro_batch",
+            "orbit_size": orbit, "angles_per_chunk": 1, "n_orbit_forwards": orbit - 1,
+            "shared_angle_count": 1,
+            "context_vit": {"candidate_micro_batch": 1, "frame_avg_fwd_cap": 1},
+            "context_scored_batch": {
+                "candidate_micro_batch": max(1, int(batch_rows) // int(num_samples))},
+            "source_cache": {"candidate_micro_batch": source, "frame_avg_fwd_cap": source}}
+
+
+def binding_fields(binding):
+    """The strict fields ``binding`` is digested over: legacy R1, or R1 + R2 protocol."""
+    present = [field for field in RUN_BINDING_PROTOCOL_FIELDS if field in binding]
+    if not present:
+        return RUN_BINDING_FIELDS
+    if len(present) != len(RUN_BINDING_PROTOCOL_FIELDS):
+        missing = [field for field in RUN_BINDING_PROTOCOL_FIELDS if field not in binding]
+        raise ValueError(f"the run binding declares the R2 protocol fields {present} but not "
+                         f"{missing}; they are bound all or none -- a partial set is neither the "
+                         "legacy R1 binding nor a complete R2 one")
+    return RUN_BINDING_FIELDS + RUN_BINDING_PROTOCOL_FIELDS
+
 #: recorded and compared, but NOT part of the strict digest. These change only
 #: the batch SHAPES the backbones see; under the registered autocast that moves
 #: an output by about one float16 ulp (measured on the real conditioner), which
@@ -936,20 +1815,21 @@ def binding_sha256(binding):
     """Canonical, type-sensitive digest of a complete run binding."""
     from src.localization.crossarm import canonical_sha256
 
+    fields = binding_fields(binding)
     missing = [field for field in RUN_BINDING_FIELDS if field not in binding]
     if missing:
         raise ValueError(f"the run binding is missing {missing}; every registered field must be "
                          "pinned before a query is generated")
-    extra = [key for key in binding if key not in RUN_BINDING_FIELDS]
+    extra = [key for key in binding if key not in fields]
     if extra:
         raise ValueError(f"the run binding carries unregistered fields {extra}")
-    return canonical_sha256({field: binding[field] for field in sorted(RUN_BINDING_FIELDS)})
+    return canonical_sha256({field: binding[field] for field in sorted(fields)})
 
 
 def write_binding(out_dir, binding, advisory=None, declared_rooms=None):
     """Publish the binding beside the artifacts it authorizes."""
     os.makedirs(str(out_dir), exist_ok=True)
-    payload = {field: binding[field] for field in RUN_BINDING_FIELDS}
+    payload = {field: binding[field] for field in binding_fields(binding)}
     payload["binding_sha256"] = binding_sha256(binding)
     payload["advisory"] = {field: (advisory or {}).get(field)
                            for field in RUN_BINDING_ADVISORY}
@@ -999,8 +1879,11 @@ def assert_binding(out_dir, binding, advisory=None, declared_rooms=None):
                          "artifacts whose provenance is unknown")
     with open(path) as handle:
         published = json.load(handle)
-    differing = [field for field in RUN_BINDING_FIELDS
-                 if published.get(field) != binding.get(field)]
+    # the union of both generations' fields: a legacy pass is not continued by
+    # an R2 run (or vice versa) just because the R1 fields agree
+    fields = list(RUN_BINDING_FIELDS) + [field for field in RUN_BINDING_PROTOCOL_FIELDS
+                                         if field in published or field in binding]
+    differing = [field for field in fields if published.get(field) != binding.get(field)]
     if differing:
         raise ValueError(f"this run does not continue the published one: {differing} differ "
                          f"(published binding {str(published.get('binding_sha256'))[:12]}..., "
@@ -1151,7 +2034,8 @@ def verify_query_artifact(row_path, binding_sha256=None):
             return dict(verdict, reason="the waveform dump does not match the digest the row "
                                         "records")
     return {"ok": True, "query_id": row.get("query_id"), "row": row_path, "reason": None,
-            "position": row.get("position"), "room_id": row.get("room_id")}
+            "position": row.get("position"), "room_id": row.get("room_id"),
+            "launch_record_sha256": row.get("launch_record_sha256")}
 
 
 def assert_published_matches(out_dir, query, binding_sha256=None):
@@ -1270,12 +2154,14 @@ def compare_scored_runs(rows_a, rows_b, tolerance=SCORE_TOLERANCE):
             "contract": DETERMINISM_CONTRACT}
 
 
-def completed_queries(out_dir, binding_sha256=None):
+def completed_queries(out_dir, binding_sha256=None, launch_records=None):
     """``(verified query ids, rejected verdicts)`` for a resume.
 
     Only a query whose row AND sidecar re-verify is skipped; anything else is
     reported and regenerated, so a half-written artifact can never be adopted as
-    a finished one.
+    a finished one. ``launch_records`` (exp_22 R2-A, canonical passes) is the set
+    of record digests this run's segment ledger knows: a row naming any other --
+    or none -- would break the merge census, so it is regenerated, not adopted.
     """
     done, rejected = set(), []
     root = os.path.join(str(out_dir), ROWS_DIRNAME)
@@ -1290,6 +2176,13 @@ def completed_queries(out_dir, binding_sha256=None):
                 continue
             verdict = verify_query_artifact(os.path.join(room_dir, name),
                                             binding_sha256=binding_sha256)
+            if verdict["ok"] and launch_records is not None:
+                # the stamp of the very row that verified -- no second read
+                stamp = verdict.get("launch_record_sha256")
+                if stamp not in set(launch_records):
+                    verdict = dict(verdict, ok=False,
+                                   reason=f"the row names launch record {stamp!r}, which this "
+                                          "run's segment ledger does not hold")
             if verdict["ok"]:
                 done.add(verdict["query_id"])
             else:
@@ -1484,8 +2377,12 @@ def project_cost(records, totals=None):
 
 
 def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sha256=None,
-                        advisory=None, totals=None):
-    """Publish probe timings under a diagnostics stem, never as query artifacts."""
+                        advisory=None, totals=None, fa_partition_executed=None):
+    """Publish probe timings under a diagnostics stem, never as query artifacts.
+
+    The binding is serialized over ``binding_fields`` -- the R2 protocol fields
+    included (Codex rA A8) -- and an fa probe carries its executed partition.
+    """
     for record in records:
         assert_no_scores(record)
     if binding is not None:
@@ -1498,7 +2395,7 @@ def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sh
         # immutable provenance: a cost decision has to be checkable against the
         # artifacts it was measured on, not against the shell history
         "binding": None if binding is None else {field: binding[field]
-                                                 for field in RUN_BINDING_FIELDS
+                                                 for field in binding_fields(binding)
                                                  if field in binding},
         "binding_sha256": binding_sha256,
         "advisory": dict(advisory or {}),
@@ -1507,7 +2404,9 @@ def write_probe_records(out_dir, records, stem="probe", binding=None, binding_sh
         "determinism_contract": DETERMINISM_CONTRACT,
         "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
         "scorer_readout_deviation": SCORER_READOUT_DEVIATION,
-        "records": list(records)})
+        "records": list(records),
+        **({} if fa_partition_executed is None
+           else {"fa_partition_executed": fa_partition_executed})})
     return path
 
 
@@ -1567,23 +2466,99 @@ class MeshEngine:
     decoder: object
     embedder: object
     cond_method: str = "vanilla"
+    #: exp_22 R2-B: the engaged :class:`FaSplit` (fa_invariant only), else ``None``
+    split: object = None
 
 
-def assert_cacheable(cond_method):
-    """The §1.5 split is only valid for vanilla conditioning.
+def split_reasons(split):
+    """Why ``split`` is not a complete engaged five-way split (Codex rB NIT 8), or ``[]``."""
+    if not isinstance(split, FaSplit):
+        return [f"{type(split).__name__} is not a FaSplit"]
+    angles = tuple(split.angles or ())
+    reasons = [] if split.name == FA_SPLIT else [f"the split is named {split.name!r}"]
+    if not isinstance(split.recorder, FaPartitionRecorder):
+        reasons.append("the split has no engaged executed-partition recorder")
+    if not angles or not all(isinstance(a, (int, float)) and np.isfinite(a) for a in angles):
+        reasons.append(f"the orbit {list(angles)} is empty or not finite")
+    elif float(angles[0]) != 0.0:
+        reasons.append(f"the orbit {list(angles)} does not start at the identity 0.0")
+    if len(set(angles)) != len(angles):
+        reasons.append(f"the orbit {list(angles)} repeats an angle")
+    return reasons
+
+
+def assert_cacheable(cond_method, split=None):
+    """The §1.5 caches are valid for vanilla conditioning with no split, and for
+    fa_invariant ONLY under the engaged five-way split (exp_22 R2-B, plan r2 §2).
 
     Under the released C4 frame average the cylindrical transform makes
-    ``context_poses.dphi`` candidate-dependent, so a per-query context cache
-    would serve the wrong tokens. §1.5 prescribes a narrower split for that arm;
-    until it is implemented, an FA run is refused rather than mis-cached.
+    ``context_poses.dphi`` candidate-dependent, so the vanilla per-query context
+    cache would serve the wrong tokens; the split recomputes it per scored
+    candidate batch instead. Any other pairing is refused rather than mis-cached.
     """
-    if str(cond_method) != "vanilla":
-        raise ValueError(f"the per-query context cache is registered for vanilla conditioning "
-                         f"only, but this engine runs cond_method={cond_method!r}; under "
-                         "fa_invariant the released cylindrical transform makes context_poses "
-                         "candidate-dependent (inherited plan §1.5) and only context_poses_vit "
-                         "and context_audio may be cached")
-    return True
+    method = str(cond_method)
+    if method == "vanilla" and split is None:
+        return True
+    malformed = split_reasons(split) if method == "fa_invariant" and split is not None else []
+    if method == "fa_invariant" and split is not None and not malformed:
+        return True
+    raise ValueError(f"the per-query context cache is registered for vanilla conditioning with "
+                     f"no split and for fa_invariant under the {FA_SPLIT!r} split only, but this "
+                     f"engine runs cond_method={method!r} with split "
+                     f"{getattr(split, 'name', split)!r} {malformed}; under fa_invariant the released "
+                     "cylindrical transform makes context_poses candidate-dependent (inherited "
+                     "plan §1.5), so it may only be cached the way the split caches it")
+
+
+def split_for(cond_method, frame_avg_angles=None):
+    """The split a method is cached under: none for vanilla; for fa_invariant the
+    five-way split over its DECLARED orbit, with a fresh executed-partition recorder."""
+    if str(cond_method) != "fa_invariant":
+        return None
+    angles = tuple(float(angle) for angle in (frame_avg_angles or ()))
+    if not angles or angles[0] != 0.0:
+        raise ValueError(f"fa_invariant needs its explicit frame-average orbit, starting at the "
+                         f"identity 0.0; got {list(angles)}")
+    return FaSplit(angles=angles, recorder=FaPartitionRecorder())
+
+
+def query_context(engine, md):
+    """The per-query cached branch: vanilla's three context ids, or the split's two."""
+    if engine.split is None:
+        return context_conditioning(engine.conditioner, md, engine.device)
+    return fa_query_conditioning(engine.split, engine.conditioner, md, engine.device)
+
+
+def candidate_inputs(engine, query, source):
+    """What the split recomputes per scored batch -- the raw context poses (read
+    from ``source``, the query's metadata or its buffer entry) and the query's
+    camera-frame candidate positions -- or ``None`` under vanilla conditioning."""
+    if engine.split is None:
+        return None
+    positions = (np.asarray(query.coordinates, dtype=np.float64)
+                 - np.asarray(query.receiver_xyz, dtype=np.float64))
+    return {"context_poses": source["context_poses"], "positions": positions}
+
+
+def candidate_rows(engine, candidate, start, stop, num_samples, configured, record=True):
+    """The split's ``context_poses`` for candidates ``[start, stop)``, one row per draw."""
+    positions = candidate["positions"][start:stop]
+    poses = fa_candidate_conditioning(engine.split, engine.conditioner,
+                                      candidate["context_poses"], positions, engine.device,
+                                      configured=configured, record=record)
+    rows = torch.arange(positions.shape[0]).repeat_interleave(int(num_samples))
+    return {key: _select(entry, rows.to(entry[0].device)) for key, entry in poses.items()}
+
+
+def scored_conditioning(engine, context, cache, rows, candidate=None, *, start=0, stop=None,
+                        num_samples=1, configured=None, record=True):
+    """What the DiT is conditioned on for one scored batch: the two caches expanded
+    over ``rows`` and -- under the split -- the batch's own ``context_poses``."""
+    merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
+    if candidate is not None:
+        merged.update(candidate_rows(engine, candidate, start, stop, num_samples, configured,
+                                     record=record))
+    return merged
 
 
 def assert_declared_rooms(rooms, plan):
@@ -1638,8 +2613,12 @@ def probe_groups(plan, budget, room_order=None, room=None):
 
 
 def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_samples,
-                     noise_policy, batch_rows, timer):
-    """Generate and score every candidate of one query -> sims ``[M, K]``."""
+                     noise_policy, batch_rows, timer, candidate=None):
+    """Generate and score every candidate of one query -> sims ``[M, K]``.
+
+    ``candidate`` (:func:`candidate_inputs`, the fa split only) adds each scored
+    batch's own ``context_poses``; ``None`` is the vanilla path, unchanged.
+    """
     from src.localization.scoring import cosine_sims
 
     indices = [int(i) for i in query.candidate_indices]
@@ -1652,7 +2631,9 @@ def _score_one_query(engine, query, context, cache, obs_embedding, *, seed, num_
                             engine.latent_shape, policy=noise_policy, device=engine.device)
         rows = rows_all[start:start + per_chunk].repeat_interleave(int(num_samples))
         with timer("conditioning"):
-            merged = expand_conditioning(context, cache.conditioning, rows, engine.device)
+            merged = scored_conditioning(engine, context, cache, rows, candidate, start=start,
+                                         stop=start + per_chunk, num_samples=num_samples,
+                                         configured=per_chunk)
             cond_inputs = engine.cond_inputs_fn(merged)
         with timer("sampling"):
             latents = engine.sampler(noise, cond_inputs)
@@ -1678,6 +2659,13 @@ def _dump_query(engine, query, context, cache, out_dir, row, scored, *, seed, nu
     merged = expand_conditioning(context["context"], cache.conditioning,
                                  cache_rows.repeat_interleave(int(num_samples)),
                                  engine.device)
+    candidate = candidate_inputs(engine, query, context)
+    if candidate is not None:
+        # the dump regenerates its selection in ONE forward: not a scored batch,
+        # so it is kept out of the executed partition
+        candidate = dict(candidate, positions=candidate["positions"][rows])
+        merged.update(candidate_rows(engine, candidate, 0, len(rows), num_samples, len(rows),
+                                     record=False))
     wavs = engine.decoder(engine.sampler(noise, engine.cond_inputs_fn(merged))).clamp(-1.0, 1.0)
     wavs = wavs.reshape(len(indices), int(num_samples), -1)
     return write_query_waveforms(out_dir, row, indices, wavs, context["obs_wav"])
@@ -1698,14 +2686,16 @@ def replay_check(engine, query, md, obs_wav, *, seed=SEED, tau=TAU, num_samples=
     base_md = {"depth": md["depth"]}
     runs = []
     for _attempt in (0, 1):
-        context = context_conditioning(engine.conditioner, md, engine.device)
+        context = query_context(engine, md)
         cache = ReceiverCache.build(engine.conditioner, query.receiver_id, base_md, indices,
-                                    positions, engine.device, chunk=source_chunk)
+                                    positions, engine.device, chunk=source_chunk,
+                                    fa=engine.split)
         obs_embedding = engine.embedder(
             torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
         sims = _score_one_query(engine, query, context, cache, obs_embedding, seed=seed,
                                 num_samples=num_samples, noise_policy=noise_policy,
-                                batch_rows=batch_rows, timer=_Timer(engine.device))
+                                batch_rows=batch_rows, timer=_Timer(engine.device),
+                                candidate=candidate_inputs(engine, query, md))
         scored = score_query(sims, indices, query.coordinates, tau=tau, prefixes=prefixes)
         runs.append((sims, scored))
     delta = float((runs[0][0] - runs[1][0]).abs().max())
@@ -1745,7 +2735,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              batch_rows=64, source_chunk=SOURCE_CHUNK, done=(), probe=None, on_row=None,
              excluded_room=None, dump_queries=(), dump_top_n=DUMP_TOP_N,
              probe_room=None, allow_unregistered_noise_policy=False,
-             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None):
+             geometry_tol=CONTEXT_JOIN_TOLERANCE, binding_sha256=None, rooms=None,
+             launch_record_sha256=None, fa_partition=None, fa_ledger=None):
     """Score the whole registered subset, room block by room block.
 
     The stream is the released loader in D1 order and is walked ONCE: every
@@ -1754,11 +2745,28 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     queries are then run receiver group by receiver group, so the source branch
     costs one conditioner call per (receiver, candidate) in that receiver's
     union and exactly one group's cache is resident at a time.
+
+    Under the fa split (exp_22 R2-B) ``fa_partition`` is the binding's DECLARED
+    partition: the executed one is checked against it before every row, and
+    published as ``fa_partition_executed`` in the returned summary.
     """
     from src.localization import meshgrid_queries as mq
 
-    assert_cacheable(engine.cond_method)
+    assert_cacheable(engine.cond_method, engine.split)
+    if engine.split is not None and not isinstance(fa_partition, dict):
+        raise ValueError("a frame-averaged pass must declare its announcement-06 partition "
+                         "(run_binding.json fa_partition) before anything runs against it")
     assert_registered_noise_policy(noise_policy, allow_unregistered_noise_policy)
+    # a scored fa pass keeps its executed partition on disk, one segment per invocation --
+    # opened here, or by the driver before it wrote the binding (``fa_ledger``, adopted)
+    if engine.split is None or probe is not None:
+        if fa_ledger is not None:
+            raise ValueError("only a scored frame-averaged pass carries an executed-partition "
+                             "ledger")
+    elif fa_ledger is None:
+        fa_ledger = open_fa_ledger(out_dir, fa_partition, launch_record_sha256)
+    else:
+        adopt_fa_ledger(fa_ledger, out_dir, fa_partition, launch_record_sha256)
     excluded_room = mq.EXCLUDED_ROOM if excluded_room is None else excluded_room
     done = set(done)
     by_position = {int(record["position"]): record for record in records}
@@ -1780,7 +2788,8 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
              "n_geometry_tolerated": 0, "n_contexts_conditioned": 0,
              "rooms": [], "declared_rooms": declared, "argmax_stability": {},
              "batching": {"batch_rows": int(batch_rows), "source_chunk": int(source_chunk)},
-             "probe_records": [], "timings_s": {}}
+             "probe_records": [], "timings_s": {},
+             "launch_record_sha256": launch_record_sha256}
     buffer, depths, receiver_of = {}, {}, {}
     room_plan, current_room = None, None
     timer = _Timer(engine.device)
@@ -1793,7 +2802,9 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                   prefixes=prefixes, noise_policy=noise_policy, batch_rows=batch_rows,
                   source_chunk=source_chunk, on_row=on_row, probe=probe is not None,
                   geometry_tol=geometry_tol, dump_queries=dump_queries,
-                  dump_top_n=dump_top_n, binding_sha256=binding_sha256)
+                  dump_top_n=dump_top_n, binding_sha256=binding_sha256,
+                  launch_record_sha256=launch_record_sha256, fa_partition=fa_partition,
+                  fa_ledger=fa_ledger)
         buffer.clear()
         depths.clear()
         receiver_of.clear()
@@ -1841,7 +2852,7 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
                              "waveform; there is nothing to score against")
         query_context_timer = _Timer(engine.device)
         with query_context_timer("context"):
-            context = context_conditioning(engine.conditioner, md, engine.device)
+            context = query_context(engine, md)
             obs_embedding = engine.embedder(
                 torch.as_tensor(obs_wav).to(engine.device))[0].float().cpu()
         timer.totals["context"] = timer.totals.get("context", 0.0) + \
@@ -1863,13 +2874,33 @@ def run_pass(engine, stream, records, plan, out_dir, *, seed=SEED, tau=TAU,
     flush()
     for name, value in timer.totals.items():
         state["timings_s"][name] = state["timings_s"].get(name, 0.0) + value
+    if fa_ledger is not None:
+        # the RUN's executed partition: every segment's counts, this one included (a
+        # finished shard resumed conditions nothing and still publishes it -- rB 5)
+        merged = persist_fa_ledger(fa_ledger, engine.split.recorder, query=False)
+        n_segments = len(fa_ledger["payload"]["segments"])
+        begin_partition_check(out_dir, "final", n_segments)       # rB-F2 NIT 5: the kill window
+        try:
+            state["fa_partition_executed"] = fa_executed_block(fa_partition, merged, n_segments)
+        except ValueError as error:                    # A6 (iv): non-admissible, on disk
+            write_partition_failure(out_dir, fa_partition, merged, "final", error, n_segments,
+                                    launch_record_sha256)
+            raise
+        end_partition_check(out_dir)
+    elif engine.split is not None:
+        # the no-quality probe: what ran, prefix-consistent, published not judged
+        ran = any(engine.split.recorder.counts.values())
+        state["fa_partition_executed"] = (
+            assert_fa_partition_executed(fa_partition, engine.split.recorder, final=False)
+            if ran else engine.split.recorder.report())
     return state
 
 
 def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, done, seed,
               tau, num_samples, prefixes, noise_policy, batch_rows, source_chunk, on_row,
               probe, geometry_tol, dump_queries=(), dump_top_n=DUMP_TOP_N,
-              binding_sha256=None):
+              binding_sha256=None, launch_record_sha256=None, fa_partition=None,
+              fa_ledger=None):
     """One room's receiver groups, one resident cache at a time."""
     missing = [] if selected is not None else [
         query.query_id for query in room_plan.queries
@@ -1897,7 +2928,8 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
         with timer("source_cache"):
             cache = ReceiverCache.build(engine.conditioner, group.receiver_id,
                                         {"depth": depths[group.receiver_id]}, group.union,
-                                        positions_cam, engine.device, chunk=source_chunk)
+                                        positions_cam, engine.device, chunk=source_chunk,
+                                        fa=engine.split)
         state["n_conditioner_rows"] += cache.n_conditioner_rows
         try:
             for query in runnable:
@@ -1910,7 +2942,29 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                 sims = _score_one_query(
                     engine, query, context["context"], cache, context["obs_embedding"],
                     seed=seed, num_samples=num_samples, noise_policy=noise_policy,
-                    batch_rows=batch_rows, timer=query_timer)
+                    batch_rows=batch_rows, timer=query_timer,
+                    candidate=candidate_inputs(engine, query, context))
+                if engine.split is not None:
+                    # Codex rA A8: the executed partition is the declared one before
+                    # this query's row (or probe record, or dump) can exist -- a
+                    # prefix that has not yet filled a micro-batch is consistent
+                    if fa_ledger is not None:          # rB-F2 NIT 5: the kill window
+                        begin_partition_check(out_dir, "before_row",
+                                              len(fa_ledger["payload"]["segments"]))
+                    try:
+                        assert_fa_partition_executed(fa_partition, engine.split.recorder,
+                                                     final=False)
+                    except ValueError as error:        # A6 (iv): a scored shard says so
+                        if fa_ledger is not None:
+                            write_partition_failure(
+                                out_dir, fa_partition, engine.split.recorder, "before_row",
+                                error, len(fa_ledger["payload"]["segments"]),
+                                launch_record_sha256)
+                        raise
+                    if fa_ledger is not None:          # on disk BEFORE the row (rB 5)
+                        end_partition_check(out_dir)
+                        persist_fa_ledger(fa_ledger, engine.split.recorder)
+                        write_fa_stamp(out_dir, query, fa_ledger)       # rB-F2 finding 3
                 state["n_candidate_query_pairs"] += query.n_candidates
                 state["n_generated"] += query.n_candidates * int(num_samples)
                 for name, value in query_timer.totals.items():
@@ -1933,6 +2987,10 @@ def _run_room(engine, room_plan, buffer, depths, out_dir, state, *, selected, do
                                  n_contexts=context["n_contexts"],
                                  batching={"batch_rows": int(batch_rows),
                                            "source_chunk": int(source_chunk)})
+                if launch_record_sha256 is not None:
+                    # the segment that produced this row (exp_22 R2-A); absent
+                    # without a record, so a record-free row is byte-identical
+                    row["launch_record_sha256"] = str(launch_record_sha256)
                 if query.query_id in dump_queries:
                     row.update(_dump_query(engine, query, context, cache, out_dir, row,
                                            scored, seed=seed, num_samples=num_samples,
@@ -1981,9 +3039,40 @@ def assert_release_rng_state(manifest):
     return True
 
 
+def cond_autocast_context(device, enabled, dtype):
+    """The conditioners' autocast context, exactly as :func:`build_mesh_engine` enters it."""
+    import contextlib
+
+    if not enabled:
+        return contextlib.nullcontext()
+    if dtype is None:
+        return torch.amp.autocast(device)
+    return torch.amp.autocast(device, dtype=dtype)
+
+
+def cond_autocast_state(device, mode):
+    """The conditioners' autocast AS EXECUTED (Codex rB finding 6; plan r2 amendment A4 iii).
+
+    ``eval_FLAC.resolve_cond_autocast`` maps the flag; the engine's own context is
+    then ENTERED and torch is asked what it runs -- so ``default`` is published as
+    its resolved state (float16 on CUDA, bfloat16 on CPU), never as the word.
+    Disabled autocast runs the conditioners in their float32 parameters.
+    """
+    from eval_FLAC import resolve_cond_autocast
+
+    enabled, dtype = resolve_cond_autocast(mode)
+    kind = torch.device(str(device)).type
+    with cond_autocast_context(device, enabled, dtype):
+        live = bool(torch.is_autocast_enabled(kind))
+        resolved = torch.get_autocast_dtype(kind) if live else torch.float32
+    return {"cond_autocast_requested": str(mode), "cond_autocast_enabled": live,
+            "cond_autocast_dtype": str(resolved).replace("torch.", ""),
+            "cond_autocast_device_type": kind}
+
+
 def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method="vanilla",
                       cond_autocast="default", steps=STEPS, cfg_scale=CFG_SCALE, ckpt=None,
-                      readout=SCORER_READOUT):
+                      readout=SCORER_READOUT, frame_avg_angles=None):
     """Build the frozen generator and wrap it as a :class:`MeshEngine`.
 
     Follows ``eval_FLAC.evaluate_model``'s lines of record through
@@ -1991,9 +3080,9 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
     load-integrity check, wrapper construction, eval/no-grad, latent length from
     the pretransform ratio -- so exp_22 scores the same generative process the
     release evaluation runs. The only addition is the ``only_ids`` seam the two
-    conditioning caches need.
+    conditioning caches need. fa_invariant is built under the five-way split over
+    ``frame_avg_angles`` (exp_22 R2-B); without that orbit it is refused.
     """
-    import contextlib
     import copy
 
     from eval_FLAC import check_load_integrity, resolve_cond_autocast
@@ -2003,7 +3092,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
     from src.models.factory import create_model_from_config
     from src.training.factory import create_training_wrapper_from_config
 
-    assert_cacheable(cond_method)
+    split = split_for(cond_method, frame_avg_angles)
+    assert_cacheable(cond_method, split)
     torch.set_float32_matmul_precision("medium")
     model_config = copy.deepcopy(model_config)
     file_model_config = copy.deepcopy(model_config)
@@ -2032,15 +3122,8 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
         latent_samples = model_config["sample_size"]
     ac_enabled, ac_dtype = resolve_cond_autocast(cond_autocast)
 
-    def cond_autocast_ctx():
-        if not ac_enabled:
-            return contextlib.nullcontext()
-        if ac_dtype is None:
-            return torch.amp.autocast(device)
-        return torch.amp.autocast(device, dtype=ac_dtype)
-
     def conditioner(metadata, _device, only_ids=None):
-        with cond_autocast_ctx():
+        with cond_autocast_context(device, ac_enabled, ac_dtype):
             with torch.no_grad():
                 return module.diffusion.conditioner(metadata, module.device, only_ids=only_ids)
 
@@ -2066,10 +3149,11 @@ def build_mesh_engine(ckpt_path, model_config, agree, device="cpu", cond_method=
                         conditioner=conditioner,
                         cond_inputs_fn=module.diffusion.get_conditioning_inputs,
                         sampler=sampler, decoder=decoder, embedder=embedder,
-                        cond_method=cond_method)
+                        cond_method=cond_method, split=split)
     context = {"module": module, "model": model, "model_config": model_config,
                "weights_source": weights_source, "device": device,
-               "latent_shape": engine.latent_shape}
+               "latent_shape": engine.latent_shape,
+               "cond_autocast": cond_autocast_state(device, cond_autocast)}
     return engine, context
 
 def _pair_diff(left, right):
@@ -2098,6 +3182,9 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
     """
     from src.localization.candidates import candidate_metadata
 
+    if getattr(engine, "split", None) is not None:
+        raise ValueError("cache_parity_check is the VANILLA proof; an engine with the fa split "
+                         "is gated by meshgrid_fa_parity.cache_parity (fa_cache_parity, gate 2)")
     # the source branch needs depth and a candidate pose -- never the target
     md = md.without_target() if isinstance(md, GuardedMetadata) else md
     # default to MORE candidates than one production chunk, so the batched half
@@ -2160,6 +3247,7 @@ def cache_parity_check(engine, query, md, n_candidates=None, source_chunk=SOURCE
 # --------------------------------------------------------------------------- #
 def _read_shard(shard_dir):
     """One shard's published binding and summary, or a refusal."""
+    assert_admissible(shard_dir)                       # A6 (iv): named before anything else
     binding_path = os.path.join(str(shard_dir), BINDING_FILENAME)
     if not os.path.isfile(binding_path):
         raise ValueError(f"{shard_dir} publishes no {BINDING_FILENAME}; a shard that cannot "
@@ -2172,7 +3260,7 @@ def _read_shard(shard_dir):
     if missing:
         raise ValueError(f"{shard_dir}'s binding is missing {missing}; it cannot be "
                          "recomputed, so it cannot be trusted")
-    recomputed = binding_sha256({field: binding[field] for field in RUN_BINDING_FIELDS})
+    recomputed = binding_sha256({field: binding[field] for field in binding_fields(binding)})
     if binding.get("binding_sha256") != recomputed:
         raise ValueError(f"{shard_dir}'s published binding does not match its own content: it "
                          f"stores {str(binding.get('binding_sha256'))[:12]}... but hashes to "
@@ -2214,8 +3302,8 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"the shards were not produced under the same binding: "
                          f"{sorted(str(d)[:12] for d in digests)}")
     binding_sha256 = shards[0]["binding_sha256"]
-    base = {field: shards[0]["binding"][field] for field in RUN_BINDING_FIELDS
-            if field in shards[0]["binding"]}
+    base = {field: shards[0]["binding"][field]
+            for field in binding_fields(shards[0]["binding"])}
 
     # (2) pinned production advisory values, in the bindings AND in every row
     advisories = {json.dumps(shard["advisory"], sort_keys=True) for shard in shards}
@@ -2223,6 +3311,10 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"the shards pin different advisory batching values "
                          f"{sorted(advisories)}; a merged run must state one batching")
     advisory = shards[0]["advisory"]
+
+    # (2b) exp_22 rB-F1 (Codex rB finding 5): every shard's executed frame-average
+    # partition re-derived from its durable ledger, and their sum, before any write
+    fa = fa_partition_census(shards, base.get("fa_partition"))
 
     # (3) disjoint declared rooms whose union is the registered set
     declared, overlap = [], set()
@@ -2275,6 +3367,18 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         raise ValueError(f"{len(absent)} registered queries are missing from the shards "
                          f"(first {absent[:3]}); a merged run is the complete subset")
 
+    # (4b) exp_22 R2-A launch provenance (Codex B4): an R2-generation binding is
+    # produced only by the record-carrying driver, so every row must resolve to a
+    # present, hash-verified, environment-verified segment record. The legacy R1
+    # generation (the published Aug-2026 P1 comparator) predates launch records.
+    from src.localization import meshgrid_segments as ms
+
+    recorded = binding_fields(base) != RUN_BINDING_FIELDS
+    rows_by_shard = {shard["dir"]: [row for query_id, row in rows.items()
+                                    if owner[query_id] == shard["dir"]] for shard in shards}
+    if recorded:
+        ms.merge_ledgers(rows_by_shard, None, dry_run=True)
+
     # (5) every digest, every row's identity against the G1 plan -- and the
     # source-row census DERIVED from that plan, so a shard that was resumed
     # after finishing receiver groups still merges (r8 review, gate 7)
@@ -2310,6 +3414,13 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
             raise ValueError(f"the merged census fails on {name}: the shards account for "
                              f"{found:,} but the registered total is {int(wanted):,}")
 
+    if fa is not None:        # the merged ledger binds the very rows it is published with
+        unbound = _row_binding_reasons(fa["ledger"]["segments"], [
+            read_fa_stamp(owner[query_id], row) for query_id, row in rows.items()], True,
+            fa["blocks"])
+        if unbound:
+            raise ValueError("the merged rows do not bind the merged ledger: " + "; ".join(unbound))
+
     # only now does anything reach disk
     os.makedirs(out_dir, exist_ok=True)
     for query_id, row in rows.items():
@@ -2319,6 +3430,10 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
         os.makedirs(target["dir"], exist_ok=True)
         shutil.copy2(paths["row"], target["row"])
         shutil.copy2(paths["sims"], target["sims"])
+        if fa is not None:                    # each fa row's ledger stamp travels with it
+            stamp = fa_stamp_path(out_dir, row["room_id"], row["position"])
+            os.makedirs(os.path.dirname(stamp), exist_ok=True)
+            shutil.copy2(fa_stamp_path(shard_dir, row["room_id"], row["position"]), stamp)
         if row.get("waveform_path"):
             source = os.path.join(shard_dir, row["waveform_path"])
             destination = os.path.join(out_dir, row["waveform_path"])
@@ -2326,7 +3441,16 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
             shutil.copy2(source, destination)
 
     write_binding(out_dir, base, advisory=advisory, declared_rooms=sorted(declared))
+    if fa is not None:
+        write_json(os.path.join(out_dir, FA_LEDGER_FILENAME), fa["ledger"])
+    provenance = (ms.merge_ledgers(rows_by_shard, out_dir) if recorded else
+                  {"generation": "legacy_r1_binding", "complete": False, "records": [],
+                   "note": "the shards carry the legacy R1 binding, which predates launch "
+                           "records; only the published P1 comparator may be canonical "
+                           "without them (plan r2 §1 legacy-provenance exception)"})
     report = {"experiment": "exp_22 loc_meshgrid I1 shard merge", "ok": True,
+              "launch_provenance": provenance,
+              "fa_partition_executed": None if fa is None else fa["receipt"],
               "binding_sha256": binding_sha256, "advisory": advisory,
               "declared_rooms": sorted(declared), "n_rows": len(rows),
               "shards": [{"dir": shard["dir"], "rooms": shard["declared_rooms"],
@@ -2346,5 +3470,5 @@ def merge_shards(shard_dirs, out_dir, plan, records, totals=None, expected_rooms
               "registered_totals": totals,
               "agree_leakage_caveat": AGREE_LEAKAGE_CAVEAT,
               "batching_caveat": BATCHING_CAVEAT}
-    write_json(os.path.join(out_dir, "merge_report.json"), report)
+    write_json(os.path.join(out_dir, MERGE_REPORT_FILENAME), report)
     return report

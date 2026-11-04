@@ -248,7 +248,9 @@ def test_the_control_key_is_the_one_the_r1_report_names(tmp_path):
     where = mr.CONTROLS_ELSEWHERE[rc.CONTROL_KEY]
     assert "meshgrid_retrieval_control.py" in where
     assert "NOT IMPLEMENTED" not in where
-    assert "built (r9b)" in where
+    # exp_22 rA-F1 (Codex rA HIGH): the static entry no longer asserts a status --
+    # a report states one only after consuming this control's handoff
+    assert "built (r9b)" not in where and "run pending" not in where
     assert rc.HANDOFF_JSON in where
 
 

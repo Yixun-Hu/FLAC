@@ -1,0 +1,31 @@
+# rA-F1 cycle 2 RED (Codex rA NITs: full per-room equality; every whitelist member; complete single-shard note) -- 2026-11-02T21:56:37-05:00 -- HEAD d9c3ac05f37c300b84b39a53f0d0c32ebadf5ae6
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider src/tests/test_loc_meshgrid_crossarm.py src/tests/test_loc_meshgrid_report.py -k 'whitelist or pairing_axis or registered_room or notes_carry'
+...............................................................F.....F.  [100%]
+=================================== FAILURES ===================================
+E   AssertionError: assert 'launch_provenance' in ['arm', 'binding.binding_sha256', 'binding.ckpt_sha256', 'binding.frame_avg_angles', 'binding.rotate_deg', 'row._row_path', ...]
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_crossarm.py:587: AssertionError: assert 'launch_provenance' in ['arm', 'binding.binding_sha256', 'binding.ckpt_sha256', 'binding.frame_avg_angles', 'binding.rotate_deg', 'row._row_path', ...]
+E   KeyError: 'report_per_room'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_crossarm.py:720: KeyError: 'report_per_room'
+src/tests/test_loc_meshgrid_crossarm.py::test_two_admitted_arms_pair_and_only_whitelisted_fields_differ
+
+src/tests/test_loc_meshgrid_crossarm.py::test_two_admitted_arms_pair_and_only_whitelisted_fields_differ
+
+src/tests/test_loc_meshgrid_crossarm.py::test_two_admitted_arms_pair_and_only_whitelisted_fields_differ
+
+=========================== short test summary info ============================
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_every_whitelisted_difference_never_breaks_the_pair[run-launch_provenance]
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_the_crossarm_holds_every_registered_room_to_the_arms_own_report
+
+# --- delete-the-code checks for the test-only NITs (each mutation applied to the module, run, then restored from a byte copy) ---
+# M1: pair_runs compares whitelisted BINDING fields too (the binding skip deleted)
+8 failed, 99 deselected, 3 warnings in 5.59s
+# M2: pair_runs compares whitelisted ROW fields too (the row skip deleted)
+11 failed, 96 deselected, 3 warnings in 5.65s
+# M3: one NON-member silently skipped (binding 'seed' and row 'n_contexts' added to the skip sets in pair_runs only)
+2
+1 failed, 106 deselected, 3 warnings in 5.38s
+# M4: the aggregate_policy check deleted from pair_runs
+1 failed, 106 deselected, 3 warnings in 5.31s
+# M5: the HEAD of the single-shard template changed (the old tail-only test would still pass)
+1 failed, 138 deselected in 2.39s
+# restored: src/localization byte-identical to HEAD

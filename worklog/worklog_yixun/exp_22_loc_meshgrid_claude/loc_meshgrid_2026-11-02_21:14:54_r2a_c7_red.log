@@ -1,0 +1,7 @@
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_notes_carry_the_arm_and_p1_keeps_its_words
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_legacy_p1_run_is_canonical_under_the_flagged_exception
+FAILED src/tests/test_loc_meshgrid_report.py::test_an_arm_run_with_complete_records_publishes_every_segment
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_missing_record_makes_the_report_non_canonical
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_legacy_exception_never_extends_to_another_arm
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_report_cli_takes_the_expected_arm_and_the_checkpoint
+6 failed, 131 passed, 1 skipped, 3 warnings in 24.44s

@@ -1,0 +1,27 @@
+# rA-F1 cycle 1 RED (mixed git SHAs refused; plan r2 amendment A2) -- 2026-11-02T21:52:57-05:00 -- HEAD 3dc94b9b924b9cfd2d321325882cb85266d2e356
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider <cycle-1 tests>
+        assert provenance["git_shas"] == ["a" * 40, "b" * 40]
+>       assert provenance["acceptable"] is False
+E       assert True is False
+
+src/tests/test_loc_meshgrid_report.py:2580: AssertionError
+=============================== warnings summary ===============================
+src/tests/test_loc_meshgrid_launch_record.py::test_the_engine_merge_refuses_shards_at_two_commits_and_writes_nothing
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+src/tests/test_loc_meshgrid_launch_record.py::test_the_engine_merge_refuses_shards_at_two_commits_and_writes_nothing
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_loc_meshgrid_launch_record.py::test_the_engine_merge_refuses_shards_at_two_commits_and_writes_nothing
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_resume_at_another_commit_is_refused_before_it_opens_a_segment
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_census_over_segments_at_two_commits_is_incomplete
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_merge_of_shards_at_two_commits_is_refused_before_anything_is_written
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_the_engine_merge_refuses_shards_at_two_commits_and_writes_nothing
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_report_over_segments_at_two_commits_is_non_canonical
+5 failed, 1 passed, 186 deselected, 3 warnings in 5.74s

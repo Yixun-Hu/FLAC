@@ -1,0 +1,35 @@
+# exp_22 rB-F3 cycle 5 RED (the merged ledger valid under its own reader; the per-arm report re-reads it and joins the receipt; vanilla admits none; Codex rB-F2 finding 1, BLOCKING), HEAD a56d4a59 + working tree (new tests only), 2026-11-03T16:12:37-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest -k 'merged_ledger_is_valid or does_not_join or single_shard_bf_report or vanilla_report_admits' --tb=line
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3616: assert [0, 0] == [0, 1]
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3616: assert [0, 1, 0, 1] == [0, 1, 2, 3]
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3616: assert [0, 1, 2, 0, 1, 2] == [0, 1, 2, 3, 4, 5]
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3669: KeyError: 'shard_segment_index'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3692: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3709: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3731: Failed: DID NOT RAISE ValueError
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3731: Failed: DID NOT RAISE ValueError
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merged_ledger_is_valid_under_its_own_reader[0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merged_ledger_is_valid_under_its_own_reader[1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merged_ledger_is_valid_under_its_own_reader[2]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[a count edited, self-digests recomputed]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[an origin dropped]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[indices duplicated]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[ledger deleted]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[receipt census moved]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[receipt deleted]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[receipt digest moved]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[receipt executed moved]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[receipt null]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_merged_bf_run_whose_ledger_or_receipt_does_not_join[shard blocks swapped]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_single_shard_bf_report_re_reads_its_ledger_against_its_run_summary
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_vanilla_report_admits_no_fa_ledger_and_no_fa_receipt[a ledger file-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_vanilla_report_admits_no_fa_ledger_and_no_fa_receipt[a non-null receipt-True]
+16 failed, 2 passed, 299 deselected in 10.88s

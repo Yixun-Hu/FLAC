@@ -1,0 +1,50 @@
+# rB-F1 cycle 4 RED (BLOCKING 3: registered identity + captured provenance required for PASS), HEAD f382a58238d25ff4486d00dfa692326d109fce80, CPU
+_ test_failed_provenance_makes_a_numerical_pass_non_pass[broken0-tracked tree] _
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_failed_provenance_makes_a0')
+    def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+_ test_failed_provenance_makes_a_numerical_pass_non_pass[broken1-tracked tree] _
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_failed_provenance_makes_a1')
+    def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+___ test_failed_provenance_makes_a_numerical_pass_non_pass[broken2-git SHA] ____
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_failed_provenance_makes_a2')
+    def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+___ test_failed_provenance_makes_a_numerical_pass_non_pass[broken3-git SHA] ____
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_failed_provenance_makes_a3')
+    def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+___ test_failed_provenance_makes_a_numerical_pass_non_pass[broken4-hostname] ___
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_failed_provenance_makes_a4')
+    def test_failed_provenance_makes_a_numerical_pass_non_pass(tmp_path, broken, why):
+_______ test_a_failed_cuda_uuid_capture_on_a_gpu_makes_the_gate_non_pass _______
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-2028/test_a_failed_cuda_uuid_captur0')
+    def test_a_failed_cuda_uuid_capture_on_a_gpu_makes_the_gate_non_pass(tmp_path):
+        failed = {"ok": False, "uuid": None, "error": "the runtime could not describe device 0"}
+>                                       runtime=failed, inputs=_g1_inputs("cuda:0"))
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_gate1_and_writes_its_evidence
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_the_vanilla_regression_replay
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_evidence_holds_each_gate_to_its_registered_autocast
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G1-BF-overrides0-None-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G1-BF-overrides1-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G3-BF-overrides2-None-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G3-YAW-overrides3-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G3D-BF-overrides4-None-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G3D-BF-overrides5-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G2-BF-overrides6-None-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G2-BF-overrides7-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G2-BF-overrides8-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G0-P1-overrides9-None-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[G0-BF-overrides10-None-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[GV-YAW-overrides11-YAW-True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[GV-P1-overrides12-YAW-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_each_gate_requires_its_registered_arm_identity[GV-BF-overrides13-BF-False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_refuses_a_gate_on_an_unregistered_identity_before_any_device_work
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_failed_provenance_makes_a_numerical_pass_non_pass[broken0-tracked tree]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_failed_provenance_makes_a_numerical_pass_non_pass[broken1-tracked tree]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_failed_provenance_makes_a_numerical_pass_non_pass[broken2-git SHA]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_failed_provenance_makes_a_numerical_pass_non_pass[broken3-git SHA]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_failed_provenance_makes_a_numerical_pass_non_pass[broken4-hostname]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_failed_cuda_uuid_capture_on_a_gpu_makes_the_gate_non_pass
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_evidence_without_a_registered_identity_is_not_a_pass
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_exits_non_zero_when_provenance_fails
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_yaw_parity_gate_publishes_its_evidence_under_the_yaw_identity
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_passes_end_to_end_at_the_registered_numbers_and_identity
+28 failed, 85 passed, 11 warnings in 36.82s

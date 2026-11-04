@@ -1,0 +1,29 @@
+# exp_22 R2-B whole-repo collection + checks, HEAD a62b9d8d296e7fdc2c2eb258cca3c4a72eedde1d
+## pytest --collect-only (whole repo, CPU)
+src/tests/test_loc_scoring.py::test_localization_error_and_success_within_reject_nonfinite[nan]
+src/tests/test_loc_scoring.py::test_localization_error_and_success_within_reject_nonfinite[inf]
+src/tests/test_loc_scoring.py::test_localization_error_and_success_within_reject_nonfinite[-inf]
+src/tests/test_yaw_random_eval.py::test_expected_stream_count_without_a_stream_is_an_error
+4952 tests collected in 8.30s
+## git diff --check 75628305 HEAD
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_23:17:02_r2b_c11_case_stream_red.log:2: trailing whitespace.
++E
+## py_compile of touched modules and tests
+py_compile OK
+## files changed since 75628305
+ ...2026-11-02_22:46:41_r2b_c2_split_blocks_red.log |   14 +
+ ..._2026-11-02_22:50:43_r2b_c3_pass_wiring_red.log |   13 +
+ ...026-11-02_22:54:46_r2b_c4_driver_wiring_red.log |    9 +
+ ...shgrid_2026-11-02_22:57:49_r2b_c5_gate1_red.log |    4 +
+ ...shgrid_2026-11-02_23:00:10_r2b_c6_gate2_red.log |   11 +
+ ...shgrid_2026-11-02_23:02:44_r2b_c7_gate3_red.log |   12 +
+ ...2026-11-02_23:07:08_r2b_c8_driver_gates_red.log |    9 +
+ ...26-11-02_23:11:02_r2b_c9_vanilla_replay_red.log |   13 +
+ ...02_23:14:45_r2b_c10_chains_real_classes_red.log |    5 +
+ ...2026-11-02_23:17:02_r2b_c11_case_stream_red.log |    6 +
+ ...026-11-02_23:18:10_r2b_c12_gate2_single_red.log |    2 +
+ 19 files changed, 2834 insertions(+), 72 deletions(-)
+## untouched by contract: src/data src/models crossarm.py meshgrid_report.py configs gen_model_comparison.py
+(empty above = untouched)
+## the P1 golden regression + the vanilla frozen-digest fixture, by name
+4 passed, 3 warnings in 4.87s

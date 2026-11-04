@@ -1,0 +1,37 @@
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 22%]
+s....................................................................... [ 30%]
+........................................................................ [ 38%]
+...............s........................................................ [ 45%]
+........................................................................ [ 53%]
+......................................s................................. [ 61%]
+........................................................................ [ 68%]
+........................................................................ [ 76%]
+........ss.s.sss........................................................ [ 84%]
+........................................................................ [ 91%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+src/tests/test_loc_meshgrid_crossarm.py::test_holm_by_hand_over_exactly_the_four_registered_tests
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchmetrics/utilities/imports.py:22: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import DistributionNotFound, get_distribution
+
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+932 passed, 9 skipped, 5 warnings in 97.07s (0:01:37)

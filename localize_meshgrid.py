@@ -20,12 +20,15 @@ in ``src.localization.meshgrid_engine``; the model build follows
 ``eval_FLAC.evaluate_model``'s lines of record through ``eval_localization``.
 This file is the protocol wiring around them.
 
-  # the registered pass (P1 arm, z_band branch chosen by the G1 audit)
-  python localize_meshgrid.py \
-      --ckpt-path weights/exp20/P1_40k.ckpt \
+  # a registered R2 shard (plan r2 §3 R2-C): every protocol and batching flag
+  # explicit; emit the launch record first, then run the IDENTICAL command with it
+  python localize_meshgrid.py --emit-launch-record <out>/launch_record.json \
+      --ckpt-path weights/exp20/YAW_40k.ckpt --cond-method vanilla --frame-avg-angles 0 \
+      --rotate-deg 0 --cond-autocast default --batch-rows 256 --source-chunk 16 \
       --context-manifest outputs_loc/exp22/d1_context_manifest.json \
       --audit-report outputs_loc/exp22/g1_audit/geometry_audit_report.json \
-      --out-dir outputs_loc/exp22/i1_P1 --device cuda:0
+      --rooms Cafe/Cafe_idx_1 --device cuda:0 --out-dir <out>
+  python localize_meshgrid.py --launch-record <out>/launch_record.json <same flags>
 
   # the pre-registered no-quality throughput probe (writes timings only).
   # --probe covers WHOLE receiver groups so the cache is amortized honestly, and
@@ -59,8 +62,40 @@ DEFAULT_AUDIT_REPORT = os.path.join("outputs_loc", "exp22", "g1_audit",
                                     "geometry_audit_report.json")
 
 
+#: exp_22 R2-A (Codex B6; announcement 05): the protocol and batching flags a
+#: canonical full pass must DECLARE on its command line -- none may be inherited
+#: from a default, because the default is not the registered value for every arm
+#: (``--batch-rows`` defaults to 64; the registered pass ran 256).
+REGISTERED_EXPLICIT_FLAGS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
+                             "batch_rows", "source_chunk")
+#: the explicit no-op orbit a vanilla arm binds, and the registered C4 orbit
+VANILLA_FRAME_AVG_ANGLES = [0.0]
+FA_FRAME_AVG_ANGLES = [0.0, 90.0, 180.0, 270.0]
+REGISTERED_ROTATE_DEG = 0.0
+
+
+class _Explicit(argparse.Action):
+    """Store the value AND remember the flag was given; a default never runs an action."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace.explicit_flags = frozenset(set(namespace.explicit_flags) | {self.dest})
+
+
+def resolved_protocol(args):
+    """``(frame_avg_angles, rotate_deg)`` as bound; diagnostics resolve the vanilla no-op."""
+    angles = args.frame_avg_angles
+    if angles is None and str(args.cond_method) == "vanilla":
+        angles = VANILLA_FRAME_AVG_ANGLES
+    rotate = REGISTERED_ROTATE_DEG if args.rotate_deg is None else args.rotate_deg
+    # `+ 0.0` folds -0.0 into 0.0: equal in Python, different canonical digests
+    return ((None if angles is None else [float(a) + 0.0 for a in angles]),
+            float(rotate) + 0.0)
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.set_defaults(explicit_flags=frozenset())
     parser.add_argument("--ckpt-path", default=None,
                         help="the frozen FLAC checkpoint (wrapped; EMA resolved at load)")
     parser.add_argument("--merge-shards", nargs="+", default=None,
@@ -83,8 +118,17 @@ def parse_args(argv=None):
                              "stream is still walked and verified")
     parser.add_argument("--branch", default=None,
                         help="assert the audit's branch; the branch itself is not selectable")
-    parser.add_argument("--cond-method", default="vanilla", choices=["vanilla", "fa_invariant"])
-    parser.add_argument("--cond-autocast", default="default", choices=["default", "bf16", "off"])
+    parser.add_argument("--cond-method", default="vanilla", choices=["vanilla", "fa_invariant"],
+                        action=_Explicit)
+    parser.add_argument("--cond-autocast", default="default", choices=["default", "bf16", "off"],
+                        action=_Explicit)
+    parser.add_argument("--frame-avg-angles", type=float, nargs="+", default=None,
+                        action=_Explicit,
+                        help="the frame-average orbit, explicit on every canonical launch: "
+                             "vanilla arms pass exactly 0 (bound as [0.0]); fa_invariant "
+                             "passes the registered C4 orbit 0 90 180 270")
+    parser.add_argument("--rotate-deg", type=float, default=None, action=_Explicit,
+                        help="global panorama rotation; registered 0, anything else refused")
     parser.add_argument("--seed", type=int, default=me.SEED)
     parser.add_argument("--tau", type=float, default=me.TAU)
     parser.add_argument("--num-samples", type=int, default=me.NUM_SAMPLES)
@@ -93,9 +137,9 @@ def parse_args(argv=None):
                         choices=list(me.NOISE_KEY_POLICIES))
     parser.add_argument("--steps", type=int, default=me.STEPS)
     parser.add_argument("--cfg-scale", type=float, default=me.CFG_SCALE)
-    parser.add_argument("--batch-rows", type=int, default=64,
+    parser.add_argument("--batch-rows", type=int, default=64, action=_Explicit,
                         help="generated rows per forward (candidates x K)")
-    parser.add_argument("--source-chunk", type=int, default=me.SOURCE_CHUNK,
+    parser.add_argument("--source-chunk", type=int, default=me.SOURCE_CHUNK, action=_Explicit,
                         help="candidates per source-branch forward; each row is a full ViT "
                              "pass over a [3, 256, 512] map, so this is the memory knob")
     parser.add_argument("--resume", action="store_true",
@@ -119,7 +163,46 @@ def parse_args(argv=None):
                         help="score one query twice at fixed batching and require bit-exact "
                              "agreement (the registered determinism claim), then exit")
     parser.add_argument("--cache-parity-check", action="store_true",
-                        help="run the §1.5 cached-vs-uncached bit-identity proof and exit")
+                        help="run the §1.5 cached-vs-uncached bit-identity proof and exit; "
+                             "under fa_invariant this is GATE 2 (fa_cache_parity evidence)")
+    parser.add_argument("--fa-split-parity-check", action="store_true",
+                        help="GATE 1 (exp_22 R2-B): the five-way split vs the released "
+                             "invariant_conditioning at identical batching, --cond-autocast off; "
+                             "writes <out-dir>/fa_split_parity.json and exits")
+    parser.add_argument("--fa-production-parity-check", action="store_true",
+                        help="GATE 3 (exp_22 R2-B; plan amendment A4 i): production batching "
+                             "(256/16) with --cond-autocast off (fp32) vs a faithful replay over "
+                             "all 16 registered probe queries; writes "
+                             "<out-dir>/fa_production_parity.json (PASS/FAIL) and exits")
+    parser.add_argument("--fa-production-drift-measurement", action="store_true",
+                        help="DRIFT MEASUREMENT (plan amendment A4 ii): gate 3's comparison under "
+                             "the production --cond-autocast default (fp16 on CUDA), published "
+                             "with NO verdict to <out-dir>/fa_production_drift.json")
+    parser.add_argument("--replay-against", default=None,
+                        help="VANILLA NO-REGRESSION (exp_22 R2-B): with --replay-check, replay "
+                             "the registered probe queries of this PUBLISHED run at their rows' "
+                             "own batching and require them reproduced exactly; writes "
+                             "<out-dir>/vanilla_replay_regression.json")
+    parser.add_argument("--replay-probe-report", default=None,
+                        help="where the committed canonical P1 off-grid probe report lives "
+                             "(default: its worklog path): G0's frozen grid anchor and the "
+                             "registered 16 probe queries G0 and G3 consume; its bytes must hash "
+                             "to the pinned 8c5fd5e8... or the gate refuses (Codex rB 1/2)")
+    parser.add_argument("--dataset-root", default="AcousticRooms",
+                        help="where the observed RIRs the frozen observation bank hashes live")
+    parser.add_argument("--parity-candidates", type=int, default=None,
+                        help="candidates gates 1 and 2 compare (default: a full and a tail "
+                             "micro-batch for gate 1, two source chunks for gate 2)")
+    parser.add_argument("--launch-record", default=None,
+                        help="PATH to this invocation's launch record (argv, git SHA, tracked-"
+                             "clean, hostname, designated GPU UUID), written BEFORE the run by "
+                             "--emit-launch-record. Required for every canonical full pass; one "
+                             "record per invocation (a --resume opens a new segment)")
+    parser.add_argument("--emit-launch-record", default=None,
+                        help="PROVENANCE MODE: write the launch record for THIS command to PATH "
+                             "and exit; then run the identical command with --launch-record PATH")
+    parser.add_argument("--expect-arm", default=None, choices=["P1", "BF", "YAW"],
+                        help="refuse unless the checkpoint is this registered arm")
     return parser.parse_args(argv)
 
 
@@ -127,9 +210,75 @@ def _refuse(message):
     raise SystemExit(f"REFUSED: {message}")
 
 
+def validate_protocol_flags(args):
+    """The explicit eval protocol (announcement 05): orbit and rotation, per method."""
+    angles, rotate = resolved_protocol(args)
+    if str(args.cond_method) == "vanilla" and angles != VANILLA_FRAME_AVG_ANGLES:
+        _refuse(f"--frame-avg-angles {angles} with --cond-method vanilla: a vanilla arm binds "
+                "the explicit no-op orbit, so it passes exactly `--frame-avg-angles 0`")
+    if str(args.cond_method) == "fa_invariant" and angles != FA_FRAME_AVG_ANGLES:
+        _refuse(f"--frame-avg-angles {angles} with --cond-method fa_invariant: the registered "
+                f"orbit is the C4 group in order, `--frame-avg-angles 0 90 180 270`")
+    if rotate != REGISTERED_ROTATE_DEG:
+        _refuse(f"--rotate-deg {rotate:g}: the registered rotation is 0; a rotated pass is a "
+                "different experiment, not a variant of this one")
+    return angles, rotate
+
+
+def validate_gate_flags(args):
+    """The fa parity gates' registered conditions (plan r2 §3 R2-B, Codex H3)."""
+    from src.localization import meshgrid_report as mr
+
+    production = args.fa_production_parity_check or args.fa_production_drift_measurement
+    gate = args.fa_split_parity_check or production
+    if gate and str(args.cond_method) != "fa_invariant":
+        _refuse("the fa parity gates compare the five-way split: pass --cond-method fa_invariant "
+                "--frame-avg-angles 0 90 180 270")
+    if args.fa_split_parity_check and args.cond_autocast != "off":
+        _refuse("gate 1 is registered bit-exact with autocast OFF: pass --cond-autocast off")
+    if production:
+        # A4 (i): the logic gate is fp32; (ii): the drift measurement is the production flag
+        autocast = "off" if args.fa_production_parity_check else "default"
+        for flag, registered, found in (("--cond-autocast", autocast, args.cond_autocast),
+                                        ("--batch-rows", mr.REGISTERED_BATCH_ROWS,
+                                         args.batch_rows),
+                                        ("--source-chunk", mr.REGISTERED_SOURCE_CHUNK,
+                                         args.source_chunk)):
+            if found != registered:
+                _refuse(f"gate 3 / its drift measurement run the PRODUCTION batching at the "
+                        f"registered autocast (amendment A4): pass {flag} {registered}, not "
+                        f"{found}")
+    return True
+
+
+def validate_launch_provenance(args):
+    """Canonical full passes carry a record and declare every protocol flag; diagnostics don't."""
+    recorded = args.launch_record or args.emit_launch_record
+    if args.launch_record and args.emit_launch_record:
+        _refuse("--emit-launch-record writes a record and exits; --launch-record runs the pass "
+                "it describes. Pass one of them")
+    if not writes_query_artifacts(args):
+        if recorded:
+            _refuse("launch records describe canonical full passes; --probe, the parity checks, "
+                    "--replay-check and --merge-shards are diagnostics and stay record-free")
+        return True
+    if not recorded:
+        _refuse("a canonical full pass requires --launch-record PATH, written BEFORE the run by "
+                "the identical command with --emit-launch-record PATH (plan r2 §3 R2-A, B4)")
+    implicit = [flag for flag in REGISTERED_EXPLICIT_FLAGS
+                if flag not in set(args.explicit_flags)]
+    if implicit:
+        _refuse(f"a canonical full pass may not rely on a default: declare "
+                f"{['--' + flag.replace('_', '-') for flag in implicit]} explicitly "
+                "(announcement 05; the registered batching is --batch-rows 256 "
+                "--source-chunk 16)")
+    return True
+
+
 def validate_args(args):
     """Startup refusals -- before a checkpoint is read or a GPU is touched."""
     if args.merge_shards is not None:
+        validate_launch_provenance(args)
         if not args.merge_out:
             _refuse("--merge-shards needs --merge-out: a merge publishes into a fresh "
                     "directory, never back into a shard")
@@ -141,8 +290,23 @@ def validate_args(args):
     if args.rooms is not None and args.probe is not None:
         _refuse("--rooms shards a scored pass and --probe is a no-quality diagnostic; use "
                 "--probe-room to bound a probe")
+    modes = [flag for flag, on in (("--probe", args.probe is not None),
+                                   ("--cache-parity-check", args.cache_parity_check),
+                                   ("--replay-check", args.replay_check),
+                                   ("--fa-split-parity-check", args.fa_split_parity_check),
+                                   ("--fa-production-parity-check",
+                                    args.fa_production_parity_check),
+                                   ("--fa-production-drift-measurement",
+                                    args.fa_production_drift_measurement)) if on]
+    if len(modes) > 1:
+        _refuse(f"{modes} are separate diagnostics: run one diagnostic per invocation")
+    if args.replay_against and not args.replay_check:
+        _refuse("--replay-against is the vanilla no-regression form of --replay-check")
+    if args.replay_against and str(args.cond_method) != "vanilla":
+        _refuse("--replay-against replays the published P1 rows through the vanilla path")
     if args.probe is None and args.probe_room:
-        _refuse("--probe-room only bounds the throughput probe; pass --probe too")
+        _refuse("--probe-room only bounds the throughput probe (pass --probe too); a parity gate "
+                "consumes all 16 registered probe queries (plan r2 amendment A4 v)")
     if args.probe is not None:
         if int(args.probe) < 1:
             _refuse("--probe must cover at least one query")
@@ -172,11 +336,134 @@ def validate_args(args):
         _refuse("--dump-cases-sha256 was given without --dump-cases")
     if float(args.tau) <= 0.0:
         _refuse(f"--tau must be > 0, got {args.tau}")
-    if args.cond_method != "vanilla":
-        _refuse(f"cond_method={args.cond_method!r}: the registered exp_22 arm is vanilla; the "
-                "frame-average arm needs §1.5's narrower context cache, which this engine "
-                "refuses rather than mis-caches")
+    validate_protocol_flags(args)
+    validate_gate_flags(args)
+    validate_launch_provenance(args)
+    # fa_invariant is no longer refused here: the engine's own refusal
+    # (assert_cacheable) fires in preflight, AFTER every binding check (R2-A)
     return True
+
+
+def emit_launch_record(args, argv, environment=None, runtime=None):
+    """PROVENANCE MODE (B4): the probe module's record, for THIS command; no gates, no GPU work."""
+    from src.localization import meshgrid_segments as ms
+
+    try:
+        record = ms.build_launch_record(argv, device=args.device, environment=environment,
+                                        runtime=runtime)
+    except ValueError as error:
+        _refuse(str(error))
+    # the registered launch lines emit into the shard directory before it exists
+    parent = os.path.dirname(os.path.abspath(str(args.emit_launch_record)))
+    os.makedirs(parent, exist_ok=True)
+    me.write_json(args.emit_launch_record, record)
+    print(f"launch record -> {args.emit_launch_record}\nnow run the identical command with "
+          f"--launch-record {args.emit_launch_record}")
+    return 0
+
+
+def admit_launch_record(args, argv, environment=None, runtime=None):
+    """The record must describe THIS invocation on THIS machine, every axis (probe mechanism)."""
+    from src.localization import meshgrid_segments as ms
+
+    try:
+        return ms.read_verified_launch_record(args.launch_record, argv, device=args.device,
+                                              environment=environment, runtime=runtime)
+    except (OSError, ValueError) as error:
+        _refuse(f"launch record: {error}")
+
+
+def preflight(args, plan, model_config, checkpoint, *, ckpt_sha256, agree_sha256,
+              model_config_sha256):
+    """Every CPU-side refusal about WHAT will run, in order, before any device work.
+
+    The binding; the registered arm and its complete method (the same gate the
+    report applies last -- strict for a canonical pass, a stamped deviation for a
+    diagnostic); the file's embedded training protocol; the ARE / cond-method
+    binding; and only THEN the engine's own cacheability refusal, so a protocol
+    mismatch is named as one rather than as a cache limitation (plan r2 §3 R2-A).
+    """
+    from src.localization import meshgrid_fa_parity as fp
+    from src.localization import meshgrid_report as mr
+
+    binding = build_run_binding(args, plan, ckpt_sha256=ckpt_sha256, agree_sha256=agree_sha256,
+                                model_config_sha256=model_config_sha256)
+    try:
+        registered = mr.assert_registered_protocol(
+            binding, allow_deviation=not writes_query_artifacts(args),
+            expect_arm=args.expect_arm)
+    except ValueError as error:
+        _refuse(f"arm/protocol check: {error}")
+    gate, identity = gate_of(args), None
+    if gate is not None:           # a gate's verdict rests on its registered arm (Codex rB 3)
+        identity, reasons = fp.gate_identity(gate, binding, args.expect_arm)
+        if reasons:
+            _refuse(f"gate {gate} identity: " + "; ".join(reasons))
+    embedded = mr.checkpoint_protocol_reasons(checkpoint, registered["arm"], binding)
+    for reason in embedded["reasons"]:
+        _refuse(f"embedded training protocol: {reason}")
+    cond_binding = validate_checkpoint(args, model_config, checkpoint)
+    # the split the engine will be built under (R2-B): fa is admitted only with it
+    me.assert_cacheable(args.cond_method,
+                        me.split_for(args.cond_method, resolved_protocol(args)[0]))
+    if writes_query_artifacts(args):
+        # the out-dir's executed-partition state through THE reader, before the engine is
+        # built and before claim_out_dir writes anything (Codex rB-F1 finding 3)
+        try:
+            me.read_fa_ledger(args.out_dir, binding.get("fa_partition"))
+        except (OSError, ValueError) as error:
+            _refuse(f"out-dir {args.out_dir}: {error}")
+    return binding, {"registered": registered, "embedded": embedded,
+                     "cond_binding": cond_binding, "gate_identity": identity}
+
+
+def gate_of(args):
+    """Which registered gate this invocation is, or ``None`` for a plain diagnostic. The
+    vanilla cache parity is a gate (GV) only with its arm named by --expect-arm."""
+    for flag, gate in (("fa_split_parity_check", "G1"), ("fa_production_parity_check", "G3"),
+                       ("fa_production_drift_measurement", "G3D")):
+        if getattr(args, flag):
+            return gate
+    if args.replay_check and args.replay_against:
+        return "G0"
+    if args.cache_parity_check and str(args.cond_method) == "fa_invariant":
+        return "G2"
+    return "GV" if args.cache_parity_check and args.expect_arm else None
+
+
+def claim_out_dir(args, run_binding, advisory, launch):
+    """Open the executed-partition ledger (a scored fa pass: BEFORE anything else is written --
+    Codex rB-F2 finding 3), publish or continue the binding, open this invocation's segment,
+    list what to skip. Returns ``(done, segment, ledger)``."""
+    from src.localization import meshgrid_segments as ms
+
+    if args.resume:
+        assert_resumable(args, args.out_dir)
+    published = os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME))
+    moved = (me.assert_binding(args.out_dir, run_binding, advisory=advisory,
+                               declared_rooms=args.rooms) if published else True)
+    ledger = (me.open_fa_ledger(args.out_dir, run_binding["fa_partition"],
+                                (launch or {}).get("sha256"))
+              if isinstance(run_binding.get("fa_partition"), dict) else None)
+    if not published:
+        me.write_binding(args.out_dir, run_binding, advisory=advisory,
+                         declared_rooms=args.rooms)
+    elif moved is not True:
+        me.record_advisory_change(args.out_dir, moved, advisory=advisory)
+        print(f"NOTE: batching changed since the published pass: {moved}\n  "
+              f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
+    segment = (ms.open_segment(args.out_dir, args.launch_record, launch, resume=args.resume)
+               if launch else None)
+    done = set()
+    if args.resume:
+        done, rejected = me.completed_queries(
+            args.out_dir, binding_sha256=me.binding_sha256(run_binding),
+            launch_records=set(ms.ledger_shas(args.out_dir)) if launch else None)
+        print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
+              f"and regenerated")
+        for verdict in rejected[:5]:
+            print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
+    return done, segment, ledger
 
 
 def validate_checkpoint(args, model_config, ckpt):
@@ -238,7 +525,8 @@ def writes_query_artifacts(args):
     must not read one either.
     """
     return (args.probe is None and not args.cache_parity_check and not args.replay_check
-            and args.merge_shards is None)
+            and not args.fa_split_parity_check and not args.fa_production_parity_check
+            and not args.fa_production_drift_measurement and args.merge_shards is None)
 
 
 def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256):
@@ -265,7 +553,25 @@ def build_run_binding(args, plan, ckpt_sha256, agree_sha256, model_config_sha256
         "dataset_config_sha256": me.file_sha256(args.dataset_config),
         "dump_cases_sha256": args.dump_cases_sha256 or None,
         "dataset_config": str(args.dataset_config),
+        **protocol_binding(args),
     }
+
+
+def protocol_binding(args):
+    """The R2 protocol fields this namespace binds, or ``{}`` for a legacy namespace.
+
+    The off-grid probe and the retrieval control reuse :func:`build_run_binding`
+    to verify the PUBLISHED P1 binding, which predates these flags; their parsers
+    define no ``--frame-avg-angles``, so they keep building the legacy R1 binding.
+    """
+    if not hasattr(args, "frame_avg_angles"):
+        return {}
+    angles, rotate = resolved_protocol(args)
+    partition = (me.declared_fa_partition(angles, batch_rows=args.batch_rows,
+                                          num_samples=args.num_samples,
+                                          source_chunk=args.source_chunk)
+                 if str(args.cond_method) == "fa_invariant" else None)
+    return {"frame_avg_angles": angles, "rotate_deg": rotate, "fa_partition": partition}
 
 
 def _iter_items(loader):
@@ -276,10 +582,16 @@ def _iter_items(loader):
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
     validate_args(args)
     if args.merge_shards is not None:
         return _run_merge(args)
+    if args.emit_launch_record:
+        return emit_launch_record(args, argv)
+    # provenance first: a record that does not describe this invocation on this
+    # machine refuses before a single artifact is read (B4)
+    launch = admit_launch_record(args, argv) if args.launch_record else None
 
     with open(args.model_config) as handle:
         model_config = json.load(handle)
@@ -298,47 +610,40 @@ def main(argv=None):
           f"{me.SCORER_READOUT_DEVIATION}")
     print(f"noise key policy: {args.noise_policy}")
 
-    # CPU-only validation first: no ARE artifact, and the conditioning method
-    # is bound to the file itself -- both before anything reaches a device
+    # CPU-only validation first: the binding, the arm and its method, the file's
+    # own training protocol, no ARE, and the engine's refusal -- all before
+    # anything reaches a device (plan r2 §3 R2-A; the report is the LAST gate)
     ckpt = torch.load(args.ckpt_path, map_location="cpu")
-    binding_verdict = validate_checkpoint(args, model_config, ckpt)
-    print(f"cond_method binding: {binding_verdict['binding']} "
-          f"({binding_verdict.get('checkpoint_cond_method')!r})")
+    run_binding, verdict = preflight(args, plan, model_config, ckpt,
+                                     ckpt_sha256=me.file_sha256(args.ckpt_path),
+                                     agree_sha256=me.file_sha256(agree_path),
+                                     model_config_sha256=me.file_sha256(args.model_config))
+    registered = verdict["registered"]
+    status = ("registered protocol" if registered["is_registered"]
+              else f"DEVIATES on {sorted(registered['deviations'])}")
+    print(f"arm {registered['arm']} ({status}); cond_method binding: "
+          f"{verdict['cond_binding']['binding']} "
+          f"({verdict['cond_binding'].get('checkpoint_cond_method')!r})")
+    if launch:
+        print(f"launch record {launch['sha256'][:12]}... git {launch['git_sha'][:12]} on "
+              f"{launch['hostname']}, card {launch['execution_gpu_uuid']}")
 
     from src.localization.agree_embed import load_agree_audio
 
     agree = load_agree_audio(agree_path, args.device)
+    if agree.ckpt_sha256 != run_binding["agree_ckpt_sha256"]:
+        _refuse("the AGREE scorer that loaded is not the file the binding was built from")
     engine, context = me.build_mesh_engine(
         args.ckpt_path, model_config, agree, device=args.device,
         cond_method=args.cond_method, cond_autocast=args.cond_autocast,
-        steps=args.steps, cfg_scale=args.cfg_scale, ckpt=ckpt)
+        steps=args.steps, cfg_scale=args.cfg_scale, ckpt=ckpt,
+        frame_avg_angles=resolved_protocol(args)[0])
     print(f"weights: {context['weights_source']}, latent {context['latent_shape']}")
 
-    run_binding = build_run_binding(args, plan, ckpt_sha256=me.file_sha256(args.ckpt_path),
-                                    agree_sha256=agree.ckpt_sha256,
-                                    model_config_sha256=me.file_sha256(args.model_config))
     advisory = {"source_chunk": int(args.source_chunk), "batch_rows": int(args.batch_rows)}
-    done = set()
+    done, segment, fa_ledger = set(), None, None
     if writes_query_artifacts(args):
-        if args.resume:
-            assert_resumable(args, args.out_dir)
-        if os.path.isfile(os.path.join(args.out_dir, me.BINDING_FILENAME)):
-            moved = me.assert_binding(args.out_dir, run_binding, advisory=advisory,
-                                      declared_rooms=args.rooms)
-            if moved is not True:
-                me.record_advisory_change(args.out_dir, moved, advisory=advisory)
-                print(f"NOTE: batching changed since the published pass: {moved}\n  "
-                      f"recorded in {me.BINDING_FILENAME}; {me.BATCHING_CAVEAT}")
-        else:
-            me.write_binding(args.out_dir, run_binding, advisory=advisory,
-                             declared_rooms=args.rooms)
-        if args.resume:
-            done, rejected = me.completed_queries(
-                args.out_dir, binding_sha256=me.binding_sha256(run_binding))
-            print(f"resume: {len(done)} verified queries skipped, {len(rejected)} rejected "
-                  f"and regenerated")
-            for verdict in rejected[:5]:
-                print(f"  rejected {verdict['query_id']}: {verdict['reason']}")
+        done, segment, fa_ledger = claim_out_dir(args, run_binding, advisory, launch)
 
     admitted = dump_allowance(args, plan)
     dump_queries = admitted["query_ids"]
@@ -356,9 +661,15 @@ def main(argv=None):
           "D1 pass at iterator creation")
 
     if args.cache_parity_check:
-        return _run_cache_parity(args, engine, plan, records, loader)
+        return _run_cache_parity(args, engine, plan, records, loader, binding=run_binding)
+    if args.fa_split_parity_check:
+        return _run_fa_gate(args, engine, plan, records, loader, "G1", run_binding)
+    if args.fa_production_parity_check:
+        return _run_fa_gate(args, engine, plan, records, loader, "G3", run_binding)
+    if args.fa_production_drift_measurement:
+        return _run_fa_gate(args, engine, plan, records, loader, "G3D", run_binding)
     if args.replay_check:
-        return _run_replay_check(args, engine, plan, records, loader)
+        return _run_replay_check(args, engine, plan, records, loader, binding=run_binding)
 
     progress = _progress_printer(len(records) - len(done))
     summary = me.run_pass(engine, _iter_items(loader), records, plan, args.out_dir,
@@ -369,7 +680,9 @@ def main(argv=None):
                           source_chunk=args.source_chunk, done=done,
                           probe=args.probe, probe_room=args.probe_room,
                           dump_queries=dump_queries, dump_top_n=args.dump_top_n,
-                          binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms)
+                          binding_sha256=me.binding_sha256(run_binding), rooms=args.rooms,
+                          launch_record_sha256=(launch or {}).get("sha256"),
+                          fa_partition=run_binding.get("fa_partition"), fa_ledger=fa_ledger)
     summary["created_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     summary["binding_sha256"] = me.binding_sha256(run_binding)
     summary["agree_leakage_caveat"] = me.AGREE_LEAKAGE_CAVEAT
@@ -382,7 +695,8 @@ def main(argv=None):
         path = me.write_probe_records(args.out_dir, summary.pop("probe_records"),
                                       stem=args.probe_stem, binding=run_binding,
                                       binding_sha256=me.binding_sha256(run_binding),
-                                      advisory=advisory)
+                                      advisory=advisory,
+                                      fa_partition_executed=summary.get("fa_partition_executed"))
         projection = json.load(open(path))["projection"]
         hours = projection["projected_gpu_hours"]
         print(f"probe: {summary['n_generated']} generated waveforms over "
@@ -400,6 +714,11 @@ def main(argv=None):
         return 0
 
     summary.pop("probe_records", None)
+    if segment is not None:
+        from src.localization import meshgrid_segments as ms
+
+        summary["launch_segment"] = ms.close_segment(args.out_dir,
+                                                     segment["launch_record_sha256"], summary)
     me.write_json(os.path.join(args.out_dir, "run_summary.json"), summary)
     print(f"scored {summary['n_scored']} queries ({summary['n_skipped']} skipped), "
           f"{summary['n_conditioner_rows']} source-conditioner rows, "
@@ -444,8 +763,27 @@ def _run_merge(args):
     return 0
 
 
-def _run_replay_check(args, engine, plan, records, loader):
-    """The registered fixed-batching determinism claim, on the first real query."""
+def _run_replay_check(args, engine, plan, records, loader, binding=None):
+    """The registered fixed-batching determinism claim, on the first real query -- or,
+    with --replay-against, the vanilla no-regression replay of the probe queries."""
+    if args.replay_against:
+        from src.localization import meshgrid_fa_parity as fp
+        from src.localization import meshgrid_offgrid_probe as mop
+
+        try:                       # the pinned anchor FIRST: nothing runs against another one
+            anchor = fp.load_probe_anchor(args.replay_probe_report or fp.COMMITTED_PROBE_REPORT)
+        except (OSError, ValueError, KeyError) as error:
+            _refuse(f"G0 anchor: {error}")
+        probes, ordered, anchor = _registered_probes(args, plan, anchor)
+        bank = mop.compute_observation_bank_digest(args.audit_report, args.context_manifest,
+                                                   dataset_root=args.dataset_root)
+        report = fp.vanilla_replay_regression(
+            engine, _probe_cases(args, plan, records, loader, probes), args.replay_against,
+            anchor=anchor, expected_queries=ordered,
+            observation_bank_sha256=bank["observation_bank_sha256"], run_binding=binding,
+            seed=args.seed, num_samples=args.num_samples, noise_policy=args.noise_policy,
+            tau=args.tau)
+        return _publish_gate(args, report, binding)
     first = records[0]
     room = me.load_room_plan(plan, first["room_id"])
     query = next(q for q in room.queries if q.query_id == first["query_id"])
@@ -468,26 +806,138 @@ def _run_replay_check(args, engine, plan, records, loader):
     _refuse("the stream ended before the first registered query")
 
 
-def _run_cache_parity(args, engine, plan, records, loader):
-    """§1.5's bit-identity proof on the first query of the pass, then stop."""
+def _first_query(plan, records, loader):
+    """The pass's first registered query, its verified metadata and its observation."""
     first = records[0]
     room = me.load_room_plan(plan, first["room_id"])
     query = next(q for q in room.queries if q.query_id == first["query_id"])
-    for position, (_obs, md) in enumerate(_iter_items(loader)):
-        if position != int(first["position"]):
-            continue
-        me.verify_context_record(md, first, position)
-        report = me.cache_parity_check(engine, query, md,
-                                       source_chunk=args.source_chunk)
-        print(json.dumps(report, indent=2, sort_keys=True))
-        print("\nMEMOIZATION (the contract): "
-              f"{'MATCH' if report['memoization']['match'] else 'MISMATCH'}; "
-              f"counter-test {'bit' if report['counter_test']['detected'] else 'DID NOT BITE'}")
-        print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
-              f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
-              f"{report['batched']['note']}")
-        return 0 if report["match"] else 1
+    for position, (obs, md) in enumerate(_iter_items(loader)):
+        if position == int(first["position"]):
+            me.verify_context_record(md, first, position)
+            return query, md, obs
     _refuse("the stream ended before the first registered query")
+
+
+def _registered_probes(args, plan, anchor=None):
+    """``(probes, ordered ids, anchor)``: the audit's registered probe queries, which must be
+    exactly the 16 the pinned committed probe report holds (plan r2 amendment A4 v)."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    if anchor is None:
+        try:
+            anchor = fp.load_probe_anchor(args.replay_probe_report or fp.COMMITTED_PROBE_REPORT)
+        except (OSError, ValueError, KeyError) as error:
+            _refuse(f"probe anchor: {error}")
+    probes = me.registered_probe_queries(plan)
+    ordered = [probes[room] for room in sorted(probes)]
+    if sorted(ordered) != sorted(anchor["query_ids"]):
+        _refuse(f"the audit's {len(ordered)} registered probe queries are not the "
+                f"{anchor['n_queries']} of the committed probe report "
+                f"{anchor['sha256'][:12]}...; a gate runs over the registered set only")
+    return probes, ordered, anchor
+
+
+def _probe_cases(args, plan, records, loader, probes=None):
+    """The gates' cases: EVERY registered probe query, streamed -- or a refusal (Codex rB 1)."""
+    from src.localization.meshgrid_fa_parity import probe_case
+
+    probes = me.registered_probe_queries(plan) if probes is None else probes
+    wanted = {query_id: room for room, query_id in probes.items()}
+    by_position = {int(record["position"]): record for record in records}
+    remaining = set(wanted)
+    for position, (obs, md) in enumerate(_iter_items(loader)):
+        record = by_position.get(position)
+        if record is None or record["query_id"] not in wanted:
+            continue
+        guarded = me.GuardedMetadata(md)
+        me.verify_context_record(guarded, record, position)
+        room = me.load_room_plan(plan, wanted[record["query_id"]])
+        query = next(q for q in room.queries if q.query_id == record["query_id"])
+        remaining.discard(record["query_id"])
+        yield probe_case(room, query, guarded, obs)
+        if not remaining:          # the rest of the stream decides nothing for these cases
+            return
+    _refuse(f"the stream ended with {len(remaining)} of the {len(wanted)} registered probe "
+            f"queries unconsumed (first {sorted(remaining)[:3]}); a gate covers every one "
+            "(plan r2 amendment A4 v)")
+
+
+def _gate_inputs(args, binding, gate):
+    """What the evidence says ran: the binding and the gate's arm identity re-derived from it
+    (Codex rB finding 3), the RESOLVED autocast (never the bare flag word; finding 6, A4 iii),
+    the batching, the checkpoint and the device."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    return {"binding": dict(binding or {}),
+            "identity": fp.gate_identity(gate, binding, args.expect_arm)[0],
+            **me.cond_autocast_state(args.device, args.cond_autocast),
+            "batch_rows": int(args.batch_rows), "source_chunk": int(args.source_chunk),
+            "ckpt_path": args.ckpt_path, "device": args.device}
+
+
+def _publish_gate(args, report, binding):
+    from src.localization import meshgrid_fa_parity as fp
+
+    evidence = fp.finalize_evidence(report, args.device,
+                                    inputs=_gate_inputs(args, binding, report["gate"]))
+    path = fp.write_evidence(args.out_dir, evidence)
+    print(f"GATE {evidence['gate']} {evidence['name']}: {evidence['verdict']} -> {path}")
+    for reason in evidence["reasons"][:10]:
+        print(f"  {reason}")
+    if evidence["verdict"] == "measurement":        # exit 0 iff the measurement is complete
+        return 0 if evidence["complete"] else 1
+    return 0 if evidence["verdict"] == "PASS" else 1
+
+
+def _run_fa_gate(args, engine, plan, records, loader, gate, binding):
+    """Gate 1 on the pass's first query, or gate 3 over the registered probe queries."""
+    from src.localization import meshgrid_fa_parity as fp
+
+    micro = max(1, int(args.batch_rows) // int(args.num_samples))
+    if gate == "G1":
+        query, md, _obs = _first_query(plan, records, loader)
+        report = fp.split_parity(engine, query, me.GuardedMetadata(md), micro_batch=micro,
+                                 n_candidates=args.parity_candidates)
+    else:                          # G3, or G3D: the same comparison as a measurement
+        probes, ordered, anchor = _registered_probes(args, plan)
+        report = fp.production_parity(     # the pinned anchor travels into the evidence
+            engine, _probe_cases(args, plan, records, loader, probes), expected_queries=ordered,
+            anchor=anchor,
+            batch_rows=args.batch_rows,
+            source_chunk=args.source_chunk, num_samples=args.num_samples, seed=args.seed,
+            noise_policy=args.noise_policy, tau=args.tau,
+            prefixes=tuple(int(k) for k in args.k_prefixes),
+            declared_partition=(binding or {}).get("fa_partition"), measurement=gate == "G3D")
+    return _publish_gate(args, report, binding)
+
+
+def _run_cache_parity(args, engine, plan, records, loader, binding=None):
+    """§1.5's bit-identity proof on the first query of the pass, then stop (gate 2 under fa)."""
+    query, md, _obs = _first_query(plan, records, loader)
+    if getattr(engine, "split", None) is not None:
+        from src.localization import meshgrid_fa_parity as fp
+
+        return _publish_gate(args, fp.cache_parity(
+            engine, query, me.GuardedMetadata(md), n_candidates=args.parity_candidates,
+            source_chunk=args.source_chunk,
+            micro_batch=max(1, int(args.batch_rows) // int(args.num_samples))), binding)
+    report = me.cache_parity_check(engine, query, md, source_chunk=args.source_chunk)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    print("\nMEMOIZATION (the contract): "
+          f"{'MATCH' if report['memoization']['match'] else 'MISMATCH'}; "
+          f"counter-test {'bit' if report['counter_test']['detected'] else 'DID NOT BITE'}")
+    print(f"BATCHED (informational): max |diff| = {report['batched']['max_abs_diff']:.3g} "
+          f"at dtypes {sorted(set(report['dtypes'].values()))} -- "
+          f"{report['batched']['note']}")
+    if gate_of(args) != "GV":      # the R1 diagnostic: printed, no evidence, no verdict
+        return 0 if report["match"] else 1
+    from src.localization import meshgrid_fa_parity as fp
+
+    return _publish_gate(args, fp.gate_report(
+        "GV", [] if report["match"] else ["the §1.5 memoization did not match or its "
+                                          "counter-test did not bite"],
+        vanilla_cache_parity=report, inputs={"query_id": query.query_id,
+                                             "n_candidates": report["n_candidates"]}), binding)
 
 
 if __name__ == "__main__":

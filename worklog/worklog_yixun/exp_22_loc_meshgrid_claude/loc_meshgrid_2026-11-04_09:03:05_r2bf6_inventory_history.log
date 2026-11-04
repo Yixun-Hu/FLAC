@@ -1,0 +1,110 @@
+# exp_22 rB-F6 inventory history (records helper, READ-ONLY: nothing mutated or written), HEAD a3b1c000b6f46514de8d12ce04248d31688e53f5 (tracked-clean), production at its 701926e5 content, 2026-11-04T09:03:05-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+# the inventory under the rB-F5 enumerator (the committed rB-F5 tooling copy, imported without writing bytecode) and under the rB-F6 enumerator: atoms by role; unmapped with the 890 rB-F5 rows and with every row of this round; the status of Codex rB-F5's three named statements
+# the helper (scratchpad, Coder tooling), verbatim:
+#   """exp_22 rB-F6 records helper (Coder tooling, scratchpad; READ-ONLY): the inventory under the
+#   rB-F5 enumerator (scratchpad/rbf5/atoms_rbf5.py, the committed rB-F5 evidence, imported without
+#   writing bytecode) and under the rB-F6 enumerator (atoms_rbf6.py): the atoms by role; how many
+#   each leaves unmapped with the 890 rB-F5 rows alone and with every row of this round (the rB-F6
+#   rule: each role class needs an own mutation -- the mapping rule for decision roles, the
+#   AST-exact statement rule for stmt); and the status of Codex rB-F5's three named statements
+#   (meshgrid_engine.py:942 / :970 / :1022) under each enumerator. Nothing is mutated or written.
+#   Usage: python history_counts_rbf6.py <repo at the frozen production content>"""
+#   import os
+#   import sys
+#   import time
+#   
+#   sys.dont_write_bytecode = True
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   RBF5 = os.path.join(os.path.dirname(HERE), "rbf5")
+#   sys.path.insert(0, HERE)
+#   import atoms_rbf6 as A6                                         # noqa: E402
+#   import mutate_rbf6 as D                                         # noqa: E402
+#   
+#   sys.path.insert(0, RBF5)
+#   import atoms_rbf5 as A5                                         # noqa: E402
+#   
+#   NAMED = [("src/localization/meshgrid_engine.py", 942, "bucket[key] = rest"),
+#            ("src/localization/meshgrid_engine.py", 970, "return write_json(path, dict("),
+#            ("src/localization/meshgrid_engine.py", 1022, "top[id(segment)] = (")]
+#   
+#   
+#   def by_role(found):
+#       roles = {}
+#       for atom in found:
+#           for role in atom["roles"]:
+#               roles[role] = roles.get(role, 0) + 1
+#       return ", ".join(f"{r} {n}" for r, n in sorted(roles.items()))
+#   
+#   
+#   def main(repo):
+#       t0 = time.time()
+#       rows = D._all(repo)
+#       old = rows[:890]
+#       print(f"# rows: {len(rows)} (M001-M890 the rB-F5 rows verbatim, M891-M{len(rows):03d} this "
+#             f"round's) ({time.time() - t0:.0f} s)", flush=True)
+#       found5 = A5.collect(repo)
+#       print(f"# the rB-F5 enumerator: {len(found5)} atoms ({by_role(found5)})", flush=True)
+#       texts = {path: open(f"{repo}/{path}", encoding="utf-8").read()
+#                for path in {a["path"] for a in found5}}
+#       mapped5 = A5.mapping(found5, [(row[0], row[4], row[5]) for row in old], texts)
+#       excluded5 = {(e[0], e[1], e[2], e[3]) for e in D.EXCLUDED_ATOMS}
+#       lacking5 = [a for a in found5 if not any(way == "own" for _n, way in mapped5[a["id"]])
+#                   and (a["path"], a["line"], a["col"], a["segment"]) not in excluded5]
+#       print(f"#   with the 890 rB-F5 rows: {len(lacking5)} without an own mutation (the rB-F5 "
+#             "mapping rule, before its ambiguity guard)", flush=True)
+#       for path, line, text in NAMED:
+#           hit = [a for a in found5 if a["path"] == path and a["line"] == line]
+#           print(f"#   {path.split('/')[-1]}:{line} `{text}`: "
+#                 + ("; ".join(f"{a['id']} {'+'.join(a['roles'])} `{a['segment'][:40]}`" for a in hit)
+#                    if hit else "NOT AN ATOM of the rB-F5 inventory"), flush=True)
+#       ruled = []
+#       found6 = A6.collect(repo, ruled)
+#       print(f"# the rB-F6 enumerator: {len(found6)} atoms ({by_role(found6)}); {len(ruled)} "
+#             "statements excluded BY RULE", flush=True)
+#       _lines, total, unmapped = D.inventory(repo, old)
+#       print(f"#   with the 890 rB-F5 rows: {total.lstrip('# ')}", flush=True)
+#       print(f"#     unmapped by role class: {_classes(found6, unmapped)}", flush=True)
+#       before = set(unmapped)
+#       lines, total, unmapped = D.inventory(repo, rows)
+#       print(f"#   with all {len(rows)} rows: {total.lstrip('# ')}", flush=True)
+#       for path, line, text in NAMED:
+#           hit = [a for a in found6 if a["path"] == path and a["line"] == line and "stmt" in a["roles"]]
+#           for atom in hit:
+#               row = next(l for l in lines if l.startswith(atom["id"] + " "))
+#               print(f"#   {path.split('/')[-1]}:{line} `{text}`: {atom['id']} "
+#                     f"{'+'.join(atom['roles'])}; with the 890 rows: "
+#                     f"{'UNMAPPED' if atom['id'] in before else 'mapped'}; now: {row.split(' | ')[-1]}",
+#                     flush=True)
+#       print(f"# done ({time.time() - t0:.0f} s)")
+#   
+#   
+#   def _classes(found, unmapped):
+#       ids = set(unmapped)
+#       counts = {}
+#       for atom in found:
+#           if atom["id"] in ids:
+#               key = "stmt" if "stmt" in atom["roles"] else ("effect" if "effect" in atom["roles"]
+#                                                             else "decision")
+#               counts[key] = counts.get(key, 0) + 1
+#       return ", ".join(f"{k} {n}" for k, n in sorted(counts.items()))
+#   
+#   
+#   if __name__ == "__main__":
+#       main(sys.argv[1])
+# its output:
+# rows: 1118 (M001-M890 the rB-F5 rows verbatim, M891-M1118 this round's) (35 s)
+# the rB-F5 enumerator: 391 atoms (call 18, comp-if 9, compare 80, exit 31, isinstance 18, not 28, operand 103, reason 45, schema 85, test 86)
+#   with the 890 rB-F5 rows: 0 without an own mutation (the rB-F5 mapping rule, before its ambiguity guard)
+#   meshgrid_engine.py:942 `bucket[key] = rest`: NOT AN ATOM of the rB-F5 inventory
+#   meshgrid_engine.py:970 `return write_json(path, dict(`: NOT AN ATOM of the rB-F5 inventory
+#   meshgrid_engine.py:1022 `top[id(segment)] = (`: NOT AN ATOM of the rB-F5 inventory
+# the rB-F6 enumerator: 606 atoms (call 18, comp-if 9, compare 80, effect 45, exit 31, isinstance 18, not 28, operand 103, reason 45, schema 85, stmt 307, test 86); 81 statements excluded BY RULE
+#   with the 890 rB-F5 rows: inventory: 606 atoms in 4 files (roles: call 18, comp-if 9, compare 80, effect 45, exit 31, isinstance 18, not 28, operand 103, reason 45, schema 85, stmt 307, test 86); mapped 375, excluded 3, UNMAPPED 228; statements excluded BY RULE (not atoms): 81 (container 52, docstring 29)
+#     unmapped by role class: effect 1, stmt 227
+#   with all 1118 rows: inventory: 606 atoms in 4 files (roles: call 18, comp-if 9, compare 80, effect 45, exit 31, isinstance 18, not 28, operand 103, reason 45, schema 85, stmt 307, test 86); mapped 603, excluded 3, UNMAPPED 0; statements excluded BY RULE (not atoms): 81 (container 52, docstring 29)
+#   meshgrid_engine.py:942 `bucket[key] = rest`: A0076 stmt; with the 890 rows: UNMAPPED; now: stmt own: M925; also M166(stmt enclosing), M327(stmt enclosing), M920(stmt enclosing), M924(stmt enclosing)
+#   meshgrid_engine.py:970 `return write_json(path, dict(`: A0086 stmt+effect; with the 890 rows: UNMAPPED; now: stmt own: M933; also M271(stmt enclosing)
+#   meshgrid_engine.py:1022 `top[id(segment)] = (`: A0131 stmt; with the 890 rows: UNMAPPED; now: stmt own: M949; also M180(stmt enclosing), M942(stmt enclosing), M948(stmt enclosing)
+# done (597 s)
+# exit 0
+# after the run: tracked status lines 0; production diff vs 701926e5 EMPTY

@@ -1,0 +1,6 @@
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_negative_zero_binds_exactly_as_zero
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_resume_reads_the_segment_stamp_from_the_verified_buffer
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_an_unreadable_ledger_is_a_reason_never_a_legacy_run
+FAILED src/tests/test_loc_meshgrid_launch_record.py::test_a_record_copied_into_the_merge_is_re_verified_on_the_copied_bytes
+FAILED src/tests/test_loc_meshgrid_crossarm.py::test_each_arm_publishes_its_census
+5 failed, 127 deselected, 3 warnings in 6.02s

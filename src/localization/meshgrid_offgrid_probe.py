@@ -682,6 +682,11 @@ def read_retrieval_handoff(path):
     """The sibling control's own handoff -- one read, hashed and parsed together."""
     with open(str(path), "rb") as handle:
         raw = handle.read()
+    return _parse_retrieval_handoff(path, raw)[0]
+
+
+def _parse_retrieval_handoff(path, raw):
+    """``(summary, payload)`` out of ONE buffer, so the digest and the parse cannot differ."""
     digest = hashlib.sha256(raw).hexdigest()
     try:
         payload = json.loads(raw.decode("utf-8"))
@@ -701,7 +706,7 @@ def read_retrieval_handoff(path):
             "report_json": payload.get("report_json"),
             "report_sha256": payload.get("report_sha256"),
             "created_utc": payload.get("created_utc"),
-            "note": RETRIEVAL_RECONCILIATION_NOTE}
+            "note": RETRIEVAL_RECONCILIATION_NOTE}, payload
 
 
 def _headline_phrase(headline, key, digits=3, unit=""):
@@ -748,6 +753,91 @@ def reconcile_controls_elsewhere(handoff=None, base=None):
         + ". Its candidate set is the sparse metadata bank, never the dense grid, so its oracle "
           "floor is its own and its numbers are never comparable to this report's")
     return controls
+
+
+#: exp_22 rA-F1 (plan r2 §1, the arm-independent controls; Codex rA HIGH).
+RETRIEVAL_CONTROL_KEY = "agree_oracle_retrieval_over_the_metadata_bank"
+#: what ``meshgrid_retrieval_control.build_handoff`` writes for a COMPLETED canonical run
+RETRIEVAL_COMPLETED_STATUS = "run (canonical)"
+#: the census the control ran on: the registered 5,337 queries / 16 rooms
+REGISTERED_RETRIEVAL_CENSUS = {"n_queries": me.REGISTERED_TOTALS["queries"],
+                               "n_rooms": me.REGISTERED_TOTALS["rooms"]}
+
+RETRIEVAL_CITATION_NOTE = (
+    "CITING THE SPARSE RETRIEVAL CONTROL (plan r2 §1, the arm-independent controls; Codex rA "
+    "HIGH). An artifact may cite the control only after consuming its COMPLETED canonical "
+    "handoff: one read, hashed and parsed together; the registered digest; this control's "
+    "key; status 'run (canonical)' with canonical true; the registered census; a report "
+    "digest and the registered headline. It then publishes the handoff and report digests "
+    "and the reconciled headline. Anything less leaves the control unreconciled and uncited")
+
+
+def consume_retrieval_handoff(path, expected_sha256=None, expected_census=None, base=None):
+    """The completed canonical handoff, consumed so an artifact may CITE it -- or why not.
+
+    The reviewed helpers keep their refusals: an unreadable or field-less file
+    (:func:`read_retrieval_handoff`'s parse) and another control's handoff
+    (:func:`reconcile_controls_elsewhere`) raise. Everything else that stops a
+    citation -- another digest than the registered one, a run that is not
+    completed and canonical, another census, no report digest, a headline
+    without the registered statistics -- is a named reason, and the entry then
+    says STATUS NOT RECONCILED instead of the reconciled status.
+    """
+    expected_sha256 = str(mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256 if expected_sha256 is None
+                          else expected_sha256)
+    expected_census = dict(REGISTERED_RETRIEVAL_CENSUS if expected_census is None
+                           else expected_census)
+    with open(str(path), "rb") as handle:
+        raw = handle.read()
+    handoff, payload = _parse_retrieval_handoff(path, raw)
+    entry = reconcile_controls_elsewhere(handoff, base=base)[RETRIEVAL_CONTROL_KEY]
+    census = payload.get("census")
+    census = ({field: census.get(field) for field in expected_census}
+              if isinstance(census, dict) else census)
+    reasons = []
+    if handoff["sha256"] != expected_sha256:
+        reasons.append(f"the handoff hashes to {handoff['sha256'][:12]}..., not the registered "
+                       f"completed canonical handoff {expected_sha256[:12]}... (edited, or "
+                       "another run of the control)")
+    if payload.get("status") != RETRIEVAL_COMPLETED_STATUS or payload.get("canonical") is not True:
+        reasons.append(f"the handoff does not state a COMPLETED canonical run (status "
+                       f"{payload.get('status')!r}, canonical {payload.get('canonical')!r})")
+    if census != expected_census:
+        reasons.append(f"the handoff's census {census!r} is not the registered census "
+                       f"{expected_census!r}")
+    if len(str(handoff.get("report_sha256") or "")) != 64:
+        reasons.append("the handoff names no report digest, so the report it summarizes is "
+                       "unidentified")
+    points = {name: (handoff["headline"].get(name) or {}).get("point")
+              for name in mr.flat_stat_names()}
+    missing = [name for name, point in points.items()
+               if isinstance(point, bool) or not isinstance(point, (int, float))]
+    if missing:
+        reasons.append(f"the handoff's headline lacks the registered statistics {missing[:3]}")
+    consumed = {"path": str(path), "sha256": handoff["sha256"],
+                "expected_sha256": expected_sha256, "reconciled": not reasons,
+                "reasons": reasons, "control_key": handoff["control_key"],
+                "status": payload.get("status"), "canonical": payload.get("canonical"),
+                "census": census, "expected_census": expected_census,
+                "report_json": handoff["report_json"],
+                "report_sha256": handoff["report_sha256"],
+                "binding_sha256": payload.get("binding_sha256"),
+                "headline": handoff["headline"], "created_utc": handoff["created_utc"],
+                "note": RETRIEVAL_CITATION_NOTE}
+    consumed["entry"] = entry if not reasons else unreconciled_retrieval_entry(consumed, base)
+    return consumed
+
+
+def unreconciled_retrieval_entry(consumed=None, base=None):
+    """The retrieval entry when the control may NOT be cited: never stale, never reused."""
+    silent = reconcile_controls_elsewhere(None, base=base)[RETRIEVAL_CONTROL_KEY]
+    if consumed is None:
+        return silent
+    prefix = silent.split(" -- ", 1)[0]
+    return (f"{prefix} -- STATUS NOT RECONCILED: the supplied {RETRIEVAL_HANDOFF_FILENAME} "
+            f"[{str(consumed.get('sha256'))[:12]}...] cannot be cited: "
+            + "; ".join(consumed.get("reasons") or ["no reason was recorded"])
+            + f". {RETRIEVAL_CITATION_NOTE}")
 
 
 #: how the observation bank is pre-registered, stated the way the metadata bank's is.

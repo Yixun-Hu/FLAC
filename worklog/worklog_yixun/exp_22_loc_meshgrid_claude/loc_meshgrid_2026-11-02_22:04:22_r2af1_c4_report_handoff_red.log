@@ -1,0 +1,32 @@
+# rA-F1 cycle 4 RED (the per-arm report consumes the handoff; stale static text replaced; legacy P1 branch) -- 2026-11-02T22:04:22-05:00 -- HEAD e2adccba427728ff69a616775c50c365d9e812fa
+# CUDA_VISIBLE_DEVICES='' python -m pytest -q -p no:cacheprovider src/tests/test_loc_meshgrid_report.py -k 'static_entry or cites_the_control or not_reconciled or tampered_handoff or legacy_p1_branch or defer or cli_consumes'
+E   AttributeError: partially initialized module 'test_loc_meshgrid_offgrid_probe' has no attribute 'REAL_HANDOFF' (most likely due to a circular import)
+
+# the first collection hit a circular TEST import (the probe tests import this module); the handoff path and tamper helper are now defined locally. Re-run at 2026-11-02T22:04:39-05:00:
+E   AssertionError: assert ('run pending' not in 'src/localiz... should name'
+src/tests/test_loc_meshgrid_report.py:2648: AssertionError: assert ('run pending' not in 'src/localiz... should name'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+src/tests/test_loc_meshgrid_report.py:2627: TypeError: build_report() got an unexpected keyword argument 'retrieval_handoff'
+E   TypeError: build_report() got an unexpected keyword argument 'defer_retrieval_gate'
+src/tests/test_loc_meshgrid_report.py:2726: TypeError: build_report() got an unexpected keyword argument 'defer_retrieval_gate'
+E   SystemExit: 2
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_static_entry_states_no_status
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_treatment_report_cites_the_control_after_consuming_the_handoff
+FAILED src/tests/test_loc_meshgrid_report.py::test_without_the_handoff_a_treatment_report_is_not_reconciled
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_tampered_handoff_is_never_silently_cited[changes0]
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_tampered_handoff_is_never_silently_cited[changes1]
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_tampered_handoff_is_never_silently_cited[changes2]
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_legacy_p1_branch_keeps_its_canonical_status
+FAILED src/tests/test_loc_meshgrid_report.py::test_a_caller_that_gates_the_control_itself_may_defer_it
+FAILED src/tests/test_loc_meshgrid_report.py::test_the_report_cli_consumes_the_handoff
+9 failed, 139 deselected, 3 warnings in 5.60s

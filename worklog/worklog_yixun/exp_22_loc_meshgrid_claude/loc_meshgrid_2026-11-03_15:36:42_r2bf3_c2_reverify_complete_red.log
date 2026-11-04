@@ -1,0 +1,71 @@
+# exp_22 rB-F3 cycle 2 RED (reverify_gate_evidence complete: malformed outer path, exact autocast, G3D finiteness, exact DiT inputs, canonical executed counts; Codex rB-F2 finding 4 part 1), HEAD 66024ecd + working tree (new tests; FaSyntheticEngine's DiT inputs named as registered, constant mask), 2026-11-03T15:39:42-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+## pytest src/tests/test_loc_meshgrid_fa_split.py --tb=line (one line per failure, then the summary)
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py:1153: AttributeError: 'str' object has no attribute 'get'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py:1153: AttributeError: 'int' object has no attribute 'get'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py:1292: TypeError: unhashable type: 'list'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/localization/meshgrid_fa_parity.py:1292: TypeError: unhashable type: 'dict'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3257: AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'RESOLVED_AUTOCAST'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3295: AssertionError: {'cond_autocast_device_type': '<deleted>', 'cond_autocast_dtype': 'banana'}
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3303: assert False
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], [])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], ["0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav: chunk@0: its ma... 'complete: published True, re-verified False', 'verdict_clauses: comparison is published True but re-verifies False'])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], [])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], ["comparison: the evidence is malformed (TypeError: '>' n... 'complete: published True, re-verified False', 'verdict_clauses: comparison is published True but re-verifies False'])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], ["comparison: the evidence is malformed (TypeError: '>' n... 'complete: published True, re-verified False', 'verdict_clauses: comparison is published True but re-verifies False'])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3317: AssertionError: (['queries', 0, 'chunks', 0, 'conditioning', 'source', ...], ["0|ir/A/A_idx_1/S001_R002_hybrid_IR.wav: chunk@0: its ma... 'complete: published True, re-verified False', 'verdict_clauses: comparison is published True but re-verifies False'])
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3339: AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'REGISTERED_DIT_INPUTS'
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3354: AssertionError: ['per_key: the published per-key summary is not the fold of its chunks', "digest_chains: the published chains are not its chunks' digests", 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3354: AssertionError: ['per_key: the published per-key summary is not the fold of its chunks', "digest_chains: the published chains are not its chunks' digests", 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3354: AssertionError: ['per_key: the published per-key summary is not the fold of its chunks', "digest_chains: the published chains are not its chunks' digests", 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ['executed partition: the published block is not the one its call counts yield', 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ['executed partition: the published block is not the one its call counts yield', 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ['executed partition: the published block is not the one its call counts yield', 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ['executed partition: the published block is not the one its call counts yield', 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ["comparison: the evidence is malformed (TypeError: 'int' object is not iterable)", 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ["comparison: the evidence is malformed (ValueError: a ledger entry names branch 'nowhere', not one of ['context_vit', 'context_scored_batch', 'source_cache'])", 'verdict_clauses: comparison is published True but re-verifies False']
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: []
+/home/yixunhu/codespace/exp-22-r2-bf-yaw/src/tests/test_loc_meshgrid_fa_split.py:3384: AssertionError: ['executed partition: the published block is not the one its call counts yield', 'verdict_clauses: comparison is published True but re-verifies False']
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_malformed_evidence_is_named_never_raised[evidence0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_malformed_evidence_is_named_never_raised[evidence1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_malformed_evidence_is_named_never_raised[evidence3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_malformed_evidence_is_named_never_raised[evidence4]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_registered_autocast_resolution_is_torchs
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cpu-G1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cpu-G3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cpu-G3D]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:0-G1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:0-G3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:0-G3D]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:1-G1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:1-G3]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_clause_holds_the_exact_resolved_state_on_the_evidence_device[cuda:1-G3D]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_codex_rbf2s_autocast_probe_does_not_re_verify
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[nan]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[inf]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[-1.0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[0.0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[None]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_drift_measurement_with_a_delta_that_is_not_a_finite_number_is_not_complete[True]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_registered_dit_inputs_are_flac_ars_conditioning_inputs
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_dit_input_clause_requires_exactly_the_registered_inputs[drop]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_dit_input_clause_requires_exactly_the_registered_inputs[extra]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_dit_input_clause_requires_exactly_the_registered_inputs[rename]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not a non-negative integer0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not a non-negative integer1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not a non-negative integer2]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-zero count]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-rows0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-rows1]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-names branch 'nowhere']
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not canonical0]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_g3_executed_counts_go_through_the_ledgers_canonical_counts_validator[<lambda>-not canonical1]
+34 failed, 241 passed in 104.30s (0:01:44)

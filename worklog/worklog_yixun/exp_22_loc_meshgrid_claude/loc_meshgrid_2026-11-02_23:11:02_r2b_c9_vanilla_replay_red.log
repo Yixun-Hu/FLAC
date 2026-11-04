@@ -1,0 +1,13 @@
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'FROZEN_OBSERVATION_BANK_SHA256'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'vanilla_replay_regression'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'vanilla_replay_regression'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'vanilla_replay_regression'
+E           AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'vanilla_replay_regression'
+E       SystemExit: 2
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_frozen_vanilla_digests_are_the_committed_p1_registration
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_the_vanilla_path_reproduces_the_published_rows_exactly
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_fails_when_the_vanilla_path_moves
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_fails_on_moved_frozen_digests_a_moved_bank_or_another_protocol
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate0_refuses_an_engine_with_the_split
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_the_vanilla_regression_replay
+6 failed, 55 passed, 5 warnings in 20.94s

@@ -1,0 +1,11 @@
+# rB-F1 cycle 3 RED (HIGH 4 + HIGH 6: A4 fp32 logic gate, fp16 drift measurement, resolved autocast), HEAD b18cd9ed513f40b45849f81707e142cc076f40e9, CPU
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_gate_modes_validate_their_registered_conditions
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_gate1_and_writes_its_evidence
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_state_is_read_back_from_the_context_the_conditioner_runs_in[off-False-float32]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_state_is_read_back_from_the_context_the_conditioner_runs_in[default-True-bfloat16]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_autocast_state_is_read_back_from_the_context_the_conditioner_runs_in[bf16-True-bfloat16]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_drift_measurement_mode_is_the_production_autocast_and_batching
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_drift_measurement_publishes_deltas_without_a_verdict
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_evidence_holds_each_gate_to_its_registered_autocast
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_driver_runs_the_drift_measurement_and_writes_its_own_evidence
+9 failed, 78 passed, 11 warnings in 29.76s

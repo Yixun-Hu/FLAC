@@ -1292,10 +1292,19 @@ def test_the_release_rng_state_is_checked_before_the_iterator_is_created():
     assert me.assert_release_rng_state(live) is True
 
 
-def test_the_engine_builder_refuses_a_non_vanilla_conditioning_method():
+def test_the_engine_builder_refuses_fa_without_its_orbit_and_any_unknown_method():
+    """exp_22 R2-B (contract change, disclosed): fa_invariant is built under the
+    five-way split over its DECLARED orbit -- without one, or for any method the
+    split does not cover, the builder refuses before reading a byte."""
     with pytest.raises(ValueError, match="fa_invariant"):
         me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
                              cond_method="fa_invariant")
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
+                             cond_method="fa_invariant", frame_avg_angles=[90.0, 0.0])
+    with pytest.raises(ValueError, match="fa_invariant"):
+        me.build_mesh_engine("weights/exp20/P1_40k.ckpt", {"model": {}}, None,
+                             cond_method="bogus")
 
 
 def test_the_driver_pins_every_registered_default():
@@ -1340,7 +1349,10 @@ def test_the_driver_builds_the_binding_from_the_files_it_will_actually_read(tmp_
     binding = driver.build_run_binding(args, plan, ckpt_sha256="1" * 64,
                                        agree_sha256="2" * 64,
                                        model_config_sha256="3" * 64)
-    assert set(binding) == set(me.RUN_BINDING_FIELDS)
+    # exp_22 R2-A: the driver always publishes the R2 generation (R1 + the
+    # explicit protocol fields); only the probe/retrieval namespaces, which
+    # verify against the published P1 binding, still build the legacy one
+    assert set(binding) == set(me.RUN_BINDING_FIELDS) | set(me.RUN_BINDING_PROTOCOL_FIELDS)
     assert binding["g1_report_sha256"] == me.file_sha256(report_path)
     assert binding["d1_manifest_sha256"] == me.file_sha256(str(manifest_path))
     assert binding["room_manifest_sha256"] == {
@@ -2130,9 +2142,12 @@ def test_the_driver_requires_the_case_list_digest(tmp_path):
                               "--dump-cases", str(path)])
     with pytest.raises(SystemExit, match="--dump-cases-sha256"):
         driver.validate_args(args)
+    # exp_22 R2-A: a full pass is canonical, so it also carries its launch
+    # record and declares every protocol flag (B4/B6)
     args = driver.parse_args(["--ckpt-path", "x.ckpt", "--dump-waveforms", "1|x",
                               "--dump-cases", str(path),
-                              "--dump-cases-sha256", me.file_sha256(str(path))])
+                              "--dump-cases-sha256", me.file_sha256(str(path)),
+                              "--launch-record", "l.json"] + _VANILLA_PROTOCOL)
     assert driver.validate_args(args) is True
 
 
@@ -2318,3 +2333,228 @@ def test_the_driver_binds_the_case_list_digest_it_was_given(tmp_path):
                                      agree_sha256="2" * 64, model_config_sha256="3" * 64)
     assert bound["dump_cases_sha256"] == digest
     assert me.binding_sha256(bound) != me.binding_sha256(plain)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: the explicit eval-protocol fields (plan r2 §3 R2-A, Codex B6/H2)
+# --------------------------------------------------------------------------- #
+def _r2_binding(**overrides):
+    """An R2-generation binding: the legacy fields plus the explicit protocol."""
+    payload = dict(_binding(), frame_avg_angles=[0.0], rotate_deg=0.0, fa_partition=None)
+    payload.update(overrides)
+    return payload
+
+
+def test_the_r2_protocol_fields_are_declared_beside_the_legacy_binding():
+    assert me.RUN_BINDING_PROTOCOL_FIELDS == ("frame_avg_angles", "rotate_deg",
+                                              "fa_partition")
+    assert not set(me.RUN_BINDING_PROTOCOL_FIELDS) & set(me.RUN_BINDING_FIELDS)
+    # the R1 tuple itself is untouched: the retrieval control partitions it
+    assert len(me.RUN_BINDING_FIELDS) == 20
+
+
+def test_a_legacy_binding_digests_exactly_as_it_always_did():
+    """The published P1 binding (Aug 2026) predates the flags; its digest may not move."""
+    from src.localization.crossarm import canonical_sha256
+
+    legacy = _binding()
+    assert me.binding_fields(legacy) == me.RUN_BINDING_FIELDS
+    assert me.binding_sha256(legacy) == canonical_sha256(
+        {field: legacy[field] for field in sorted(me.RUN_BINDING_FIELDS)})
+
+
+def test_an_r2_binding_digests_its_protocol_fields_too():
+    r2 = _r2_binding()
+    assert me.binding_fields(r2) == me.RUN_BINDING_FIELDS + me.RUN_BINDING_PROTOCOL_FIELDS
+    digest = me.binding_sha256(r2)
+    assert digest != me.binding_sha256(_binding())
+    for changed in ({"frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}, {"rotate_deg": 45.0},
+                    {"fa_partition": {"orbit_size": 4}}):
+        assert me.binding_sha256(_r2_binding(**changed)) != digest
+    # type-sensitive: an integer angle is a different document than a float one
+    assert me.binding_sha256(_r2_binding(rotate_deg=0)) != digest
+
+
+def test_a_partial_r2_binding_is_refused_all_or_none():
+    for field in me.RUN_BINDING_PROTOCOL_FIELDS:
+        partial = {key: value for key, value in _r2_binding().items() if key != field}
+        with pytest.raises(ValueError, match="all or none"):
+            me.binding_sha256(partial)
+    with pytest.raises(ValueError, match="unregistered"):
+        me.binding_sha256(dict(_r2_binding(), launch_record_sha256="0" * 64))
+
+
+def test_an_r2_binding_round_trips_through_publication_and_resume(tmp_path):
+    out = str(tmp_path / "run")
+    os.makedirs(out)
+    advisory = {"batch_rows": 256, "source_chunk": 16}
+    me.write_binding(out, _r2_binding(), advisory=advisory)
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    assert published["frame_avg_angles"] == [0.0] and published["rotate_deg"] == 0.0
+    assert published["fa_partition"] is None
+    assert published["binding_sha256"] == me.binding_sha256(_r2_binding())
+    assert me.assert_binding(out, _r2_binding(), advisory=advisory) is True
+    with pytest.raises(ValueError, match="frame_avg_angles"):
+        me.assert_binding(out, _r2_binding(frame_avg_angles=[0.0, 90.0, 180.0, 270.0]),
+                          advisory=advisory)
+    # a resume cannot switch generation: a legacy binding does not continue an R2 pass
+    with pytest.raises(ValueError, match="frame_avg_angles"):
+        me.assert_binding(out, _binding(), advisory=advisory)
+
+
+def test_a_shard_with_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_path):
+    out = str(tmp_path / "shard")
+    os.makedirs(out)
+    me.write_binding(out, _r2_binding(), declared_rooms=["A/A_idx_1"])
+    me.write_json(os.path.join(out, "run_summary.json"), {"n_scored": 0})
+    assert me._read_shard(out)["binding_sha256"] == me.binding_sha256(_r2_binding())
+    published = json.load(open(os.path.join(out, me.BINDING_FILENAME)))
+    published["rotate_deg"] = 45.0                    # edited after publication
+    me.write_json(os.path.join(out, me.BINDING_FILENAME), published)
+    with pytest.raises(ValueError, match="does not match its own content"):
+        me._read_shard(out)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: the driver's explicit protocol flags (Codex B6; announcement 05)
+# --------------------------------------------------------------------------- #
+#: the registered vanilla launch, every protocol and batching flag spelled out
+_VANILLA_PROTOCOL = ["--cond-method", "vanilla", "--frame-avg-angles", "0", "--rotate-deg", "0",
+                     "--cond-autocast", "default", "--batch-rows", "256",
+                     "--source-chunk", "16"]
+_FA_PROTOCOL = ["--cond-method", "fa_invariant", "--frame-avg-angles", "0", "90", "180", "270",
+                "--rotate-deg", "0", "--cond-autocast", "default", "--batch-rows", "256",
+                "--source-chunk", "16"]
+
+
+def test_the_driver_parses_the_explicit_protocol_flags():
+    import localize_meshgrid as driver
+
+    args = driver.parse_args(["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL)
+    assert args.frame_avg_angles == [0.0] and args.rotate_deg == 0.0
+    assert set(args.explicit_flags) == set(driver.REGISTERED_EXPLICIT_FLAGS)
+    assert set(driver.REGISTERED_EXPLICIT_FLAGS) == {
+        "cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast", "batch_rows",
+        "source_chunk"}
+    bare = driver.parse_args(["--ckpt-path", "x.ckpt"])
+    assert set(bare.explicit_flags) == set()
+    assert bare.frame_avg_angles is None and bare.rotate_deg is None
+    # diagnostics keep their historical defaults
+    assert bare.batch_rows == 64 and bare.source_chunk == me.SOURCE_CHUNK
+    # an abbreviation is still an explicit declaration, because argparse resolves it
+    short = driver.parse_args(["--ckpt-path", "x.ckpt", "--batch-r", "256"])
+    assert "batch_rows" in short.explicit_flags and short.batch_rows == 256
+
+
+def test_a_vanilla_run_binds_exactly_the_canonical_zero_orbit():
+    import localize_meshgrid as driver
+
+    probe = ["--ckpt-path", "x.ckpt", "--probe", "1"]
+    assert driver.validate_args(driver.parse_args(probe + ["--frame-avg-angles", "0"]))
+    for angles in (["0", "90"], ["90"], ["0", "90", "180", "270"], ["0", "0"]):
+        with pytest.raises(SystemExit, match="--frame-avg-angles"):
+            driver.validate_args(driver.parse_args(probe + ["--frame-avg-angles", *angles]))
+
+
+def test_a_frame_averaged_run_must_declare_the_registered_c4_orbit():
+    import localize_meshgrid as driver
+
+    probe = ["--ckpt-path", "x.ckpt", "--probe", "1", "--cond-method", "fa_invariant"]
+    for angles in ([], ["0"], ["0", "90"], ["0", "90", "180"], ["90", "0", "180", "270"]):
+        with pytest.raises(SystemExit, match="--frame-avg-angles"):
+            driver.validate_args(driver.parse_args(
+                probe + (["--frame-avg-angles", *angles] if angles else [])))
+
+
+def test_the_rotation_is_registered_zero():
+    import localize_meshgrid as driver
+
+    for value in ("45", "90", "-0.5"):
+        with pytest.raises(SystemExit, match="--rotate-deg"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--probe", "1", "--rotate-deg", value]))
+    assert driver.validate_args(driver.parse_args(
+        ["--ckpt-path", "x.ckpt", "--probe", "1", "--rotate-deg", "0"]))
+
+
+def test_a_canonical_full_pass_requires_a_launch_record_and_every_protocol_flag():
+    import localize_meshgrid as driver
+
+    full = ["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL
+    with pytest.raises(SystemExit, match="--launch-record"):
+        driver.validate_args(driver.parse_args(full))
+    assert driver.validate_args(driver.parse_args(full + ["--launch-record", "l.json"]))
+    # no registered launch may rely on a default -- batching included (B6)
+    for flag in ("--cond-method", "--frame-avg-angles", "--rotate-deg", "--cond-autocast",
+                 "--batch-rows", "--source-chunk"):
+        position = full.index(flag)
+        dropped = full[:position] + full[position + 2:]
+        with pytest.raises(SystemExit, match=flag):
+            driver.validate_args(driver.parse_args(dropped + ["--launch-record", "l.json"]))
+
+
+def test_diagnostics_may_use_defaults_and_stay_record_free():
+    import localize_meshgrid as driver
+
+    for mode in (["--probe", "1"], ["--cache-parity-check"], ["--replay-check"]):
+        assert driver.validate_args(driver.parse_args(["--ckpt-path", "x.ckpt"] + mode))
+        with pytest.raises(SystemExit, match="record-free"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--launch-record", "l.json"] + mode))
+        with pytest.raises(SystemExit, match="record-free"):
+            driver.validate_args(driver.parse_args(
+                ["--ckpt-path", "x.ckpt", "--emit-launch-record", "l.json"] + mode))
+    with pytest.raises(SystemExit, match="record-free"):
+        driver.validate_args(driver.parse_args(
+            ["--merge-shards", "a", "b", "--merge-out", "m", "--launch-record", "l.json"]))
+
+
+def test_emission_validates_the_command_it_will_describe():
+    import localize_meshgrid as driver
+
+    full = ["--ckpt-path", "x.ckpt"] + _VANILLA_PROTOCOL
+    assert driver.validate_args(driver.parse_args(full + ["--emit-launch-record", "l.json"]))
+    without = [token for token in full if token not in ("--batch-rows", "256")]
+    with pytest.raises(SystemExit, match="--batch-rows"):
+        driver.validate_args(driver.parse_args(without + ["--emit-launch-record", "l.json"]))
+    with pytest.raises(SystemExit, match="--emit-launch-record"):
+        driver.validate_args(driver.parse_args(
+            full + ["--emit-launch-record", "l.json", "--launch-record", "l.json"]))
+
+
+def test_the_declared_fa_partition_is_the_per_angle_announcement_06_plan():
+    partition = me.declared_fa_partition([0.0, 90.0, 180.0, 270.0], batch_rows=256,
+                                         num_samples=8, source_chunk=16)
+    assert partition == {
+        "frame_avg_chunk_plan": "per_angle", "cap_policy": "candidate_micro_batch",
+        "orbit_size": 4, "angles_per_chunk": 1, "n_orbit_forwards": 3,
+        "shared_angle_count": 1,
+        "context_vit": {"candidate_micro_batch": 1, "frame_avg_fwd_cap": 1},
+        "context_scored_batch": {"candidate_micro_batch": 32},
+        "source_cache": {"candidate_micro_batch": 16, "frame_avg_fwd_cap": 16}}
+
+
+def test_the_driver_binds_the_explicit_protocol(tmp_path):
+    import localize_meshgrid as driver
+
+    out_dir, report_path, base = _fixture_audit(tmp_path)
+    plan = me.load_audit_plan(report_path)
+    manifest_path = tmp_path / "d1.json"
+    manifest_path.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    common = ["--ckpt-path", "x.ckpt", "--audit-report", report_path,
+              "--context-manifest", str(manifest_path)]
+    vanilla = driver.build_run_binding(driver.parse_args(common + _VANILLA_PROTOCOL), plan,
+                                       ckpt_sha256="1" * 64, agree_sha256="2" * 64,
+                                       model_config_sha256="3" * 64)
+    assert set(vanilla) == set(me.RUN_BINDING_FIELDS) | set(me.RUN_BINDING_PROTOCOL_FIELDS)
+    assert vanilla["frame_avg_angles"] == [0.0] and vanilla["rotate_deg"] == 0.0
+    assert vanilla["fa_partition"] is None
+    assert isinstance(vanilla["rotate_deg"], float)
+    fa = driver.build_run_binding(driver.parse_args(common + _FA_PROTOCOL), plan,
+                                  ckpt_sha256="1" * 64, agree_sha256="2" * 64,
+                                  model_config_sha256="3" * 64)
+    assert fa["cond_method"] == "fa_invariant"
+    assert fa["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert fa["fa_partition"] == me.declared_fa_partition(
+        [0.0, 90.0, 180.0, 270.0], batch_rows=256, num_samples=8, source_chunk=16)
+    assert me.binding_sha256(fa) != me.binding_sha256(vanilla)

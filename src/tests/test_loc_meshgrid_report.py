@@ -11,6 +11,7 @@ engine's own ``run_pass``, so the rows, the sidecars, the digests and the bindin
 are produced by exactly the code the production pass uses. No GPU is involved.
 """
 import json
+import types
 import math
 import os
 
@@ -278,7 +279,38 @@ def fixture_totals(plan=None, branch="z_band"):
             "generated_waveforms": pairs * FIXTURE_SAMPLES}
 
 
-def build_fixture_run(tmp_path, merged=True):
+def synthetic_fa_evidence(out_dir, declared, launch_record_sha256=None, ledger=None):
+    """The SYNTHETIC BF fixture's executed-partition ledger and summary block (exp_22 rB-F1).
+
+    The fixture's BF arm binds BF's registered method but runs the synthetic
+    vanilla stack (it exercises admission, pairing and statistics, not the fa
+    path), while a merge now re-derives every fa shard's executed partition from
+    its durable ledger (Codex rB finding 5). The ledger is therefore written
+    through the engine's own functions from calls of exactly the declared shapes:
+    one full batch per branch (context ViT 1, scored ``candidate_micro_batch``,
+    source ``candidate_micro_batch``), each with its rotated forwards.
+    """
+    recorder = me.FaPartitionRecorder()
+    orbit = int(declared["orbit_size"])
+    for branch, block in (("context_vit", declared["context_vit"]),
+                          ("context_scored_batch", declared["context_scored_batch"]),
+                          ("source_cache", declared["source_cache"])):
+        n = int(block["candidate_micro_batch"])
+        rotated = [(n, True)] * (orbit - 1) if branch in me.FA_ORBIT_BRANCHES else []
+        recorder.observe(branch, [(n, False)] + rotated, cap=n, configured=n, orbit_size=orbit)
+    # the ledger was opened BEFORE the binding, as the driver opens it (Codex rB-F2 finding 3);
+    # every row carries a stamp of the ledger state it was published under: one persisted
+    # state per row (all the synthetic calls fall on the first), its stamp file beside it
+    ledger = ledger or me.open_fa_ledger(out_dir, declared, launch_record_sha256)
+    merged = me.persist_fa_ledger(ledger, recorder, query=False)
+    for row in me.read_rows(out_dir):
+        merged = me.persist_fa_ledger(ledger, recorder)
+        me.write_fa_stamp(out_dir, types.SimpleNamespace(
+            room_id=row["room_id"], position=row["position"], query_id=row["query_id"]), ledger)
+    return me.fa_executed_block(declared, merged, len(ledger["payload"]["segments"]))
+
+
+def build_fixture_run(tmp_path, merged=True, arm=None, launch=None, engine=None):
     """A complete, self-consistent fixture: G1 audit, D1 manifest, MERGED run.
 
     ``merged=True`` (the default) scores each room as its own shard and combines
@@ -286,6 +318,13 @@ def build_fixture_run(tmp_path, merged=True):
     a real census-gated merge -- merge report, declared rooms, pinned advisory
     and all. A report that skipped the merge gates could not be caught by a
     hand-assembled fixture, which is exactly what the r9 review found.
+
+    exp_22 R2-A: ``arm`` re-registers the run as that arm (its checkpoint digest
+    and its complete R2 method); ``launch(out_dir)`` returns ``(record_path,
+    admission)`` for each shard invocation, whose segment is opened and stamped
+    into every row; ``engine`` replaces the synthetic stack (a different
+    "checkpoint" generates different numbers). The defaults are the P1 fixture,
+    unchanged.
     """
     audit_report = _fixture_audit(tmp_path)
     plan = me.load_audit_plan(audit_report)
@@ -307,15 +346,31 @@ def build_fixture_run(tmp_path, merged=True):
     }, require_census=False)
 
     binding = _fixture_binding(plan, manifest_path)
+    if arm is not None:
+        binding.update(ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                       **mr.REGISTERED_ARM_PROTOCOL[arm])
     binding_sha = me.binding_sha256(binding)
     totals = fixture_totals(plan)
 
     def _score(out_dir, rooms=None):
+        from src.localization import meshgrid_segments as ms
+
+        record_path, admission = launch(out_dir) if launch is not None else (None, None)
+        sha = None if admission is None else admission["sha256"]
+        # a frame-averaged shard opens its ledger FIRST, as the driver does (rB-F2 finding 3)
+        ledger = (me.open_fa_ledger(out_dir, binding["fa_partition"], sha)
+                  if isinstance(binding.get("fa_partition"), dict) else None)
         me.write_binding(out_dir, binding, advisory=FIXTURE_ADVISORY, declared_rooms=rooms)
-        summary = me.run_pass(SyntheticEngine(), items, records, plan, out_dir,
+        if admission is not None:
+            ms.open_segment(out_dir, record_path, admission, resume=False)
+        summary = me.run_pass(engine or SyntheticEngine(), items, records, plan, out_dir,
                               tau=FIXTURE_TAU, num_samples=FIXTURE_SAMPLES,
                               prefixes=FIXTURE_PREFIXES, batch_rows=8, source_chunk=2,
-                              rooms=rooms, binding_sha256=binding_sha)
+                              rooms=rooms, binding_sha256=binding_sha,
+                              launch_record_sha256=sha)
+        if ledger is not None:
+            summary["fa_partition_executed"] = synthetic_fa_evidence(
+                out_dir, binding["fa_partition"], sha, ledger=ledger)
         me.write_json(os.path.join(out_dir, "run_summary.json"), summary)
         return out_dir
 
@@ -1103,11 +1158,14 @@ def test_the_report_names_the_registered_controls_it_does_not_contain(tmp_path):
     assert "meshgrid_offgrid_probe.py" in \
         elsewhere["real_vs_generated_agree_calibration"]
     # the sparse/metadata-bank control: named with its tool and its state, so
-    # silence is read neither as a null nor as a published number (r9b)
+    # silence is read neither as a null nor as a published number (r9b). rA-F1:
+    # the state is the CONSUMED handoff's, never the stale static "run pending"
     sparse = elsewhere["agree_oracle_retrieval_over_the_metadata_bank"]
     assert "meshgrid_retrieval_control.py" in sparse
-    assert "built (r9b), run pending" in sparse
-    assert "sparse/metadata-bank" in sparse and "retrieval_control_handoff.json" in sparse
+    assert "run pending" not in sparse and "STATUS NOT RECONCILED" in sparse
+    assert "retrieval_control_handoff.json" in sparse
+    assert "sparse/metadata-bank" in mr.CONTROLS_ELSEWHERE[
+        "agree_oracle_retrieval_over_the_metadata_bank"]
     markdown = mr.render_markdown(report)
     assert "controls that are NOT in this report" in markdown
 
@@ -1524,10 +1582,12 @@ def test_the_checkpoint_must_be_one_of_the_registered_admissible_arms(tmp_path):
     assert verdict["arm"] == "P1"
     assert verdict["ckpt_sha256_pinned"] is True
     assert verdict["registered_arms"] == mr.REGISTERED_CKPT_SHA256
-    # every admissible arm passes ...
+    # every admissible arm passes -- under ITS OWN registered method (exp_22
+    # R2-A, Codex H2: a BF checkpoint under a vanilla binding is the
+    # catastrophic mismatch announcement 05 forbids, so it no longer passes) ...
     for arm, digest in mr.REGISTERED_CKPT_SHA256.items():
         assert mr.assert_registered_protocol(
-            dict(fixture["binding"], ckpt_sha256=digest))["arm"] == arm
+            arm_binding(fixture["binding"], arm))["arm"] == arm
     # ... and nothing else does
     with pytest.raises(ValueError, match="ckpt_sha256"):
         mr.assert_registered_protocol(dict(fixture["binding"], ckpt_sha256="b" * 64))
@@ -2189,3 +2249,569 @@ def test_the_resolver_can_be_held_to_the_pre_registered_pair_digests(tmp_path):
     # ... and a query the bank never covered cannot supply one either
     with pytest.raises(ValueError, match="does not cover this query"):
         mr.TruthResolver(fixture["metadata_root"], expected={}).resolve(fixture["records"][0])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 R2-A: arm-aware registration, launch provenance (plan r2 §3 R2-A)
+# --------------------------------------------------------------------------- #
+def test_an_r2_binding_is_recomputed_over_its_protocol_fields(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    r2 = dict(fixture["binding"], frame_avg_angles=[0.0], rotate_deg=0.0, fa_partition=None)
+    run_dir = str(tmp_path / "r2_binding")
+    me.write_binding(run_dir, r2, advisory=FIXTURE_ADVISORY)
+    published, digest = mr.load_published_binding(run_dir)
+    assert digest == me.binding_sha256(r2) != fixture["binding_sha256"]
+    assert published["frame_avg_angles"] == [0.0]
+    payload = json.load(open(os.path.join(run_dir, me.BINDING_FILENAME)))
+    payload["frame_avg_angles"] = [0.0, 90.0]
+    me.write_json(os.path.join(run_dir, me.BINDING_FILENAME), payload)
+    with pytest.raises(ValueError, match="does not match its own content"):
+        mr.load_published_binding(run_dir)
+
+
+#: The P1 fixture's report semantics, computed by the UNMODIFIED report at the
+#: R2 base commit 3f595e19 (and reproduced bit-for-bit at 19374349). Digests of
+#: the canonical JSON of each numeric section -- latency is excluded because it
+#: reads wall-clock timings. Codex N2: whole-file byte identity is not the
+#: contract (new arm/provenance fields change the serialization); these are.
+P1_FIXTURE_GOLDEN = {
+    "metrics": "bac1b459f16f1fcc67fbc59ea483fd1918a2071014dd0e552a15328372a39987",
+    "oracle": "a74fbd9732bf5df947505e3dc6cd8deacda1377b62aa05d1b18058317068caff",
+    "random_baseline": "60977af3f9c8c82d952ba3c95c714813ed95a2585dc45c10a5d75c8e376c0f98",
+    "associations": "a66a2cd427ebf9ecbee69a7d4649d40acea086f7411ca5efafd6cc9950759c80",
+    "census": "ce402e6cc7cb64ff26daa0ebca6a4ca523af8e4817c0f592cf581e94db197aa8",
+    "visualization_cases": "21121487e7b8815d7b63e7bd320c1268286ade1e2cf36ee364ef1c495d18d46e",
+    "crosscheck": "ca5d8fe511ab58bbf725ab993bfb0df26e1b94819176ad05ec13a96b6683bb8e",
+    "protocol_without_registration":
+        "653afa4788036f1234aefab4493b54063bb9ab98d9cf6830d4b93d07bbb1601c",
+}
+P1_FIXTURE_CHECKED_AT_BASE = [
+    "agree_ckpt_sha256", "cfg_scale", "ckpt_sha256", "cond_autocast", "cond_method",
+    "dataset_config_sha256", "k_prefixes", "model_config_sha256", "noise_policy",
+    "num_samples", "scorer_readout", "seed", "steps", "tau"]
+
+
+def arm_binding(binding, arm, **overrides):
+    """``binding`` re-registered as ``arm``: its checkpoint and its complete method."""
+    out = dict(binding, ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+               **mr.REGISTERED_ARM_PROTOCOL[arm])
+    out.update(overrides)
+    return out
+
+
+def test_the_p1_fixture_semantics_are_unchanged_by_the_arm_aware_registration(tmp_path):
+    from src.localization.crossarm import canonical_sha256
+
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    found = {name: canonical_sha256(mr.jsonable(report[name]))
+             for name in P1_FIXTURE_GOLDEN if name != "protocol_without_registration"}
+    found["protocol_without_registration"] = canonical_sha256(mr.jsonable(
+        {k: v for k, v in report["protocol"].items() if k != "registered_protocol"}))
+    assert found == P1_FIXTURE_GOLDEN
+    assert report["canonical_status"]["canonical"] is True
+    registered = report["protocol"]["registered_protocol"]
+    assert registered["is_registered"] is True and registered["deviations"] == {}
+    assert registered["arm"] == "P1"
+    # every field checked at the base is still checked (the arm fields are added)
+    assert set(P1_FIXTURE_CHECKED_AT_BASE) <= set(registered["checked"])
+
+
+def test_every_arm_registers_its_complete_method():
+    assert sorted(mr.REGISTERED_ARM_PROTOCOL) == ["BF", "P1", "YAW"]
+    assert sorted(mr.REGISTERED_ARM_PROTOCOL) == sorted(mr.REGISTERED_CKPT_SHA256)
+    vanilla = {"cond_method": "vanilla", "frame_avg_angles": [0.0], "rotate_deg": 0.0,
+               "cond_autocast": "default", "fa_partition": None}
+    assert mr.REGISTERED_ARM_PROTOCOL["P1"] == vanilla
+    assert mr.REGISTERED_ARM_PROTOCOL["YAW"] == vanilla
+    bf = mr.REGISTERED_ARM_PROTOCOL["BF"]
+    assert bf["cond_method"] == "fa_invariant"
+    assert bf["frame_avg_angles"] == [0.0, 90.0, 180.0, 270.0]
+    assert (bf["rotate_deg"], bf["cond_autocast"]) == (0.0, "default")
+    # the announcement-06 partition at the registered batching (256 rows, chunk 16)
+    assert bf["fa_partition"] == me.declared_fa_partition(
+        [0.0, 90.0, 180.0, 270.0], batch_rows=256, num_samples=8, source_chunk=16)
+    assert bf["fa_partition"]["context_vit"] == {"candidate_micro_batch": 1,
+                                                 "frame_avg_fwd_cap": 1}
+    assert bf["fa_partition"]["source_cache"] == {"candidate_micro_batch": 16,
+                                                  "frame_avg_fwd_cap": 16}
+    # the arm-independent registry no longer pins a conditioning method
+    assert "cond_method" not in mr.REGISTERED_PROTOCOL
+    assert "cond_autocast" not in mr.REGISTERED_PROTOCOL
+
+
+def test_each_arm_is_held_to_its_own_method(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    for arm in ("P1", "YAW", "BF"):
+        verdict = mr.assert_registered_protocol(arm_binding(fixture["binding"], arm))
+        assert verdict["is_registered"] is True and verdict["arm"] == arm
+        assert verdict["arm_protocol"] == mr.REGISTERED_ARM_PROTOCOL[arm]
+    # [0.0] is the canonical explicit vanilla binding
+    assert mr.assert_registered_protocol(
+        arm_binding(fixture["binding"], "P1"))["legacy_binding"] is False
+
+
+@pytest.mark.parametrize("arm, overrides, deviating", [
+    ("BF", {"cond_method": "vanilla", "frame_avg_angles": [0.0], "fa_partition": None},
+     {"cond_method", "frame_avg_angles", "fa_partition"}),
+    ("YAW", {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+             "fa_partition": me.declared_fa_partition([0.0, 90.0, 180.0, 270.0],
+                                                      batch_rows=256, num_samples=8,
+                                                      source_chunk=16)},
+     {"cond_method", "frame_avg_angles", "fa_partition"}),
+    ("P1", {"frame_avg_angles": [0.0, 90.0]}, {"frame_avg_angles"}),
+    ("YAW", {"rotate_deg": 90.0}, {"rotate_deg"}),
+    ("BF", {"cond_autocast": "off"}, {"cond_autocast"}),
+    ("YAW", {"fa_partition": {"orbit_size": 1}}, {"fa_partition"}),
+])
+def test_a_binding_that_is_not_its_arms_method_is_refused(tmp_path, arm, overrides,
+                                                          deviating):
+    fixture = build_fixture_run(tmp_path)
+    binding = arm_binding(fixture["binding"], arm, **overrides)
+    with pytest.raises(ValueError, match="not the registered protocol"):
+        mr.assert_registered_protocol(binding)
+    relaxed = mr.assert_registered_protocol(binding, allow_deviation=True)
+    assert relaxed["is_registered"] is False and relaxed["arm"] == arm
+    assert set(relaxed["deviations"]) == deviating
+
+
+def test_only_p1_may_present_the_legacy_binding(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    legacy = mr.assert_registered_protocol(fixture["binding"])
+    assert legacy["legacy_binding"] is True and legacy["is_registered"] is True
+    for arm in ("YAW", "BF"):
+        binding = dict(fixture["binding"], ckpt_sha256=mr.REGISTERED_CKPT_SHA256[arm],
+                       cond_method=mr.REGISTERED_ARM_PROTOCOL[arm]["cond_method"])
+        if arm == "BF":
+            continue        # an fa binding without its partition is refused outright (below)
+        relaxed = mr.assert_registered_protocol(binding, allow_deviation=True)
+        assert {"frame_avg_angles", "rotate_deg", "fa_partition"} <= set(
+            relaxed["deviations"])
+
+
+def test_a_frame_averaged_binding_must_carry_its_complete_chunk_plan(tmp_path):
+    """Announcement 06: an FA binding without its partition is no method at all."""
+    fixture = build_fixture_run(tmp_path)
+    full = arm_binding(fixture["binding"], "BF")
+    broken = [dict(full, fa_partition=None)]
+    for field in sorted(full["fa_partition"]):
+        broken.append(dict(full, fa_partition={k: v for k, v in full["fa_partition"].items()
+                                               if k != field}))
+    for binding in broken:
+        for allow in (False, True):
+            with pytest.raises(ValueError, match="chunk plan"):
+                mr.assert_registered_protocol(binding, allow_deviation=allow)
+
+
+def test_the_expected_arm_is_a_hard_refusal(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    yaw = arm_binding(fixture["binding"], "YAW")
+    assert mr.assert_registered_protocol(yaw, expect_arm="YAW")["expect_arm"] == "YAW"
+    for wrong in ("P1", "BF"):
+        for allow in (False, True):
+            with pytest.raises(ValueError, match="--expect-arm"):
+                mr.assert_registered_protocol(yaw, expect_arm=wrong, allow_deviation=allow)
+    with pytest.raises(ValueError, match="--expect-arm"):
+        mr.assert_registered_protocol(yaw, expect_arm="P2")
+    unknown = dict(yaw, ckpt_sha256="b" * 64)
+    with pytest.raises(ValueError, match="--expect-arm"):
+        mr.assert_registered_protocol(unknown, expect_arm="YAW", allow_deviation=True)
+
+
+def _ckpt(training):
+    return {"model_config": {"training": training}}
+
+
+def test_the_checkpoints_embedded_training_protocol_is_an_extra_refusal(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    p1, bf, yaw = (arm_binding(fixture["binding"], arm) for arm in ("P1", "BF", "YAW"))
+    fa_training = {"cond_method": "fa_invariant",
+                   "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}
+    yaw_training = {"yaw_aug": {"enabled": True, "img_w": 512, "seed": 42}}
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "P1", p1)["reasons"] == []
+    assert mr.checkpoint_protocol_reasons(_ckpt(fa_training), "BF", bf)["reasons"] == []
+    assert mr.checkpoint_protocol_reasons(_ckpt(yaw_training), "YAW", yaw)["reasons"] == []
+    # a vanilla-trained file under the BF arm, and BF's fa training under YAW
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "BF", bf)["reasons"]
+    assert mr.checkpoint_protocol_reasons(_ckpt(fa_training), "YAW", yaw)["reasons"]
+    assert mr.checkpoint_protocol_reasons(_ckpt({}), "YAW", yaw)["reasons"]   # no yaw_aug
+    # the binding's own orbit must be the one the file was trained with
+    other = dict(fa_training, frame_avg_angles=[0.0, 180.0])
+    assert any("frame_avg_angles" in reason for reason in
+               mr.checkpoint_protocol_reasons(_ckpt(other), "BF", bf)["reasons"])
+    # "when available": a file that embeds no training block is not a refusal
+    absent = mr.checkpoint_protocol_reasons({}, "BF", bf)
+    assert absent["available"] is False and absent["reasons"] == []
+
+
+def test_the_report_applies_the_embedded_protocol_when_given_the_checkpoint(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    path = str(tmp_path / "fake.ckpt")
+    torch.save({"model_config": {"training": {"cond_method": "fa_invariant",
+                                              "frame_avg_angles": [0.0, 90.0, 180.0, 270.0]}},
+                "state_dict": {}}, path)
+    # the run binding names a different file -> refused before anything else
+    with pytest.raises(ValueError, match="not the checkpoint the run binding names"):
+        evaluate_fixture(fixture, ckpt_path=path)
+    # re-sign the run under THIS file: the vanilla binding meets an fa-trained file
+    binding_path = os.path.join(fixture["run_dir"], me.BINDING_FILENAME)
+    published = json.load(open(binding_path))
+    published["ckpt_sha256"] = me.file_sha256(path)
+    published["binding_sha256"] = me.binding_sha256(
+        {field: published[field] for field in me.binding_fields(published)})
+    me.write_json(binding_path, published)
+    with pytest.raises(ValueError, match="embedded training protocol"):
+        mr.assert_checkpoint_protocol(path, published, arm=None)
+
+
+#: the P1 wording of the two notes as they stood at base 3f595e19, verbatim
+P1_NON_CANONICAL_NOTE_AT_BASE = (
+    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
+    "was relaxed or could not be met. The reasons are listed beside this note; every number "
+    "below is a diagnostic and none may be quoted as the canonical result")
+#: the COMPLETE P1 single-shard note at base 3f595e19 (`git show 3f595e19:src/localization/
+#: meshgrid_report.py`, SINGLE_SHARD_NOTE), verbatim -- not only its tail (Codex rA NIT)
+P1_SINGLE_SHARD_NOTE_AT_BASE = (
+    "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
+    "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
+    "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
+    "source-row census -- were NOT applied. The artifact-hash joins, the identity join, the "
+    "row/sidecar digests and the row-derived batching and source-row derivations still were. "
+    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query P1 result")
+
+
+def fixture_launch(tmp_path, tag):
+    """``launch(out_dir)`` for build_fixture_run: emit + admit on the injected machine."""
+    import test_loc_meshgrid_launch_record as LR
+
+    def launch(out_dir):
+        name = f"{tag}_{os.path.basename(str(out_dir))}"
+        argv = [token if token != "out" else name for token in LR.ARGV]
+        path = LR.emit(tmp_path, argv=argv, name=f"{name}_launch.json")
+        return path, LR.admit(path, argv=argv)
+
+    return launch
+
+
+def test_the_notes_carry_the_arm_and_p1_keeps_its_words():
+    assert mr.NON_CANONICAL_NOTE == P1_NON_CANONICAL_NOTE_AT_BASE
+    assert mr.non_canonical_note("P1") == mr.NON_CANONICAL_NOTE
+    assert mr.SINGLE_SHARD_NOTE == P1_SINGLE_SHARD_NOTE_AT_BASE
+    assert mr.single_shard_note("P1") == mr.SINGLE_SHARD_NOTE
+    for arm in ("YAW", "BF"):
+        for note in (mr.non_canonical_note(arm), mr.single_shard_note(arm)):
+            assert f"5,337-query {arm} result" in note and "P1" not in note
+
+
+def test_a_legacy_p1_run_is_canonical_under_the_flagged_exception(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    evaluated = evaluate_fixture(fixture)
+    provenance = evaluated["launch_provenance"]
+    assert provenance["generation"] == "none" and provenance["complete"] is False
+    assert provenance["legacy_provenance"] is True and provenance["acceptable"] is True
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    assert report["arm"] == "P1" and report["legacy_provenance"] is True
+    assert report["canonical_status"]["canonical"] is True
+    markdown = mr.render_markdown(report)
+    assert markdown.splitlines()[0] == "# exp_22 — mesh-grid localization report (P1 arm)"
+    assert mr.LEGACY_PROVENANCE_NOTE in markdown
+
+
+def test_an_arm_run_with_complete_records_publishes_every_segment(tmp_path):
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    evaluated = evaluate_fixture(fixture, expect_arm="YAW")
+    provenance = evaluated["launch_provenance"]
+    assert provenance["complete"] is True and provenance["legacy_provenance"] is False
+    assert sorted(r["position_ranges"] for r in provenance["records"]) == [[[0, 2]], [[3, 3]]]
+    # rA-F1: a YAW report is canonical only with the consumed handoff (Codex rA HIGH)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"],
+                             retrieval_handoff=_consume())
+    assert report["arm"] == "YAW" and report["legacy_provenance"] is False
+    assert report["canonical_status"]["canonical"] is True
+    published = report["provenance"]["launch_provenance"]
+    assert {r["launch_record_sha256"] for r in published["records"]} == {
+        r["launch_record_sha256"] for r in provenance["records"]}
+    markdown = mr.render_markdown(report)
+    assert "(YAW arm)" in markdown.splitlines()[0]
+    for record in provenance["records"]:
+        assert record["launch_record_sha256"] in markdown
+
+
+def test_a_missing_record_makes_the_report_non_canonical(tmp_path):
+    from src.localization import meshgrid_segments as ms
+
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    ledger = ms.read_ledger(fixture["run_dir"])
+    os.remove(os.path.join(fixture["run_dir"], ledger["segments"][0]["record_file"]))
+    evaluated = evaluate_fixture(fixture)
+    assert evaluated["launch_provenance"]["acceptable"] is False
+    # the handoff is consumed, so the launch gap is the ONLY reason (rA-F1)
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"],
+                             retrieval_handoff=_consume())
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    assert [reason["gate"] for reason in status["reasons"]] == ["launch_provenance"]
+    assert status["note"] == mr.non_canonical_note("YAW")
+    assert mr.non_canonical_note("YAW") in mr.render_markdown(report)
+
+
+def test_the_legacy_exception_never_extends_to_another_arm(tmp_path):
+    fixture = build_fixture_run(tmp_path, merged=False, arm="YAW")
+    evaluated = evaluate_fixture(fixture)
+    provenance = evaluated["launch_provenance"]
+    assert provenance["legacy_provenance"] is False and provenance["acceptable"] is False
+    status = mr.canonical_status(evaluated)
+    gates = [reason["gate"] for reason in status["reasons"]]
+    assert "launch_provenance" in gates and "merge_report" in gates
+    assert any("P1" in reason["why"] for reason in status["reasons"]
+               if reason["gate"] == "launch_provenance")
+
+
+def test_the_report_cli_takes_the_expected_arm_and_the_checkpoint():
+    args = mr.parse_args(["--run-dir", "r", "--out-dir", "o", "--expect-arm", "YAW",
+                          "--ckpt-path", "weights/exp20/YAW_40k.ckpt"])
+    assert args.expect_arm == "YAW" and args.ckpt_path == "weights/exp20/YAW_40k.ckpt"
+    assert mr.parse_args(["--run-dir", "r", "--out-dir", "o"]).expect_arm is None
+    with pytest.raises(SystemExit):
+        mr.parse_args(["--run-dir", "r", "--out-dir", "o", "--expect-arm", "P2"])
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA BLOCKING; plan r2 amendment A2): one reviewed pin per run
+# --------------------------------------------------------------------------- #
+def restamp_segment(tmp_path, run_dir, index, git_sha):
+    """Hand-assemble a run whose segment ``index`` was produced at ANOTHER commit.
+
+    A healthy record at ``git_sha`` replaces the segment's own; every row that
+    segment produced is re-stamped and re-sealed, so each row, record and
+    segment still verifies on its own -- only the run as a whole spans two
+    commits, which is what neither the merge (it would refuse) nor the report
+    may let through.
+    """
+    import test_loc_meshgrid_launch_record as LR
+    from src.localization import meshgrid_segments as ms
+
+    ledger = ms.read_ledger(run_dir)
+    entry = ledger["segments"][index]
+    old = entry["launch_record_sha256"]
+    environment = LR._at_commit(git_sha)
+    argv = [token if token != "out" else f"restamped_{index}" for token in LR.ARGV]
+    path = LR.emit(tmp_path, argv=argv, name=f"restamped_{index}.json",
+                   environment=environment)
+    admission = LR.admit(path, argv=argv, environment=environment)
+    new = admission["sha256"]
+    ms.copy_verified(path, os.path.join(run_dir, ms.record_relpath(new)), new)
+    entry.update(launch_record_sha256=new, record_file=ms.record_relpath(new),
+                 admission={field: admission.get(field) for field in ms.ADMISSION_FIELDS})
+    me.write_json(os.path.join(run_dir, ms.SEGMENTS_FILENAME), ledger)
+    for row_path in mr.iter_row_paths(run_dir):
+        row = json.load(open(row_path))
+        if row.get("launch_record_sha256") == old:
+            row["launch_record_sha256"] = new
+            row["row_sha256"] = me.row_digest(row)
+            me.write_json(row_path, row)
+    return new
+
+
+def test_a_report_over_segments_at_two_commits_is_non_canonical(tmp_path):
+    fixture = build_fixture_run(tmp_path, arm="YAW", launch=fixture_launch(tmp_path, "YAW"))
+    # the control: the single-commit run passes the launch-provenance gate
+    single = evaluate_fixture(fixture, expect_arm="YAW")["launch_provenance"]
+    assert single["acceptable"] is True and single["git_shas"] == ["a" * 40]
+    restamp_segment(tmp_path, fixture["run_dir"], 1, "b" * 40)
+    evaluated = evaluate_fixture(fixture, expect_arm="YAW")
+    provenance = evaluated["launch_provenance"]
+    assert all(record["verified"] for record in provenance["records"])
+    assert provenance["git_shas"] == ["a" * 40, "b" * 40]
+    assert provenance["acceptable"] is False
+    report = mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                             fixture["context_manifest"], fixture["metadata_root"])
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    why = [reason["why"] for reason in status["reasons"] if reason["gate"] == "launch_provenance"]
+    assert why and "one reviewed pin" in why[0]
+    assert "one reviewed pin" in mr.render_markdown(report)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rA-F1 (Codex rA HIGH): a report cites the sparse retrieval control only
+# after consuming its completed canonical handoff
+# --------------------------------------------------------------------------- #
+#: the committed, completed canonical handoff of the P1 phase (the probe tests pin
+#: that it is the registered one). Defined here, not imported: the probe test
+#: module imports this one.
+REAL_HANDOFF = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, "worklog",
+    "worklog_yixun", "exp_22_loc_meshgrid_claude", "retrieval_control_handoff.json"))
+RETRIEVAL_KEY = "agree_oracle_retrieval_over_the_metadata_bank"
+
+
+def tampered_handoff(tmp_path, name="handoff.json", **changes):
+    """The committed handoff with ``changes`` applied, written to ``tmp_path``."""
+    payload = json.load(open(REAL_HANDOFF))
+    payload.update(changes)
+    path = str(tmp_path / name)
+    me.write_json(path, payload)
+    return path
+
+
+def _consume(path=REAL_HANDOFF, **kwargs):
+    from src.localization import meshgrid_offgrid_probe as op
+
+    return op.consume_retrieval_handoff(path, **kwargs)
+
+
+def _report(fixture, handoff=None, **evaluate):
+    evaluated = evaluate_fixture(fixture, **evaluate)
+    return mr.build_report(evaluated, fixture["run_dir"], fixture["audit_report"],
+                           fixture["context_manifest"], fixture["metadata_root"],
+                           retrieval_handoff=handoff)
+
+
+def _text(report):
+    return (json.dumps(jsonable_report(report)) + mr.render_markdown(report)).lower()
+
+
+def jsonable_report(report):
+    return mr.jsonable(report)
+
+
+@pytest.fixture(scope="module")
+def yaw_fixture(tmp_path_factory):
+    root = tmp_path_factory.mktemp("yaw_handoff")
+    return build_fixture_run(root, arm="YAW", launch=fixture_launch(root, "YAW"))
+
+
+def test_the_static_entry_states_no_status():
+    static = mr.CONTROLS_ELSEWHERE[RETRIEVAL_KEY]
+    assert "run pending" not in static and "built (r9b)" not in static
+    assert "retrieval_control_handoff.json" in static and "--retrieval-handoff" in static
+    assert static.startswith("src/localization/meshgrid_retrieval_control.py -- ")
+
+
+def test_a_treatment_report_cites_the_control_after_consuming_the_handoff(yaw_fixture):
+    consumed = _consume()
+    report = _report(yaw_fixture, handoff=consumed, expect_arm="YAW")
+    assert report["canonical_status"]["canonical"] is True, report["canonical_status"]
+    block = report["retrieval_control"]
+    assert block["status"] == "RECONCILED" and block["reconciled"]
+    assert block["arm_independent_citation"] is True
+    assert block["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert block["report_sha256"] == consumed["report_sha256"]
+    assert block["headline"] == consumed["headline"]
+    assert block["census"] == {"n_queries": 5337, "n_rooms": 16}
+    entry = report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert entry.startswith(consumed["entry"]) and "REUSED, NOT RERUN for the YAW arm" in entry
+    markdown = mr.render_markdown(report)
+    for digest in (consumed["sha256"], consumed["report_sha256"]):
+        assert digest in markdown
+    assert "median_e_loc 1.943 m" in markdown and "run pending" not in markdown
+    assert "STATUS NOT RECONCILED" not in markdown
+
+
+def test_without_the_handoff_a_treatment_report_is_not_reconciled(yaw_fixture):
+    report = _report(yaw_fixture, expect_arm="YAW")
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    assert [reason["gate"] for reason in status["reasons"]] == ["retrieval_handoff"]
+    block = report["retrieval_control"]
+    assert block["status"] == "STATUS NOT RECONCILED"
+    assert block["arm_independent_citation"] is False
+    assert "STATUS NOT RECONCILED" in report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" in mr.render_markdown(report)
+    text = _text(report)
+    assert "reused" not in text and "run pending" not in text
+
+
+@pytest.mark.parametrize("changes", [
+    {"headline": {}},                                                 # digest + headline
+    {"status": "run (NON-CANONICAL)", "canonical": False},           # not completed
+    {"census": {"n_queries": 4, "n_rooms": 2}},                       # another census
+])
+def test_a_tampered_handoff_is_never_silently_cited(yaw_fixture, tmp_path, changes):
+    consumed = _consume(tampered_handoff(tmp_path, **changes))
+    assert consumed["reconciled"] is False
+    report = _report(yaw_fixture, handoff=consumed, expect_arm="YAW")
+    status = report["canonical_status"]
+    assert status["canonical"] is False
+    why = [r["why"] for r in status["reasons"] if r["gate"] == "retrieval_handoff"]
+    assert why and mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256[:12] in why[0]
+    assert "reused" not in _text(report)
+    assert report["retrieval_control"]["handoff_sha256"] == consumed["sha256"]
+
+
+def test_the_legacy_p1_branch_keeps_its_canonical_status(tmp_path):
+    fixture = build_fixture_run(tmp_path)
+    # without the flag: canonical as published, NOT RECONCILED in this report, the
+    # P1 phase's own reconciliation named, never stale and never "reused"
+    report = _report(fixture)
+    assert report["legacy_provenance"] is True
+    assert report["canonical_status"]["canonical"] is True
+    block = report["retrieval_control"]
+    assert block["gating"] is False and block["reconciled"] is False and block["legacy"] is True
+    entry = report["controls_elsewhere"][RETRIEVAL_KEY]
+    assert "STATUS NOT RECONCILED" in entry and mr.LEGACY_RETRIEVAL_NOTE in entry
+    assert "reused" not in _text(report) and "run pending" not in _text(report)
+    # with the flag: consumed exactly as for every arm, still no "reused" for P1
+    cited = _report(fixture, handoff=_consume())
+    assert cited["canonical_status"]["canonical"] is True
+    assert cited["retrieval_control"]["reconciled"] is True
+    assert "reused" not in _text(cited)
+    # a bad handoff never touches the legacy canonical status, but is not cited either
+    bad = _report(fixture, handoff=_consume(tampered_handoff(tmp_path, headline={})))
+    assert bad["canonical_status"]["canonical"] is True
+    assert "STATUS NOT RECONCILED" in bad["controls_elsewhere"][RETRIEVAL_KEY]
+
+
+def test_a_caller_that_gates_the_control_itself_may_defer_it(yaw_fixture):
+    evaluated = evaluate_fixture(yaw_fixture, expect_arm="YAW")
+    report = mr.build_report(evaluated, yaw_fixture["run_dir"], yaw_fixture["audit_report"],
+                             yaw_fixture["context_manifest"], yaw_fixture["metadata_root"],
+                             defer_retrieval_gate=True)
+    assert report["canonical_status"]["canonical"] is True
+    assert report["retrieval_control"]["gating"] is False
+    assert report["retrieval_control"]["status"] == "STATUS NOT RECONCILED"
+
+
+def _cli_run(monkeypatch, fixture, out_dir, *extra):
+    real = mr.evaluate_run
+
+    def seam(*args, **kwargs):
+        kwargs.update(totals=fixture["totals"], require_manifest_census=False)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(mr, "evaluate_run", seam)
+    argv = ["--run-dir", fixture["run_dir"], "--out-dir", str(out_dir),
+            "--audit-report", fixture["audit_report"],
+            "--context-manifest", fixture["context_manifest"],
+            "--metadata-root", fixture["metadata_root"],
+            "--expect-metadata-bank-sha256", fixture["metadata_bank_sha256"],
+            "--expect-arm", "YAW", "--n-boot", str(mr.BOOTSTRAP_N)] + list(extra)
+    assert mr.main(argv) == 0
+    return json.load(open(os.path.join(str(out_dir), mr.REPORT_JSON)))
+
+
+def test_the_report_cli_consumes_the_handoff(yaw_fixture, tmp_path, monkeypatch, capsys):
+    assert mr.parse_args(["--retrieval-handoff", "h.json"]).retrieval_handoff == "h.json"
+    assert mr.parse_args([]).retrieval_handoff is None
+    cited = _cli_run(monkeypatch, yaw_fixture, tmp_path / "cited",
+                     "--retrieval-handoff", REAL_HANDOFF)
+    assert cited["canonical_status"]["canonical"] is True
+    assert cited["retrieval_control"]["handoff_sha256"] == mr.REGISTERED_RETRIEVAL_HANDOFF_SHA256
+    assert "RECONCILED" in capsys.readouterr().out
+    silent = _cli_run(monkeypatch, yaw_fixture, tmp_path / "silent")
+    assert silent["canonical_status"]["canonical"] is False
+    assert "STATUS NOT RECONCILED" in capsys.readouterr().out
+    # the reviewed refusals refuse the CLI before any evaluation
+    calls = []
+    monkeypatch.setattr(mr, "evaluate_run", lambda *a, **k: calls.append(1))
+    foreign = tampered_handoff(tmp_path, control_key="something_else")
+    with pytest.raises(SystemExit, match="REFUSED"):
+        mr.main(["--run-dir", yaw_fixture["run_dir"], "--out-dir", str(tmp_path / "x"),
+                 "--expect-metadata-bank-sha256", "0" * 64, "--retrieval-handoff", foreign])
+    assert calls == []

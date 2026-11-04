@@ -1,0 +1,11 @@
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'cache_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'cache_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'cache_parity'
+E       AttributeError: module 'src.localization.meshgrid_fa_parity' has no attribute 'cache_parity'
+E       Failed: DID NOT RAISE ValueError
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate2_memoization_is_bit_exact_and_every_counter_test_bites
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate2_separates_batch_nondeterminism_from_a_cache_error
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate2_fails_on_a_cache_that_serves_something_else
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate2_fails_when_a_counter_test_cannot_bite
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_vanilla_parity_refuses_an_engine_with_the_split
+5 failed, 39 passed, 5 warnings in 12.26s

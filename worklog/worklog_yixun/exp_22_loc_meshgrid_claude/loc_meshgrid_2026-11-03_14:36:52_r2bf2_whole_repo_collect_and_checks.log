@@ -1,0 +1,47 @@
+# exp_22 rB-F2 whole-repo collection + checks, HEAD 01f693cb0ab290665620857390268ea319fb1ab7, 2026-11-03T14:40:22-05:00, CPU
+## pytest --collect-only (whole repo, CPU)
+5115 tests collected in 8.33s; 0 collection errors (no `ERROR` / `errors during collection` line; the two test ids an earlier loose grep for "error" matched are test NAMES, removed from this log)
+## git diff --check 1c2b0bfa HEAD
+(clean)
+## py_compile of touched modules and tests
+py_compile OK
+## files changed since 1c2b0bfa
+ localize_meshgrid.py                               |  12 +-
+ src/localization/meshgrid_engine.py                | 265 +++++++--
+ src/localization/meshgrid_fa_parity.py             | 508 +++++++++++++++--
+ src/localization/meshgrid_report.py                |   1 +
+ src/tests/test_loc_meshgrid_fa_split.py            | 611 ++++++++++++++++++++-
+ ...1-03_13:13:07_r2bf2_c1_g3d_no_tolerance_red.log |   4 +
+ ...17:49_r2bf2_c2_self_sufficient_evidence_red.log |  28 +
+ ...026-11-03_13:22:36_r2bf2_c3_reverify_g3_red.log |  24 +
+ ..._13:34:27_r2bf2_c4_reverify_g1_g2_gv_g0_red.log |  31 ++
+ ...6-11-03_13:46:16_r2bf2_c5_ledger_reader_red.log |  23 +
+ ...-11-03_14:09:03_r2bf2_c6_non_admissible_red.log |   8 +
+ ...026-11-03_14:22:39_r2bf2_c7_self_review_red.log |   4 +
+ ...3_14:29:09_r2bf2_delete_the_check_mutations.log |  27 +
+ 13 files changed, 1443 insertions(+), 103 deletions(-)
+## untouched by contract: src/data src/models crossarm.py meshgrid_crossarm.py meshgrid_segments.py configs gen_model_comparison.py (meshgrid_report.py: the ONE disclosed line below)
+(empty above = untouched)
++    me.assert_admissible(run_dir)          # exp_22 rB-F2: plan r2 amendment A6 (iv), by name
+## the P1 golden regression + the vanilla frozen-digest fixture, by name
+4 passed, 3 warnings in 5.17s
+## per-commit code lines (net non-blank, non-comment, non-docstring Python outside src/tests)
+82c73c1a exp_22 rB-F2 (1/n): the drift measurement G3D ca: TOTAL +2/-1 net +1
+50ce4e33 exp_22 rB-F2 (2/n): the G3 / G3D evidence carrie: TOTAL +34/-9 net +25
+787b2efa exp_22 rB-F2 (3/n): the gates judge with predica: TOTAL +60/-40 net +20
+4b2af1f5 exp_22 rB-F2 (4/n): reverify_gate_evidence -- ev: TOTAL +154/-3 net +151
+9f60dede exp_22 rB-F2 (5/n): reverify_gate_evidence cover: TOTAL +115/-3 net +112
+659e0d4b exp_22 rB-F2 (6/n): ONE validating ledger reader: TOTAL +116/-39 net +77
+fc8836a7 exp_22 rB-F2 (7/n): a shard whose executed-parti: TOTAL +53/-7 net +46
+3163658c exp_22 rB-F2 (8/n): self-review -- an unknown-br: TOTAL +6/-3 net +3
+01f693cb exp_22 rB-F2 (9/n): delete-the-check proof for t: TOTAL +0/-0 net +0
+## every commit carries the trailer
+82c73c1a 1
+50ce4e33 1
+787b2efa 1
+4b2af1f5 1
+9f60dede 1
+659e0d4b 1
+fc8836a7 1
+3163658c 1
+01f693cb 1

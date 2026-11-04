@@ -1,0 +1,47 @@
+# exp_22 R2-B final focused suite (CPU, CUDA_VISIBLE_DEVICES=''), HEAD a62b9d8d296e7fdc2c2eb258cca3c4a72eedde1d, tracked-clean: NO
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+..................................s..................................... [ 27%]
+........................................................................ [ 33%]
+...........................................................s............ [ 40%]
+........................................................................ [ 47%]
+........................................................................ [ 54%]
+..........s............................................................. [ 60%]
+........................................................................ [ 67%]
+..................................................................ss.s.s [ 74%]
+ss...................................................................... [ 81%]
+........................................................................ [ 87%]
+........................................................................ [ 94%]
+..........................................................               [100%]
+=============================== warnings summary ===============================
+src/tests/test_loc_meshgrid_crossarm.py::test_holm_by_hand_over_exactly_the_four_registered_tests
+
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_gate_only_after_every_binding_check
+
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_gate_only_after_every_binding_check
+
+src/tests/test_loc_meshgrid_fa_split.py::test_gate1_is_bit_exact_on_the_real_conditioning_classes[5-2]
+src/tests/test_loc_meshgrid_fa_split.py::test_gate2_is_bit_exact_and_bites_on_the_real_conditioning_classes
+src/tests/test_loc_meshgrid_fa_split.py::test_gate3_holds_on_the_real_conditioning_classes
+
+src/tests/test_loc_meshgrid_fa_split.py::test_gate1_is_bit_exact_on_the_real_conditioning_classes[5-2]
+src/tests/test_loc_meshgrid_fa_split.py::test_gate2_is_bit_exact_and_bites_on_the_real_conditioning_classes
+src/tests/test_loc_meshgrid_fa_split.py::test_gate3_holds_on_the_real_conditioning_classes
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] src/tests/test_loc_meshgrid_report.py:1571: weights/exp20/P1_40k.ckpt is not on this machine
+SKIPPED [1] src/tests/test_loc_meshgrid_engine.py:1754: ladder step: set EXP22_REAL_STACK=1 to run against the frozen checkpoint on a GPU
+SKIPPED [1] src/tests/test_loc_meshgrid_offgrid_probe.py:2134: outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json is not in this checkout
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:275: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:286: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:314: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:334: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:381: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:399: AcousticRooms not present
+1057 passed, 9 skipped, 11 warnings in 116.81s (0:01:56)

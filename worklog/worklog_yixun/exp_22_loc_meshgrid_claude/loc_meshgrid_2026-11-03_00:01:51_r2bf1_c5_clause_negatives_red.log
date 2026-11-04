@@ -1,0 +1,4 @@
+# rB-F1 cycle 5 RED (HIGH 7: one isolated negative per G3/G1 verdict clause; replay partition + masks hard), HEAD 65a7b825886c3bcd07dfea24a710a98fb2c79e50, CPU
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_and_gate1_fail_on_a_replay_orbit_that_is_not_per_angle
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_gate3_chains_and_per_key_facts_carry_the_masks
+2 failed, 121 passed, 11 warnings in 42.39s

@@ -1,0 +1,24 @@
+# rA-F1 final focused suite -- 2026-11-02T22:15:22-05:00 -- HEAD 05b9c4556d91790c2fb23bc90bbe129ff22a2111 -- CPU only
+# CUDA_VISIBLE_DEVICES='' /home/yixunhu/miniconda3/envs/flac/bin/python -m pytest -q -p no:cacheprovider <the nine focused files> -rs
+=============================== warnings summary ===============================
+src/tests/test_loc_meshgrid_crossarm.py::test_holm_by_hand_over_exactly_the_four_registered_tests
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+src/tests/test_loc_meshgrid_crossarm.py::test_every_arm_is_admitted_through_the_reports_own_gate
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+src/tests/test_loc_meshgrid_launch_record.py::test_fa_flags_reach_the_engine_refusal_only_after_every_binding_check
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] src/tests/test_loc_meshgrid_report.py:1571: weights/exp20/P1_40k.ckpt is not on this machine
+SKIPPED [1] src/tests/test_loc_meshgrid_engine.py:1745: ladder step: set EXP22_REAL_STACK=1 to run against the frozen checkpoint on a GPU
+SKIPPED [1] src/tests/test_loc_meshgrid_offgrid_probe.py:2134: outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json is not in this checkout
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:275: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:286: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:314: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:334: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:381: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:399: AcousticRooms not present
+990 passed, 9 skipped, 5 warnings in 98.79s (0:01:38)
+# P1 golden regression, by name:
+1 passed, 3 warnings in 4.64s

@@ -331,3 +331,187 @@ ladder-gated real-stack replay (`EXP22_REAL_STACK=1`).
 - `4fc81b4` exp_22 r9z2: emission fails closed; record designates its execution card (equality, not membership)
 - `9c90a19` exp_22 r9z4: runtime-UUID designation (inference deleted); genuinely non-empty facts
 - `41720e1` exp_22 r9z6: test-only — emission regression routed through write_launch_record, non-vacuous
+
+## Round exp22-R2-A (provenance, arm-aware registration, paired cross-arm comparison; plan r2 §3 R2-A)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `3f595e19`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(raw diff counts, which include docstrings and the notes' prose, are in the commit messages /
+`git show --stat`). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `19374349` | B6/H2 | `meshgrid_engine.RUN_BINDING_PROTOCOL_FIELDS` (`frame_avg_angles`, `rotate_deg`, `fa_partition`) + `binding_fields()`: a binding is legacy R1 (none — the published P1 digest is unchanged) or complete R2 (all); partial refused; digest/write/resume/shard/merge/report recompute over it | +13 |
+| `120c8bf7` | B6 | driver `--frame-avg-angles` (vanilla exactly `0` → `[0.0]`; fa exactly C4) and `--rotate-deg` (0 only); explicit-flag tracking; a canonical full pass needs `--launch-record` and all six protocol/batching flags explicit; diagnostics record-free; R2 fields bound; `declared_fa_partition()` | +89 |
+| `3ed76a4e` | B4 | new `meshgrid_segments.py` (imports the probe's launch-record mechanism): `open_segment` (one record per invocation; bytes copied into the run), `close_segment`, `verify_segment` | +151 |
+| `38c05166` | B4/N3 | `provenance_census` (every row → present, verified record; per-record row ranges) and `merge_ledgers` | +76 |
+| `11fc63d9` | B4 | rows stamped with their segment's record digest; resume regenerates rows of unknown records; R2 merges require a complete census (checked before any write) and carry the records across | +26 |
+| `5a5cf53a` | H2/N2 | `REGISTERED_ARM_PROTOCOL` (P1/YAW vanilla `[0.0]`; BF C4 + per-angle partition at 256/16); arm resolved FIRST; `expect_arm` and a partition-less fa binding are hard refusals; embedded checkpoint protocol check; P1 fixture golden-digest regression | +90 |
+| `27193268` | B4/B6/H2 | driver emit/admit, `preflight` (binding → arm protocol → embedded protocol → ARE/cond binding → engine `assert_cacheable` last), `claim_out_dir` (segments, resume), `--expect-arm` | +60 |
+| `6f7a7338` | B4/N3/H2 | report-side launch census (NON-CANONICAL on any gap), `legacy_provenance` (P1 + legacy binding + no records only), `arm` published, notes/title per arm, `--expect-arm` / `--ckpt-path` | +73 |
+| `b9d7835b` | B1/B2 | new `meshgrid_crossarm.py` statistics: room-first paired deltas, one shared resample matrix, BF one-sided / YAW two-sided tails (zero crosses, no correction), Holm over exactly 4, exhaustive verdicts, descriptive CIs, incomplete family | +148 |
+| `813651c5` | B3/H1 | `admit_run` through `evaluate_run` + `build_report` (canonical required; P1 legacy only with the flag); `pair_runs` with explicit `PAIRING_WHITELIST` | +161 |
+| `f09aea97` | B1–B3/H5/N3 | `run_crossarm`, `crossarm_r2.json` / `.md` (exp_20 verdict table, claim boundary, legacy exception), CLI | +188 |
+| `38603f29` | R2-C support | emission creates the shard directory the registered launch lines write the record into | +2 |
+| `4b5549a5` | self-review | `-0` folds to 0; read-once resume stamp; verified record copy at merge; unreadable ledger is a reason; per-arm census published | +18 |
+
+## Round exp22-rA-F1 (fix round closing Codex code review rA of R2-A: BLOCKING mixed-SHA, HIGH sparse-control handoff, 3 NITs)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `3dc94b9b`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed in the commit messages; the counter reproduces the R2-A rows `4b5549a5` +18,
+`38603f29` +2, `f09aea97` +188, `813651c5` +161). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `d9c3ac05` | rA BLOCKING / A2 | one reviewed pin per run: `provenance_census` reason on `len(git_shas) != 1` (every segment counts); `merge_ledgers` checks the union of shard SHAs before the dry-run return (engine merge refuses with nothing written); `open_segment` refuses a resume at another commit before touching the ledger | +26 |
+| `b55bd7f6` | rA NITs | `run_crossarm` holds EVERY registered room and both endpoints to the arm's own report (exact equality); tests: every pinned whitelist member individually (24), every non-member refused (fixture's own fields + a never-seen one), every concrete pairing axis has a case, the COMPLETE P1 single-shard note pinned | +15 |
+| `e2adccba` | rA HIGH (1/3) | `REGISTERED_RETRIEVAL_HANDOFF_SHA256` (the bytes the canonical P1 probe consumed); next to the reviewed helpers in `meshgrid_offgrid_probe`: `_parse_retrieval_handoff` (one buffer; `read_retrieval_handoff` output unchanged), `consume_retrieval_handoff` (digest, completed+canonical, census, report digest, headline), `unreconciled_retrieval_entry` | +69 |
+| `166caa18` | rA HIGH (2/3) | per-arm report: stale "built (r9b), run pending" gone; `retrieval_control` block + reconciled/NOT RECONCILED entry; gate `retrieval_handoff` for every non-legacy run; legacy P1 branch documented and never gated; `--retrieval-handoff`; `admit_run` defers that gate to the crossarm | +84 |
+| `05b9c455` | rA HIGH (3/3) | crossarm: the unconditional "reused" sentence removed; the handoff consumed once (`--retrieval-handoff`, before admission); own `canonical_status` (NON-CANONICAL when not reconciled); "REUSED, NOT RERUN" only after reconciliation; controls section with digests + headline | +78 |
+
+## Round exp22-R2-B (fa-aware conditioning for BF: the five-way split, executed partition, three parity gates, vanilla no-regression; plan r2 §2 table, §3 R2-B, Codex rA A8 / rA-F1 F6(b))
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `75628305`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants such as the gate notes count as code, as in the R2-A
+ledger; the scratchpad counter reproduces the R2-A/rA-F1 rows `38603f29` +2, `4b5549a5` +18,
+`d9c3ac05` +26, `b55bd7f6` +15, `e2adccba` +69). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `675aa0cb` | §3 R2-B vanilla gate | the vanilla no-regression fixture: score fingerprints, sidecars, conditioner calls, sampler batch shapes, replay and cache parity on the engine fixture pinned to digests frozen at the untouched `75628305` (log pinned too); mutation log shows it bites | 0 (tests only) |
+| `9e23f520` | B5 / A8 | the split's building blocks: `FA_BRANCH_IDS` (context_vit / context_scored_batch / source_cache), `_BranchConditioner`, `fa_branch` through the released `invariant_conditioning` at cap = batch, `FaSplit`, `fa_query_conditioning`, `fa_candidate_conditioning`, `source_conditioning(fa=…)`, `FaPartitionRecorder` (executed schema from the calls that ran, violations, per-batch histograms), `fa_partition_differences`, `assert_fa_partition_executed` | +143 (+145/−2) |
+| `955ee0a1` | §3 R2-B / A8 | the split wired through the pass: `assert_cacheable(cond_method, split)`, `split_for`, `MeshEngine.split`, `query_context`, `ReceiverCache.build(fa=…)`, `scored_conditioning` (+ `candidate_inputs` / `candidate_rows`), replay + dump; `run_pass(fa_partition=…)`: undeclared refused up front, executed == declared before every row / probe record / dump, `fa_partition_executed` in the summary | +58 (+78/−20) |
+| `2d889aa8` | A8 / F6(b) | `build_mesh_engine(frame_avg_angles=…)` engages the split; driver preflight + main pass orbit and declared partition; `write_probe_records` serializes `binding_fields(binding)` and the executed block (contract changes in two R2-A tests, disclosed) | +7 (+17/−10) |
+| `bb79a369` | H3 gate 1 | new `meshgrid_fa_parity.py`: fail-closed comparison helpers (shapes, dtypes, digests incl. bf16, finiteness, masks, DiT inputs), pre-registered tolerances, evidence provenance (git SHA, tracked-clean, host, card UUID) + atomic writer; `split_parity` (G1) | +180 |
+| `a58ed1d8` | H3 gate 2 | `cache_parity` (G2): production path at one candidate per call vs the released path per candidate, bit-exact; four counter-tests that must bite; informational production-chunk difference; gate views carry their own split; the vanilla `cache_parity_check` refuses an fa engine | +102 |
+| `7a8e43f7` | H3 gate 3 | `probe_case`, `production_parity` (G3): production batching vs exp_20's released `fa_conditioning` per scored batch, per-key ≤ 1e-3 (tensors, masks, DiT inputs; shapes/dtypes; replay orbit partition), |ΔS| ≤ `SCORE_TOLERANCE`, no argmax moved, executed == declared, full + tail scored and source batches; no quality value in the evidence | +136 (+145/−9) |
+| `c6b3fdda` | H3 | driver modes `--fa-split-parity-check` (autocast off), `--cache-parity-check` (gate 2 under fa), `--fa-production-parity-check` (256 / 16 / default only), `--parity-candidates`; one diagnostic per invocation; record-free; evidence to `--out-dir` | +94 (+103/−9) |
+| `8b2949bc` | §3 R2-B vanilla gate | `--replay-check --replay-against <published P1 run>` (G0): the probe queries' published rows replayed at their own batching through the vanilla path (reviewed matched-batching tie) — float16-exact sidecar, 0.0 aggregate, frozen grid digests of the committed P1 probe report, observation bank `ee2ba80a…`, published protocol | +101 (+106/−5) |
+| `0b41c9b1` | H3 / brief | G3 digest chains; all three gates on the REAL conditioner classes on CPU (tiny SimpleViT, no weights): G1, G2 bit-exact, G3 within 1e-3 | +12 (+14/−2) |
+| `a68c75b8` | self-review | gate cases stop the stream after the last wanted probe query; unknown `--probe-room` refused by name | +6 |
+| `a62b9d8d` | self-review | gate 2 sizes its slice within the query (one candidate: FAIL by name, not crash) | 0 (+2/−2) |
+
+## Round exp22-rB-F1 (fix round closing Codex code review rB of R2-B: BLOCKING 1–3, HIGH 4–7, NIT 8; plan amendment A4)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `e837e173`. Coder:
+Claude Opus 5.5 subagent; every commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants count as code; the scratchpad counter reproduces the R2-B
+rows `9e23f520` +143, `955ee0a1` +58, `2d889aa8` +7, `bb79a369` +180, `a58ed1d8` +102,
+`7a8e43f7` +136). Total +528/−128, net +406. Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `d6361fc2` | rB 2 (BLOCKING) | G0's frozen anchor pinned: `COMMITTED_PROBE_REPORT_SHA256 = 8c5fd5e8…`, `load_probe_anchor` (one read, digest-refused otherwise), the driver loads it before any replay; evidence publishes path, digest, ordered query ids + digest and `anchor_key_set_equal` | +34 (+44/−10) |
+| `b18cd9ed` | rB 1 (BLOCKING), A4 v | every registered probe query consumed: `_probe_cases` refuses at stream end; the audit's set must be the committed report's 16; `--probe-room` refused for gates; `probe_query_set` (registered/consumed ordered ids, digests, missing/unexpected/repeated) is a verdict clause of G3 and G0 | +42 (+62/−20) |
+| `f382a582` | rB 4, rB 6 (HIGH), A4 i–iii | G3 = fp32 logic gate (`--cond-autocast off`, hard 1e-3); `--fa-production-drift-measurement` (G3D, production autocast, verdict "measurement", 3.9e-3 caveat as context); `cond_autocast_context` / `cond_autocast_state` (resolved enabled + dtype read back from torch) in every gate's evidence; G1/G3/G3D held to their registered autocast | +63 (+108/−45) |
+| `65a7b825` | rB 3 (BLOCKING) | `GATE_IDENTITY` + `gate_identity` (full `assert_registered_protocol`, exact admitted deviations: G1/G3 autocast off only); preflight refusal before device work; evidence re-derives it; `provenance_reasons` (40-hex SHA, tracked-clean, host, CUDA UUID on a GPU); `verdict_clauses`; YAW parity gate = `--cache-parity-check --expect-arm YAW` (GV, `vanilla_cache_parity.json`) | +83 (+98/−15) |
+| `9831a2a4` | rB 7 (HIGH) | replay orbit partition a hard clause (G3 and G1); absent-mask digests/dtypes/shapes; masks in the G3 digest chains and per-key facts; isolated negatives: score drift, argmax movement, source-tail omission, batched replay orbit, 4 mask-only corruptions, DiT-input-only corruption | +21 |
+| `b6735a7b` | rB 5 part 1 (HIGH), NIT 8 | executed partition read off the calls (largest base batch / rotated forward, counted orbit), configured stride as consistency violations; exact-schema comparison both ways; tail-only-prefix rule before each row, exact final check; `split_reasons` in `assert_cacheable` / `require_split`; + the cycle-5 delete-the-check mutation log (13/13) | +48 (+74/−26) |
+| `0c696c78` | rB 5 part 2 (HIGH) | durable `fa_partition_ledger.json` (segment per invocation, rewritten before every row), run summary = sum over segments with counts digest; `merge_shards` re-derives every shard's partition, checks its summary, sums, keeps the ledger, publishes the block in `merge_report.json`; synthetic BF report fixture writes its ledger (`synthetic_fa_evidence`) | +115 (+121/−6) |
+
+## Round exp22-rB-F2 (fix round closing Codex code review rB-F1: HIGH 1–4, NIT 5–6; plan amendments A4–A6)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `1c2b0bfa`. Coder:
+Claude Opus 5.5 subagent; every code commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = net non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; prose constants count as code; the scratchpad counter reproduces the rB-F1
+rows `d6361fc2` +34, `b18cd9ed` +42, `f382a582` +63, `65a7b825` +83, `9831a2a4` +21,
+`b6735a7b` +48, `0c696c78` +115). Total +532/−97, net +435 (`meshgrid_fa_parity.py` +357/−49,
+`meshgrid_engine.py` +166/−46, `localize_meshgrid.py` +8/−2, `meshgrid_report.py` +1/−0 —
+the one disclosed out-of-scope line). Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `82c73c1a` | rB-F1 1 (HIGH), A6 iii | G3D's `score_tolerance` is null beside `tolerance` and `match`; G3 keeps 1e-3 / `SCORE_TOLERANCE`; schema test over report, evidence and re-loaded JSON | +1 (+2/−1) |
+| `50ce4e33` | rB-F1 2 (HIGH) part 1 | the pinned anchor travels into G3/G3D (`inputs.probe_report` = G0's block, `anchor_key_set_equal`, `anchor_reasons` clause: no anchor → FAIL); each chunk publishes the COMPLETE replay record and its per-key tensor / mask / DiT-input facts; `executed_partition.counts`; contract change: `chunk["replay_partition"]` is the record dict | +25 (+34/−9) |
+| `787b2efa` | rB-F1 2 part 2 (refactor) | the gates judge with predicates over serialized facts: `pair_reasons`, `mask_reasons`, `score_reasons`, `score_summary`, `chunk_summary`, `source_sizes`, `key_set_equal`; texts unchanged, a NaN |diff| / |dS| now also fails its tolerance clause | +20 (+60/−40) |
+| `4b2af1f5` | rB-F1 2 part 2 | `reverify_gate_evidence(evidence) -> list[str]` for G3 / G3D: every PASS clause from the JSON alone (registered production conditions, anchored probe set, chunk tiling, replay records, per-key facts at the registered tolerance, score clause, re-derived per-key fold / chains / coverage / per-K summary, executed partition from its counts, autocast, identity from the binding, provenance, verdict / tolerances / clauses); 18 G3 tampers + G3D cases | +151 (+154/−3) |
+| `9f60dede` | rB-F1 2 part 3 | the re-verifier covers G1, G2, GV and G0; G0 publishes each query's `frozen_digests` and `inputs.published_binding`; every finalized evidence carries `reverify_note`; 21 tampers | +112 (+115/−3) |
+| `659e0d4b` | rB-F1 3 (HIGH) | ONE validating ledger reader `read_fa_ledger` for `open_fa_ledger`, the driver's preflight (before the engine / any write) and `fa_partition_census` (exact): declaration, segment indices 0..n−1 once, non-negative integer counts, canonical counts + segment digests, stored merged block, run-summary block (whole ledger at merge, a prefix at reopen), JSON validity, the declared partition; vanilla carries none | +77 (+116/−39) |
+| `fc8836a7` | rB-F1 5 (NIT), A6 iv | `partition_check_failed.json` written by a scored fa pass whose final (or before-row) partition check fails; `assert_admissible` refuses it by name in the reader (reopen + merge census), `_read_shard` and `meshgrid_report.evaluate_run` (one disclosed line); probe writes none; "publishes nothing" wording fixed | +46 (+53/−7) |
+| `3163658c` | self-review | an unknown-branch counts row is a named reader reason; the partition refusal reads the same in every caller | +3 (+6/−3) |
+| `01f693cb` | proof | delete-the-check mutations of the round's 20 new clauses (19/20 at once; the merge test gained "the only invocation failed" → 20/20) | 0 |
+
+## Round exp22-rB-F3 (fix round closing Codex code review rB-F2: BLOCKING 1–2, HIGH 3–4, NIT 5; C8 mutation coverage)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `383a1ab5`. Coder:
+Claude Opus 5.5 subagent; every code commit TDD red → green on CPU (`CUDA_VISIBLE_DEVICES=""`).
+"code lines" = non-blank, non-comment, non-docstring Python lines outside `src/tests/`
+(+added/−removed; the scratchpad counter — source in the round's checks log — reproduces every
+rB-F2 row exactly). Range `383a1ab5..d5a4a3c3`: +468/−108, net +360 (`meshgrid_engine.py`
++264/−35, `meshgrid_fa_parity.py` +188/−61, `localize_meshgrid.py` +15/−12, `meshgrid_report.py`
++1/−0 — one call, in scope this round for finding 1); per-commit sums +476/−116 (lines added and
+removed again inside the round cancel in the range). Largest commit `45f492e9`: 184 changed code
+lines (232 raw changed lines incl. docstrings / comments — disclosed). Not pushed — the Planner
+verifies and pushes.
+
+| SHA | Item | Description | code lines |
+|---|---|---|---|
+| `66024ecd` | rB-F2 2 (BLOCKING) | the pinned anchor's CONTENT registered: `COMMITTED_PROBE_QUERY_IDS_SHA256 = 4f5743a8…`, `COMMITTED_PROBE_FROZEN_DIGESTS_SHA256 = 9ecef47d…` (load_probe_anchor's own `canonical_sha256` of the committed report's ordered ids / frozen map); loader, `anchor_reasons` (G3 / G3D / G0), G0 live and G0 re-verification hold them; fixtures re-register a fixture probe set, an autouse fixture restores | +29 (+34/−5) |
+| `45f492e9` | rB-F2 4 (HIGH) part 1 | the verdict re-derivation guarded, a non-string gate named; `RESOLVED_AUTOCAST` + exact token / bool / dtype / device type vs `inputs.device`; G3D finite non-negative deltas + boolean flags (`measurement_reasons`, live and re-verified); `REGISTERED_DIT_INPUTS` exact (live + re-verified); `me.counts_reasons` shared by the ledger and G3 / G3D executed counts (count ≥ 1); `_reverify_production` keeps named reasons when a fact is malformed | +52 (+118/−66) |
+| `ea6b0fa7` | rB-F2 4 part 2 | `EVIDENCE_SCHEMA` (every top-level and inputs field of each gate with its JSON type, registered texts); `schema_reasons`; the systematic type-substitution sweep (6 gates × every field × every other JSON type + deletion) | +51 (+53/−2) |
+| `a56d4a59` | rB-F2 3 part 1 | `fresh_out_dir`: a missing ledger only in a fresh out-dir; real-int segment indices; `open_fa_ledger` publishes at once, the driver opens it before the binding and `run_pass` adopts it (`adopt_fa_ledger`); fixtures follow the driver's order | +39 (+59/−20) |
+| `c0fbadf4` | rB-F2 1 (BLOCKING) | merged segments renumbered 0..n−1 keeping `shard` + `shard_segment_index`, verified before any write; `_merged_reasons` (origins, contiguous 0..k−1 blocks, the receipt joined exactly); merged runs never reopened; vanilla admits no ledger / block / non-null receipt; `meshgrid_report.evaluate_run` re-reads the ledger exactly (crossarm inherits) | +42 (+56/−14) |
+| `3b410489` | rB-F2 3 part 2 | per-row ledger stamps beside the rows (`fa_ledger_stamps/`, written after the ledger and before the row, copied by the merge); `delta_counts`; `_row_binding_reasons` (N == M exact / N == M + 1 bound by its prefix; at a merge the last invocation exact and a lost attempt's shapes re-executed), shard and merged mode, reopen / merge / report; the merge binds its rows in memory | +122 (+130/−8) |
+| `7375693c` | rB-F2 5 (NIT), A6 iv | `partition_check_pending.json` published before every executed-partition check of a scored fa pass, removed after it passed; `assert_admissible` refuses it (reopen, merge, report, crossarm) | +25 (+26/−1) |
+| `701926e5` | self-review, C8 | the reader's docstring names every check; `ISOLATED_TAMPERS` (14 single-clause tampers) + the census / merge in-memory defences, a segment naming another launch record, a delta outside its counts | 0 |
+| `d5a4a3c3` | C8 proof | delete-the-check: 70 mutations (48 new clauses + 22 re-verifier paths), 70/70 caught at once; log with the driver's source | 0 |
+
+## Round exp22-rB-F4 (tests-and-proof round closing Codex code review rB-F3: HIGH 1 — the delete-the-check proof made exhaustive)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `dec16c55` (rB-F3 `3fa55fe2` + the
+committed Codex rB-F3 review). Coder: Claude Opus 5.5 subagent, CPU only (`CUDA_VISIBLE_DEVICES=""`).
+PRODUCTION CODE FROZEN at its `701926e5` content — `git diff 701926e5 HEAD -- localize_meshgrid.py
+src/localization/` is EMPTY at every commit, so every commit is 0 code lines (the scratchpad counter
+of rB-F3, re-run: +0/−0 each); only `src/tests/test_loc_meshgrid_fa_split.py` (purely appended,
++939/−0), the scratchpad driver (embedded verbatim in the proof log) and records change. "test
+lines" = raw added lines of the test file. Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | test lines |
+|---|---|---|---|
+| `a43489e7` | HIGH 1 (a) + sweep, part 1 | one isolated negative per atom of the rB-F3 RE-VERIFIER predicates: the tolerance clause's measured-number conjunct, the anchor content's ordered ids (G0 live), the loader's two content halves, the resolved autocast one component at a time, the live G3D measurement branch (simulated overflow), the G3D `argmax_equal` / `at_risk` booleans one at a time (a), MALFORMED's ArithmeticError / RecursionError, the DiT-input clause, each `_collect` site, the tiling's candidate-index disjunct, the per-query K set, the chunk headline, coverage completeness, every EVIDENCE_SCHEMA entry's own reason, a string gate not re-verifiable, `finalize_evidence`'s device default — 16 functions, 77 cases | +320 |
+| `cb303759` | HIGH 1 sweep, part 2 | ... the LEDGER predicates: THE counts validator conjunct by conjunct (17 malformations), a segment's real-int query count, the delta (reversed / missing / bool count / unknown branch), accumulate-only, the adopted handle's fresh-segment conjuncts, freshness (a file, a json-named directory, each name a pass writes), the vanilla summary-block disjunct, the missing-ledger `exact` / summary disjuncts (defence in depth), the partition check's two disjuncts, the census's own integrity check (simulated census bug) — 13 functions, 41 cases | +247 |
+| `23a89009` | HIGH 1 (b)–(f) + sweep, part 3 | ... the ROW-BINDING and MERGED-LEDGER predicates: the stamp form one conjunct at a time (d), an absent segment (e, shard and merged), a state beyond its segment (f), the record-less merged lookup, the highest-state rule, `_segment_binding`'s own range, the verifying-row filter both ways, an unreadable stamp, the merged origins conjunct by conjunct, A, B, A (b) and local indices gap / duplicate / reorder (c) — directly and through the reader on a coherently rewritten real merge — the receipt key by key, a vanilla / probe pass handed a ledger, the driver's claim (binding asserted first, advisory change recorded), the per-arm report reading a single-shard ledger exactly — 18 functions, 49 cases | +372 |
+| `93c73f53` | HIGH 1, proof | the exhaustive delete-the-check run at `23a89009` (tracked-clean): TOTAL 244/244 caught — M001–M070 the rB-F3 edits verbatim (nine selectors extended with this round's isolated tests), M071–M244 one per remaining atom; the coverage table (atom, kind, file:line, predicate, code, mutation, the failed tests) and the six justified-not-mutated families, the driver's source embedded verbatim | 0 |
+
+## Round exp22-rB-F5 (tests-and-proof round closing Codex code review rB-F4: HIGH 1–3 — the proof made mechanically exhaustive and mechanically isolated)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `36643835` (rB-F4 `36ba90f4` + the
+committed Codex rB-F4 review). Coder: Claude Opus 5.5 subagent, CPU only (`CUDA_VISIBLE_DEVICES=""`).
+PRODUCTION CODE FROZEN at its `701926e5` content — `git diff 701926e5 HEAD -- localize_meshgrid.py
+src/localization/` is EMPTY at every commit, so every commit is 0 code lines (the rB-F3 counter,
+re-run: +0/−0 each); only `src/tests/test_loc_meshgrid_fa_split.py` (purely appended, +610/−0), the
+scratchpad tooling (driver, decision-atom enumerator, schema-kind classifier — embedded verbatim in
+the proof log; the records' read-only inventory-history helper, embedded in its own log) and records
+change. "test lines" = raw added lines of the test file. Not pushed — the Planner verifies and
+pushes.
+
+| SHA | Item | Description | test lines |
+|---|---|---|---|
+| `286dc72f` | HIGH 2 (a)(b) | the evidence schema's oracle FROZEN: `FROZEN_SCHEMA_MANIFEST` (211 (gate, where, field, kind) entries, a literal never derived from `fp.EVIDENCE_SCHEMA`) and the registration held to it; the honest side per gate; one missing-field and one retyped-field test PER ENTRY driven by the manifest (211 + 211, each naming exactly that field's reason against the manifest's kind, by `schema_reasons` and the entry point); `_is_kind`'s truth table (49) — 5 functions, 478 cases | +231 |
+| `08a314c2` | HIGH 1 (a)(b) + the inventory's remainder, HIGH 2 (c) M198 | the tests the atoms without a mutation of their own still needed (every other one's own mutation is caught by an existing test of its own reason — the proof's required ids name it): both sides of Codex's named atoms (the tolerance dispatch, `field in payload`, the merged-mode detection on hand-merged segments, the merge's own blocks, the block routing, freshness's verdict, the merge-report dispatch), the three `continue`s (named refusal returned, never raised; a refused state never bound), the state selection both ways, the evidence's own shape inputs and empty defaults, emptied summaries, the driver's ledger segment under its launch record, the advisory change on the console, G0's anchor without ids, a handed ledger without a segment; the P re-audit's negative for M198 — 23 functions, 33 cases | +379 |
+| `43fce55a` | HIGH 1 (c), HIGH 2 (b)(c), HIGH 3 | the proof at `08a314c2` (tracked-clean): the machine-generated INVENTORY (391 atoms, 389 with a mutation of their own, 2 excluded (equivalent mutants), 0 unmapped) and 890/890 caught under the isolation-enforcing CAUGHT rule — M001–M244 the rB-F3 / rB-F4 edits verbatim with declared required ids, M245–M384 this round's code atoms, M385–M890 the schema (422 per-entry deletions / retypings, 84 token deletions); the P re-audit; the schema rows' kinds; the driver, the enumerator and the classifier embedded verbatim | 0 |
+
+## Round exp22-rB-F6 (tests-proof-and-tooling round closing Codex code review rB-F5: HIGH 1 — the atom set statement-complete)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `873b230f` (rB-F5 `612f4bb7` + the
+committed Codex rB-F5 review). Coder: Claude Opus 5.5 subagent, CPU only (`CUDA_VISIBLE_DEVICES=""`).
+PRODUCTION CODE FROZEN at its `701926e5` content — `git diff 701926e5 HEAD -- localize_meshgrid.py
+src/localization/` is EMPTY at every commit, so every commit is 0 code lines (the rB-F3 counter, re-run:
++0/−0 each); only `src/tests/test_loc_meshgrid_fa_split.py` (purely appended, +133/−0), the scratchpad
+tooling (`scratchpad/rbf6/`: the driver, the enumerator, the schema-kind classifier — embedded verbatim
+in the proof log —, the history helper — in its own log —, the exploration and declaration aids) and
+records change. "test lines" = raw added lines of the test file. The operator set the proof claims to be
+exhaustive over is stated in the driver's docstring, the log header and the worklog. Not pushed — the
+Planner verifies and pushes.
+
+| SHA | Item | Description | test lines |
+|---|---|---|---|
+| `26a28e3b` | HIGH 1 (3) | a test of its own for each statement no test observed: Codex's three named statements (`_counts_minus`'s residual, the stamp `write_fa_stamp` publishes, the highest-state tracker — a one-query segment bound by its highest stamped state), `main`'s out-dir claim of a scored pass (and its refusal of another binding), `fresh_out_dir`'s `str()` normalisation — 5 functions + 1 helper, 6 cases | +133 |
+| `a3b1c000` | HIGH 1 (1)–(4) | the complete proof at `26a28e3b` (tracked-clean, detached): the STATEMENT-COMPLETE inventory (606 atoms, 603 mapped, 3 excluded (equivalent mutants), 0 unmapped; 81 statements excluded by rule) and 1118/1118 caught under the unchanged CAUGHT rule — M001–M890 the rB-F3–F5 rows verbatim, M891–M1117 one statement deletion per statement without one (edits generated, AST-exact), M1118 the nested effect deletion; kinds of the new rows N 110 / D 81 / P 18 / C 11 / R 8; the driver, the enumerator and the classifier embedded verbatim | 0 |

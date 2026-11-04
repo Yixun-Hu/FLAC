@@ -1,0 +1,91 @@
+FFFFFFF                                                                  [100%]
+=================================== FAILURES ===================================
+______ test_the_r2_protocol_fields_are_declared_beside_the_legacy_binding ______
+
+>       assert me.RUN_BINDING_PROTOCOL_FIELDS == ("frame_avg_angles", "rotate_deg",
+E       AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'RUN_BINDING_PROTOCOL_FIELDS'
+
+src/tests/test_loc_meshgrid_engine.py:2334: AttributeError
+____________ test_a_legacy_binding_digests_exactly_as_it_always_did ____________
+
+>       assert me.binding_fields(legacy) == me.RUN_BINDING_FIELDS
+E       AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'binding_fields'
+
+src/tests/test_loc_meshgrid_engine.py:2346: AttributeError
+______________ test_an_r2_binding_digests_its_protocol_fields_too ______________
+
+>       assert me.binding_fields(r2) == me.RUN_BINDING_FIELDS + me.RUN_BINDING_PROTOCOL_FIELDS
+E       AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'binding_fields'
+
+src/tests/test_loc_meshgrid_engine.py:2353: AttributeError
+_______________ test_a_partial_r2_binding_is_refused_all_or_none _______________
+
+>       for field in me.RUN_BINDING_PROTOCOL_FIELDS:
+E       AttributeError: module 'src.localization.meshgrid_engine' has no attribute 'RUN_BINDING_PROTOCOL_FIELDS'
+
+src/tests/test_loc_meshgrid_engine.py:2364: AttributeError
+________ test_an_r2_binding_round_trips_through_publication_and_resume _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1856/test_an_r2_binding_round_trips0')
+
+>       me.write_binding(out, _r2_binding(), advisory=advisory)
+
+src/tests/test_loc_meshgrid_engine.py:2376:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/localization/meshgrid_engine.py:953: in write_binding
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+binding = {'model_config_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'ckpt_sha256': 'bbbbbbbbbb...cccccccccccccccccccccc', 'd1_manifest_sha256': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', ...}
+
+>           raise ValueError(f"the run binding carries unregistered fields {extra}")
+E           ValueError: the run binding carries unregistered fields ['frame_avg_angles', 'rotate_deg', 'fa_partition']
+
+src/localization/meshgrid_engine.py:945: ValueError
+____ test_a_shard_with_an_r2_binding_is_recomputed_over_its_protocol_fields ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1856/test_a_shard_with_an_r2_bindin0')
+
+>       me.write_binding(out, _r2_binding(), declared_rooms=["A/A_idx_1"])
+
+src/tests/test_loc_meshgrid_engine.py:2393:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/localization/meshgrid_engine.py:953: in write_binding
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+binding = {'model_config_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'ckpt_sha256': 'bbbbbbbbbb...cccccccccccccccccccccc', 'd1_manifest_sha256': 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', ...}
+
+>           raise ValueError(f"the run binding carries unregistered fields {extra}")
+E           ValueError: the run binding carries unregistered fields ['frame_avg_angles', 'rotate_deg', 'fa_partition']
+
+src/localization/meshgrid_engine.py:945: ValueError
+__________ test_an_r2_binding_is_recomputed_over_its_protocol_fields ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-1856/test_an_r2_binding_is_recomput0')
+
+>       me.write_binding(run_dir, r2, advisory=FIXTURE_ADVISORY)
+
+src/tests/test_loc_meshgrid_report.py:2201:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/localization/meshgrid_engine.py:953: in write_binding
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+binding = {'model_config_sha256': 'f3eafef4456666e4705ddaf35540f6b9f1f746189814cec000bac794ba2a7ec9', 'ckpt_sha256': 'c4c678826c...1df2963eb51d655b23c787', 'd1_manifest_sha256': 'dd7e894a7af5721c597bceeb40c58fc02a32baf64a4fe976cad913db27c7fa1a', ...}
+
+>           raise ValueError(f"the run binding carries unregistered fields {extra}")
+E           ValueError: the run binding carries unregistered fields ['frame_avg_angles', 'rotate_deg', 'fa_partition']
+
+src/localization/meshgrid_engine.py:945: ValueError
+src/tests/test_loc_meshgrid_report.py::test_an_r2_binding_is_recomputed_over_its_protocol_fields
+
+src/tests/test_loc_meshgrid_report.py::test_an_r2_binding_is_recomputed_over_its_protocol_fields
+
+src/tests/test_loc_meshgrid_report.py::test_an_r2_binding_is_recomputed_over_its_protocol_fields
+
+=========================== short test summary info ============================
+FAILED src/tests/test_loc_meshgrid_engine.py::test_the_r2_protocol_fields_are_declared_beside_the_legacy_binding
+FAILED src/tests/test_loc_meshgrid_engine.py::test_a_legacy_binding_digests_exactly_as_it_always_did
+FAILED src/tests/test_loc_meshgrid_engine.py::test_an_r2_binding_digests_its_protocol_fields_too
+FAILED src/tests/test_loc_meshgrid_engine.py::test_a_partial_r2_binding_is_refused_all_or_none
+FAILED src/tests/test_loc_meshgrid_engine.py::test_an_r2_binding_round_trips_through_publication_and_resume
+FAILED src/tests/test_loc_meshgrid_engine.py::test_a_shard_with_an_r2_binding_is_recomputed_over_its_protocol_fields
+FAILED src/tests/test_loc_meshgrid_report.py::test_an_r2_binding_is_recomputed_over_its_protocol_fields

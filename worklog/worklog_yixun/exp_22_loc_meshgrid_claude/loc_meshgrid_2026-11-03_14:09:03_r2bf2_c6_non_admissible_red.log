@@ -1,0 +1,8 @@
+# rB-F2 cycle 6 RED (Codex rB-F1 NIT 5, plan A6 iv: a shard whose executed-partition check failed is marked NON-ADMISSIBLE and refused by merge, report and reopen), HEAD 659e0d4bae8a0b63fea78f29745f9c58440d4b11, 2026-11-03T14:10:33-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_pass_whose_final_partition_check_fails_marks_itself_non_admissible
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_pass_refused_before_a_row_marks_itself_non_admissible_too
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_a_probe_never_writes_a_failure_marker
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_merge_refuses_a_non_admissible_shard_by_name_with_nothing_written
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_non_admissible_run_by_name[False]
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_per_arm_report_refuses_a_non_admissible_run_by_name[True]
+6 failed, 221 passed, 11 warnings in 87.07s (0:01:27)

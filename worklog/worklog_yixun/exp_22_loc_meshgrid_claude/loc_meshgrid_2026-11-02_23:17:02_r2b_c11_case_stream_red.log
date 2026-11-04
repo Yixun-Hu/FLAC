@@ -1,0 +1,6 @@
+E       assert [0, 1, 2, 3] == [0]
+E
+E         Left contains 3 more items, first extra item: 1
+E         Use -v to get more diff
+FAILED src/tests/test_loc_meshgrid_fa_split.py::test_the_gate_cases_stop_the_stream_after_the_last_wanted_query
+1 failed, 65 deselected, 3 warnings in 4.70s

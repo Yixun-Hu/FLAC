@@ -1,0 +1,26 @@
+# exp_22 R2-B: vanilla-path digests on the engine fixture, computed at the UNTOUCHED R2-A HEAD before any R2-B change
+# HEAD: 75628305ac40eb0375c7d09702b8b8c66ac9d8a4; tracked-clean: yes
+# command: CUDA_VISIBLE_DEVICES='' python <scratchpad>/frozen_vanilla.py (run twice: determinism). Supersedes the 22:37:08 log of the same script without sampler_batches (mutation M3 showed batch shape was invisible to it); that log was never committed.
+# script sha256: b9d1ce875ee177e9de71d1c1157583a72d9bff8a04448fcd0cb626cf7596f0fe
+## run 1
+{
+  "conditioner_calls": "65cdc32430b3d3b03a46b49c446783083bb15b3ec9af32d8752d465380975560",
+  "n_conditioner_rows": 254,
+  "n_sampler_rows": 1160,
+  "parity": "5790e2bd63da98dbfdc8c0d7dd1d547946a398fa8955c28c118e813a8e76d6eb",
+  "replay": "f9180f34ab02288ada519ca652049f13a852ec90ac1e5f86900ac40d131c86be",
+  "sampler_batches": "e8620612433bbf26f9965ea8511de4419bacf32617a073b66b4e68c31830b738",
+  "score_fingerprints": "6fe4a71cc5798db1dea01ea876721e5bde0f4f8ebb053c6ef0c1f069aa414c10",
+  "sims_sha256": "fd7dd260acb8ef63caf1564dccbeb3214d1fc05e909edb6add4d04d601626e56"
+}
+## run 2
+{
+  "conditioner_calls": "65cdc32430b3d3b03a46b49c446783083bb15b3ec9af32d8752d465380975560",
+  "n_conditioner_rows": 254,
+  "n_sampler_rows": 1160,
+  "parity": "5790e2bd63da98dbfdc8c0d7dd1d547946a398fa8955c28c118e813a8e76d6eb",
+  "replay": "f9180f34ab02288ada519ca652049f13a852ec90ac1e5f86900ac40d131c86be",
+  "sampler_batches": "e8620612433bbf26f9965ea8511de4419bacf32617a073b66b4e68c31830b738",
+  "score_fingerprints": "6fe4a71cc5798db1dea01ea876721e5bde0f4f8ebb053c6ef0c1f069aa414c10",
+  "sims_sha256": "fd7dd260acb8ef63caf1564dccbeb3214d1fc05e909edb6add4d04d601626e56"
+}

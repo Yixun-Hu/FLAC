@@ -1,0 +1,36 @@
+# exp_22 rB-F1 whole-repo collection + checks, HEAD 0c696c78a63957c699209f601781d60a7eec8fbb
+## pytest --collect-only (whole repo, CPU)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5029 tests collected in 8.37s
+## git diff --check e837e173 HEAD
+(clean)
+## py_compile of touched modules and tests
+py_compile OK
+## files changed since e837e173
+ localize_meshgrid.py                               |  151 ++-
+ src/localization/meshgrid_engine.py                |  326 +++++-
+ src/localization/meshgrid_fa_parity.py             |  312 +++++-
+ src/tests/test_loc_meshgrid_fa_split.py            | 1120 ++++++++++++++++++--
+ src/tests/test_loc_meshgrid_report.py              |   27 +
+ ...2026-11-02_23:44:02_r2bf1_c1_anchor_pin_red.log |   31 +
+ ...11-02_23:46:27_r2bf1_c2_probe_query_set_red.log |   19 +
+ ...026-11-02_23:49:24_r2bf1_c3_a4_autocast_red.log |   11 +
+ ...2_23:55:50_r2bf1_c4_identity_provenance_red.log |   50 +
+ ...1-03_00:01:51_r2bf1_c5_clause_negatives_red.log |    4 +
+ ...0:04:20_r2bf1_c5_delete_the_check_mutations.log |   54 +
+ ...0:07:30_r2bf1_c6_call_derived_partition_red.log |   14 +
+ ...-03_00:12:54_r2bf1_c7_durable_partition_red.log |   13 +
+ 13 files changed, 1944 insertions(+), 188 deletions(-)
+## untouched by contract: src/data src/models crossarm.py meshgrid_report.py meshgrid_crossarm.py configs gen_model_comparison.py meshgrid_segments.py
+(empty above = untouched)
+## the P1 golden regression + the vanilla frozen-digest fixture, by name
+4 passed, 3 warnings in 5.37s
+## per-commit code lines (net non-blank, non-comment, non-docstring Python outside src/tests)
+d6361fc2 exp_22 rB-F1 (1/n): G0's frozen anchor pinned to th: TOTAL +44/-10 net +34
+b18cd9ed exp_22 rB-F1 (2/n): G3 and G0 refuse unless every r: TOTAL +62/-20 net +42
+f382a582 exp_22 rB-F1 (3/n): plan amendment A4 in code -- G3: TOTAL +108/-45 net +63
+65a7b825 exp_22 rB-F1 (4/n): a gate PASS requires the regist: TOTAL +98/-15 net +83
+9831a2a4 exp_22 rB-F1 (5/n): the replay's own orbit partitio: TOTAL +21/-0 net +21
+b6735a7b exp_22 rB-F1 (6/n): the executed partition is read : TOTAL +74/-26 net +48
+0c696c78 exp_22 rB-F1 (7/n): the executed partition is durab: TOTAL +121/-6 net +115

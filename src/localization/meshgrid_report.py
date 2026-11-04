@@ -133,10 +133,38 @@ REGISTERED_PROTOCOL = {
     "noise_policy": me.REGISTERED_NOISE_POLICY,
     "steps": me.STEPS,
     "cfg_scale": me.CFG_SCALE,
-    "cond_method": "vanilla",
     "scorer_readout": me.SCORER_READOUT,
-    "cond_autocast": "default",
 }
+
+#: The registered batching every arm runs at (plan r2 §1: `--batch-rows 256
+#: --source-chunk 16`, the batching of the published P1 pass). Advisory in the
+#: binding; it fixes the BF partition below and is a cross-arm pairing axis.
+REGISTERED_BATCH_ROWS = 256
+REGISTERED_SOURCE_CHUNK = me.SOURCE_CHUNK
+
+#: exp_22 R2 (plan r2 §1, §3 R2-A; Codex H2/B6): the COMPLETE conditioning
+#: method each admissible arm is registered under. ``cond_method`` and
+#: ``cond_autocast`` moved here from :data:`REGISTERED_PROTOCOL` because they
+#: are arm-dependent; vanilla arms bind the explicit no-op orbit ``[0.0]``; BF
+#: binds the C4 orbit and its announcement-06 chunk plan (exp_20's per-angle
+#: plan at the three R2 batch shapes; R2-B executes it and must record the
+#: executed partition against this declaration).
+ARM_PROTOCOL_FIELDS = ("cond_method", "frame_avg_angles", "rotate_deg", "cond_autocast",
+                       "fa_partition")
+_VANILLA_ARM = {"cond_method": "vanilla", "frame_avg_angles": [0.0], "rotate_deg": 0.0,
+                "cond_autocast": "default", "fa_partition": None}
+REGISTERED_ARM_PROTOCOL = {
+    "P1": dict(_VANILLA_ARM),
+    "YAW": dict(_VANILLA_ARM),
+    "BF": {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+           "rotate_deg": 0.0, "cond_autocast": "default",
+           "fa_partition": me.declared_fa_partition(
+               [0.0, 90.0, 180.0, 270.0], batch_rows=REGISTERED_BATCH_ROWS,
+               num_samples=me.NUM_SAMPLES, source_chunk=REGISTERED_SOURCE_CHUNK)},
+}
+#: the one arm whose binding may predate the R2 protocol fields: the published
+#: Aug-2026 P1 comparator (plan r2 §1 legacy-provenance exception)
+LEGACY_PROTOCOL_ARM = "P1"
 
 #: Artifact identities §1.4 pins BY DIGEST and that the published P1 binding
 #: reproduces, so they are enforced here rather than merely recorded. The
@@ -174,15 +202,39 @@ CKPT_SHA256_NOTE = (
     "their identity by authority after the extract rsync never arrived, so the wrapped digests "
     "are the registered ones. A canonical report refuses any other checkpoint")
 
+#: exp_22 rA-F1 (plan r2 §1 "Controls reused, not rerun"; Codex rA HIGH): the
+#: sparse AGREE retrieval control is ONE completed canonical run, cited -- never
+#: rerun -- by every arm. Its handoff is pinned by digest: the exact bytes the
+#: canonical P1 off-grid probe consumed (offgrid_probe_report.json,
+#: run_gate.retrieval_handoff.sha256; Codex r9z7 APPROVE), committed beside the
+#: exp_22 worklog as retrieval_control_handoff.json. Any other bytes are not the
+#: registered control and are never cited as it.
+REGISTERED_RETRIEVAL_HANDOFF_SHA256 = (
+    "1bf62c05d1bf796025590fc2585ca4041a695471fba6fd460e947cbbf351bbf9")
+
 #: A run that is not the census-gated merge of every shard is not the canonical
 #: pass, and the difference has to be visible in the artifact.
-SINGLE_SHARD_NOTE = (
+SINGLE_SHARD_NOTE_TEMPLATE = (
     "SINGLE-SHARD MODE: this report was built from a directory that publishes no "
     "merge_report.json, so the merge-only gates -- disjoint declared rooms whose union is the "
     "registered set, one pinned advisory batching across the whole pass, and the G1-derived "
     "source-row census -- were NOT applied. The artifact-hash joins, the identity join, the "
     "row/sidecar digests and the row-derived batching and source-row derivations still were. "
-    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query P1 result")
+    "These numbers are a shard-local diagnostic and are not the canonical 5,337-query {arm} "
+    "result")
+
+
+def _arm_label(arm):
+    return str(arm) if arm else "unregistered-checkpoint"
+
+
+def single_shard_note(arm=LEGACY_PROTOCOL_ARM):
+    """The shard-local note, naming the arm it is NOT the canonical result of."""
+    return SINGLE_SHARD_NOTE_TEMPLATE.format(arm=_arm_label(arm))
+
+
+#: the P1 wording, unchanged (the off-grid probe is a P1-only control)
+SINGLE_SHARD_NOTE = single_shard_note("P1")
 
 #: Why a merge receipt is re-derived rather than believed.
 MERGE_DERIVATION_NOTE = (
@@ -217,10 +269,25 @@ TRUTH_BINDING_NOTE = (
     "argument, which is why it is not offered as one")
 
 #: What a run that is not the canonical P1 result must say about itself.
-NON_CANONICAL_NOTE = (
-    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query P1 result "
-    "was relaxed or could not be met. The reasons are listed beside this note; every number "
-    "below is a diagnostic and none may be quoted as the canonical result")
+NON_CANONICAL_NOTE_TEMPLATE = (
+    "NON-CANONICAL: at least one gate that makes a report THE registered 5,337-query {arm} "
+    "result was relaxed or could not be met. The reasons are listed beside this note; every "
+    "number below is a diagnostic and none may be quoted as the canonical result")
+
+
+def non_canonical_note(arm=LEGACY_PROTOCOL_ARM):
+    return NON_CANONICAL_NOTE_TEMPLATE.format(arm=_arm_label(arm))
+
+
+#: the P1 wording, unchanged
+NON_CANONICAL_NOTE = non_canonical_note("P1")
+
+#: plan r2 §1 legacy-provenance exception (Codex B4/N3), printed wherever it applies.
+LEGACY_PROVENANCE_NOTE = (
+    "LEGACY LAUNCH PROVENANCE (plan r2 §1, Codex B4/N3): this is the published Aug-2026 P1 "
+    "comparator, which predates full-pass launch records (its binding predates the R2 protocol "
+    "fields too). It stays canonical AS PUBLISHED under this registered exception; the exception "
+    "extends to no other arm and to no run produced by the R2 driver")
 
 #: How the metadata-bank digest is pre-registered.
 METADATA_BANK_PREREGISTRATION_NOTE = (
@@ -288,14 +355,87 @@ CONTROLS_ELSEWHERE = {
         "src/localization/meshgrid_offgrid_probe.py -- cos(E(h_obs), E(h_real,other)) against "
         "cos(E(h_obs), E(h_generated)) on the same sixteen queries",
     "agree_oracle_retrieval_over_the_metadata_bank":
-        "src/localization/meshgrid_retrieval_control.py -- built (r9b), run pending. AGREE "
-        "nearest-neighbour retrieval over the real dataset RIRs that exist at each query's own "
-        "receiver (other sources; the query's own pair excluded), labelled sparse/metadata-bank "
-        "and never confused with the dense-grid model oracle: its candidate set is not the "
-        "grid and its oracle floor is the sparse bank's own. When it has been run, its "
-        "retrieval_control_handoff.json carries the numbers this entry should name",
+        "src/localization/meshgrid_retrieval_control.py -- AGREE nearest-neighbour retrieval "
+        "over the real dataset RIRs that exist at each query's own receiver (other sources; the "
+        "query's own pair excluded), labelled sparse/metadata-bank and never confused with the "
+        "dense-grid model oracle: its candidate set is not the grid and its oracle floor is the "
+        "sparse bank's own. This static entry states NO status (exp_22 rA-F1): a report states "
+        "it only after consuming the control's retrieval_control_handoff.json "
+        "(--retrieval-handoff), and says that it did not otherwise",
     "score_ablations": "deferred by §2 unless separately approved (waveform / multiscale STFT)",
 }
+
+#: exp_22 rA-F1 (Codex rA HIGH): the gate an unreconciled control fails.
+RETRIEVAL_HANDOFF_GATE = "retrieval_handoff"
+#: the arms that CITE the control rather than being the run it was produced beside
+RETRIEVAL_CITING_ARMS = tuple(arm for arm in REGISTERED_CKPT_SHA256 if arm != "P1")
+#: the one sentence that says "reused": printed only after the handoff reconciled
+RETRIEVAL_REUSED_TEMPLATE = (
+    "REUSED, NOT RERUN for the {arm} arm (plan r2 §1): the control has no generator -- a fixed "
+    "real-RIR bank and the frozen scorer -- so it is arm-independent; cited from the completed "
+    "canonical handoff {handoff} naming report {report}")
+LEGACY_RETRIEVAL_NOTE = (
+    "LEGACY P1 COMPARATOR: this report did not consume the handoff, and for the published P1 "
+    "comparator it need not -- the P1 phase reconciled §2 itself (its canonical off-grid probe "
+    "consumed the control's handoff; Codex r9t blocker 5, closed by r9z7) and that "
+    "reconciliation stands. Pass --retrieval-handoff to cite the control here")
+
+
+def retrieval_control(arm, legacy, consumed=None, defer_gate=False):
+    """The §2 sparse-retrieval control as THIS report may cite it (Codex rA HIGH).
+
+    ``consumed`` is :func:`meshgrid_offgrid_probe.consume_retrieval_handoff`'s
+    verdict, or ``None`` when no ``--retrieval-handoff`` was given. The entry is
+    the reconciled status only when that verdict reconciled; otherwise it says
+    STATUS NOT RECONCILED with the reasons -- never the stale "run pending" and
+    never "reused", which is printed only for a reconciled BF or YAW arm.
+
+    Canonicality: for every run but the legacy one an unreconciled control is a
+    reason (gate ``retrieval_handoff``), so a BF or YAW report -- or any run the
+    R2 driver produced -- is canonical only after consuming the completed
+    canonical handoff. ``defer_gate`` is for a caller that applies this gate
+    itself, once, over several reports (the R2 crossarm); the report CLI never
+    sets it.
+
+    LEGACY BRANCH -- exactly what happens for the published Aug-2026 P1
+    comparator (``legacy`` is ``launch_provenance()['legacy_provenance']``: arm
+    P1, legacy R1 binding, no launch record anywhere): the control NEVER enters
+    its canonical status, with or without the flag, so the published P1 result
+    is not retro-declared non-canonical; the P1 phase's own reconciliation
+    stands (its canonical off-grid probe consumed this same handoff, Codex r9t
+    blocker 5, closed by r9z7). Without the flag the entry is STATUS NOT
+    RECONCILED plus :data:`LEGACY_RETRIEVAL_NOTE`; with it the handoff is
+    consumed exactly as for every other arm and the entry is the reconciled one
+    (or names why it is not). "Reused" is never printed for P1: the control was
+    produced beside the P1 run, not reused for it.
+    """
+    from src.localization import meshgrid_offgrid_probe as op
+
+    consumed = consumed or {}
+    reconciled = bool(consumed.get("reconciled"))
+    entry = consumed.get("entry") or op.unreconciled_retrieval_entry(None)
+    reused = reconciled and arm in RETRIEVAL_CITING_ARMS
+    if reused:
+        entry += ". " + RETRIEVAL_REUSED_TEMPLATE.format(
+            arm=arm, handoff=consumed["sha256"], report=consumed["report_sha256"])
+    if legacy and not reconciled:
+        entry += " " + LEGACY_RETRIEVAL_NOTE
+    reasons = [] if reconciled else list(consumed.get("reasons") or [
+        "no --retrieval-handoff was supplied, so this report cannot cite the control's "
+        "completed canonical run"])
+    return {"status": "RECONCILED" if reconciled else "STATUS NOT RECONCILED",
+            "reconciled": reconciled, "arm_independent_citation": reused, "reasons": reasons,
+            "gating": not legacy and not defer_gate, "legacy": bool(legacy),
+            "handoff_path": consumed.get("path"), "handoff_sha256": consumed.get("sha256"),
+            "registered_handoff_sha256": REGISTERED_RETRIEVAL_HANDOFF_SHA256,
+            "report_json": consumed.get("report_json"),
+            "report_sha256": consumed.get("report_sha256"),
+            "handoff_status": consumed.get("status"),
+            "handoff_canonical": consumed.get("canonical"), "census": consumed.get("census"),
+            "binding_sha256": consumed.get("binding_sha256"),
+            "headline": consumed.get("headline") if reconciled else None,
+            "entry": entry, "note": op.RETRIEVAL_CITATION_NOTE}
+
 
 #: the report's own artifact names.
 REPORT_JSON = "meshgrid_r1_report.json"
@@ -355,8 +495,9 @@ def load_published_binding(run_dir):
     if missing:
         raise ValueError(f"{path} is missing the registered binding fields {missing}; the "
                          "binding cannot be recomputed, so it cannot be trusted")
+    # legacy R1 or R1 + the R2 protocol fields (all or none), never a subset
     recomputed = me.binding_sha256({field: published[field]
-                                    for field in me.RUN_BINDING_FIELDS})
+                                    for field in me.binding_fields(published)})
     if published.get("binding_sha256") != recomputed:
         raise ValueError(f"{path} does not match its own content: it stores "
                          f"{str(published.get('binding_sha256'))[:12]}... but hashes to "
@@ -594,7 +735,102 @@ def registered_arm(ckpt_sha256):
     return None
 
 
-def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False):
+def assert_fa_partition(partition):
+    """Announcement 06: a frame-averaged binding states its WHOLE chunk plan, or is refused.
+
+    A missing field is not a deviation that ``--allow-protocol-deviation`` can
+    stamp: without it the binding does not say which method ran.
+    """
+    registered = REGISTERED_ARM_PROTOCOL["BF"]["fa_partition"]
+    missing = ([] if isinstance(partition, dict) else ["<the whole partition>"])
+    if not missing:
+        for field, wanted in registered.items():
+            if field not in partition:
+                missing.append(field)
+            elif isinstance(wanted, dict):
+                if not isinstance(partition[field], dict):
+                    missing.append(f"{field}.*")
+                    continue
+                missing += [f"{field}.{key}" for key in wanted if key not in partition[field]]
+    if missing:
+        raise ValueError(f"a fa_invariant run binding must carry its complete announcement-06 "
+                         f"chunk plan; it lacks {missing}. Without it the binding does not say "
+                         "which frame-average method ran")
+    return True
+
+
+def checkpoint_protocol_reasons(checkpoint, arm, binding):
+    """The training protocol the checkpoint EMBEDS, against its arm and the binding.
+
+    exp_20's admission reads the same block (``crossarm._identity_reasons``):
+    BF carries ``cond_method``/``frame_avg_angles``, YAW carries ``yaw_aug``, P1
+    carries neither. "When available": a file that embeds no training block is
+    reported, not refused.
+    """
+    from src.localization.crossarm import ARMS, _identity_reasons
+
+    embedded = (checkpoint or {}).get("model_config")
+    training = embedded.get("training") if isinstance(embedded, dict) else None
+    if not isinstance(training, dict):
+        return {"available": False, "reasons": [], "arm": arm,
+                "note": "the checkpoint embeds no training block, so its training protocol "
+                        "cannot be read; the binding and the digest registry still apply"}
+    reasons = list(_identity_reasons(arm, embedded)) if arm in ARMS else []
+    trained = str(training.get("cond_method", "vanilla"))
+    if trained != str(binding.get("cond_method")):
+        reasons.append(f"the file was trained with cond_method={trained!r} but the run binding "
+                       f"conditions it with {binding.get('cond_method')!r}")
+    angles = training.get("frame_avg_angles")
+    bound = binding.get("frame_avg_angles")
+    if trained == "fa_invariant" and bound is not None and \
+            [float(a) for a in bound] != [float(a) for a in (angles or [])]:
+        reasons.append(f"the file was trained with frame_avg_angles={angles!r} but the run "
+                       f"binding averages over {bound!r}")
+    return {"available": True, "reasons": reasons, "arm": arm,
+            "trained_cond_method": trained, "trained_frame_avg_angles": angles}
+
+
+def assert_checkpoint_protocol(ckpt_path, binding, arm):
+    """Hash the file the binding names, then hold its embedded protocol to the arm."""
+    from src.localization.crossarm import snapshot_checkpoint
+
+    checkpoint, digest, _identity = snapshot_checkpoint(str(ckpt_path))
+    if digest != binding.get("ckpt_sha256"):
+        raise ValueError(f"{ckpt_path} hashes to {digest[:12]}..., which is not the checkpoint "
+                         f"the run binding names ({str(binding.get('ckpt_sha256'))[:12]}...)")
+    verdict = checkpoint_protocol_reasons(checkpoint, arm, binding)
+    if verdict["reasons"]:
+        raise ValueError("the checkpoint's embedded training protocol contradicts the run: "
+                         + "; ".join(verdict["reasons"]))
+    return dict(verdict, ckpt_path=str(ckpt_path), sha256=digest)
+
+
+def launch_provenance(run_dir, rows, registered):
+    """The segment census, re-derived here, and whether it may stand (plan r2 §3 R2-A).
+
+    Never a refusal: a run whose rows do not all resolve to a present, verified
+    record is reported NON-CANONICAL with the census's reasons. The one
+    exception is the published P1 comparator -- arm P1, legacy binding, and no
+    record anywhere -- which is canonical as published and flagged as such.
+    """
+    from src.localization import meshgrid_segments as ms
+
+    census = ms.provenance_census(run_dir, rows)
+    unrecorded = census["generation"] == "none" and census["n_unstamped"] == census["n_rows"]
+    legacy = bool(unrecorded and registered.get("arm") == LEGACY_PROTOCOL_ARM
+                  and registered.get("legacy_binding"))
+    reasons = list(census["reasons"])
+    if unrecorded and not legacy:
+        reasons.append(f"the legacy-provenance exception covers only the published "
+                       f"{LEGACY_PROTOCOL_ARM} comparator (legacy binding, no records); this is "
+                       f"arm {_arm_label(registered.get('arm'))}")
+    return dict(census, reasons=reasons, legacy_provenance=legacy,
+                acceptable=bool(census["complete"] or legacy),
+                legacy_note=LEGACY_PROVENANCE_NOTE if legacy else None)
+
+
+def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation=False,
+                               expect_arm=None):
     """The run binding IS the registered protocol, or the deviation is declared.
 
     ``assert_row_protocol`` proves every row equals the binding; this proves the
@@ -606,7 +842,21 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
     A deviation refuses unless it is explicitly allowed, and when it is allowed
     the verdict travels into the report and the markdown so no artifact can keep
     calling the setting pre-registered.
+
+    exp_22 R2-A (Codex H2): the ARM is resolved from the checkpoint digest FIRST
+    and the binding is compared against that arm's complete registered method
+    (:data:`REGISTERED_ARM_PROTOCOL`). ``expect_arm`` and an fa binding without
+    its chunk plan are hard refusals that no deviation flag relaxes.
     """
+    arm = registered_arm(binding.get("ckpt_sha256"))
+    if expect_arm is not None and (expect_arm not in REGISTERED_ARM_PROTOCOL
+                                   or arm != expect_arm):
+        raise ValueError(f"--expect-arm {expect_arm} but the run binding's checkpoint "
+                         f"{str(binding.get('ckpt_sha256'))[:12]}... is "
+                         f"{'the registered ' + arm + ' arm' if arm else 'no registered arm'}; "
+                         f"registered arms are {sorted(REGISTERED_ARM_PROTOCOL)}")
+    if str(binding.get("cond_method")) == "fa_invariant":
+        assert_fa_partition(binding.get("fa_partition"))
     deviations = {}
     for field, wanted in REGISTERED_PROTOCOL.items():
         found = binding.get(field)
@@ -618,10 +868,19 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
         if binding.get(field) != wanted:
             deviations[field] = {"registered": wanted, "run": binding.get(field)}
 
-    arm = registered_arm(binding.get("ckpt_sha256"))
+    legacy = not any(field in binding for field in me.RUN_BINDING_PROTOCOL_FIELDS)
     if arm is None:
         deviations["ckpt_sha256"] = {"registered": dict(REGISTERED_CKPT_SHA256),
                                      "run": binding.get("ckpt_sha256")}
+    else:
+        for field, wanted in REGISTERED_ARM_PROTOCOL[arm].items():
+            if legacy and field in me.RUN_BINDING_PROTOCOL_FIELDS:
+                if arm != LEGACY_PROTOCOL_ARM:
+                    deviations[field] = {"registered": wanted,
+                                         "run": "<absent: legacy R1 binding>"}
+                continue
+            if binding.get(field) != wanted:
+                deviations[field] = {"registered": wanted, "run": binding.get(field)}
     if expect_ckpt_sha256 and binding.get("ckpt_sha256") != str(expect_ckpt_sha256):
         deviations["ckpt_sha256"] = {"registered": str(expect_ckpt_sha256),
                                      "run": binding.get("ckpt_sha256")}
@@ -630,13 +889,17 @@ def assert_registered_protocol(binding, expect_ckpt_sha256=None, allow_deviation
             f"the run binding is not the registered protocol: {sorted(deviations)} differ. "
             f"First: {sorted(deviations)[0]} = {deviations[sorted(deviations)[0]]!r}. A report "
             "over a different tau, K ladder, seed, noise policy, sampler setting, scorer, "
-            "checkpoint or pinned artifact is a SENSITIVITY CHECK, not the canonical R1 result; "
+            f"checkpoint or pinned artifact -- or a method that is not arm {arm}'s -- is a "
+            "SENSITIVITY CHECK, not the canonical result; "
             f"pass --allow-protocol-deviation to publish it as one. {CKPT_SHA256_NOTE}")
     return {"is_registered": not deviations, "deviations": deviations,
-            "checked": sorted(list(REGISTERED_PROTOCOL) + list(REGISTERED_ARTIFACT_SHA256)
-                              + ["ckpt_sha256"]),
+            "checked": sorted(set(REGISTERED_PROTOCOL) | set(REGISTERED_ARTIFACT_SHA256)
+                              | {"ckpt_sha256"} | set(ARM_PROTOCOL_FIELDS)),
             "ckpt_sha256": binding.get("ckpt_sha256"),
             "arm": arm,
+            "arm_protocol": REGISTERED_ARM_PROTOCOL.get(arm),
+            "legacy_binding": legacy,
+            "expect_arm": expect_arm,
             "registered_arms": dict(REGISTERED_CKPT_SHA256),
             "ckpt_sha256_pinned": bool(arm is not None or expect_ckpt_sha256),
             "ckpt_sha256_note": CKPT_SHA256_NOTE,
@@ -2127,7 +2390,7 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
                  require_manifest_census=True, single_shard=False,
                  expect_ckpt_sha256=None, expect_metadata_bank_sha256=None,
                  allow_protocol_deviation=False, allow_unpinned_metadata_bank=False,
-                 source_provider=None, on_query=None):
+                 source_provider=None, on_query=None, expect_arm=None, ckpt_path=None):
     """Gate the artifacts, then evaluate every query. Returns the raw material.
 
     The gates run first and in full, in this order, and every one of them is a
@@ -2167,15 +2430,25 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
     production path.
     """
     run_dir = str(run_dir)
+    me.assert_admissible(run_dir)          # exp_22 rB-F2: plan r2 amendment A6 (iv), by name
     binding, binding_sha = load_published_binding(run_dir)
+    # exp_22 rB-F3 (Codex rB-F2 finding 1): the executed-partition ledger re-read EXACTLY by
+    # the engine's reader and joined to the merge receipt (or the run summary); a vanilla run
+    # may carry neither a ledger nor a non-null receipt
+    me.read_fa_ledger(run_dir, binding.get("fa_partition"), exact=True)
     plan = me.load_audit_plan(audit_report, branch=binding["branch"])
     artifacts = assert_artifact_hashes(binding, plan, context_manifest)
     registered = assert_registered_protocol(binding, expect_ckpt_sha256=expect_ckpt_sha256,
-                                            allow_deviation=allow_protocol_deviation)
+                                            allow_deviation=allow_protocol_deviation,
+                                            expect_arm=expect_arm)
+    # "when available" (plan r2 §3 R2-A): the file's own training protocol
+    checkpoint_protocol = (assert_checkpoint_protocol(ckpt_path, binding, registered["arm"])
+                           if ckpt_path else None)
 
     manifest = mq.load_manifest(context_manifest, require_census=require_manifest_census)
     records = manifest["records"]
     rows, sims_by_id, snapshot = verify_rows_with_sidecars(run_dir, binding_sha)
+    provenance = launch_provenance(run_dir, rows, registered)
     # the receipt is checked against the ROWS, so the rows come first now
     derived = derive_run_facts(rows)
     batching = assert_uniform_batching(rows, binding.get("advisory"))
@@ -2238,7 +2511,9 @@ def evaluate_run(run_dir, audit_report, context_manifest, metadata_root, totals=
             "manifest": manifest, "records": records, "rows": rows,
             "rows_by_id": rows_by_id, "plans_by_id": plans_by_id, "results": results,
             "census": census, "protocol": protocol, "artifacts": artifacts,
-            "registered_protocol": registered, "merge": merge, "derived": derived,
+            "registered_protocol": registered, "checkpoint_protocol": checkpoint_protocol,
+            "launch_provenance": provenance,
+            "merge": merge, "derived": derived,
             "batching": batching,
             "single_shard": bool(single_shard), "identity_join": identity_join,
             "metadata_bank": metadata_bank, "sims_by_id": sims_by_id,
@@ -2257,10 +2532,19 @@ def canonical_status(evaluated, report=None):
     disagree about whether a number may be quoted as canonical.
     """
     reasons = []
+    arm = evaluated["registered_protocol"].get("arm")
     if evaluated["single_shard"]:
         reasons.append({"gate": "merge_report",
                         "why": "the directory publishes no census-gated merge receipt",
-                        "note": SINGLE_SHARD_NOTE})
+                        "note": single_shard_note(arm)})
+    provenance = evaluated.get("launch_provenance") or {}
+    if not provenance.get("acceptable"):
+        from src.localization.meshgrid_segments import SEGMENT_NOTE
+
+        reasons.append({"gate": "launch_provenance",
+                        "why": "; ".join(provenance.get("reasons") or
+                                         ["no launch-provenance census was taken"])[:2000],
+                        "note": SEGMENT_NOTE})
     if not evaluated["registered_protocol"]["is_registered"]:
         reasons.append({"gate": "registered_protocol",
                         "why": f"the run binding deviates on "
@@ -2284,8 +2568,14 @@ def canonical_status(evaluated, report=None):
                             "why": f"{report['latency']['n_incomplete']} row(s) lack a timing "
                                    "component, so the latency endpoint is non-canonical",
                             "note": LATENCY_NON_CANONICAL_NOTE})
+        block = report.get("retrieval_control") or {
+            "gating": not provenance.get("legacy_provenance"), "reconciled": False,
+            "reasons": ["the report carries no retrieval-control block"], "note": None}
+        if block["gating"] and not block["reconciled"]:
+            reasons.append({"gate": RETRIEVAL_HANDOFF_GATE,
+                            "why": "; ".join(block["reasons"])[:2000], "note": block["note"]})
     return {"canonical": not reasons, "reasons": reasons,
-            "note": None if not reasons else NON_CANONICAL_NOTE}
+            "note": None if not reasons else non_canonical_note(arm)}
 
 
 def sidecar_summary(results):
@@ -2336,8 +2626,12 @@ def oracle_crosscheck_summary(results):
 
 def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_root,
                  radii=SUCCESS_RADII, bootstrap_seed=BOOTSTRAP_SEED, n_boot=BOOTSTRAP_N,
-                 alpha=BOOTSTRAP_ALPHA, sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY):
-    """The machine-readable R1 report: every §2 readout, every stamp."""
+                 alpha=BOOTSTRAP_ALPHA, sidecar_argmax_policy=SIDECAR_ARGMAX_POLICY,
+                 retrieval_handoff=None, defer_retrieval_gate=False):
+    """The machine-readable R1 report: every §2 readout, every stamp.
+
+    ``retrieval_handoff`` / ``defer_retrieval_gate``: see :func:`retrieval_control`.
+    """
     results = evaluated["results"]
     census = evaluated["census"]
     prefixes = [int(k) for k in evaluated["protocol"]["k_prefixes"]]
@@ -2350,8 +2644,13 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                for aggregator in AGGREGATORS}
 
     merge_path = os.path.join(str(run_dir), "merge_report.json")
+    arm = evaluated["registered_protocol"].get("arm")
+    retrieval = retrieval_control(arm, evaluated["launch_provenance"]["legacy_provenance"],
+                                  retrieval_handoff, defer_gate=defer_retrieval_gate)
     report = {
         "experiment": "exp_22 loc_meshgrid R1 report",
+        "arm": arm,
+        "legacy_provenance": bool(evaluated["launch_provenance"]["legacy_provenance"]),
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "labels": {
             "subset": SUBSET_LABEL,
@@ -2361,7 +2660,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
             "batching_caveat": me.BATCHING_CAVEAT,
             "aggregator_roles": AGGREGATOR_ROLES,
         },
-        "controls_elsewhere": CONTROLS_ELSEWHERE,
+        "controls_elsewhere": dict(
+            CONTROLS_ELSEWHERE, agree_oracle_retrieval_over_the_metadata_bank=retrieval["entry"]),
+        "retrieval_control": retrieval,
         "provenance": {
             "run_dir": str(run_dir),
             "binding_sha256": evaluated["binding_sha256"],
@@ -2382,7 +2683,9 @@ def build_report(evaluated, run_dir, audit_report, context_manifest, metadata_ro
                                     (me.file_sha256(merge_path)
                                      if os.path.isfile(merge_path) else None)),
             "single_shard": evaluated["single_shard"],
-            "single_shard_note": SINGLE_SHARD_NOTE if evaluated["single_shard"] else None,
+            "single_shard_note": single_shard_note(arm) if evaluated["single_shard"] else None,
+            "launch_provenance": evaluated["launch_provenance"],
+            "checkpoint_protocol": evaluated.get("checkpoint_protocol"),
             "derived_from_rows": evaluated["derived"],
             "effective_batching": evaluated["batching"],
         },
@@ -2536,11 +2839,50 @@ def _sensitivity_banners(report):
     return lines
 
 
+def _provenance_lines(report):
+    """The legacy exception, loudly; otherwise every launch segment with its rows."""
+    provenance = report["provenance"].get("launch_provenance") or {}
+    if report.get("legacy_provenance"):
+        return [f"> **{LEGACY_PROVENANCE_NOTE}**", ""]
+    lines = ["## Launch provenance — one segment per invocation", "",
+             "| # | shard | launch record sha256 | rows | positions | git | host | card | "
+             "resume | verified |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for record in provenance.get("records") or []:
+        lines.append(
+            f"| {record.get('segment_index')} | `{os.path.basename(str(record.get('shard')))}` | "
+            f"`{record['launch_record_sha256']}` | {record['n_rows']:,} | "
+            f"{record['position_ranges']} | `{str(record.get('git_sha'))[:12]}` | "
+            f"{record.get('hostname')} | `{record.get('execution_gpu_uuid')}` | "
+            f"{format_number(record.get('resume'))} | {format_number(record.get('verified'))} |")
+    lines.append("")
+    return lines
+
+
+def _retrieval_lines(block):
+    """The sparse control's status, digests and -- only once reconciled -- its headline."""
+    lines = [f"## §2 sparse retrieval control — {block['status']}", ""]
+    if block["handoff_sha256"] is None:
+        lines.append(f"- handoff: none consumed (registered "
+                     f"`{block['registered_handoff_sha256']}`)")
+    else:
+        lines += [f"- handoff: `{block['handoff_path']}` sha256 `{block['handoff_sha256']}` "
+                  f"(registered `{block['registered_handoff_sha256']}`)",
+                  f"- report it names: `{block['report_json']}` sha256 "
+                  f"`{block['report_sha256']}`"]
+    for name, cell in sorted((block["headline"] or {}).items()):
+        lines.append(f"- {name}: {format_number(cell.get('point'))} "
+                     f"[{format_number(cell.get('ci_lo'))}, {format_number(cell.get('ci_hi'))}]"
+                     " (sparse metadata bank, never the dense grid)")
+    lines += [f"- not cited: {reason}" for reason in block["reasons"]]
+    return lines + ["", f"_{block['note']}_", ""]
+
+
 def render_markdown(report):
     """The human-readable summary. Every table carries the three stamps."""
     lines = []
     provenance, protocol, census = report["provenance"], report["protocol"], report["census"]
-    lines.append("# exp_22 R1 — mesh-grid localization report")
+    lines.append(f"# exp_22 — mesh-grid localization report ({_arm_label(report.get('arm'))} "
+                 "arm)")
     lines.append("")
     lines.append(f"Generated {report['created_utc']} from `{provenance['run_dir']}`.")
     lines.append("")
@@ -2565,6 +2907,7 @@ def render_markdown(report):
                  f"{protocol['bootstrap']['seed']}.")
     lines.append("")
     lines.extend(_sensitivity_banners(report))
+    lines.extend(_provenance_lines(report))
 
     for aggregator in AGGREGATORS:
         lines.append(f"## {aggregator.upper()} — {report['labels']['aggregator_roles'][aggregator]}")
@@ -2745,6 +3088,7 @@ def render_markdown(report):
                  f"{report['gates']['d1_g1_rows_identity_join']['n_rooms']} rooms")
     lines.append("")
 
+    lines.extend(_retrieval_lines(report["retrieval_control"]))
     lines.append("## §2 controls that are NOT in this report")
     lines.append("")
     for name, where in sorted(report["controls_elsewhere"].items()):
@@ -2823,6 +3167,12 @@ def parse_args(argv=None):
                              "merge_report.json. Relaxes only the merge-only gates; the "
                              "artifact-hash joins, the identity join and every digest still "
                              "apply, and the artifact is stamped as non-canonical")
+    parser.add_argument("--expect-arm", default=None, choices=sorted(REGISTERED_ARM_PROTOCOL),
+                        help="refuse unless the run's checkpoint is this registered arm; the "
+                             "binding is then held to that arm's complete method")
+    parser.add_argument("--ckpt-path", default=None,
+                        help="the checkpoint the binding names; when given it is hashed and its "
+                             "EMBEDDED training protocol must agree with the arm and the binding")
     parser.add_argument("--expect-ckpt-sha256", default=None,
                         help="narrow the admissible checkpoint to exactly this digest; by "
                              "default any of the three registered arms is accepted")
@@ -2839,6 +3189,11 @@ def parse_args(argv=None):
                         help="publish even though the run binding is not the registered "
                              "protocol; the report and the markdown are then stamped as a "
                              "sensitivity check throughout")
+    parser.add_argument("--retrieval-handoff", default=None,
+                        help="the sparse retrieval control's COMPLETED canonical "
+                             "retrieval_control_handoff.json. Required for a canonical BF / YAW "
+                             "report; without it the control is STATUS NOT RECONCILED (the "
+                             "published P1 comparator keeps the P1 phase's own reconciliation)")
     return parser.parse_args(argv)
 
 
@@ -2898,7 +3253,15 @@ def main(argv=None):
     print(f"AGREE LEAKAGE CAVEAT: {me.AGREE_LEAKAGE_CAVEAT}")
     print(f"SUBSET: {SUBSET_LABEL}")
     if args.single_shard:
-        print(f"\n{SINGLE_SHARD_NOTE}\n")
+        print("\nSINGLE-SHARD MODE: a shard-local diagnostic, never the canonical result\n")
+    handoff = None
+    if args.retrieval_handoff:
+        from src.localization import meshgrid_offgrid_probe as op
+
+        try:
+            handoff = op.consume_retrieval_handoff(args.retrieval_handoff)
+        except (OSError, ValueError) as error:
+            _refuse(f"--retrieval-handoff: {error}")
 
     evaluated = evaluate_run(args.run_dir, args.audit_report, args.context_manifest,
                              args.metadata_root, baseline_seeds=args.baseline_seeds,
@@ -2907,7 +3270,13 @@ def main(argv=None):
                              expect_ckpt_sha256=args.expect_ckpt_sha256,
                              expect_metadata_bank_sha256=args.expect_metadata_bank_sha256,
                              allow_protocol_deviation=args.allow_protocol_deviation,
-                             allow_unpinned_metadata_bank=args.non_canonical)
+                             allow_unpinned_metadata_bank=args.non_canonical,
+                             expect_arm=args.expect_arm, ckpt_path=args.ckpt_path)
+    provenance = evaluated["launch_provenance"]
+    print(f"arm {_arm_label(evaluated['registered_protocol']['arm'])}; launch provenance: "
+          + ("LEGACY P1 EXCEPTION" if provenance["legacy_provenance"] else
+             f"{len(provenance['records'])} segment(s), "
+             f"{'complete' if provenance['complete'] else 'INCOMPLETE'}"))
     print(f"gates passed: binding {evaluated['binding_sha256'][:12]}..., "
           f"{evaluated['census']['n_queries']:,} queries / "
           f"{evaluated['census']['n_rooms']} rooms, identity join over "
@@ -2917,7 +3286,12 @@ def main(argv=None):
     report = build_report(evaluated, args.run_dir, args.audit_report, args.context_manifest,
                           args.metadata_root, bootstrap_seed=args.bootstrap_seed,
                           n_boot=args.n_boot,
-                          sidecar_argmax_policy=args.sidecar_argmax_policy)
+                          sidecar_argmax_policy=args.sidecar_argmax_policy,
+                          retrieval_handoff=handoff)
+    retrieval = report["retrieval_control"]
+    print(f"§2 sparse retrieval control: {retrieval['status']}"
+          + (f" (handoff {retrieval['handoff_sha256']}, report {retrieval['report_sha256']})"
+             if retrieval["reconciled"] else f" -- {'; '.join(retrieval['reasons'])}"))
     cases = build_case_payload(report["visualization_cases"], evaluated["rows_by_id"],
                                evaluated["plans_by_id"],
                                {r["query_id"]: r for r in evaluated["results"]},
