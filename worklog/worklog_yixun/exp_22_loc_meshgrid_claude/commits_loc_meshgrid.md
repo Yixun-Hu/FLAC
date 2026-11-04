@@ -462,3 +462,20 @@ verifies and pushes.
 | `7375693c` | rB-F2 5 (NIT), A6 iv | `partition_check_pending.json` published before every executed-partition check of a scored fa pass, removed after it passed; `assert_admissible` refuses it (reopen, merge, report, crossarm) | +25 (+26/−1) |
 | `701926e5` | self-review, C8 | the reader's docstring names every check; `ISOLATED_TAMPERS` (14 single-clause tampers) + the census / merge in-memory defences, a segment naming another launch record, a delta outside its counts | 0 |
 | `d5a4a3c3` | C8 proof | delete-the-check: 70 mutations (48 new clauses + 22 re-verifier paths), 70/70 caught at once; log with the driver's source | 0 |
+
+## Round exp22-rB-F4 (tests-and-proof round closing Codex code review rB-F3: HIGH 1 — the delete-the-check proof made exhaustive)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `dec16c55` (rB-F3 `3fa55fe2` + the
+committed Codex rB-F3 review). Coder: Claude Opus 5.5 subagent, CPU only (`CUDA_VISIBLE_DEVICES=""`).
+PRODUCTION CODE FROZEN at its `701926e5` content — `git diff 701926e5 HEAD -- localize_meshgrid.py
+src/localization/` is EMPTY at every commit, so every commit is 0 code lines (the scratchpad counter
+of rB-F3, re-run: +0/−0 each); only `src/tests/test_loc_meshgrid_fa_split.py` (purely appended,
++939/−0), the scratchpad driver (embedded verbatim in the proof log) and records change. "test
+lines" = raw added lines of the test file. Not pushed — the Planner verifies and pushes.
+
+| SHA | Item | Description | test lines |
+|---|---|---|---|
+| `a43489e7` | HIGH 1 (a) + sweep, part 1 | one isolated negative per atom of the rB-F3 RE-VERIFIER predicates: the tolerance clause's measured-number conjunct, the anchor content's ordered ids (G0 live), the loader's two content halves, the resolved autocast one component at a time, the live G3D measurement branch (simulated overflow), the G3D `argmax_equal` / `at_risk` booleans one at a time (a), MALFORMED's ArithmeticError / RecursionError, the DiT-input clause, each `_collect` site, the tiling's candidate-index disjunct, the per-query K set, the chunk headline, coverage completeness, every EVIDENCE_SCHEMA entry's own reason, a string gate not re-verifiable, `finalize_evidence`'s device default — 16 functions, 77 cases | +320 |
+| `cb303759` | HIGH 1 sweep, part 2 | ... the LEDGER predicates: THE counts validator conjunct by conjunct (17 malformations), a segment's real-int query count, the delta (reversed / missing / bool count / unknown branch), accumulate-only, the adopted handle's fresh-segment conjuncts, freshness (a file, a json-named directory, each name a pass writes), the vanilla summary-block disjunct, the missing-ledger `exact` / summary disjuncts (defence in depth), the partition check's two disjuncts, the census's own integrity check (simulated census bug) — 13 functions, 41 cases | +247 |
+| `23a89009` | HIGH 1 (b)–(f) + sweep, part 3 | ... the ROW-BINDING and MERGED-LEDGER predicates: the stamp form one conjunct at a time (d), an absent segment (e, shard and merged), a state beyond its segment (f), the record-less merged lookup, the highest-state rule, `_segment_binding`'s own range, the verifying-row filter both ways, an unreadable stamp, the merged origins conjunct by conjunct, A, B, A (b) and local indices gap / duplicate / reorder (c) — directly and through the reader on a coherently rewritten real merge — the receipt key by key, a vanilla / probe pass handed a ledger, the driver's claim (binding asserted first, advisory change recorded), the per-arm report reading a single-shard ledger exactly — 18 functions, 49 cases | +372 |
+| `93c73f53` | HIGH 1, proof | the exhaustive delete-the-check run at `23a89009` (tracked-clean): TOTAL 244/244 caught — M001–M070 the rB-F3 edits verbatim (nine selectors extended with this round's isolated tests), M071–M244 one per remaining atom; the coverage table (atom, kind, file:line, predicate, code, mutation, the failed tests) and the six justified-not-mutated families, the driver's source embedded verbatim | 0 |
