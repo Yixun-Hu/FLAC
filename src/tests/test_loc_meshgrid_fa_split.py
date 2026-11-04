@@ -4124,3 +4124,323 @@ def test_a_segment_whose_delta_counts_are_outside_its_counts_is_refused(tmp_path
     for exact in (False, True):
         with pytest.raises(ValueError, match="delta_counts are not inside its counts"):
             me.read_fa_ledger(out, FA_DECLARED, exact=exact)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F4 (Codex code review rB-F3, HIGH 1): the delete-the-check proof made
+# exhaustive. Every atomic refusal / verdict condition the rB-F3 production diff added or
+# changed (383a1ab5..701926e5) gets a targeted negative asserting THAT atom's OWN named
+# reason, built -- where feasible -- so that the atom is the only clause the input violates.
+# The coverage table and the run that deletes each atom in turn:
+# loc_meshgrid_<ts>_r2bf4_delete_the_check_mutations.log. Part 1: the re-verifier's clauses.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("value", [-1.0, False], ids=["negative", "bool"])
+def test_a_negative_or_boolean_delta_is_never_within_a_registered_tolerance(tmp_path, monkeypatch,
+                                                                            clean_env, value):
+    """``pair_reasons`` under a tolerance: ``found <= tolerance`` alone admits a negative
+    |diff| and a bool (Python orders ``False`` as 0) -- the measured-number conjunct refuses
+    both. The fixture's |diff|s are all 0.0, so neither the per-key fold (a max from 0.0) nor
+    the chunk headline moves: the tensor clause is the only one the edit violates."""
+    facts = {"shape": [[2], [2]], "dtype": ["torch.float32"] * 2, "finite": True,
+             "max_abs_diff": value}
+    for tolerance in (1e-3, 0.0):
+        assert fp.pair_reasons(facts, tolerance) == [f"max |diff| {fp._fmt(value)} > {tolerance}"]
+    for gate, path in (("G3", ["queries", 0, "chunks", 0, "conditioning", "source", "tensor",
+                               "max_abs_diff"]),
+                       ("G1", ["chunks", 0, "conditioning", "source", "tensor", "max_abs_diff"])):
+        (tmp_path / gate).mkdir()
+        evidence = _real_evidence(tmp_path / gate, monkeypatch, gate)
+        needle = f"source.tensor: max |diff| {fp._fmt(value)} > {fp.GATE_TOLERANCES[gate]}"
+        reasons = fp.reverify_gate_evidence(_tamper(evidence, path, value))
+        assert any(needle in reason for reason in reasons), (gate, reasons)
+
+
+def test_gate0_fails_on_ordered_query_ids_that_are_not_the_registered_content(tmp_path,
+                                                                             monkeypatch):
+    """``_content_reasons``' ordered-ids comparison, which only G0's LIVE replay applies (its
+    re-verification passes ``None``): the bytes pin and the frozen map are the registered
+    ones, only the ordered ids' registration moved -- and that is the gate's one reason."""
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_QUERY_IDS_SHA256", "0" * 64)
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding,
+        expected_queries=_ids(cases), **G0_KW)
+    assert report["verdict"] == "FAIL"
+    assert report["reasons"] == ["the frozen anchor: its ordered query ids are not the registered "
+                                 "content of the pinned probe report"]
+
+
+AUTOCAST_COMPONENTS = [
+    # (component, an edit of the resolved state that violates ONLY that component)
+    ("requested", lambda s: {"cond_autocast_requested": {"off": "default", "default": "off"}[
+        s["cond_autocast_requested"]]}),
+    ("enabled_flipped", lambda s: {"cond_autocast_enabled": not s["cond_autocast_enabled"]}),
+    ("enabled_an_int", lambda s: {"cond_autocast_enabled": int(s["cond_autocast_enabled"])}),
+    ("dtype", lambda s: {"cond_autocast_dtype": "float64"}),
+    ("device_type", lambda s: {"cond_autocast_device_type": {"cpu": "cuda", "cuda": "cpu"}[
+        s["cond_autocast_device_type"]]}),
+    ("unregistered_device_null_state", lambda s: {
+        "device": "mps:0", "cond_autocast_enabled": None, "cond_autocast_dtype": None,
+        "cond_autocast_device_type": "mps"}),
+    ("no_device_null_state", lambda s: {
+        "device": None, "cond_autocast_enabled": None, "cond_autocast_dtype": None,
+        "cond_autocast_device_type": None}),
+    ("device_not_a_string", lambda s: {"device": 7}),
+]
+
+
+@pytest.mark.parametrize("component, edit", AUTOCAST_COMPONENTS,
+                         ids=[c[0] for c in AUTOCAST_COMPONENTS])
+@pytest.mark.parametrize("gate", ["G1", "G3", "G3D"])
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_each_autocast_component_alone_is_refused_by_the_autocast_clause(device, gate,
+                                                                         component, edit):
+    """``autocast_reasons``, one conjunct at a time: the token, a real ``enabled`` bool of the
+    resolved value, the resolved dtype, the device type of ``inputs.device``, a REGISTERED
+    device type (an unregistered one -- or none -- resolves to no state, so even a published
+    null state is refused) and a string device (anything else is named, never raised)."""
+    state = _autocast(gate, device)
+    assert fp.autocast_reasons(gate, state) == []
+    reasons = fp.autocast_reasons(gate, dict(state, **edit(state)))
+    assert len(reasons) == 1 and reasons[0].startswith(
+        f"autocast: {fp.GATE_NAMES[gate]} is registered at --cond-autocast"), reasons
+
+
+def test_the_live_drift_measurement_names_a_score_delta_that_is_not_a_measurement(monkeypatch):
+    """``_score_deltas``' measurement branch: ``nested_scores`` and ``argmax_by_global_index``
+    refuse non-finite scores, so a live delta is a finite measurement unless two FINITE score
+    vectors overflow float64 -- this defence in depth is observed by simulating that upstream
+    defect (production scores +1e308, replay scores -1e308: the |difference| is inf)."""
+    real, calls = me.nested_scores, []
+
+    def defective(sims, tau, prefixes):
+        found = real(sims, tau=tau, prefixes=prefixes)
+        calls.append(1)
+        sign = 1.0 if len(calls) % 2 else -1.0
+        return {k: dict(v, scores=v["scores"].double() * 0.0 + sign * 1e308)
+                for k, v in found.items()}
+
+    sims = torch.rand(3, 4, generator=torch.Generator().manual_seed(0))
+    assert fp._score_deltas(sims, sims.clone(), [0, 1, 2], me.TAU, (1, 4), enforce=False)[1] == []
+    monkeypatch.setattr(me, "nested_scores", defective)
+    out, why = fp._score_deltas(sims, sims.clone(), [0, 1, 2], me.TAU, (1, 4), enforce=False)
+    assert why == [f"K={k}: score |diff| inf is not a finite number >= 0" for k in (1, 4)], why
+    assert all(isinstance(out[str(k)][name], bool) for k in (1, 4)
+               for name in ("argmax_equal", "at_risk"))
+
+
+@pytest.mark.parametrize("flag", ["argmax_equal", "at_risk"])
+def test_a_drift_measurement_agreement_flag_that_is_not_a_boolean_is_named(tmp_path, monkeypatch,
+                                                                           clean_env, flag):
+    """``measurement_reasons``, one flag at a time -- live and re-verified. The re-verified edit
+    publishes the SAME agreement as an int (``True`` -> 1, ``False`` -> 0), so the per-K summary
+    (which counts ``int(flag)``) is unchanged: only this clause can name it."""
+    facts = {"max_abs_delta": 0.5, "argmax_equal": True, "at_risk": False}
+    assert fp.measurement_reasons("8", facts) == []
+    assert fp.measurement_reasons("8", dict(facts, **{flag: int(facts[flag])})) == [
+        f"K=8: {flag} is not a boolean"]
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3D", conditioner=Noisy())
+    original = evidence["queries"][0]["score_stability"]["4"][flag]
+    reasons = fp.reverify_gate_evidence(
+        _tamper(evidence, ["queries", 0, "score_stability", "4", flag], int(original)))
+    assert any(reason.endswith(f"K=4: {flag} is not a boolean") for reason in reasons), reasons
+    assert not any(reason.startswith("score_stability") for reason in reasons), reasons
+
+
+@pytest.mark.parametrize("moved", ["the_ordered_ids", "the_frozen_map"])
+def test_the_loader_holds_the_ordered_ids_and_the_frozen_map_each_to_its_registration(
+        tmp_path, monkeypatch, moved):
+    """``load_probe_anchor``'s content check is two comparisons: the ordered ids (the committed
+    records REVERSED keep the frozen map, which is keyed by id) and the frozen map (one row
+    digest moved keeps the ordered ids) -- each input violates exactly one of them."""
+    import hashlib
+
+    records = json.load(open(PROBE_REPORT))["records"]
+    records = (list(reversed(records)) if moved == "the_ordered_ids"
+               else [dict(records[0], grid_row_sha256="0" * 64)] + records[1:])
+    ids = [str(record["query_id"]) for record in records]
+    frozen = {str(record["query_id"]): {"row_sha256": record["grid_row_sha256"],
+                                        "sims_sha256": record["grid_sims_sha256"]}
+              for record in records}
+    assert (canonical_sha256(ids) == fp.COMMITTED_PROBE_QUERY_IDS_SHA256) is (
+        moved == "the_frozen_map")
+    assert (canonical_sha256(frozen) == fp.COMMITTED_PROBE_FROZEN_DIGESTS_SHA256) is (
+        moved == "the_ordered_ids")
+    path = tmp_path / "relocated.json"
+    path.write_text(json.dumps({"records": records}))
+    monkeypatch.setattr(fp, "COMMITTED_PROBE_REPORT_SHA256",
+                        hashlib.sha256(path.read_bytes()).hexdigest())
+    with pytest.raises(ValueError, match="is not the registered content of the pinned report"):
+        fp.load_probe_anchor(str(path))
+
+
+@pytest.mark.parametrize("error", ["ZeroDivisionError", "RecursionError"])
+def test_an_arithmetic_or_recursion_error_in_the_evidence_is_named_never_raised(
+        tmp_path, monkeypatch, clean_env, error):
+    """``MALFORMED`` names an ArithmeticError (a bound num_samples of 0.5 divides the registered
+    256 rows by int(0.5) = 0) and a RecursionError (a frozen digest nested 100,000 deep, which
+    the canonical digest recurses into) instead of letting either escape."""
+    if error == "ZeroDivisionError":
+        evidence = _tamper(_real_evidence(tmp_path, monkeypatch, "G3"),
+                           ["inputs", "binding", "num_samples"], 0.5)
+        reasons = fp.reverify_gate_evidence(evidence)
+    else:
+        evidence = copy.deepcopy(_real_evidence(tmp_path, monkeypatch, "G0"))
+        deep = []
+        for _ in range(100000):
+            deep = [deep]
+        evidence["queries"][0]["frozen_digests"] = deep
+        reasons = fp.reverify_gate_evidence(evidence)
+        evidence["queries"][0]["frozen_digests"] = deep = None     # never in a failure's repr
+    assert any(reason.startswith(f"comparison: the evidence is malformed ({error}")
+               for reason in reasons), reasons
+
+
+def _one_sided():
+    """A DiT input compared on one side only, as ``compare_inputs`` serializes it."""
+    return {"bitwise": False, "max_abs_diff": float("inf"), "finite": True,
+            "reasons": ["present on one side only"]}
+
+
+@pytest.mark.parametrize("value, needle", [
+    ("a string", "dit_inputs: the inputs the DiT consumes were not compared"),
+    (7, "dit_inputs: the inputs the DiT consumes were not compared"),
+    ({}, "dit_inputs: the inputs the DiT consumes were not compared"),
+    ("one_sided", "dit_inputs.global_cond: present on one side only"),
+], ids=["a_string", "an_int", "empty", "one_sided"])
+def test_the_dit_input_clause_names_an_uncompared_or_one_sided_input(tmp_path, monkeypatch,
+                                                                     clean_env, value, needle):
+    """``inputs_reasons``: a block that is not a dict, an empty block (each: "not compared")
+    and a one-sided input (its own reason, not a |diff| one), live and re-verified."""
+    _code, evidence, _anchor = _registered_gate3(tmp_path, monkeypatch, "G3")
+    facts = evidence["queries"][0]["chunks"][0]["dit_inputs"]
+    edited = dict(facts, global_cond=_one_sided()) if value == "one_sided" else value
+    assert fp.inputs_reasons(copy.deepcopy(facts), 1e-3) == []
+    assert fp.inputs_reasons(copy.deepcopy(edited), 1e-3) == [needle]
+    reasons = fp.reverify_gate_evidence(
+        _tamper(evidence, ["queries", 0, "chunks", 0, "dit_inputs"], edited))
+    assert any(reason.endswith(needle) for reason in reasons), reasons
+
+
+@pytest.mark.parametrize("part", ["query", "coverage", "score_stability"])
+def test_a_malformed_part_is_named_by_its_own_collector_and_hides_no_other_reason(
+        tmp_path, monkeypatch, clean_env, part):
+    """``_reverify_production`` wraps each part that can raise on a malformed fact in its own
+    ``_collect``: a malformed query (its chunks a string), a scored chunk size that is a string
+    (``coverage`` orders it) and a score delta that is a string (``score_summary`` maxes it)
+    are each named by THEIR collector, and an independent clause (``inputs: tau``) survives."""
+    evidence = _tamper(_real_evidence(tmp_path, monkeypatch, "G3"), ["inputs", "tau"], 0.05)
+    path, value = {"query": (["queries", 1, "chunks"], "x"),
+                   "coverage": (["queries", 1, "chunks", 0, "n"], "32"),
+                   "score_stability": (["queries", 0, "score_stability", "4", "max_abs_delta"],
+                                       "x")}[part]
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, path, value))
+    assert any(reason.startswith(f"{part}: the evidence is malformed") for reason in reasons), reasons
+    assert any(reason.startswith("inputs: tau") for reason in reasons), reasons
+
+
+def test_a_query_whose_candidate_index_list_is_not_its_count_does_not_tile(tmp_path, monkeypatch,
+                                                                           clean_env):
+    """The tiling clause's second disjunct: the chunks still tile ``n_candidates``; only the
+    published candidate-index list is one short -- and nothing else reads it."""
+    evidence = _real_evidence(tmp_path, monkeypatch, "G3")
+    query = evidence["queries"][0]["inputs"]
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, ["queries", 0, "inputs",
+                                                           "candidate_indices"],
+                                                query["candidate_indices"][:-1]))
+    assert any(reason.startswith(f"{query['query_id']}: its chunks do not tile")
+               for reason in reasons), reasons
+
+
+def test_a_query_whose_score_stability_is_not_published_for_exactly_the_registered_k(
+        tmp_path, monkeypatch, clean_env):
+    """The per-query K-set clause: K = 1 dropped from one query AND the published per-K summary
+    re-derived to match, so the K-set clause is the only one the edit violates."""
+    evidence = copy.deepcopy(_real_evidence(tmp_path, monkeypatch, "G3"))
+    evidence["queries"][0]["score_stability"].pop("1")
+    evidence["score_stability"] = fp.score_summary(evidence["queries"])
+    reasons = fp.reverify_gate_evidence(evidence)
+    qid = evidence["queries"][0]["inputs"]["query_id"]
+    assert any(reason.startswith(f"{qid}: its score stability is not published for exactly K")
+               for reason in reasons), reasons
+    assert not any(reason.startswith("score_stability") for reason in reasons), reasons
+
+
+def test_a_chunk_headline_that_is_not_its_facts_is_named(tmp_path, monkeypatch, clean_env):
+    """The chunk-headline clause: only the published headline moved -- the per-key facts it
+    summarizes (and so the per-key fold, the chains and the coverage) are untouched."""
+    evidence = _real_evidence(tmp_path, monkeypatch, "G3")
+    reasons = fp.reverify_gate_evidence(
+        _tamper(evidence, ["queries", 0, "chunks", 0, "max_abs_diff"], 0.5))
+    assert any(reason.endswith("chunk@0: its max |diff| / bitwise headline is not its facts'")
+               for reason in reasons), reasons
+
+
+def test_the_coverage_clause_requires_both_a_full_and_a_tail_batch():
+    """``_coverage_reasons``' completeness clause, alone: the published coverage IS the one the
+    chunks yield, and it has no tail batch."""
+    full_only = fp.coverage([4, 4, 4], 4)
+    assert full_only == {"full": 3, "tail": 0, "complete": False}
+    covered = {"scored": full_only, "source": fp.coverage([3, 1], 3)}
+    assert fp._coverage_reasons({"coverage": covered}, covered) == [
+        "coverage: scored batches 3 full / 0 tail; a gate covers both"]
+    whole = {"scored": fp.coverage([4, 2], 4), "source": fp.coverage([3, 1], 3)}
+    assert fp._coverage_reasons({"coverage": whole}, whole) == []
+
+
+@pytest.mark.parametrize("gate", ["G1", "G2", "G3", "G3D", "G0", "GV"])
+def test_every_schema_entry_names_its_own_substitution_deletion_and_extra(tmp_path, monkeypatch,
+                                                                          clean_env, gate):
+    """The substitution sweep above proves "never raised, always a reason"; this one proves each
+    EVIDENCE_SCHEMA entry's OWN reason. Every top-level and inputs field of a real evidence,
+    replaced by each value of another JSON type (by the TEST's ``_kind``, never the module's),
+    deleted, and joined by an unregistered field: ``schema_reasons`` names exactly that. A
+    non-dict ``inputs`` is named once, at the top level; the entry point returns the schema's
+    reasons."""
+    evidence = json.loads(json.dumps(_real_evidence(tmp_path, monkeypatch, gate)))
+    assert fp.schema_reasons(gate, evidence) == []
+    top, inputs = fp.EVIDENCE_SCHEMA[gate]
+    missed = []
+    for where, schema in (("evidence", top), ("inputs", inputs)):
+        prefix = [] if where == "evidence" else ["inputs"]
+        for field, kind in schema.items():
+            for value in [substitute for substitute in SUBSTITUTES if _kind(substitute) != kind]:
+                wanted = f"schema: {where}.{field} is {type(value).__name__}, not {kind}"
+                if wanted not in fp.schema_reasons(gate, _tamper(evidence, prefix + [field], value)):
+                    missed.append(wanted)
+            if f"schema: {where} lacks ['{field}']" not in fp.schema_reasons(
+                    gate, _tamper(evidence, prefix + [field], delete=True)):
+                missed.append(f"{where}.{field} deleted")
+        if f"schema: {where} carries unregistered fields ['smuggled']" not in fp.schema_reasons(
+                gate, _tamper(evidence, prefix + ["smuggled"], 1)):
+            missed.append(f"{where}.smuggled")
+    assert missed == []
+    for value in ("x", 7, [], None):
+        reasons = fp.schema_reasons(gate, _tamper(evidence, ["inputs"], value))
+        assert f"schema: evidence.inputs is {type(value).__name__}, not dict" in reasons
+        assert not any(reason.startswith("schema: inputs") for reason in reasons), reasons
+    assert "schema: inputs carries unregistered fields ['smuggled']" in fp.reverify_gate_evidence(
+        _tamper(evidence, ["inputs", "smuggled"], 1))
+
+
+def test_an_unknown_gate_is_named_by_the_gate_clause_alone():
+    """``reverify_gate_evidence``'s gate clause, second disjunct: a STRING that is not a
+    re-verifiable gate is named by it, and nothing else runs (the first disjunct, a non-string
+    gate, is ``test_a_malformed_evidence_is_named_never_raised``)."""
+    for gate in ("G9", "g3", ""):
+        assert fp.reverify_gate_evidence({"gate": gate}) == [
+            f"gate: {gate!r} is not one of the re-verifiable gates {sorted(fp.REVERIFIERS)}"]
+
+
+def test_a_finalized_evidence_carries_the_device_its_autocast_clause_resolves_on(tmp_path):
+    """``finalize_evidence`` publishes the device the gate ran on as ``inputs.device`` when its
+    report and its inputs name none -- the autocast clause resolves the registered token ON it,
+    so without it no evidence could PASS."""
+    report = _g1_report(tmp_path)
+    assert "device" not in report["inputs"] and "device" not in _g1_inputs()
+    evidence = fp.finalize_evidence(report, device="cpu", environment=CLEAN_ENVIRONMENT,
+                                    inputs=_g1_inputs())
+    assert evidence["inputs"]["device"] == "cpu"
+    assert evidence["verdict_clauses"]["autocast"] is True and evidence["verdict"] == "PASS"
