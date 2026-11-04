@@ -1,0 +1,107 @@
+# exp_22 rB-F5 whole-repo collection + checks, HEAD 43fce55ae25b50be0d05f9e191af88acf127d661 (code tracked-clean), 2026-11-04T02:54:36-05:00, CPU
+## pytest --collect-only (whole repo, CPU)
+5917 tests collected in 9.83s
+collection-error lines: 0
+## git diff --check 36643835 HEAD -- '*.py'
+(clean)
+## the production code is FROZEN at its 701926e5 content: git diff 701926e5 HEAD -- localize_meshgrid.py src/localization/
+(EMPTY)
+## files changed since 36643835
+ src/tests/test_loc_meshgrid_fa_split.py            |   610 +
+ ...4_00:34:25_r2bf5_delete_the_check_mutations.log | 11263 +++++++++++++++++++
+ 2 files changed, 11873 insertions(+)
+## untouched by contract since 36643835: src/data src/models crossarm.py meshgrid_crossarm.py meshgrid_segments.py configs gen_model_comparison.py train.py eval_FLAC.py (empty = untouched)
+(end of protected list)
+## the test diff is purely APPENDED: removed or changed lines under src/tests since 36643835
+0
+## py_compile of the test file (bytecode to the scratchpad, never into the tree)
+py_compile OK
+## the P1 golden regression + the three vanilla frozen-digest tests, by name (and unedited: the two lines above)
+4 passed in 6.09s
+## per-commit code lines (non-blank, non-comment, non-docstring Python outside src/tests; the rB-F3 counter, verbatim in that round's checks log)
+286dc72f exp_22 rB-F5 (1/n): the evidence schema's oracle is a frozen: TOTAL +0/-0 net 0 []
+08a314c2 exp_22 rB-F5 (2/n): a test of its own for every atom the rB-: TOTAL +0/-0 net 0 []
+43fce55a exp_22 rB-F5 (3/n): the delete-the-check proof made mechanic: TOTAL +0/-0 net 0 []
+36643835..HEAD exp_22 rB-F5 (3/n): the delete-the-check proof made mechanic: TOTAL +0/-0 net 0 []
+## raw changed lines per commit (git numstat: Python outside src/tests | the test file)
+286dc72f code +0/-0 | tests +231/-0
+08a314c2 code +0/-0 | tests +379/-0
+43fce55a code +0/-0 | tests +0/-0
+## every commit of the round carries the trailer
+286dc72f 1
+08a314c2 1
+43fce55a 1
+## this verification script (scratchpad, Coder tooling), verbatim
+#   #!/usr/bin/env bash
+#   # exp_22 rB-F5 final verification (Coder tooling, scratchpad): the ten focused localization files,
+#   # the whole-repo collection and the round's checks, each teed to its log in the experiment folder.
+#   # Usage: bash final_checks.sh <first round commit> <last round commit>   (run at the round's HEAD)
+#   set -uo pipefail
+#   REPO=/home/yixunhu/codespace/exp-22-r2-bf-yaw
+#   PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+#   S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/rbf5
+#   W=$REPO/worklog/worklog_yixun/exp_22_loc_meshgrid_claude
+#   BASE=36643835
+#   FROZEN=701926e5
+#   TS=$(date +%Y-%m-%d_%H:%M:%S)
+#   cd "$REPO"
+#   HEAD=$(git rev-parse HEAD)
+#   DIRTY=$(git status --porcelain --untracked-files=no)
+#   STATE=$([ -z "$DIRTY" ] && echo "code tracked-clean" || echo "TRACKED TREE DIRTY")
+#   TEN="src/tests/test_loc_meshgrid_crossarm.py src/tests/test_loc_meshgrid_launch_record.py
+#        src/tests/test_loc_meshgrid_report.py src/tests/test_loc_meshgrid_engine.py
+#        src/tests/test_loc_meshgrid_offgrid_probe.py src/tests/test_loc_crossarm.py
+#        src/tests/test_loc_meshgrid_queries.py src/tests/test_loc_meshgrid_retrieval_control.py
+#        src/tests/test_loc_meshgrid_drift_measurement.py src/tests/test_loc_meshgrid_fa_split.py"
+#   export CUDA_VISIBLE_DEVICES="" PYTHONDONTWRITEBYTECODE=1
+#   
+#   SUITE="$W/loc_meshgrid_${TS}_r2bf5_final_focused_suite.log"
+#   {
+#     echo "# exp_22 rB-F5 final focused suite, HEAD $HEAD ($STATE), $(date -Iseconds), CPU (CUDA_VISIBLE_DEVICES=\"\"), the ten localization files"
+#     # shellcheck disable=SC2086
+#     $PY -m pytest -p no:cacheprovider -p no:warnings -q -rs $TEN 2>&1 | grep -E "^(SKIPPED|FAILED|ERROR)|[0-9]+ (passed|failed)"
+#   } | tee "$SUITE"
+#   
+#   CHECKS="$W/loc_meshgrid_${TS}_r2bf5_whole_repo_collect_and_checks.log"
+#   {
+#     echo "# exp_22 rB-F5 whole-repo collection + checks, HEAD $HEAD ($STATE), $(date -Iseconds), CPU"
+#     echo "## pytest --collect-only (whole repo, CPU)"
+#     $PY -m pytest -p no:cacheprovider -p no:warnings --collect-only -q > "$S/collect.out" 2>&1
+#     tail -1 "$S/collect.out"
+#     echo "collection-error lines: $(grep -c -E '^ERROR|errors? during collection' "$S/collect.out")"
+#     echo "## git diff --check $BASE HEAD -- '*.py'"
+#     git diff --check "$BASE" HEAD -- '*.py' && echo "(clean)"
+#     echo "## the production code is FROZEN at its $FROZEN content: git diff $FROZEN HEAD -- localize_meshgrid.py src/localization/"
+#     OUT=$(git diff "$FROZEN" HEAD -- localize_meshgrid.py src/localization/); [ -z "$OUT" ] && echo "(EMPTY)" || echo "$OUT"
+#     echo "## files changed since $BASE"
+#     git diff --stat "$BASE" HEAD
+#     echo "## untouched by contract since $BASE: src/data src/models crossarm.py meshgrid_crossarm.py meshgrid_segments.py configs gen_model_comparison.py train.py eval_FLAC.py (empty = untouched)"
+#     git diff --stat "$BASE" HEAD -- src/data src/models src/localization/crossarm.py src/localization/meshgrid_crossarm.py src/localization/meshgrid_segments.py src/configs worklog/worklog_yixun/gen_model_comparison.py train.py eval_FLAC.py
+#     echo "(end of protected list)"
+#     echo "## the test diff is purely APPENDED: removed or changed lines under src/tests since $BASE"
+#     git diff "$BASE" HEAD -- src/tests/ | grep -c '^-[^-]'
+#     echo "## py_compile of the test file (bytecode to the scratchpad, never into the tree)"
+#     $PY -c "import py_compile; py_compile.compile('src/tests/test_loc_meshgrid_fa_split.py', cfile='$S/fa_split.pyc', doraise=True); print('py_compile OK')"
+#     echo "## the P1 golden regression + the three vanilla frozen-digest tests, by name (and unedited: the two lines above)"
+#     $PY -m pytest -p no:cacheprovider -p no:warnings -q \
+#       "src/tests/test_loc_meshgrid_report.py::test_the_p1_fixture_semantics_are_unchanged_by_the_arm_aware_registration" \
+#       "src/tests/test_loc_meshgrid_fa_split.py::test_the_vanilla_path_reproduces_its_frozen_digests" \
+#       "src/tests/test_loc_meshgrid_fa_split.py::test_the_frozen_digests_were_logged_at_the_untouched_head" \
+#       "src/tests/test_loc_meshgrid_fa_split.py::test_the_frozen_vanilla_digests_are_the_committed_p1_registration" 2>&1 | tail -1
+#     echo "## per-commit code lines (non-blank, non-comment, non-docstring Python outside src/tests; the rB-F3 counter, verbatim in that round's checks log)"
+#     # shellcheck disable=SC2046
+#     $PY "$S/count_code_lines.py" "$REPO" $(git rev-list --reverse "$1^..$2")
+#     $PY "$S/count_code_lines.py" "$REPO" --range "$BASE" HEAD
+#     echo "## raw changed lines per commit (git numstat: Python outside src/tests | the test file)"
+#     for c in $(git rev-list --reverse "$1^..$2"); do
+#       CODE=$(git show --numstat --format= "$c" | awk '$3 ~ /\.py$/ && $3 !~ /^src\/tests\// {a+=$1; d+=$2} END {print "+" a+0 "/-" d+0}')
+#       TEST=$(git show --numstat --format= "$c" | awk '$3 ~ /^src\/tests\// {a+=$1; d+=$2} END {print "+" a+0 "/-" d+0}')
+#       echo "$(git rev-parse --short=8 "$c") code $CODE | tests $TEST"
+#     done
+#     echo "## every commit of the round carries the trailer"
+#     for c in $(git rev-list --reverse "$1^..$2"); do
+#       echo "$(git rev-parse --short=8 "$c") $(git show -s --format=%B "$c" | grep -c 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>')"
+#     done
+#     echo "## this verification script (scratchpad, Coder tooling), verbatim"
+#     sed 's/^/#   /' "$0"
+#   } | tee "$CHECKS"

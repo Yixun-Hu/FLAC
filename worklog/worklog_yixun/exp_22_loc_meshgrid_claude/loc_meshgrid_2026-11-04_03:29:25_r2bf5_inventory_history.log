@@ -1,0 +1,136 @@
+# exp_22 rB-F5 inventory history (records helper, READ-ONLY: nothing mutated or written), HEAD 43fce55ae25b50be0d05f9e191af88acf127d661 (tracked-clean), production at its 701926e5 content, 2026-11-04T03:29:25-05:00, CPU (CUDA_VISIBLE_DEVICES="")
+# what each row SUBSET of the final proof leaves unmapped on the final inventory -- under the brief's containment rule alone and under the independence rule the proof enforces -- and the status of Codex rB-F4's named atoms under the 244 old rows alone
+# the helper (scratchpad, Coder tooling), verbatim:
+#   """exp_22 rB-F5 records helper (Coder tooling, scratchpad; READ-ONLY): how many decision atoms of
+#   the final inventory each row SUBSET leaves unmapped, under the brief's containment rule alone (no
+#   mutation's grown edit contains the atom) and under the independence rule the proof enforces (no
+#   mutation of its own, after the ambiguity guard). The two exclusions are counted apart. Nothing is
+#   mutated or written. The mapping is computed ONCE over all 890 rows with the final enumerator
+#   (atoms_rbf5.mapping): whether a mutation contains / owns an atom, and whether it is ambiguous (own
+#   for two non-nested atoms -- the guard of mutate_rbf5.inventory, copied verbatim), depends on that
+#   mutation alone, so a subset's counts are the full mapping filtered by mutation number. The full
+#   set is cross-checked against mutate_rbf5.inventory itself (it must give the proof's 0 unmapped).
+#   It also prints the roles of the atoms each subset leaves without an own mutation, and the status,
+#   under the 244 old rows alone, of every atom Codex rB-F4 named (by exact file:line:col).
+#   Usage: python history_counts_rbf5.py <repo at the frozen production content>"""
+#   import os
+#   import sys
+#   import time
+#   
+#   HERE = os.path.dirname(os.path.abspath(__file__))
+#   sys.path.insert(0, HERE)
+#   import mutate_rbf5 as D                                         # noqa: E402
+#   import atoms_rbf5 as A                                          # noqa: E402
+#   
+#   t0 = time.time()
+#   repo = sys.argv[1]
+#   rows = D._all(repo)
+#   assert len(rows) == 890, len(rows)
+#   found = A.collect(repo)
+#   texts = {path: open(f"{repo}/{path}", encoding="utf-8").read() for path in {a["path"] for a in found}}
+#   excluded = {a["id"] for a in found
+#               if any((e[0], e[1], e[2], e[3]) == (a["path"], a["line"], a["col"], a["segment"])
+#                      for e in D.EXCLUDED_ATOMS)}
+#   print(f"# rows built ({time.time() - t0:.0f} s)", flush=True)
+#   mapped = A.mapping(found, [(row[0], row[4], row[5]) for row in rows], texts)
+#   print(f"# mapping computed ({time.time() - t0:.0f} s)", flush=True)
+#   # the ambiguity guard, verbatim from mutate_rbf5.inventory
+#   by_id = {atom["id"]: atom for atom in found}
+#   owners = {}
+#   for atom_id, ways in mapped.items():
+#       for number, way in ways:
+#           if way == "own":
+#               owners.setdefault(number, []).append(by_id[atom_id])
+#   ambiguous = {number for number, owned in owners.items()
+#                if any(not (x["start"] <= y["start"] and y["end"] <= x["end"]
+#                            or y["start"] <= x["start"] and x["end"] <= y["end"])
+#                       for x in owned for y in owned if x is not y)}
+#   n_targeted = len(D.RBF5_MUTATIONS) - len(D.RBF5_REMAINDER)
+#   subsets = [("M001-M244 (the rB-F3 / rB-F4 rows)", lambda n: n <= 244),
+#              (f"+ M245-M{244 + n_targeted} (this round's targeted rows)", lambda n: n <= 244 + n_targeted),
+#              ("+ M385-M890 (the schema rows)", lambda n: n <= 244 + n_targeted or n >= 385),
+#              ("+ the remainder (all 890 rows)", lambda n: True)]
+#   print(f"# {len(found)} atoms; {len(excluded)} excluded (equivalent mutants); targeted rows "
+#         f"{n_targeted}, remainder rows {len(D.RBF5_REMAINDER)}; ambiguous mutations "
+#         f"{sorted(ambiguous)}", flush=True)
+#   for label, keep in subsets:
+#       count = sum(1 for row in rows if keep(row[0]))
+#       contained = [a["id"] for a in found if a["id"] not in excluded
+#                    and not any(keep(number) for number, _way in mapped[a["id"]])]
+#       independent = [a["id"] for a in found if a["id"] not in excluded
+#                      and not any(keep(number) and way == "own" and number not in ambiguous
+#                                  for number, way in mapped[a["id"]])]
+#       print(f"{label}: {count} rows; unmapped under containment alone {len(contained)}; "
+#             f"unmapped under independence {len(independent)}", flush=True)
+#   # the detail: the roles of what each subset leaves without an own mutation, and the status, under
+#   # the 244 old rows alone, of every atom Codex rB-F4 named (by exact file:line:col)
+#   for label, keep in subsets[:3]:
+#       roles = {}
+#       for a in found:
+#           if a["id"] in excluded or any(keep(number) and way == "own" and number not in ambiguous
+#                                         for number, way in mapped[a["id"]]):
+#               continue
+#           for role in a["roles"]:
+#               roles[role] = roles.get(role, 0) + 1
+#       print(f"# roles without an own mutation, {label}: "
+#             + ", ".join(f"{r} {n}" for r, n in sorted(roles.items())), flush=True)
+#   #: the atoms Codex rB-F4 named (HIGH 1 a / b), by exact file:line:col, with Codex's own words
+#   NAMED = [("meshgrid_fa_parity.py", 201, 7, "pair_reasons' tolerance dispatch"),
+#            ("meshgrid_fa_parity.py", 1402, 25, "_shape_reasons' `field in payload`"),
+#            ("meshgrid_engine.py", 994, 26, "the row binding's merged-mode detection"),
+#            ("meshgrid_engine.py", 994, 46, "the row binding's fallback blocks"),
+#            ("meshgrid_engine.py", 995, 7, "the row binding's lookup selection (the lookup built)"),
+#            ("meshgrid_engine.py", 1009, 65, "the row binding's lookup selection (the key)"),
+#            ("meshgrid_engine.py", 1008, 12, "the first `continue`"),
+#            ("meshgrid_engine.py", 1014, 12, "the second `continue`"),
+#            ("meshgrid_engine.py", 1019, 12, "the third `continue`"),
+#            ("meshgrid_engine.py", 1121, 11, "_merged_reasons' block routing"),
+#            ("meshgrid_engine.py", 1121, 22, "_merged_reasons' block routing (the shard compare)"),
+#            ("meshgrid_engine.py", 1170, 11, "fresh_out_dir's final verdict"),
+#            ("meshgrid_engine.py", 1196, 47, "the merge-report dispatch")]
+#   old_rows = subsets[0][1]
+#   print("# Codex rB-F4's named atoms under M001-M244 alone (every mutation whose edit contains the atom, "
+#         "with its way; `none` = no edit contains it):")
+#   for f, line, col, what in NAMED:
+#       hits = [a for a in found if a["path"].split("/")[-1] == f and a["line"] == line
+#               and a["col"] == col]
+#       assert hits, (f, line, col)
+#       for a in hits:
+#           ways = [f"M{number:03d}({way})" for number, way in mapped[a["id"]] if old_rows(number)]
+#           print(f"  {a['id']} {f}:{line}:{col} {what}: {'+'.join(a['roles'])} "
+#                 f"`{a['segment'][:60]}` -> {', '.join(ways) or 'none'}", flush=True)
+#   _lines, total, unmapped = D.inventory(repo, rows)
+#   print(f"# cross-check, mutate_rbf5.inventory over all rows: {total}", flush=True)
+#   assert not unmapped
+#   print(f"# done ({time.time() - t0:.0f} s)")
+# its output:
+# rows built (1 s)
+# mapping computed (98 s)
+# 391 atoms; 2 excluded (equivalent mutants); targeted rows 66, remainder rows 74; ambiguous mutations [290]
+M001-M244 (the rB-F3 / rB-F4 rows): 244 rows; unmapped under containment alone 138; unmapped under independence 214
++ M245-M310 (this round's targeted rows): 310 rows; unmapped under containment alone 82; unmapped under independence 157
++ M385-M890 (the schema rows): 816 rows; unmapped under containment alone 0; unmapped under independence 75
++ the remainder (all 890 rows): 890 rows; unmapped under containment alone 0; unmapped under independence 0
+# roles without an own mutation, M001-M244 (the rB-F3 / rB-F4 rows): call 8, comp-if 4, compare 23, exit 30, isinstance 3, not 8, operand 35, reason 20, schema 82, test 27
+# roles without an own mutation, + M245-M310 (this round's targeted rows): call 3, comp-if 2, compare 14, exit 21, isinstance 3, not 5, operand 17, reason 11, schema 82, test 16
+# roles without an own mutation, + M385-M890 (the schema rows): call 3, comp-if 2, compare 14, exit 21, isinstance 3, not 5, operand 17, reason 11, test 16
+# Codex rB-F4's named atoms under M001-M244 alone (every mutation whose edit contains the atom, with its way; `none` = no edit contains it):
+  A0198 meshgrid_fa_parity.py:201:7 pair_reasons' tolerance dispatch: test+compare `tolerance is None` -> none
+  A0377 meshgrid_fa_parity.py:1402:25 _shape_reasons' `field in payload`: comp-if `field in payload and not _is_kind(payload[field], kind)` -> M129(enclosing)
+  A0378 meshgrid_fa_parity.py:1402:25 _shape_reasons' `field in payload`: operand+compare `field in payload` -> M129(enclosing)
+  A0043 meshgrid_engine.py:994:26 the row binding's merged-mode detection: compare `blocks is not None` -> none
+  A0044 meshgrid_engine.py:994:46 the row binding's fallback blocks: operand `blocks` -> none
+  A0046 meshgrid_engine.py:995:7 the row binding's lookup selection (the lookup built): test `merged_mode` -> none
+  A0058 meshgrid_engine.py:1009:65 the row binding's lookup selection (the key): test `merged_mode` -> none
+  A0057 meshgrid_engine.py:1008:12 the first `continue`: exit `continue` -> none
+  A0063 meshgrid_engine.py:1014:12 the second `continue`: exit `continue` -> none
+  A0068 meshgrid_engine.py:1019:12 the third `continue`: exit `continue` -> none
+  A0101 meshgrid_engine.py:1121:11 _merged_reasons' block routing: test `blocks and blocks[-1][0] == shard` -> none
+  A0102 meshgrid_engine.py:1121:11 _merged_reasons' block routing: operand `blocks` -> none
+  A0103 meshgrid_engine.py:1121:22 _merged_reasons' block routing (the shard compare): operand+compare `blocks[-1][0] == shard` -> none
+  A0125 meshgrid_engine.py:1170:11 fresh_out_dir's final verdict: not `not found` -> none
+  A0126 meshgrid_engine.py:1196:47 the merge-report dispatch: test `os.path.isfile(merge_path)` -> none
+# cross-check, mutate_rbf5.inventory over all rows: # inventory: 391 atoms in 4 files (roles: call 18, comp-if 9, compare 80, exit 31, isinstance 18, not 28, operand 103, reason 45, schema 85, test 86); mapped 389, excluded 2, UNMAPPED 0
+# done (201 s)
+# exit 0
+# after the run: tracked status lines 0; production diff vs 701926e5 EMPTY
