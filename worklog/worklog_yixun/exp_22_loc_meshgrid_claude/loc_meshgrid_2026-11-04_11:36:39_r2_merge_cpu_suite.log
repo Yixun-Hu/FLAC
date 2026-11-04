@@ -1,0 +1,21 @@
+# exp_22 R2 merge verification (Planner, Claude Opus 5.5 main session): CPU tests on the merge commit, CUDA_VISIBLE_DEVICES="", -p no:cacheprovider, PYTHONDONTWRITEBYTECODE=1; checkout ~/codespace/FLAC (localization-exp), which holds the real AcousticRooms/ and outputs_loc/ assets, so data-gated tests that the worktree skipped run here
+Wed Nov  4 11:36:39 AM EST 2026
+HEAD 4576b56238d57ce5d572f82ac6fbbdc9545e3430 parents 693dec2636dbbb737cbd2d925d937cd7cd199d3e a5608a60dbea93ca486eaae4ee9b3b479fcb8851
+tracked status lines: 0
+## (1) the ten focused localization files
+SKIPPED [1] src/tests/test_loc_meshgrid_engine.py:1754: ladder step: set EXP22_REAL_STACK=1 to run against the frozen checkpoint on a GPU
+4 failed, 2032 passed, 1 skipped, 15 warnings in 523.60s (0:08:43)
+RC1=1
+## (2) every other localization test file + eval_localization + the two table-generator tests changed on the localization-exp side
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/functional.py:730: UserWarning: stft with return_complex=False is deprecated. In a future pytorch release, stft will return complex tensors for all inputs, and return_complex=False will raise an error.
+SKIPPED [1] src/tests/test_loc_agree_embed.py:505: AGREE/VAE/DINOv3 assets or a CUDA device are absent
+SKIPPED [1] src/tests/test_loc_agree_embed.py:515: AGREE/VAE/DINOv3 assets or a CUDA device are absent
+SKIPPED [1] src/tests/test_eval_localization.py:2327: no CUDA device
+SKIPPED [1] src/tests/test_eval_localization.py:2721: no CUDA device
+SKIPPED [1] src/tests/test_eval_localization.py:2994: needs two CUDA devices
+7 failed, 850 passed, 5 skipped, 35 warnings in 428.11s (0:07:08)
+RC2=1
+## (3) whole-repo collection
+5936 tests collected in 105.37s (0:01:45)
+## after: tracked status lines 0; HEAD 4576b56238d57ce5d572f82ac6fbbdc9545e3430
+Wed Nov  4 11:54:27 AM EST 2026

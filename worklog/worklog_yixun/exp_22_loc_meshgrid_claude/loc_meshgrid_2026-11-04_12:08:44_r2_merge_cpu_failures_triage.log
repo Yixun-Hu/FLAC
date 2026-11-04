@@ -1,0 +1,45 @@
+# exp_22 R2 merge verification -- triage of the 11 CPU failures (Planner, Claude Opus 5.5 main session), 2026-11-04T12:08:44-05:00
+# The suite log loc_meshgrid_2026-11-04_11:36:39_r2_merge_cpu_suite.log (merge commit 4576b56238d57ce5d572f82ac6fbbdc9545e3430, CPU only) shows 4 + 7 failures; this file names them, gives their errors, and re-runs them at the PRE-MERGE localization-exp 693dec2636dbbb737cbd2d925d937cd7cd199d3e (a scratch clone with the same data and weights symlinked in, CUDA_VISIBLE_DEVICES="") -- identical failures there: they pre-exist the merge.
+## (a) the failed ids at the merge (rerun 11:55-12:05 EST with -rfE --tb=short)
+FAILED src/tests/test_loc_meshgrid_queries.py::test_real_bounded_slice_materializes_through_the_released_loader
+FAILED src/tests/test_loc_meshgrid_queries.py::test_release_stack_resolves_and_records_the_agree_checkpoint
+FAILED src/tests/test_loc_meshgrid_queries.py::test_our_call_graph_matches_an_eval_flac_faithful_reference
+FAILED src/tests/test_loc_meshgrid_queries.py::test_skipping_the_metric_stack_changes_the_draw
+FAILED src/tests/test_eval_localization.py::test_integration_parity_one_query_matches_the_eval_flac_path
+FAILED src/tests/test_eval_localization.py::test_integration_generation_is_reproducible_for_a_fixed_noise_key
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64]
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4]
+FAILED src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split
+FAILED src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast
+FAILED src/tests/test_eval_localization.py::test_integration_real_mk_batch_split_is_bitwise_irrelevant
+## (b) their errors (one per failure)
+      7 E   NotImplementedError: Could not run 'flash_attn::_flash_attn_forward' with arguments from the 'CPU' backend. This could be because the operator doesn't exist for this backend, or was omitted during
+      4 E   RuntimeError: Attempting to deserialize object on a CUDA device but torch.cuda.is_available() is False. If you are running on a CPU-only machine, please use torch.load with map_location=torch.devi
+## (c) where (one traceback): the AGREE checkpoint load
+src/tests/test_loc_meshgrid_queries.py:289: in test_real_bounded_slice_materializes_through_the_released_loader
+src/localization/meshgrid_queries.py:385: in materialize_contexts
+src/localization/meshgrid_queries.py:245: in build_release_stack
+src/training/factory.py:377: in create_metric_callback_from_config
+src/metrics/metric_callback.py:89: in __init__
+src/metrics/metric_callback.py:135: in _setup
+src/metrics/metric_callback.py:449: in loading_AGREE_model
+## (d) the summary lines of the rerun at the merge
+4 failed, 2032 passed, 1 skipped, 15 warnings in 523.36s (0:08:43)
+7 failed, 850 passed, 5 skipped, 35 warnings in 582.77s (0:09:42)
+## (e) the same 11 ids at the PRE-MERGE localization-exp 693dec26 (scratch clone, data + weights symlinked, CPU only)
+FAILED src/tests/test_loc_meshgrid_queries.py::test_real_bounded_slice_materializes_through_the_released_loader
+FAILED src/tests/test_loc_meshgrid_queries.py::test_release_stack_resolves_and_records_the_agree_checkpoint
+FAILED src/tests/test_loc_meshgrid_queries.py::test_our_call_graph_matches_an_eval_flac_faithful_reference
+FAILED src/tests/test_loc_meshgrid_queries.py::test_skipping_the_metric_stack_changes_the_draw
+FAILED src/tests/test_eval_localization.py::test_integration_parity_one_query_matches_the_eval_flac_path
+FAILED src/tests/test_eval_localization.py::test_integration_generation_is_reproducible_for_a_fixed_noise_key
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64]
+FAILED src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4]
+FAILED src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split
+FAILED src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast
+FAILED src/tests/test_eval_localization.py::test_integration_real_mk_batch_split_is_bitwise_irrelevant
+11 failed, 15 warnings in 20.22s
+tracked status after: 0
+## (f) the files these tests exercise are untouched by the merge: git diff --stat 693dec26 4576b562 -- src/localization/meshgrid_queries.py eval_localization.py src/metrics/metric_callback.py src/training/factory.py src/models/ src/tests/test_loc_meshgrid_queries.py src/tests/test_eval_localization.py
+(empty)
+## verdict: pre-existing, environmental -- these real-stack tests need a GPU (the AGREE checkpoint is torch.load-ed without map_location; flash-attention has no CPU kernel) but are gated only on the data being present, so a CPU-only run in a checkout that holds the data fails them; the R2 worktree (no data) skipped them. Not caused by the merge.
