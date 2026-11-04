@@ -4444,3 +4444,250 @@ def test_a_finalized_evidence_carries_the_device_its_autocast_clause_resolves_on
                                     inputs=_g1_inputs())
     assert evidence["inputs"]["device"] == "cpu"
     assert evidence["verdict_clauses"]["autocast"] is True and evidence["verdict"] == "PASS"
+
+
+# --------------------------------------------------------------------------- #
+# rB-F4 part 2: the executed-partition ledger -- THE counts validator, each segment and its
+# delta, the accumulate-only rewrite, the adopted handle, freshness, and the reader's and the
+# census's disjuncts, each atom alone
+# --------------------------------------------------------------------------- #
+from src.localization import meshgrid_segments as ms                     # noqa: E402
+
+
+def _canonical_counts():
+    """Canonical counts rows over three branches, orbit rows included."""
+    return _observe_production(me.FaPartitionRecorder(), scored=(32, 8)).to_counts()
+
+
+def _with(counts, index, **fields):
+    edited = copy.deepcopy(counts)
+    edited[index].update(fields)
+    return edited
+
+
+def _orbit_row(counts):
+    return next(index for index, entry in enumerate(counts) if entry["orbit"])
+
+
+_NOT_ROWS, _NOT_INT = "x's counts are not", "x holds a count that is not a non-negative integer"
+COUNT_MALFORMATIONS = [
+    # (id, an edit of the canonical counts, the validator's OWN reason (its start))
+    ("not_a_list_but_a_dict", lambda c: {}, _NOT_ROWS),
+    ("not_a_list_but_null", lambda c: None, _NOT_ROWS),
+    ("an_entry_not_a_dict", lambda c: [list(me.LEDGER_ENTRY_FIELDS)] + c[1:], _NOT_ROWS),
+    ("an_extra_field", lambda c: _with(c, 0, extra=1), _NOT_ROWS),
+    ("a_missing_field", lambda c: [{k: v for k, v in c[0].items() if k != "cap"}] + c[1:],
+     _NOT_ROWS),
+    ("base_not_a_list", lambda c: _with(c, 0, base=7), _NOT_ROWS),
+    ("orbit_not_a_list", lambda c: _with(c, 0, orbit=7), _NOT_ROWS),
+    # the same VALUE as a float / bool passes the canonical comparison (from_counts coerces
+    # with int(), and 1 == 1.0 == True): only the real-int clause of its family refuses it
+    ("configured_a_float", lambda c: _with(c, 0, configured=float(c[0]["configured"])), _NOT_INT),
+    ("cap_a_float", lambda c: _with(c, 0, cap=float(c[0]["cap"])), _NOT_INT),
+    ("orbit_size_a_float", lambda c: _with(c, 0, orbit_size=float(c[0]["orbit_size"])), _NOT_INT),
+    ("count_a_bool", lambda c: _with(c, 0, count=True), _NOT_INT),
+    ("a_base_element_a_float", lambda c: _with(c, 0, base=[float(n) for n in c[0]["base"]]),
+     _NOT_INT),
+    ("an_orbit_element_a_float", lambda c: _with(
+        c, _orbit_row(c), orbit=[float(n) for n in c[_orbit_row(c)]["orbit"]]), _NOT_INT),
+    ("a_zero_count", lambda c: _with(c, 0, count=0), "x holds a zero count"),
+    ("an_unknown_branch", lambda c: _with(c, 0, branch="nowhere"),
+     "x: a ledger entry names branch 'nowhere'"),
+    ("rows_reversed", lambda c: list(reversed(c)), "x's counts are not canonical"),
+    ("a_row_repeated", lambda c: c + [dict(c[0])], "x's counts are not canonical"),
+]
+
+
+@pytest.mark.parametrize("name, edit, needle", COUNT_MALFORMATIONS,
+                         ids=[m[0] for m in COUNT_MALFORMATIONS])
+def test_the_counts_validator_names_each_malformation_by_its_own_reason(name, edit, needle):
+    """``counts_reasons`` -- THE validator of segment counts, deltas and gate executed counts --
+    one conjunct at a time, directly: a list of dict rows of exactly the seven fields, base /
+    orbit lists, every value family a real non-negative int, a count >= 1, a known branch, the
+    canonical order. Each is named by its own reason, never raised."""
+    counts = _canonical_counts()
+    assert len(counts) >= 2 and me.counts_reasons(copy.deepcopy(counts), "x")[0] == []
+    why, recorder = me.counts_reasons(edit(copy.deepcopy(counts)), "x")
+    assert len(why) == 1 and why[0].startswith(needle), why
+    assert (recorder is None) is (needle != "x's counts are not canonical")
+
+
+@pytest.mark.parametrize("exact", [False, True], ids=["reopen", "merge"])
+def test_a_segment_query_count_that_is_not_a_real_integer_is_refused(tmp_path, exact):
+    """``_segment_reasons``' query count: n_queries 4.0 for 4 binds exactly like 4
+    (``4.0 in (4, 5)``), so only the real-int clause can refuse it."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    n = _ledger(out)["segments"][0]["n_queries"]
+    _edit_json(_fa_files(out)[0],
+               lambda ledger: ledger["segments"][0].update(n_queries=float(n)))
+    with pytest.raises(ValueError, match=re_escape(
+            f"segment 0's n_queries {float(n)!r} is not a non-negative integer")):
+        me.read_fa_ledger(out, FA_DECLARED, exact=exact)
+
+
+DELTA_MALFORMATIONS = [
+    ("rows_reversed", lambda d: list(reversed(d)), "segment 0's delta's counts are not canonical"),
+    ("missing", None, "segment 0's delta's counts are not"),
+    ("a_bool_count", lambda d: [dict(d[0], count=True)] + d[1:],
+     "segment 0's delta holds a count that is not a non-negative integer"),
+    ("an_unknown_branch", lambda d: [dict(d[0], branch="nowhere")] + d[1:],
+     "segment 0's delta: a ledger entry names branch 'nowhere'"),
+]
+
+
+@pytest.mark.parametrize("name, edit, needle", DELTA_MALFORMATIONS,
+                         ids=[m[0] for m in DELTA_MALFORMATIONS])
+def test_a_segment_delta_that_is_not_canonical_counts_is_refused_by_its_own_reason(
+        tmp_path, name, edit, needle):
+    """``_segment_reasons``' delta clauses: the delta is held to THE counts validator, and the
+    inside-the-counts check runs only on a valid delta (a malformed one is named, never raised).
+    A reversed or a bool-count delta keeps every subtraction -- so every binding -- intact."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    ledger = _ledger(out)
+    segment = ledger["segments"][0]
+    assert len(segment["delta_counts"]) >= 2 and segment["delta_counts"][0]["count"] == 1
+    if edit is None:
+        segment.pop("delta_counts")
+    else:
+        segment["delta_counts"] = edit(segment["delta_counts"])
+    me.write_json(_fa_files(out)[0], ledger)
+    with pytest.raises(ValueError, match=re_escape(needle)):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_the_ledger_only_ever_accumulates(tmp_path):
+    """``persist_fa_ledger`` refuses a recorder holding fewer calls than the segment it would
+    overwrite already published (its delta would be negative)."""
+    ledger = me.open_fa_ledger(str(tmp_path / "run"), FA_DECLARED)
+    me.persist_fa_ledger(ledger, _observe_production(me.FaPartitionRecorder(), scored=(2, 2)))
+    with pytest.raises(ValueError, match="only ever accumulates"):
+        me.persist_fa_ledger(ledger, me.FaPartitionRecorder())
+
+
+@pytest.mark.parametrize("ran", ["a_query", "a_call"])
+def test_a_ledger_handle_whose_segment_already_ran_is_not_adopted(tmp_path, ran):
+    """``adopt_fa_ledger``'s fresh-segment conjuncts, one at a time: a handle whose segment holds
+    a query (and no call) or a call (and no query) is not the one just opened for this pass."""
+    out = str(tmp_path / "run")
+    ledger = me.open_fa_ledger(out, FA_DECLARED, None)
+    assert me.adopt_fa_ledger(ledger, out, FA_DECLARED, None) is ledger
+    ledger["payload"]["segments"][-1].update(
+        **({"n_queries": 1} if ran == "a_query" else {"counts": _canonical_counts()}))
+    with pytest.raises(ValueError, match="not the one just opened"):
+        me.adopt_fa_ledger(ledger, out, FA_DECLARED, None)
+
+
+@pytest.mark.parametrize("state", ["a_regular_file", "a_json_named_directory"])
+def test_an_out_dir_that_is_a_file_or_holds_a_json_named_directory_is_not_fresh(tmp_path, state):
+    """``fresh_out_dir``: an out-dir that is not a directory, and a sub-DIRECTORY whose name ends
+    in .json (only top-level json FILES can be emitted launch records)."""
+    out = str(tmp_path / "shard")
+    if state == "a_regular_file":
+        with open(out, "w") as handle:
+            handle.write("x")
+    else:
+        os.makedirs(os.path.join(out, "stale.json"))
+    assert me.fresh_out_dir(out)[0] is False
+    with pytest.raises(ValueError, match="not a fresh out-dir"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+@pytest.mark.parametrize("name", [me.BINDING_FILENAME, me.RUN_SUMMARY_FILENAME,
+                                  me.MERGE_REPORT_FILENAME, me.FA_LEDGER_FILENAME,
+                                  me.FA_FAILURE_FILENAME, me.FA_PENDING_FILENAME,
+                                  ms.SEGMENTS_FILENAME])
+def test_a_file_a_pass_writes_is_never_taken_for_an_emitted_launch_record(tmp_path, name):
+    """``fresh_out_dir``'s ``written`` names, one at a time and directly. The ledger, the failure
+    marker and the sentinel are unreachable through the reader (a ledger takes the reading
+    path; a marker or a sentinel is refused first), so only this test observes those three."""
+    out = tmp_path / "shard"
+    out.mkdir()
+    me.write_json(str(out / "launch_record.json"), {"argv": []})
+    assert me.fresh_out_dir(str(out)) == (True, [])
+    me.write_json(str(out / name), {})
+    assert me.fresh_out_dir(str(out)) == (False, [name])
+
+
+def test_a_vanilla_run_carrying_an_fa_summary_block_is_refused(tmp_path):
+    """``read_fa_ledger``'s vanilla clause, the summary disjunct: no ledger file, no receipt --
+    only a run summary carrying an executed-partition block (a null one is admitted)."""
+    out = str(tmp_path / "vanilla")
+    os.makedirs(out)
+    me.write_json(os.path.join(out, me.RUN_SUMMARY_FILENAME), {"fa_partition_executed": {}})
+    with pytest.raises(ValueError, match="a vanilla run carries no frame-average executed"):
+        me.read_fa_ledger(out, None)
+    me.write_json(os.path.join(out, me.RUN_SUMMARY_FILENAME), {"fa_partition_executed": None})
+    assert me.read_fa_ledger(out, None) is None
+
+
+def test_a_merge_or_report_reading_no_ledger_refuses_even_a_fresh_directory(tmp_path):
+    """``read_fa_ledger``'s missing-ledger clause, the ``exact`` disjunct: every directory a
+    merge or a report reads holds a binding, so it is never fresh -- this disjunct is defence in
+    depth, observed on an absent and on an empty directory (where a reopen may START)."""
+    for out in (str(tmp_path / "absent"), str(tmp_path / "empty")):
+        if out.endswith("empty"):
+            os.makedirs(out)
+        assert me.read_fa_ledger(out, FA_DECLARED) is None
+        with pytest.raises(ValueError, match="publishes no fa_partition_ledger.json"):
+            me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+def test_a_summary_block_without_its_ledger_is_refused_even_if_freshness_were_misjudged(
+        tmp_path, monkeypatch):
+    """... the summary disjunct: a run summary makes a directory non-fresh, so ``not fresh``
+    already refuses this input -- the summary disjunct is defence in depth, observed by
+    simulating a freshness defect."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    os.remove(_fa_files(out)[0])
+    monkeypatch.setattr(me, "fresh_out_dir", lambda out_dir: (True, []))
+    with pytest.raises(ValueError, match="publishes no fa_partition_ledger.json"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_a_shard_that_executed_nothing_is_refused_at_a_merge_by_its_partition_check(tmp_path):
+    """``read_fa_ledger``'s partition check, the ``exact`` disjunct: nothing ran (one empty
+    segment and the summary block it yields) is a consistent prefix at a reopen, but never the
+    declared partition at a merge."""
+    out = str(tmp_path / "shard")
+    me.open_fa_ledger(out, FA_DECLARED)
+    me.write_json(os.path.join(out, me.RUN_SUMMARY_FILENAME), {
+        "fa_partition_executed": me.fa_executed_block(FA_DECLARED, me.FaPartitionRecorder(), 1)})
+    assert me.read_fa_ledger(out, FA_DECLARED)["n_segments"] == 1
+    with pytest.raises(ValueError, match="the executed frame-average partition is not the declared"):
+        me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+def test_a_ledger_whose_declaration_was_rewritten_is_refused_at_reopen_by_what_it_executed(
+        tmp_path):
+    """``read_fa_ledger``'s partition check, the ran-anything disjunct: at a reopen the executed
+    prefix is held to the declaration -- a ledger whose ``declared`` was rewritten together with
+    the reader's declaration passes every integrity clause before it."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    other = me.declared_fa_partition(list(C4), batch_rows=8, num_samples=4, source_chunk=5)
+    assert other != FA_DECLARED and not os.path.exists(_fa_files(out)[1])
+    _edit_json(_fa_files(out)[0], lambda ledger: ledger.update(declared=other))
+    with pytest.raises(ValueError, match="the executed frame-average partition is not the declared"):
+        me.read_fa_ledger(out, other)
+
+
+def test_the_census_verifies_the_merged_ledgers_own_integrity_before_any_write(tmp_path,
+                                                                              monkeypatch):
+    """``fa_partition_census`` holds the merged ledger to ``_ledger_reasons`` in memory (a census
+    bug -- simulated: the merged ledger alone refused, every shard's own read intact -- is
+    refused before anything is written)."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    real = me._ledger_reasons
+
+    def merged_only(payload, declared):
+        if any("shard" in segment for segment in (payload or {}).get("segments") or []):
+            return ["a simulated integrity bug"], None
+        return real(payload, declared)
+
+    monkeypatch.setattr(me, "_ledger_reasons", merged_only)
+    with pytest.raises(ValueError, match="would not verify under its own reader: a simulated "
+                                         "integrity bug"):
+        me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "merged"), plan, records,
+                        totals=totals)
+    assert not os.path.exists(tmp_path / "merged")
