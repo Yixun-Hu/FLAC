@@ -1,0 +1,11 @@
+# exp_22 rB-F6 final focused suite, HEAD a3b1c000b6f46514de8d12ce04248d31688e53f5 (code tracked-clean), 2026-11-04T09:03:05-05:00, CPU (CUDA_VISIBLE_DEVICES=""), the ten localization files
+SKIPPED [1] src/tests/test_loc_meshgrid_report.py:1608: weights/exp20/P1_40k.ckpt is not on this machine
+SKIPPED [1] src/tests/test_loc_meshgrid_engine.py:1754: ladder step: set EXP22_REAL_STACK=1 to run against the frozen checkpoint on a GPU
+SKIPPED [1] src/tests/test_loc_meshgrid_offgrid_probe.py:2134: outputs_loc/exp22/r9r_drift_measurement/merged/drift_measurement.json is not in this checkout
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:275: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:286: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:314: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:334: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:381: AcousticRooms not present
+SKIPPED [1] src/tests/test_loc_meshgrid_queries.py:399: AcousticRooms not present
+2028 passed, 9 skipped in 288.64s (0:04:48)

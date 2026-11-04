@@ -497,3 +497,21 @@ pushes.
 | `286dc72f` | HIGH 2 (a)(b) | the evidence schema's oracle FROZEN: `FROZEN_SCHEMA_MANIFEST` (211 (gate, where, field, kind) entries, a literal never derived from `fp.EVIDENCE_SCHEMA`) and the registration held to it; the honest side per gate; one missing-field and one retyped-field test PER ENTRY driven by the manifest (211 + 211, each naming exactly that field's reason against the manifest's kind, by `schema_reasons` and the entry point); `_is_kind`'s truth table (49) — 5 functions, 478 cases | +231 |
 | `08a314c2` | HIGH 1 (a)(b) + the inventory's remainder, HIGH 2 (c) M198 | the tests the atoms without a mutation of their own still needed (every other one's own mutation is caught by an existing test of its own reason — the proof's required ids name it): both sides of Codex's named atoms (the tolerance dispatch, `field in payload`, the merged-mode detection on hand-merged segments, the merge's own blocks, the block routing, freshness's verdict, the merge-report dispatch), the three `continue`s (named refusal returned, never raised; a refused state never bound), the state selection both ways, the evidence's own shape inputs and empty defaults, emptied summaries, the driver's ledger segment under its launch record, the advisory change on the console, G0's anchor without ids, a handed ledger without a segment; the P re-audit's negative for M198 — 23 functions, 33 cases | +379 |
 | `43fce55a` | HIGH 1 (c), HIGH 2 (b)(c), HIGH 3 | the proof at `08a314c2` (tracked-clean): the machine-generated INVENTORY (391 atoms, 389 with a mutation of their own, 2 excluded (equivalent mutants), 0 unmapped) and 890/890 caught under the isolation-enforcing CAUGHT rule — M001–M244 the rB-F3 / rB-F4 edits verbatim with declared required ids, M245–M384 this round's code atoms, M385–M890 the schema (422 per-entry deletions / retypings, 84 token deletions); the P re-audit; the schema rows' kinds; the driver, the enumerator and the classifier embedded verbatim | 0 |
+
+## Round exp22-rB-F6 (tests-proof-and-tooling round closing Codex code review rB-F5: HIGH 1 — the atom set statement-complete)
+
+Branch `exp-22-r2-bf-yaw` (worktree `~/codespace/exp-22-r2-bf-yaw`), base `873b230f` (rB-F5 `612f4bb7` + the
+committed Codex rB-F5 review). Coder: Claude Opus 5.5 subagent, CPU only (`CUDA_VISIBLE_DEVICES=""`).
+PRODUCTION CODE FROZEN at its `701926e5` content — `git diff 701926e5 HEAD -- localize_meshgrid.py
+src/localization/` is EMPTY at every commit, so every commit is 0 code lines (the rB-F3 counter, re-run:
++0/−0 each); only `src/tests/test_loc_meshgrid_fa_split.py` (purely appended, +133/−0), the scratchpad
+tooling (`scratchpad/rbf6/`: the driver, the enumerator, the schema-kind classifier — embedded verbatim
+in the proof log —, the history helper — in its own log —, the exploration and declaration aids) and
+records change. "test lines" = raw added lines of the test file. The operator set the proof claims to be
+exhaustive over is stated in the driver's docstring, the log header and the worklog. Not pushed — the
+Planner verifies and pushes.
+
+| SHA | Item | Description | test lines |
+|---|---|---|---|
+| `26a28e3b` | HIGH 1 (3) | a test of its own for each statement no test observed: Codex's three named statements (`_counts_minus`'s residual, the stamp `write_fa_stamp` publishes, the highest-state tracker — a one-query segment bound by its highest stamped state), `main`'s out-dir claim of a scored pass (and its refusal of another binding), `fresh_out_dir`'s `str()` normalisation — 5 functions + 1 helper, 6 cases | +133 |
+| `a3b1c000` | HIGH 1 (1)–(4) | the complete proof at `26a28e3b` (tracked-clean, detached): the STATEMENT-COMPLETE inventory (606 atoms, 603 mapped, 3 excluded (equivalent mutants), 0 unmapped; 81 statements excluded by rule) and 1118/1118 caught under the unchanged CAUGHT rule — M001–M890 the rB-F3–F5 rows verbatim, M891–M1117 one statement deletion per statement without one (edits generated, AST-exact), M1118 the nested effect deletion; kinds of the new rows N 110 / D 81 / P 18 / C 11 / R 8; the driver, the enumerator and the classifier embedded verbatim | 0 |
