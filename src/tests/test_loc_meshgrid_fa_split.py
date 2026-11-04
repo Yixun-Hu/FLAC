@@ -5063,3 +5063,234 @@ def test_the_per_arm_report_reads_a_single_shard_ledger_exactly(tmp_path):
     with pytest.raises(ValueError, match="is one query ahead of its rows, but it is its shard's "
                                          "last invocation"):
         RPT.evaluate_fixture(fixture)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F5 (Codex code review rB-F4, HIGH 2): the evidence schema's oracle is an
+# INDEPENDENT frozen manifest -- one (gate, where, field, kind) per registration entry,
+# written here as a literal and never derived from ``fp.EVIDENCE_SCHEMA``, so a mutated
+# registration cannot move it. Every entry's deletion and its retyping are named by the
+# entry's OWN reason on the gate's real evidence; the mutation run deletes and retypes each
+# entry in turn (loc_meshgrid_<ts>_r2bf5_delete_the_check_mutations.log).
+# --------------------------------------------------------------------------- #
+#: the registration at the frozen rB-F3 code (701926e5), entry by entry: 211 (gate, field)s
+FROZEN_SCHEMA_MANIFEST = (
+    ("G1", "evidence", "gate", "str"), ("G1", "evidence", "name", "str"),
+    ("G1", "evidence", "verdict", "str"), ("G1", "evidence", "reasons", "list"),
+    ("G1", "evidence", "note", "str"), ("G1", "evidence", "inputs", "dict"),
+    ("G1", "evidence", "provenance", "dict"), ("G1", "evidence", "verdict_clauses", "dict"),
+    ("G1", "evidence", "reverify_note", "str"), ("G1", "evidence", "created_utc", "str"),
+    ("G1", "evidence", "match", "bool"), ("G1", "evidence", "tolerance", "float"),
+    ("G1", "evidence", "chunks", "list"), ("G1", "evidence", "coverage", "dict"),
+    ("G1", "evidence", "executed_partition", "dict"), ("G1", "evidence", "per_key", "dict"),
+    ("G1", "inputs", "binding", "dict"), ("G1", "inputs", "identity", "dict"),
+    ("G1", "inputs", "cond_autocast_requested", "str"),
+    ("G1", "inputs", "cond_autocast_enabled", "bool"),
+    ("G1", "inputs", "cond_autocast_dtype", "str"),
+    ("G1", "inputs", "cond_autocast_device_type", "str"), ("G1", "inputs", "batch_rows", "int"),
+    ("G1", "inputs", "source_chunk", "int"), ("G1", "inputs", "ckpt_path", "str"),
+    ("G1", "inputs", "device", "str"), ("G1", "inputs", "angles", "list"),
+    ("G1", "inputs", "candidate_indices", "list"), ("G1", "inputs", "micro_batch", "int"),
+    ("G1", "inputs", "n_candidates", "int"), ("G1", "inputs", "position", "int"),
+    ("G1", "inputs", "query_id", "str"), ("G1", "inputs", "receiver_id", "str"),
+    ("G1", "inputs", "room_id", "str"),
+    ("G2", "evidence", "gate", "str"), ("G2", "evidence", "name", "str"),
+    ("G2", "evidence", "verdict", "str"), ("G2", "evidence", "reasons", "list"),
+    ("G2", "evidence", "note", "str"), ("G2", "evidence", "inputs", "dict"),
+    ("G2", "evidence", "provenance", "dict"), ("G2", "evidence", "verdict_clauses", "dict"),
+    ("G2", "evidence", "reverify_note", "str"), ("G2", "evidence", "created_utc", "str"),
+    ("G2", "evidence", "match", "bool"), ("G2", "evidence", "tolerance", "float"),
+    ("G2", "evidence", "batched", "dict"), ("G2", "evidence", "counter_tests", "dict"),
+    ("G2", "evidence", "executed_partition", "dict"), ("G2", "evidence", "memoization", "dict"),
+    ("G2", "evidence", "per_key", "dict"),
+    ("G2", "inputs", "binding", "dict"), ("G2", "inputs", "identity", "dict"),
+    ("G2", "inputs", "cond_autocast_requested", "str"),
+    ("G2", "inputs", "cond_autocast_enabled", "bool"),
+    ("G2", "inputs", "cond_autocast_dtype", "str"),
+    ("G2", "inputs", "cond_autocast_device_type", "str"), ("G2", "inputs", "batch_rows", "int"),
+    ("G2", "inputs", "source_chunk", "int"), ("G2", "inputs", "ckpt_path", "str"),
+    ("G2", "inputs", "device", "str"), ("G2", "inputs", "angles", "list"),
+    ("G2", "inputs", "candidate_indices", "list"), ("G2", "inputs", "micro_batch", "int"),
+    ("G2", "inputs", "n_candidates", "int"), ("G2", "inputs", "position", "int"),
+    ("G2", "inputs", "query_id", "str"), ("G2", "inputs", "receiver_id", "str"),
+    ("G2", "inputs", "room_id", "str"),
+    ("G3", "evidence", "gate", "str"), ("G3", "evidence", "name", "str"),
+    ("G3", "evidence", "verdict", "str"), ("G3", "evidence", "reasons", "list"),
+    ("G3", "evidence", "note", "str"), ("G3", "evidence", "inputs", "dict"),
+    ("G3", "evidence", "provenance", "dict"), ("G3", "evidence", "verdict_clauses", "dict"),
+    ("G3", "evidence", "reverify_note", "str"), ("G3", "evidence", "created_utc", "str"),
+    ("G3", "evidence", "match", "bool"), ("G3", "evidence", "tolerance", "float"),
+    ("G3", "evidence", "score_tolerance", "float"), ("G3", "evidence", "coverage", "dict"),
+    ("G3", "evidence", "declared_partition", "dict"),
+    ("G3", "evidence", "digest_chains", "dict"),
+    ("G3", "evidence", "executed_partition", "dict"), ("G3", "evidence", "per_key", "dict"),
+    ("G3", "evidence", "probe_queries", "dict"), ("G3", "evidence", "queries", "list"),
+    ("G3", "evidence", "score_stability", "dict"),
+    ("G3", "inputs", "binding", "dict"), ("G3", "inputs", "identity", "dict"),
+    ("G3", "inputs", "cond_autocast_requested", "str"),
+    ("G3", "inputs", "cond_autocast_enabled", "bool"),
+    ("G3", "inputs", "cond_autocast_dtype", "str"),
+    ("G3", "inputs", "cond_autocast_device_type", "str"), ("G3", "inputs", "batch_rows", "int"),
+    ("G3", "inputs", "source_chunk", "int"), ("G3", "inputs", "ckpt_path", "str"),
+    ("G3", "inputs", "device", "str"), ("G3", "inputs", "anchor_key_set_equal", "bool"),
+    ("G3", "inputs", "angles", "list"), ("G3", "inputs", "micro_batch", "int"),
+    ("G3", "inputs", "noise_policy", "str"), ("G3", "inputs", "num_samples", "int"),
+    ("G3", "inputs", "prefixes", "list"), ("G3", "inputs", "probe_report", "dict"),
+    ("G3", "inputs", "queries", "list"), ("G3", "inputs", "seed", "int"),
+    ("G3", "inputs", "tau", "float"),
+    ("G3D", "evidence", "gate", "str"), ("G3D", "evidence", "name", "str"),
+    ("G3D", "evidence", "verdict", "str"), ("G3D", "evidence", "reasons", "list"),
+    ("G3D", "evidence", "note", "str"), ("G3D", "evidence", "inputs", "dict"),
+    ("G3D", "evidence", "provenance", "dict"), ("G3D", "evidence", "verdict_clauses", "dict"),
+    ("G3D", "evidence", "reverify_note", "str"), ("G3D", "evidence", "created_utc", "str"),
+    ("G3D", "evidence", "match", "null"), ("G3D", "evidence", "tolerance", "null"),
+    ("G3D", "evidence", "score_tolerance", "null"), ("G3D", "evidence", "complete", "bool"),
+    ("G3D", "evidence", "context", "dict"), ("G3D", "evidence", "coverage", "dict"),
+    ("G3D", "evidence", "declared_partition", "dict"),
+    ("G3D", "evidence", "digest_chains", "dict"),
+    ("G3D", "evidence", "executed_partition", "dict"), ("G3D", "evidence", "per_key", "dict"),
+    ("G3D", "evidence", "probe_queries", "dict"), ("G3D", "evidence", "queries", "list"),
+    ("G3D", "evidence", "score_stability", "dict"),
+    ("G3D", "inputs", "binding", "dict"), ("G3D", "inputs", "identity", "dict"),
+    ("G3D", "inputs", "cond_autocast_requested", "str"),
+    ("G3D", "inputs", "cond_autocast_enabled", "bool"),
+    ("G3D", "inputs", "cond_autocast_dtype", "str"),
+    ("G3D", "inputs", "cond_autocast_device_type", "str"),
+    ("G3D", "inputs", "batch_rows", "int"), ("G3D", "inputs", "source_chunk", "int"),
+    ("G3D", "inputs", "ckpt_path", "str"), ("G3D", "inputs", "device", "str"),
+    ("G3D", "inputs", "anchor_key_set_equal", "bool"), ("G3D", "inputs", "angles", "list"),
+    ("G3D", "inputs", "micro_batch", "int"), ("G3D", "inputs", "noise_policy", "str"),
+    ("G3D", "inputs", "num_samples", "int"), ("G3D", "inputs", "prefixes", "list"),
+    ("G3D", "inputs", "probe_report", "dict"), ("G3D", "inputs", "queries", "list"),
+    ("G3D", "inputs", "seed", "int"), ("G3D", "inputs", "tau", "float"),
+    ("G0", "evidence", "gate", "str"), ("G0", "evidence", "name", "str"),
+    ("G0", "evidence", "verdict", "str"), ("G0", "evidence", "reasons", "list"),
+    ("G0", "evidence", "note", "str"), ("G0", "evidence", "inputs", "dict"),
+    ("G0", "evidence", "provenance", "dict"), ("G0", "evidence", "verdict_clauses", "dict"),
+    ("G0", "evidence", "reverify_note", "str"), ("G0", "evidence", "created_utc", "str"),
+    ("G0", "evidence", "match", "bool"), ("G0", "evidence", "tolerance", "float"),
+    ("G0", "evidence", "executed_partition", "null"),
+    ("G0", "evidence", "probe_queries", "dict"), ("G0", "evidence", "queries", "list"),
+    ("G0", "inputs", "binding", "dict"), ("G0", "inputs", "identity", "dict"),
+    ("G0", "inputs", "cond_autocast_requested", "str"),
+    ("G0", "inputs", "cond_autocast_enabled", "bool"),
+    ("G0", "inputs", "cond_autocast_dtype", "str"),
+    ("G0", "inputs", "cond_autocast_device_type", "str"), ("G0", "inputs", "batch_rows", "int"),
+    ("G0", "inputs", "source_chunk", "int"), ("G0", "inputs", "ckpt_path", "str"),
+    ("G0", "inputs", "device", "str"), ("G0", "inputs", "anchor_key_set_equal", "bool"),
+    ("G0", "inputs", "expected_observation_bank_sha256", "str"),
+    ("G0", "inputs", "observation_bank_sha256", "str"), ("G0", "inputs", "probe_report", "dict"),
+    ("G0", "inputs", "published_binding", "dict"),
+    ("G0", "inputs", "published_binding_sha256", "str"), ("G0", "inputs", "queries", "list"),
+    ("G0", "inputs", "run_dir", "str"),
+    ("GV", "evidence", "gate", "str"), ("GV", "evidence", "name", "str"),
+    ("GV", "evidence", "verdict", "str"), ("GV", "evidence", "reasons", "list"),
+    ("GV", "evidence", "note", "str"), ("GV", "evidence", "inputs", "dict"),
+    ("GV", "evidence", "provenance", "dict"), ("GV", "evidence", "verdict_clauses", "dict"),
+    ("GV", "evidence", "reverify_note", "str"), ("GV", "evidence", "created_utc", "str"),
+    ("GV", "evidence", "match", "bool"), ("GV", "evidence", "tolerance", "float"),
+    ("GV", "evidence", "vanilla_cache_parity", "dict"),
+    ("GV", "inputs", "binding", "dict"), ("GV", "inputs", "identity", "dict"),
+    ("GV", "inputs", "cond_autocast_requested", "str"),
+    ("GV", "inputs", "cond_autocast_enabled", "bool"),
+    ("GV", "inputs", "cond_autocast_dtype", "str"),
+    ("GV", "inputs", "cond_autocast_device_type", "str"), ("GV", "inputs", "batch_rows", "int"),
+    ("GV", "inputs", "source_chunk", "int"), ("GV", "inputs", "ckpt_path", "str"),
+    ("GV", "inputs", "device", "str"), ("GV", "inputs", "n_candidates", "int"),
+    ("GV", "inputs", "query_id", "str"),
+)
+MANIFEST_IDS = [f"{gate}-{where}-{field}" for gate, where, field, _kind in FROZEN_SCHEMA_MANIFEST]
+
+
+def _manifest_schema():
+    """``{gate: ({top field: kind}, {inputs field: kind})}`` built from the manifest alone."""
+    schema = {}
+    for gate, where, field, kind in FROZEN_SCHEMA_MANIFEST:
+        top, inputs = schema.setdefault(gate, ({}, {}))
+        (top if where == "evidence" else inputs)[field] = kind
+    return schema
+
+
+#: each gate's real evidence, built once per session (pure JSON: nothing else is cached)
+_EVIDENCE_JSON = {}
+
+
+def _cached_real_evidence(tmp_path, monkeypatch, gate):
+    """A fresh JSON copy of the gate's real driver-run evidence (``clean_env`` active)."""
+    if gate not in _EVIDENCE_JSON:
+        _EVIDENCE_JSON[gate] = json.dumps(_real_evidence(tmp_path, monkeypatch, gate))
+    return json.loads(_EVIDENCE_JSON[gate])
+
+
+def _field_path(where, field):
+    return [field] if where == "evidence" else ["inputs", field]
+
+
+def test_the_evidence_schema_registration_is_the_frozen_manifest():
+    """The registration IS the frozen manifest -- every gate, every top-level and ``inputs``
+    field, every kind; the manifest names each (gate, where, field) once."""
+    entries = [(gate, where, field) for gate, where, field, _kind in FROZEN_SCHEMA_MANIFEST]
+    assert len(entries) == len(set(entries)) == 211
+    assert fp.EVIDENCE_SCHEMA == _manifest_schema()
+
+
+@pytest.mark.parametrize("gate", ["G1", "G2", "G3", "G3D", "G0", "GV"])
+def test_a_real_evidence_carries_exactly_the_frozen_manifests_fields(tmp_path, monkeypatch,
+                                                                    clean_env, gate):
+    """The honest side of every per-entry test below: the gate's real evidence carries exactly
+    the manifest's fields, each of the manifest's kind (by the TEST's ``_kind``), and
+    re-verifies clean."""
+    evidence = json.loads(json.dumps(_real_evidence(tmp_path, monkeypatch, gate)))
+    top, inputs = _manifest_schema()[gate]
+    assert {field: _kind(value) for field, value in evidence.items()} == top
+    assert {field: _kind(value) for field, value in evidence["inputs"].items()} == inputs
+    assert fp.schema_reasons(gate, evidence) == []
+    assert fp.reverify_gate_evidence(evidence) == []
+
+
+@pytest.mark.parametrize("gate, where, field, kind", FROZEN_SCHEMA_MANIFEST, ids=MANIFEST_IDS)
+def test_a_missing_schema_field_is_named_by_its_own_reason(tmp_path, monkeypatch, clean_env,
+                                                           gate, where, field, kind):
+    """Codex rB-F4 HIGH 2 (M133: an evidence omitting ``created_utc`` passed a registration
+    without it): the real evidence with exactly this field deleted is named by the field's OWN
+    "lacks" reason -- by the schema validator and by the entry point. (A deleted ``gate`` never
+    reaches the schema through the entry point: its gate clause refuses it first.)"""
+    evidence = _cached_real_evidence(tmp_path, monkeypatch, gate)
+    assert field in (evidence if where == "evidence" else evidence["inputs"])
+    edited = _tamper(evidence, _field_path(where, field), delete=True)
+    wanted = f"schema: {where} lacks ['{field}']"
+    assert wanted in fp.schema_reasons(gate, edited)
+    if field == "gate":
+        assert fp.reverify_gate_evidence(edited) == [
+            f"gate: None is not one of the re-verifiable gates {sorted(fp.REVERIFIERS)}"]
+    else:
+        assert wanted in fp.reverify_gate_evidence(edited)
+
+
+@pytest.mark.parametrize("gate, where, field, kind", FROZEN_SCHEMA_MANIFEST, ids=MANIFEST_IDS)
+def test_a_retyped_schema_field_is_named_by_its_own_reason(tmp_path, monkeypatch, clean_env,
+                                                           gate, where, field, kind):
+    """Codex rB-F4 HIGH 2 (M134: ``inputs.device = 7`` passed a registration retyped to int):
+    the field replaced by a value of EVERY other JSON kind is named by its own reason against
+    the MANIFEST's kind -- so a registration retyped to any other kind fails this test."""
+    evidence = _cached_real_evidence(tmp_path, monkeypatch, gate)
+    for value in [substitute for substitute in SUBSTITUTES if _kind(substitute) != kind]:
+        edited = _tamper(evidence, _field_path(where, field), value)
+        wanted = f"schema: {where}.{field} is {type(value).__name__}, not {kind}"
+        assert wanted in fp.schema_reasons(gate, edited), value
+        if field != "gate":
+            assert wanted in fp.reverify_gate_evidence(edited), value
+
+
+#: ``_is_kind`` over every registered kind and a value of every JSON kind: the expected
+#: answer is the TEST's own kind function (a bool is only a bool, None only null)
+IS_KIND_CASES = [(kind, value) for kind in ("str", "int", "float", "dict", "list", "bool", "null")
+                 for value in SUBSTITUTES]
+
+
+@pytest.mark.parametrize("kind, value", IS_KIND_CASES,
+                         ids=[f"{kind}-{_kind(value)}" for kind, value in IS_KIND_CASES])
+def test_is_kind_answers_the_json_kind_exactly(kind, value):
+    """``_is_kind``'s truth table, row by row (Codex rB-F4 HIGH 1 sweep): each of its atoms
+    flips exactly the rows its semantics decide."""
+    assert fp._is_kind(value, kind) is (_kind(value) == kind)
