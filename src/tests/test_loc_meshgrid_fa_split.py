@@ -4691,3 +4691,375 @@ def test_the_census_verifies_the_merged_ledgers_own_integrity_before_any_write(t
         me.merge_shards([dirs["a"], dirs["b"]], str(tmp_path / "merged"), plan, records,
                         totals=totals)
     assert not os.path.exists(tmp_path / "merged")
+
+
+# --------------------------------------------------------------------------- #
+# rB-F4 part 3: the row binding, the merged ledger's origins / blocks / receipt, the passes'
+# ledger dispatch and the driver's claim -- each atom alone
+# --------------------------------------------------------------------------- #
+def _stamp_needle(query_id):
+    import re
+
+    return (re.escape(f"row {query_id}: its ledger stamp ") + ".* is not a "
+            + re.escape(f"{list(me.STAMP_FIELDS)} state"))
+
+
+def _row_stamped(out, n):
+    """The row whose stamp records the segment state n (a fixture segment of several rows)."""
+    return next(row for row in me.read_rows(out) if me.read_fa_stamp(out, row)[1]["n_queries"] == n)
+
+
+STAMP_FORM_DEFECTS = [
+    # (id, the stamped state of the edited row, the edit); without its conjunct each stamp would
+    # BIND: False / 0.0 look segment 0 up, True is n = 1, 4.0 is n = 4, and row 1's state is no
+    # segment's top (a zero or a non-string digest there is read by nothing else)
+    ("an_extra_field", 1, lambda s: s.update(smuggled=1)),
+    ("query_id_another", 1, lambda s: s.update(query_id="9|another")),
+    ("segment_index_a_bool", 1, lambda s: s.update(segment_index=False)),
+    ("segment_index_a_float", 1, lambda s: s.update(segment_index=0.0)),
+    ("n_queries_a_bool", 1, lambda s: s.update(n_queries=True)),
+    ("n_queries_a_float", 4, lambda s: s.update(n_queries=float(s["n_queries"]))),
+    ("n_queries_zero", 1, lambda s: s.update(n_queries=0)),
+    ("counts_sha256_null", 1, lambda s: s.update(counts_sha256=None)),
+    ("counts_sha256_an_int", 1, lambda s: s.update(counts_sha256=7)),
+    ("no_stamp_object", 1, None),                                  # the stamp file deleted
+]
+
+
+@pytest.mark.parametrize("exact", [False, True], ids=["reopen", "merge"])
+@pytest.mark.parametrize("name, n, edit", STAMP_FORM_DEFECTS, ids=[d[0] for d in STAMP_FORM_DEFECTS])
+def test_each_stamp_form_conjunct_is_refused_by_its_own_reason(tmp_path, name, n, edit, exact):
+    """``_row_binding_reasons``' stamp form, one conjunct at a time: a dict of exactly its four
+    fields, its own query, a real-int segment index, a real-int n_queries >= 1, a string
+    digest. Each edit is the only clause the input violates."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    assert _ledger(out)["segments"][0]["n_queries"] == 4
+    row = _row_stamped(out, n)
+    if edit is None:
+        os.remove(_stamp_file(out, row))
+    else:
+        _edit_json(_stamp_file(out, row), edit)
+    with pytest.raises(ValueError, match=_stamp_needle(row["query_id"])):
+        me.read_fa_ledger(out, FA_DECLARED, exact=exact)
+
+
+@pytest.mark.parametrize("mode", ["shard", "merged"])
+def test_a_stamp_naming_a_segment_the_ledger_does_not_hold_is_refused(tmp_path, mode):
+    """``_row_binding_reasons``' segment lookup, the ABSENT half (the launch-record half is
+    ``test_a_ledger_segment_naming_another_launch_record_than_its_rows_is_refused``): the row
+    stamped n = 2 names segment 7 -- by global index in a shard, by shard-local index at a merge
+    -- and every other row still binds its segment's top state."""
+    if mode == "shard":
+        _engine, summary, run, _stack = _fa_pass(tmp_path)
+        me.write_json(_fa_files(run)[1], summary)
+        declared, exact = FA_DECLARED, False
+    else:
+        _rpt, fixture = _bf_merged(tmp_path)
+        run, exact = fixture["run_dir"], True
+        declared = json.load(open(os.path.join(run, me.BINDING_FILENAME)))["fa_partition"]
+    assert me.read_fa_ledger(run, declared, exact=exact)
+    row = _row_stamped(run, 2)
+    _edit_json(_stamp_file(run, row), lambda stamp: stamp.update(segment_index=7))
+    with pytest.raises(ValueError, match=re_escape(f"row {row['query_id']}: its stamp names "
+                                                   "segment 7")):
+        me.read_fa_ledger(run, declared, exact=exact)
+
+
+def test_a_stamp_claiming_a_state_beyond_its_segment_is_refused_by_its_own_reason(tmp_path):
+    """``_row_binding_reasons``' state clause, the BEYOND half (the duplicate half is
+    ``test_two_rows_may_not_carry_the_same_ledger_state``). In VERDICT it is redundant with the
+    segment range check (a stamp above N makes M > N); it is observed by its own reason."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    n = _ledger(out)["segments"][0]["n_queries"]
+    row = _row_stamped(out, 1)
+    _edit_json(_stamp_file(out, row), lambda stamp: stamp.update(n_queries=n + 1))
+    with pytest.raises(ValueError, match=re_escape(
+            f"row {row['query_id']}: its stamp claims a state twice or beyond its segment's "
+            f"{n} queries")):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_at_a_merge_a_row_without_a_launch_record_binds_no_segment(tmp_path):
+    """The merged lookup is keyed by (launch record, shard-local index) over the segments that
+    HAVE a record -- two record-less shards would collide on (None, 0). Directly: the recorded
+    twin binds; the record-less segment binds none of the same rows."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segment = dict(_ledger(out)["segments"][0], shard="A", shard_segment_index=0)
+    stamps = [me.read_fa_stamp(out, row) for row in me.read_rows(out)]
+    assert segment["launch_record_sha256"] is None and {s[2] for s in stamps} == {None}
+    recorded = dict(segment, launch_record_sha256="r" * 64)
+    assert me._row_binding_reasons([recorded], [(query, stamp, "r" * 64) for query, stamp, _l
+                                                in stamps], True, [("A", [recorded])]) == []
+    reasons = me._row_binding_reasons([segment], stamps, True, [("A", [segment])])
+    assert any(reason.endswith("which the ledger does not hold") for reason in reasons), reasons
+
+
+def test_stamps_bind_a_segment_by_their_highest_state_in_any_read_order(tmp_path):
+    """The binding keeps each segment's HIGHEST stamped state whatever order its rows arrive in
+    (here highest first): the segment is exact at n, at a reopen and at a merge."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segments = _ledger(out)["segments"]
+    stamps = sorted((me.read_fa_stamp(out, row) for row in me.read_rows(out)),
+                    key=lambda entry: -entry[1]["n_queries"])
+    for exact in (False, True):
+        assert me._row_binding_reasons(segments, stamps, exact) == []
+
+
+def test_the_segment_binding_holds_its_own_range(tmp_path):
+    """``_segment_binding``'s lower bound -- a segment BEHIND its rows (N < M) -- is unreachable
+    through ``_row_binding_reasons``, which never counts a stamp above N (so M <= N there); the
+    helper holds its range on its own, observed directly."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segment = _ledger(out)["segments"][0]
+    n, digest = segment["n_queries"], segment["counts_sha256"]
+    assert me._segment_binding(segment, (n, digest), True, last=True, later=set()) == []
+    assert me._segment_binding(segment, (n + 1, digest), False, last=True, later=set()) == [
+        f"segment 0 holds {n} queries but its rows show {n + 1}: a ledger state is at most one "
+        "query ahead of its last row"]
+
+
+def test_an_unverifiable_rows_stamp_is_never_trusted(tmp_path):
+    """``_stamp_reasons`` binds only rows whose own digest verifies: a row that no longer
+    verifies (a resume regenerates it, a merge refuses it) has its stamp ignored -- even a
+    missing one; the row stamped n = 2 is no segment's top state."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    row = _row_stamped(out, 2)
+    _edit_json(me.query_artifact_paths(out, row["room_id"], row["position"])["row"],
+               lambda published: published.update(row_sha256="0" * 64))
+    os.remove(_stamp_file(out, row))
+    assert me.read_fa_ledger(out, FA_DECLARED)["n_segments"] == 1
+
+
+@pytest.mark.parametrize("content", ["[1, 2]", '{"segment_index": '],
+                         ids=["not_an_object", "not_json"])
+def test_an_unreadable_ledger_stamp_is_named(tmp_path, content):
+    """``_stamp_reasons`` names a stamp it cannot read (the reader's own refusal, raised from
+    ``_read_object``, is wrapped into the ledger's verdict)."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    with open(_stamp_file(out, me.read_rows(out)[0]), "w") as handle:
+        handle.write(content)
+    with pytest.raises(ValueError, match="does not verify: its rows cannot be read for their "
+                                         "ledger stamps"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_at_a_merge_an_unverifiable_last_rows_stamp_cannot_vouch_for_its_segment(tmp_path):
+    """The other side of the verifying-row filter: the stamp of a row whose own digest does not
+    verify never counts -- here the LAST row's, so the shard reads one query ahead of its
+    verifying rows: a reopen admits it (and regenerates the row), a merge refuses it. Counted,
+    that stamp would vouch for the exact state. (The filter has no reason of its own: the
+    binding names the refusal.)"""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    assert me.read_fa_ledger(out, FA_DECLARED, exact=True)["n_segments"] == 1
+    row = _row_stamped(out, 4)
+    _edit_json(me.query_artifact_paths(out, row["room_id"], row["position"])["row"],
+               lambda published: published.update(row_sha256="0" * 64))
+    assert me.read_fa_ledger(out, FA_DECLARED)["n_segments"] == 1
+    with pytest.raises(ValueError, match="is one query ahead of its rows, but it is its shard's "
+                                         "last invocation"):
+        me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+def _receipt_for(segments):
+    """The merge receipt of ``segments`` as the TEST splits them -- consecutive runs of one
+    shard, no contiguity rule -- so that a coordinated receipt joins whatever the clause under
+    test is asked to refuse."""
+    merged = me.FaPartitionRecorder.from_counts(*[segment["counts"] for segment in segments])
+    runs = []
+    for segment in segments:
+        if runs and runs[-1][0] == segment["shard"]:
+            runs[-1][1].append(segment)
+        else:
+            runs.append((segment["shard"], [segment]))
+    return {"executed": merged.executed(), "violations": merged.violations(),
+            "counts_sha256": me.counts_sha256(merged),
+            "per_shard": [{"dir": shard, "counts_sha256": me.counts_sha256(
+                me.FaPartitionRecorder.from_counts(*[s["counts"] for s in run])),
+                "n_segments": len(run)} for shard, run in runs]}
+
+
+def _merged_case(origins):
+    """Merged segments of one canonical counts list each, with the given (shard, shard-local
+    index) origins; their joined receipt and summed recorder -- ``_merged_reasons``' inputs."""
+    segments = [{"segment_index": index, "shard": shard, "shard_segment_index": local,
+                 "counts": _canonical_counts()} for index, (shard, local) in enumerate(origins)]
+    return segments, _receipt_for(segments), me.FaPartitionRecorder.from_counts(
+        *[segment["counts"] for segment in segments])
+
+
+def test_an_honest_merged_case_joins_and_splits_into_its_shard_blocks():
+    segments, receipt, merged = _merged_case([("A", 0), ("A", 1), ("B", 0)])
+    reasons, blocks = me._merged_reasons(segments, receipt, merged)
+    assert reasons == [] and [(shard, len(block)) for shard, block in blocks] == [("A", 2), ("B", 1)]
+
+
+ORIGIN_DEFECTS = [("shard_not_a_string", 7, 0), ("shard_empty", "", 0),
+                  ("local_index_a_bool", "A", False), ("local_index_a_float", "A", 0.0)]
+
+
+@pytest.mark.parametrize("name, shard, local", ORIGIN_DEFECTS, ids=[d[0] for d in ORIGIN_DEFECTS])
+def test_each_merged_origin_conjunct_is_refused_by_its_own_reason(name, shard, local):
+    """``_merged_reasons``' origin clause, one conjunct at a time (a string shard, a non-empty
+    one, a real-int local index), against a receipt joining the edited origins: without its
+    conjunct the merged ledger would verify (``[False] == [0]``)."""
+    segments, receipt, merged = _merged_case([(shard, local), ("B", 0)])
+    assert me._merged_reasons(segments, receipt, merged) == (
+        ["merged segment 0 does not name its shard and its shard-local index"], None)
+
+
+def _merged_resumed_shards(tmp_path):
+    """Two record-carrying fa shards, each resumed once as a no-op (a row-less, record-less
+    second segment), merged: the merged directory and its segments a0, a1, b0, b1."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    for name, rooms in (("a", ["A/A_idx_1"]), ("b", ["B/B_idx_2"])):
+        _noop_resume(dirs[name], _fa_aligned(tmp_path / f"stack_{name}"), rooms)
+    merged = str(tmp_path / "merged")
+    me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    segments = _ledger(merged)["segments"]
+    assert [(s["shard"], s["shard_segment_index"], s["n_queries"] > 0,
+             s["launch_record_sha256"] is None) for s in segments] == [
+        (dirs["a"], 0, True, False), (dirs["a"], 1, False, True),
+        (dirs["b"], 0, True, False), (dirs["b"], 1, False, True)]
+    assert me.read_fa_ledger(merged, FA_DECLARED, exact=True)["n_segments"] == 4
+    return merged, segments
+
+
+def _rewrite_merged(merged, segments):
+    """Publish ``segments`` as the merged ledger -- renumbered, every self-digest recomputed --
+    with the receipt that joins them."""
+    ledger = _ledger(merged)
+    ledger["segments"] = [dict(segment, segment_index=index)
+                          for index, segment in enumerate(segments)]
+    me.write_json(os.path.join(merged, me.FA_LEDGER_FILENAME), _resummed(ledger))
+    _edit_json(os.path.join(merged, me.MERGE_REPORT_FILENAME),
+               lambda report: report.update(fa_partition_executed=_receipt_for(ledger["segments"])))
+
+
+def test_merged_segments_returning_to_an_earlier_shard_are_refused(tmp_path):
+    """``_merged_reasons``' contiguity clause (A, B, A) -- directly, every block numbered 0 and a
+    receipt joining the runs; and through the reader, on a real merge whose ledger and receipt
+    were rewritten coherently (the moved segments are the row-less, record-less no-ops, so the
+    row binding is untouched): each time the only clause the input violates."""
+    segments, receipt, merged = _merged_case([("A", 0), ("B", 0), ("A", 0)])
+    assert me._merged_reasons(segments, receipt, merged) == (
+        ["the merged segments of shard A are not one contiguous block"], None)
+    merged_dir, (a0, a1, b0, b1) = _merged_resumed_shards(tmp_path)
+    _rewrite_merged(merged_dir, [a0, b0, dict(a1, shard_segment_index=0),
+                                 dict(b1, shard_segment_index=0)])
+    with pytest.raises(ValueError, match=re_escape(
+            f"the merged segments of shard {a0['shard']} are not one contiguous block")):
+        me.read_fa_ledger(merged_dir, FA_DECLARED, exact=True)
+
+
+@pytest.mark.parametrize("name", ["gap", "duplicate", "reorder"])
+def test_a_shards_merged_local_indices_must_be_0_to_k_minus_1_in_order(tmp_path, name):
+    """``_merged_reasons``' local-order clause -- a gap, a duplicate and a reorder of one shard's
+    local indices -- directly, and through the reader on a coherently rewritten real merge (the
+    edited segment is the row-less, record-less no-op: the binding and the receipt still join)."""
+    locals_ = {"gap": (0, 2), "duplicate": (0, 0), "reorder": (1, 0)}[name]
+    segments, receipt, merged = _merged_case([("A", locals_[0]), ("A", locals_[1]), ("B", 0)])
+    assert me._merged_reasons(segments, receipt, merged)[0] == [
+        "shard A's merged segments are not its segments 0..1 in order"]
+    merged_dir, (a0, a1, b0, b1) = _merged_resumed_shards(tmp_path)
+    shard_a = {"gap": [a0, dict(a1, shard_segment_index=2)],
+               "duplicate": [a0, dict(a1, shard_segment_index=0)], "reorder": [a1, a0]}[name]
+    _rewrite_merged(merged_dir, shard_a + [b0, b1])
+    with pytest.raises(ValueError, match=re_escape(
+            f"shard {a0['shard']}'s merged segments are not its segments 0..1 in order")):
+        me.read_fa_ledger(merged_dir, FA_DECLARED, exact=True)
+
+
+@pytest.mark.parametrize("key", ["executed", "violations", "counts_sha256", "per_shard",
+                                 "an_extra_key", "a_missing_key"])
+def test_every_field_of_the_merge_receipt_is_joined(key):
+    """``_merged_reasons``' receipt join, key by key and both ways: each field moved, an extra
+    field and a missing one are each named (the join is one comparison over the key union)."""
+    segments, receipt, merged = _merged_case([("A", 0), ("B", 0)])
+    assert me._merged_reasons(segments, receipt, merged)[0] == []
+    moved = {"an_extra_key": "smuggled", "a_missing_key": "violations"}.get(key, key)
+    if key == "an_extra_key":
+        receipt["smuggled"] = 1
+    elif key == "a_missing_key":
+        receipt.pop("violations")
+    else:
+        receipt[key] = {"executed": {"orbit_size": 5}, "violations": ["x"],
+                        "counts_sha256": "0" * 64, "per_shard": []}[key]
+    assert me._merged_reasons(segments, receipt, merged)[0] == [
+        f"the merge report's fa_partition_executed receipt is not its merged ledger's (differs "
+        f"on ['{moved}'])"]
+
+
+def test_a_vanilla_or_probe_pass_handed_a_ledger_is_refused(tmp_path):
+    """``run_pass``: only a scored frame-averaged pass carries an executed-partition ledger -- a
+    vanilla pass or a probe handed one is refused before anything is written."""
+    ledger = me.open_fa_ledger(str(tmp_path / "fa"), FA_DECLARED)
+    plan, records, items = ENG._aligned(tmp_path / "vanilla")
+    with pytest.raises(ValueError, match="only a scored frame-averaged pass carries"):
+        me.run_pass(ENG.SyntheticEngine(), items, records, plan, str(tmp_path / "v"),
+                    fa_ledger=ledger, num_samples=4, prefixes=(1, 4), batch_rows=8,
+                    source_chunk=3)
+    plan, records, items = _fa_aligned(tmp_path / "probe")
+    with pytest.raises(ValueError, match="only a scored frame-averaged pass carries"):
+        me.run_pass(FaSyntheticEngine(), items, records, plan, str(tmp_path / "p"),
+                    fa_ledger=ledger, probe=1, fa_partition=FA_DECLARED, **FA_SHAPES)
+    assert not os.path.exists(tmp_path / "v") and not os.path.exists(tmp_path / "p")
+
+
+def _claim_args(tmp_path):
+    import localize_meshgrid as driver
+
+    return driver, driver.parse_args(["--ckpt-path", "x.ckpt", "--out-dir",
+                                      str(tmp_path / "shard")] + ENG._FA_PROTOCOL)
+
+
+def test_the_driver_records_an_advisory_change_into_the_published_binding(tmp_path):
+    """``claim_out_dir`` on a published out-dir: the binding is asserted, never rewritten, and an
+    advisory (batching) change is appended to its history."""
+    driver, args = _claim_args(tmp_path)
+    binding = _registered_binding("BF")
+    driver.claim_out_dir(args, binding, {"source_chunk": 16, "batch_rows": 256}, None)
+    args.resume = True
+    driver.claim_out_dir(args, binding, {"source_chunk": 16, "batch_rows": 128}, None)
+    published = json.load(open(os.path.join(args.out_dir, me.BINDING_FILENAME)))
+    assert [entry["changed"] for entry in published["advisory_history"]] == [
+        {"batch_rows": {"published": 256, "this_run": 128}}]
+    assert published["binding_sha256"] == me.binding_sha256(binding)
+
+
+def test_the_driver_refuses_a_reopen_under_another_binding_before_it_touches_the_out_dir(tmp_path):
+    """``claim_out_dir`` asserts the published binding FIRST: a reopen under another strict
+    binding is refused before the ledger (or anything else) is touched."""
+    driver, args = _claim_args(tmp_path)
+    binding, advisory = _registered_binding("BF"), {"source_chunk": 16, "batch_rows": 256}
+    driver.claim_out_dir(args, binding, advisory, None)
+    args.resume = True
+    before = _snapshot(args.out_dir)
+    with pytest.raises(ValueError, match="ckpt_sha256"):
+        driver.claim_out_dir(args, dict(binding, ckpt_sha256="9" * 64), advisory, None)
+    assert _snapshot(args.out_dir) == before
+
+
+def test_the_per_arm_report_reads_a_single_shard_ledger_exactly(tmp_path):
+    """``evaluate_run`` reads the ledger EXACTLY (``exact=True``): a single-shard BF run whose last
+    invocation was left one query ahead of its rows -- admissible at a reopen, which regenerates
+    the lost row -- is refused by the per-arm report (read at a reopen's strictness, the report
+    would admit it)."""
+    import test_loc_meshgrid_report as RPT
+
+    fixture = RPT.build_fixture_run(tmp_path, merged=False, arm="BF")
+    assert RPT.evaluate_fixture(fixture)["registered_protocol"]["arm"] == "BF"
+    run = fixture["run_dir"]
+    declared = json.load(open(os.path.join(run, me.BINDING_FILENAME)))["fa_partition"]
+
+    def one_ahead(ledger):
+        ledger["segments"][-1].update(n_queries=ledger["segments"][-1]["n_queries"] + 1,
+                                      delta_counts=[])
+        _resummed(ledger)
+
+    _edit_json(os.path.join(run, me.FA_LEDGER_FILENAME), one_ahead)
+    assert me.read_fa_ledger(run, declared)["n_segments"] == 1
+    with pytest.raises(ValueError, match="is one query ahead of its rows, but it is its shard's "
+                                         "last invocation"):
+        RPT.evaluate_fixture(fixture)
