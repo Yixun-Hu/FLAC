@@ -5294,3 +5294,382 @@ def test_is_kind_answers_the_json_kind_exactly(kind, value):
     """``_is_kind``'s truth table, row by row (Codex rB-F4 HIGH 1 sweep): each of its atoms
     flips exactly the rows its semantics decide."""
     assert fp._is_kind(value, kind) is (_kind(value) == kind)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F5 (Codex code review rB-F4, HIGH 1): the atoms the rB-F4 sweep left without a
+# mutation row -- Codex's named ones (the tolerance dispatch, the missing-field guard, the
+# merged-mode detection / fallback blocks / lookup selection, the three continues, the block
+# routing, freshness's final verdict, the merge-report dispatch) and every further atom the
+# machine-generated inventory found unmapped. Each test asserts its atom's OWN reason (or,
+# for a permissive guard, the honest result), the input built to violate only that atom.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("tolerance, wanted", [(1e-3, ["max |diff| 0.002 > 0.001"]), (None, [])],
+                         ids=["a_registered_tolerance", "no_tolerance"])
+def test_pair_reasons_judges_against_a_tolerance_only_when_one_is_registered(tolerance, wanted):
+    """``pair_reasons``' dispatch on ``tolerance is None`` (Codex rB-F4 HIGH 1): a registered
+    tolerance holds the measured |diff| to it; none (the G3D drift measurement, A6 iii) only
+    requires a measured number -- the same 0.002 is refused by 1e-3 and published unjudged."""
+    facts = {"shape": [[2], [2]], "dtype": ["torch.float32"] * 2, "finite": True,
+             "max_abs_diff": 2e-3}
+    assert fp.pair_reasons(facts, tolerance) == wanted
+
+
+def test_a_missing_schema_field_is_named_never_raised():
+    """``_shape_reasons``' ``field in payload`` guard (Codex rB-F4 HIGH 1): the retype clause
+    skips an absent field, so a missing one is named by its own "lacks" reason -- never a
+    KeyError (which the schema collector could only report as a malformed evidence)."""
+    schema = {"present": "str", "absent": "int"}
+    assert fp._shape_reasons("inputs", {"present": "x"}, schema) == [
+        "schema: inputs lacks ['absent']"]
+
+
+@pytest.mark.parametrize("enforce", [True, False], ids=["the_logic_gate", "the_measurement"])
+def test_the_live_score_deltas_are_judged_only_by_the_logic_gate(enforce):
+    """``_score_deltas``' dispatch on ``enforce``: the G3 logic gate judges a finite |dS| above
+    SCORE_TOLERANCE; the G3D measurement publishes the same delta unjudged."""
+    sims = torch.rand(3, 4, generator=torch.Generator().manual_seed(0))
+    out, why = fp._score_deltas(sims, sims + 0.5, [0, 1, 2], me.TAU, (1, 4), enforce=enforce)
+    assert all(out[str(k)]["max_abs_delta"] > me.SCORE_TOLERANCE for k in (1, 4))
+    assert bool(why) is enforce, why
+
+
+def test_a_replay_record_planned_for_another_orbit_is_refused(tmp_path, monkeypatch, clean_env):
+    """``_reverify_production`` plans each chunk's replay record from the evidence's OWN
+    ``inputs.angles``: every record rewritten to the plan of an EMPTY orbit (no orbit partition,
+    -1 orbit forwards) is refused, chunk by chunk, by the replay clause."""
+    edited = copy.deepcopy(_real_evidence(tmp_path, monkeypatch, "G3"))
+    for entry in edited["queries"]:
+        for chunk in entry["chunks"]:
+            chunk["replay_partition"].update(partition=[], n_orbit_forwards=-1)
+    reasons = fp.reverify_gate_evidence(edited)
+    n_chunks = sum(len(entry["chunks"]) for entry in edited["queries"])
+    assert sum("replay orbit partition" in reason for reason in reasons) == n_chunks, reasons
+
+
+@pytest.mark.parametrize("field", ["angles", "prefixes"])
+def test_an_evidence_lacking_its_angles_or_prefixes_keeps_every_other_reason(tmp_path, monkeypatch,
+                                                                            clean_env, field):
+    """``_reverify_production`` reads ``inputs.angles`` / ``inputs.prefixes`` with an empty
+    default: an evidence lacking one is named by the schema and KEEPS its per-query reasons --
+    here a chunk |diff| above its tolerance -- instead of one malformed comparison hiding them."""
+    evidence = _tamper(_real_evidence(tmp_path, monkeypatch, "G3"),
+                       ["queries", 0, "chunks", 0, "conditioning", "source", "tensor",
+                        "max_abs_diff"], 2e-3)
+    reasons = fp.reverify_gate_evidence(_tamper(evidence, ["inputs", field], delete=True))
+    assert f"schema: inputs lacks ['{field}']" in reasons
+    assert any(reason.endswith("source.tensor: max |diff| 0.002 > 0.001") for reason in reasons), (
+        reasons)
+    assert not any("the evidence is malformed" in reason for reason in reasons), reasons
+
+
+def test_score_stability_published_for_no_k_at_all_is_refused(tmp_path, monkeypatch, clean_env):
+    """The per-query K-set clause holds every query to the evidence's OWN ``inputs.prefixes``:
+    every query's per-K stability EMPTIED (the summary re-derived to match) is refused for every
+    query -- an empty K set would only pass against an empty registration."""
+    evidence = copy.deepcopy(_real_evidence(tmp_path, monkeypatch, "G3"))
+    for entry in evidence["queries"]:
+        entry["score_stability"] = {}
+    evidence["score_stability"] = fp.score_summary(evidence["queries"])
+    reasons = fp.reverify_gate_evidence(evidence)
+    for entry in evidence["queries"]:
+        assert any(reason.startswith(f"{entry['inputs']['query_id']}: its score stability is not "
+                                     "published for exactly K") for reason in reasons), reasons
+
+
+def test_collect_adds_the_reasons_of_its_check():
+    """``_collect``'s add: a part's reasons extend the collected ones (its except clause is the
+    malformed half, ``test_a_malformed_part_is_named_by_its_own_collector_...``)."""
+    reasons = ["kept"]
+    fp._collect(reasons, "part", lambda: ["its own reason"])
+    assert reasons == ["kept", "its own reason"]
+
+
+@pytest.mark.parametrize("summary, needle", [
+    ("per_key", "per_key: the published per-key summary is not the fold of its chunks"),
+    ("digest_chains", "digest_chains: the published chains are not its chunks' digests")],
+    ids=["per_key", "digest_chains"])
+def test_a_published_chunk_summary_that_was_emptied_is_refused(tmp_path, monkeypatch, clean_env,
+                                                              summary, needle):
+    """``_production_query_reasons`` folds every chunk into the per-key summary and into the
+    digest chains: an evidence publishing an EMPTY one is refused by name (a fold of no chunk
+    would join it)."""
+    evidence = _tamper(_real_evidence(tmp_path, monkeypatch, "G3"), [summary], {})
+    assert needle in fp.reverify_gate_evidence(evidence)
+
+
+def test_an_evidence_without_inputs_is_named_by_its_clauses_not_as_malformed(tmp_path,
+                                                                            monkeypatch,
+                                                                            clean_env):
+    """``reverify_gate_evidence`` reads a missing ``inputs`` as EMPTY: the schema names it and the
+    identity clause names what it lacks (no run binding) -- not "the evidence is malformed"."""
+    reasons = fp.reverify_gate_evidence(_tamper(_real_evidence(tmp_path, monkeypatch, "GV"),
+                                                ["inputs"], delete=True))
+    assert "schema: evidence lacks ['inputs']" in reasons
+    assert "identity: the evidence carries no run binding to re-derive its identity from" in (
+        reasons)
+
+
+# ---- the row binding: merged-mode detection, the fallback blocks, the lookup, the continues ----
+def _merged_pair(tmp_path):
+    """Two record-carrying one-segment fa shards merged; the merged directory and its two
+    segments (a0 = global 0, b0 = global 1, each shard-local 0)."""
+    plan, records, dirs, totals = _fa_shards(tmp_path)
+    merged = str(tmp_path / "merged")
+    me.merge_shards([dirs["a"], dirs["b"]], merged, plan, records, totals=totals)
+    segments = _ledger(merged)["segments"]
+    assert [(s["segment_index"], s["shard_segment_index"]) for s in segments] == [(0, 0), (1, 0)]
+    assert me.read_fa_ledger(merged, FA_DECLARED, exact=True)["n_segments"] == 2
+    return merged, segments
+
+
+def _hand_merged(tmp_path):
+    """Two record-carrying one-segment fa shards merged BY HAND, as ``fa_partition_census``
+    renumbers them (no merge, so nothing of the row binding runs while it is built): the
+    merged segments, their shard blocks and every row's ``(query id, stamp, launch record)``."""
+    _plan, _records, dirs, _totals = _fa_shards(tmp_path)
+    segments, blocks, stamps = [], [], []
+    for name in ("a", "b"):
+        block = []
+        for segment in _ledger(dirs[name])["segments"]:
+            block.append(dict(segment, segment_index=len(segments), shard=dirs[name],
+                              shard_segment_index=segment["segment_index"]))
+            segments.append(block[-1])
+        blocks.append((dirs[name], block))
+        stamps += [me.read_fa_stamp(dirs[name], row) for row in me.read_rows(dirs[name])]
+    return segments, blocks, stamps
+
+
+def test_at_a_merge_a_stamp_naming_its_global_segment_index_binds_no_segment(tmp_path):
+    """``_row_binding_reasons``' merged-mode detection (``blocks is not None``, Codex rB-F4 HIGH 1):
+    at a merge a stamp is looked up by (launch record, SHARD-LOCAL index) -- shard B's rows
+    restamped with their segment's GLOBAL index 1 name a segment the merged ledger does not hold
+    (looked up as a shard's, by global index, they would bind). Directly, on segments merged by
+    hand; the honest stamps bind (``test_the_merged_ledger_is_valid_under_its_own_reader``)."""
+    segments, blocks, stamps = _hand_merged(tmp_path)
+    b0 = segments[1]
+    assert (b0["segment_index"], b0["shard_segment_index"]) == (1, 0)
+    moved = [(query_id, dict(stamp, segment_index=1), launch)
+             if launch == b0["launch_record_sha256"] else (query_id, stamp, launch)
+             for query_id, stamp, launch in stamps]
+    restamped = [query_id for (query_id, _s, launch) in moved if launch == b0["launch_record_sha256"]]
+    assert restamped
+    reasons = me._row_binding_reasons(segments, moved, True, blocks)
+    assert [reason for reason in reasons if "its stamp names segment" in reason] == [
+        f"row {query_id}: its stamp names segment 1 (launch record "
+        f"{b0['launch_record_sha256']!r}), which the ledger does not hold" for query_id in restamped
+    ], reasons
+
+
+def test_at_a_merge_every_shards_last_invocation_is_exact(tmp_path):
+    """The merged blocks bind per SHARD (``blocks or ...``, Codex rB-F4 HIGH 1): shard A's last
+    (and only) invocation left one query ahead -- its prefix consistent, its counts and so the
+    receipt unchanged -- is refused although a later shard follows it in the merged ledger
+    (one block of all segments would let shard B's calls vouch for A's lost attempt)."""
+    merged, _segments = _merged_pair(tmp_path)
+
+    def a_one_ahead(ledger):
+        ledger["segments"][0].update(n_queries=ledger["segments"][0]["n_queries"] + 1,
+                                     delta_counts=[])
+        _resummed(ledger)
+
+    _edit_json(os.path.join(merged, me.FA_LEDGER_FILENAME), a_one_ahead)
+    with pytest.raises(ValueError, match="segment 0 is one query ahead of its rows, but it is its "
+                                         "shard's last invocation"):
+        me.read_fa_ledger(merged, FA_DECLARED, exact=True)
+
+
+@pytest.mark.parametrize("defect", ["no_stamp_object", "a_segment_the_ledger_does_not_hold",
+                                    "a_state_beyond_its_segment"])
+def test_a_refused_stamp_is_returned_by_its_own_reason_and_never_binds(tmp_path, defect):
+    """The three ``continue``s of ``_row_binding_reasons`` (Codex rB-F4 HIGH 1: not inert): a
+    refused stamp is RETURNED by its own reason, never raised -- no stamp object (its fields are
+    never read), no such segment (its query count is never read) -- and a refused state never
+    becomes its segment's binding state (beyond its segment: the segment's own rows still bind
+    it). Directly, at a reopen and at a merge: the returned list is exactly that one reason."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segments = _ledger(out)["segments"]
+    n = segments[0]["n_queries"]
+    stamps = [me.read_fa_stamp(out, row) for row in me.read_rows(out)]
+    target = next(i for i, (_q, stamp, _l) in enumerate(stamps) if stamp["n_queries"] == 1)
+    query_id, stamp, launch = stamps[target]
+    if defect == "no_stamp_object":
+        stamps[target] = (query_id, None, launch)
+        wanted = f"row {query_id}: its ledger stamp None is not a {list(me.STAMP_FIELDS)} state"
+    elif defect == "a_segment_the_ledger_does_not_hold":
+        stamps[target] = (query_id, dict(stamp, segment_index=7), launch)
+        wanted = (f"row {query_id}: its stamp names segment 7 (launch record {launch!r}), which "
+                  "the ledger does not hold")
+    else:
+        stamps[target] = (query_id, dict(stamp, n_queries=n + 1), launch)
+        wanted = (f"row {query_id}: its stamp claims a state twice or beyond its segment's {n} "
+                  "queries")
+    for exact in (False, True):
+        assert me._row_binding_reasons(segments, stamps, exact) == [wanted]
+
+
+# ---- the segment binding: which state an exact / one-ahead segment is held to ----------------
+def test_a_segment_claiming_one_more_query_than_its_rows_is_bound_by_its_prefix(tmp_path):
+    """``_segment_binding``'s state selection (``n == m``): a FINISHED segment whose query count
+    alone was raised by one (its counts, digest and delta kept) reads one query ahead -- bound
+    by its counts MINUS its delta, which is not its last row's state (its stored state is)."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    _edit_json(_fa_files(out)[0], lambda ledger: (ledger["segments"][0].update(
+        n_queries=ledger["segments"][0]["n_queries"] + 1), _resummed(ledger)))
+    with pytest.raises(ValueError, match="segment 0's state is not the one its last row was "
+                                         "published under"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+def test_an_exact_segment_is_bound_by_its_stored_state_not_its_prefix(tmp_path):
+    """... and the other side: an EXACT segment (as many queries as rows) is held to its stored
+    state -- its last row restamped with the state BEFORE its query (its segment's counts minus
+    its delta, the previous row's state) is refused."""
+    _engine, _summary, out, _stack = _fa_pass(tmp_path)
+    segment = _ledger(out)["segments"][0]
+    prefix = me._counts_minus(segment["counts"], segment["delta_counts"])
+    row = _row_stamped(out, segment["n_queries"])
+    _edit_json(_stamp_file(out, row),
+               lambda stamp: stamp.update(counts_sha256=me.counts_sha256(prefix)))
+    with pytest.raises(ValueError, match="segment 0's state is not the one its last row was "
+                                         "published under"):
+        me.read_fa_ledger(out, FA_DECLARED)
+
+
+# ---- the merged ledger's shard blocks: routing, the receipt's census --------------------------
+def test_two_shards_merged_segments_are_never_one_block():
+    """``_merged_reasons``' same-shard routing (``blocks[-1][0] == shard``, Codex rB-F4 HIGH 1): a
+    segment opens a new block when its shard changes -- two shards numbered on as ONE (local 0,
+    1) with a receipt claiming a single shard of both segments are refused (B's local index is
+    not its own 0); routed into one block they would join."""
+    segments, receipt, merged = _merged_case([("A", 0), ("B", 1)])
+    as_one = dict(receipt, per_shard=[{"dir": "A", "counts_sha256": me.counts_sha256(merged),
+                                       "n_segments": 2}])
+    reasons, blocks = me._merged_reasons(segments, as_one, merged)
+    assert reasons == ["shard B's merged segments are not its segments 0..0 in order",
+                       "the merge report's fa_partition_executed receipt is not its merged ledger's "
+                       "(differs on ['per_shard'])"], reasons
+    assert [(shard, len(block)) for shard, block in blocks] == [("A", 1), ("B", 1)]
+
+
+def test_a_merge_receipt_omitting_a_shards_later_segments_is_refused():
+    """``_merged_reasons``' block append: a shard's later segments join its block -- a receipt
+    whose census of shard A counts only its FIRST segment is refused on per_shard."""
+    segments, receipt, merged = _merged_case([("A", 0), ("A", 1), ("B", 0)])
+    first = me.FaPartitionRecorder.from_counts(segments[0]["counts"])
+    first_only = dict(receipt, per_shard=[{"dir": "A", "counts_sha256": me.counts_sha256(first),
+                                           "n_segments": 1}, receipt["per_shard"][1]])
+    assert me._merged_reasons(segments, first_only, merged)[0] == [
+        "the merge report's fa_partition_executed receipt is not its merged ledger's (differs on "
+        "['per_shard'])"]
+
+
+# ---- freshness: the final verdict ---------------------------------------------------------------
+FRESHNESS_CASES = [("nothing", True), ("only_launch_records", True), ("a_binding", False),
+                   ("a_rows_directory", False)]
+
+
+@pytest.mark.parametrize("content, fresh", FRESHNESS_CASES, ids=[c[0] for c in FRESHNESS_CASES])
+def test_fresh_out_dirs_verdict_is_that_it_holds_nothing_but_launch_records(tmp_path, content,
+                                                                           fresh):
+    """``fresh_out_dir``'s final verdict (``not found``, Codex rB-F4 HIGH 1): an existing out-dir
+    is fresh iff it holds nothing but the operator's emitted launch records."""
+    out = tmp_path / "shard"
+    out.mkdir()
+    if content == "only_launch_records":
+        for name in ("launch_record.json", "launch_record_resume1.json"):
+            me.write_json(str(out / name), {"argv": []})
+    elif content == "a_binding":
+        me.write_json(str(out / me.BINDING_FILENAME), {})
+    elif content == "a_rows_directory":
+        (out / "rows").mkdir()
+    assert me.fresh_out_dir(str(out))[0] is fresh
+
+
+# ---- the reader: the merge-report dispatch (and the P re-audit of M198) ----------------------
+def test_a_directory_publishing_a_merge_report_is_read_as_a_merged_run(tmp_path):
+    """``read_fa_ledger``'s merged dispatch (``merge_report is not None``; the merge report's
+    existence, Codex rB-F4 HIGH 1; the P re-audit of M198, HIGH 2): a directory publishing a
+    merge report takes the MERGED reading -- a valid single fa shard that was never merged but
+    carries a merge_report.json (its receipt coherent with the shard's own ledger) is refused by
+    the origin rule. Read as a shard it would be admitted, with a merge report no merged ledger
+    was ever joined to."""
+    _engine, summary, out, _stack = _fa_pass(tmp_path)
+    me.write_json(_fa_files(out)[1], summary)
+    assert me.read_fa_ledger(out, FA_DECLARED, exact=True)["n_segments"] == 1
+    segments = [dict(segment, shard=out, shard_segment_index=segment["segment_index"])
+                for segment in _ledger(out)["segments"]]
+    me.write_json(os.path.join(out, me.MERGE_REPORT_FILENAME),
+                  {"fa_partition_executed": _receipt_for(segments)})
+    with pytest.raises(ValueError, match=re_escape("merged segment 0 does not name its shard and "
+                                                   "its shard-local index")):
+        me.read_fa_ledger(out, FA_DECLARED, exact=True)
+
+
+@pytest.mark.parametrize("segments", ["empty", "absent"])
+def test_a_handed_ledger_without_a_segment_is_refused_by_name(tmp_path, segments):
+    """``adopt_fa_ledger`` reads the handle's last segment with an empty default: a handle whose
+    payload holds no segment (an empty list, or none at all) is refused by name -- never an
+    IndexError or a TypeError."""
+    out = str(tmp_path / "run")
+    ledger = me.open_fa_ledger(out, FA_DECLARED, None)
+    if segments == "empty":
+        ledger["payload"]["segments"] = []
+    else:
+        ledger["payload"].pop("segments")
+    with pytest.raises(ValueError, match="not the one just opened"):
+        me.adopt_fa_ledger(ledger, out, FA_DECLARED, None)
+
+
+# ---- the inventory's remaining atoms (each with a mutation of its own) ------------------------
+def test_the_driver_opens_its_ledger_segment_under_its_launch_record(tmp_path, monkeypatch):
+    """``claim_out_dir`` opens the invocation's ledger segment under ITS launch record
+    (``(launch or {}).get("sha256")``) -- the record its rows will name; the launch segment
+    itself is not under test here."""
+    from src.localization import meshgrid_segments as ms
+
+    driver, args = _claim_args(tmp_path)
+    monkeypatch.setattr(ms, "open_segment", lambda *args, **kwargs: None)
+    advisory = {"source_chunk": 16, "batch_rows": 256}
+    _done, _segment, ledger = driver.claim_out_dir(args, _registered_binding("BF"), advisory,
+                                                   {"sha256": "r" * 64})
+    assert ledger["payload"]["segments"][-1]["launch_record_sha256"] == "r" * 64
+    assert _ledger(args.out_dir)["segments"][-1]["launch_record_sha256"] == "r" * 64
+
+
+def test_the_driver_announces_an_advisory_change_on_the_console(tmp_path, capsys):
+    """``claim_out_dir`` tells the operator that the batching changed since the published pass
+    (the change itself is recorded in the binding)."""
+    driver, args = _claim_args(tmp_path)
+    binding = _registered_binding("BF")
+    driver.claim_out_dir(args, binding, {"source_chunk": 16, "batch_rows": 256}, None)
+    args.resume = True
+    driver.claim_out_dir(args, binding, {"source_chunk": 16, "batch_rows": 128}, None)
+    assert "NOTE: batching changed since the published pass" in capsys.readouterr().out
+
+
+def test_gate0_names_an_anchor_without_its_ordered_query_ids(tmp_path, monkeypatch):
+    """G0's live content clause reads the anchor's ordered ids with an EMPTY default: an anchor
+    that lacks them is named by the ordered-ids reason (its key-set clause refuses it too)."""
+    out, binding, frozen, cases = _published_vanilla_run(tmp_path)
+    anchor = _fake_anchor(tmp_path, monkeypatch, frozen)
+    anchor.pop("query_ids")
+    report = fp.vanilla_replay_regression(
+        ENG.SyntheticEngine(), cases, out, anchor=anchor, observation_bank_sha256="o" * 64,
+        expected_observation_bank_sha256="o" * 64, run_binding=binding,
+        expected_queries=_ids(cases), **G0_KW)
+    assert ("the frozen anchor: its ordered query ids are not the registered content of the "
+            "pinned probe report") in report["reasons"], report["reasons"]
+
+
+def test_a_query_without_its_candidate_index_list_does_not_tile(tmp_path, monkeypatch, clean_env):
+    """The tiling clause reads the query's candidate-index list with an EMPTY default: a query
+    that publishes none is named by the tiling reason -- not reduced to a malformed query."""
+    evidence = _real_evidence(tmp_path, monkeypatch, "G3")
+    query = evidence["queries"][0]["inputs"]
+    reasons = fp.reverify_gate_evidence(
+        _tamper(evidence, ["queries", 0, "inputs", "candidate_indices"], delete=True))
+    assert any(reason.startswith(f"{query['query_id']}: its chunks do not tile")
+               for reason in reasons), reasons
+    assert not any(reason.startswith("query: the evidence is malformed") for reason in reasons), (
+        reasons)
