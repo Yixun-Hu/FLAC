@@ -5673,3 +5673,136 @@ def test_a_query_without_its_candidate_index_list_does_not_tile(tmp_path, monkey
                for reason in reasons), reasons
     assert not any(reason.startswith("query: the evidence is malformed") for reason in reasons), (
         reasons)
+
+
+# --------------------------------------------------------------------------- #
+# exp_22 rB-F6 (Codex code review rB-F5, HIGH 1): the atom set is STATEMENT-COMPLETE -- every
+# statement of the scope has a deletion of its own; a test of its own where no test asserted
+# the statement's own effect (Codex's three named statements first)
+# --------------------------------------------------------------------------- #
+def test_counts_minus_leaves_the_exact_residual_of_every_call_shape(tmp_path):
+    """``_counts_minus``: a call shape the delta consumes IN PART keeps exactly its rest
+    (``bucket[key] = rest``), one it consumes whole is dropped (``bucket.pop``), and a delta
+    beyond the counts is no subtraction at all (``None``)."""
+    _engine, _summary, out, _ = _fa_pass(tmp_path)
+    counts = _ledger(out)["segments"][-1]["counts"]
+    partial = next(index for index, row in enumerate(counts) if row["count"] > 1)
+    left = me._counts_minus(counts, [dict(counts[partial], count=1)]).to_counts()
+    assert left == [dict(row, count=row["count"] - 1) if index == partial else row
+                    for index, row in enumerate(counts)]
+    assert me._counts_minus(counts, [counts[0]]).to_counts() == counts[1:]
+    assert me._counts_minus(counts, [dict(counts[0], count=counts[0]["count"] + 1)]) is None
+
+
+def test_write_fa_stamp_publishes_exactly_the_state_its_row_is_published_under(tmp_path):
+    """``write_fa_stamp``'s own effect: the stamp file at the row's stamp path, holding exactly
+    the state of the invocation's segment -- its index, query count and counts digest -- and the
+    query id (Codex rB-F5: the publication had no atom of its own)."""
+    import types
+
+    _engine, _summary, out, _ = _fa_pass(tmp_path)
+    ledger = {"path": os.path.join(out, me.FA_LEDGER_FILENAME), "payload": _ledger(out)}
+    segment = ledger["payload"]["segments"][-1]
+    query = types.SimpleNamespace(room_id="A/A_idx_1", position=7, query_id="A/A_idx_1|q7")
+    target = str(tmp_path / "elsewhere")
+    path = me.fa_stamp_path(target, query.room_id, query.position)
+    assert not os.path.exists(path)
+    me.write_fa_stamp(target, query, ledger)
+    assert json.load(open(path)) == {"segment_index": segment["segment_index"],
+                                     "n_queries": segment["n_queries"],
+                                     "counts_sha256": segment["counts_sha256"],
+                                     "query_id": "A/A_idx_1|q7"}
+
+
+def _one_query_segment(tmp_path):
+    """A one-query segment of the fixture's counts: its state after that query is its counts,
+    the state before it (counts minus delta) the empty one."""
+    _engine, _summary, out, _ = _fa_pass(tmp_path)
+    counts = _ledger(out)["segments"][-1]["counts"]
+    return {"segment_index": 0, "n_queries": 1, "launch_record_sha256": None, "counts": counts,
+            "counts_sha256": me.counts_sha256(me.FaPartitionRecorder.from_counts(counts)),
+            "delta_counts": counts}
+
+
+@pytest.mark.parametrize("stamped, expected", [
+    ("its_own_state", []),
+    ("another_state", ["segment 0's state is not the one its last row was published under"])])
+def test_a_one_query_segment_is_bound_by_its_highest_stamped_state(tmp_path, stamped, expected):
+    """The highest-state tracker (``top[id(segment)] = ...``): a segment's rows bind it at the
+    highest state they were stamped with. Without it a one-query segment would read as one
+    query AHEAD of no row and bind to the empty prefix at a reopen -- admitting a row stamped
+    with another state (Codex rB-F5 HIGH 1)."""
+    segment = _one_query_segment(tmp_path)
+    digest = segment["counts_sha256"] if stamped == "its_own_state" else "0" * 64
+    stamp = {"segment_index": 0, "n_queries": 1, "counts_sha256": digest, "query_id": "q"}
+    assert me._row_binding_reasons([segment], [("q", stamp, None)], False) == expected
+
+
+def test_a_scored_pass_through_main_claims_its_out_dir_before_the_pass_runs(tmp_path,
+                                                                           monkeypatch):
+    """``main`` claims a scored pass's out-dir (``done, segment, fa_ledger = claim_out_dir(...)``:
+    the binding published, the ledger opened under the launch record) and hands the pass the
+    ledger it opened; a second invocation with ANOTHER binding is refused by that claim. The
+    stack, the preflight and the launch record are stubbed (Codex rB-F5 HIGH 1)."""
+    import types
+
+    import localize_meshgrid as driver
+    from src.localization import agree_embed
+    from src.localization import meshgrid_queries as mq
+    from src.localization import meshgrid_segments as ms
+
+    _audit_out, report_path, _base = ENG._fixture_audit(tmp_path)
+    manifest = tmp_path / "d1.json"
+    manifest.write_text(json.dumps({"records": [], "protocol_facts": {}}))
+    ckpt, agree, record = tmp_path / "bf.ckpt", tmp_path / "agree.pt", tmp_path / "launch.json"
+    ckpt.write_bytes(b"bf")
+    agree.write_bytes(b"agree")
+    record.write_text("{}")
+    out = tmp_path / "shard"
+    bindings, passed = [_registered_binding("BF")], {}
+    monkeypatch.setattr(mq, "load_manifest", lambda _path: {"records": []})
+    monkeypatch.setattr(mq, "with_resolved_agree", lambda _config: {
+        "training": {"metrics": {"AGREE_ckpt": str(agree)}}})
+    monkeypatch.setattr(torch, "load", lambda *_a, **_k: {"model_config": {}})
+    monkeypatch.setattr(driver, "preflight", lambda *_a, **_k: (bindings[-1], {
+        "registered": {"is_registered": True, "arm": "BF", "deviations": {}},
+        "cond_binding": {"binding": "fa_invariant", "checkpoint_cond_method": "fa_invariant"}}))
+    monkeypatch.setattr(driver, "admit_launch_record", lambda *_a, **_k: {
+        "sha256": "r" * 64, "git_sha": "g" * 40, "hostname": "h", "execution_gpu_uuid": "u"})
+    monkeypatch.setattr(ms, "open_segment", lambda *_a, **_k: None)
+    monkeypatch.setattr(agree_embed, "load_agree_audio", lambda path, device: types.SimpleNamespace(
+        ckpt_sha256=bindings[-1]["agree_ckpt_sha256"]))
+    monkeypatch.setattr(me, "build_mesh_engine", lambda *_a, **_k: (
+        FaSyntheticEngine(), {"weights_source": "stub", "latent_shape": (2, 4)}))
+
+    def _pass(engine, stream, records, plan, out_dir, **kwargs):
+        passed.update(kwargs, published=os.path.isfile(os.path.join(out_dir, me.BINDING_FILENAME)))
+        os.makedirs(out_dir, exist_ok=True)          # a pass creates its out-dir if none did
+        return {"n_scored": 0, "n_skipped": 0, "n_conditioner_rows": 0, "n_generated": 0}
+
+    monkeypatch.setattr(me, "run_pass", _pass)
+    monkeypatch.setattr(mq, "build_release_stack", lambda *_a: ([], {"call_graph": "stub"}))
+    monkeypatch.setattr(me, "assert_release_rng_state", lambda _manifest: True)
+    argv = ["--ckpt-path", str(ckpt), "--agree-ckpt", str(agree), "--audit-report", report_path,
+            "--context-manifest", str(manifest), "--out-dir", str(out),
+            "--launch-record", str(record)] + ENG._FA_PROTOCOL
+    assert driver.main(argv) == 0
+    assert passed["published"] is True and passed["done"] == set()
+    assert passed["fa_ledger"]["path"] == os.path.join(str(out), me.FA_LEDGER_FILENAME)
+    assert _ledger(str(out))["segments"][-1]["launch_record_sha256"] == "r" * 64
+    bindings.append(_registered_binding("BF", tau=0.05))
+    passed.clear()
+    with pytest.raises(ValueError, match="this run does not continue the published one"):
+        driver.main(argv)
+    assert passed == {}
+
+
+def test_fresh_out_dir_names_its_entries_as_strings_whatever_path_type_it_is_given(tmp_path):
+    """``fresh_out_dir`` normalises its argument (``out_dir = str(out_dir)``): an out-dir given as
+    a path object that is a FILE is named by its string. The only production caller already
+    passes a string (redundant end to end), so the normalisation is observed directly."""
+    import pathlib
+
+    target = tmp_path / "not_a_directory"
+    target.write_text("x")
+    assert me.fresh_out_dir(pathlib.Path(target)) == (False, [str(target)])
