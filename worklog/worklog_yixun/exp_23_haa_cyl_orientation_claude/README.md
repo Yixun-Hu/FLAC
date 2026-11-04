@@ -117,3 +117,6 @@ Implementation (all default-inert; arm CYL rebuilds byte-identically):
   then P1_s43 FULL + grid — `resume_seed43_nov03.sh`, one card co-tenant beside CERPA, GPU pinned.
   Seeds 44–46 explicitly NOT run. Resumed ckpt read via the Sep-30 NAS symlink farm (verified
   readable). PL resume: optimizer/EMA restored, RNG not — non-bit-exact, disclosed.
+- 2026-11-04 (exp_21 session): seed-43 completion DONE rc=0 — see `seed43_results_2026-11-04.md`.
+  Two-seed verdict: near-parity, not robust parity (s43 has CYLORI27 slightly behind P1 on T60/C50/EDT;
+  resume asymmetry disclosed).
