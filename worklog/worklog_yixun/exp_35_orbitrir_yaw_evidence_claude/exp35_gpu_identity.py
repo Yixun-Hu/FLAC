@@ -81,12 +81,20 @@ def tuple_reasons(doc):
     return out + ([f"duplicate pids {pids}"] if len(set(pids)) != len(pids) else [])
 
 
-def load_tuple(path):
-    """The approved tuple at ``path``; ``ValueError`` when it is unreadable or malformed."""
+def load_tuple(path, sha256=None):
+    """The approved tuple at ``path``; ``ValueError`` when it is unreadable or malformed, or (Codex C2
+    BLOCKING 1) when the bytes read -- ONCE, then parsed -- do not hash to the launch entry's ``sha256``."""
     try:
-        with open(path) as f:
-            doc = json.load(f)
-    except (OSError, ValueError) as err:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as err:
+        raise ValueError(f"the approved tuple {path} is unreadable ({err})") from err
+    got = hashlib.sha256(raw).hexdigest()
+    if sha256 is not None and got != sha256:
+        raise ValueError(f"the approved tuple {path} hashes to {got}, the launch entry pins {sha256}")
+    try:
+        doc = json.loads(raw)
+    except ValueError as err:
         raise ValueError(f"the approved tuple {path} is unreadable ({err})") from err
     reasons = tuple_reasons(doc)
     if reasons:
@@ -126,6 +134,7 @@ def main(argv=None):
     mode.add_argument("--validate", metavar="FILE")
     mode.add_argument("--check", action="store_true")
     ap.add_argument("--approved")
+    ap.add_argument("--approved-sha256", default=None, help="the launch entry's sha256 of the tuple's bytes")
     ap.add_argument("--gpu-uuid")
     ap.add_argument("--pid", type=int, action="append", default=[])
     ap.add_argument("--pids", default="")
@@ -141,10 +150,10 @@ def main(argv=None):
             print(json.dumps(doc, indent=1))
             return 0
         if args.validate:
-            load_tuple(args.validate)
+            load_tuple(args.validate, args.approved_sha256)
             print(f"approved tuple OK: {args.validate}")
             return 0
-        approved, pids = load_tuple(args.approved), _pids(args.pids)
+        approved, pids = load_tuple(args.approved, args.approved_sha256), _pids(args.pids)
     except ValueError as err:
         print(f"IDENTITY REFUSED: {err}")
         return 2

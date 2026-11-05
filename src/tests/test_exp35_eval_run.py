@@ -136,7 +136,9 @@ def _tuple(clone, tmp_path, pids, gpu=1, edit=None):
         edit(doc)
     path = tmp_path / "approved.json"
     path.write_text(json.dumps(doc))
-    return str(path)
+    import hashlib                                     # Codex C2 BLOCKING 1: the launch entry pins its bytes
+    return {"EXP35_APPROVED_COTENANTS": str(path),
+            "EXP35_APPROVED_COTENANTS_SHA256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
 def test_sharing_an_exp35_cell_needs_the_identity_tuple(clone, harness, sleepers, tmp_path):
@@ -144,7 +146,7 @@ def test_sharing_an_exp35_cell_needs_the_identity_tuple(clone, harness, sleepers
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1", env={"ALLOW_SHARED_GPU": "1"})
     assert rc == 2 and "EXP35_APPROVED_COTENANTS" in out and not _calls(harness), out
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
-                    env={"EXP35_APPROVED_COTENANTS": _tuple(clone, tmp_path, [os.getpid()])})
+                    env=_tuple(clone, tmp_path, [os.getpid()]))
     assert rc == 2 and "ALLOW_SHARED_GPU=1" in out and not _calls(harness), out
 
 
@@ -152,7 +154,7 @@ def test_the_approved_cotenant_shares_the_lane(clone, harness, sleepers, tmp_pat
     pid = sleepers()
     _apps(harness, [(pid, 1)])
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
-                    env={"ALLOW_SHARED_GPU": "1", "EXP35_APPROVED_COTENANTS": _tuple(clone, tmp_path, [pid])})
+                    env={"ALLOW_SHARED_GPU": "1", **_tuple(clone, tmp_path, [pid])})
     assert rc == 0 and "identity tuple" in out and [c["cvd"] for c in _calls(harness)] == ["1"], out
 
 
@@ -165,7 +167,7 @@ def test_any_other_foreign_set_refuses_the_cell(clone, harness, sleepers, tmp_pa
     rows = {"extra": [(pid, 1), (sleepers(), 1)], "missing": [], "replaced": [(sleepers(), 1)]}.get(case, [(pid, 1)])
     _apps(harness, rows)
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
-                    env={"ALLOW_SHARED_GPU": "1", "EXP35_APPROVED_COTENANTS": approved})
+                    env={"ALLOW_SHARED_GPU": "1", **approved})
     assert rc == 2 and "GPU GATE FAILED" in out and "identity" in out and not _calls(harness), (case, out)
 
 
@@ -175,6 +177,87 @@ def test_a_change_at_the_final_pre_spawn_check_refuses_the_cell(clone, harness, 
     _apps(harness, [(pid, 1)], name="apps.1")                                 # the selection's query
     _apps(harness, [(pid, 1), (sleepers(), 1)])                               # every later query
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
-                    env={"ALLOW_SHARED_GPU": "1", "EXP35_APPROVED_COTENANTS": _tuple(clone, tmp_path, [pid])})
+                    env={"ALLOW_SHARED_GPU": "1", **_tuple(clone, tmp_path, [pid])})
     assert rc == 2 and "identity" in out and not _calls(harness), out
     assert not os.path.exists(_entry(clone, harness, CTL1)["receipt"])
+
+
+# ---- Codex C2 HIGH 2: an exp_25-only selection never depends on the exp_35 files ---- #
+def test_an_exp25_only_selection_runs_without_any_exp35_file(clone, harness):
+    from test_exp35_collect import _collector_at
+    head = _git(clone, "rev-parse", "HEAD")
+    try:
+        _git(clone, "rm", "-q", "-r", "overlays", IDENTITY)
+        _git(clone, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "-m", "no exp_35 files")
+        env = {"EXPECT_HEAD": _git(clone, "rev-parse", "HEAD")}
+        rc, out = drive(clone, harness, "--only", EXP25, env=dict(env, DRY_RUN="1"))
+        assert rc == 0 and "no-flash" not in out, out
+        rc, out = drive(clone, harness, "--only", EXP25, env=env)
+        assert rc == 0 and "CAMPAIGN SELECTION COMPLETE" in out, out
+        (call,) = _calls(harness)
+        assert call["no_flash"] is False and _receipt(clone, harness, EXP25)["schema_version"] == 1
+        plan = json.load(open(sorted((harness["dir"] / "logs").glob("*_eval_plan.json"))[-1]))
+        old = _collector_at("682df5db")
+        m = harness["manifest"]
+        index = old.load_canon_index(str(harness["dir"] / "canon_ckpts.sha256"), m["arms"]["CANON"]["ckpt"]["run_ns"])
+        want = old.plan_cells(m, old.select_cells(m, only=[EXP25]), farm_root=str(harness["dir"] / "farm"),
+                              dump_root=str(harness["dir"] / "dumps"), canon_index=index, no_dump_blocks=[])
+        assert json.dumps(plan["cells"]) == json.dumps(want)                      # the old plan, byte for byte
+        rc, out = drive(clone, harness, "--only", CTL1, env=dict(env, DRY_RUN="1"))
+        assert rc == 2 and not _calls(harness)[1:], out                          # an exp_35 cell needs them
+    finally:
+        _git(clone, "reset", "-q", "--hard", head)
+
+
+def test_the_cotenant_tuple_is_an_exp35_gate(clone, harness, sleepers, tmp_path):
+    pid = sleepers()
+    _apps(harness, [(pid, 1)])
+    rc, out = drive(clone, harness, "--only", EXP25, "--lanes", "1",
+                    env={"ALLOW_SHARED_GPU": "1", **_tuple(clone, tmp_path, [pid])})
+    assert rc == 2 and "exp_35" in out and not _calls(harness), out
+
+
+# ---- Codex C2 BLOCKING 1: a frozen tuple, and the identity checked at the real pre-exec boundary ---- #
+def test_the_tuple_must_carry_its_launch_entry_digest(clone, harness, sleepers, tmp_path):
+    pid = sleepers()
+    _apps(harness, [(pid, 1)])
+    env = dict(_tuple(clone, tmp_path, [pid]), ALLOW_SHARED_GPU="1")
+    for sha, needle in (("", "needs EXP35_APPROVED_COTENANTS_SHA256"), ("0" * 64, "the launch entry pins")):
+        rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
+                        env=dict(env, EXP35_APPROVED_COTENANTS_SHA256=sha))
+        assert rc == 2 and needle in out and not _calls(harness), (sha, out)
+
+
+@pytest.mark.parametrize("at", [2, 3], ids=["main_loop_recheck", "in_run_cell"])
+def test_a_tuple_replaced_between_checks_refuses_the_cell(clone, harness, sleepers, tmp_path, at):
+    pid = sleepers()
+    _apps(harness, [(pid, 1)])
+    env = dict(_tuple(clone, tmp_path, [pid]), ALLOW_SHARED_GPU="1")
+    rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "1",
+                    env=dict(env, GUARD_MUTATE_AT=str(at), GUARD_MUTATE_FILE=env["EXP35_APPROVED_COTENANTS"]))
+    assert rc == 2 and "the launch entry pins" in out and not _calls(harness), out
+    assert not os.path.exists(_entry(clone, harness, CTL1)["receipt"])
+
+
+def test_a_process_joining_after_the_checkpoint_hash_is_caught_before_the_launch(clone, harness, sleepers, tmp_path):
+    """The selection and the main-loop re-check see the tuple; the farm + cache re-hash follow; a newcomer
+    then joins -- the final check inside run_cell, immediately before the launcher, refuses (hard stop)."""
+    pid = sleepers()
+    for name in ("apps.1", "apps.2"):
+        _apps(harness, [(pid, 1)], name=name)
+    _apps(harness, [(pid, 1), (sleepers(), 1)])                               # query 3 onward
+    rc, out = drive(clone, harness, "--only", f"{CTL1},{CTL8}", "--lanes", "1",
+                    env=dict(_tuple(clone, tmp_path, [pid]), ALLOW_SHARED_GPU="1"))
+    assert rc == 2 and "LANE CHANGED" in out and "ABORTED" in out and not _calls(harness), out
+    assert not os.path.exists(_entry(clone, harness, CTL1)["receipt"])
+    assert "RUN exp35_P1_T_S40000_K8_s42" not in out                         # no second cell after the stop
+
+
+def test_an_unshared_exp35_lane_is_rechecked_before_the_launch(clone, harness, sleepers):
+    """GPU 0 after the hand-over: ALLOW_SHARED_GPU unset; a foreign process appearing after the main-loop
+    re-check is still caught by the in-run_cell check."""
+    for name in ("apps.1", "apps.2"):
+        _apps(harness, [], name=name)
+    _apps(harness, [(sleepers(), 0)])
+    rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "0")
+    assert rc == 2 and "LANE CHANGED" in out and not _calls(harness), out

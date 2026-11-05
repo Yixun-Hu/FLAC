@@ -178,6 +178,14 @@ def test_cli_snapshot_validate_and_check(tmp_path):
         (tmp_path / "bad.json").write_text("{}")
         assert _cli("--check", "--approved", str(tmp_path / "bad.json"), "--gpu-uuid", UUID, "--pids", "1")[0] == 2
         assert _cli("--validate", str(tmp_path / "absent.json"))[0] == 2
+        import hashlib                                  # Codex C2 BLOCKING 1: the bytes the launch entry pinned
+        sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        ok = ["--check", "--approved", str(path), "--gpu-uuid", UUID, "--pids", str(sleeper.pid)]
+        assert _cli(*ok, "--approved-sha256", sha)[0] == 0
+        rc, out = _cli(*ok, "--approved-sha256", "0" * 64)
+        assert rc == 2 and "the launch entry pins" in out
+        assert _cli("--validate", str(path), "--approved-sha256", sha)[0] == 0
+        assert _cli("--validate", str(path), "--approved-sha256", "1" * 64)[0] == 2
     finally:
         sleeper.kill()                                 # our own child only
         sleeper.wait()

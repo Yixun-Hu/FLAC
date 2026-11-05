@@ -124,3 +124,43 @@ def test_plan_entries_of_exp35_cells():
         "--ckpt-path", bf["link"], "--dump-scored-waveforms", "/d"]
     assert (canon["target"], canon["sha256"]) == T.canon_index()[40000] and canon["canon"].endswith(".canon.json")
     assert all("_fa_invariant_a4" in by[n]["stem"] for n in names[1:3])
+
+
+# ---- Codex C2 HIGH 2: an exp_25 selection never depends on exp_35 (the old plan shape, byte for byte) ---- #
+def _collector_at(commit):
+    """The collector as committed at ``commit``, executed as if it lived at its real path."""
+    import subprocess
+    import types
+    path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
+    src = subprocess.run(["git", "-C", T.REPO, "show", f"{commit}:{os.path.relpath(path, T.REPO)}"], check=True,
+                         capture_output=True, text=True).stdout
+    mod = types.ModuleType(f"depth_canon_collect_at_{commit}")
+    mod.__file__ = path
+    exec(compile(src, f"{path}@{commit}", "exec"), mod.__dict__)
+    return mod
+
+
+def test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector():
+    old = _collector_at("682df5db")
+    rows = [c for c in MANIFEST["cells"] if not C.is_exp35(c)]
+    kw = dict(farm_root="farm", dump_root="/nas/d", canon_index=T.canon_index(), no_dump_blocks=["TRAJ"])
+    new_plan, old_plan = C.plan_cells(MANIFEST, rows, **kw), old.plan_cells(MANIFEST, rows, **kw)
+    assert len(new_plan) == 230 and json.dumps(new_plan) == json.dumps(old_plan)
+    exp35 = C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if C.is_exp35(c)], **kw)
+    assert all(e["no_flash"] is True and list(e)[-1] == "no_flash" for e in exp35)
+
+
+@pytest.mark.parametrize("args, want", [(["--blocks", "T,P1-pin"], 0), (["--blocks", "CTL,BF-pin"], 30),
+                                        (["--only", "exp25_P1_T_S40000_K1_s42,exp35_BF_R_S40000_K1_s43"], 1),
+                                        ([], 100), (["--blocks", "BF-pin", "--limit", "3"], 3)])
+def test_cli_count_no_flash(tmp_path, capsys, args, want):
+    cells = tmp_path / "cells.json"
+    cells.write_text(json.dumps(MANIFEST))
+    assert C.main(["--count-no-flash", "--cells", str(cells)] + args) == 0
+    assert capsys.readouterr().out.strip().splitlines()[-1] == str(want)
+
+
+def test_cli_count_no_flash_refuses_a_bad_selection(tmp_path, capsys):
+    cells = tmp_path / "cells.json"
+    cells.write_text(json.dumps(MANIFEST))
+    assert C.main(["--count-no-flash", "--cells", str(cells), "--blocks", "T,nope"]) == 2

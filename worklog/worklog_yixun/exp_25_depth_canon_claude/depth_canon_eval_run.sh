@@ -45,9 +45,11 @@
 #   the overlay + launcher sha256 are pinned below and checked at start, the launcher's CPU pre-flight runs
 #   before any spawn (DRY_RUN too), and after rc 0 the cell log must carry the backend evidence
 #   (depth_canon_collect.py --check-backend-log) or the campaign hard-stops (exit 2, no receipt); its
-#   receipt is schema 2. EXP35_APPROVED_COTENANTS=<file> (needs ALLOW_SHARED_GPU=1; required to share a
-#   card with an exp_35 cell): the lane's foreign compute processes must EQUAL that identity tuple
-#   (exp35_gpu_identity.py --check) at the lane selection and at the final pre-spawn check, else exit 2.
+#   receipt is schema 2. EXP35_APPROVED_COTENANTS=<file> + EXP35_APPROVED_COTENANTS_SHA256 (the launch
+#   entry's digest of its bytes; needs ALLOW_SHARED_GPU=1; required to share a card with an exp_35 cell):
+#   the lane's foreign compute processes must EQUAL that identity tuple (exp35_gpu_identity.py --check, the
+#   bytes re-hashed at every check) at the selection, the pre-spawn re-check and -- for every exp_35 cell --
+#   once more inside run_cell right before the launcher (a change there: exit 2, no receipt).
 #
 # Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9 §5.
 # ============================================================================
@@ -72,7 +74,7 @@ NAS_FSTYPE="cifs"; NAS_SOURCE="//10.249.7.28/shared_data"
 MIN_GPU_FREE_MIB=10240
 GPU_POLL_SECONDS="${GPU_POLL_SECONDS:-600}"; GPU_MAX_POLLS="${GPU_MAX_POLLS:-0}"
 DRY_RUN="${DRY_RUN:-0}"; EXPECT_HEAD="${EXPECT_HEAD:-}"; HARNESS="${DEPTH_CANON_EVAL_HARNESS:-}"
-COTENANTS="${EXP35_APPROVED_COTENANTS:-}"
+COTENANTS="${EXP35_APPROVED_COTENANTS:-}"; COTENANTS_SHA="${EXP35_APPROVED_COTENANTS_SHA256:-}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 die() { echo "$*"; exit 2; }
@@ -128,8 +130,13 @@ for tool in jq flock findmnt sha256sum; do command -v "$tool" >/dev/null || die 
 HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$EXPECT_HEAD" ] || die "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"
 mapfile -t MODEL_CFGS < <(jq -r '.arms[].model_config' "$CELLS")
+SEL_ARGS=(); [ -n "$BLOCKS" ] && SEL_ARGS+=(--blocks "$BLOCKS"); [ -n "$ONLY" ] && SEL_ARGS+=(--only "$ONLY")
+[ -n "$LIMIT" ] && SEL_ARGS+=(--limit "$LIMIT")
+N_NOFLASH="$("$PY" "$COLLECT" --count-no-flash --cells "$CELLS" "${SEL_ARGS[@]}" 2>/dev/null | tail -n 1)"
+[[ "$N_NOFLASH" =~ ^[0-9]+$ ]] || die "SELECTION REFUSED: the exp_35 cells of the selection cannot be counted (${N_NOFLASH}) - abort"
 RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
-          "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py" "$NO_FLASH_DIR" "$IDENTITY")
+          "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")
+[ "$N_NOFLASH" -gt 0 ] && RELEVANT+=("$NO_FLASH_DIR" "$IDENTITY")   # exp_35 (Codex C2 HIGH 2): only then
 tree_dirty() { git status --porcelain --untracked-files=all -- "${RELEVANT[@]}"; }
 tree_digest() {   # sha256 of the sorted sha256sum lines of every tracked + untracked (unignored) relevant file
   local lines
@@ -148,12 +155,14 @@ while read -r path sha; do
 done < <(jq -r '[.cells[] | (.model_config + " " + .model_config_sha256),
                  (.dataset_config + " " + .dataset_config_sha256)] | unique[]' "$CELLS")
 echo "configs OK: every model / dataset config matches its manifest pin"
-for pin in "$NO_FLASH_OVERLAY $NO_FLASH_OVERLAY_SHA256" "$NO_FLASH_LAUNCHER $NO_FLASH_LAUNCHER_SHA256"; do
-  read -r path sha <<<"$pin"
-  got="$(sha256sum -- "$path" 2>/dev/null | awk '{print $1}')"
-  [ "$got" = "$sha" ] || die "NO-FLASH PIN FAILED: ${path} hashes to '${got}', the runner pins ${sha} - abort"
-done
-echo "no-flash overlay + launcher OK: ${NO_FLASH_OVERLAY_SHA256:0:12} / ${NO_FLASH_LAUNCHER_SHA256:0:12} (exp_35 cells only)"
+if [ "$N_NOFLASH" -gt 0 ]; then
+  for pin in "$NO_FLASH_OVERLAY $NO_FLASH_OVERLAY_SHA256" "$NO_FLASH_LAUNCHER $NO_FLASH_LAUNCHER_SHA256"; do
+    read -r path sha <<<"$pin"
+    got="$(sha256sum -- "$path" 2>/dev/null | awk '{print $1}')"
+    [ "$got" = "$sha" ] || die "NO-FLASH PIN FAILED: ${path} hashes to '${got}', the runner pins ${sha} - abort"
+  done
+  echo "no-flash overlay + launcher OK: ${NO_FLASH_OVERLAY_SHA256:0:12} / ${NO_FLASH_LAUNCHER_SHA256:0:12} (${N_NOFLASH} exp_35 cell(s))"
+fi
 if [ "$HARNESS_FLAG" = false ]; then
   "$PY" "$MAKE_CELLS" --check || die "CELLS MANIFEST DRIFT: ${CELLS} is not the generator's output - abort"
 fi
@@ -171,10 +180,14 @@ PLAN_ARGS=(--plan "$PLAN" --cells "$CELLS" --farm-root "$FARM_ROOT" --no-dump-bl
 DUMP_ROOT="$(jq -r .dump_root "$PLAN")"
 mapfile -t CELL_IDS < <(jq -r '.cells[].cell' "$PLAN")
 echo "plan: ${#CELL_IDS[@]} cell(s); dump root ${DUMP_ROOT}; farm ${FARM_ROOT}; lanes ${LANES_CSV}"
-N_NOFLASH="$(jq '[.cells[] | select(.no_flash == true)] | length' "$PLAN")"
+[ "$(jq '[.cells[] | select(.no_flash == true)] | length' "$PLAN")" = "$N_NOFLASH" ] \
+  || die "PLAN REFUSED: the plan's exp_35 cells are not the ${N_NOFLASH} counted for the relevant tree - abort"
 if [ -n "$COTENANTS" ]; then   # exp_35 §12 B1.1: the approved identity tuple of a SHARED lane
+  [ "$N_NOFLASH" -gt 0 ] || die "EXP35_APPROVED_COTENANTS is an exp_35 gate: this selection holds no exp_35 cell - abort"
   [ "$ALLOW_SHARED_GPU" = 1 ] || die "EXP35_APPROVED_COTENANTS names the co-tenants of a shared card: it needs ALLOW_SHARED_GPU=1 - abort"
-  "$PY" "$IDENTITY" --validate "$COTENANTS" || die "CO-TENANT TUPLE REFUSED: ${COTENANTS} - abort"
+  [[ "$COTENANTS_SHA" =~ ^[0-9a-f]{64}$ ]] \
+    || die "EXP35_APPROVED_COTENANTS needs EXP35_APPROVED_COTENANTS_SHA256 (the launch entry's sha256 of its bytes) - abort"
+  "$PY" "$IDENTITY" --validate "$COTENANTS" --approved-sha256 "$COTENANTS_SHA" || die "CO-TENANT TUPLE REFUSED: ${COTENANTS} - abort"
 elif [ "$ALLOW_SHARED_GPU" = 1 ] && [ "$N_NOFLASH" -gt 0 ]; then
   die "an exp_35 cell shares a card only with the approved identity tuple: set EXP35_APPROVED_COTENANTS - abort"
 fi
@@ -283,7 +296,7 @@ farm_entry_ok() {   # <entry> <cache>: a regular file (never a symlink) on the c
 cell_fields() {
   jq -r --arg c "$1" '.cells[] | select(.cell == $c) | [.arm, .block, .target, .sha256,
       (.nas_manifest // ""), (.nas_manifest_key // ""), .link, .metrics, .stream, (.canon // ""),
-      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem, .cache, (.no_flash | tostring)]
+      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem, .cache, (.no_flash // false | tostring)]
       | join("\u001f")' "$PLAN"
 }
 VERIFY_EXTRA=(); [ -n "$CANON_MANIFEST" ] && VERIFY_EXTRA=(--canon-ckpt-manifest "$CANON_MANIFEST")
@@ -349,6 +362,9 @@ run_cell() {   # lane cell sha spawn-digest link cache no_flash argv... -- a bac
   local lane="$1" cid="$2" sha="$3" spawn="$4" link="$5" cache="$6" noflash="$7"; shift 7
   local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured nbytes out backend=()
   if [ "$noflash" = true ]; then   # exp_35 (§11 B1, §12 H4 c): the pinned launcher, the overlay ONLY on PYTHONPATH
+    lane_state "$lane" || {      # Codex C2 BLOCKING 1: the lane / identity at the real pre-exec boundary
+      echo "  !! FAILED ${cid}: LANE CHANGED before the launch on GPU ${lane} (${LANE_WHY}); not launched, no receipt"
+      return 6; }
     CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/$NO_FLASH_DIR" \
       "$PY" "$NO_FLASH_LAUNCHER" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
   else
@@ -392,6 +408,7 @@ reap() {   # collect every finished job; never waits on a running one, never sig
     if [ "$st" -eq 0 ]; then N_DONE=$((N_DONE + 1)); else FAILED+=("${PID_CELL[$pid]}"); fi
     if [ "$st" -eq 4 ]; then DRIFT=1; ABORT="${ABORT:-PIN DRIFT: the relevant tree changed while ${PID_CELL[$pid]} ran}"; fi
     if [ "$st" -eq 5 ]; then ABORT="${ABORT:-BACKEND EVIDENCE missing for ${PID_CELL[$pid]}: no further cell is spawned}"; fi
+    if [ "$st" -eq 6 ]; then ABORT="${ABORT:-LANE CHANGED before the launch of ${PID_CELL[$pid]}: no further cell is spawned}"; fi
     unset "LANE_PID[${PID_LANE[$pid]}]" "PID_CELL[$pid]" "PID_LANE[$pid]"
   done
 }
@@ -431,7 +448,8 @@ lane_state() {   # <gpu>: 0 usable | 1 not now (LANE_WHY) | 2 a query failed / i
     LANE_WHY="shared with${occ} (ALLOW_SHARED_GPU=1)"
   fi
   if [ -n "$COTENANTS" ]; then   # exp_35 §12 B1.1: the foreign set EQUALS the approved identity tuple
-    out="$("$PY" "$IDENTITY" --check --approved "$COTENANTS" --gpu-uuid "$want" --pids "$pids" 2>&1)" \
+    out="$("$PY" "$IDENTITY" --check --approved "$COTENANTS" --approved-sha256 "$COTENANTS_SHA" --gpu-uuid "$want" \
+      --pids "$pids" 2>&1)" \
       || { LANE_WHY="co-tenant identity check refused GPU ${lane}: ${out//$'\n'/; }"; return 2; }
     LANE_WHY="${LANE_WHY} [identity tuple OK: ${pids:-none}]"
   fi

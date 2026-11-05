@@ -702,7 +702,7 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
                     "canon": p.canon if row["canonicalize"] else None, "canon_probe": p.canon,
                     "receipt": p.receipt, "dump": dump, "dump_root": dump_root, "dump_dir": p.dump_dir,
                     "stem": p.stem, "expected_stream_count": row["expected_stream_count"],
-                    "argv": cell_argv(row, link, dump_root, dump), "no_flash": is_exp35(row)})
+                    "argv": cell_argv(row, link, dump_root, dump), **({"no_flash": True} if is_exp35(row) else {})})
     return out
 
 
@@ -1531,6 +1531,8 @@ def main(argv=None):
     ap.add_argument("--verify-after", action="store_true",
                     help="with --write-receipt: then verify the cell in the same process (exit 1 if invalid)")
     ap.add_argument("--check-backend-log", metavar="LOG", help="exp_35: exit 0 iff LOG proves the SDPA backend")
+    ap.add_argument("--count-no-flash", action="store_true",
+                    help="exp_35: print how many cells of the --blocks / --only / --limit selection are exp_35 cells")
     ap.add_argument("--backend-target", default=NO_FLASH["target"],
                     help="exp_35: the launcher target the log must name (default eval_FLAC.py)")
     ap.add_argument("--attention-backend", default=None, help="--write-receipt, exp_35 cells: sdpa")
@@ -1543,6 +1545,13 @@ def main(argv=None):
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
+    if args.count_no_flash:   # exp_35 (Codex C2 HIGH 2): the runner's RELEVANT tree depends on it
+        try:
+            print(sum(is_exp35(c) for c in select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)))
+        except ValueError as err:
+            print(f"SELECTION REFUSED: {err}")
+            return 2
+        return 0
     farm = args.farm_root or manifest["farm_root"]
     dump_root = args.dump_root or manifest["dump_root"]
     if args.write_receipt:   # rB-F1 B6: the receipt exists only after the FULL verification passed
