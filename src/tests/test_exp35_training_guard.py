@@ -259,3 +259,20 @@ def test_the_bar_reset_under_the_old_label_after_a_completed_epoch_is_accepted(t
     p.write_text("\r".join(lines[:401] + [bar(0, 0, 0)] + lines[401:]) + "\r")   # mid-epoch: a restart
     r = obs(p)
     assert r["status"] == "HARD_STOP" and any("backwards" in x for x in r["reasons"])
+
+
+@pytest.mark.parametrize("anchor", [{}, {"inode": 1}, [], "x",
+                                    dict(inode=1, device=2, size=10, offset=11, tail_sha256="0" * 64),    # past the end
+                                    dict(inode=1, device=2, size=10, offset=5, tail_sha256="zz"),
+                                    dict(inode="1", device=2, size=10, offset=5, tail_sha256="0" * 64),
+                                    dict(inode=1, device=2, size=10, offset=5, tail_sha256="0" * 64, extra=1)])
+def test_a_malformed_anchor_is_refused(tmp_path, anchor, capsys):
+    """Codex C3b NIT 1: the anchor's schema and types are checked before the log is judged -- REFUSED, never a crash."""
+    p = tmp_path / "train.log"
+    write_log(p, [4.23])
+    r = obs(p, anchor=anchor)
+    assert (r["status"], r["exit"]) == ("REFUSED", 3) and "anchor" in r["reasons"][0]
+    f = tmp_path / "anchor.json"
+    f.write_text(json.dumps(anchor))
+    assert G.main(["--log", str(p), "--anchor", str(f)]) == 3
+    assert json.loads(capsys.readouterr().out)["status"] == "REFUSED"

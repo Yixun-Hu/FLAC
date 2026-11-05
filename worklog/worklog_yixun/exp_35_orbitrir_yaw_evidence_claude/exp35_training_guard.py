@@ -17,7 +17,8 @@ terminator are parsed (a line being written is not).
   HARD STOP (exit 2): against the persisted anchor the log's inode changed or its size shrank, or the 4 KiB before
   the anchor offset changed (a copy-truncate-and-regrow); a step went backwards within an epoch, an epoch number
   went backwards, or the bar total changed (a restart or another run in the same file); no training-bar line.
-  REFUSED (exit 3): the log or the anchor file is unreadable, or the arguments are bad.   OK (exit 0): none of these.
+  REFUSED (exit 3): the log or the anchor file is unreadable, the anchor is malformed (its exact schema and types
+  are checked before anything is judged), or the arguments are bad.   OK (exit 0): none of these.
 
   --log PATH [--baseline-step N] [--anchor FILE]   prints the observation (JSON, with the NEW anchor) and exits 0-3
 
@@ -34,6 +35,7 @@ W500, W100, MEAN = 9.712, 9.950, 8.521        # §7: s/step, strict >
 ANCHOR_BYTES = 4096                             # §13 NIT 1: the sha256 of the last 4 KiB parsed
 EXIT_OK, EXIT_STOP, EXIT_HARD, EXIT_REFUSED = 0, 1, 2, 3
 MAX_STEPS = 40000                               # the s43 training's max_steps
+ANCHOR_KEYS = ("inode", "device", "size", "offset", "tail_sha256")
 LINE = re.compile(r"Epoch (\d+):\s+\d+%\|[^|\r\n]*\|\s*(\d+)/(\d+) \[(\d+(?::\d\d){1,2})<")
 
 
@@ -125,6 +127,16 @@ def anchor_of(st, raw, end):
             "tail_sha256": hashlib.sha256(raw[max(0, end - ANCHOR_BYTES):end]).hexdigest()}
 
 
+def anchor_schema_reasons(anchor):
+    """[] iff ``anchor`` is None or exactly what ``anchor_of`` writes (Codex C3b NIT 1)."""
+    if anchor is None:
+        return []
+    ok = isinstance(anchor, dict) and list(anchor) == list(ANCHOR_KEYS) and all(
+        type(anchor[k]) is int and anchor[k] >= 0 for k in ANCHOR_KEYS[:4]) and anchor["offset"] <= anchor["size"] \
+        and isinstance(anchor["tail_sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", anchor["tail_sha256"]) is not None
+    return [] if ok else [f"the persisted anchor is malformed: {anchor!r:.200}"]
+
+
 def anchor_reasons(st, raw, anchor):
     """HARD STOP reasons of this read against the persisted ``anchor`` (None: the first observation)."""
     if anchor is None:
@@ -143,6 +155,8 @@ def observe(path, *, baseline=None, anchor=None):
     """One read-only observation of the log: status, exit code, reasons, the step, the windows, the new anchor."""
     out = {"status": "REFUSED", "exit": EXIT_REFUSED, "reasons": [], "baseline": baseline,
            "thresholds": {"w500": W500, "w100": W100, "mean": MEAN}}
+    if anchor_schema_reasons(anchor):
+        return dict(out, reasons=anchor_schema_reasons(anchor))
     try:
         st, raw, end = read_log(path)
     except OSError as err:

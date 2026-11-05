@@ -2003,9 +2003,12 @@ def cell_artifacts(row, manifest, *, farm_root, dump_root, canon_index, base_dir
     for rel in (p.metrics, p.stream, p.canon, p.receipt, p.dump_dir):
         parent, name = os.path.split(os.path.join(base_dir, rel))
         try:
-            found += [os.path.join(parent, e) for e in os.listdir(parent) if e == name or e.startswith(name + ".")]
-        except OSError:
+            entries = os.listdir(parent)
+        except FileNotFoundError:                  # only a missing directory is absence (Codex C3b HIGH 1)
             continue
+        except OSError as err:
+            raise ValueError(f"RESULTS REFUSED: the artifacts of {row['cell']} cannot be listed ({parent}: {err})") from err
+        found += [os.path.join(parent, e) for e in entries if e == name or e.startswith(name + ".")]
     return sorted(set(found))
 
 

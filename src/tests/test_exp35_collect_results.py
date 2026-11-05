@@ -357,3 +357,21 @@ def test_the_exp35_results_never_open_model_comparison(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "MODEL_COMPARISON", str(tmp_path / "absent.md"))
     r = results(tmp_path, w)
     assert r["table_a"]["historical_bf"] == json.loads(json.dumps(C.BF_HISTORICAL_EXP35))
+
+
+@pytest.mark.parametrize("err", [PermissionError(13, "Permission denied"), OSError(5, "Input/output error")])
+def test_an_unreadable_artifact_directory_refuses_the_results(tmp_path, monkeypatch, err):
+    """Codex C3b HIGH 1: only a missing directory is absence -- a permission error or a NAS I/O failure while
+    scanning an E2-FAIL cell's parents could hide an artifact, so it refuses the results (even with --partial)."""
+    w = world(tmp_path, monkeypatch)                                         # E2 PASSES
+    bad = os.path.dirname(os.path.join(str(tmp_path), _paths("exp35_BF_OFF_S40000_K1_s44_th45").receipt))
+    real = os.listdir
+
+    def listdir(d="."):
+        if os.path.abspath(d) == os.path.abspath(bad):
+            raise type(err)(err.errno, err.strerror, d)
+        return real(d)
+    monkeypatch.setattr(C.os, "listdir", listdir)
+    with pytest.raises(ValueError, match="RESULTS REFUSED") as e:
+        results(tmp_path, w, partial=True)
+    assert "cannot be listed" in str(e.value) and bad in str(e.value)
