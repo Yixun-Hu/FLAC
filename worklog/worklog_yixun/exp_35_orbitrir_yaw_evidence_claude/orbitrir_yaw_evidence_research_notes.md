@@ -1,6 +1,6 @@
 # exp_35 orbitrir_yaw_evidence — research notes (read-only investigation)
 
-By: Claude Opus 5.5 (max effort), research/planning subagent for the Planner, 2026-11-04 22:15–23:30 EST.
+By: Claude Opus 5.5 (max effort), research/planning subagent for the Planner, 2026-11-04 ≈ 22:12–22:52 EST (first stamped 22:15–23:30 EST by the subagent — the end a time not yet reached; corrected by the Planner).
 Read-only: no repo / NAS / env / process was modified; the only outputs are in `scratchpad/exp35/`.
 Paths relative to `~/codespace/FLAC` unless stated. Checkouts read: FLAC `localization-exp` HEAD `7bff64b8`
 (was `8f7bdbc0` at the start; the new commit is records-only), exp_25 worktree `~/codespace/exp-25-depth-canon`

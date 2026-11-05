@@ -1,8 +1,8 @@
-> **STATUS: DRAFT r0 (2026-11-04 ≈ 23:45 EST) — awaiting Codex plan review and Yixun's decisions on the flagged deviations (§7) and open questions; NOTHING runs on a GPU before both.** Drafted by an Opus 5.5 research subagent for the Planner; evidence in `orbitrir_yaw_evidence_research_notes.md`.
+> **STATUS: DRAFT r0 (2026-11-04 ≈ 22:52 EST) — awaiting Codex plan review and Yixun's decisions on the flagged deviations (§7) and open questions; NOTHING runs on a GPU before both.** Drafted by an Opus 5.5 research subagent for the Planner; evidence in `orbitrir_yaw_evidence_research_notes.md`.
 
 # plan_orbitrir_yaw_evidence — exp_35 (DRAFT for the Planner; not yet reviewed by Codex or approved by Yixun)
 
-Draft by Claude Opus 5.5 (research subagent), 2026-11-04 23:30 EST. Evidence: `research_notes.md` (same folder).
+Draft by Claude Opus 5.5 (research subagent), finished ≈ 22:52 EST 2026-11-04 (the subagent first stamped it 23:30 EST, a time not yet reached; corrected by the Planner). Evidence: `research_notes.md` (same folder).
 
 ## 1. Goal and what is reported
 Give OrbitRIR (B-F, `exp07_BF@40k`, NAS `ar_40k_endpoints/BF`, sha `5319feb4…`, `--cond-method fa_invariant`) the
