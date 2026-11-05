@@ -10,3 +10,7 @@
 - Watcher fired at 15:05:13: ckpt `step=5000` on disk, all 14 ranks exited, GPUs released (GPU0 42.6 GB free). Resume command recorded in `fa_drawshare_command.md`; RESTART gate will re-verify embedded config, cap, and full optimizer/scheduler/EMA state.
 - **Both exp_14 arms are now held:** DS-PA paused at 5,000/40,000 (7.6 d of training still owed when resumed); DS-CS3 never started (its cap_fit evidence is stamped and still valid while HEAD is unchanged — note any new commit to the fingerprinted paths voids it and it must be re-stamped).
 - wandb run for DS-PA will show "crashed" — that is this deliberate pause, not a failure.
+
+## 2026-11-04T22:16:12-05:00 — CLOSED by Yixun (2026-11-04): not pursued; it would be re-planned fresh if ever revived
+- **Decision (Yixun 2026-11-04 evening, verbatim)** — "(4) exp_14 fa_drawshare (held since August): CLOSE it, not pursued; it would be re-planned fresh if ever revived."
+- **State at closure** — DS-PA paused cleanly at step 5,000 / 40,000 on 2026-08-14 (Yixun-ordered; its step-5,000 checkpoint and its W&B run — shown as "crashed", the deliberate pause — are KEPT; nothing is deleted); DS-CS3 never started. The RESTART line in `fa_drawshare_command.md` is RETIRED: a revival starts from a fresh plan, not from that resume command (its cap_fit evidence stamps were tied to an August HEAD and are void anyway). Recorded by the Planner (Claude Opus 5.5 main session).
