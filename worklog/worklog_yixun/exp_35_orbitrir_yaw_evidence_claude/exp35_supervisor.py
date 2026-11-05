@@ -6,13 +6,21 @@ process: a violation only stops further spawns (the running cell finishes).
 
 Part 1 (round 6a ii): the pure parts -- the chunk order, the end-of-training predictor, the state file (schema v1,
 atomic temp + fsync + rename + directory fsync), the O_EXCL reservations, the nvidia-smi and /proc tables.
+Part 2: ``Supervisor`` -- (round 6a iii-a) lane ownership: per chunk the guard, the GPU / identity tables, the
+predictor, waits that never spawn, the atomic hand-over to GPU 0; (round 6a iii-b) the chunk transaction: a
+reservation, the spawn (the runner with ONE cell, or the launcher on the probe), polls every <= 5 min (a guard violation
+or a new process on the lane latches a stop AFTER the running cell), verification, the gates, restart reconciliation.
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import datetime
+import hashlib
+import importlib.util
 import json
 import os
 import re
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
@@ -220,3 +228,189 @@ def descendants(pid, proc="/proc"):
         out.add(p)
         todo += [c for c, pp in parent.items() if pp == p and c not in out]
     return out
+
+
+# --------------------------------------------------------------------------- #
+# part 2 (round 6a iii): the loop
+# --------------------------------------------------------------------------- #
+RUNNER = "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh"
+PROBE = "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py"
+LAUNCHER, NO_FLASH_DIR = "overlays/no_flash/exp35_no_flash_launch.py", "overlays/no_flash"
+PY = "/home/yixunhu/miniconda3/envs/flac/bin/python"
+BF_FARM_LINK = "outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt"   # the runner stages it (chunks 3-4)
+WAIT_POLL_S = 60
+CLEAN_ENV = ("ALLOW_SHARED_GPU", "EXP35_APPROVED_COTENANTS", "EXP35_APPROVED_COTENANTS_SHA256", "DRY_RUN", "PYTHONPATH",
+             "CUDA_VISIBLE_DEVICES", "EXPECT_HEAD", "GPU_MAX_POLLS", "GPU_POLL_SECONDS")
+_MODULES = {}
+
+
+def _module(name):
+    if name not in _MODULES:
+        spec = importlib.util.spec_from_file_location(name, os.path.join(HERE, name + ".py"))
+        _MODULES[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_MODULES[name])
+    return _MODULES[name]
+
+
+def identity_module():
+    return _module("exp35_gpu_identity")
+
+
+def guard_module():
+    return _module("exp35_training_guard")
+
+
+def _iso(t):
+    return datetime.datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds")
+
+
+def _sha_file(path):
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def _env(**kw):
+    return dict({k: v for k, v in os.environ.items() if k not in CLEAN_ENV}, **kw)
+
+
+def runner_command(cfg, chunk, index, shared):
+    """The runner on ONE cell; GPU_MAX_POLLS=1 so it never waits silently; the tuple only on the shared GPU 1."""
+    env = _env(EXPECT_HEAD=cfg["h35"], GPU_MAX_POLLS="1", GPU_POLL_SECONDS="0")
+    if shared:
+        env.update(ALLOW_SHARED_GPU="1", EXP35_APPROVED_COTENANTS=cfg["approved"],
+                   EXP35_APPROVED_COTENANTS_SHA256=cfg["approved_sha256"])
+    return ["bash", RUNNER, "--lanes", str(index), "--only", chunk["cell"]], env
+
+
+def probe_command(index):
+    """§12 B3: chunk 5 -- the launcher directly on the probe with the frozen argv, the overlay ONLY on PYTHONPATH."""
+    env = _env(CUDA_VISIBLE_DEVICES=str(index), HF_HUB_OFFLINE="1", PYTHONDONTWRITEBYTECODE="1",
+               PYTHONPATH=os.path.join(REPO, NO_FLASH_DIR))
+    return [PY, LAUNCHER, PROBE, "--arm", "BF", "--ckpt-path", BF_FARM_LINK], env
+
+
+class Supervisor:
+    """``world``: now / sleep / nvsmi / spawn; ``gates``: verify / e1 / e2 / finalize (the collector's checks)."""
+
+    def __init__(self, cfg, world, gates):
+        self.cfg, self.w, self.g, self.G, self.I = cfg, world, gates, guard_module(), identity_module()
+        self.st = self.last = self.note = None
+
+    def save(self):
+        write_state(self.cfg["state"], self.st)
+
+    def event(self, what, **kw):
+        t = self.w.now()
+        self.st["events"].append(dict({"t": t, "time": _iso(t), "what": what}, **kw))
+        self.save()
+        print(f"[{_iso(t)}] {what} {json.dumps(kw) if kw else ''}", flush=True)
+
+    def wait_note(self, what, **kw):
+        if what != self.note:                       # one event per new reason of waiting
+            self.note = what
+            self.event(what, **kw)
+
+    def latch(self, reason):
+        if self.st["stop_latch"] is None:
+            self.st["stop_latch"] = {"reason": reason, "time": _iso(self.w.now())}
+        self.event("STOP LATCH", reason=reason)
+
+    def observe(self):
+        """The guard over his log; its anchor persisted at every observation (§13 NIT 1); None once latched."""
+        r = self.G.observe(self.cfg["his_log"], baseline=(self.st["baseline"] or {}).get("step"),
+                           anchor=self.st["his_log_anchor"])
+        if r["exit"] in (0, 1):
+            self.st["his_log_anchor"] = r["anchor"]
+            self.save()
+        if r["exit"] != 0:
+            self.latch(f"the training guard: {r['status']}: {'; '.join(r['reasons'][:3])}")
+            return None
+        self.last = r
+        return r
+
+    def tables(self):
+        m = gpu_map(self.w.nvsmi("map"))
+        if len(m) != 2 or GPU1_UUID not in m.values():
+            raise ValueError(f"the GPU map {m} is not this box's two cards with {GPU1_UUID}")
+        return m, compute_apps(self.w.nvsmi("apps"))
+
+    def trainer_alive(self, approved):
+        """The approved processes all still run with their frozen identity (any change: they are gone)."""
+        for p in approved["processes"]:
+            try:
+                live = self.I.proc_identity(p["pid"], self.cfg["proc"])
+            except ValueError:
+                return False
+            if any(live[k] != p[k] for k in self.I.FIELDS):
+                return False
+        return True
+
+    def ready(self, chunk):
+        """Wait until a lane may take ``chunk``: ``(uuid, index, shared)``, or None after a latch."""
+        while True:
+            if self.observe() is None:
+                return None
+            try:
+                m, apps = self.tables()
+                approved = self.I.load_tuple(self.cfg["approved"], self.cfg["approved_sha256"])
+            except ValueError as err:
+                self.latch(f"the GPU / identity tables: {err}")
+                return None
+            idx, lane = {u: i for i, u in m.items()}, self.st["lane"]
+            if lane is not None and not lane["shared"]:                 # after the hand-over: GPU 0, never shared
+                foreign = sorted(p for p, u in apps if u == lane["uuid"])
+                if foreign:
+                    self.latch(f"a foreign process on GPU 0 ({lane['uuid']}) before chunk {chunk['n']}: pids {foreign}")
+                    return None
+                return lane["uuid"], idx[lane["uuid"]], False
+            why = self.I.check_reasons([p for p, u in apps if u == GPU1_UUID], GPU1_UUID, approved, self.cfg["proc"])
+            alive = self.trainer_alive(approved)
+            if not why:
+                ok, d = predictor_ok(self.last, now=self.w.now(), chunk=chunk)
+                if ok:
+                    self.note = None
+                    return GPU1_UUID, idx[GPU1_UUID], True
+                self.wait_note("predictor: no shared spawn (s43 could end before this chunk does)", chunk=chunk["n"], **d)
+            elif alive:
+                self.wait_note("no shared spawn: GPU 1 holds more than the approved trainer", why=why[:2])
+            else:
+                self.wait_note("no shared spawn: the approved trainer is gone; hand-over to GPU 0", why=why[:2])
+            if not alive and self.handover(m, apps):
+                continue
+            if self.st["stop_latch"] is not None:
+                return None
+            self.w.sleep(WAIT_POLL_S)
+
+    def handover(self, m, apps):
+        """§12 B1.4: GPU 0 free on two checks 60 s apart -> its O_EXCL reservation -> the state (epoch + 1) -> the
+        GPU 1 file removed. False: not now (waiting)."""
+        uuid0 = next(u for u in m.values() if u != GPU1_UUID)
+        for check in ("1st", "2nd"):
+            busy = sorted(p for p, u in apps if u == uuid0)
+            if busy:
+                self.wait_note("hand-over waits: GPU 0 busy", pids=busy)
+                return False
+            self.event(f"GPU 0 free ({check} check)")
+            if check == "1st":
+                self.w.sleep(HANDOVER_GAP_S)
+                try:
+                    apps = self.tables()[1]
+                except ValueError as err:
+                    self.latch(f"the GPU tables during the hand-over: {err}")
+                    return False
+        old = self.st["reservation"]
+        epoch = (old["epoch"] if old else 0) + 1
+        try:
+            path = create_reservation(self.cfg["reservations"], uuid0, epoch=epoch, h35=self.cfg["h35"], now=self.w.now())
+        except FileExistsError:
+            self.wait_note("hand-over waits: GPU 0 is reserved by another holder")
+            return False
+        self.st.update(lane={"uuid": uuid0, "shared": False}, reservation={"uuid": uuid0, "epoch": epoch, "path": path})
+        self.save()
+        if old:
+            remove_reservation(old["path"])
+        self.event("hand-over to GPU 0", epoch=epoch)
+        return True
