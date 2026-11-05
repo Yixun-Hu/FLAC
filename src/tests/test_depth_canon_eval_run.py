@@ -443,6 +443,9 @@ import subprocess  # noqa: E402
 DRIVER_REL = f"{EXPREL}/depth_canon_eval_run.sh"
 KIT = ("depth_canon_eval_run.sh", "depth_canon_collect.py", "depth_canon_make_cells.py",
        "depth_canon_cells.json", "depth_canon_audit_gate.py")
+EXP35REL = os.path.join("worklog", "worklog_yixun", "exp_35_orbitrir_yaw_evidence_claude")
+KIT35 = ("overlays/no_flash/flash_attn.py", "overlays/no_flash/exp35_no_flash_launch.py",
+         f"{EXP35REL}/exp35_gpu_identity.py")
 TESTMOD = os.path.join(REPO, "src", "tests", "test_depth_canon_collect.py")
 STUB_EVAL = r'''#!/usr/bin/env python3
 """Harness stub for eval_FLAC.py: records its call, then publishes exactly what the real
@@ -451,7 +454,13 @@ import importlib.util, json, os, sys
 H = os.environ["DEPTH_CANON_EVAL_HARNESS"]
 argv = sys.argv[1:]
 with open(os.path.join(H, "calls.log"), "a") as f:
-    f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv}) + "\n")
+    f.write(json.dumps({"cvd": os.environ.get("CUDA_VISIBLE_DEVICES"), "argv": argv,          # exp_35: and how
+                        "pythonpath": os.environ.get("PYTHONPATH"), "path": sys.path[:2], "dont_write": os.environ.get(
+                            "PYTHONDONTWRITEBYTECODE"),                                   # it was launched
+                        "no_flash": getattr(sys.modules.get("src.models.transformer"), "flash_attn_func", 0) is None})
+            + "\n")
+if os.environ.get("STUB_MODE") == "flash_missing":   # exp_35: a log line no launched evaluator may print
+    print("No module named 'flash_attn'")
 if os.environ.get("STUB_MODE") == "crash":
     sys.exit(3)
 if os.environ.get("STUB_CRASH_CELL") and os.environ["STUB_CRASH_CELL"] in argv:
@@ -494,7 +503,7 @@ case "$*" in
     if [ -f "$H/uuids" ]; then cat "$H/uuids"; else printf '0, GPU-00000000-aaaa\n1, GPU-11111111-bbbb\n'; fi ;;
   *query-compute-apps*)
     n=$(( $(cat "$H/apps.count" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$H/apps.count"
-    [ "${GUARD_MUTATE_AT:-0}" = "$n" ] && printf '\n# drift between cells\n' >> eval_FLAC.py   # cwd = the clone
+    [ "${GUARD_MUTATE_AT:-0}" = "$n" ] && printf '\n# drift between cells\n' >> "${GUARD_MUTATE_FILE:-eval_FLAC.py}"
     if [ "${GUARD_TAMPER_CACHE_AT:-0}" = "$n" ]; then   # rB-F2 F2-6: same size, same 0444 mode, other bytes
       for c in "$H"/farm/.ckpt_cache/*.ckpt; do
         chmod 0644 "$c"; printf 'X' | dd of="$c" bs=1 count=1 conv=notrunc 2>/dev/null; chmod 0444 "$c"
@@ -521,11 +530,15 @@ def clone(tmp_path_factory):
     subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", REPO, str(root)], check=True)
     _git(root, "sparse-checkout", "set", "--cone", "src", "data/AR",
          "worklog/worklog_yixun/exp_07_fa_scratch_claude", "worklog/worklog_yixun/exp_15_yaw_aug_claude",
-         EXPREL)
+         EXPREL, "overlays", EXP35REL)                     # exp_35: the no-flash overlay + the identity helper
     _git(root, "checkout", "-q", "--detach", _git(REPO, "rev-parse", "HEAD"))
     for f in KIT:
         if os.path.exists(os.path.join(EXPDIR, f)):
             with open(os.path.join(EXPDIR, f), "rb") as src, open(root / EXPREL / f, "wb") as dst:
+                dst.write(src.read())
+    for rel in KIT35:                                   # exp_35: the working-tree versions, like the kit's
+        if os.path.exists(os.path.join(REPO, rel)):
+            with open(os.path.join(REPO, rel), "rb") as src, open(root / rel, "wb") as dst:
                 dst.write(src.read())
     _git(root, "add", "-A")
     _git(root, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "--allow-empty",
@@ -554,7 +567,7 @@ def harness(tmp_path, clone):
     for split in m["splits"].values():
         split["expected_stream_count"] = 8
     lines = []
-    for arm in ("P1", "YAW"):
+    for arm in ("P1", "YAW", "BF"):
         ck = m["arms"][arm]["ckpt"]
         ck["path"] = str(h / "nas" / arm / "epoch=8-step=40000.ckpt")
         ck["sha256"] = _fake_ckpt(ck["path"], f"fake {arm}".encode())

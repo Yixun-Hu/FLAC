@@ -39,6 +39,16 @@
 # Exit: 0 all selected cells complete (or DRY_RUN) | 1 a cell failed | 2 a gate refused |
 #   4 PIN DRIFT: HEAD or the relevant tree changed during the campaign.
 #
+# exp_35 (plan_orbitrir_yaw_evidence.md r2 §3b / §11 B1, r3 §12 B1.1 / H4): a cell whose plan entry says
+#   no_flash (every exp_35 block) is spawned through the committed launcher overlays/no_flash/
+#   exp35_no_flash_launch.py with PYTHONPATH=<repo>/overlays/no_flash ONLY and PYTHONDONTWRITEBYTECODE=1;
+#   the overlay + launcher sha256 are pinned below and checked at start, the launcher's CPU pre-flight runs
+#   before any spawn (DRY_RUN too), and after rc 0 the cell log must carry the backend evidence
+#   (depth_canon_collect.py --check-backend-log) or the campaign hard-stops (exit 2, no receipt); its
+#   receipt is schema 2. EXP35_APPROVED_COTENANTS=<file> (needs ALLOW_SHARED_GPU=1; required to share a
+#   card with an exp_35 cell): the lane's foreign compute processes must EQUAL that identity tuple
+#   (exp35_gpu_identity.py --check) at the lane selection and at the final pre-spawn check, else exit 2.
+#
 # Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9 §5.
 # ============================================================================
 set -uo pipefail
@@ -50,6 +60,10 @@ SELF="$EXPDIR/depth_canon_eval_run.sh"
 COLLECT="$EXPDIR/depth_canon_collect.py"
 MAKE_CELLS="$EXPDIR/depth_canon_make_cells.py"
 CELLS="$EXPDIR/depth_canon_cells.json"
+NO_FLASH_DIR="overlays/no_flash"                                   # exp_35: the no-flash backend, pinned
+NO_FLASH_OVERLAY="$NO_FLASH_DIR/flash_attn.py"; NO_FLASH_OVERLAY_SHA256="0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"
+NO_FLASH_LAUNCHER="$NO_FLASH_DIR/exp35_no_flash_launch.py"; NO_FLASH_LAUNCHER_SHA256="980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d"
+IDENTITY="worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_gpu_identity.py"
 PY="/home/yixunhu/miniconda3/envs/flac/bin/python"        # the flac env, required
 EVAL_PROG="eval_FLAC.py"
 FARM_ROOT="outputs_FLAC/exp25_depth_canon"
@@ -58,6 +72,7 @@ NAS_FSTYPE="cifs"; NAS_SOURCE="//10.249.7.28/shared_data"
 MIN_GPU_FREE_MIB=10240
 GPU_POLL_SECONDS="${GPU_POLL_SECONDS:-600}"; GPU_MAX_POLLS="${GPU_MAX_POLLS:-0}"
 DRY_RUN="${DRY_RUN:-0}"; EXPECT_HEAD="${EXPECT_HEAD:-}"; HARNESS="${DEPTH_CANON_EVAL_HARNESS:-}"
+COTENANTS="${EXP35_APPROVED_COTENANTS:-}"
 TS="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 die() { echo "$*"; exit 2; }
@@ -114,7 +129,7 @@ HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$EXPECT_HEAD" ] || die "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"
 mapfile -t MODEL_CFGS < <(jq -r '.arms[].model_config' "$CELLS")
 RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
-          "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")
+          "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py" "$NO_FLASH_DIR" "$IDENTITY")
 tree_dirty() { git status --porcelain --untracked-files=all -- "${RELEVANT[@]}"; }
 tree_digest() {   # sha256 of the sorted sha256sum lines of every tracked + untracked (unignored) relevant file
   local lines
@@ -133,6 +148,12 @@ while read -r path sha; do
 done < <(jq -r '[.cells[] | (.model_config + " " + .model_config_sha256),
                  (.dataset_config + " " + .dataset_config_sha256)] | unique[]' "$CELLS")
 echo "configs OK: every model / dataset config matches its manifest pin"
+for pin in "$NO_FLASH_OVERLAY $NO_FLASH_OVERLAY_SHA256" "$NO_FLASH_LAUNCHER $NO_FLASH_LAUNCHER_SHA256"; do
+  read -r path sha <<<"$pin"
+  got="$(sha256sum -- "$path" 2>/dev/null | awk '{print $1}')"
+  [ "$got" = "$sha" ] || die "NO-FLASH PIN FAILED: ${path} hashes to '${got}', the runner pins ${sha} - abort"
+done
+echo "no-flash overlay + launcher OK: ${NO_FLASH_OVERLAY_SHA256:0:12} / ${NO_FLASH_LAUNCHER_SHA256:0:12} (exp_35 cells only)"
 if [ "$HARNESS_FLAG" = false ]; then
   "$PY" "$MAKE_CELLS" --check || die "CELLS MANIFEST DRIFT: ${CELLS} is not the generator's output - abort"
 fi
@@ -150,6 +171,22 @@ PLAN_ARGS=(--plan "$PLAN" --cells "$CELLS" --farm-root "$FARM_ROOT" --no-dump-bl
 DUMP_ROOT="$(jq -r .dump_root "$PLAN")"
 mapfile -t CELL_IDS < <(jq -r '.cells[].cell' "$PLAN")
 echo "plan: ${#CELL_IDS[@]} cell(s); dump root ${DUMP_ROOT}; farm ${FARM_ROOT}; lanes ${LANES_CSV}"
+N_NOFLASH="$(jq '[.cells[] | select(.no_flash == true)] | length' "$PLAN")"
+if [ -n "$COTENANTS" ]; then   # exp_35 §12 B1.1: the approved identity tuple of a SHARED lane
+  [ "$ALLOW_SHARED_GPU" = 1 ] || die "EXP35_APPROVED_COTENANTS names the co-tenants of a shared card: it needs ALLOW_SHARED_GPU=1 - abort"
+  "$PY" "$IDENTITY" --validate "$COTENANTS" || die "CO-TENANT TUPLE REFUSED: ${COTENANTS} - abort"
+elif [ "$ALLOW_SHARED_GPU" = 1 ] && [ "$N_NOFLASH" -gt 0 ]; then
+  die "an exp_35 cell shares a card only with the approved identity tuple: set EXP35_APPROVED_COTENANTS - abort"
+fi
+if [ "$N_NOFLASH" -gt 0 ]; then   # exp_35 §11 B1: the launcher's own checks, on the CPU, before any spawn
+  PREFLIGHT_LOG="$LOGDIR/depth_canon_${TS}_no_flash_preflight.log"
+  { CUDA_VISIBLE_DEVICES= HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/$NO_FLASH_DIR" \
+      "$PY" "$NO_FLASH_LAUNCHER" --preflight > "$PREFLIGHT_LOG" 2>&1 \
+    && "$PY" "$COLLECT" --check-backend-log "$PREFLIGHT_LOG" --backend-target=--preflight 2>&1 \
+       | grep -v -e pkg_resources -e declare_namespace; [ "${PIPESTATUS[0]}" -eq 0 ]; } \
+    || die "NO-FLASH PRE-FLIGHT FAILED (log ${PREFLIGHT_LOG}) - abort"
+  echo "no-flash pre-flight OK: ${N_NOFLASH} exp_35 cell(s) spawn through ${NO_FLASH_LAUNCHER} (log ${PREFLIGHT_LOG})"
+fi
 
 # --- the dump root, verified ONCE: on the NAS share, created, write-probed ----------- #
 nas_identity_ok() {
@@ -246,7 +283,8 @@ farm_entry_ok() {   # <entry> <cache>: a regular file (never a symlink) on the c
 cell_fields() {
   jq -r --arg c "$1" '.cells[] | select(.cell == $c) | [.arm, .block, .target, .sha256,
       (.nas_manifest // ""), (.nas_manifest_key // ""), .link, .metrics, .stream, (.canon // ""),
-      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem, .cache] | join("\u001f")' "$PLAN"
+      .canon_probe, .receipt, (.dump | tostring), .dump_dir, .stem, .cache, (.no_flash | tostring)]
+      | join("\u001f")' "$PLAN"
 }
 VERIFY_EXTRA=(); [ -n "$CANON_MANIFEST" ] && VERIFY_EXTRA=(--canon-ckpt-manifest "$CANON_MANIFEST")
 existing_artifacts() {   # every artifact of the current cell that exists (one path per line)
@@ -262,6 +300,7 @@ complete_and_verified() {   # 0 = SKIP; the collector runs is_complete exactly o
   [ -z "$CANON" ] || [ -f "$CANON" ] || return 1
   if [ "$DUMP" = true ]; then [ -d "$DUMP_DIR" ] && [ -f "$DUMP_DIR/COMPLETE" ] || return 1
   else extra+=(--no-dump); fi
+  [ "$NOFLASH" = true ] && extra+=(--backend-target "$EVAL_PROG")       # exp_35: the log names the launched target
   for p in "$DUMP_DIR".staging-*; do
     case "$p" in *.incomplete-*) ;; *) [ -e "$p" ] && return 1 ;; esac
   done
@@ -272,7 +311,7 @@ complete_and_verified() {   # 0 = SKIP; the collector runs is_complete exactly o
 prepare_cell() {   # sets the cell globals; 0 = run it, 3 = SKIP, 1 = refused (message printed)
   local cid="$1" what p dest
   IFS=$'\x1f' read -r ARM BLOCK TARGET SHA NASM NASK LINK METRICS STREAM CANON CANON_PROBE RECEIPT \
-    DUMP DUMP_DIR STEM CACHED < <(cell_fields "$cid")
+    DUMP DUMP_DIR STEM CACHED NOFLASH < <(cell_fields "$cid")
   mapfile -t ARGV < <(jq -r --arg c "$cid" '.cells[] | select(.cell == $c) | .argv[]' "$PLAN")
   stage_ckpt "$TARGET" "$SHA" "$NASM" "$NASK" "$CACHED" || return 1
   if [ -L "$LINK" ] || [ -e "$LINK" ]; then
@@ -300,15 +339,21 @@ if [ "$DRY_RUN" = 1 ]; then
     prepare_cell "$cid"; st=$?
     [ "$st" -eq 1 ] && exit 2
     [ "$st" -eq 0 ] && echo "DRYRUN ${cid} argv: $(jq -c --arg c "$cid" '.cells[] | select(.cell == $c) | .argv' "$PLAN")"
+    [ "$st" -eq 0 ] && [ "$NOFLASH" = true ] && echo "  (exp_35: spawned through ${NO_FLASH_LAUNCHER}, PYTHONPATH=${REPO}/${NO_FLASH_DIR})"
   done
   echo "=== DRY_RUN summary: ${N_SEL} cell(s) planned; nothing evaluated, linked, created or moved ==="
   exit 0
 fi
 
-run_cell() {   # lane cell sha spawn-digest link cache argv... -- a background job: evaluate, receipt, verify
-  local lane="$1" cid="$2" sha="$3" spawn="$4" link="$5" cache="$6"; shift 6
-  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured nbytes
-  CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
+run_cell() {   # lane cell sha spawn-digest link cache no_flash argv... -- a background job: evaluate, receipt, verify
+  local lane="$1" cid="$2" sha="$3" spawn="$4" link="$5" cache="$6" noflash="$7"; shift 7
+  local clog="$LOGDIR/depth_canon_${TS}_eval_${cid}.log" rc=0 post measured nbytes out backend=()
+  if [ "$noflash" = true ]; then   # exp_35 (§11 B1, §12 H4 c): the pinned launcher, the overlay ONLY on PYTHONPATH
+    CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/$NO_FLASH_DIR" \
+      "$PY" "$NO_FLASH_LAUNCHER" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
+  else
+    CUDA_VISIBLE_DEVICES="$lane" HF_HUB_OFFLINE=1 "$PY" "$EVAL_PROG" "$@" > "$clog" 2>&1 || rc=$?
+  fi
   if [ "$rc" -ne 0 ]; then echo "  !! FAILED ${cid}: the evaluator exited rc=${rc} (log ${clog})"; return 1; fi
   post="$(tree_digest)" || post=""
   if [ "$post" != "$CAMPAIGN_DIGEST" ] || [ -n "$(tree_dirty)" ]; then
@@ -321,11 +366,19 @@ run_cell() {   # lane cell sha spawn-digest link cache argv... -- a background j
     echo "  !! FAILED ${cid}: the evaluated checkpoint ${link} now hashes to '${measured}', not ${sha} (or left the cache inode); no receipt"
     return 1
   fi
+  if [ "$noflash" = true ]; then   # exp_35 §3b: the log must prove the SDPA backend, else a hard stop
+    out="$("$PY" "$COLLECT" --check-backend-log "$clog" --backend-target "$EVAL_PROG" 2>&1)" || {
+      echo "  !! FAILED ${cid}: BACKEND EVIDENCE missing from ${clog}; no receipt, the campaign stops:"
+      grep -v -e pkg_resources -e declare_namespace <<<"$out" | sed 's/^/    /'
+      return 5; }
+    backend=(--attention-backend sdpa --no-flash-overlay-sha256 "$NO_FLASH_OVERLAY_SHA256"
+             --no-flash-launcher-sha256 "$NO_FLASH_LAUNCHER_SHA256" --backend-target "$EVAL_PROG")
+  fi
   "$PY" "$COLLECT" --write-receipt "$cid" --plan-json "$PLAN" --cells "$CELLS" --base-dir "$REPO" \
     --lane "$lane" --log "$clog" --rc 0 --pin "$EXPECT_HEAD" --ckpt-sha "$measured" --ckpt-bytes "$nbytes" \
     --farm-root "$FARM_ROOT" \
     --spawn-digest "$spawn" --post-digest "$post" \
-    --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" --verify-after >> "$clog" 2>&1 \
+    --dump-root "$DUMP_ROOT" "${VERIFY_EXTRA[@]}" "${backend[@]}" --verify-after >> "$clog" 2>&1 \
     || { echo "  !! FAILED ${cid}: post-run verification refused the cell (log ${clog})"; return 1; }
   echo "  DONE ${cid} on GPU ${lane}: complete and verified"
 }
@@ -338,13 +391,14 @@ reap() {   # collect every finished job; never waits on a running one, never sig
     st=0; wait "$pid" || st=$?
     if [ "$st" -eq 0 ]; then N_DONE=$((N_DONE + 1)); else FAILED+=("${PID_CELL[$pid]}"); fi
     if [ "$st" -eq 4 ]; then DRIFT=1; ABORT="${ABORT:-PIN DRIFT: the relevant tree changed while ${PID_CELL[$pid]} ran}"; fi
+    if [ "$st" -eq 5 ]; then ABORT="${ABORT:-BACKEND EVIDENCE missing for ${PID_CELL[$pid]}: no further cell is spawned}"; fi
     unset "LANE_PID[${PID_LANE[$pid]}]" "PID_CELL[$pid]" "PID_LANE[$pid]"
   done
 }
 RE_MAP='^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+)$'
 RE_APP='^([0-9]+),[[:space:]]*(GPU-[0-9A-Za-z-]+),[[:space:]]*([^,]*),[[:space:]]*([0-9]+|\[N/A\])$'
 lane_state() {   # <gpu>: 0 usable | 1 not now (LANE_WHY) | 2 a query failed / is malformed (fail closed)
-  local lane="$1" out rc line want pid uuid occ="" free
+  local lane="$1" out rc line want pid uuid occ="" free pids=""
   local -A byidx=() byuuid=()
   out="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null)"; rc=$?
   [ "$rc" -eq 0 ] && [ -n "$out" ] || { LANE_WHY="nvidia-smi --query-gpu=index,uuid failed (rc ${rc})"; return 2; }
@@ -363,7 +417,8 @@ lane_state() {   # <gpu>: 0 usable | 1 not now (LANE_WHY) | 2 a query failed / i
     [[ "$line" =~ $RE_APP ]] || { LANE_WHY="malformed compute-app row '${line}'"; return 2; }
     pid="${BASH_REMATCH[1]}"; uuid="${BASH_REMATCH[2]}"
     [ -n "${byuuid[$uuid]:-}" ] || { LANE_WHY="compute process ${pid} sits on an unknown uuid ${uuid}"; return 2; }
-    [ "$uuid" = "$want" ] && occ+=" pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]} MiB, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?'))"
+    [ "$uuid" = "$want" ] && occ+=" pid ${pid} (${BASH_REMATCH[3]}, ${BASH_REMATCH[4]} MiB, cwd $(readlink "/proc/${pid}/cwd" 2>/dev/null || echo '?'))" \
+      && pids+="${pids:+,}${pid}"
   done <<<"$out"
   out="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$lane" 2>/dev/null)"; rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]] \
@@ -374,6 +429,11 @@ lane_state() {   # <gpu>: 0 usable | 1 not now (LANE_WHY) | 2 a query failed / i
   if [ -n "$occ" ]; then
     [ "$ALLOW_SHARED_GPU" = 1 ] || { LANE_WHY="occupied by foreign compute process(es):${occ}"; return 1; }
     LANE_WHY="shared with${occ} (ALLOW_SHARED_GPU=1)"
+  fi
+  if [ -n "$COTENANTS" ]; then   # exp_35 §12 B1.1: the foreign set EQUALS the approved identity tuple
+    out="$("$PY" "$IDENTITY" --check --approved "$COTENANTS" --gpu-uuid "$want" --pids "$pids" 2>&1)" \
+      || { LANE_WHY="co-tenant identity check refused GPU ${lane}: ${out//$'\n'/; }"; return 2; }
+    LANE_WHY="${LANE_WHY} [identity tuple OK: ${pids:-none}]"
   fi
   return 0
 }
@@ -435,7 +495,7 @@ while :; do
   cache_ok "$CACHED" "$SHA" || { ABORT="CACHE GATE FAILED before the spawn of ${READY}: ${CACHE_WHY}"; continue; }
   echo "  checkpoint re-verified before the spawn: ${CACHED} (0444, ${CKPT_SIZE[$SHA]} bytes, ${SHA})"
   echo "  RUN ${READY} on GPU ${LANE} (log $LOGDIR/depth_canon_${TS}_eval_${READY}.log)"
-  run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "$LINK" "$CACHED" "${ARGV[@]}" &
+  run_cell "$LANE" "$READY" "$SHA" "$SPAWN_DIGEST" "$LINK" "$CACHED" "$NOFLASH" "${ARGV[@]}" &
   LANE_PID[$LANE]=$!; PID_CELL[$!]="$READY"; PID_LANE[$!]="$LANE"
   READY=""; i=$((i + 1))
 done
