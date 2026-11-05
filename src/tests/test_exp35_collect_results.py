@@ -329,3 +329,31 @@ def test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass(tmp_path, monkeypa
     with pytest.raises(ValueError, match="E2-FAIL cell\\(s\\) exist") as err:
         results(tmp_path, w, partial=True)
     assert "exp35_P1_OFF_S40000_K8_s46_th45" in str(err.value)
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3a NIT 1: the historical B-F reference row is frozen as constants, never read live
+# --------------------------------------------------------------------------- #
+def test_the_historical_bf_row_is_frozen_with_its_provenance(exp25):
+    import subprocess
+    H = C.BF_HISTORICAL_EXP35
+    src = H["source"]
+    blob = subprocess.run(["git", "-C", T.REPO, "rev-parse", f"{src['commit']}:{src['path']}"], capture_output=True,
+                          text=True, check=True).stdout.strip()
+    text = subprocess.run(["git", "-C", T.REPO, "show", f"{src['commit']}:{src['path']}"], capture_output=True,
+                          text=True, check=True).stdout
+    assert blob == src["blob"] and all(row in text.splitlines() for row in src["row_text"].values())
+    for k, row in src["row_text"].items():                                  # the rows ARE the quoted text
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        assert cells[0] == H["label"] and int(cells[2]) == k and H["rows"][k] == {
+            "protocol": cells[1], "n": int(cells[3]), "values": dict(zip(("T60", "C50", "EDT", "R@1", "R@5", "R@10"),
+                                                                        cells[4:10]))}
+    assert json.loads(json.dumps({"label": H["label"], "rows": H["rows"]})) == {
+        k: exp25["bf_historical"][k] for k in ("label", "rows")}              # == what exp_25 quoted
+
+
+def test_the_exp35_results_never_open_model_comparison(tmp_path, monkeypatch):
+    w = world(tmp_path, monkeypatch)
+    monkeypatch.setattr(C, "MODEL_COMPARISON", str(tmp_path / "absent.md"))
+    r = results(tmp_path, w)
+    assert r["table_a"]["historical_bf"] == json.loads(json.dumps(C.BF_HISTORICAL_EXP35))

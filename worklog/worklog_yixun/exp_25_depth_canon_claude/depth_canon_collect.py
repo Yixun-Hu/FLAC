@@ -1972,6 +1972,21 @@ EXP25_EXTERNAL = tuple(f"exp25_{a}_R_S40000_K{k}_s{s}" for a in ("P1", "CANON") 
     f"exp25_{a}_C4_S40000_K{k}_s42_th45" for a in ("P1", "CANON") for k in (1, 8))   # table (b) and the figure
 
 
+_BF_ROWS = {1: "| fa scratch B-F @40k (equivariant, 59% budget) | fa eval (legacy-loop) | 1 | 5 | 9.543 ± 0.054 | "
+                "1.0559 ± 0.0040 | 41.754 ± 0.347 | 5.166 ± 0.166 | 16.071 ± 0.241 | 23.721 ± 0.150 |",
+            8: "| fa scratch B-F @40k (equivariant, 59% budget) | fa eval (legacy-loop) | 8 | 5 | 8.202 ± 0.017 | "
+                "0.9778 ± 0.0015 | 38.793 ± 0.074 | 5.387 ± 0.075 | 16.456 ± 0.038 | 24.198 ± 0.164 |"}
+BF_HISTORICAL_EXP35 = {   # Codex C3a NIT 1: table (a)'s historical B-F reference row, frozen (never read live)
+    "label": BF_LABEL,
+    "rows": {k: {"protocol": "fa eval (legacy-loop)", "n": 5, "values": dict(zip(
+        ("T60", "C50", "EDT", "R@1", "R@5", "R@10"), [c.strip() for c in row.strip().strip("|").split("|")][4:10]))}
+        for k, row in _BF_ROWS.items()},
+    "provenance": "quoted from model_comparison.md (exp_07 B-F @40k, fa_invariant eval, legacy per-angle loop, its own "
+                  "historical evaluator pin) -- frozen for exp_35 as the exp_25 results quoted it; not re-measured",
+    "source": {"path": "worklog/worklog_yixun/model_comparison.md", "commit": "ed048609c9ca47ed413ab416d6e50a6225edfe04",
+               "blob": "bc523e0a8ccc0afb59e93e90b536116c087ed295", "row_text": _BF_ROWS}}
+
+
 def resolve(res, entry):
     """A table entry ``{"ref": "a.b.c"}`` -> ``res["a"]["b"]["c"]``: a reused row lives once (§5 item 3)."""
     node = res
@@ -2078,7 +2093,7 @@ def tables(cells, external, e2, e2f):
                           "OrbitRIR": _seed_stats({k: h35("R", k, SEEDS, None) for k in ks}, "exp_35 BF-pin R s42-46")}}
     a = {"FLAC": {"ref": "external_reference.exp25.table.P1"}, "CANON": {"ref": "external_reference.exp25.table.CANON"},
          "OrbitRIR": _seed_stats({k: h35("T", k, SEEDS, 0) for k in ks}, "exp_35 BF-pin T s42-46"),
-         "historical_bf": bf_historical()}
+         "historical_bf": BF_HISTORICAL_EXP35}
     c = dict({arm: {"ref": f"external_reference.exp25.tier3.{arm}"} for arm in ("CANON", "P1", "YAW")},
              BF={"ref": "tier3.BF.arms.BF"})
     return a, b, c
