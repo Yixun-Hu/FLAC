@@ -10,15 +10,24 @@ Part 2: ``Supervisor`` -- (round 6a iii-a) lane ownership: per chunk the guard, 
 predictor, waits that never spawn, the atomic hand-over to GPU 0; (round 6a iii-b) the chunk transaction: a
 reservation, the spawn (the runner with ONE cell, or the launcher on the probe), polls every <= 5 min (a guard violation
 or a new process on the lane latches a stop AFTER the running cell), verification, the gates, restart reconciliation.
+Part 3 (round 6a iv): the real world, the collector's CLIs as the gates, the read-only dry run and the CLI:
+
+  --h35 SHA --approved TUPLE --approved-sha256 HEX [--state F] [--reservations D] [--his-log F] [--logdir D]
+  --dry-run        plan the 33 chunks, check identity / reservations / the guard READ-ONLY (spawns and writes nothing)
+  --external-shas  print the sha256 of Yixun's queue script, evaluator and admission helper (§13 NIT 3)
+  exit 0: complete (or the dry run holds); 2: bad arguments; 3: refused or stopped (the stop latch names why)
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import argparse
 import datetime
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import time
 
@@ -710,3 +719,170 @@ class Supervisor:
             self.st.update(reservation=None, lane=None)
         self.event("phase (i) complete; the reservation released")
         return 0
+
+
+# --------------------------------------------------------------------------- #
+# part 3 (round 6a iv): the real world, the collector gates, the dry run, the CLI
+# --------------------------------------------------------------------------- #
+COLLECT = "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py"
+CELLS = "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cells.json"
+PROBE_JSON = f"{EXP35}/orbitrir_bf_cond_probe.json"
+STATE, PROC = os.path.join(HERE, "exp35_supervisor_state.json"), "/proc"
+_KIT = "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn"
+HIS_LOG = f"{_KIT}/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log"                   # §7
+EXTERNAL = {"queue": f"{_KIT}/exp30_attn_queue.sh", "evaluator": f"{_KIT}/exp30_attn_eval.sh",   # §13 NIT 3
+            "admission": f"{_KIT}/exp30_attn_queue_state.py"}
+
+
+class World:
+    """The real world: wall time, sleep, nvidia-smi (any failure is a ValueError), a chunk spawned with its log."""
+
+    def now(self):
+        return time.time()
+
+    def sleep(self, s):
+        time.sleep(s)
+
+    def nvsmi(self, query):
+        argv = ["nvidia-smi", {"map": "--query-gpu=index,uuid", "apps": "--query-compute-apps=pid,gpu_uuid"}[query],
+                "--format=csv,noheader"]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.SubprocessError) as err:
+            raise ValueError(f"nvidia-smi {argv[1]}: {err}") from err
+        if r.returncode != 0:
+            raise ValueError(f"nvidia-smi {argv[1]} failed (rc {r.returncode}): {r.stderr.strip()[:200]}")
+        return r.stdout
+
+    def spawn(self, argv, env, log):
+        with open(log, "w") as f:
+            return subprocess.Popen(argv, cwd=REPO, env=env, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT)
+
+
+def collector_module():
+    if "collector" not in _MODULES:
+        spec = importlib.util.spec_from_file_location("depth_canon_collect_supervisor", os.path.join(REPO, COLLECT))
+        _MODULES["collector"] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_MODULES["collector"])
+    return _MODULES["collector"]
+
+
+class CollectorGates:
+    """The gates through the collector's own CLIs at the pin (CPU subprocesses of the flac interpreter)."""
+
+    def __init__(self, cfg, run=subprocess.run):
+        self.cfg, self.run = cfg, run
+        self.repo, self.cells = cfg.get("repo", REPO), cfg.get("cells", os.path.join(REPO, CELLS))
+
+    def _cli(self, *args):
+        r = self.run([PY, COLLECT, *args], cwd=self.repo, capture_output=True, text=True,
+                     env=_env(CUDA_VISIBLE_DEVICES="", PYTHONDONTWRITEBYTECODE="1"))
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+    def verify(self, chunk):
+        """The cell's receipt (located by the collector's own cell_paths) and ``--verify-cell`` under its digest."""
+        C = collector_module()
+        m = C.load_cells(self.cells)
+        row = next(r for r in m["cells"] if r["cell"] == chunk["cell"])
+        target, _ = C.expected_checkpoint(row, m, None)
+        p = C.cell_paths(row, os.path.join(m["farm_root"], row["arm"], os.path.basename(target)), m["dump_root"])
+        try:
+            with open(os.path.join(self.repo, p.receipt), "rb") as f:
+                raw = f.read()
+            digest = json.loads(raw)["campaign_digest"]
+        except (OSError, ValueError, KeyError, TypeError) as err:
+            return False, {"reasons": [f"the receipt {p.receipt}: {err}"]}
+        if not _hex(digest):
+            return False, {"reasons": [f"the receipt {p.receipt} carries no campaign digest"]}
+        rc, out = self._cli("--verify-cell", p.stem, "--pin", self.cfg["h35"], "--campaign-digest", digest)
+        if rc != 0:
+            return False, {"reasons": [out[-1500:]]}
+        return True, {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "campaign_digest": digest}
+
+    def e1(self, k):
+        return self._cli("--exp35-ctl-check", str(k), "--pin", self.cfg["h35"])
+
+    def e2(self):
+        return self._cli("--exp35-e2", "--pin", self.cfg["h35"])
+
+    def finalize(self, log, digest):
+        return self._cli("--finalize-bf-probe", PROBE_JSON, "--probe-log", log, "--campaign-digest", digest or "",
+                         "--pin", self.cfg["h35"])
+
+
+def dry_run(cfg, world):
+    """§11 R8: plan the 33 chunks and check the live state READ-ONLY -- nvidia-smi, /proc, the reservations, the guard
+    over his log, the state if one exists. Nothing is spawned or written. 0 iff identity, reservations and guard hold."""
+    I, G = identity_module(), guard_module()
+    try:
+        m, apps = gpu_map(world.nvsmi("map")), compute_apps(world.nvsmi("apps"))
+        approved = I.load_tuple(cfg["approved"], cfg["approved_sha256"])
+        st = load_state(cfg["state"], h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
+                        supervisor_sha256=cfg["supervisor_sha256"], approved_sha256=cfg["approved_sha256"])
+    except ValueError as err:
+        print(f"DRY RUN REFUSED: {err}")
+        return 1
+    idx, lane = {u: i for i, u in m.items()}, (st or {}).get("lane") or {"uuid": GPU1_UUID, "shared": True}
+    print(f"exp_35 supervisor dry run {_iso(world.now())}: H35 {cfg['h35']}; state {'resumed' if st else 'none (new)'}; "
+          f"lane {lane['uuid']} (index {idx.get(lane['uuid'])}, shared {lane['shared']}); GPU map {m}")
+    for c in chunk_plan():
+        state = st["chunks"][c["n"] - 1]["state"] if st else "planned"
+        argv = probe_command(idx.get(lane["uuid"]))[0] if c["kind"] == "probe" else runner_command(
+            cfg, c, idx.get(lane["uuid"]), lane["shared"])[0]
+        print(f"  chunk {c['n']:2d} {state:15s} gate {c['gate'] or '-':5s} {planning_minutes(c):4.1f} min  {' '.join(argv)}")
+    on1 = sorted(p for p, u in apps if u == GPU1_UUID)
+    why = I.check_reasons(on1, GPU1_UUID, approved, cfg["proc"])
+    print(("identity OK" if not why else "IDENTITY MISMATCH") + f": GPU 1 foreign pids {on1}; the approved tuple "
+          f"{[p['pid'] for p in approved['processes']]}" + "".join(f"\n    - {x}" for x in why))
+    res = reservation_reasons(cfg["reservations"], (st or {}).get("reservation"), tuple(sorted(m.values())), cfg["h35"])
+    print("reservations OK" if not res else "RESERVATIONS INCONSISTENT: " + "; ".join(res))
+    g = G.observe(cfg["his_log"], baseline=((st or {}).get("baseline") or {}).get("step"),
+                  anchor=(st or {}).get("his_log_anchor"))
+    print(f"guard {'OK' if g['exit'] == 0 else g['status']}: step {g.get('step')}; {'; '.join(g['reasons'][:3]) or 'no violation'}")
+    nxt = next((c for c in chunk_plan() if not st or st["chunks"][c["n"] - 1]["state"] != "gates_verified"), None)
+    if nxt is not None and g["exit"] == 0:
+        ok, d = predictor_ok(g, now=world.now(), chunk=nxt)
+        print(f"predictor for chunk {nxt['n']}: {'a shared spawn allowed' if ok else 'NO shared spawn'} {json.dumps(d)}")
+    latch = (st or {}).get("stop_latch")
+    print(f"STOP LATCH set: {latch}" if latch else "no stop latch")
+    good = not why and not res and g["exit"] == 0 and not latch
+    print("DRY RUN OK: nothing was spawned or written" if good else "DRY RUN REFUSED (nothing was spawned or written)")
+    return 0 if good else 1
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--h35")
+    ap.add_argument("--approved", help="the approved identity tuple (exp35_gpu_identity.py --snapshot)")
+    ap.add_argument("--approved-sha256", help="the launch entry's sha256 of the tuple's bytes")
+    ap.add_argument("--state", default=STATE)
+    ap.add_argument("--reservations", default=RESERVATIONS)
+    ap.add_argument("--his-log", default=HIS_LOG)
+    ap.add_argument("--logdir", default=HERE)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--external-shas", action="store_true")
+    args = ap.parse_args(argv)
+    if args.external_shas:
+        out = {k: {"path": p, "sha256": _sha_file(p)} for k, p in EXTERNAL.items()}
+        print(json.dumps(out, indent=1))
+        return 0 if all(v["sha256"] for v in out.values()) else 1
+    if not (args.h35 and re.fullmatch(r"[0-9a-f]{40}", args.h35) and args.approved and _hex(args.approved_sha256)):
+        print("SUPERVISOR REFUSED: --h35 (40-hex), --approved and --approved-sha256 (64-hex) are required")
+        return 2
+    cfg = {"h35": args.h35, "state": args.state, "approved": args.approved, "approved_sha256": args.approved_sha256,
+           "reservations": args.reservations, "his_log": args.his_log, "logdir": args.logdir, "proc": PROC,
+           "cells_sha256": _sha_file(os.path.join(REPO, CELLS)), "supervisor_sha256": _sha_file(os.path.abspath(__file__)),
+           "probe_json": os.path.join(REPO, PROBE_JSON)}
+    world = World()
+    if args.dry_run:
+        return dry_run(cfg, world)
+    head = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    if head != args.h35:
+        print(f"SUPERVISOR REFUSED: HEAD {head} is not H35 {args.h35}")
+        return 3
+    os.makedirs(args.reservations, exist_ok=True)
+    return Supervisor(cfg, world, CollectorGates(cfg)).run()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
