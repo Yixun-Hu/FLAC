@@ -977,26 +977,27 @@ def canon_endpoint_receipts(cells):
             if e["valid"] and e["row"]["arm"] == "CANON" and e["row"]["step"] == step]
 
 
-def _probe_length_reasons(prov, ckpt_sha256, receipts):
+def _probe_length_reasons(prov, ckpt_sha256, receipts, label="CANON"):
     """rB-F3 F3-2 (Codex rA3/rB3 HIGH): the probe's ``ckpt_bytes_loaded`` == the one length every
     verified CANON@40k cell receipt holds for the same checkpoint. No such receipt, receipts that
-    disagree or name other bytes -> the length is NOT verifiable (a reason, never a silent pass)."""
-    label, step = "probe provenance.ckpt_bytes_loaded", PROBE_CONTRACT["ckpt_step"]
+    disagree or name other bytes -> the length is NOT verifiable (a reason, never a silent pass).
+    exp_35: ``label="B-F"`` -- the same rule over the verified B-F@40k cell receipts."""
+    arm, label, step = label, "probe provenance.ckpt_bytes_loaded", PROBE_CONTRACT["ckpt_step"]
     if not receipts:
-        return [f"{label} is not verifiable: the selection holds no verified CANON@{step} cell receipt "
+        return [f"{label} is not verifiable: the selection holds no verified {arm}@{step} cell receipt "
                 "(the length of the checkpoint bytes the campaign loaded)"]
-    out = [f"{label} is not verifiable: a verified CANON@{step} cell receipt's ckpt_sha256_loaded "
+    out = [f"{label} is not verifiable: a verified {arm}@{step} cell receipt's ckpt_sha256_loaded "
            f"{r.get('ckpt_sha256_loaded')!r} is not the probe's checkpoint {ckpt_sha256}"
            for r in receipts if r.get("ckpt_sha256_loaded") != ckpt_sha256]
     sizes = [r.get("ckpt_bytes_loaded") for r in receipts]
     bad = [n for n in sizes if type(n) is not int or n <= 0]
     if bad:
-        return out + [f"{label} is not verifiable: a verified CANON@{step} cell receipt's ckpt_bytes_loaded "
+        return out + [f"{label} is not verifiable: a verified {arm}@{step} cell receipt's ckpt_bytes_loaded "
                       f"{bad[0]!r} is not a positive int"]
     if len(set(sizes)) != 1:
-        return out + [f"{label} is not verifiable: the verified CANON@{step} cell receipts disagree on "
+        return out + [f"{label} is not verifiable: the verified {arm}@{step} cell receipts disagree on "
                       f"ckpt_bytes_loaded ({sorted(set(sizes))})"]
-    _eq(out, f"{label} (vs the verified CANON@{step} cell receipts' ckpt_bytes_loaded)",
+    _eq(out, f"{label} (vs the verified {arm}@{step} cell receipts' ckpt_bytes_loaded)",
         prov.get("ckpt_bytes_loaded"), sizes[0])
     return out
 
@@ -1073,6 +1074,178 @@ def load_control(path, *, ckpt_sha256, canon_receipts, pin, manifest):
     eps = rep["eps_cond"]
     return ({k: float(v) for k, v in rep["control_p99"][CONTROL_PROTOCOL].items()}, [],
             {"value": eps["value"], "threshold": eps["threshold"], "verdict": "PASS" if eps["pass"] else "FAIL"})
+
+
+# exp_35 (plan_orbitrir_yaw_evidence.md r2 §5, §11 H3, r3 §12 B3): the B-F composition control (mirrors the
+# probe's REGISTERED_BF): quarter turns only, FA conditioning, no canonicalization, launched through the no-flash
+# launcher; Tier 2-C4 compares 90/180/270 cells with d128/d256/d384 (eval protocol) and the pooled value
+PROBE_CONTRACT_BF = dict(PROBE_CONTRACT, offset_keys=("d128", "d256", "d384"), offsets=(128, 256, 384),
+                         cond_method="fa_invariant", frame_avg_angles=[0.0, 90.0, 180.0, 270.0],
+                         frame_avg_max_fwd_samples=64, ckpt_bytes=723922667, target=f"{EXPREL}/depth_canon_cond_probe.py")
+BF_CONTROL_KEYS = {90: "d128", 180: "d256", 270: "d384"}
+BF_PROVENANCE_KEYS = ("ckpt_path", "ckpt_sha256", "ckpt_sha256_loaded", "ckpt_bytes_loaded", "model_config",
+                      "model_config_file_sha256", "dataset_config", "dataset_config_sha256", "split_json",
+                      "split_json_sha256", "source_sha", "dirty", "device", "torch", "cuda_device", "seed", "noise",
+                      "n_items", "batch_size", "num_workers", "img_w", "latent_shape", "protocols", "load",
+                      "allow_canon_mismatch", "cond_method", "frame_avg_angles", "frame_avg_max_fwd_samples", "launch")
+
+
+def _bf_number_reasons(rep, P):
+    """The B-F report's control p99 (pooled recomputed from the items), eps_cond (reported, NO verdict)
+    and verdict must be what its own results imply -- and the verdict must hold."""
+    import numpy as np
+    from src.tools import depth_canon_stats as stats
+    res, det, keys = rep.get("results"), rep.get("determinism"), list(P["offset_keys"])
+    if not (isinstance(res, dict) and list(res) == list(P["protocols"]) and isinstance(det, dict)
+            and list(det) == list(P["protocols"]) and all(
+                isinstance(res[p], dict) and list(res[p]) == keys and all(
+                    isinstance(res[p][k], dict) and all(st in res[p][k] for st in P["stages"]) for k in keys)
+                and all(st in det[p] for st in P["stages"]) for p in res)):
+        return ["probe results / determinism are not protocols x quarter turns x stages"]
+    out = []
+    for p in P["protocols"]:
+        want = {k: res[p][k]["waveform"]["summary"]["relL2"]["p99"] for k in keys}
+        want["pooled"] = stats.paired_summary(np.array([v for k in keys for v in res[p][k]["waveform"]["relL2"]]))["p99"]
+        _eq(out, f"probe control_p99[{p}] (the results' waveform relL2 p99)", (rep.get("control_p99") or {}).get(p), want)
+    top = max((v, k, i, pos) for k in keys for i, d in res["fp32"][k]["cond"]["per_id"].items()
+              for pos, v in enumerate(d["relL2"]))
+    _eq(out, "probe eps_cond (reported without a verdict)", rep.get("eps_cond"),
+        {"value": top[0], "argmax": {"key": top[1], "id": top[2], "position": top[3]}})
+    masks = all(res[p][k]["cond"]["masks_equal"] for p in res for k in keys) and all(
+        det[p]["cond"]["masks_equal"] for p in det)
+    exact = all(v == 0.0 for p in det for st in P["stages"]
+                for v in (det[p]["cond"]["all"] if st == "cond" else det[p][st])["relL2"])
+    _eq(out, "probe verdict (masks equal AND the determinism floor exact)", rep.get("verdict"),
+        {"pass": masks and exact, "masks": masks, "determinism": exact})
+    return out + ([] if masks and exact else ["probe verdict FAILS: the B-F control is invalid (a hard stop)"])
+
+
+def probe_bf_reasons(rep, *, pin, campaign_digest, manifest, bf_receipts=None, base_dir=REPO):
+    """The B-F composition control of THIS campaign: registered, no deviation, arm BF, the B-F@40k bytes
+    (digest + the registered loaded length; ``bf_receipts``: those of the verified B-F cells, when given),
+    the pin on a clean tree, the registered arguments and frame-average recipe, the campaign's configs and
+    split, an EMA load WITHOUT canonicalization, the quarter-turn offsets, the stream census, numbers
+    consistent with the results, and the launch provenance: the pinned overlay + launcher, the campaign
+    digest, and the closed log (its sha256 re-checked) carrying the backend evidence for the probe target."""
+    P, out = PROBE_CONTRACT_BF, []
+    for key, want in (("schema_version", 1), ("arm", "BF"), ("deviations", [])):
+        _eq(out, f"probe {key}", rep.get(key), want)
+    if rep.get("registered") is not True:
+        out.append(f"the B-F probe is not a registered control (registered: {rep.get('registered')!r})")
+    prov = rep.get("provenance") if isinstance(rep.get("provenance"), dict) else {}
+    if list(prov) != list(BF_PROVENANCE_KEYS):
+        out.append(f"probe provenance keys {list(prov)} != {list(BF_PROVENANCE_KEYS)}")
+    bf, ds = manifest["arms"]["BF"], next(c for c in manifest["cells"] if c["split"] == P["split"] and c["K"] == P["config_K"])
+    digest = model_config_digest(next(c for c in manifest["cells"] if c["arm"] == "BF"))
+    split_json, sha = manifest["splits"][P["split"]]["split_json"], bf["ckpt"]["sha256"]
+    want = {"ckpt_sha256": sha, "ckpt_sha256_loaded": sha, "ckpt_bytes_loaded": P["ckpt_bytes"], "source_sha": pin,
+            "dirty": "", "device": P["device"], "seed": P["seed"], "n_items": P["n_items"], "batch_size": P["batch_size"],
+            "img_w": P["img_w"], "protocols": P["protocols"], "allow_canon_mismatch": False,
+            "cond_method": P["cond_method"], "frame_avg_angles": P["frame_avg_angles"],
+            "frame_avg_max_fwd_samples": P["frame_avg_max_fwd_samples"],
+            "model_config_file_sha256": bf["model_config_sha256"], "dataset_config": ds["dataset_config"],
+            "dataset_config_sha256": ds["dataset_config_sha256"], "split_json": split_json,
+            "split_json_sha256": _file_digest(os.path.join(REPO, split_json)),
+            "load": {"weights_source": "ema", "canonicalize_trained": None, "canonicalize_applied": False,
+                     "canonicalize_mismatch": False, "img_w": None, "model_config_sha256_file": digest,
+                     "model_config_sha256_embedded": digest}}
+    for key, value in want.items():
+        _eq(out, f"probe provenance.{key}", prov.get(key), value)
+    if bf_receipts is not None:
+        out += _probe_length_reasons(prov, sha, bf_receipts, label="B-F")
+    if not isinstance(prov.get("model_config"), str) or os.path.realpath(os.path.join(REPO, prov["model_config"])) \
+            != os.path.realpath(os.path.join(REPO, bf["model_config"])):
+        out.append(f"probe provenance.model_config {prov.get('model_config')!r} is not {bf['model_config']}")
+    _eq(out, "probe offsets (the quarter turns)", rep.get("offsets"), {f"d{d}": [d] * P["n_items"] for d in P["offsets"]})
+    items = rep.get("items")
+    if not (isinstance(items, list) and len(items) == P["n_items"] and all(
+            isinstance(it, dict) and it.get("position") == i and isinstance(it.get("target_id"), str)
+            and it["target_id"] and _context_ok(it.get("context_ids"), P["K"]) for i, it in enumerate(items))):
+        out.append(f"probe items: not {P['n_items']} ordered positions with a target and K={P['K']} context ids")
+    else:
+        _eq(out, "probe stream_input_hash (recomputed from the items)", rep.get("stream_input_hash"),
+            eval_FLAC.canonical_stream_hash([[it["position"], it["target_id"], it["context_ids"], P["img_w"]]
+                                             for it in items]))
+    return out + _bf_number_reasons(rep, P) + _bf_launch_reasons(prov.get("launch"), campaign_digest, base_dir)
+
+
+def _bf_launch_reasons(launch, campaign_digest, base_dir):
+    import hashlib
+    out = []
+    if not isinstance(launch, dict) or list(launch) != ["attention_backend", "overlay_sha256", "launcher_sha256",
+                                                        "campaign_digest", "log_path", "log_sha256"]:
+        return [f"probe provenance.launch {launch!r:.120} is missing or malformed (finalization not run?)"]
+    for key, want in (("attention_backend", NO_FLASH["backend"]), ("overlay_sha256", NO_FLASH["overlay_sha256"]),
+                      ("launcher_sha256", NO_FLASH["launcher_sha256"]), ("campaign_digest", campaign_digest)):
+        _eq(out, f"probe provenance.launch.{key}", launch[key], want)
+    path = os.path.join(base_dir, launch["log_path"]) if isinstance(launch["log_path"], str) else None
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except (OSError, TypeError) as err:
+        return out + [f"probe provenance.launch.log_path {launch['log_path']!r} is unreadable ({err})"]
+    _eq(out, "probe provenance.launch.log_sha256 (the log re-hashed)", launch["log_sha256"], hashlib.sha256(raw).hexdigest())
+    return out + [f"probe log: {x}" for x in backend_log_reasons(raw.decode(errors="replace"), PROBE_CONTRACT_BF["target"])]
+
+
+def _read_probe(path):
+    """``(raw bytes, report, reasons)``: the probe JSON and its sha256 sidecar (as write_report wrote them)."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+        with open(path + ".sha256") as f:
+            side = f.read()
+        rep = json.loads(raw)
+    except (OSError, ValueError) as err:
+        return None, None, [f"B-F probe {path} unreadable ({err})"]
+    ok = side == f"{hashlib.sha256(raw).hexdigest()}  {os.path.basename(path)}\n" and isinstance(rep, dict)
+    return raw, rep, [] if ok else [f"the B-F probe's sha256 sidecar does not match {path} (or it is no object)"]
+
+
+def load_control_bf(path, *, pin, campaign_digest, manifest, bf_receipts=None, base_dir=REPO):
+    """``(control_p99 of the eval protocol, reasons, eps)`` of a valid, registered B-F control of this
+    campaign (:func:`probe_bf_reasons`); eps_cond is reported without a verdict."""
+    _, rep, reasons = _read_probe(path)
+    if rep is not None and not reasons:
+        reasons = probe_bf_reasons(rep, pin=pin, campaign_digest=campaign_digest, manifest=manifest,
+                                   bf_receipts=bf_receipts, base_dir=base_dir)
+    if reasons:
+        return None, reasons, None
+    return ({k: float(v) for k, v in rep["control_p99"][CONTROL_PROTOCOL].items()}, [],
+            {"value": rep["eps_cond"]["value"], "argmax": rep["eps_cond"]["argmax"], "verdict": None})
+
+
+def finalize_bf_probe(path, log_path, *, campaign_digest, base_dir=REPO):
+    """r3 §12 B3, the NON-logged step after the probe process exited and its log closed: verify the probe's own
+    JSON + sidecar and the log's backend evidence, then write ``provenance.launch`` (backend, overlay +
+    launcher sha256, the campaign digest, the log path + sha256), the JSON (atomically) and a fresh sidecar.
+    ``ValueError`` (nothing written) on any refusal."""
+    import hashlib
+    _, rep, reasons = _read_probe(path)
+    if reasons:
+        raise ValueError("; ".join(reasons))
+    prov = rep.get("provenance")
+    if rep.get("arm") != "BF" or not isinstance(prov, dict) or "launch" in prov:
+        raise ValueError(f"{path}: not a B-F probe awaiting finalization (already finalized, or another arm)")
+    if not eval_FLAC._is_sha256_hex(campaign_digest):
+        raise ValueError(f"campaign digest {campaign_digest!r} is not a sha256 digest")
+    with open(os.path.join(base_dir, log_path), "rb") as f:
+        raw = f.read()
+    bad = backend_log_reasons(raw.decode(errors="replace"), PROBE_CONTRACT_BF["target"])
+    if bad:
+        raise ValueError(f"the probe log {log_path} lacks the backend evidence: " + "; ".join(bad))
+    prov["launch"] = {"attention_backend": NO_FLASH["backend"], "overlay_sha256": NO_FLASH["overlay_sha256"],
+                      "launcher_sha256": NO_FLASH["launcher_sha256"], "campaign_digest": campaign_digest,
+                      "log_path": log_path, "log_sha256": hashlib.sha256(raw).hexdigest()}
+    text = json.dumps(rep, indent=1) + "\n"
+    for target, body in ((path, text), (path + ".sha256",
+                                        f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(path)}\n")):
+        tmp = f"{target}.tmp-{os.getpid()}"
+        with open(tmp, "w") as f:
+            f.write(body)
+        os.replace(tmp, target)
+    return path
 
 
 def _waveforms(entry):
@@ -1531,6 +1704,8 @@ def main(argv=None):
     ap.add_argument("--verify-after", action="store_true",
                     help="with --write-receipt: then verify the cell in the same process (exit 1 if invalid)")
     ap.add_argument("--check-backend-log", metavar="LOG", help="exp_35: exit 0 iff LOG proves the SDPA backend")
+    ap.add_argument("--finalize-bf-probe", metavar="JSON", help="exp_35 §12 B3: finalize + validate the B-F probe")
+    ap.add_argument("--probe-log", default=None, help="--finalize-bf-probe: the closed probe log (repo-relative)")
     ap.add_argument("--count-no-flash", action="store_true",
                     help="exp_35: print how many cells of the --blocks / --only / --limit selection are exp_35 cells")
     ap.add_argument("--backend-target", default=NO_FLASH["target"],
@@ -1545,6 +1720,18 @@ def main(argv=None):
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
+    if args.finalize_bf_probe:   # exp_35 §12 B3: chunk 5's non-logged finalization, then the contract
+        try:
+            finalize_bf_probe(args.finalize_bf_probe, args.probe_log, campaign_digest=args.campaign_digest,
+                              base_dir=args.base_dir)
+        except (ValueError, OSError, TypeError) as err:
+            print(f"BF PROBE FINALIZATION REFUSED: {err}")
+            return 1
+        _, reasons, _ = load_control_bf(args.finalize_bf_probe, pin=args.pin, campaign_digest=args.campaign_digest,
+                                        manifest=manifest, base_dir=args.base_dir)
+        print(("BF PROBE VALID " if not reasons else "BF PROBE INVALID ") + args.finalize_bf_probe
+              + "".join(f"\n  - {x}" for x in reasons))
+        return 0 if not reasons else 1
     if args.count_no_flash:   # exp_35 (Codex C2 HIGH 2): the runner's RELEVANT tree depends on it
         try:
             print(sum(is_exp35(c) for c in select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)))
