@@ -87,3 +87,15 @@ def test_the_exp35_mode_refuses_exp25_blocks_and_the_exp25_outputs(tmp_path, mon
         with pytest.raises(SystemExit) as err:
             C.main(argv(tmp_path, w, *extra))
         assert err.value.code == 2
+
+
+def test_the_page_headlines_a_suspended_claim_with_its_alarm_items(tmp_path, monkeypatch):
+    """Codex C3a HIGH 3: never a bare PASS while the registered alarm suspends the claim."""
+    w = R.world(tmp_path, monkeypatch)
+    res = R.results(tmp_path, w)
+    res["tier2_c4"].update(claim="SUSPENDED", alarm={"suspended": True, "items": {"exp35_BF_C4_S40000_K8_s42_th180": [
+        "t17"]}, "note": "the C4 invariance claim is suspended pending item triage"})
+    md = C.render_exp35_md(res)
+    head = md[md.index("## Tier 2-C4"):].split("\n")[2]
+    assert head.startswith("**SUSPENDED**") and "the registered p99 verdict: PASS" in head
+    assert "exp35_BF_C4_S40000_K8_s42_th180: t17" in head and "**PASS**" not in md[md.index("## Tier 2-C4"):]

@@ -180,3 +180,52 @@ def test_tier3_bf_with_a_missing_cell_is_not_computable(tmp_path, exp25):
     t3 = C.tier3_bf(collect35(tmp_path), exp25)
     assert t3["pass"] is None and any(not c["computable"] for c in t3["checks"] if c["K"] == 8)
     assert all(c["computable"] for c in t3["checks"] if c["K"] == 1)
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3a HIGH 2 / HIGH 3: tier2_c4 alone on synthetic entries (item counts the fixture's N = 8 cannot give)
+# --------------------------------------------------------------------------- #
+def _synthetic(monkeypatch, n, perturb=None):
+    """Every BF-pin / BF-dup cell of the manifest with identical waveforms, item ``i`` of cell ``c`` scaled by
+    ``1 + perturb[c][i]`` (its relL2 against an unperturbed reference); the real tier2_c4 helpers except the dump
+    reader, which serves these arrays."""
+    import numpy as np
+    base = np.random.default_rng(0).standard_normal((n, 64)).astype(np.float32) + 2.0
+    waves, cells = {}, {}
+    for r in [c for c in MANIFEST["cells"] if c["block"] in ("BF-pin", "BF-dup")]:
+        w = base.copy()
+        for item, eps in (perturb or {}).get(r["cell"], {}).items():
+            w[item] *= np.float32(1 + eps)
+        waves[r["cell"]] = w
+        cells[r["cell"]] = {"row": r, "valid": True, "dump": True,
+                            "stream": {"input_hash": "h", "input_tuples": [[i, f"t{i}"] for i in range(n)]},
+                            "receipt": {"dump_evidence": {"manifest": {"sha256": r["cell"] if r["cell"] in (
+                                perturb or {}) else "same"}}}}
+    monkeypatch.setattr(C, "_waveforms", lambda e: waves[e["row"]["cell"]])
+    return cells
+
+
+def test_the_pooled_rule_carries_no_cap_of_its_own(monkeypatch):
+    """§4: 1e-2 binds each of the six PAIRS; the pooled p99 is judged by 3 x the pooled control only."""
+    pert = {f"exp35_BF_C4_S40000_K{k}_s42_th{d}": {3: 0.0105} for k in (1, 8) for d in (90, 180, 270)}
+    t2 = C.tier2_c4(_synthetic(monkeypatch, 8, pert), {"d128": 4e-3, "d256": 4e-3, "d384": 4e-3, "pooled": 4e-3})
+    assert all(p["pass_cap"] and p["pass_matched"] and p["relL2"]["p99"] < 1e-2 for p in t2["pairs"])
+    assert 1e-2 < t2["pooled"]["relL2"]["p99"] <= 3 * 4e-3 and t2["pooled"]["pass"] is True
+    assert t2["pass"] is True and t2["claim"] == "PASS"
+
+
+def test_a_rare_alarm_suspends_the_claim_while_the_p99_rules_pass(monkeypatch):
+    """§4: any C4 item with relL2 > 0.1 suspends the claim -- here one item in 200 (< 1 %), so every p99 rule
+    passes; the registered p99 verdict stays PASS, the claim is SUSPENDED with the item named."""
+    cell = "exp35_BF_C4_S40000_K8_s42_th180"
+    t2 = C.tier2_c4(_synthetic(monkeypatch, 200, {cell: {17: 0.5}}), dict(CONTROL_BF))
+    assert t2["pass"] is True and all(p["pass_matched"] and p["pass_cap"] for p in t2["pairs"])
+    assert t2["alarm"]["suspended"] and t2["alarm"]["items"] == {cell: ["t17"]} and t2["claim"] == "SUSPENDED"
+
+
+def test_the_claim_status_otherwise_follows_the_registered_verdict(monkeypatch):
+    clean = C.tier2_c4(_synthetic(monkeypatch, 8), dict(CONTROL_BF))
+    bad = C.tier2_c4(_synthetic(monkeypatch, 8, {"exp35_BF_C4_S40000_K1_s42_th90": {i: 0.02 for i in range(8)}}),
+                     dict(CONTROL_BF))
+    assert (clean["claim"], bad["claim"], bad["pass"]) == ("PASS", "FAIL", False)
+    assert C.tier2_c4(_synthetic(monkeypatch, 8), None)["claim"] == "NOT COMPUTABLE"

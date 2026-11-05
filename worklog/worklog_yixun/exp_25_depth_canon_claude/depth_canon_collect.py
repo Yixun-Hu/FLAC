@@ -1892,7 +1892,8 @@ def tier2_c4(cells, control):
     import numpy as np
     from src.tools import depth_canon_stats as stats
     if control is None:
-        return {"pass": None, "note": "no valid registered B-F composition control: Tier 2-C4 not computable"}
+        return {"pass": None, "claim": "NOT COMPUTABLE",
+                "note": "no valid registered B-F composition control: Tier 2-C4 not computable"}
     idx, pairs, pooled, alarm = _bf_index(cells), [], [], {}
     for k in (1, 8):
         ref = idx.get(("BF-pin", "T", k, 42, 0))
@@ -1910,7 +1911,7 @@ def tier2_c4(cells, control):
             pairs.append(dict(p, computable=True, relL2=s2, relLinf=sinf, pass_matched=s2["p99"] <= TIER2_FACTOR * control[key],
                               pass_cap=s2["p99"] <= TIER2_CAP))
     pool = stats.paired_summary(np.concatenate(pooled)) if len(pooled) == 6 else None
-    pool_ok = bool(pool and pool["p99"] <= TIER2_FACTOR * control["pooled"] and pool["p99"] <= TIER2_CAP)
+    pool_ok = bool(pool and pool["p99"] <= TIER2_FACTOR * control["pooled"])   # no pooled cap (Codex C3a HIGH 2)
     dup, descriptive = [], {"45": [], "R": []}
     for k in (1, 8):
         e, ref = idx.get(("BF-dup", "T", k, 42, 0)), idx.get(("BF-pin", "T", k, 42, 0))
@@ -1926,8 +1927,9 @@ def tier2_c4(cells, control):
             if e and ref and _same_items(e, ref) and e["dump"] and ref["dump"]:
                 s2, sinf, _ = _distance(e, ref)
                 descriptive[kind].append({"cell": e["row"]["cell"], "K": k, "seed": seed, "relL2": s2, "relLinf": sinf})
-    return {"pass": len(pairs) == 6 and all(p["computable"] and p["pass_matched"] and p["pass_cap"] for p in pairs)
-            and pool_ok, "pairs": pairs, "pooled": {"relL2": pool, "control_p99": control["pooled"], "pass": pool_ok},
+    verdict = len(pairs) == 6 and all(p["computable"] and p["pass_matched"] and p["pass_cap"] for p in pairs) and pool_ok
+    return {"pass": verdict, "claim": "SUSPENDED" if alarm else "PASS" if verdict else "FAIL",   # Codex C3a HIGH 3
+            "pairs": pairs, "pooled": {"relL2": pool, "control_p99": control["pooled"], "pass": pool_ok},
             "determinism": {"pass": all(d["pass"] for d in dup), "pairs": dup},
             "alarm": {"suspended": bool(alarm), "items": alarm,
                       "note": "the C4 invariance claim is suspended pending item triage" if alarm else "none"},
@@ -2229,8 +2231,12 @@ def render_exp35_md(res):
         _num(resolve(res, d)[k]["item"][key][f]) for f in ("delta_c4", "probe45", "delta_r", "sd_z")) + " |"
         for arm, d in res["table_c"].items() for k in ks for key in TIER3_KEYS]
     t2 = res["tier2_c4"]
+    alarm = (t2.get("alarm") or {}).get("items") or {}
     out += ["", h("Tier 2-C4 — OrbitRIR's invariance claim (scored dumps vs the B-F composition control)"), "",
-            f"**{_verdict(t2['pass'])}** — {t2.get('rule') or t2.get('note')}.", ""]
+            f"**{t2['claim']}** (the registered p99 verdict: {_verdict(t2['pass'])})" + (
+                " — the alarm suspends the claim pending item triage; items " + "; ".join(
+                    f"{c}: {', '.join(v)}" for c, v in alarm.items()) if t2["claim"] == "SUSPENDED" else "")
+            + f" — {t2.get('rule') or t2.get('note')}.", ""]
     if "pairs" in t2:
         out += ["| cell | control | control p99 | relL2 p99 | relL2 max | matched | cap |", "|---|---|---|---|---|---|---|"]
         out += [f"| {p['cell']} | {p['control_key']} | {_num(p['control_p99'])} | {_num((p.get('relL2') or {}).get('p99'))}"
