@@ -2065,6 +2065,85 @@ def exp35_results(manifest, *, pin, canon_index, blocks=None, base_dir=REPO, far
                                partial=partial)
 
 
+EXP35_RESULTS = os.path.join(EXP35_DIR, "orbitrir_yaw_results")   # §1: orbitrir_yaw_results.{md,json}
+
+
+def _mean_n(st, key):
+    s = (st or {}).get(key)
+    return "—" if not s or s.get("mean") is None else _fmt(s, key) + f" (n {s['n']})"
+
+
+def _verdict(v):
+    return "PASS" if v else "not computable" if v is None else "FAIL"
+
+
+def render_exp35_md(res):
+    """orbitrir_yaw_results.md: the provenance, E1 / E2, tables (a) / (b) / (c) with the Tier 3 verdict, Tier 2-C4.
+    Pointers resolve into ``external_reference``; nothing is recomputed here."""
+    res = json.loads(json.dumps(res))                              # the results file's own view (string K keys)
+    part, keys, ks = res["partial"], TABLE_KEYS, ("1", "8")
+    h = lambda t: f"## {'PARTIAL — ' if part else ''}{t}"  # noqa: E731
+    name = lambda key: SHORT.get(key, key)  # noqa: E731
+    head, sep = "| method (source) | K | " + " | ".join(name(k) for k in keys) + " |", "|---|---|" + "---|" * len(keys)
+    x = res["external_reference"]
+    out = [f"# exp_35 orbitrir_yaw_evidence — results{' (PARTIAL)' if part else ''}", "",
+           f"Evaluator pin `{res['pin']}`; campaign digest `{res['campaign_digest']}`; blocks {', '.join(res['blocks'])}. "
+           "Written by `depth_canon_collect.py --exp35`; never hand-edited.", "",
+           f"external_reference: the exp_25 results `{x['exp25']['path']}` (sha256 `{x['exp25']['sha256']}`, pin "
+           f"`{x['exp25']['pin']}`; its rows are quoted, never paired with this campaign's cells); "
+           f"{len(x['exp25_cells']['metrics'])} exp_25 cells verified offline at `{x['exp25_cells']['pin']}` "
+           f"({x['exp25_cells']['check']}); the stream registry `{x['registry_sha256']}`; the A6 CSV "
+           f"`{x['a6_csv']['sha256']}` ({x['a6_csv']['read_by']}).", ""]
+    out += [f"**PARTIAL:** {'; '.join(res['gaps'])}.", ""] if part else []
+    out += [h("E1 — the control cells (exact; a hard stop)"), ""] + [f"- CTL K{k}: {v['status']}"
+                                                                    for k, v in res["e1_ctl"].items()]
+    e2 = res["e2"]
+    out += ["", h("E2 — decides the 45-degree source only"), "", f"{e2['status']} — {e2['rule']}.", ""] + [
+        f"- K{r['K']} {name(r['metric'])}: new {r['new']:.6g}, A6 {r['a6']:.6g}, |diff| {r['abs_diff']:.3g} <= "
+        f"{r['tolerance']:g}: {r['pass']}" for r in e2["rows"]]
+    a = res["table_a"]
+    out += ["", h("(a) theta = 0, unseen, mean ± sd over seeds 42–46, item-weighted"), "", head, sep]
+    for m in ("FLAC", "CANON", "OrbitRIR"):
+        d = a[m]
+        out += [f"| {m} ({d.get('ref') or d['source']}) | {k} | " + " | ".join(
+            _mean_n(resolve(res, d)[k]["item"] if "ref" in d else d[k], key) for key in keys) + " |" for k in ks]
+    bf = a["historical_bf"]
+    out += [f"| {bf['label']} — B-F HISTORICAL, quoted, reference only | {k} | " + " | ".join(
+        bf["rows"].get(k, {}).get("values", {}).get(name(key), "—") for key in keys) + " |" for k in ks]
+    out += ["", f"B-F HISTORICAL: {bf['provenance']}."]
+    for angle, title in (("45", "45 degrees"), ("R", "random yaw")):
+        out += ["", h(f"(b) {title}, unseen, mean ± sd over seeds 42–46, item-weighted"), "", head, sep]
+        out += [f"| {m} ({res['table_b'][angle][m]['source']}) | {k} | " + " | ".join(
+            _mean_n(res["table_b"][angle][m][k], key) for key in keys) + " |" for m in ("FLAC", "CANON", "OrbitRIR")
+            for k in ks]
+    t3 = res["tier3"]["BF"]
+    fails = {r: [f"K{c['K']} {name(c['metric'])}" for c in t3["checks"] if c["computable"] and not c[r]]
+             for r in ("pass_c4", "pass_r")}
+    out += ["", h("(c) Tier 3 spread, item-weighted (CANON / P1-pin / YAW-pin quoted from the exp_25 JSON) and the "
+                  "B-F verdict"), "", f"**Tier 3 B-F: {_verdict(t3['pass'])}** — {t3['rule']}. pass_c4 fails: "
+            f"{', '.join(fails['pass_c4']) or 'none'}; pass_r fails: {', '.join(fails['pass_r']) or 'none'}.", "",
+            "| arm (source) | K | metric | Delta_C4 | 45-deg probe | Delta_R | sd(m_Z) |", "|---|---|---|---|---|---|---|"]
+    out += [f"| {arm} ({d['ref']}) | {k} | {name(key)} | " + " | ".join(
+        _num(resolve(res, d)[k]["item"][key][f]) for f in ("delta_c4", "probe45", "delta_r", "sd_z")) + " |"
+        for arm, d in res["table_c"].items() for k in ks for key in TIER3_KEYS]
+    t2 = res["tier2_c4"]
+    out += ["", h("Tier 2-C4 — OrbitRIR's invariance claim (scored dumps vs the B-F composition control)"), "",
+            f"**{_verdict(t2['pass'])}** — {t2.get('rule') or t2.get('note')}.", ""]
+    if "pairs" in t2:
+        out += ["| cell | control | control p99 | relL2 p99 | relL2 max | matched | cap |", "|---|---|---|---|---|---|---|"]
+        out += [f"| {p['cell']} | {p['control_key']} | {_num(p['control_p99'])} | {_num((p.get('relL2') or {}).get('p99'))}"
+                f" | {_num((p.get('relL2') or {}).get('max'))} | {p['pass_matched']} | {p['pass_cap']} |" for p in t2["pairs"]]
+        out += ["", f"Pooled C4: {_verdict(t2['pooled']['pass'])} (p99 {_num((t2['pooled']['relL2'] or {}).get('p99'))}, "
+                f"control {_num(t2['pooled']['control_p99'])}). T-dup determinism: {_verdict(t2['determinism']['pass'])} ("
+                + "; ".join(f"{d['cell']}: max {_num(d['relL2_max'])}, dump sha256 equal {d['dump_sha_equal']}"
+                            for d in t2["determinism"]["pairs"]) + f"). Alarm: {t2['alarm']['note']}. eps_cond (B-F, "
+                f"fp32; reported, no verdict): {res['eps_cond_bf']}.", "",
+                "Descriptive only (outside the claim, no verdict) — 45 degrees and random yaw vs theta = 0:"]
+        out += [f"- {d['cell']}: relL2 p99 {_num(d['relL2']['p99'])}, max {_num(d['relL2']['max'])}; relLinf max "
+                f"{_num(d['relLinf']['max'])}" for kind in ("45", "R") for d in t2["descriptive"][kind]]
+    return "\n".join(out) + "\n"
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
@@ -2118,6 +2197,11 @@ def main(argv=None):
     ap.add_argument("--exp35-ctl-check", type=int, metavar="K", help="exp_35 E1: exit 0 equal / 1 mismatch / 2 refused")
     ap.add_argument("--exp35-e2", action="store_true", help="exp_35 E2: exit 0 PASS / 1 FAIL / 2 refused")
     ap.add_argument("--a6-csv", default=None, help="--exp35-e2: the A6 CSV (default: the pinned file)")
+    ap.add_argument("--exp35", action="store_true", help="exp_35 §5: <--exp35-out>.{md,json} from exp_35 blocks only")
+    ap.add_argument("--exp35-out", default=EXP35_RESULTS, help="--exp35: the output prefix (default: the exp_35 folder)")
+    ap.add_argument("--exp25-base-dir", default=EXP25_WORKTREE, help="--exp35: the exp-25 worktree (the external cells)")
+    ap.add_argument("--exp25-dump-root", default=None, help="--exp35: their dump root (default: the manifest's)")
+    ap.add_argument("--bf-probe-json", default=EXP35_PROBE_JSON, help="--exp35: the finalized B-F probe")
     ap.add_argument("--count-no-flash", action="store_true",
                     help="exp_35: print how many cells of the --blocks / --only / --limit selection are exp_35 cells")
     ap.add_argument("--backend-target", default=NO_FLASH["target"],
@@ -2144,6 +2228,27 @@ def main(argv=None):
         print(("BF PROBE VALID " if not reasons else "BF PROBE INVALID ") + args.finalize_bf_probe
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
+    if args.exp35:   # exp_35 §5: the exp35 collect mode
+        if args.collect or (args.out_json, args.out_md) != (os.path.join(EXPDIR, "depth_canon_results.json"),
+                                                            os.path.join(EXPDIR, "depth_canon_results.md")):
+            ap.error("--exp35 writes <--exp35-out>.json / .md; --collect / --out-json / --out-md are the exp_25 mode")
+        try:
+            index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                     manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+            res = exp35_results(manifest, pin=args.pin, canon_index=index, blocks=_csv(args.blocks),
+                                base_dir=args.base_dir, farm_root=args.farm_root, dump_root=args.dump_root,
+                                exp25_base_dir=args.exp25_base_dir, exp25_dump_root=args.exp25_dump_root,
+                                bf_probe_json=args.bf_probe_json, a6_csv=args.a6_csv, partial=args.partial,
+                                check_link=not args.no_link_check, dump_check=args.dump_check)
+        except (ValueError, OSError, KeyError) as err:
+            print(str(err))
+            return 3
+        with open(args.exp35_out + ".json", "w") as f:
+            json.dump(res, f, indent=1)
+        with open(args.exp35_out + ".md", "w") as f:
+            f.write(render_exp35_md(res))
+        print(f"wrote {args.exp35_out}.md and .json ({'PARTIAL' if res['partial'] else 'complete'})")
+        return 0
     if args.exp35_ctl_check is not None:   # exp_35 §3c E1, the hard stop after chunks 1-2
         if args.exp35_ctl_check not in (1, 8):
             print(f"CTL REFUSED: K must be 1 or 8, got {args.exp35_ctl_check}")
