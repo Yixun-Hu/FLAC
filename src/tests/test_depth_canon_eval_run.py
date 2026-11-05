@@ -306,7 +306,8 @@ def test_selection_by_blocks_only_and_limit(manifest):
     assert [c["block"] for c in sel] == ["P1-pin"] * 28 + ["YAW-pin"] * 38
     a1_off = C.select_cells(manifest, blocks=[b for b in BLOCKS if b != "YAW-pin"])
     assert len(a1_off) == 192 and all(c["block"] != "YAW-pin" for c in a1_off)
-    assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]]
+    assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]   # exp_35 §14 A1.3:
+                                                            if c["block"] not in C.EXPLICIT_BLOCKS]   # E2-FAIL only by name
     names = ["exp25_YAW_S_S40000_K8_s46", "exp25_CANON_T_S40000_K1_s42"]
     assert [c["cell"] for c in C.select_cells(manifest, only=names)] == names[::-1]  # manifest order
     assert len(C.select_cells(manifest, blocks=["TRAJ"], limit=7)) == 7
