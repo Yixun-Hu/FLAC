@@ -396,6 +396,61 @@ RECEIPT_KEYS = ("schema_version", "cell", "stem", "block", "arm", "step", "ckpt_
                 "dataset_config_sha256", "expected_stream_count", "dump", "dump_root", "argv",
                 "expect_head", "campaign_digest", "spawn_digest", "post_digest", "artifact_sha256",
                 "dump_evidence", "lane", "log", "rc")
+# exp_35 (plan_orbitrir_yaw_evidence.md r2 §3b, §11 B1): every exp_35 cell runs through the committed no-flash
+# launcher; its receipt (schema 2) appends the backend it ran on, and its log must prove it
+RECEIPT_SCHEMA_VERSION_EXP35 = 2
+RECEIPT_V2_KEYS = ("attention_backend", "no_flash_overlay_sha256", "no_flash_launcher_sha256")
+RECEIPT_KEYS_V2 = RECEIPT_KEYS + RECEIPT_V2_KEYS
+NO_FLASH = {"overlay": "overlays/no_flash/flash_attn.py",
+            "overlay_sha256": "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023",
+            "launcher": "overlays/no_flash/exp35_no_flash_launch.py",
+            "launcher_sha256": "980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d",
+            "backend": "sdpa", "sentinel": "EXP35_NO_FLASH_LAUNCHER", "target": "eval_FLAC.py",
+            "overlay_line": "exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA",
+            "fallback_line": "flash_attn not installed, disabling Flash Attention",   # src/models/transformer.py:16
+            "missing_line": "No module named 'flash_attn'"}
+
+
+def backend_fields():
+    """The receipt-v2 backend fields of every exp_35 cell (the pinned overlay + launcher)."""
+    return {"attention_backend": NO_FLASH["backend"], "no_flash_overlay_sha256": NO_FLASH["overlay_sha256"],
+            "no_flash_launcher_sha256": NO_FLASH["launcher_sha256"]}
+
+
+def backend_log_reasons(text, target=NO_FLASH["target"]):
+    """The log of a launcher run proves the SDPA backend: transformer.py printed the overlay's ImportError
+    and its fallback line exactly once, back to back; the launcher then printed ONE sentinel with the
+    backend, the pinned overlay + launcher sha256 and ``target``; no line reports a MISSING flash_attn
+    (an import that never met the overlay)."""
+    lines, nf, out = text.splitlines(), NO_FLASH, []
+    if any(nf["missing_line"] in ln for ln in lines):
+        out.append(f"the log reports {nf['missing_line']!r}: an import ran without the overlay")
+    ov = [i for i, ln in enumerate(lines) if ln == nf["overlay_line"]]
+    fb = [i for i, ln in enumerate(lines) if ln == nf["fallback_line"]]
+    if not (len(ov) == len(fb) == 1 and fb[0] == ov[0] + 1):
+        out.append(f"the log holds {len(ov)} overlay ImportError line(s) and {len(fb)} SDPA fallback line(s), "
+                   "not one back-to-back pair")
+    sent = [i for i, ln in enumerate(lines) if ln.startswith(nf["sentinel"] + " ")]
+    if len(sent) != 1:
+        return out + [f"the log holds {len(sent)} no-flash launcher sentinel line(s), not exactly one"]
+    got = dict(tok.partition("=")[::2] for tok in lines[sent[0]].split()[1:])
+    want = {"attention_backend": nf["backend"], "overlay_sha256": nf["overlay_sha256"],
+            "launcher_sha256": nf["launcher_sha256"], "target": target}
+    if got != want:
+        out.append(f"the launcher sentinel {got} != {want}")
+    if fb and sent[0] < fb[-1]:
+        out.append("the launcher sentinel precedes the SDPA fallback line")
+    return out
+
+
+def backend_log_file_reasons(path, target=NO_FLASH["target"]):
+    try:
+        with open(path, errors="replace") as f:
+            return backend_log_reasons(f.read(), target)
+    except (OSError, TypeError) as err:
+        return [f"the cell log {path!r} is unreadable ({err}): the attention backend is unproven"]
+
+
 DIGEST_KEYS = ("campaign_digest", "spawn_digest", "post_digest")   # rB-F1 B3: the evaluated tree
 
 
@@ -418,10 +473,11 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
     The committed configs must still hash to the manifest's pins."""
     if not isinstance(receipt, dict):
         return ["receipt is not a JSON object"]
-    reasons = []
-    if list(receipt) != list(RECEIPT_KEYS):
-        reasons.append(f"receipt keys {list(receipt)} != {list(RECEIPT_KEYS)}")
-    want = {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": row["cell"], "stem": stem,
+    reasons, keys = [], RECEIPT_KEYS_V2 if is_exp35(row) else RECEIPT_KEYS
+    if list(receipt) != list(keys):
+        reasons.append(f"receipt keys {list(receipt)} != {list(keys)}")
+    want = {"schema_version": RECEIPT_SCHEMA_VERSION_EXP35 if is_exp35(row) else RECEIPT_SCHEMA_VERSION,
+            "cell": row["cell"], "stem": stem,
             "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": link,
             "ckpt_target": target, "ckpt_sha256": ckpt_sha256, "ckpt_cache": ckpt_cache_path(link, ckpt_sha256),
             "ckpt_sha256_measured": ckpt_sha256, "ckpt_sha256_loaded": ckpt_sha256, "model_config": row["model_config"],
@@ -429,7 +485,7 @@ def receipt_reasons(receipt, row, *, stem, link, target, ckpt_sha256, dump, dump
             "dataset_config_sha256": row["dataset_config_sha256"],
             "expected_stream_count": row["expected_stream_count"], "dump": dump,
             "dump_root": dump_root if dump else None, "argv": cell_argv(row, link, dump_root, dump),
-            "expect_head": pin, "rc": 0}
+            "expect_head": pin, "rc": 0, **(backend_fields() if is_exp35(row) else {})}
     for key, value in want.items():
         _eq(reasons, f"receipt {key}", receipt.get(key), value)
     d = receipt.get("campaign_digest")
@@ -523,7 +579,8 @@ def find_canon_manifest(expdir=EXPDIR):
 
 
 def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, base_dir=REPO,
-                dump_check="full", expect_dump=True, check_link=True, expect_digest=None, receipt_doc=None):
+                dump_check="full", expect_dump=True, check_link=True, expect_digest=None, receipt_doc=None,
+                backend_target=NO_FLASH["target"]):
     """Named reasons the cell ``stem`` is not complete-and-verified ([] = the driver may skip
     it, the generator may publish it). Checks the metrics record, stream and canon sidecars,
     the driver's receipt (its committed-artifact digests and dump evidence), the dump
@@ -581,6 +638,9 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     if isinstance(docs["metrics"], dict) and isinstance(docs["receipt"], dict):   # rB-F2 F2-6: loaded == receipt
         for key in LOAD_KEYS:
             _eq(reasons, f"metrics record {key} vs the receipt's", docs["metrics"].get(key), docs["receipt"].get(key))
+    if is_exp35(row) and isinstance(docs["receipt"], dict):   # exp_35 §3b: its log re-read at every verification
+        log = docs["receipt"].get("log")
+        reasons += backend_log_file_reasons(at(log) if isinstance(log, str) else None, backend_target)
     if dump_check == "receipt":
         pass                       # offline: the receipt's evidence stands for the dump (decision A7)
     elif expect_dump:
@@ -642,12 +702,12 @@ def plan_cells(manifest, selected, *, farm_root, dump_root, canon_index, no_dump
                     "canon": p.canon if row["canonicalize"] else None, "canon_probe": p.canon,
                     "receipt": p.receipt, "dump": dump, "dump_root": dump_root, "dump_dir": p.dump_dir,
                     "stem": p.stem, "expected_stream_count": row["expected_stream_count"],
-                    "argv": cell_argv(row, link, dump_root, dump)})
+                    "argv": cell_argv(row, link, dump_root, dump), "no_flash": is_exp35(row)})
     return out
 
 
 def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt_bytes, campaign_digest,
-                  spawn_digest, post_digest):
+                  spawn_digest, post_digest, backend=None):
     """The cell's receipt (``.cell.json``) as a dict: refuses a measured checkpoint digest that
     is not the expected one and a tree digest at the spawn / after the run that is not the
     campaign's; binds the committed artifacts' digests and, for a dump, its evidence (B6); and
@@ -656,6 +716,9 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt
     if ckpt_sha256 != entry["sha256"]:
         raise ValueError(f"{entry['cell']}: measured checkpoint sha256 {ckpt_sha256} != the expected "
                          f"{entry['sha256']}")
+    if backend != (backend_fields() if is_exp35(row) else None):   # exp_35: the runner's backend claim
+        raise ValueError(f"{entry['cell']}: attention backend fields {backend!r} are not "
+                         f"{backend_fields() if is_exp35(row) else None!r} for this cell")
     if not eval_FLAC._is_sha256_hex(campaign_digest) or {spawn_digest, post_digest} != {campaign_digest}:
         raise ValueError(f"{entry['cell']}: tree digest moved (campaign {campaign_digest}, spawn {spawn_digest}, "
                          f"post {post_digest})")
@@ -680,7 +743,8 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt
         evidence = dump_evidence(at(entry["dump_dir"])) if entry["dump"] else None
     except (OSError, ValueError) as err:
         raise ValueError(f"{entry['cell']}: the dump cannot be bound ({err})") from err
-    return {"schema_version": RECEIPT_SCHEMA_VERSION, "cell": entry["cell"], "stem": entry["stem"],
+    return {"schema_version": RECEIPT_SCHEMA_VERSION_EXP35 if backend else RECEIPT_SCHEMA_VERSION,
+            "cell": entry["cell"], "stem": entry["stem"],
            "block": row["block"], "arm": row["arm"], "step": row["step"], "ckpt_link": entry["link"],
            "ckpt_target": entry["target"], "ckpt_sha256": entry["sha256"],
            "ckpt_cache": ckpt_cache_path(entry["link"], entry["sha256"]), "ckpt_sha256_measured": ckpt_sha256,
@@ -692,7 +756,7 @@ def build_receipt(entry, row, *, base_dir, lane, log, rc, pin, ckpt_sha256, ckpt
            "dump_root": entry["dump_root"] if entry["dump"] else None, "argv": entry["argv"],
            "expect_head": pin, "campaign_digest": campaign_digest, "spawn_digest": spawn_digest,
            "post_digest": post_digest, "artifact_sha256": artifacts, "dump_evidence": evidence,
-           "lane": lane, "log": log, "rc": rc}
+           "lane": lane, "log": log, "rc": rc, **(backend or {})}
 
 
 def write_receipt(entry, row, *, base_dir, receipt=None, **kw):
@@ -1466,7 +1530,18 @@ def main(argv=None):
     ap.add_argument("--out-json", default=os.path.join(EXPDIR, "depth_canon_results.json"))
     ap.add_argument("--verify-after", action="store_true",
                     help="with --write-receipt: then verify the cell in the same process (exit 1 if invalid)")
+    ap.add_argument("--check-backend-log", metavar="LOG", help="exp_35: exit 0 iff LOG proves the SDPA backend")
+    ap.add_argument("--backend-target", default=NO_FLASH["target"],
+                    help="exp_35: the launcher target the log must name (default eval_FLAC.py)")
+    ap.add_argument("--attention-backend", default=None, help="--write-receipt, exp_35 cells: sdpa")
+    ap.add_argument("--no-flash-overlay-sha256", default=None, help="--write-receipt, exp_35 cells")
+    ap.add_argument("--no-flash-launcher-sha256", default=None, help="--write-receipt, exp_35 cells")
     args = ap.parse_args(argv)
+    if args.check_backend_log:
+        reasons = backend_log_file_reasons(args.check_backend_log, args.backend_target)
+        print(("BACKEND OK " if not reasons else "BACKEND REFUSED ") + args.check_backend_log
+              + "".join(f"\n  - {x}" for x in reasons))
+        return 0 if not reasons else 1
     manifest = load_cells(args.cells)
     farm = args.farm_root or manifest["farm_root"]
     dump_root = args.dump_root or manifest["dump_root"]
@@ -1479,11 +1554,13 @@ def main(argv=None):
             plan = json.load(f)
         entry = next(e for e in plan["cells"] if e["cell"] == args.write_receipt)
         row = next(c for c in manifest["cells"] if c["cell"] == args.write_receipt)
+        flags = (args.attention_backend, args.no_flash_overlay_sha256, args.no_flash_launcher_sha256)
+        backend = None if flags == (None, None, None) else dict(zip(RECEIPT_V2_KEYS, flags))
         try:
             rec = build_receipt(entry, row, base_dir=args.base_dir, lane=args.lane, log=args.log, rc=args.rc,
                                 pin=args.pin, ckpt_sha256=args.ckpt_sha, ckpt_bytes=args.ckpt_bytes,
                                 campaign_digest=plan["campaign_digest"],
-                                spawn_digest=args.spawn_digest, post_digest=args.post_digest)
+                                spawn_digest=args.spawn_digest, post_digest=args.post_digest, backend=backend)
             index = (load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
                                       manifest["arms"]["CANON"]["ckpt"]["run_ns"]) if row["arm"] == "CANON" else None)
         except (ValueError, OSError) as err:
@@ -1492,7 +1569,8 @@ def main(argv=None):
         reasons = verify_cell(entry["stem"], manifest=manifest, farm_root=farm, dump_root=dump_root, pin=args.pin,
                               canon_index=index, base_dir=args.base_dir, dump_check=args.dump_check,
                               expect_dump=entry["dump"], check_link=not args.no_link_check,
-                              expect_digest=plan["campaign_digest"], receipt_doc=rec)
+                              expect_digest=plan["campaign_digest"], receipt_doc=rec,
+                              backend_target=args.backend_target)
         if reasons:
             print(f"INVALID {entry['stem']}\n" + "".join(f"  - {x}\n" for x in reasons)
                   + "RECEIPT REFUSED: the cell did not verify; no receipt written")
@@ -1510,7 +1588,8 @@ def main(argv=None):
         reasons = verify_cell(args.verify_cell, manifest=manifest, farm_root=farm, dump_root=dump_root,
                               pin=args.pin, canon_index=index, base_dir=args.base_dir,
                               dump_check=args.dump_check, expect_dump=not args.no_dump,
-                              check_link=not args.no_link_check, expect_digest=args.campaign_digest)
+                              check_link=not args.no_link_check, expect_digest=args.campaign_digest,
+                              backend_target=args.backend_target)
         print(("VALID " if not reasons else "INVALID ") + args.verify_cell)
         for reason in reasons:
             print("  - " + reason)

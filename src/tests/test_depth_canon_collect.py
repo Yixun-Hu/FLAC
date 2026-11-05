@@ -204,6 +204,14 @@ def expected_target(r):
 DIGEST = "d" * 64   # the campaign's relevant-tree content digest (rB-F1 B3)
 
 
+def backend_log(target="eval_FLAC.py"):
+    """exp_35: what transformer.py and the no-flash launcher print into an exp_35 cell's log."""
+    nf = C.NO_FLASH
+    return (f"{nf['overlay_line']}\n{nf['fallback_line']}\n{nf['sentinel']} attention_backend={nf['backend']} "
+            f"overlay_sha256={nf['overlay_sha256']} launcher_sha256={nf['launcher_sha256']} target={target}\n"
+            "Evaluation complete!\n")
+
+
 def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
     """The driver's receipt, written by the REAL writer (``depth_canon_collect.write_receipt``)
     from a real plan entry; ``ckpt_sha`` tampers the written file afterwards."""
@@ -211,9 +219,14 @@ def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root
     entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
                          canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
     assert entry["link"] == link and entry["metrics"] == metrics_rel
+    backend = C.backend_fields() if C.is_exp35(r) else None      # exp_35: receipt schema 2 + its log
+    if backend:
+        os.makedirs(os.path.join(str(tmp), "logs"), exist_ok=True)
+        with open(os.path.join(str(tmp), "logs", "x.log"), "w") as f:
+            f.write(backend_log())
     path = C.write_receipt(entry, r, base_dir=str(tmp), lane=0, log="logs/x.log", rc=0, pin=pin,
                            ckpt_sha256=entry["sha256"], ckpt_bytes=CKPT_BYTES, campaign_digest=DIGEST,
-                           spawn_digest=DIGEST, post_digest=DIGEST)
+                           spawn_digest=DIGEST, post_digest=DIGEST, backend=backend)
     if ckpt_sha:
         edit_json(path, lambda d: d.update(ckpt_sha256=ckpt_sha))
     return path
