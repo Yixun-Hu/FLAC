@@ -1284,7 +1284,8 @@ def _collect_cli(tmp, *extra, blocks=None):
     return C.main(argv + list(extra)), out
 
 
-ALL_BLOCKS = list(MANIFEST["blocks"])
+ALL_BLOCKS = ["T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ"]   # the exp_25 blocks
+assert MANIFEST["blocks"][:10] == ALL_BLOCKS          # exp_35 appends its own blocks after them
 
 
 def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys):
@@ -1296,6 +1297,7 @@ def test_full_collection_writes_both_results_files(tmp_path, monkeypatch, capsys
     res = json.load(open(out + ".json"))
     md = open(out + ".md").read()
     assert res["partial"] is False and res["missing"] == [] and res["pin"] == PIN
+    assert res["blocks"] == ALL_BLOCKS                 # the default selection: the exp_25 blocks only
     assert res["tier1"]["pass"] and res["tier2"]["pass"] and res["tier3"]["pass"] is True
     assert len(res["traj"]["grid"]) == 32 and res["table"]["CANON"]["1"]["item"]["T60"]["n"] == 5
     assert "PARTIAL" not in md and "not be presented as independent estimates" in md
@@ -1320,6 +1322,15 @@ def test_missing_cells_refuse_the_table_unless_partial(tmp_path, monkeypatch, ca
     assert res["partial"] is True and res["missing"] == [gone]
     headings = [ln for ln in md.splitlines() if ln.startswith("## ")]
     assert headings and all("PARTIAL" in h for h in headings) and gone in md
+
+
+@pytest.mark.parametrize("blocks", ["T,CTL", "BF-pin", "P1-pin,OFF-CANON"])
+def test_the_exp25_mode_never_collects_an_exp35_block(tmp_path, capsys, blocks):
+    """exp_35 (plan r2 §3 P6): --collect is the exp_25 mode; exp_35 cells are collected only by the
+    exp35 mode, so an exp_35 block in --blocks is refused before anything is read."""
+    rc, out = _collect_cli(tmp_path, blocks=blocks)
+    text = capsys.readouterr().out
+    assert rc == 3 and "not exp_25 blocks" in text and not os.path.exists(out + ".json"), text
 
 
 def test_cells_of_two_campaign_digests_refuse_full_collection(tmp_path, monkeypatch, capsys):

@@ -40,6 +40,8 @@ from src.data.yaw_rotation import TIE_CLASSES  # noqa: E402
 EXPREL = "worklog/worklog_yixun/exp_25_depth_canon_claude"
 EXPDIR = os.path.join(REPO, EXPREL)
 CELLS_JSON = os.path.join(EXPDIR, "depth_canon_cells.json")
+EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")   # plan_orbitrir r2 §1
 IMG_W = 512
 # the evaluator's emission set for AR (as exp_11's validator pins it) and the table subset
 METRIC_KEYS = ("T60", "C50", "EDT", "FD", "Invalid T60", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
@@ -1546,7 +1548,10 @@ def main(argv=None):
         return 0 if not lost else 1
     if args.collect:
         try:
-            blocks = _csv(args.blocks) or list(manifest["blocks"])
+            blocks = _csv(args.blocks) or [b for b in manifest["blocks"] if b in EXP25_BLOCKS]
+            if any(b not in EXP25_BLOCKS for b in blocks):   # exp_35 (plan r2 §3 P6): its own mode
+                raise ValueError(f"RESULTS REFUSED: {[b for b in blocks if b not in EXP25_BLOCKS]} are not exp_25 "
+                                 "blocks; --collect is the exp_25 mode (exp_35 cells: the exp35 mode)")
             selected = select_cells(manifest, blocks)
             index = load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
                                      manifest["arms"]["CANON"]["ckpt"]["run_ns"])

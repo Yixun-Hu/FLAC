@@ -27,6 +27,10 @@ CELLS_JSON = os.path.join(EXPDIR, "depth_canon_cells.json")
 BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
 COUNTS = {"T": 10, "T-dup": 2, "C4+45": 8, "R": 10, "D-i": 2, "D-ii": 2, "S": 10,
           "P1-pin": 28, "YAW-pin": 38, "TRAJ": 120}
+# exp_35 (plan_orbitrir_yaw_evidence.md r2 §1): 100 rows appended after the 230 exp_25 rows; the
+# exp_25 assertions below are scoped to the exp_25 blocks, test_exp35_make_cells.py pins the rest
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")
+N_ROWS = 330
 SEEDS = (42, 43, 44, 45, 46)
 # plan §5 common set (+ --batch-size 64 and --device cuda written out: never defaulted)
 COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": "1.0",
@@ -35,10 +39,12 @@ COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": 
 NAS = "/media/diskstation/yixunhu/FLAC/checkpoints"
 # NAS ar_40k_endpoints/MANIFEST.sha256 (read 2026-10-23) == depth_canon_comparator_ledger.md
 ENDPOINT_SHA = {"P1": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c",
-                "YAW": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7"}
+                "YAW": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7",
+                "BF": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328"}
 MODEL_CONFIG = {"CANON": f"{EXPREL}/FLAC_AR_CANON.json",
                 "P1": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BVp1.json",
-                "YAW": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json"}
+                "YAW": "worklog/worklog_yixun/exp_15_yaw_aug_claude/FLAC_AR_YAWAUG.json",
+                "BF": "worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json"}
 DATASET = {("unseen", 1): "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json",
            ("unseen", 8): "src/configs/dataset_configs/AR/eval/acousticroom_unseeneval.json",
            ("seen", 1): "src/configs/dataset_configs/AR/eval/acousticroom_seeneval_1.json",
@@ -59,6 +65,16 @@ MC = _load(MAKE_CELLS, "depth_canon_make_cells")
 @pytest.fixture(scope="module")
 def manifest():
     return MC.build_manifest()
+
+
+def _exp25(manifest):
+    """The exp_25 rows (the first 230, byte-identical to the exp_25 manifest)."""
+    return [c for c in manifest["cells"] if c["block"] in BLOCKS]
+
+
+def _method(c):
+    """eval_FLAC's method token: B-F rows are fa_invariant over the four C4 angles (exp_35)."""
+    return "fa_invariant" if c["arm"] == "BF" else "vanilla"
 
 
 def _sha(path):
@@ -99,7 +115,7 @@ def test_committed_manifest_equals_the_generator_output(manifest):
 def test_render_is_one_cell_per_line(manifest):
     lines = MC.render(manifest).splitlines()
     cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
-    assert len(cell_lines) == len(manifest["cells"]) == 230
+    assert len(cell_lines) == len(manifest["cells"]) == N_ROWS and len(_exp25(manifest)) == 230
 
 
 # --------------------------------------------------------------------------- #
@@ -107,25 +123,27 @@ def test_render_is_one_cell_per_line(manifest):
 # --------------------------------------------------------------------------- #
 def test_block_counts_and_priority_order(manifest):
     cells = manifest["cells"]
-    assert collections.Counter(c["block"] for c in cells) == COUNTS
-    assert tuple(manifest["blocks"]) == BLOCKS
-    assert [c["order"] for c in cells] == list(range(230))
+    assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
+    assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS
+    assert [c["order"] for c in cells] == list(range(N_ROWS))
+    assert [c["order"] for c in _exp25(manifest)] == list(range(230))       # the exp_25 rows come first
     assert [c["priority"] for c in cells] == sorted(c["priority"] for c in cells)
-    assert all(c["priority"] == BLOCKS.index(c["block"]) for c in cells)
-    assert manifest["block_counts"] == COUNTS and sum(COUNTS.values()) == 230
+    assert all(c["priority"] == manifest["blocks"].index(c["block"]) for c in cells)
+    assert {b: manifest["block_counts"][b] for b in BLOCKS} == COUNTS and sum(COUNTS.values()) == 230
 
 
 def test_eval_names_and_metrics_stems_are_injective(manifest):
     cells = manifest["cells"]
     names = [c["cell"] for c in cells]
-    assert len(set(names)) == 230
-    assert all(n.startswith("exp25_") and "exp14_" not in n and "exp11_" not in n for n in names)
+    assert len(set(names)) == N_ROWS
+    assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells)
+    assert all("exp14_" not in n and "exp11_" not in n for n in names)
     stems, suffixes = set(), set()
     for c in cells:
         base = f"epoch={c['step'] // 4551}-step={c['step']}" if c["arm"] == "CANON" \
             else "epoch=8-step=40000"
         paths = eval_FLAC.build_output_paths(
-            f"/farm/{c['arm']}/{base}.ckpt", 1, 1.0, c["cell"], cond_method="vanilla",
+            f"/farm/{c['arm']}/{base}.ckpt", 1, 1.0, c["cell"], cond_method=_method(c),
             rotate_deg=float(c["rotate_deg"] or 0), n_angles=4, rotate_mode=c["rotate_mode"],
             rotate_seed=c["rotate_seed"], are_lambda=None, canonicalize=c["canonicalize"],
             canon_mismatch=c["canon_mismatch"])
@@ -133,7 +151,7 @@ def test_eval_names_and_metrics_stems_are_injective(manifest):
         assert name == f"{base}_metrics_{c['metrics_suffix']}.json", c["cell"]
         stems.add(name[:-len(".json")])
         suffixes.add(c["metrics_suffix"])
-    assert len(stems) == len(suffixes) == 230
+    assert len(stems) == len(suffixes) == N_ROWS
 
 
 def test_canon_tokens_follow_the_protocol(manifest):
@@ -141,7 +159,8 @@ def test_canon_tokens_follow_the_protocol(manifest):
         want = ("_canon" if c["canonicalize"] else "") + ("_canonmis" if c["canon_mismatch"] else "")
         rot = ("_rotrand%d" % c["seed"] if c["rotate_mode"] == "random"
                else ("" if c["rotate_deg"] == 0 else f"_rot{c['rotate_deg']}"))
-        assert c["metrics_suffix"] == f"1_1.0_{c['cell']}{want}{rot}", c["cell"]
+        method = "_fa_invariant_a4" if c["arm"] == "BF" else ""
+        assert c["metrics_suffix"] == f"1_1.0_{c['cell']}{method}{want}{rot}", c["cell"]
 
 
 # --------------------------------------------------------------------------- #
@@ -150,14 +169,18 @@ def test_canon_tokens_follow_the_protocol(manifest):
 def test_common_flags_on_every_row(manifest):
     for c in manifest["cells"]:
         f = _flags(c)
-        for flag, value in COMMON.items():
+        for flag, value in dict(COMMON, **{"--cond-method": _method(c)}).items():
             assert f.get(flag, "MISSING") == value, (c["cell"], flag)
         assert f["--eval-name"] == c["cell"] and f["--seed"] == str(c["seed"])
         assert f["--model-config"] == MODEL_CONFIG[c["arm"]] == c["model_config"]
         assert f["--dataset-config"] == DATASET[(c["split"], c["K"])] == c["dataset_config"]
         assert f["--expected-stream-count"] == str(c["expected_stream_count"])
         assert "--ckpt-path" not in f and "--dump-scored-waveforms" not in f   # runtime
-        assert "--frame-avg-angles" not in f and "--are-lambda" not in f       # plan §5: inert
+        if c["arm"] == "BF":                          # exp_35: announcements 05/06, written out
+            assert (f["--frame-avg-angles"], f["--frame-avg-max-fwd-samples"]) == ("0,90,180,270", "64")
+        else:
+            assert "--frame-avg-angles" not in f and "--frame-avg-max-fwd-samples" not in f  # plan §5: inert
+        assert "--are-lambda" not in f
         assert c["dump"] is True                                               # A3 default
 
 
@@ -171,7 +194,7 @@ def _rot(f):
 
 def test_flags_per_block_class(manifest):
     by = collections.defaultdict(list)
-    for c in manifest["cells"]:
+    for c in _exp25(manifest):                       # exp_35's blocks: test_exp35_make_cells.py
         by[c["block"]].append(c)
     for block, cells in by.items():
         for c in cells:
@@ -241,8 +264,8 @@ def test_dataset_configs_and_expected_counts(manifest):
 
 def test_arm_checkpoints(manifest):
     arms = manifest["arms"]
-    assert set(arms) == {"CANON", "P1", "YAW"}
-    for arm in ("P1", "YAW"):
+    assert set(arms) == {"CANON", "P1", "YAW", "BF"}
+    for arm in ("P1", "YAW", "BF"):
         ck = arms[arm]["ckpt"]
         assert ck == {"kind": "endpoint", "path": f"{NAS}/ar_40k_endpoints/{arm}/epoch=8-step=40000.ckpt",
                       "sha256": ENDPOINT_SHA[arm], "nas_manifest": f"{NAS}/ar_40k_endpoints/MANIFEST.sha256",
