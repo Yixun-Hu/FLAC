@@ -1829,6 +1829,99 @@ def exp35_e2(*, pin, manifest, base_dir=REPO, csv_path=None, farm_root=None, dum
     return dict(res, status="PASS" if ok else "FAIL", **{"pass": ok})
 
 
+# --------------------------------------------------------------------------- #
+# exp_35 collect mode, part 2 (plan r2 §4, frozen before any phase-(i) data, §11 R8): Tier 2-C4, Tier 3 for B-F
+# --------------------------------------------------------------------------- #
+def _bf_index(cells):
+    """``(block, subblock, K, seed, deg) -> entry`` over the VALID B-F rows (BF-pin, BF-dup, OFF-BF)."""
+    return {(e["row"]["block"], e["row"]["subblock"], e["row"]["K"], e["row"]["seed"], e["row"]["rotate_deg"]): e
+            for e in cells.values() if e["valid"] and e["row"]["arm"] == "BF"}
+
+
+def _distance(e, ref):
+    """``(relL2 summary, relLinf summary, relL2 per item)`` of a dumped cell against its dumped theta = 0 pair."""
+    from src.tools import depth_canon_stats as stats
+    l2, linf = _paired(_waveforms(e), _waveforms(ref))
+    return stats.paired_summary(l2), stats.paired_summary(linf), l2
+
+
+def tier2_c4(cells, control):
+    """§4 Tier 2-C4 -- OrbitRIR's invariance claim: each (K1, K8) x (90, 180, 270) pair at seed 42 against BF-pin T
+    s42 with equal input_hash, p99(relL2) <= 3 x the matched B-F control p99 (d128 / d256 / d384) AND <= 1e-2,
+    AND the pooled p99 of the six pairs' items <= 3 x the pooled control p99 (a control p99 of 0 demands a p99 of
+    0, as registered for exp_25); alarm: any item > 0.1; T-dup exact (max 0, dump sha256 equal). The 45-degree and
+    random-yaw distances are reported, outside the claim, with no verdict."""
+    import numpy as np
+    from src.tools import depth_canon_stats as stats
+    if control is None:
+        return {"pass": None, "note": "no valid registered B-F composition control: Tier 2-C4 not computable"}
+    idx, pairs, pooled, alarm = _bf_index(cells), [], [], {}
+    for k in (1, 8):
+        ref = idx.get(("BF-pin", "T", k, 42, 0))
+        for deg in (90, 180, 270):
+            e, key = idx.get(("BF-pin", "C4", k, 42, deg)), BF_CONTROL_KEYS[deg]
+            p = {"cell": e["row"]["cell"] if e else None, "K": k, "deg": deg, "control_key": key,
+                 "control_p99": control[key]}
+            if not (e and ref and _same_items(e, ref) and e["dump"] and ref["dump"]):
+                pairs.append(dict(p, computable=False, pass_matched=False, pass_cap=False))
+                continue
+            s2, sinf, l2 = _distance(e, ref)
+            pooled.append(l2)
+            if s2["max"] > TIER2_ALARM:
+                alarm[p["cell"]] = [t[1] for t, v in zip(ref["stream"]["input_tuples"], l2) if v > TIER2_ALARM]
+            pairs.append(dict(p, computable=True, relL2=s2, relLinf=sinf, pass_matched=s2["p99"] <= TIER2_FACTOR * control[key],
+                              pass_cap=s2["p99"] <= TIER2_CAP))
+    pool = stats.paired_summary(np.concatenate(pooled)) if len(pooled) == 6 else None
+    pool_ok = bool(pool and pool["p99"] <= TIER2_FACTOR * control["pooled"] and pool["p99"] <= TIER2_CAP)
+    dup, descriptive = [], {"45": [], "R": []}
+    for k in (1, 8):
+        e, ref = idx.get(("BF-dup", "T", k, 42, 0)), idx.get(("BF-pin", "T", k, 42, 0))
+        ok = bool(e and ref and _same_items(e, ref) and e["dump"] and ref["dump"])
+        mx = float(_distance(e, ref)[2].max()) if ok else None
+        same = bool(ok and e["receipt"]["dump_evidence"]["manifest"]["sha256"]
+                    == ref["receipt"]["dump_evidence"]["manifest"]["sha256"])
+        dup.append({"cell": e["row"]["cell"] if e else None, "K": k, "relL2_max": mx, "dump_sha_equal": same,
+                    "pass": bool(ok and mx == 0 and same)})
+        for kind, key, seed in [("45", ("BF-pin", "C4", k, 42, 45), 42)] + [("R", ("BF-pin", "R", k, s, None), s)
+                                                                           for s in SEEDS]:
+            e, ref = idx.get(key), idx.get(("BF-pin", "T", k, seed, 0))
+            if e and ref and _same_items(e, ref) and e["dump"] and ref["dump"]:
+                s2, sinf, _ = _distance(e, ref)
+                descriptive[kind].append({"cell": e["row"]["cell"], "K": k, "seed": seed, "relL2": s2, "relLinf": sinf})
+    return {"pass": len(pairs) == 6 and all(p["computable"] and p["pass_matched"] and p["pass_cap"] for p in pairs)
+            and pool_ok, "pairs": pairs, "pooled": {"relL2": pool, "control_p99": control["pooled"], "pass": pool_ok},
+            "determinism": {"pass": all(d["pass"] for d in dup), "pairs": dup},
+            "alarm": {"suspended": bool(alarm), "items": alarm,
+                      "note": "the C4 invariance claim is suspended pending item triage" if alarm else "none"},
+            "descriptive": descriptive,
+            "rule": f"every C4 pair p99(relL2) <= {TIER2_FACTOR:g} x its matched B-F control p99 and <= {TIER2_CAP:g}, "
+                    f"the pooled C4 p99 <= {TIER2_FACTOR:g} x the pooled control p99; alarm > {TIER2_ALARM:g}; "
+                    "T-dup max relL2 == 0 and dump sha256 equal; 45-degree / random-yaw: descriptive"}
+
+
+def tier3_bf(cells, exp25):
+    """§4 Tier 3 for B-F (the registered rule, item-weighted, 28 checks with FD): pass_c4 = Delta_C4(BF) <= 0.1 x
+    Delta_C4(P1-pin) -- the P1-pin value read at FULL precision from the hash-pinned exp_25 JSON (§11 N7) -- and
+    pass_r = |Delta_R(BF)| <= sd(m_Z BF); the B-F estimators are depth_canon's own over the BF-pin cells only."""
+    idx = {("BF", "R" if e["row"]["rotate_mode"] == "random" else "F", e["row"]["K"], e["row"]["seed"],
+            e["row"]["step"], e["row"]["rotate_deg"]): e
+           for e in cells.values() if e["valid"] and e["row"]["block"] == "BF-pin"}
+    arms = {"BF": {k: {agg: {key: _arm_tier3(idx, "BF", k, agg, key) for key in TIER3_KEYS} for agg in AGGS}
+                   for k in (1, 8)}}
+    checks = []
+    for k in (1, 8):
+        for key in TIER3_KEYS:
+            b, p1 = arms["BF"][k]["item"][key], exp25["tier3"]["arms"]["P1"][str(k)]["item"][key]["delta_c4"]
+            known = None not in (b["delta_c4"], p1, b["delta_r"], b["sd_z"])
+            checks.append({"K": k, "metric": key, "computable": known, "p1_delta_c4": p1,
+                           "pass_c4": known and b["delta_c4"] <= TIER3_FRACTION * p1,
+                           "pass_r": known and abs(b["delta_r"]) <= b["sd_z"]})
+    verdict = None if not all(c["computable"] for c in checks) else all(c["pass_c4"] and c["pass_r"] for c in checks)
+    return {"arms": arms, "checks": checks, "pass": verdict,
+            "rule": f"Delta_C4(BF) <= {TIER3_FRACTION:g} x Delta_C4(P1-pin, the exp_25 JSON) and |Delta_R(BF)| <= "
+                    "sd(m_Z BF), every metric incl. FD, both K, item-weighted"}
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
