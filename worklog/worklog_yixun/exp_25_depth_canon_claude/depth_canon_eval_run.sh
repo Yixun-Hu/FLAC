@@ -129,11 +129,15 @@ for tool in jq flock findmnt sha256sum; do command -v "$tool" >/dev/null || die 
 [[ "$EXPECT_HEAD" =~ ^[0-9a-f]{40}$ ]] || die "EXPECT_HEAD must be the full 40-hex evaluator pin (got '${EXPECT_HEAD}') - abort"
 HEAD_SHA="$(git rev-parse HEAD)"
 [ "$HEAD_SHA" = "$EXPECT_HEAD" ] || die "HEAD PIN FAILED: HEAD ${HEAD_SHA} != EXPECT_HEAD ${EXPECT_HEAD} - abort"
-mapfile -t MODEL_CFGS < <(jq -r '.arms[].model_config' "$CELLS")
 SEL_ARGS=(); [ -n "$BLOCKS" ] && SEL_ARGS+=(--blocks "$BLOCKS"); [ -n "$ONLY" ] && SEL_ARGS+=(--only "$ONLY")
 [ -n "$LIMIT" ] && SEL_ARGS+=(--limit "$LIMIT")
 N_NOFLASH="$("$PY" "$COLLECT" --count-no-flash --cells "$CELLS" "${SEL_ARGS[@]}" 2>/dev/null | tail -n 1)"
 [[ "$N_NOFLASH" =~ ^[0-9]+$ ]] || die "SELECTION REFUSED: the exp_35 cells of the selection cannot be counted (${N_NOFLASH}) - abort"
+# Codex C3a HIGH 1: the model configs of the relevant tree follow the selection -- an exp_25-only selection takes the
+# exp_25 arms' configs (the d6ca307a set), any exp_35 selection every arm's (ONE digest across its single-cell chunks)
+if [ "$N_NOFLASH" -gt 0 ]; then ARMS_JQ='.arms[].model_config'
+else ARMS_JQ='. as $m | [.cells[] | select(.cell | startswith("exp35_") | not) | .arm] | unique[] | $m.arms[.].model_config'; fi
+mapfile -t MODEL_CFGS < <(jq -r "$ARMS_JQ" "$CELLS")
 RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
           "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")
 [ "$N_NOFLASH" -gt 0 ] && RELEVANT+=("$NO_FLASH_DIR" "$IDENTITY")   # exp_35 (Codex C2 HIGH 2): only then
@@ -148,13 +152,6 @@ DIRTY="$(tree_dirty)"
 [ -z "$DIRTY" ] || { echo "EVALUATOR TREE NOT COMMITTED at HEAD (every cell must run the pinned code):"; echo "$DIRTY"; exit 2; }
 CAMPAIGN_DIGEST="$(tree_digest)" || die "TREE DIGEST FAILED: cannot hash the relevant tree - abort"
 echo "evaluator pin OK: ${HEAD_SHA}; evaluator tree digest ${CAMPAIGN_DIGEST}"
-while read -r path sha; do
-  [ -f "$path" ] || die "CONFIG MISSING: ${path} - abort"
-  got="$(sha256sum "$path" | awk '{print $1}')"
-  [ "$got" = "$sha" ] || die "CONFIG PIN FAILED: ${path} is ${got}, the manifest pins ${sha} - abort"
-done < <(jq -r '[.cells[] | (.model_config + " " + .model_config_sha256),
-                 (.dataset_config + " " + .dataset_config_sha256)] | unique[]' "$CELLS")
-echo "configs OK: every model / dataset config matches its manifest pin"
 if [ "$N_NOFLASH" -gt 0 ]; then
   for pin in "$NO_FLASH_OVERLAY $NO_FLASH_OVERLAY_SHA256" "$NO_FLASH_LAUNCHER $NO_FLASH_LAUNCHER_SHA256"; do
     read -r path sha <<<"$pin"
@@ -180,6 +177,14 @@ PLAN_ARGS=(--plan "$PLAN" --cells "$CELLS" --farm-root "$FARM_ROOT" --no-dump-bl
 DUMP_ROOT="$(jq -r .dump_root "$PLAN")"
 mapfile -t CELL_IDS < <(jq -r '.cells[].cell' "$PLAN")
 echo "plan: ${#CELL_IDS[@]} cell(s); dump root ${DUMP_ROOT}; farm ${FARM_ROOT}; lanes ${LANES_CSV}"
+while read -r path sha; do   # Codex C3a HIGH 1: the configs of the SELECTED (planned) cells
+  [ -f "$path" ] || die "CONFIG MISSING: ${path} - abort"
+  got="$(sha256sum "$path" | awk '{print $1}')"
+  [ "$got" = "$sha" ] || die "CONFIG PIN FAILED: ${path} is ${got}, the manifest pins ${sha} - abort"
+done < <(jq -r --slurpfile plan "$PLAN" '($plan[0].cells | map(.cell)) as $sel | [.cells[] | select(.cell | IN($sel[]))
+                 | (.model_config + " " + .model_config_sha256), (.dataset_config + " " + .dataset_config_sha256)]
+                 | unique[]' "$CELLS")
+echo "configs OK: every model / dataset config of the selection matches its manifest pin"
 [ "$(jq '[.cells[] | select(.no_flash == true)] | length' "$PLAN")" = "$N_NOFLASH" ] \
   || die "PLAN REFUSED: the plan's exp_35 cells are not the ${N_NOFLASH} counted for the relevant tree - abort"
 if [ -n "$COTENANTS" ]; then   # exp_35 §12 B1.1: the approved identity tuple of a SHARED lane

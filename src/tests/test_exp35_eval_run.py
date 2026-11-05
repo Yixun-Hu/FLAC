@@ -268,3 +268,39 @@ def test_the_runner_selects_the_e2_fail_block_by_name(clone, harness):
     rc, out = drive(clone, harness, "--blocks", "E2-FAIL", "--limit", "2", env={"DRY_RUN": "1"})
     assert rc == 0 and out.count("would run") == 2, out
     assert "exp35_P1_OFF_S40000_K1_s43_th45" in out and "exp35_P1_OFF_S40000_K1_s44_th45" in out
+
+
+BF_CFG = os.path.join("worklog", "worklog_yixun", "exp_07_fa_scratch_claude", "FLAC_AR_BF.json")
+
+
+@pytest.mark.parametrize("change", ["removed", "edited_committed", "edited_uncommitted"])
+def test_an_exp25_only_selection_ignores_the_bf_config(clone, harness, change):
+    """Codex C3a HIGH 1: the B-F model config is in neither an exp_25-only selection's relevant tree nor its config
+    pin check (both are derived from the selection); an exp_35 B-F selection still pins it."""
+    head, path = _git(clone, "rev-parse", "HEAD"), clone / BF_CFG
+    try:
+        if change == "removed":
+            _git(clone, "rm", "-q", BF_CFG)
+        else:
+            path.write_text(path.read_text().replace("{", '{"exp35_test_edit": 1, ', 1))
+        if change != "edited_uncommitted":
+            _git(clone, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "-am", f"BF config {change}")
+        env = {"EXPECT_HEAD": _git(clone, "rev-parse", "HEAD")}
+        rc, out = drive(clone, harness, "--only", EXP25, env=dict(env, DRY_RUN="1"))
+        assert rc == 0 and out.count("would run") == 1 and "FLAC_AR_BF" not in out, out
+        rc, out = drive(clone, harness, "--only", BF_R, env=dict(env, DRY_RUN="1"))
+        assert rc == 2 and ("CONFIG" in out or "NOT COMMITTED" in out) and "FLAC_AR_BF" in out, out
+    finally:
+        _git(clone, "reset", "-q", "--hard", head)
+
+
+def test_every_exp35_selection_shares_one_relevant_tree(clone, harness):
+    """The supervisor runs each exp_35 cell as its own selection, so the relevant tree (hence the campaign digest)
+    must not depend on the selected arm -- one digest for the campaign (plan §5 item 4). A guard on the HIGH 1 fix."""
+    import re
+    digests = set()
+    for cell in (CTL1, BF_R):
+        rc, out = drive(clone, harness, "--only", cell, env={"DRY_RUN": "1"})
+        assert rc == 0, out
+        digests |= set(re.findall(r"evaluator tree digest ([0-9a-f]{64})", out))
+    assert len(digests) == 1, digests
