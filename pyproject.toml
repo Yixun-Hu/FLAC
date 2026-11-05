@@ -39,3 +39,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
+exclude = ["overlays*"]   # exp_35 §11 H5: the no-flash overlay is never packaged
