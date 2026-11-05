@@ -1740,16 +1740,16 @@ def registry_reasons(row, stream, registry):
     return out
 
 
-def _verified_cell(name, *, manifest, pin, base_dir, farm_root=None, dump_root=None):
+def _verified_cell(name, *, manifest, pin, base_dir, farm_root=None, dump_root=None, canon_index=None):
     """``(row, paths, docs, reasons)`` of one cell verified OFFLINE (the receipt's dump evidence; no link check)."""
     rows = [c for c in manifest["cells"] if c["cell"] == name]
     if len(rows) != 1:
         return None, None, None, [f"{name} is not one registered cell"]
     farm, dump_root = farm_root or manifest["farm_root"], dump_root or manifest["dump_root"]
-    target, _ = expected_checkpoint(rows[0], manifest, None)
+    target, _ = expected_checkpoint(rows[0], manifest, canon_index)
     p = cell_paths(rows[0], os.path.join(farm, rows[0]["arm"], os.path.basename(target)), dump_root)
     reasons = verify_cell(p.stem, manifest=manifest, farm_root=farm, dump_root=dump_root, pin=pin,
-                          base_dir=base_dir, dump_check="receipt", check_link=False)
+                          canon_index=canon_index, base_dir=base_dir, dump_check="receipt", check_link=False)
     if reasons:
         return rows[0], p, None, [f"{name} does not verify at {pin[:12]}: {x}" for x in reasons[:3]]
     docs = {}
@@ -1801,7 +1801,7 @@ def exp35_e2(*, pin, manifest, base_dir=REPO, csv_path=None, farm_root=None, dum
     import csv
     import hashlib
     path = csv_path or A6_CSV
-    res = {"status": "REFUSED", "pass": None, "csv": path, "csv_sha256": None, "rows": [], "reasons": [],
+    res = {"status": "REFUSED", "pass": None, "csv": path, "csv_sha256": None, "rows": [], "rows45": [], "reasons": [],
            "rule": "|new - A6 CSV| <= " + ", ".join(f"{k} {v:g}" for k, v in E2_TOLERANCE.items()) + " (all 14)"}
     try:
         with open(path, "rb") as f:
@@ -1826,7 +1826,8 @@ def exp35_e2(*, pin, manifest, base_dir=REPO, csv_path=None, farm_root=None, dum
     if res["reasons"]:
         return dict(res, rows=[])
     ok = len(res["rows"]) == 14 and all(r["pass"] for r in res["rows"])
-    return dict(res, status="PASS" if ok else "FAIL", **{"pass": ok})
+    rows45 = [r for r in table if r["angle_deg"] == "45" and r["method"] in A6_METHODS.values() and int(r["seed"]) in SEEDS]
+    return dict(res, status="PASS" if ok else "FAIL", rows45=rows45 if ok else [], **{"pass": ok})   # (b)'s 45 deg: on PASS
 
 
 # --------------------------------------------------------------------------- #
@@ -1920,6 +1921,148 @@ def tier3_bf(cells, exp25):
     return {"arms": arms, "checks": checks, "pass": verdict,
             "rule": f"Delta_C4(BF) <= {TIER3_FRACTION:g} x Delta_C4(P1-pin, the exp_25 JSON) and |Delta_R(BF)| <= "
                     "sd(m_Z BF), every metric incl. FD, both K, item-weighted"}
+
+
+# --------------------------------------------------------------------------- #
+# exp_35 collect mode, part 3 (plan r2 §1 (a)/(b)/(c), §5 items 1-7): the tables and the fail-closed build
+# --------------------------------------------------------------------------- #
+EXP25_WORKTREE = os.path.expanduser("~/codespace/exp-25-depth-canon")
+EXP35_PROBE_JSON = os.path.join(EXP35_DIR, "orbitrir_bf_cond_probe.json")
+A6_METHODS = {"FLAC": "Vanilla P1@40k", "OrbitRIR": "FA B-F@40k"}
+EXP25_EXTERNAL = tuple(f"exp25_{a}_R_S40000_K{k}_s{s}" for a in ("P1", "CANON") for k in (1, 8) for s in SEEDS) + tuple(
+    f"exp25_{a}_C4_S40000_K{k}_s42_th45" for a in ("P1", "CANON") for k in (1, 8))   # table (b) and the figure
+
+
+def resolve(res, entry):
+    """A table entry ``{"ref": "a.b.c"}`` -> ``res["a"]["b"]["c"]``: a reused row lives once (§5 item 3)."""
+    node = res
+    for key in entry["ref"].split("."):
+        node = node[key]
+    return node
+
+
+def external_exp25_cells(manifest, *, base_dir, canon_index, farm_root=None, dump_root=None):
+    """The exp_25 cells of table (b), verified OFFLINE at the exp_25 pin against the exp-25 worktree (§5):
+    ``({cell: its flat item-weighted metrics}, reasons)``."""
+    out, reasons = {}, []
+    for name in EXP25_EXTERNAL:
+        _, _, docs, why = _verified_cell(name, manifest=manifest, pin=EXP25_PIN, base_dir=base_dir, farm_root=farm_root,
+                                         dump_root=dump_root, canon_index=canon_index)
+        reasons += why
+        if docs:
+            out[name] = docs["metrics"]["metrics"]
+    return out, reasons
+
+
+def _seed_stats(flat, source):
+    """``{"source", "1", "8"}``: per K the TABLE_KEYS mean ± sd over flat metric dicts, one per seed."""
+    return dict({str(k): {key: _stats([float(m[key]) for m in ms]) for key in TABLE_KEYS} for k, ms in flat.items()},
+                source=source)
+
+
+def tables(cells, external, e2):
+    """§1 (a) theta = 0, (b) 45 degrees and random yaw, (c) the Tier 3 spread. A reused exp_25 row is a pointer
+    into ``external_reference`` (§5 item 3); every computed mean names its source; the A6 CSV reaches (b) only as
+    E2's PASS rows (§5 item 6); on an E2 FAIL the 45-degree FLAC / OrbitRIR points are the s42 one-pin cells (§4)."""
+    idx, ks = _bf_index(cells), (1, 8)
+    h35 = lambda sub, k, seeds, deg: [idx[("BF-pin", sub, k, s, deg)]["record"]["metrics"]  # noqa: E731
+                                      for s in seeds if ("BF-pin", sub, k, s, deg) in idx]
+    ext = lambda fmt, k, seeds: [external[fmt.format(k=k, s=s)] for s in seeds  # noqa: E731
+                                 if fmt.format(k=k, s=s) in external]
+    one_pin = "E2 FAIL: the s42 one-pin SDPA cell ({}); s43-46 need the 16 contingency cells"
+    if e2["status"] == "PASS":
+        b45 = {m: _seed_stats({k: [r for r in e2["rows45"] if (r["method"], r["K"]) == (label, str(k))] for k in ks},
+                              f"A6 CSV '{label}' 45 deg s42-46 (E2 PASS)") for m, label in A6_METHODS.items()}
+    elif e2["status"] == "FAIL":
+        b45 = {"FLAC": _seed_stats({k: ext("exp25_P1_C4_S40000_K{k}_s{s}_th45", k, (42,)) for k in ks},
+                                   one_pin.format("exp_25 P1-pin C4 th45, external at d6ca307a")),
+               "OrbitRIR": _seed_stats({k: h35("C4", k, (42,), 45) for k in ks}, one_pin.format("exp_35 BF-pin C4 th45"))}
+    else:
+        b45 = {m: {"source": f"pending: E2 {e2['status']}", "1": None, "8": None} for m in A6_METHODS}
+    c45 = sorted((e for e in cells.values() if e["valid"] and e["row"]["block"] == "CANON-45"), key=lambda e: e["row"]["seed"])
+    b45["CANON"] = _seed_stats({k: ext("exp25_CANON_C4_S40000_K{k}_s{s}_th45", k, (42,)) + [
+        e["record"]["metrics"] for e in c45 if e["row"]["K"] == k] for k in ks},
+        "exp_25 C4+45 th45 s42 (external, d6ca307a) + exp_35 CANON-45 s43-46")
+    b = {"45": b45, "R": {"FLAC": _seed_stats({k: ext("exp25_P1_R_S40000_K{k}_s{s}", k, SEEDS) for k in ks},
+                                              "exp_25 P1-pin R s42-46 (external, d6ca307a)"),
+                          "CANON": _seed_stats({k: ext("exp25_CANON_R_S40000_K{k}_s{s}", k, SEEDS) for k in ks},
+                                               "exp_25 CANON R s42-46 (external, d6ca307a)"),
+                          "OrbitRIR": _seed_stats({k: h35("R", k, SEEDS, None) for k in ks}, "exp_35 BF-pin R s42-46")}}
+    a = {"FLAC": {"ref": "external_reference.exp25.table.P1"}, "CANON": {"ref": "external_reference.exp25.table.CANON"},
+         "OrbitRIR": _seed_stats({k: h35("T", k, SEEDS, 0) for k in ks}, "exp_35 BF-pin T s42-46"),
+         "historical_bf": bf_historical()}
+    c = dict({arm: {"ref": f"external_reference.exp25.tier3.{arm}"} for arm in ("CANON", "P1", "YAW")},
+             BF={"ref": "tier3.BF.arms.BF"})
+    return a, b, c
+
+
+def build_exp35_results(cells, *, pin, blocks, exp25, registry, registry_why, ctl, e2, control, control_why,
+                        probe_present, eps, external, external_why, exp25_base_dir, partial):
+    """§5's fail-closed list -- it refuses even with ``partial``; cells not run yet, a B-F probe not run yet and an
+    E2 that did not PASS are the only gaps, labelled under ``partial``."""
+    missing, invalid = completeness(cells)
+    digests = sorted({e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]})
+    problems = [f"stream registry: {x}" for x in registry_why] + [
+        f"{n}: {x} (stream registry)" for n, e in cells.items() if e["valid"] and registry
+        for x in registry_reasons(e["row"], e["stream"], registry)]
+    problems += [f"{len(invalid)} cell(s) failed verification ({', '.join(invalid[:3])})"] if invalid else []
+    problems += [f"the cells span {len(digests)} campaign digests"] if len(digests) > 1 else []
+    problems += [f"CTL K{k} {st} (E1 must be equal): {'; '.join(why[:2])}" for k, (st, why) in ctl.items() if st != "equal"]
+    problems += [f"external exp_25 cells: {x}" for x in external_why]
+    problems += [f"the A6 CSV is not the pinned one: {'; '.join(e2['reasons'][:1])}"] if e2["csv_sha256"] != A6_CSV_SHA256 else []
+    problems += [f"the B-F probe: {x}" for x in control_why[:3]] if control is None and probe_present else []
+    if problems:
+        raise ValueError("RESULTS REFUSED (an integrity problem; --partial does not apply): " + "; ".join(problems))
+    gaps = [f"{len(missing)} cell(s) not run ({', '.join(missing[:4])}{' ...' if len(missing) > 4 else ''})"] if missing else []
+    gaps += ["the B-F probe has not run: Tier 2-C4 is not computable"] if control is None else []
+    gaps += [f"E2 {e2['status']}: the 45-degree FLAC / OrbitRIR points are " + (
+        "the s42 one-pin cells only" if e2["status"] == "FAIL" else "pending")] if e2["status"] != "PASS" else []
+    if gaps and not partial:
+        raise ValueError("RESULTS REFUSED (pass --partial for a labelled partial table): " + "; ".join(gaps))
+    a, b, c = tables(cells, external, e2)
+    return {"schema_version": 1, "campaign": "exp35", "pin": pin, "blocks": list(blocks), "partial": bool(gaps),
+            "gaps": gaps, "missing": missing, "campaign_digest": digests[0] if digests else None,
+            "external_reference": {
+                "exp25": {"path": os.path.relpath(os.path.join(EXPDIR, "depth_canon_results.json"), REPO),
+                          "sha256": EXP25_RESULTS_SHA256, "pin": EXP25_PIN,
+                          "table": {arm: exp25["table"][arm] for arm in ("P1", "CANON")},
+                          "tier3": {arm: exp25["tier3"]["arms"][arm] for arm in ("CANON", "P1", "YAW")}},
+                "exp25_cells": {"pin": EXP25_PIN, "base_dir": exp25_base_dir, "metrics": external,
+                                "check": "verify_cell(pin=d6ca307a, dump_check='receipt', check_link=False)"},
+                "registry_sha256": EXP35_REGISTRY_SHA256,
+                "a6_csv": {"path": e2["csv"], "sha256": e2["csv_sha256"],
+                           "read_by": "E2 only; its 45-degree rows enter table (b) on an E2 PASS"}},
+            "e1_ctl": {str(k): {"status": st, "reasons": why} for k, (st, why) in ctl.items()}, "e2": e2,
+            "tier2_c4": tier2_c4(cells, control), "eps_cond_bf": eps, "tier3": {"BF": tier3_bf(cells, exp25)},
+            "table_a": a, "table_b": b, "table_c": c}
+
+
+def exp35_results(manifest, *, pin, canon_index, blocks=None, base_dir=REPO, farm_root=None, dump_root=None,
+                  exp25_base_dir=EXP25_WORKTREE, exp25_dump_root=None, bf_probe_json=EXP35_PROBE_JSON, a6_csv=None,
+                  partial=False, check_link=True, dump_check="full"):
+    """§5, the exp35 collect mode over exp_35 blocks only: the results dict, or ValueError("RESULTS REFUSED ...")."""
+    blocks = list(blocks or EXP35_BLOCKS)
+    if any(b not in EXP35_BLOCKS for b in blocks):
+        raise ValueError(f"RESULTS REFUSED: the exp35 mode takes exp_35 blocks only, got {blocks}")
+    farm, dump_root = farm_root or manifest["farm_root"], dump_root or manifest["dump_root"]
+    kw = dict(pin=pin, manifest=manifest, base_dir=base_dir, farm_root=farm, dump_root=dump_root)
+    exp25, exp25_why = load_exp25_reference()
+    if exp25 is None:
+        raise ValueError("RESULTS REFUSED: the external exp_25 results: " + "; ".join(exp25_why))
+    cells = collect_cells(manifest, select_cells(manifest, blocks), farm_root=farm, dump_root=dump_root, pin=pin,
+                          canon_index=canon_index, base_dir=base_dir, check_link=check_link, dump_check=dump_check)
+    registry, registry_why = load_registry()
+    digests = {e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]}
+    control, control_why, eps = load_control_bf(
+        bf_probe_json, pin=pin, campaign_digest=next(iter(digests)) if len(digests) == 1 else None, manifest=manifest,
+        bf_receipts=[e["receipt"] for e in cells.values() if e["valid"] and e["row"]["arm"] == "BF"], base_dir=base_dir)
+    external, external_why = external_exp25_cells(manifest, base_dir=exp25_base_dir, canon_index=canon_index,
+                                                  farm_root=farm, dump_root=exp25_dump_root or dump_root)
+    return build_exp35_results(cells, pin=pin, blocks=blocks, exp25=exp25, registry=registry, registry_why=registry_why,
+                               ctl={k: exp35_ctl_check(k, **kw) for k in (1, 8)}, e2=exp35_e2(csv_path=a6_csv, **kw),
+                               control=control, control_why=control_why, probe_present=os.path.exists(bf_probe_json),
+                               eps=eps, external=external, external_why=external_why, exp25_base_dir=exp25_base_dir,
+                               partial=partial)
 
 
 def _csv(value):

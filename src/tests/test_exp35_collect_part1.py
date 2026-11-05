@@ -20,7 +20,7 @@ import test_depth_canon_collect as T
 import test_exp35_stream_registry as TR
 
 C, MANIFEST, PIN = T.C, T.MANIFEST, T.PIN
-REF_PIN = "e" * 40                    # the fixture's "exp_25 pin" for the CTL reference cells
+REF_PIN = "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e"   # the exp_25 pin: the fixture's reference cells are "at" it
 
 
 def _sha(path):
