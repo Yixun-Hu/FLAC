@@ -12,6 +12,7 @@ artifact is not the cell it claims to be ([] = valid). Comparisons are TYPE-stri
 
 Written by the exp_25 Coder seat (Claude Opus 5.5, max effort) per plan_depth_canon.md v9.
 """
+import copy
 import glob
 import json
 import math
@@ -42,6 +43,12 @@ EXPDIR = os.path.join(REPO, EXPREL)
 CELLS_JSON = os.path.join(EXPDIR, "depth_canon_cells.json")
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")   # plan_orbitrir r2 §1
+# exp_35 (plan_orbitrir_yaw_evidence.md r2 §3 P2): ONE per-arm evaluation protocol, vanilla by default and
+# frame-averaged for B-F; it drives record validation, the artifact paths, the probe binding and rendering
+VANILLA_PROTOCOL = {"cond_method": "vanilla", "frame_avg_angles": None, "orbit_execution": "n/a",
+                    "frame_avg_fwd_cap": None, "cond_autocast": "bf16"}
+ARM_PROTOCOL = {"BF": {"cond_method": "fa_invariant", "frame_avg_angles": [0.0, 90.0, 180.0, 270.0],
+                       "orbit_execution": "batched", "frame_avg_fwd_cap": 64, "cond_autocast": "bf16"}}
 IMG_W = 512
 # the evaluator's emission set for AR (as exp_11's validator pins it) and the table subset
 METRIC_KEYS = ("T60", "C50", "EDT", "FD", "Invalid T60", "RIR_to_GT_RIR_R@1", "RIR_to_GT_RIR_R@5",
@@ -59,6 +66,16 @@ RANDOM_KEYS = ("rotate_mode", "rotate_seed", "input_hash", "assignment_hash", "s
 SCENE_RECORD_KEYS = ("by_scene", "per_scene_schema", "scene_count")
 CANON_KEYS = tuple(eval_FLAC.CANON_RECORD_KEYS)
 LOAD_KEYS = tuple(eval_FLAC.CKPT_LOAD_KEYS)   # rB-F2 F2-6: the digest of the bytes torch.load deserialized
+
+
+def arm_protocol(arm):
+    """The protocol fields every metrics record of an ``arm`` cell must hold (a fresh copy)."""
+    return copy.deepcopy(ARM_PROTOCOL.get(arm, VANILLA_PROTOCOL))
+
+
+def is_exp35(row):
+    """An exp_35 row: one of the blocks plan_orbitrir_yaw_evidence.md r2 §1 appends."""
+    return row["block"] in EXP35_BLOCKS
 
 
 def load_cells(path=CELLS_JSON):
@@ -121,10 +138,11 @@ def record_reasons(rec, row, *, pin, link):
     want = expected_record_keys(row)
     if list(rec) != want:
         reasons.append(f"record key order {list(rec)} != {want} (eval_FLAC's for this cell class)")
-    random = row["rotate_mode"] == "random"
+    random, P = row["rotate_mode"] == "random", arm_protocol(row["arm"])
     expect = {"ckpt_path": link, "rotate_deg": None if random else float(row["rotate_deg"]),
-              "cond_method": "vanilla", "frame_avg_angles": None, "cond_autocast": "bf16",
-              "orbit_execution": "n/a", "frame_avg_fwd_cap": None, "source_sha": pin, "batch_size": 64,
+              "cond_method": P["cond_method"], "frame_avg_angles": P["frame_avg_angles"],
+              "cond_autocast": P["cond_autocast"], "orbit_execution": P["orbit_execution"],
+              "frame_avg_fwd_cap": P["frame_avg_fwd_cap"], "source_sha": pin, "batch_size": 64,
               "n_samples": n, "dataset_config": row["dataset_config"], "seed": row["seed"],
               "cfg_scale": 1.0, "steps": 1, "eval_name": row["cell"], "weights_source": "ema",
               "device": "cuda", "per_scene_schema": eval_FLAC.PER_SCENE_SCHEMA,
@@ -453,10 +471,13 @@ class CellPaths(NamedTuple):
 
 
 def cell_paths(row, link, dump_root):
-    """Every path of one cell, derived exactly as eval_FLAC derives them from ``link``."""
+    """Every path of one cell, derived exactly as eval_FLAC derives them from ``link`` (the arm's
+    ``cond_method`` names it: a B-F cell carries ``_fa_invariant_a4``)."""
+    P = arm_protocol(row["arm"])
     m = eval_FLAC.build_output_paths(
-        link, 1, 1.0, row["cell"], cond_method="vanilla", rotate_deg=float(row["rotate_deg"] or 0),
-        n_angles=4, rotate_mode=row["rotate_mode"], rotate_seed=row["rotate_seed"], are_lambda=None,
+        link, 1, 1.0, row["cell"], cond_method=P["cond_method"], rotate_deg=float(row["rotate_deg"] or 0),
+        n_angles=4 if P["frame_avg_angles"] is None else len(P["frame_avg_angles"]), rotate_mode=row["rotate_mode"],
+        rotate_seed=row["rotate_seed"], are_lambda=None,
         canonicalize=row["canonicalize"], canon_mismatch=row["canon_mismatch"])["metrics"]
     return CellPaths(link, m, eval_FLAC.stream_sidecar_path(m), eval_FLAC.canon_sidecar_path(m),
                      m[:-len(".json")] + ".cell.json", eval_FLAC.scored_waveform_dir(dump_root, m),
@@ -518,6 +539,8 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     if len(rows) != 1 or not ckpt_name:
         return [f"{stem!r} names no registered cell of the manifest ({len(rows)} suffix matches)"]
     row = rows[0]
+    if is_exp35(row) != row["cell"].startswith("exp35_"):
+        return [f"{row['cell']!r}: the name and the block {row['block']!r} name different campaigns"]
     try:
         target, sha = expected_checkpoint(row, manifest, canon_index)
     except KeyError as err:

@@ -107,8 +107,14 @@ def build_canon(r, stream):
     return cs
 
 
+def protocol(r):
+    """``(cond_method, recorded frame_avg_angles)`` of the row's arm as evaluate_model records them
+    (exp_35: B-F is evaluated ``--cond-method fa_invariant`` over the four C4 angles)."""
+    return ("fa_invariant", [0.0, 90.0, 180.0, 270.0]) if r["arm"] == "BF" else ("vanilla", None)
+
+
 def default_metrics(r):
-    base = {"CANON": 9.0, "P1": 10.0, "YAW": 9.5}[r["arm"]] + (1.0 if r["K"] == 1 else 0.0)
+    base = {"CANON": 9.0, "P1": 10.0, "YAW": 9.5, "BF": 9.2}[r["arm"]] + (1.0 if r["K"] == 1 else 0.0)
     return {k: round(base + 0.01 * (r["seed"] - 42) + 0.1 * j, 6) for j, k in enumerate(EMITTED)}
 
 
@@ -124,8 +130,9 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
     if ckpt_load is None:
         ckpt_load = {"ckpt_sha256_loaded": expected_target(r)[1], "ckpt_bytes_loaded": CKPT_BYTES}
     link = link or os.path.join(farm, r["arm"], ckpt_base(r) + ".ckpt")  # = the evaluator's --ckpt-path
+    method, angles = protocol(r)
     paths = eval_FLAC.build_output_paths(
-        link, 1, 1.0, r["cell"], cond_method="vanilla", rotate_deg=float(r["rotate_deg"] or 0),
+        link, 1, 1.0, r["cell"], cond_method=method, rotate_deg=float(r["rotate_deg"] or 0),
         n_angles=4, rotate_mode=r["rotate_mode"], rotate_seed=r["rotate_seed"], are_lambda=None,
         canonicalize=r["canonicalize"], canon_mismatch=r["canon_mismatch"])
     metrics_rel = paths["metrics"]
@@ -148,7 +155,7 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
         prov = eval_FLAC.build_canon_provenance(proto, canon, cfg, copy.deepcopy(cfg))
     with mock.patch.object(eval_FLAC, "source_sha", lambda: pin):
         rec = eval_FLAC.build_metrics_record(
-            m, link, float(r["rotate_deg"] or 0), "vanilla", None, cond_autocast="bf16",
+            m, link, float(r["rotate_deg"] or 0), method, angles, cond_autocast="bf16",
             batch_size=64, n_samples=n, dataset_config=r["dataset_config"], seed=r["seed"],
             cfg_scale=1.0, steps=1, eval_name=r["cell"], weights_source="ema", device="cuda",
             by_scene=scenes, frame_avg_max_fwd_samples=64, canon_provenance=prov, ckpt_load=ckpt_load, **rot)
