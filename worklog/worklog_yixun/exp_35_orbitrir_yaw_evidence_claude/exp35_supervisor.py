@@ -414,3 +414,148 @@ class Supervisor:
             remove_reservation(old["path"])
         self.event("hand-over to GPU 0", epoch=epoch)
         return True
+
+    def execute(self, c, lane):
+        uuid, index, shared = lane
+        if self.st["baseline"] is None:                                 # §11 B2: our first spawn
+            r = self.last
+            self.st["baseline"] = {"time": self.w.now(), "step": r["step"]["global"], "log": {
+                "path": self.cfg["his_log"], "inode": r["log"]["inode"], "size": r["log"]["size"]}}
+        if self.st["reservation"] is None:
+            try:
+                path = create_reservation(self.cfg["reservations"], uuid, epoch=1, h35=self.cfg["h35"], now=self.w.now())
+            except FileExistsError:
+                self.latch(f"{uuid} is reserved by another holder at our first spawn")
+                return
+            self.st.update(reservation={"uuid": uuid, "epoch": 1, "path": path}, lane={"uuid": uuid, "shared": shared})
+        ts = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime(self.w.now()))
+        if c["kind"] == "probe":
+            (argv, env), log = probe_command(index), os.path.join(self.cfg["logdir"], f"orbitrir_bf_cond_probe_{ts}.log")
+        else:
+            (argv, env), log = runner_command(self.cfg, c, index, shared), os.path.join(
+                self.cfg["logdir"], f"exp35_supervisor_{ts}_chunk{c['n']:02d}_{c['cell']}.log")
+        c.update(state="in_flight", lane=uuid, shared=shared, started=_iso(self.w.now()), log=log)
+        self.save()
+        rc = self.watch(self.w.spawn(argv, env, log), c, uuid, shared)
+        c.update({"ended": _iso(self.w.now()), "probe_rc" if c["kind"] == "probe" else "runner_rc": rc})
+        self.save()
+        if rc != 0:
+            self.latch(f"chunk {c['n']} ({c['cell'] or 'the probe'}) exited rc {rc}")
+            return
+        self.verified(c)
+
+    def watch(self, proc, c, uuid, shared):
+        """Poll the running chunk, NEVER signalling it: the guard and the lane's process set every <= 5 min."""
+        try:
+            approved = {p["pid"] for p in self.I.load_tuple(self.cfg["approved"], self.cfg["approved_sha256"])[
+                "processes"]} if shared else set()
+        except ValueError as err:                      # still never signalled: watch it to its end, then stop
+            self.latch(f"the approved tuple while chunk {c['n']} ran: {err}")
+            approved = set()
+        while proc.poll() is None:
+            self.w.sleep(GUARD_POLL_S)
+            if self.st["stop_latch"] is not None:
+                continue
+            self.observe()
+            try:
+                apps = self.tables()[1]
+            except ValueError as err:
+                self.latch(f"the GPU tables while chunk {c['n']} ran: {err}")
+                continue
+            ours = descendants(proc.pid, self.cfg["proc"])
+            new = sorted(p for p, u in apps if u == uuid and p not in ours and p not in approved)
+            if new and self.st["stop_latch"] is None:
+                self.latch(f"a new process on {'GPU 1' if shared else 'GPU 0'} ({uuid}) while chunk {c['n']} ran: pids {new}")
+        return proc.returncode
+
+    def campaign_digest(self):
+        return next((c["campaign_digest"] for c in self.st["chunks"] if c.get("campaign_digest")), None)
+
+    def verified(self, c, adopted=False):
+        """-> runner_verified (a cell: its receipt verified under the campaign's ONE digest), then its gates."""
+        if c["kind"] == "cell":
+            ok, info = self.g.verify(c)
+            digest = self.campaign_digest()
+            if not ok or (digest is not None and info["campaign_digest"] != digest):
+                self.latch(f"chunk {c['n']} {c['cell']}: verification refused: {info}")
+                return
+            c.update(receipt_sha256=info["receipt_sha256"], campaign_digest=info["campaign_digest"])
+        c.update(state="runner_verified", **({"adopted_at_restart": True} if adopted else {}))
+        self.save()
+        if self.st["stop_latch"] is None:
+            self.gates(c)
+
+    def gates(self, c):
+        """E1 after chunks 1-2 (a mismatch: a hard stop), E2 after chunk 4 (the 45-degree source only), the probe's
+        finalization + PROBE_CONTRACT_BF after chunk 5 (§13 NIT 2 ledger), and the final guard on every chunk."""
+        if c["gate"] == "E1":
+            k = 1 if "_K1_" in c["cell"] else 8
+            rc, out = self.g.e1(k)
+            c["e1"] = {"rc": rc, "verdict": {0: "equal", 1: "mismatch"}.get(rc, "refused"), "out": out[-2000:]}
+            bad = rc != 0 and f"E1 K{k} {c['e1']['verdict']}: the control cell is not the exp_25 cell (a hard stop)"
+        elif c["gate"] == "E2":
+            rc, out = self.g.e2()
+            c["e2"] = {"rc": rc, "verdict": {0: "PASS", 1: "FAIL"}.get(rc, "REFUSED"), "out": out[-2000:]}
+            bad = rc not in (0, 1) and "E2 refused"
+        elif c["gate"] == "PROBE":
+            rc, out = self.g.finalize(os.path.relpath(c["log"], REPO), self.campaign_digest())
+            j = self.cfg.get("probe_json") or os.path.join(HERE, "orbitrir_bf_cond_probe.json")
+            c.update(probe_contract={"rc": rc, "out": out[-2000:]}, probe_json_sha256=_sha_file(j),
+                     sidecar_sha256=_sha_file(j + ".sha256"), log_sha256=_sha_file(c["log"]))
+            bad = rc != 0 and "the B-F probe: finalization / PROBE_CONTRACT_BF refused"
+        else:
+            bad = False
+        self.save()
+        if bad:
+            self.latch(bad)
+        elif self.observe() is not None:
+            c["state"] = "gates_verified"
+            self.save()
+
+    def reconcile(self):
+        """§12 B2: in flight -> its receipt must verify (then its gates), else the latch; runner_verified -> its gates."""
+        for c in self.st["chunks"]:
+            if c["state"] == "in_flight":
+                if c["kind"] == "cell" and self.g.verify(c)[0]:
+                    self.event("reconcile: the in-flight chunk's receipt verifies; its gates re-run", chunk=c["n"])
+                    return self.verified(c, adopted=True)
+                return self.latch(f"chunk {c['n']} was in flight when the supervisor stopped and has no verified receipt")
+            if c["state"] == "runner_verified":
+                self.event("reconcile: re-running the gates", chunk=c["n"])
+                return self.gates(c)
+
+    def run(self):
+        """0: phase (i) complete; 3: refused or stopped (the latch names why)."""
+        c = self.cfg
+        try:
+            st = load_state(c["state"], h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"])
+            uuids = tuple(sorted(self.tables()[0].values()))
+        except ValueError as err:
+            print(f"SUPERVISOR REFUSED: {err}")
+            return 3
+        self.st = st or new_state(h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
+                                  approved_sha256=c["approved_sha256"])
+        if self.st["stop_latch"]:
+            print(f"SUPERVISOR REFUSED: the stop latch is set ({self.st['stop_latch']}); only the Planner clears it")
+            return 3
+        self.event("supervisor started" + (" (a new state)" if st is None else " (resumed)"))
+        why = reservation_reasons(c["reservations"], self.st["reservation"], uuids)
+        if why:
+            self.latch("the reservations are inconsistent at the start: " + "; ".join(why))
+            return 3
+        self.reconcile()
+        for ch in self.st["chunks"]:
+            if self.st["stop_latch"] is not None:
+                break
+            if ch["state"] == "planned":
+                lane = self.ready(ch)
+                if lane is None:
+                    break
+                self.execute(ch, lane)
+        if self.st["stop_latch"] is not None or any(ch["state"] != "gates_verified" for ch in self.st["chunks"]):
+            return 3
+        if self.st["reservation"]:
+            remove_reservation(self.st["reservation"]["path"])
+            self.st["reservation"] = None
+        self.event("phase (i) complete; the reservation released")
+        return 0
