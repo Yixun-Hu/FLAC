@@ -1656,6 +1656,179 @@ def render_md(res):
     return "\n".join(out) + "\n"
 
 
+# --------------------------------------------------------------------------- #
+# exp_35 collect mode, part 1 (plan_orbitrir_yaw_evidence.md r2 §3c E1, §4 E2, §5 items 1-5): the hash-pinned
+# external exp_25 results, the hash-pinned stream registry, the CTL hard stop and E2
+# --------------------------------------------------------------------------- #
+EXP25_RESULTS_SHA256 = "ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0"
+EXP25_PIN = "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e"
+EXP25_MISSING = tuple(f"exp25_{a}_S_S40000_K{k}_s{s}" for a in ("CANON", "YAW") for k in (1, 8) for s in SEEDS)
+EXP35_DIR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_35_orbitrir_yaw_evidence_claude")
+EXP35_REGISTRY = os.path.join(EXP35_DIR, "exp35_exp25_stream_registry.json")
+EXP35_REGISTRY_SHA256 = "9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24"
+A6_CSV = os.path.join(REPO, "analysis", "yaw_robustness", "generated", "yaw_metrics_raw.csv")
+A6_CSV_SHA256 = "0ae554c09f45ce89b8957cf75a3d15e44f4173f4f8987497dbbebf16bbfb23da"
+E2_TOLERANCE = {"T60": 0.001, "C50": 0.0005, "EDT": 0.005, "FD": 0.0005, "RIR_to_GT_RIR_R@1": 0.2,
+                "RIR_to_GT_RIR_R@5": 0.2, "RIR_to_GT_RIR_R@10": 0.2}   # §4: T60 %, C50 dB, EDT ms, FD, R@k pp
+CTL_REFERENCE = {   # §3c: the force-added exp_25 P1-pin T s42 cells (receipt, waveform, stream sidecar)
+    1: {"receipt_sha256": "fa1ea729708e5dc139336673eb2c7b87cbbad224d2ec3315109d9a2e67443714",
+        "waveform_sha256": "8cb47c945d55d3787f76bf0cf8e78e445f8db1387fefca827316401da8d9e8f8",
+        "stream_sha256": "31aa02dcd5dcb2f6d80247f13e8a4e76ae28bc050f7f2c8f353e2b0808e0793d"},
+    8: {"receipt_sha256": "54490e2ab131d323ec3ea9471273d87834f0b5344cd6d806ee74b08d8c376bec",
+        "waveform_sha256": "1aace782f22267bb4a39712ee459cf3b7ec9b891e97695455e63862d74eb0fd3",
+        "stream_sha256": "8d8018cabfd803be559b4224ef7c8833fe0af7b96542cbce65cd0a3e1d1d4af6"}}
+CTL_LOADED = ("c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c", 723927531)
+CTL_DUMP_SHAPE = [6337, 10240]
+
+
+def _pinned_json(path, sha256):
+    """``(doc, reasons)`` of a hash-pinned JSON file (None when unreadable or not the pinned bytes)."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as err:
+        return None, [f"{path} unreadable ({err})"]
+    if hashlib.sha256(raw).hexdigest() != sha256:
+        return None, [f"{path} hashes to {hashlib.sha256(raw).hexdigest()}, not the pinned sha256 {sha256}"]
+    return json.loads(raw), []
+
+
+def exp25_reference_reasons(doc):
+    """§5 items 1-2: the exp_25 results as registered -- schema, pin, the known partial state -- and every
+    reused field finite: Tier 3 of CANON / P1 / YAW per K, item-weighted metric, and the theta = 0 table."""
+    out = []
+    for key, want in (("schema_version", 1), ("pin", EXP25_PIN), ("partial", True), ("missing", list(EXP25_MISSING)),
+                      ("invalid", {})):
+        _eq(out, f"exp_25 results {key}", doc.get(key), want)
+    for arm in ("CANON", "P1", "YAW"):
+        for k in ("1", "8"):
+            for key in TIER3_KEYS:
+                x = (((doc.get("tier3") or {}).get("arms") or {}).get(arm) or {}).get(k, {}).get("item", {}).get(key, {})
+                t = (((doc.get("table") or {}).get(arm) or {}).get(k) or {}).get("item", {}).get(key, {})
+                out += [f"exp_25 tier3 {arm} K{k} {key} {f} = {x.get(f)!r} != 5" for f in ("n_z", "n_r_pairs")
+                        if x.get(f) != 5]
+                out += [f"exp_25 tier3 {arm} K{k} {key} {f} = {x.get(f)!r} is not finite"
+                        for f in ("mean_z", "sd_z", "delta_c4", "probe45", "delta_r") if not _finite(x.get(f))]
+                if t.get("n") != 5 or not (_finite(t.get("mean")) and _finite(t.get("sd"))):
+                    out.append(f"exp_25 table {arm} K{k} {key} {t!r:.80} is not a finite 5-seed mean +- sd")
+    return out
+
+
+def load_exp25_reference(path=None):
+    """The external exp_25 results (§5 items 1-3): ``(doc, reasons)``; doc is None unless valid."""
+    doc, reasons = _pinned_json(path or os.path.join(EXPDIR, "depth_canon_results.json"), EXP25_RESULTS_SHA256)
+    reasons = reasons or exp25_reference_reasons(doc)
+    return (None if reasons else doc), reasons
+
+
+def load_registry(path=EXP35_REGISTRY):
+    """The frozen stream registry (§5 item 5): ``(doc, reasons)``."""
+    return _pinned_json(path, EXP35_REGISTRY_SHA256)
+
+
+def registry_reasons(row, stream, registry):
+    """An exp_35 cell's stream reproduces exp_25's: the input_hash of its K / seed, and the assignment of its
+    seed (random) or of its angle (fixed)."""
+    out, k, s = [], str(row["K"]), str(row["seed"])
+    _eq(out, f"stream input_hash vs the exp_25 registry (K{k} s{s})", stream.get("input_hash"),
+        registry["input_hash"].get(k, {}).get(s))
+    want = (registry["assignment_hash_random"].get(s) if row["rotate_mode"] == "random"
+            else registry["assignment_hash_fixed"].get(str(row["rotate_deg"])))
+    _eq(out, f"stream assignment_hash vs the exp_25 registry ({row['rotate_mode']} {row['rotate_deg'] or s})",
+        stream.get("assignment_hash"), want)
+    return out
+
+
+def _verified_cell(name, *, manifest, pin, base_dir, farm_root=None, dump_root=None):
+    """``(row, paths, docs, reasons)`` of one cell verified OFFLINE (the receipt's dump evidence; no link check)."""
+    rows = [c for c in manifest["cells"] if c["cell"] == name]
+    if len(rows) != 1:
+        return None, None, None, [f"{name} is not one registered cell"]
+    farm, dump_root = farm_root or manifest["farm_root"], dump_root or manifest["dump_root"]
+    target, _ = expected_checkpoint(rows[0], manifest, None)
+    p = cell_paths(rows[0], os.path.join(farm, rows[0]["arm"], os.path.basename(target)), dump_root)
+    reasons = verify_cell(p.stem, manifest=manifest, farm_root=farm, dump_root=dump_root, pin=pin,
+                          base_dir=base_dir, dump_check="receipt", check_link=False)
+    if reasons:
+        return rows[0], p, None, [f"{name} does not verify at {pin[:12]}: {x}" for x in reasons[:3]]
+    docs = {}
+    for key in ("metrics", "stream", "receipt"):
+        with open(os.path.join(base_dir, getattr(p, key)), "rb") as f:
+            docs[key + "_raw"] = f.read()
+        docs[key] = json.loads(docs[key + "_raw"])
+    return rows[0], p, docs, []
+
+
+def exp35_ctl_check(k, *, pin, manifest, base_dir=REPO, farm_root=None, dump_root=None):
+    """§3c E1, the hard stop: ``(status, reasons)`` -- "equal", "mismatch" (no B-F cell may run) or "refused"
+    (undecidable: a cell does not verify, or the reference is not the registered one)."""
+    import hashlib
+    ref_name, new_name = f"exp25_P1_T_S40000_K{k}_s42", f"exp35_P1_T_S40000_K{k}_s42"
+    pinned = CTL_REFERENCE[k]
+    _, _, ref, why = _verified_cell(ref_name, manifest=manifest, pin=EXP25_PIN, base_dir=base_dir, farm_root=farm_root,
+                                    dump_root=dump_root)
+    _, _, new, why2 = _verified_cell(new_name, manifest=manifest, pin=pin, base_dir=base_dir, farm_root=farm_root,
+                                     dump_root=dump_root)
+    refused = why + why2
+    if ref and hashlib.sha256(ref["receipt_raw"]).hexdigest() != pinned["receipt_sha256"]:
+        refused.append(f"the reference receipt of {ref_name} is not the registered {pinned['receipt_sha256'][:12]}")
+    if new and new["receipt"].get("attention_backend") != "sdpa":
+        refused.append(f"{new_name}: receipt attention_backend {new['receipt'].get('attention_backend')!r} != sdpa")
+    if refused:
+        return "refused", refused
+    out, rm, nm = [], ref["receipt"]["dump_evidence"]["manifest"], new["receipt"]["dump_evidence"]["manifest"]
+    for label, a, b in (("waveform sha256", nm["sha256"], pinned["waveform_sha256"]),
+                        ("COMPLETE marker", new["receipt"]["dump_evidence"]["marker"], pinned["waveform_sha256"] + "\n"),
+                        ("dump n / dtype / shape", [nm["n"], nm["dtype"], nm["shape"]],
+                         [CTL_DUMP_SHAPE[0], "float32", CTL_DUMP_SHAPE]),
+                        ("dump input_hash", nm["input_hash"], rm["input_hash"]),
+                        ("stream sidecar sha256", hashlib.sha256(new["stream_raw"]).hexdigest(), pinned["stream_sha256"]),
+                        ("ckpt loaded", [new["metrics"].get(x) for x in LOAD_KEYS], list(CTL_LOADED))):
+        _eq(out, f"CTL K{k} {label}", a, b)
+    for key in ("metrics", "by_scene"):
+        diff = eval_FLAC._canon_strict_diff(new["metrics"].get(key), ref["metrics"].get(key), key)
+        if diff is not None:
+            out.append(f"CTL K{k} record {key} differs from the exp_25 cell: {diff}")
+    rest = lambda d: {x: v for x, v in d.items() if x not in ("metrics", "by_scene", "source_sha", "eval_name")}  # noqa
+    _eq(out, f"CTL K{k} record (every other key but source_sha / eval_name)", rest(new["metrics"]), rest(ref["metrics"]))
+    return ("equal" if not out else "mismatch"), out
+
+
+def exp35_e2(*, pin, manifest, base_dir=REPO, csv_path=None, farm_root=None, dump_root=None):
+    """§4 E2 (decides only the 45-degree source): ``exp35_BF_T_S40000_K{1,8}_s42`` vs the sha-pinned A6 CSV row
+    (method ``FA B-F@40k``, angle 0, seed 42) -- PASS iff all 14 |differences| are within E2_TOLERANCE."""
+    import csv
+    import hashlib
+    path = csv_path or A6_CSV
+    res = {"status": "REFUSED", "pass": None, "csv": path, "csv_sha256": None, "rows": [], "reasons": [],
+           "rule": "|new - A6 CSV| <= " + ", ".join(f"{k} {v:g}" for k, v in E2_TOLERANCE.items()) + " (all 14)"}
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as err:
+        return dict(res, reasons=[f"the A6 CSV {path} is unreadable ({err})"])
+    res["csv_sha256"] = hashlib.sha256(raw).hexdigest()
+    if res["csv_sha256"] != A6_CSV_SHA256:
+        return dict(res, reasons=[f"the A6 CSV hashes to {res['csv_sha256']}, not the pinned {A6_CSV_SHA256}"])
+    table = list(csv.DictReader(raw.decode().splitlines()))
+    for k in (1, 8):
+        hits = [r for r in table if (r["method"], r["K"], r["angle_deg"], r["seed"]) == ("FA B-F@40k", str(k), "0", "42")]
+        _, _, new, why = _verified_cell(f"exp35_BF_T_S40000_K{k}_s42", manifest=manifest, pin=pin, base_dir=base_dir,
+                                        farm_root=farm_root, dump_root=dump_root)
+        res["reasons"] += why + ([] if len(hits) == 1 else [f"the A6 CSV holds {len(hits)} FA B-F@40k K{k} theta 0 s42 rows"])
+        if why or len(hits) != 1:
+            continue
+        for key, tol in E2_TOLERANCE.items():
+            a, b = float(new["metrics"]["metrics"][key]), float(hits[0][key])
+            res["rows"].append({"K": k, "metric": key, "new": a, "a6": b, "abs_diff": abs(a - b), "tolerance": tol,
+                                "pass": abs(a - b) <= tol})
+    if res["reasons"]:
+        return dict(res, rows=[])
+    ok = len(res["rows"]) == 14 and all(r["pass"] for r in res["rows"])
+    return dict(res, status="PASS" if ok else "FAIL", **{"pass": ok})
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
@@ -1706,6 +1879,9 @@ def main(argv=None):
     ap.add_argument("--check-backend-log", metavar="LOG", help="exp_35: exit 0 iff LOG proves the SDPA backend")
     ap.add_argument("--finalize-bf-probe", metavar="JSON", help="exp_35 §12 B3: finalize + validate the B-F probe")
     ap.add_argument("--probe-log", default=None, help="--finalize-bf-probe: the closed probe log (repo-relative)")
+    ap.add_argument("--exp35-ctl-check", type=int, metavar="K", help="exp_35 E1: exit 0 equal / 1 mismatch / 2 refused")
+    ap.add_argument("--exp35-e2", action="store_true", help="exp_35 E2: exit 0 PASS / 1 FAIL / 2 refused")
+    ap.add_argument("--a6-csv", default=None, help="--exp35-e2: the A6 CSV (default: the pinned file)")
     ap.add_argument("--count-no-flash", action="store_true",
                     help="exp_35: print how many cells of the --blocks / --only / --limit selection are exp_35 cells")
     ap.add_argument("--backend-target", default=NO_FLASH["target"],
@@ -1732,6 +1908,21 @@ def main(argv=None):
         print(("BF PROBE VALID " if not reasons else "BF PROBE INVALID ") + args.finalize_bf_probe
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
+    if args.exp35_ctl_check is not None:   # exp_35 §3c E1, the hard stop after chunks 1-2
+        if args.exp35_ctl_check not in (1, 8):
+            print(f"CTL REFUSED: K must be 1 or 8, got {args.exp35_ctl_check}")
+            return 2
+        status, reasons = exp35_ctl_check(args.exp35_ctl_check, pin=args.pin, manifest=manifest,
+                                          base_dir=args.base_dir, farm_root=args.farm_root, dump_root=args.dump_root)
+        print(f"CTL K{args.exp35_ctl_check} {status.upper()}" + "".join(f"\n  - {x}" for x in reasons))
+        return {"equal": 0, "mismatch": 1}.get(status, 2)
+    if args.exp35_e2:   # exp_35 §4 E2, after chunks 3-4: the 45-degree source only
+        res = exp35_e2(pin=args.pin, manifest=manifest, base_dir=args.base_dir, csv_path=args.a6_csv,
+                       farm_root=args.farm_root, dump_root=args.dump_root)
+        print(f"E2 {res['status']} ({res['rule']})" + "".join(f"\n  - {x}" for x in res["reasons"]) + "".join(
+            f"\n  K{r['K']} {r['metric']}: new {r['new']!r} A6 {r['a6']!r} |diff| {r['abs_diff']:.6g} "
+            f"<= {r['tolerance']:g}: {r['pass']}" for r in res["rows"]))
+        return {"PASS": 0, "FAIL": 1}.get(res["status"], 2)
     if args.count_no_flash:   # exp_35 (Codex C2 HIGH 2): the runner's RELEVANT tree depends on it
         try:
             print(sum(is_exp35(c) for c in select_cells(manifest, _csv(args.blocks), _csv(args.only), args.limit)))
