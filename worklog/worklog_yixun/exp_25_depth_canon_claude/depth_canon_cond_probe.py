@@ -13,6 +13,13 @@ is recorded for the same items. eps_cond = max fp32 conditioning relL2; PASS <= 
 
 GPU for the registered run (the Planner launches it); CPU-testable on a toy stack.
 
+exp_35 (plan_orbitrir_yaw_evidence.md r2 §5, §11 H3, r3 §12 B3): ``--arm BF`` is the B-F composition control --
+A = FA(md) WITHOUT canonicalization, B = FA(rot_d(md)) for the three quarter turns d in {128, 256, 384}, FA =
+``invariant_conditioning(conditioner, md, device, (0, 90, 180, 270), max_fwd_samples=64)`` under each protocol's
+conditioning autocast; the same stages, protocols and fixed per-item noise; verdict = masks equal AND the
+determinism floor exact; eps_cond reported without a verdict. It runs through the no-flash launcher; a
+non-logged finalization (``depth_canon_collect.py --finalize-bf-probe``) adds the launch provenance.
+
 Written by the exp_25 Coder seat (Claude Opus, max effort) per plan_depth_canon.md v8 §1/§6/§8.
 """
 import contextlib
@@ -41,6 +48,10 @@ from src.tools import depth_canon_stats as stats  # noqa: E402
 FIXED_OFFSETS = (64, 128, 256, 384)
 OFFSET_KEYS = tuple(f"d{d}" for d in FIXED_OFFSETS) + ("random",)
 RANDOM_OFFSET_SEED_SHIFT = 1  # the random offsets' generator is seeded with seed + 1
+BF_ANGLES = (0.0, 90.0, 180.0, 270.0)   # exp_35: B-F's frame-average group (its training + evaluation recipe)
+BF_FWD_CAP = 64
+BF_OFFSETS = (128, 256, 384)            # the quarter turns: the only offsets FA is exactly invariant to
+BF_OFFSET_KEYS = tuple(f"d{d}" for d in BF_OFFSETS)
 
 
 # --------------------------------------------------------------------------- #
@@ -112,6 +123,30 @@ def canonical_pairs(metadata, offsets, img_w):
     return a_list, b_lists, tier1
 
 
+def bf_offsets(n_items):
+    """exp_35: ``{key: [d] * n}`` for the three quarter turns (no 45-degree, no random key)."""
+    _check_int("n_items", n_items, 1)
+    return {f"d{d}": [d] * n_items for d in BF_OFFSETS}
+
+
+def bf_pairs(metadata, offsets, img_w):
+    """exp_35: ``(A, {key: B})`` -- A is the loader metadata itself (no canonicalization), B rotates it with
+    the reviewed operator (equal, for 90/180/270, to eval_FLAC's fixed-mode rotation of a C4 cell)."""
+    from src.data import yaw_rotation as yr
+    n = len(metadata)
+    if any(len(ds) != n for ds in offsets.values()):
+        raise ValueError(f"offsets must hold one offset per item ({n})")
+    return list(metadata), {key: [yr.rotate_scene_metadata(md, yr.offsets_to_radians([int(d)], img_w)[0], img_w)
+                                  for md, d in zip(metadata, ds)] for key, ds in offsets.items()}
+
+
+def bf_conditioning(module, md_list, device):
+    """exp_35: B-F's conditioning exactly as eval_FLAC's fa_invariant path calls it."""
+    from src.data import yaw_rotation as yr
+    return yr.invariant_conditioning(module.diffusion.conditioner, md_list, device, BF_ANGLES,
+                                     max_fwd_samples=BF_FWD_CAP)
+
+
 # --------------------------------------------------------------------------- #
 # stagewise comparison
 # --------------------------------------------------------------------------- #
@@ -171,12 +206,13 @@ def matmul_precision(value):
         torch.set_float32_matmul_precision(old)
 
 
-def run_stages(module, md_list, noise, reals, protocol):
+def run_stages(module, md_list, noise, reals, protocol, cond_fn=None):
     """The four stages for one list of (already canonical) metadata dicts, mirroring
     ``eval_FLAC.evaluate_model``'s loop: conditioner under the protocol's cond autocast,
     ``get_conditioning_inputs``, ``sample_discrete_euler`` with 1 step / cfg 1.0 /
     ``batch_cfg=True`` / the wrapper's ``dist_shift`` on the GIVEN noise (the DiT's one
-    output recorded as the velocity), decode, ``clamp(-1, 1)``, pad to ``reals``."""
+    output recorded as the velocity), decode, ``clamp(-1, 1)``, pad to ``reals``. ``cond_fn``
+    (exp_35: :func:`bf_conditioning`) replaces the plain conditioner call, inside the same autocast."""
     import eval_FLAC as ev
     from src.inference import sampling
     enabled, dtype = ev.resolve_cond_autocast(protocol["cond_autocast"])
@@ -198,7 +234,7 @@ def run_stages(module, md_list, noise, reals, protocol):
         ctx = (contextlib.nullcontext() if not enabled else torch.amp.autocast(device_type)
                if dtype is None else torch.amp.autocast(device_type, dtype=dtype))
         with ctx:
-            cond = module.diffusion.conditioner(md_list, device)
+            cond = module.diffusion.conditioner(md_list, device) if cond_fn is None else cond_fn(module, md_list, device)
         cond_inputs = module.diffusion.get_conditioning_inputs(cond)
         latent = sampling.sample_discrete_euler(
             recording_model, noise.to(device), 1, **cond_inputs, cfg_scale=1.0,
@@ -222,7 +258,7 @@ def compare_stages(test, ref):
 # --------------------------------------------------------------------------- #
 # loading: eval_FLAC.evaluate_model's checkpoint path
 # --------------------------------------------------------------------------- #
-def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch=False):
+def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch=False, arm="CANON"):
     """``(module, info, ckpt_load)`` -- the checkpoint loaded the way ``evaluate_model`` loads it.
 
     The helpers are eval_FLAC's own (``resolve_weights_source``,
@@ -232,7 +268,9 @@ def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch
     statements in ``evaluate_model``, so they are repeated here verbatim; the tests pin
     the state dict and both configs this hands the factories against the ones
     ``evaluate_model`` hands them for the same checkpoint. ARE checkpoints are refused
-    (no add-back bank here); a non-canonical checkpoint needs ``allow_canon_mismatch``.
+    (no add-back bank here); a non-canonical checkpoint needs ``allow_canon_mismatch``. exp_35:
+    ``arm="BF"`` binds the checkpoint WITHOUT ``--canonicalize`` under ``cond_method='fa_invariant'``
+    (a canonicalization-trained checkpoint is then a refused mismatch).
 
     rB-F3 F3-1 (Codex rA3/rB3 HIGH): as ``evaluate_model`` (rB-F2 F2-6), the file is read ONCE
     (``eval_FLAC.read_checkpoint_exact``), THAT buffer is deserialized
@@ -272,10 +310,11 @@ def load_probe_module(model_config_path, ckpt_path, device, allow_canon_mismatch
         raise ValueError(f"an ARE checkpoint (are_lambda={are_lambda}) is out of this probe's scope: "
                          "it has no anchor add-back")
     embedded = ckpt.get("model_config")
+    bf = arm == "BF"
     protocol = ev.resolve_canonicalize_protocol(
-        True, file_model_config.get("training"),
+        not bf, file_model_config.get("training"),
         embedded.get("training") if isinstance(embedded, dict) else None,
-        allow_canon_mismatch, cond_method="vanilla", file_model_cfg=file_model_config)
+        allow_canon_mismatch, cond_method="fa_invariant" if bf else "vanilla", file_model_cfg=file_model_config)
     model = ev.create_model_from_config(model_config)
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     ev.check_load_integrity(missing, unexpected, False)
@@ -324,22 +363,26 @@ def _finish(acc):
     return acc
 
 
-def _pooled(results_p):
-    """Per stage, the summary over the five registered offsets' items together."""
+def _pooled(results_p, keys=OFFSET_KEYS):
+    """Per stage, the summary over the registered offsets' items together."""
     out = {}
     for s in STAGES:
-        rows = [results_p[k]["cond"]["all"] if s == "cond" else results_p[k][s] for k in OFFSET_KEYS]
+        rows = [results_p[k]["cond"]["all"] if s == "cond" else results_p[k][s] for k in keys]
         out[s] = summarize({m: np.array([v for r in rows for v in r[m]]) for m in ("relL2", "relLinf")})
     return out
+
+
+def _eps_max(results, keys):
+    """``(value, key, conditioner id, position)`` of the max fp32 conditioning relL2 over ``keys``."""
+    return max((v, k, i, pos) for k in keys for i, d in results["fp32"][k]["cond"]["per_id"].items()
+               for pos, v in enumerate(d["relL2"]))
 
 
 def _eps_cond(results):
     """max fp32 conditioning relL2 over the registered offsets, conditioner ids and items."""
     if "fp32" not in results:
         return None
-    value, key, cid, pos = max((v, k, i, pos) for k in OFFSET_KEYS
-                               for i, d in results["fp32"][k]["cond"]["per_id"].items()
-                               for pos, v in enumerate(d["relL2"]))
+    value, key, cid, pos = _eps_max(results, OFFSET_KEYS)
     return {"value": value, "threshold": EPS_COND_THRESHOLD, "pass": value <= EPS_COND_THRESHOLD,
             "argmax": {"key": key, "id": cid, "position": pos}}
 
@@ -384,6 +427,42 @@ def run_probe(module, reals, metadata, img_w, seed, batch_size, latent_len, prot
             "control_p99": control, "verdict": verdict}
 
 
+def run_probe_bf(module, reals, metadata, img_w, seed, batch_size, latent_len, protocols=None):
+    """exp_35: per protocol and quarter turn, stagewise B-vs-A comparisons for every item with the FA
+    conditioning (no canonicalization), A run twice for the determinism floor, eps_cond REPORTED (no
+    verdict), the control p99 (per offset and pooled) and the verdict: masks equal AND the floor exactly 0."""
+    protocols = PROTOCOLS if protocols is None else protocols
+    n = len(metadata)
+    if reals.shape[0] != n:
+        raise ValueError(f"{reals.shape[0]} reals for {n} metadata items")
+    offsets, keys = bf_offsets(n), BF_OFFSET_KEYS
+    noise = noise_bank(n, (module.diffusion.io_channels, latent_len), seed)
+    acc = {p: {k: _new_acc() for k in keys} for p in protocols}
+    det = {p: _new_acc() for p in protocols}
+    for start in range(0, n, batch_size):
+        sl = slice(start, min(start + batch_size, n))
+        a_list, b_lists = bf_pairs(list(metadata[sl]), {k: v[sl] for k, v in offsets.items()}, img_w)
+        for p, proto in protocols.items():
+            run = lambda mds: run_stages(module, mds, noise[sl], reals[sl], proto, cond_fn=bf_conditioning)  # noqa
+            sa = run(a_list)
+            _append(det[p], compare_stages(run(a_list), sa))
+            for key in keys:
+                _append(acc[p][key], compare_stages(run(b_lists[key]), sa))
+    results = {p: {k: _finish(acc[p][k]) for k in keys} for p in protocols}
+    pooled = {p: _pooled(results[p], keys) for p in protocols}
+    value, key, cid, pos = _eps_max(results, keys) if "fp32" in results else (None,) * 4
+    control = {p: dict({k: results[p][k]["waveform"]["summary"]["relL2"]["p99"] for k in keys},
+                       pooled=pooled[p]["waveform"]["relL2"]["p99"]) for p in protocols}
+    masks = all(d["cond"]["masks_equal"] for p in protocols for d in list(acc[p].values()) + [det[p]])
+    exact = all(v == 0.0 for p in protocols for d in [det[p]["cond"]["all"]] + [det[p][s] for s in STAGES[1:]]
+                for v in d["relL2"])
+    return {"offsets": offsets, "items": [{} for _ in range(n)], "results": results, "pooled": pooled,
+            "determinism": {p: _finish(det[p]) for p in protocols},
+            "eps_cond": {"value": value, "argmax": {"key": key, "id": cid, "position": pos}},
+            "control_p99": control, "verdict": {"pass": bool(masks and exact), "masks": bool(masks),
+                                                "determinism": bool(exact)}}
+
+
 # --------------------------------------------------------------------------- #
 # CLI: load -> first n loader items -> probe -> JSON + sha256 sidecar + summary
 # --------------------------------------------------------------------------- #
@@ -401,11 +480,21 @@ REGISTERED = {"n_items": 64, "batch_size": 64, "seed": 42, "device": "cuda",
               "dataset_config": DEFAULT_DATASET_CONFIG,
               "dataset_config_sha256": "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55"}
 DIAGNOSTIC_EXIT = 6
+# exp_35 (plan_orbitrir r2 §5): the registered B-F control -- the B-F@40k config, the unseen K=8 split, 64 items
+BF_DEFAULT_MODEL_CONFIG = os.path.join(REPO, "worklog", "worklog_yixun", "exp_07_fa_scratch_claude", "FLAC_AR_BF.json")
+BF_DEFAULT_OUT = os.path.join(REPO, "worklog", "worklog_yixun", "exp_35_orbitrir_yaw_evidence_claude",
+                              "orbitrir_bf_cond_probe.json")
+REGISTERED_BF = {"n_items": 64, "batch_size": 64, "seed": 42, "device": "cuda",
+                 "model_config": BF_DEFAULT_MODEL_CONFIG,
+                 "model_config_sha256": "3e677204902c543801679610b58d818de3f6353e7b95baded2667078135ea328",
+                 "dataset_config": DEFAULT_DATASET_CONFIG,
+                 "dataset_config_sha256": "063c66c2411cde4b1f07ec7c5331150b322517cf0067a0ef3def819368423b55"}
 
 
-def registered_deviations(args):
-    """Argument-level departures from :data:`REGISTERED` (checked before anything loads)."""
-    R, out = REGISTERED, []
+def registered_deviations(args, registered=None):
+    """Argument-level departures from :data:`REGISTERED` (exp_35: or ``registered``, e.g.
+    :data:`REGISTERED_BF`), checked before anything loads."""
+    R, out = REGISTERED if registered is None else registered, []
     for flag, key in (("--n-items", "n_items"), ("--batch-size", "batch_size"), ("--seed", "seed"),
                       ("--device", "device")):
         if getattr(args, key) != R[key]:
@@ -427,6 +516,18 @@ def tree_deviations(dirty):
     if dirty == "":
         return []
     return [f"the evaluator tree is dirty or unknown (git status {dirty!r}): not the pinned code"]
+
+
+def load_deviations_bf(load):
+    """exp_35: EMA weights, NO canonicalization in play, file config == embedded config."""
+    out = [] if load.get("weights_source") == "ema" else [
+        f"weights_source {load.get('weights_source')!r}: EMA weights not present / selected"]
+    if (load.get("canonicalize_trained"), load.get("canonicalize_applied"), load.get("canonicalize_mismatch")) != (
+            None, False, False):
+        out.append("canonicalization is in play for a B-F probe")
+    if load.get("model_config_sha256_file") != load.get("model_config_sha256_embedded"):
+        out.append("--model-config differs from the checkpoint's embedded config")
+    return out
 
 
 def load_deviations(load):
@@ -478,12 +579,13 @@ def collect_items(eval_dl, n_items):
     return torch.stack(reals), mds
 
 
-def build_report(registered, deviations, prov, stream, rep):
+def build_report(registered, deviations, prov, stream, rep, arm=None):
     """The published report, in main()'s layout: the probe ``rep`` with the per-item stream
-    identity merged into ``items``, its provenance and the stream's input hash."""
+    identity merged into ``items``, its provenance and the stream's input hash (exp_35: an
+    ``arm`` key after the schema version for the B-F report)."""
     rep = dict(rep, items=[dict(position=i, target_id=row.target_id, context_ids=row.context_ids, **t)
                            for i, (row, t) in enumerate(zip(stream.rows, rep["items"]))])
-    return {"schema_version": SCHEMA_VERSION, "registered": registered,
+    return {"schema_version": SCHEMA_VERSION, **({"arm": arm} if arm else {}), "registered": registered,
             "deviations": deviations + ([] if registered or deviations else ["--diagnostic given"]),
             "provenance": prov, "stream_input_hash": stream.input_hash(), **rep}
 
@@ -500,14 +602,20 @@ def write_report(report, out):
 
 
 def markdown_summary(report):
-    eps, t1, v = report["eps_cond"], report["tier1"], report["verdict"]
-    out = [f"## depth_canon composition probe -- verdict {'PASS' if v['pass'] else 'FAIL'} {v}", "",
-           f"eps_cond (fp32 conditioning, max relL2 over offsets / ids / items): {eps['value']:.3e} "
-           f"(threshold {eps['threshold']:.0e}, {'PASS' if eps['pass'] else 'FAIL'}; at {eps['argmax']})",
-           f"Tier 1: {t1['depth_sha_equal']}/{t1['n_pairs']} canonical depth hashes equal, "
-           f"{t1['class_equal']} classes equal, {t1['dj_corotates']} shifts co-rotate", "",
-           "| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | "
-           "waveform p99 | waveform max |", "|---|---|---|---|---|---|---|---|---|"]
+    eps, v = report["eps_cond"], report["verdict"]
+    if report.get("arm") == "BF":   # exp_35: eps_cond reported without a verdict, no canonical Tier 1
+        out = [f"## B-F composition probe -- verdict {'PASS' if v['pass'] else 'FAIL'} {v}", "",
+               f"eps_cond (fp32 conditioning, max relL2 over the quarter turns / ids / items; reported, no "
+               f"verdict): {eps['value']:.3e} (at {eps['argmax']})", ""]
+    else:
+        t1 = report["tier1"]
+        out = [f"## depth_canon composition probe -- verdict {'PASS' if v['pass'] else 'FAIL'} {v}", "",
+               f"eps_cond (fp32 conditioning, max relL2 over offsets / ids / items): {eps['value']:.3e} "
+               f"(threshold {eps['threshold']:.0e}, {'PASS' if eps['pass'] else 'FAIL'}; at {eps['argmax']})",
+               f"Tier 1: {t1['depth_sha_equal']}/{t1['n_pairs']} canonical depth hashes equal, "
+               f"{t1['class_equal']} classes equal, {t1['dj_corotates']} shifts co-rotate", ""]
+    out += ["| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | "
+            "waveform p99 | waveform max |", "|---|---|---|---|---|---|---|---|---|"]
     for p, by_key in report["results"].items():
         for k, r in by_key.items():
             c, w = r["cond"]["all"]["summary"]["relL2"], r["waveform"]["summary"]["relL2"]
@@ -528,7 +636,9 @@ def main(argv=None):
     import json
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--ckpt-path", required=True)
-    ap.add_argument("--model-config", default=DEFAULT_MODEL_CONFIG)
+    ap.add_argument("--arm", choices=("CANON", "BF"), default="CANON",
+                    help="exp_35: BF = the B-F frame-average control (quarter turns, no canonicalization)")
+    ap.add_argument("--model-config", default=None, help="default: the arm's registered config")
     ap.add_argument("--dataset-config", default=DEFAULT_DATASET_CONFIG)
     ap.add_argument("--n-items", type=int, default=64)
     ap.add_argument("--batch-size", type=int, default=64)
@@ -537,11 +647,17 @@ def main(argv=None):
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--allow-canon-mismatch", action="store_true",
                     help="probe a checkpoint NOT trained with canonicalization (labelled diagnostic)")
-    ap.add_argument("--out", default=os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
+    ap.add_argument("--out", default=None, help="default: the arm's registered output")
     ap.add_argument("--diagnostic", action="store_true",
                     help=f"run OFF the registered contract: the JSON records registered=false and the "
                          f"exit code is {DIAGNOSTIC_EXIT} (never 0), so it can never serve as the control")
     args = ap.parse_args(argv)
+    bf = args.arm == "BF"
+    args.model_config = args.model_config or (BF_DEFAULT_MODEL_CONFIG if bf else DEFAULT_MODEL_CONFIG)
+    args.out = args.out or (BF_DEFAULT_OUT if bf else os.path.join(EXPDIR, "depth_canon_cond_probe.json"))
+    if bf and args.allow_canon_mismatch:
+        ap.error("--allow-canon-mismatch: canonicalization is out of scope for --arm BF (frame averaging "
+                 "symmetrises; eval_FLAC refuses --canonicalize with fa_invariant)")
     for name in ("n_items", "batch_size"):
         if getattr(args, name) < 1:
             ap.error(f"--{name.replace('_', '-')} must be >= 1")
@@ -549,8 +665,9 @@ def main(argv=None):
         ap.error("--seed and --num-workers must be >= 0")
     if os.path.realpath(os.getcwd()) != os.path.realpath(REPO):
         raise SystemExit(f"run from the repository root {REPO}: dataset configs hold cwd-relative paths")
-    dirty = _git("status", "--porcelain", "--", "eval_FLAC.py", "src", os.path.abspath(__file__))
-    deviations = registered_deviations(args) + tree_deviations(dirty)
+    dirty = _git("status", "--porcelain", "--", "eval_FLAC.py", "src", os.path.abspath(__file__),
+                 *(["overlays/no_flash"] if bf else []))
+    deviations = registered_deviations(args, REGISTERED_BF if bf else None) + tree_deviations(dirty)
     if deviations and not args.diagnostic:
         print("REFUSED: not the registered composition control (pass --diagnostic for a labelled, "
               "non-qualifying run): " + "; ".join(deviations))
@@ -559,8 +676,8 @@ def main(argv=None):
     import eval_FLAC as ev
     torch.set_float32_matmul_precision("medium")        # as evaluate_model; each protocol sets its own
     module, load, ckpt_load = load_probe_module(args.model_config, args.ckpt_path, args.device,
-                                                args.allow_canon_mismatch)
-    deviations += load_deviations(load)
+                                                args.allow_canon_mismatch, arm=args.arm)
+    deviations += load_deviations_bf(load) if bf else load_deviations(load)
     if deviations and not args.diagnostic:
         print("REFUSED: not the registered composition control: " + "; ".join(deviations))
         return 2
@@ -575,13 +692,15 @@ def main(argv=None):
         sample_rate=cfg["sample_rate"], sample_size=cfg["sample_size"],
         audio_channels=cfg.get("audio_channels", 1), shuffle=False)
     reals, mds = collect_items(eval_dl, args.n_items)
-    img_w = load["img_w"]
+    img_w = ev._batch_img_w(mds) if bf else load["img_w"]
+    if bf and (img_w != 512 or any(ev._batch_img_w([md]) != img_w for md in mds)):
+        raise ValueError(f"the B-F probe's panoramas are not all on the registered 512-column grid (got {img_w})")
     stream = ev.RotationStream()
     for md in mds:
         stream.record(md, None, img_w)
     pre = module.diffusion.pretransform
     latent_len = cfg["sample_size"] if pre is None else cfg["sample_size"] // pre.downsampling_ratio
-    rep = run_probe(module, reals, mds, img_w, args.seed, args.batch_size, latent_len)
+    rep = (run_probe_bf if bf else run_probe)(module, reals, mds, img_w, args.seed, args.batch_size, latent_len)
     split = (dataset_config.get("datasets") or [{}])[0].get("json_file_path")
     dev = torch.device(args.device)
     prov = {"ckpt_path": args.ckpt_path, "ckpt_sha256": _sha256_file(args.ckpt_path),
@@ -598,7 +717,10 @@ def main(argv=None):
             "n_items": args.n_items, "batch_size": args.batch_size, "num_workers": args.num_workers,
             "img_w": img_w, "latent_shape": [module.diffusion.io_channels, latent_len],
             "protocols": PROTOCOLS, "load": load, "allow_canon_mismatch": args.allow_canon_mismatch}
-    report = build_report(registered, deviations, prov, stream, rep)
+    if bf:   # exp_35: no random offsets; the frame-average recipe the cells ran
+        del prov["random_offset_seed"]
+        prov.update(cond_method="fa_invariant", frame_avg_angles=list(BF_ANGLES), frame_avg_max_fwd_samples=BF_FWD_CAP)
+    report = build_report(registered, deviations, prov, stream, rep, arm="BF" if bf else None)
     write_report(report, args.out)
     print(markdown_summary(report))
     print(f"wrote {args.out} (+ .sha256)")
