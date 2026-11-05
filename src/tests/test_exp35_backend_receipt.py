@@ -207,3 +207,17 @@ def test_cli_write_receipt_for_an_exp35_cell_needs_the_backend_flags(tmp_path, c
     (tmp_path / "logs" / "c.log").write_text(good_log())
     assert C.main(argv + flags) == 0 and json.load(open(receipt))["schema_version"] == 2
     assert "VALID" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("target", ["eval_FLAC.py", "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py"])
+def test_the_production_targets_start_under_the_launcher_with_one_backend_pair(target):
+    """The real evaluator and the real probe, imported under the launcher (``--help``: no data, no GPU): their
+    whole import graph meets the overlay exactly once, so the per-cell / per-probe log check holds."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env.update(PYTHONDONTWRITEBYTECODE="1", CUDA_VISIBLE_DEVICES="", HF_HUB_OFFLINE="1",
+               PYTHONPATH=os.path.dirname(LAUNCHER))
+    p = subprocess.run([sys.executable, LAUNCHER, target, "--help"], env=env, cwd=REPO, capture_output=True,
+                       text=True, timeout=600)
+    text = p.stdout + p.stderr
+    assert p.returncode == 0 and "usage:" in text, text[-2000:]
+    assert C.backend_log_reasons(text, target=target) == [], text[-2000:]
