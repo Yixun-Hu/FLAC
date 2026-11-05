@@ -26,19 +26,38 @@ FIELDS = ("pid", "start_time", "cwd", "cmdline_sha256", "fd1", "fd2")
 TUPLE_KEYS = ("schema_version", "gpu_uuid", "processes")
 
 
+def _stat_identity(text):
+    """``(pid, start time)`` from a ``/proc/<pid>/stat`` line: field 1 and field 22 (fields 3.. follow the
+    comm, which may hold spaces and parentheses -- hence the LAST ')')."""
+    return int(text.split(" ", 1)[0]), int(text[text.rindex(")") + 2:].split()[19])
+
+
 def proc_identity(pid, proc="/proc"):
-    """The identity of a LIVE process from ``proc``; ``ValueError`` when it is gone or unreadable."""
-    base = os.path.join(proc, str(int(pid)))
+    """The identity of a LIVE process from ``proc``; ``ValueError`` when it is gone or unreadable, or when
+    its entry changed during the sample (Codex C2 HIGH 1): every field is read through ONE directory fd of
+    ``/proc/<pid>`` (bound to that process, dead or alive), between two stat reads that must agree."""
+    pid = int(pid)
     try:
-        with open(os.path.join(base, "stat")) as f:
-            stat = f.read()
-        with open(os.path.join(base, "cmdline"), "rb") as f:
+        fd = os.open(os.path.join(proc, str(pid)), os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as err:
+        raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
+    opener = lambda path, flags: os.open(path, flags, dir_fd=fd)  # noqa: E731
+    try:
+        with open("stat", opener=opener) as f:
+            first = _stat_identity(f.read())
+        with open("cmdline", "rb", opener=opener) as f:
             cmdline = f.read()
-        links = [os.readlink(os.path.join(base, *p)) for p in (("cwd",), ("fd", "1"), ("fd", "2"))]
-        start = int(stat[stat.rindex(")") + 2:].split()[19])      # field 22 (fields 3.. follow the comm)
+        links = [os.readlink(p, dir_fd=fd) for p in ("cwd", "fd/1", "fd/2")]
+        with open("stat", opener=opener) as f:
+            second = _stat_identity(f.read())
     except (OSError, ValueError, IndexError) as err:
         raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
-    return {"pid": int(pid), "start_time": start, "cwd": links[0],
+    finally:
+        os.close(fd)
+    if not first == second == (pid, first[1]):
+        raise ValueError(f"process {pid}: its /proc entry changed during the sample ((pid, start time) {first} -> "
+                         f"{second}): PID reuse, no identity")
+    return {"pid": pid, "start_time": first[1], "cwd": links[0],
             "cmdline_sha256": hashlib.sha256(cmdline).hexdigest(), "fd1": links[1], "fd2": links[2]}
 
 

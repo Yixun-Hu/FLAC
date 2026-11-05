@@ -83,6 +83,27 @@ def test_the_identity_of_a_real_process():
     assert ident["fd1"] == os.readlink("/proc/self/fd/1") and ident["fd2"] == os.readlink("/proc/self/fd/2")
 
 
+@pytest.mark.parametrize("swap", ["start_time", "pid"])
+def test_an_entry_that_changes_during_the_sample_is_refused(proc, monkeypatch, swap):
+    """Codex C2 HIGH 1: stat is read before AND after cmdline / cwd / fd; a PID reused in between (its
+    entry rewritten after the first stat read) never yields a mixed identity."""
+    real, state = os.readlink, {"done": False}
+
+    def readlink(path, *a, **kw):
+        if not state["done"]:                              # first link read: the process is replaced NOW
+            state["done"] = True
+            stat = proc / "3028196" / "stat"
+            text = stat.read_text()
+            new = text.replace(" 887766 ", " 999999 ") if swap == "start_time" else text.replace(
+                "3028196 (", "3028197 (", 1)
+            assert new != text
+            stat.write_text(new)
+        return real(path, *a, **kw)
+    monkeypatch.setattr(G.os, "readlink", readlink)
+    with pytest.raises(ValueError, match="changed during"):
+        G.proc_identity(3028196, str(proc))
+
+
 def test_the_exact_tuple_passes(proc):
     assert G.check_reasons([3028196], UUID, _tuple(proc, 3028196), str(proc)) == []
 
