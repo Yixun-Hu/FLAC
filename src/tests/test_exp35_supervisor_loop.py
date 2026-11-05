@@ -5,6 +5,7 @@ the REAL guard, and injected gates. It never signals: FakeProc has no kill / ter
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -216,7 +217,7 @@ def test_an_in_flight_chunk_at_restart(tmp_path, receipt):
     assert state(cfg)["chunks"][2]["state"] == "in_flight" and len(w.spawned) == 3
     w.spawned.clear()
     g2 = FakeGates()
-    g2.bad_verify = set() if receipt else {"exp35_BF_T_S40000_K1_s42"}
+    g2.bad_verify, g2.probe_json = set() if receipt else {"exp35_BF_T_S40000_K1_s42"}, cfg["probe_json"]
     rc = sup(w, g2, cfg).run()
     st = state(cfg)
     if receipt:
@@ -266,3 +267,117 @@ def test_the_supervisor_never_signals_any_process():
     src = open(SC.SUP).read()
     for banned in ("os.kill", "killpg", ".kill(", ".terminate(", "send_signal", "signal."):
         assert banned not in src, banned
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3c BLOCKING 1 / HIGH 1: per-chunk final-guard evidence; the reservation re-authenticated before every
+# spawn and at every poll
+# --------------------------------------------------------------------------- #
+def test_every_gates_verified_chunk_carries_its_final_guard(tmp_path):
+    w, g, cfg = make(tmp_path)
+    assert sup(w, g, cfg).run() == 0
+    for c in state(cfg)["chunks"]:
+        fg = c["final_guard"]
+        assert (fg["status"], fg["exit"]) == ("OK", 0) and fg["step"] == 3 * TG.T and fg["anchor"]["size"] > 0
+
+
+def _ours_path(w):
+    return w.res / f"{G1}.json"
+
+
+SPOIL = {
+    "deleted": lambda w: _ours_path(w).unlink(),
+    "replaced_by_another_holder": lambda w: _ours_path(w).write_text(json.dumps({"holder": "exp22", "gpu_uuid": G1})),
+    "another_epoch": lambda w: _ours_path(w).write_text(json.dumps(dict(json.loads(_ours_path(w).read_text()), epoch=2))),
+    "corrupt": lambda w: _ours_path(w).write_text("{not json"),
+}
+
+
+@pytest.mark.parametrize("how", sorted(SPOIL))
+def test_a_reservation_lost_while_a_cell_runs_stops_after_it(tmp_path, how):
+    w, g, cfg = make(tmp_path)
+    w.behaviour = lambda argv: (3, 0)
+    w.at_spawn(3, SPOIL[how])
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 3
+    st = state(cfg)
+    assert "reservation" in st["stop_latch"]["reason"] and st["chunks"][2]["runner_rc"] == 0     # never signalled
+
+
+class SpoilAfterVerify(FakeGates):
+    """Spoils the reservation right after a cell's verification: between its watch and the next spawn."""
+
+    def __init__(self, world, cell, how):
+        super().__init__()
+        self.w, self.cell, self.how = world, cell, how
+
+    def verify(self, chunk):
+        out = super().verify(chunk)
+        if chunk["cell"] == self.cell:
+            SPOIL[self.how](self.w)
+        return out
+
+
+@pytest.mark.parametrize("how", sorted(SPOIL))
+def test_a_reservation_lost_between_chunks_spawns_nothing_more(tmp_path, how):
+    w, _, cfg = make(tmp_path)
+    g = SpoilAfterVerify(w, "exp35_BF_T_S40000_K1_s42", how)                    # chunk 3
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 3
+    assert "reservation" in state(cfg)["stop_latch"]["reason"]
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3c HIGH 3: the running-cell watch compares the COMPLETE approved identity; HIGH 4: the probe ledger
+# --------------------------------------------------------------------------- #
+def test_the_trainer_pid_reused_while_a_cell_runs_stops_after_it(tmp_path):
+    w, g, cfg = make(tmp_path)
+    w.behaviour = lambda argv: (3, 0)
+    w.at_spawn(3, lambda world: proc_entry(world.procdir, TR1, start=111))     # the same PID, another process
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 3
+    st = state(cfg)
+    assert str(TR1) in st["stop_latch"]["reason"] and "identity" in st["stop_latch"]["reason"]
+    assert st["chunks"][2]["runner_rc"] == 0                                    # watched to its end, never signalled
+
+
+class SpoilTheProbe(FakeGates):
+    def __init__(self, how):
+        super().__init__()
+        self.how = how
+
+    def finalize(self, log, digest):
+        rc, out = super().finalize(log, digest)
+        target = {"json": self.probe_json, "sidecar": self.probe_json + ".sha256",
+                  "log": os.path.join(S.REPO, log)}.get(self.how)
+        if target:
+            os.unlink(target)
+        elif self.how == "unsealed_json":
+            with open(self.probe_json, "a") as f:
+                f.write(" ")
+        elif self.how == "another_log":
+            doc = json.load(open(self.probe_json))
+            doc["provenance"]["launch"]["log_path"] = "elsewhere.log"
+            text = json.dumps(doc, indent=1) + "\n"
+            open(self.probe_json, "w").write(text)
+            open(self.probe_json + ".sha256", "w").write(
+                f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(self.probe_json)}\n")
+        return rc, out
+
+
+@pytest.mark.parametrize("how", ["json", "sidecar", "log", "unsealed_json", "another_log"])
+def test_a_finalized_probe_without_its_consistent_ledger_latches(tmp_path, how):
+    """Codex C3c HIGH 4: finalizer rc 0 is not enough -- the probe JSON, its sidecar and the final log must exist, the
+    sidecar must seal the JSON, and the JSON's launch record must name THIS log and its sha256."""
+    w, _, cfg = make(tmp_path)
+    g = SpoilTheProbe(how)
+    g.probe_json = cfg["probe_json"]
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 5
+    st = state(cfg)
+    assert st["chunks"][4]["state"] == "runner_verified" and "probe" in st["stop_latch"]["reason"]
+
+
+def test_the_probe_ledger_hashes_are_the_files(tmp_path):
+    w, g, cfg = make(tmp_path)
+    assert sup(w, g, cfg).run() == 0
+    c5 = state(cfg)["chunks"][4]
+    sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()  # noqa: E731
+    assert (c5["probe_json_sha256"], c5["sidecar_sha256"], c5["log_sha256"]) == (
+        sha(cfg["probe_json"]), sha(cfg["probe_json"] + ".sha256"), sha(c5["log"]))

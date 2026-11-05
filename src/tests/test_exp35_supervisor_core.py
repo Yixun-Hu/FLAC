@@ -92,6 +92,8 @@ def test_the_predictor_refuses_without_a_step_or_after_the_training():
 # the state file: schema v1, fail-closed load, atomic writes (temp + fsync + rename + directory fsync)
 # --------------------------------------------------------------------------- #
 PINS = dict(h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64, approved_sha256="e" * 64)
+WHERE = dict(his_log="/x.log", reservations="/r")                # the configured log and reservation directory
+ANCHOR = {"inode": 5, "device": 2, "size": 9, "offset": 9, "tail_sha256": "5" * 64}
 
 
 def _state():
@@ -145,14 +147,14 @@ def test_an_inconsistent_state_refuses(tmp_path, edit, needle):
     edit(doc)
     S.write_state(path, doc)
     with pytest.raises(ValueError, match=needle):
-        S.load_state(path, **PINS)
+        S.load_state(path, **PINS, **WHERE)
 
 
 def test_a_corrupt_or_absent_state(tmp_path):
-    assert S.load_state(str(tmp_path / "absent.json"), **PINS) is None
+    assert S.load_state(str(tmp_path / "absent.json"), **PINS, **WHERE) is None
     (tmp_path / "bad.json").write_text("{")
     with pytest.raises(ValueError, match="corrupt"):
-        S.load_state(str(tmp_path / "bad.json"), **PINS)
+        S.load_state(str(tmp_path / "bad.json"), **PINS, **WHERE)
 
 
 # --------------------------------------------------------------------------- #
@@ -241,9 +243,10 @@ def _done(st, upto):
                      sidecar_sha256="3" * 64, log_sha256="4" * 64)
         c.update(**{"E1": {"e1": {"rc": 0, "verdict": "equal", "out": "ok"}},
                     "E2": {"e2": {"rc": 1, "verdict": "FAIL", "out": "x"}}}.get(c["gate"], {}))
+        c["final_guard"] = {"status": "OK", "exit": 0, "t": 2.0, "time": "t2", "step": 101, "anchor": dict(ANCHOR)}
     st.update(baseline={"time": 1.0, "step": 100, "log": {"path": "/x.log", "inode": 5, "size": 9}},
               lane={"uuid": G1, "shared": True}, reservation={"uuid": G1, "epoch": 1, "path": f"/r/{G1}.json"},
-              his_log_anchor={"inode": 5, "device": 2, "size": 9, "offset": 9, "tail_sha256": "5" * 64},
+              his_log_anchor=dict(ANCHOR),
               events=[{"t": 1.0, "time": "t", "what": "supervisor started (a new state)"}])
     return st
 
@@ -251,7 +254,7 @@ def _done(st, upto):
 def _load(tmp_path, doc, **pins):
     path = str(tmp_path / "state.json")
     S.write_state(path, doc)
-    return S.load_state(path, **dict(PINS, **pins))
+    return S.load_state(path, **dict(PINS, **WHERE, **pins))
 
 
 def test_states_carrying_their_evidence_load(tmp_path):
@@ -270,6 +273,17 @@ def test_states_carrying_their_evidence_load(tmp_path):
     early = _state()                                                            # a hand-over before our first spawn
     early.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": f"/r/{G0}.json"})
     assert _load(tmp_path, early) is not None
+
+
+@pytest.mark.parametrize("pin", ["cells_sha256", "supervisor_sha256", "approved_sha256"])
+@pytest.mark.parametrize("bad", [None, "", "x" * 64])
+def test_a_state_is_neither_created_nor_loaded_against_a_missing_or_malformed_pin(tmp_path, pin, bad):
+    """Codex C3c BLOCKING 1: the expected pins themselves must be sha256 values (a missing cells file hashes to None)."""
+    with pytest.raises(ValueError, match="pin"):
+        S.new_state(**dict(PINS, **{pin: bad}))
+    S.write_state(str(tmp_path / "state.json"), _done(_state(), 3))
+    with pytest.raises(ValueError, match="pin"):
+        S.load_state(str(tmp_path / "state.json"), **dict(PINS, **WHERE, **{pin: bad}))
 
 
 STATE_EDITS = {
@@ -305,6 +319,26 @@ STATE_EDITS = {
     "a_failure_without_the_latch": lambda d: d["chunks"][7].update(state="in_flight", lane=G1, shared=True,
                                                                    started="t", log="x", ended="t", runner_rc=1),
     "a_shared_flag_off_its_lane": lambda d: d["chunks"][2].update(shared="yes"),
+    # Codex C3c BLOCKING 1
+    "a_runner_verified_flipped_to_gates_verified": lambda d: d["chunks"][7].update(
+        state="gates_verified", lane=G1, shared=True, started="t", log="x", ended="t", runner_rc=0,
+        receipt_sha256="1" * 64, campaign_digest="d" * 64),                       # every field but its final guard
+    "a_final_guard_that_stopped": lambda d: d["chunks"][2]["final_guard"].update(status="STOP", exit=1),
+    "a_final_guard_without_its_anchor": lambda d: d["chunks"][2]["final_guard"].pop("anchor"),
+    "a_final_guard_with_a_bad_anchor": lambda d: d["chunks"][2]["final_guard"]["anchor"].update(offset=99),
+    "another_baseline_log": lambda d: d["baseline"]["log"].update(path="/other.log"),
+    "a_negative_baseline_inode": lambda d: d["baseline"]["log"].update(inode=-1),
+    "a_negative_baseline_size": lambda d: d["baseline"]["log"].update(size=-5),
+    "a_reservation_outside_its_directory": lambda d: d["reservation"].update(path=f"/elsewhere/{G1}.json"),
+    "an_in_flight_failure_with_receipt_fields": lambda d: (d["chunks"][7].update(
+        state="in_flight", lane=G1, shared=True, started="t", log="x", ended="t", runner_rc=1, receipt_sha256="1" * 64,
+        campaign_digest="d" * 64), d.update(stop_latch={"reason": "r", "time": "t"})),
+    "an_in_flight_failure_with_a_string_rc": lambda d: (d["chunks"][7].update(
+        state="in_flight", lane=G1, shared=True, started="t", log="x", ended="t", runner_rc="1"),
+        d.update(stop_latch={"reason": "r", "time": "t"})),
+    "an_in_flight_failure_without_an_end": lambda d: (d["chunks"][7].update(
+        state="in_flight", lane=G1, shared=True, started="t", log="x", ended=None, runner_rc=1),
+        d.update(stop_latch={"reason": "r", "time": "t"})),
 }
 
 

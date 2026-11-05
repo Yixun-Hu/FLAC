@@ -13,7 +13,7 @@ import sys
 
 import pytest
 
-from test_exp35_supervisor_lanes import G0, G1, S, make
+from test_exp35_supervisor_lanes import G0, G1, S, TR0, TR1, make
 
 
 def _snapshot(root):
@@ -170,3 +170,102 @@ def test_the_cli_run_refuses_a_head_other_than_h35(tmp_path, monkeypatch, capsys
             "--state", cfg["state"], "--reservations", str(tmp_path / "res"), "--his-log", cfg["his_log"]]
     assert S.main(argv) == 3 and "HEAD" in capsys.readouterr().out
     assert w.spawned == [] and not os.path.exists(cfg["state"]) and not (tmp_path / "res").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3c HIGH 2: the dry run is read-only in a fresh snapshot (no bytecode either) and checks the CURRENT lane
+# --------------------------------------------------------------------------- #
+FAKE_NVSMI = """#!/usr/bin/env bash
+case "$1" in
+  --query-gpu=index,uuid) cat "$NVSMI_DIR/map" ;;
+  --query-compute-apps=pid,gpu_uuid) cat "$NVSMI_DIR/apps" ;;
+  *) exit 9 ;;
+esac
+"""
+
+
+def _snapshot_all(root):
+    """Every file and directory under ``root``, ignored ones included (``__pycache__`` / ``*.pyc``)."""
+    out = {}
+    for d, dirs, files in os.walk(root):
+        for x in dirs + files:
+            st = os.lstat(os.path.join(d, x))
+            out[os.path.relpath(os.path.join(d, x), root)] = (st.st_mode, st.st_size, st.st_mtime_ns)
+    return out
+
+
+def _fresh_snapshot(tmp_path, w):
+    """The supervisor, its two helpers and cells.json at their repo paths in a fresh tree, a fake nvidia-smi."""
+    snap = tmp_path / "snapshot"
+    for rel in [os.path.join(S.EXP35, f) for f in ("exp35_supervisor.py", "exp35_training_guard.py",
+                                                    "exp35_gpu_identity.py")] + [S.CELLS]:
+        os.makedirs(snap / os.path.dirname(rel), exist_ok=True)
+        with open(os.path.join(S.REPO, rel), "rb") as src, open(snap / rel, "wb") as dst:
+            dst.write(src.read())
+    nv = tmp_path / "nvsmi"
+    os.makedirs(nv / "bin")
+    (nv / "bin" / "nvidia-smi").write_text(FAKE_NVSMI)
+    os.chmod(nv / "bin" / "nvidia-smi", 0o755)
+    (nv / "map").write_text("".join(f"{i}, {u}\n" for i, u in w.gpus.items()))
+    (nv / "apps").write_text("".join(f"{p}, {u}\n" for p, u in w.apps))
+    return snap, nv
+
+
+def _cli(snap, nv, cfg, *extra):
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+    env.update(PATH=f"{nv / 'bin'}:{env['PATH']}", NVSMI_DIR=str(nv), CUDA_VISIBLE_DEVICES="")
+    argv = [sys.executable, str(snap / S.EXP35 / "exp35_supervisor.py"), "--dry-run", "--h35", cfg["h35"],
+            "--approved", cfg["approved"], "--approved-sha256", cfg["approved_sha256"], "--state", cfg["state"],
+            "--reservations", cfg["reservations"], "--his-log", cfg["his_log"], "--logdir", cfg["logdir"],
+            "--proc", cfg["proc"], *extra]
+    p = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=300, cwd=str(snap))
+    return p.returncode, p.stdout + p.stderr
+
+
+def test_the_dry_run_writes_nothing_in_a_fresh_snapshot_even_without_pythondontwritebytecode(tmp_path):
+    w, _, cfg = make(tmp_path)
+    snap, nv = _fresh_snapshot(tmp_path, w)
+    before, around = _snapshot_all(snap), _snapshot_all(tmp_path / "reservations")
+    rc, out = _cli(snap, nv, cfg)
+    assert rc == 0 and "DRY RUN OK" in out, out
+    assert _snapshot_all(snap) == before and _snapshot_all(tmp_path / "reservations") == around
+    assert not any("__pycache__" in k or k.endswith(".pyc") for k in _snapshot_all(snap))
+    assert not os.path.exists(cfg["state"])
+
+
+def _gpu0_state(cfg, w):
+    st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
+                     approved_sha256=cfg["approved_sha256"])
+    path = S.create_reservation(cfg["reservations"], G0, epoch=1, h35=cfg["h35"], now=w.t)
+    st.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": path})
+    S.write_state(cfg["state"], st)
+
+
+def test_after_a_handover_the_dry_run_checks_gpu0_and_no_predictor(tmp_path, capsys):
+    w, _, cfg = make(tmp_path)
+    _gpu0_state(cfg, w)
+    w.remove_trainers()
+    w.apps.append((88888, G1))                                                # his table job on GPU 1: not our lane
+    assert S.dry_run(cfg, w) == 0
+    out = capsys.readouterr().out
+    assert "GPU 0 OK: no foreign compute process" in out and "predictor" not in out and "identity OK" not in out
+    w.apps.append((66666, G0))
+    assert S.dry_run(cfg, w) == 1 and "FOREIGN PROCESS ON GPU 0" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("gpus", [{0: G0}, {0: G0, 1: G1, 2: "GPU-feed-beef"}, {0: G0, 1: "GPU-other"}])
+def test_the_dry_run_refuses_anything_but_this_box_s_two_cards(tmp_path, capsys, gpus):
+    w, _, cfg = make(tmp_path)
+    w.gpus = gpus
+    assert S.dry_run(cfg, w) == 1 and "GPU map" in capsys.readouterr().out
+
+
+def test_the_cli_refuses_an_unhashable_cells_manifest(tmp_path, monkeypatch, capsys):
+    """Codex C3c BLOCKING 1: a missing cells file would hash to None -- refused before any state exists."""
+    w, _, cfg = make(tmp_path)
+    monkeypatch.setattr(S, "World", lambda: w)
+    monkeypatch.setattr(S, "CELLS", "worklog/no_such_cells.json")
+    argv = ["--h35", cfg["h35"], "--approved", cfg["approved"], "--approved-sha256", cfg["approved_sha256"],
+            "--state", cfg["state"], "--reservations", cfg["reservations"], "--his-log", cfg["his_log"]]
+    assert S.main(argv + ["--dry-run"]) == 2 and "cells manifest" in capsys.readouterr().out
+    assert S.main(argv) == 2 and not os.path.exists(cfg["state"]) and w.spawned == []

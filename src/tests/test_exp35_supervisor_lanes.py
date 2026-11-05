@@ -80,6 +80,8 @@ class FakeWorld:
         return self.t
 
     def sleep(self, s):
+        if len(self.sleeps) >= 600:                   # a supervisor that would wait for ever fails, not hangs
+            raise RuntimeError("the supervisor waited past the fake world's horizon (600 sleeps)")
         self.t += s
         self.sleeps.append(s)
         for p in list(self.procs):
@@ -124,6 +126,7 @@ class FakeWorld:
 class FakeGates:
     def __init__(self):
         self.calls, self.e1_rc, self.e2_rc, self.finalize_rc, self.bad_verify = [], {1: 0, 8: 0}, 0, 0, set()
+        self.probe_json = None
 
     def verify(self, chunk):
         self.calls.append(("verify", chunk["cell"]))
@@ -140,7 +143,18 @@ class FakeGates:
         return self.e2_rc, "E2 out"
 
     def finalize(self, log, digest):
+        """As the collector does: the probe JSON's provenance.launch names the log + its sha256 and the digest, the
+        JSON is rewritten and its sidecar sealed (only on success)."""
         self.calls.append(("finalize", log, digest))
+        if self.finalize_rc == 0 and self.probe_json:
+            with open(os.path.join(S.REPO, log), "rb") as f:
+                log_sha = hashlib.sha256(f.read()).hexdigest()
+            text = json.dumps({"provenance": {"launch": {"campaign_digest": digest, "log_path": log,
+                                                         "log_sha256": log_sha}}}, indent=1) + "\n"
+            with open(self.probe_json, "w") as f:
+                f.write(text)
+            with open(self.probe_json + ".sha256", "w") as f:
+                f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(self.probe_json)}\n")
         return self.finalize_rc, "BF PROBE VALID" if self.finalize_rc == 0 else "BF PROBE INVALID"
 
 
@@ -159,7 +173,9 @@ def make(tmp_path, monkeypatch=None):
            "reservations": str(w.res), "his_log": str(w.log), "cells_sha256": "c" * 64, "supervisor_sha256": "d" * 64,
            "proc": str(w.procdir), "logdir": str(tmp_path / "logs"), "probe_json": str(tmp_path / "orbitrir_bf_cond_probe.json")}
     os.makedirs(cfg["logdir"])
-    return w, FakeGates(), cfg
+    g = FakeGates()
+    g.probe_json = cfg["probe_json"]
+    return w, g, cfg
 
 
 def sup(w, gates, cfg):

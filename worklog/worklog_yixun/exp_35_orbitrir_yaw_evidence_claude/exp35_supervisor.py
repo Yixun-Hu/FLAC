@@ -31,6 +31,7 @@ import sys
 import tempfile
 import time
 
+sys.dont_write_bytecode = True     # Codex C3c HIGH 2: no dynamic import below writes bytecode (the dry run writes NOTHING)
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 EXP35 = os.path.relpath(HERE, REPO)
@@ -79,7 +80,15 @@ def predictor_ok(report, *, now, chunk):
     return earliest > need, {"step": step, "earliest_end": earliest, "needed_after": need}
 
 
+def _pin_reasons(h35, *shas):
+    """Codex C3c BLOCKING 1: no state is created or loaded against a missing or malformed pin."""
+    ok = isinstance(h35, str) and re.fullmatch(r"[0-9a-f]{40}", h35) and all(_hex(v) for v in shas)
+    return [] if ok else [f"a missing or malformed pin among H35 {h35!r} and the sha256 values {shas!r}"]
+
+
 def new_state(*, h35, cells_sha256, supervisor_sha256, approved_sha256):
+    if _pin_reasons(h35, cells_sha256, supervisor_sha256, approved_sha256):
+        raise ValueError(_pin_reasons(h35, cells_sha256, supervisor_sha256, approved_sha256)[0])
     return {"schema_version": STATE_SCHEMA, "campaign": "exp35", "h35": h35, "cells_sha256": cells_sha256,
             "supervisor_sha256": supervisor_sha256, "approved_sha256": approved_sha256, "baseline": None,
             "his_log_anchor": None, "lane": None, "reservation": None,
@@ -164,14 +173,14 @@ def _chunk_reasons(c, latched):
     run, receipt = {"ended", rc_key}, {"receipt_sha256", "campaign_digest"} if cell else set()
     extra = keys - flight
     if st == "in_flight":                         # a crash mid-chunk (bare) or a recorded failure (under the latch)
-        if not extra:
-            return out
-        if not run <= extra or extra - run - receipt or not latched or type(c[rc_key]) is not int:
-            return out + [f"chunk {n}: in flight with {sorted(extra)}" + ("" if latched else " and no stop latch")]
+        if extra and (extra != run or not latched or type(c[rc_key]) is not int or not _text(c["ended"])):
+            return out + [f"chunk {n}: in flight with {sorted(extra)} (a recorded failure: exactly {sorted(run)}, an int "
+                          "rc and its end, under the stop latch)"]
         return out
     gate, adopt = set(GATE_KEYS[c["gate"]]), {"adopted_at_restart"} if cell else set()
-    need = run | receipt | (gate if st == "gates_verified" else set())
-    if not need <= extra or extra - run - receipt - gate - adopt:
+    final = {"final_guard"} if st == "gates_verified" else set()
+    need = run | receipt | (gate | final if st == "gates_verified" else set())
+    if not need <= extra or extra - run - receipt - gate - adopt - final:
         return out + [f"chunk {n} ({st}): carries {sorted(extra)}, needs {sorted(need)}"]
     adopted = c.get("adopted_at_restart") is True
     if "adopted_at_restart" in c and not adopted:
@@ -182,17 +191,26 @@ def _chunk_reasons(c, latched):
         out.append(f"chunk {n}: ended {c['ended']!r}")
     if cell and not (_hex(c["receipt_sha256"]) and _hex(c["campaign_digest"])):
         out.append(f"chunk {n}: the receipt / campaign digest are not sha256 values")
+    fg = c.get("final_guard")
+    if st == "gates_verified" and not (
+            isinstance(fg, dict) and list(fg) == ["status", "exit", "t", "time", "step", "anchor"] and fg["status"] == "OK"
+            and type(fg["exit"]) is int and fg["exit"] == 0 and _num(fg["t"]) and _text(fg["time"])
+            and type(fg["step"]) is int and fg["step"] >= 0 and fg["anchor"] is not None
+            and not guard_module().anchor_schema_reasons(fg["anchor"])):
+        out.append(f"chunk {n}: gates_verified without a passing final-guard record ({fg!r:.120})")
     return out + _gate_reasons(c, latched)
 
 
-def _top_reasons(doc):
-    """baseline, the guard anchor, lane + reservation, the latch, the events -- exact (Codex C3b BLOCKING 1)."""
+def _top_reasons(doc, his_log, reservations):
+    """baseline (on THE configured log), the guard anchor, lane + reservation (in THE configured directory), the latch,
+    the events -- exact (Codex C3b BLOCKING 1, C3c BLOCKING 1)."""
     b, lane, res, latch = doc["baseline"], doc["lane"], doc["reservation"], doc["stop_latch"]
     out = [] if b is None or (isinstance(b, dict) and list(b) == ["time", "step", "log"] and _num(b["time"])
                               and type(b["step"]) is int and b["step"] >= 0 and isinstance(b["log"], dict)
-                              and list(b["log"]) == ["path", "inode", "size"] and _text(b["log"]["path"])
-                              and type(b["log"]["inode"]) is int and type(b["log"]["size"]) is int) else [
-        f"a malformed baseline {b!r:.120}"]
+                              and list(b["log"]) == ["path", "inode", "size"] and b["log"]["path"] == his_log
+                              and type(b["log"]["inode"]) is int and b["log"]["inode"] >= 0
+                              and type(b["log"]["size"]) is int and b["log"]["size"] >= 0) else [
+        f"a malformed baseline, or one on another log than {his_log}: {b!r:.160}"]
     out += guard_module().anchor_schema_reasons(doc["his_log_anchor"])
     if (lane is None) != (res is None):
         out.append("the lane and the reservation must be set together")
@@ -200,8 +218,7 @@ def _top_reasons(doc):
             isinstance(lane, dict) and list(lane) == ["uuid", "shared"] and isinstance(lane["uuid"], str)
             and GPU_RE.fullmatch(lane["uuid"]) and type(lane["shared"]) is bool and lane["shared"] == (lane["uuid"] == GPU1_UUID)
             and isinstance(res, dict) and list(res) == ["uuid", "epoch", "path"] and res["uuid"] == lane["uuid"]
-            and type(res["epoch"]) is int and res["epoch"] >= 1 and isinstance(res["path"], str)
-            and os.path.basename(res["path"]) == f"{res['uuid']}.json"):
+            and type(res["epoch"]) is int and res["epoch"] >= 1 and res["path"] == reservation_path(reservations, res["uuid"])):
         out.append(f"the lane {lane!r} and the reservation {res!r} do not agree")
     if latch is not None and not (isinstance(latch, dict) and list(latch) == ["reason", "time"]
                                   and _text(latch["reason"]) and _text(latch["time"])):
@@ -212,7 +229,7 @@ def _top_reasons(doc):
     return out
 
 
-def state_reasons(doc, *, h35, cells_sha256, supervisor_sha256, approved_sha256):
+def state_reasons(doc, *, h35, cells_sha256, supervisor_sha256, approved_sha256, his_log, reservations):
     if not isinstance(doc, dict) or list(doc) != list(STATE_KEYS):
         return [f"the state's keys are not {list(STATE_KEYS)}"]
     out = [f"{k}: {doc[k]!r} != {want!r}" for k, want in (
@@ -232,7 +249,7 @@ def state_reasons(doc, *, h35, cells_sha256, supervisor_sha256, approved_sha256)
     if any(s != "planned" for s in states[done + 1:]):
         out.append(f"chunk order violated: {states[:done + 3]}... (only the first unfinished chunk may be started)")
     latched = doc["stop_latch"] is not None
-    out += [x for c in doc["chunks"] for x in _chunk_reasons(c, latched)] + _top_reasons(doc)
+    out += [x for c in doc["chunks"] for x in _chunk_reasons(c, latched)] + _top_reasons(doc, his_log, reservations)
     digests = {c["campaign_digest"] for c in doc["chunks"] if "campaign_digest" in c}
     out += [f"the chunks carry {len(digests)} campaign digests"] if len(digests) > 1 else []
     started = any(s != "planned" for s in states)
@@ -243,8 +260,10 @@ def state_reasons(doc, *, h35, cells_sha256, supervisor_sha256, approved_sha256)
     return out
 
 
-def load_state(path, *, h35, cells_sha256, supervisor_sha256, approved_sha256):
-    """The state, None when absent; ``ValueError`` when corrupt or inconsistent (a refusal to run)."""
+def load_state(path, *, h35, cells_sha256, supervisor_sha256, approved_sha256, his_log, reservations):
+    """The state, None when absent; ``ValueError`` when a pin is malformed or the state corrupt / inconsistent."""
+    if _pin_reasons(h35, cells_sha256, supervisor_sha256, approved_sha256):
+        raise ValueError(_pin_reasons(h35, cells_sha256, supervisor_sha256, approved_sha256)[0])
     try:
         with open(path) as f:
             doc = json.load(f)
@@ -253,7 +272,7 @@ def load_state(path, *, h35, cells_sha256, supervisor_sha256, approved_sha256):
     except (OSError, ValueError) as err:
         raise ValueError(f"the supervisor state {path} is corrupt ({err})") from err
     why = state_reasons(doc, h35=h35, cells_sha256=cells_sha256, supervisor_sha256=supervisor_sha256,
-                        approved_sha256=approved_sha256)
+                        approved_sha256=approved_sha256, his_log=his_log, reservations=reservations)
     if why:
         raise ValueError(f"the supervisor state {path} is inconsistent: " + "; ".join(why))
     return doc
@@ -456,6 +475,7 @@ class Supervisor:
     def __init__(self, cfg, world, gates):
         self.cfg, self.w, self.g, self.G, self.I = cfg, world, gates, guard_module(), identity_module()
         self.st = self.last = self.note = None
+        self.uuids = ()
 
     def save(self):
         write_state(self.cfg["state"], self.st)
@@ -592,6 +612,10 @@ class Supervisor:
         else:
             (argv, env), log = runner_command(self.cfg, c, index, shared), os.path.join(
                 self.cfg["logdir"], f"exp35_supervisor_{ts}_chunk{c['n']:02d}_{c['cell']}.log")
+        why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
+        if why:                                        # re-authenticated right before every spawn (Codex C3c HIGH 1)
+            self.latch(f"the reservation before chunk {c['n']}: " + "; ".join(why))
+            return
         c.update(state="in_flight", lane=uuid, shared=shared, started=_iso(self.w.now()), log=log)
         self.save()
         rc = self.watch(self.w.spawn(argv, env, log), c, uuid, shared)
@@ -605,11 +629,11 @@ class Supervisor:
     def watch(self, proc, c, uuid, shared):
         """Poll the running chunk, NEVER signalling it: the guard and the lane's process set every <= 5 min."""
         try:
-            approved = {p["pid"] for p in self.I.load_tuple(self.cfg["approved"], self.cfg["approved_sha256"])[
-                "processes"]} if shared else set()
+            approved = {p["pid"]: p for p in self.I.load_tuple(self.cfg["approved"], self.cfg["approved_sha256"])[
+                "processes"]} if shared else {}
         except ValueError as err:                      # still never signalled: watch it to its end, then stop
             self.latch(f"the approved tuple while chunk {c['n']} ran: {err}")
-            approved = set()
+            approved = {}
         while proc.poll() is None:
             self.w.sleep(GUARD_POLL_S)
             if self.st["stop_latch"] is not None:
@@ -620,11 +644,45 @@ class Supervisor:
             except ValueError as err:
                 self.latch(f"the GPU tables while chunk {c['n']} ran: {err}")
                 continue
+            why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
+            if why:                                    # ... and at every poll (Codex C3c HIGH 1)
+                self.latch(f"the reservation changed while chunk {c['n']} ran: " + "; ".join(why))
+                continue
             ours = descendants(proc.pid, self.cfg["proc"])
-            new = sorted(p for p, u in apps if u == uuid and p not in ours and p not in approved)
-            if new and self.st["stop_latch"] is None:
-                self.latch(f"a new process on {'GPU 1' if shared else 'GPU 0'} ({uuid}) while chunk {c['n']} ran: pids {new}")
+            bad = sorted(p for p, u in apps if u == uuid and p not in ours and (p not in approved or self.replaced(approved[p])))
+            if bad and self.st["stop_latch"] is None:     # every foreign process vs the COMPLETE identity (C3c HIGH 3)
+                self.latch(f"a new process, or a process with another identity, on {'GPU 1' if shared else 'GPU 0'} "
+                           f"({uuid}) while chunk {c['n']} ran: pids {bad}")
         return proc.returncode
+
+    def replaced(self, entry):
+        """The approved PID now runs another process (start time, cwd, cmdline or logs differ). Unreadable = gone: a
+        trainer that exited is not a replacement; a reuse is caught at the next poll or the pre-spawn check."""
+        try:
+            live = self.I.proc_identity(entry["pid"], self.cfg["proc"])
+        except ValueError:
+            return False
+        return any(live[k] != entry[k] for k in self.I.FIELDS)
+
+    def probe_ledger_reasons(self, c, j, rel, digest):
+        """Codex C3c HIGH 4: the three files hashed, the sidecar sealing the JSON, the JSON's launch record naming THIS
+        log, its sha256 and the campaign digest."""
+        out = [f"{k} absent" for k in ("probe_json_sha256", "sidecar_sha256", "log_sha256") if not _hex(c[k])]
+        if out:
+            return out
+        try:
+            with open(j + ".sha256") as f:
+                side = f.read()
+            with open(j) as f:
+                launch = json.load(f)["provenance"]["launch"]
+        except (OSError, ValueError, KeyError, TypeError) as err:
+            return [f"the finalized probe JSON is unreadable ({err})"]
+        if side != f"{c['probe_json_sha256']}  {os.path.basename(j)}\n":
+            out.append("the sidecar does not seal the probe JSON")
+        if not (isinstance(launch, dict) and launch.get("log_path") == rel and launch.get("log_sha256") == c["log_sha256"]
+                and launch.get("campaign_digest") == digest):
+            out.append("the probe's launch record does not name this log, its sha256 and the campaign digest")
+        return out
 
     def campaign_digest(self):
         return next((c["campaign_digest"] for c in self.st["chunks"] if c.get("campaign_digest")), None)
@@ -656,18 +714,24 @@ class Supervisor:
             c["e2"] = {"rc": rc, "verdict": {0: "PASS", 1: "FAIL"}.get(rc, "REFUSED"), "out": out[-2000:]}
             bad = rc not in (0, 1) and "E2 refused"
         elif c["gate"] == "PROBE":
-            rc, out = self.g.finalize(os.path.relpath(c["log"], REPO), self.campaign_digest())
+            rel, digest = os.path.relpath(c["log"], REPO), self.campaign_digest()
+            rc, out = self.g.finalize(rel, digest)
             j = self.cfg.get("probe_json") or os.path.join(HERE, "orbitrir_bf_cond_probe.json")
             c.update(probe_contract={"rc": rc, "out": out[-2000:]}, probe_json_sha256=_sha_file(j),
                      sidecar_sha256=_sha_file(j + ".sha256"), log_sha256=_sha_file(c["log"]))
-            bad = rc != 0 and "the B-F probe: finalization / PROBE_CONTRACT_BF refused"
+            why = self.probe_ledger_reasons(c, j, rel, digest) if rc == 0 else []
+            bad = (rc != 0 and "the B-F probe: finalization / PROBE_CONTRACT_BF refused") or (
+                why and "the B-F probe's ledger: " + "; ".join(why))
         else:
             bad = False
         self.save()
         if bad:
             self.latch(bad)
-        elif self.observe() is not None:
-            c["state"] = "gates_verified"
+            return
+        g = self.observe()                            # the final guard, kept as this chunk's evidence (C3c BLOCKING 1)
+        if g is not None:
+            c.update(final_guard={"status": g["status"], "exit": g["exit"], "t": self.w.now(), "time": _iso(self.w.now()),
+                                  "step": g["step"]["global"], "anchor": g["anchor"]}, state="gates_verified")
             self.save()
 
     def reconcile(self):
@@ -688,13 +752,13 @@ class Supervisor:
         c = self.cfg
         try:
             st = load_state(c["state"], h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
-                            approved_sha256=c["approved_sha256"])
-            uuids = tuple(sorted(self.tables()[0].values()))
+                            approved_sha256=c["approved_sha256"], his_log=c["his_log"], reservations=c["reservations"])
+            self.uuids = uuids = tuple(sorted(self.tables()[0].values()))
+            self.st = st or new_state(h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
+                                      approved_sha256=c["approved_sha256"])
         except ValueError as err:
             print(f"SUPERVISOR REFUSED: {err}")
             return 3
-        self.st = st or new_state(h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
-                                  approved_sha256=c["approved_sha256"])
         if self.st["stop_latch"]:
             print(f"SUPERVISOR REFUSED: the stop latch is set ({self.st['stop_latch']}); only the Planner clears it")
             return 3
@@ -816,9 +880,12 @@ def dry_run(cfg, world):
     I, G = identity_module(), guard_module()
     try:
         m, apps = gpu_map(world.nvsmi("map")), compute_apps(world.nvsmi("apps"))
+        if len(m) != 2 or GPU1_UUID not in m.values():                 # exactly as Supervisor.tables() (C3c HIGH 2)
+            raise ValueError(f"the GPU map {m} is not this box's two cards with {GPU1_UUID}")
         approved = I.load_tuple(cfg["approved"], cfg["approved_sha256"])
         st = load_state(cfg["state"], h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
-                        supervisor_sha256=cfg["supervisor_sha256"], approved_sha256=cfg["approved_sha256"])
+                        supervisor_sha256=cfg["supervisor_sha256"], approved_sha256=cfg["approved_sha256"],
+                        his_log=cfg["his_log"], reservations=cfg["reservations"])
     except ValueError as err:
         print(f"DRY RUN REFUSED: {err}")
         return 1
@@ -830,17 +897,21 @@ def dry_run(cfg, world):
         argv = probe_command(idx.get(lane["uuid"]))[0] if c["kind"] == "probe" else runner_command(
             cfg, c, idx.get(lane["uuid"]), lane["shared"])[0]
         print(f"  chunk {c['n']:2d} {state:15s} gate {c['gate'] or '-':5s} {planning_minutes(c):4.1f} min  {' '.join(argv)}")
-    on1 = sorted(p for p, u in apps if u == GPU1_UUID)
-    why = I.check_reasons(on1, GPU1_UUID, approved, cfg["proc"])
-    print(("identity OK" if not why else "IDENTITY MISMATCH") + f": GPU 1 foreign pids {on1}; the approved tuple "
-          f"{[p['pid'] for p in approved['processes']]}" + "".join(f"\n    - {x}" for x in why))
+    on_lane = sorted(p for p, u in apps if u == lane["uuid"])         # the state's CURRENT lane (C3c HIGH 2)
+    if lane["shared"]:
+        why = I.check_reasons(on_lane, GPU1_UUID, approved, cfg["proc"])
+        print(("identity OK" if not why else "IDENTITY MISMATCH") + f": GPU 1 foreign pids {on_lane}; the approved tuple "
+              f"{[p['pid'] for p in approved['processes']]}" + "".join(f"\n    - {x}" for x in why))
+    else:
+        why = [f"pids {on_lane}"] if on_lane else []
+        print("GPU 0 OK: no foreign compute process" if not why else f"FOREIGN PROCESS ON GPU 0 ({lane['uuid']}): pids {on_lane}")
     res = reservation_reasons(cfg["reservations"], (st or {}).get("reservation"), tuple(sorted(m.values())), cfg["h35"])
     print("reservations OK" if not res else "RESERVATIONS INCONSISTENT: " + "; ".join(res))
     g = G.observe(cfg["his_log"], baseline=((st or {}).get("baseline") or {}).get("step"),
                   anchor=(st or {}).get("his_log_anchor"))
     print(f"guard {'OK' if g['exit'] == 0 else g['status']}: step {g.get('step')}; {'; '.join(g['reasons'][:3]) or 'no violation'}")
     nxt = next((c for c in chunk_plan() if not st or st["chunks"][c["n"] - 1]["state"] != "gates_verified"), None)
-    if nxt is not None and g["exit"] == 0:
+    if nxt is not None and g["exit"] == 0 and lane["shared"]:            # the predictor guards SHARED spawns only
         ok, d = predictor_ok(g, now=world.now(), chunk=nxt)
         print(f"predictor for chunk {nxt['n']}: {'a shared spawn allowed' if ok else 'NO shared spawn'} {json.dumps(d)}")
     latch = (st or {}).get("stop_latch")
@@ -861,6 +932,7 @@ def main(argv=None):
     ap.add_argument("--logdir", default=HERE)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--external-shas", action="store_true")
+    ap.add_argument("--proc", default=PROC, help=argparse.SUPPRESS)       # tests: a fake /proc tree
     args = ap.parse_args(argv)
     if args.external_shas:
         out = {k: {"path": p, "sha256": _sha_file(p)} for k, p in EXTERNAL.items()}
@@ -869,8 +941,11 @@ def main(argv=None):
     if not (args.h35 and re.fullmatch(r"[0-9a-f]{40}", args.h35) and args.approved and _hex(args.approved_sha256)):
         print("SUPERVISOR REFUSED: --h35 (40-hex), --approved and --approved-sha256 (64-hex) are required")
         return 2
+    if not (_hex(_sha_file(os.path.join(REPO, CELLS))) and _hex(_sha_file(os.path.abspath(__file__)))):
+        print(f"SUPERVISOR REFUSED: the cells manifest {CELLS} or the supervisor cannot be hashed (a pin, C3c BLOCKING 1)")
+        return 2
     cfg = {"h35": args.h35, "state": args.state, "approved": args.approved, "approved_sha256": args.approved_sha256,
-           "reservations": args.reservations, "his_log": args.his_log, "logdir": args.logdir, "proc": PROC,
+           "reservations": args.reservations, "his_log": args.his_log, "logdir": args.logdir, "proc": args.proc,
            "cells_sha256": _sha_file(os.path.join(REPO, CELLS)), "supervisor_sha256": _sha_file(os.path.abspath(__file__)),
            "probe_json": os.path.join(REPO, PROBE_JSON)}
     world = World()
