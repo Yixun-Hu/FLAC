@@ -3,9 +3,9 @@
 plan_depth_canon.md v9 §5): every generative cell of the campaign as one row, in the
 registered priority order T, T-dup, C4+45, R, D-i, D-ii, S, P1-pin, YAW-pin, TRAJ.
 
-exp_35 (plan_orbitrir_yaw_evidence.md r2 §1, §9 round 2) appends 100 rows (orders 230-329) in
-the same 26-field row schema: CTL, BF-pin, BF-dup, OFF-P1, OFF-BF, OFF-CANON, CANON-45, with the
-B-F arm's frame-averaged evaluation flags (``ARM_COND_FLAGS``). ``build_manifest(exp35=False)``
+exp_35 (plan_orbitrir_yaw_evidence.md r2 §1, §9 round 2, §14 A1) appends 116 rows (orders 230-345) in
+the same 26-field row schema: CTL, BF-pin, BF-dup, OFF-P1, OFF-BF, OFF-CANON, CANON-45 and the E2-FAIL
+contingency block (run only when named), with the B-F arm's frame-averaged evaluation flags (``ARM_COND_FLAGS``). ``build_manifest(exp35=False)``
 renders the exp_25 manifest byte for byte as committed at the exp_25 pin (the regression guard).
 
 Deterministic, no I/O beyond reading nothing at all: ``build_manifest()`` is a pure
@@ -42,7 +42,7 @@ EXPREL = "worklog/worklog_yixun/exp_25_depth_canon_claude"
 OUT = os.path.join(REPO, EXPREL, "depth_canon_cells.json")
 SCHEMA_VERSION = 1
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
-EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
 BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS
 SEEDS = (42, 43, 44, 45, 46)
 KS = (1, 8)
@@ -111,7 +111,7 @@ def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=F
     import eval_FLAC
     mode, deg = rot
     tag = {"T-dup": "T", "C4+45": "C4", "D-i": "Di", "D-ii": "Dii", "CTL": "T", "BF-dup": "T"}.get(block, block)
-    if block in ("P1-pin", "YAW-pin", "BF-pin") or block.startswith(("OFF-", "CANON-")):
+    if block in ("P1-pin", "YAW-pin", "BF-pin", "E2-FAIL") or block.startswith(("OFF-", "CANON-")):
         tag = sub
     name = f"{'exp35' if block in EXP35_BLOCKS else 'exp25'}_{arm}_{tag}_S{step}_K{k}_s{seed}"
     if tag in ("C4", "TRAJ", "OFF"):
@@ -171,11 +171,14 @@ def _exp35_blocks():
         "OFF-P1": off("OFF-P1", "P1"), "OFF-BF": off("OFF-BF", "BF"), "OFF-CANON": off("OFF-CANON", "CANON"),
         "CANON-45": [_row("CANON-45", "OFF", "CANON", E, U, k, s, ("fixed", OFF_ORBIT), True)
                      for k in KS for s in SEEDS[1:]],
+        # §14 A1: the contingency of an E2 FAIL (§4) -- P1 and B-F at 45 deg, s43-46; run only when named
+        "E2-FAIL": [_row("E2-FAIL", "OFF", arm, E, U, k, s, ("fixed", OFF_ORBIT))
+                    for arm in ("P1", "BF") for k in KS for s in SEEDS[1:]],
     }
 
 
 def build_manifest(exp35=True):
-    """The 330-row manifest; ``exp35=False``: the exp_25 manifest exactly as committed at its pin."""
+    """The 346-row manifest; ``exp35=False``: the exp_25 manifest exactly as committed at its pin."""
     E, U = ENDPOINT, "unseen"
     blocks = {
         "T": [_row("T", "T", "CANON", E, U, k, s, ("fixed", 0), True) for k in KS for s in SEEDS],
@@ -199,7 +202,7 @@ def build_manifest(exp35=True):
             cells.append({"cell": row.pop("cell"), "order": len(cells), "priority": priority, **row})
     head = {"schema_version": SCHEMA_VERSION, "generator": f"{EXPREL}/depth_canon_make_cells.py",
             "plan": "plan_depth_canon.md v9 §5" + (
-                "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11" if exp35 else ""),
+                "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1" if exp35 else ""),
             "blocks": list(names), "block_counts": {b: len(blocks[b]) for b in names}, "common_flags": COMMON_FLAGS}
     head.update({"arm_cond_flags": ARM_COND_FLAGS} if exp35 else {})
     return {**head, "img_w": IMG_W, "seeds": list(SEEDS), "dump_root": DUMP_ROOT, "farm_root": FARM_ROOT,

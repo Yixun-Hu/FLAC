@@ -1,7 +1,8 @@
 """exp_35 round 2: the exp_35 rows of the evaluation cell manifest (plan_orbitrir_yaw_evidence.md
-r2 §1 frozen scope, §9 round 2). ``depth_canon_make_cells.py`` now renders 330 rows: the 230 exp_25
-rows byte-for-byte as committed at the exp_25 campaign pin, then 100 exp_35 rows (orders 230-329)
-in the exact exp_25 26-field row schema, with the B-F arm's frame-averaged protocol in its argv.
+r2 §1 frozen scope, §9 round 2; the Planner's §14 A1 of 2026-11-05: the 16 E2-FAIL contingency rows).
+``depth_canon_make_cells.py`` now renders 346 rows: the 230 exp_25 rows byte-for-byte as committed at the exp_25
+campaign pin, then 116 exp_35 rows (orders 230-345) in the exact exp_25 26-field row schema, with the B-F arm's
+frame-averaged protocol in its argv.
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3.
 """
@@ -22,8 +23,9 @@ EXPREL = os.path.join("worklog", "worklog_yixun", "exp_25_depth_canon_claude")
 EXP25_PIN = "d6ca307a85b9b0a75ec9d47f4d237e63a3db527e"
 EXP25_CELLS_SHA256 = "1073ef647434318d219dba3c20e3a18b5a909c90aa3ee6e6bd86021c965f0575"   # plan §3 P2 guard
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
-EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")
-EXP35_COUNTS = {"CTL": 2, "BF-pin": 28, "BF-dup": 2, "OFF-P1": 20, "OFF-BF": 20, "OFF-CANON": 20, "CANON-45": 8}
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
+EXP35_COUNTS = {"CTL": 2, "BF-pin": 28, "BF-dup": 2, "OFF-P1": 20, "OFF-BF": 20, "OFF-CANON": 20, "CANON-45": 8,
+                "E2-FAIL": 16}
 SEEDS = (42, 43, 44, 45, 46)
 BF_FLAGS = ["--cond-method", "fa_invariant", "--frame-avg-angles", "0,90,180,270", "--frame-avg-max-fwd-samples", "64"]
 NAS = "/media/diskstation/yixunhu/FLAC/checkpoints"
@@ -81,11 +83,11 @@ def test_the_exp25_only_render_is_the_committed_exp25_manifest(exp25):
     assert text == pinned and len(exp25["cells"]) == 230
 
 
-def test_the_full_manifest_appends_100_exp35_rows_to_the_exp25_rows(full, exp25):
+def test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows(full, exp25):
     assert full["cells"][:230] == exp25["cells"]
     rows = full["cells"][230:]
-    assert [c["order"] for c in rows] == list(range(230, 330))
-    assert collections.Counter(c["block"] for c in rows) == EXP35_COUNTS and sum(EXP35_COUNTS.values()) == 100
+    assert [c["order"] for c in rows] == list(range(230, 346))
+    assert collections.Counter(c["block"] for c in rows) == EXP35_COUNTS and sum(EXP35_COUNTS.values()) == 116
     assert {c["block"]: c["priority"] for c in rows} == {b: 10 + i for i, b in enumerate(EXP35_BLOCKS)}
     assert full["blocks"] == list(EXP25_BLOCKS + EXP35_BLOCKS)
     assert full["block_counts"] == dict(exp25["block_counts"], **EXP35_COUNTS)
@@ -119,8 +121,10 @@ def test_exp35_names_are_registered_and_injective(full, exp25):
         assert names[block] == {f"exp35_{arm}_OFF_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in SEEDS
                                 for d in (135, 225)}
     assert names["CANON-45"] == {f"exp35_CANON_OFF_S40000_K{k}_s{s}_th45" for k in (1, 8) for s in SEEDS[1:]}
+    assert names["E2-FAIL"] == {f"exp35_{arm}_OFF_S40000_K{k}_s{s}_th45" for arm in ("P1", "BF") for k in (1, 8)
+                                for s in SEEDS[1:]}                                     # §14 A1
     every = [c["cell"] for c in full["cells"]]
-    assert len(set(every)) == 330 and len({c["metrics_suffix"] for c in full["cells"]}) == 330
+    assert len(set(every)) == 346 and len({c["metrics_suffix"] for c in full["cells"]}) == 346
     assert all(not any(t in n for t in ("exp14_", "exp11_", "exp25_")) for b in EXP35_BLOCKS for n in names[b])
     old = {c["metrics_suffix"] for c in exp25["cells"]}
     assert not any(c["metrics_suffix"] in old for c in full["cells"][230:])
@@ -135,6 +139,7 @@ def test_exp35_rows_per_block(full):
     want = {"CTL": {("P1", "T", 0)}, "BF-dup": {("BF", "T", 0)}, "OFF-P1": {("P1", "OFF", 135), ("P1", "OFF", 225)},
             "OFF-BF": {("BF", "OFF", 135), ("BF", "OFF", 225)},
             "OFF-CANON": {("CANON", "OFF", 135), ("CANON", "OFF", 225)}, "CANON-45": {("CANON", "OFF", 45)},
+            "E2-FAIL": {("P1", "OFF", 45), ("BF", "OFF", 45)},
             "BF-pin": {("BF", "T", 0), ("BF", "R", None), ("BF", "C4", 90), ("BF", "C4", 180), ("BF", "C4", 270),
                        ("BF", "C4", 45)}}
     for block in EXP35_BLOCKS:
@@ -157,6 +162,7 @@ def test_exp35_rows_per_block(full):
     for block in ("OFF-P1", "OFF-BF", "OFF-CANON"):
         assert seeds(block) == {(k, s): 2 for k in (1, 8) for s in SEEDS}
     assert seeds("CANON-45") == {(k, s): 1 for k in (1, 8) for s in SEEDS[1:]}
+    assert seeds("E2-FAIL") == {(k, s): 2 for k in (1, 8) for s in SEEDS[1:]}
 
 
 def test_bf_rows_carry_the_registered_frame_average_protocol(full):
@@ -203,3 +209,23 @@ def test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup(full):
     phase = [c for c in full["cells"] if c["block"] in ("CTL", "BF-pin", "BF-dup")]
     assert len(phase) == 32 and [c["order"] for c in phase] == list(range(230, 262))
     assert {c["arm"] for c in phase} == {"P1", "BF"} and sum(c["arm"] == "BF" for c in phase) == 30
+
+
+def test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46(full):
+    """§14 A1: {P1, BF} x 45 deg x K1/K8 x s43-46, orders 330-345 (arm, then K, then seed), priority 17; each row
+    is its arm's s42 45-degree row (P1: exp_25's P1-pin C4 th45; B-F: BF-pin C4 th45) at another seed."""
+    rows = _rows(full, "E2-FAIL")
+    assert [(c["order"], c["arm"], c["K"], c["seed"]) for c in rows] == [
+        (330 + i, arm, k, s) for i, (arm, k, s) in enumerate((a, k, s) for a in ("P1", "BF") for k in (1, 8)
+                                                              for s in SEEDS[1:])]
+    assert {c["priority"] for c in rows} == {17}
+    for c in rows:
+        ref = next(r for r in full["cells"] if r["cell"] == (
+            f"exp25_P1_C4_S40000_K{c['K']}_s42_th45" if c["arm"] == "P1" else f"exp35_BF_C4_S40000_K{c['K']}_s42_th45"))
+        swap = lambda a: [c["cell"] if x == ref["cell"] else str(c["seed"]) if (x, a[i - 1]) == ("42", "--seed")  # noqa
+                          else x for i, x in enumerate(a)]
+        assert c["eval_args"] == swap(ref["eval_args"]), c["cell"]
+        same = ("block", "subblock", "cell", "order", "priority", "seed", "metrics_suffix", "eval_args")
+        assert {x: v for x, v in c.items() if x not in same} == {x: v for x, v in ref.items() if x not in same}
+        assert c["metrics_suffix"] == ref["metrics_suffix"].replace(ref["cell"], c["cell"]), c["cell"]
+        assert (f"{c['cell']}_fa_invariant_a4" in c["metrics_suffix"]) == (c["arm"] == "BF")

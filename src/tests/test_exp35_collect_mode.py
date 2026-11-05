@@ -75,7 +75,8 @@ def test_a_partial_page_is_labelled(tmp_path, monkeypatch, capsys):
     md, res = open(out + ".md").read(), json.load(open(out + ".json"))
     assert res["partial"] and md.startswith("# exp_35 orbitrir_yaw_evidence — results (PARTIAL)")
     assert "**PARTIAL:**" in md and "## PARTIAL — (a)" in md and all(g in md for g in res["gaps"])
-    assert "E2 FAIL: the s42 one-pin SDPA cell" in md
+    assert "E2 FAIL: s42 = the one-pin SDPA cell" in md and "per point (seed, campaign, pin, attention backend)" in md
+    assert "- FLAC K1: s42 exp25 @d6ca307a85b9 (sdpa" in md and "- CANON K8: s42 exp25 @d6ca307a85b9" in md
 
 
 def test_the_exp35_mode_refuses_exp25_blocks_and_the_exp25_outputs(tmp_path, monkeypatch, capsys):

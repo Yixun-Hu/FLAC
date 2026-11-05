@@ -29,8 +29,8 @@ COUNTS = {"T": 10, "T-dup": 2, "C4+45": 8, "R": 10, "D-i": 2, "D-ii": 2, "S": 10
           "P1-pin": 28, "YAW-pin": 38, "TRAJ": 120}
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §1): 100 rows appended after the 230 exp_25 rows; the
 # exp_25 assertions below are scoped to the exp_25 blocks, test_exp35_make_cells.py pins the rest
-EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")
-N_ROWS = 330
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
+N_ROWS = 346   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows
 SEEDS = (42, 43, 44, 45, 46)
 # plan §5 common set (+ --batch-size 64 and --device cuda written out: never defaulted)
 COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": "1.0",

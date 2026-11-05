@@ -242,7 +242,8 @@ def test_an_e2_failure_takes_the_s42_one_pin_cells(tmp_path, monkeypatch):
     assert r["e2"]["status"] == "FAIL" and r["e2"]["rows45"] == [] and any("E2 FAIL" in g for g in r["gaps"])
     assert b45["FLAC"]["1"]["T60"]["values"] == [_flat(w["ext"], "exp25_P1_C4_S40000_K1_s42_th45")["T60"]]
     assert b45["OrbitRIR"]["8"]["T60"]["values"] == [_flat(tmp_path, "exp35_BF_C4_S40000_K8_s42_th45")["T60"]]
-    assert "E2 FAIL" in b45["FLAC"]["source"] and "contingency" in b45["OrbitRIR"]["source"]
+    assert "E2 FAIL" in b45["FLAC"]["source"] and "incomplete" in b45["OrbitRIR"]["source"]     # §14 A1.4
+    assert len(r["missing"]) == 16 and all("_OFF_S40000_" in n for n in r["missing"])   # the E2-FAIL block, not run
     assert r["tier2_c4"]["pass"] is True and r["tier3"]["BF"]["pass"] is True      # E2 decides the 45-degree source only
 
 
@@ -252,3 +253,79 @@ def test_an_e2_without_its_cells_leaves_the_45_degree_points_pending(tmp_path, m
     assert r["e2"]["status"] == "REFUSED" and r["table_b"]["45"]["FLAC"]["source"].startswith("pending")
     assert r["table_b"]["45"]["OrbitRIR"]["1"] is None and any("E2 REFUSED" in g for g in r["gaps"])
     assert r["tier3"]["BF"]["pass"] is None and r["table_b"]["45"]["CANON"]["8"]["T60"]["n"] == 5
+
+
+# --------------------------------------------------------------------------- #
+# plan §14 A1.4: the E2-FAIL contingency block, enforced fail-closed in the exp35 mode
+# --------------------------------------------------------------------------- #
+FULL = ("BF-pin", "BF-dup", "CANON-45", "E2-FAIL")
+GONE = "exp35_BF_OFF_S40000_K8_s45_th45"
+
+
+@pytest.mark.parametrize("skip", [(), ("exp35_BF_T_S40000_K8_s42",)], ids=["e2_pass", "e2_refused"])
+def test_e2_fail_cells_without_an_e2_fail_verdict_are_refused(tmp_path, monkeypatch, skip):
+    w = world(tmp_path, monkeypatch, blocks=FULL, skip=set(skip))          # E2 PASSES, or cannot be decided
+    with pytest.raises(ValueError, match="RESULTS REFUSED \\(an integrity problem") as err:
+        results(tmp_path, w, partial=True)
+    assert "E2-FAIL" in str(err.value) and "exp35_P1_OFF_S40000_K1_s43_th45" in str(err.value)
+
+
+def test_an_e2_fail_with_the_block_complete_gives_five_points_with_their_provenance(tmp_path, monkeypatch):
+    w = world(tmp_path, monkeypatch, blocks=FULL, shift0=0.01)
+    r = results(tmp_path, w)
+    assert r["e2"]["status"] == "FAIL" and r["partial"] is False and r["missing"] == [] and r["gaps"] == []
+    b45 = r["table_b"]["45"]
+    for m, arm in (("FLAC", "P1"), ("OrbitRIR", "BF")):
+        for k in ("1", "8"):
+            s42 = (f"exp25_P1_C4_S40000_K{k}_s42_th45", "exp25", C.EXP25_PIN) if arm == "P1" else (
+                f"exp35_BF_C4_S40000_K{k}_s42_th45", "exp35", PIN)
+            pts = b45[m]["points"][k]
+            assert [(p["seed"], p["cell"], p["campaign"], p["pin"]) for p in pts] == [(42, *s42)] + [
+                (s, f"exp35_{arm}_OFF_S40000_K{k}_s{s}_th45", "exp35", PIN) for s in SEEDS[1:]]
+            assert all(p["attention_backend"].startswith("sdpa") for p in pts) and b45[m][k]["T60"]["n"] == 5
+            base = w["ext"] if arm == "P1" else tmp_path
+            assert b45[m][k]["T60"]["values"] == [_flat(base, s42[0])["T60"]] + [
+                _flat(tmp_path, f"exp35_{arm}_OFF_S40000_K{k}_s{s}_th45")["T60"] for s in SEEDS[1:]]
+    assert "E1" in b45["FLAC"]["source"] and "d6ca307a" in b45["FLAC"]["source"]
+    assert [p["campaign"] for p in b45["CANON"]["points"]["1"]] == ["exp25"] + ["exp35"] * 4
+
+
+def test_an_e2_fail_with_the_block_incomplete_falls_back_to_s42_only_under_partial(tmp_path, monkeypatch):
+    w = world(tmp_path, monkeypatch, blocks=FULL, skip={GONE}, shift0=0.01)
+    with pytest.raises(ValueError, match="pass --partial"):
+        results(tmp_path, w)
+    r = results(tmp_path, w, partial=True)
+    b45 = r["table_b"]["45"]
+    assert GONE in r["missing"] and any("E2-FAIL" in g for g in r["gaps"])
+    assert b45["OrbitRIR"]["8"]["T60"]["n"] == 1 and [p["seed"] for p in b45["OrbitRIR"]["points"]["8"]] == [42]
+    assert "K8" in b45["OrbitRIR"]["source"] and "n 1" in b45["OrbitRIR"]["source"]
+    assert b45["OrbitRIR"]["1"]["T60"]["n"] == 5 and b45["FLAC"]["8"]["T60"]["n"] == 5
+
+
+def test_tier2_and_tier3_are_byte_identical_across_the_three_e2_cases(tmp_path, monkeypatch):
+    out = []
+    for name, kw in (("pass", {}), ("fail", dict(blocks=FULL, shift0=0.01)),
+                     ("incomplete", dict(blocks=FULL, shift0=0.01, skip={GONE}))):
+        tmp = tmp_path / name
+        tmp.mkdir()
+        w = world(tmp, monkeypatch, **kw)
+        r = results(tmp, w, partial=True)
+        out.append(json.dumps([r["tier2_c4"], r["tier3"]], sort_keys=True))
+    assert out[0] == out[1] == out[2]
+
+
+@pytest.mark.parametrize("stray", ["receipt", "stream", "quarantined_metrics", "dump_staging"])
+def test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass(tmp_path, monkeypatch, stray):
+    """Codex C3a C7: on an E2 PASS ANY artifact of an E2-FAIL cell refuses -- a receipt, a record, a dump, a
+    sidecar, or a partial / stale output (the runner parks those as ``<path>.incomplete-<ts>``)."""
+    w = world(tmp_path, monkeypatch)                                         # E2 PASSES; no E2-FAIL cell ran
+    p = _paths("exp35_P1_OFF_S40000_K8_s46_th45")
+    dump = os.path.join("dumps", os.path.basename(p.metrics)[:-len(".json")])      # <dump_root>/<metrics stem>
+    path = {"receipt": os.path.join(str(tmp_path), p.receipt), "stream": os.path.join(str(tmp_path), p.stream),
+            "quarantined_metrics": os.path.join(str(tmp_path), p.metrics) + ".incomplete-2026-11-05_14-00-00",
+            "dump_staging": os.path.join(str(tmp_path), dump) + ".staging-123"}[stray]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w").write("{}")
+    with pytest.raises(ValueError, match="E2-FAIL cell\\(s\\) exist") as err:
+        results(tmp_path, w, partial=True)
+    assert "exp35_P1_OFF_S40000_K8_s46_th45" in str(err.value)

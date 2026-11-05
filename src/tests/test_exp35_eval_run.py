@@ -261,3 +261,10 @@ def test_an_unshared_exp35_lane_is_rechecked_before_the_launch(clone, harness, s
     _apps(harness, [(sleepers(), 0)])
     rc, out = drive(clone, harness, "--only", CTL1, "--lanes", "0")
     assert rc == 2 and "LANE CHANGED" in out and not _calls(harness), out
+
+
+def test_the_runner_selects_the_e2_fail_block_by_name(clone, harness):
+    """plan §14 A1.3: the Planner's explicit phase-(ii) selection after an E2 FAIL needs no code change."""
+    rc, out = drive(clone, harness, "--blocks", "E2-FAIL", "--limit", "2", env={"DRY_RUN": "1"})
+    assert rc == 0 and out.count("would run") == 2, out
+    assert "exp35_P1_OFF_S40000_K1_s43_th45" in out and "exp35_P1_OFF_S40000_K1_s44_th45" in out

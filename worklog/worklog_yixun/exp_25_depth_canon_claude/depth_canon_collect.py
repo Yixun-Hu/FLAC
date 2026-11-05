@@ -42,7 +42,9 @@ EXPREL = "worklog/worklog_yixun/exp_25_depth_canon_claude"
 EXPDIR = os.path.join(REPO, EXPREL)
 CELLS_JSON = os.path.join(EXPDIR, "depth_canon_cells.json")
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
-EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45")   # plan_orbitrir r2 §1
+EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45",   # plan_orbitrir r2 §1
+                "E2-FAIL")                                                                  # + §14 A1
+EXPLICIT_BLOCKS = ("E2-FAIL",)   # §14 A1.3: selected only when named (the block or its cells), never by default
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §3 P2): ONE per-arm evaluation protocol, vanilla by default and
 # frame-averaged for B-F; it drives record validation, the artifact paths, the probe binding and rendering
 VANILLA_PROTOCOL = {"cond_method": "vanilla", "frame_avg_angles": None, "orbit_execution": "n/a",
@@ -677,7 +679,8 @@ def select_cells(manifest, blocks=None, only=None, limit=None):
     if limit is not None and (type(limit) is not int or limit < 1):
         raise ValueError(f"--limit must be a positive int, got {limit!r}")
     rows = [c for c in manifest["cells"] if (blocks is None or c["block"] in blocks)
-            and (only is None or c["cell"] in only)]
+            and (only is None or c["cell"] in only)
+            and (blocks is not None or only is not None or c["block"] not in EXPLICIT_BLOCKS)]
     return rows[:limit] if limit else rows
 
 
@@ -1941,6 +1944,20 @@ def resolve(res, entry):
     return node
 
 
+def cell_artifacts(row, manifest, *, farm_root, dump_root, canon_index, base_dir):
+    """EVERY artifact of one cell that exists -- record, stream / canon sidecar, receipt, dump -- with every partial or
+    stale output beside them (``<path>.incomplete-<ts>``, ``<dump>.staging-*``): Codex C3a C7 for the E2-FAIL block."""
+    target, _ = expected_checkpoint(row, manifest, canon_index)
+    p, found = cell_paths(row, os.path.join(farm_root, row["arm"], os.path.basename(target)), dump_root), []
+    for rel in (p.metrics, p.stream, p.canon, p.receipt, p.dump_dir):
+        parent, name = os.path.split(os.path.join(base_dir, rel))
+        try:
+            found += [os.path.join(parent, e) for e in os.listdir(parent) if e == name or e.startswith(name + ".")]
+        except OSError:
+            continue
+    return sorted(set(found))
+
+
 def external_exp25_cells(manifest, *, base_dir, canon_index, farm_root=None, dump_root=None):
     """The exp_25 cells of table (b), verified OFFLINE at the exp_25 pin against the exp-25 worktree (§5):
     ``({cell: its flat item-weighted metrics}, reasons)``."""
@@ -1954,13 +1971,51 @@ def external_exp25_cells(manifest, *, base_dir, canon_index, farm_root=None, dum
     return out, reasons
 
 
+EXT_BACKEND = "sdpa (plan §3b: exp_25's backend; its schema-1 receipts do not record it)"
+POINT_FIELDS = ("seed", "cell", "campaign", "pin", "attention_backend")
+
+
+def _point(e=None, *, name=None, external=None):
+    """One seed of a pooled row: an H35 cell entry, or an external exp_25 cell (s42, verified at d6ca307a)."""
+    if e is not None:
+        return {"seed": e["row"]["seed"], "cell": e["row"]["cell"], "campaign": "exp35", "metrics": e["record"]["metrics"],
+                "pin": e["receipt"]["expect_head"], "attention_backend": e["receipt"].get("attention_backend")}
+    return {"seed": 42, "cell": name, "campaign": "exp25", "pin": EXP25_PIN, "attention_backend": EXT_BACKEND,
+            "metrics": external[name]}
+
+
+def _pointed(points, source):
+    """A row pooled over more than one source (§14 A1.4): per K the TABLE_KEYS stats over its points, and every
+    point's provenance (campaign, pin, backend) -- descriptive pooling, never a Tier 2 / Tier 3 pairing."""
+    return dict(_seed_stats({k: [p["metrics"] for p in pts] for k, pts in points.items()}, source),
+                points={str(k): [{f: p[f] for f in POINT_FIELDS} for p in pts] for k, pts in points.items()})
+
+
+def _e2_fail_45(method, idx, external, e2f):
+    """§14 A1.4, an E2 FAIL: s42 from the one-pin SDPA cell (P1: exp_25's C4+45 th45, external; B-F: BF-pin C4 th45)
+    + s43-46 from the E2-FAIL block -- per K, n 5 if its four E2-FAIL cells verify, else the labelled s42 point (n 1)."""
+    arm, pts, notes = {"FLAC": "P1", "OrbitRIR": "BF"}[method], {}, []
+    for k in (1, 8):
+        p1, bf = f"exp25_P1_C4_S40000_K{k}_s42_th45", ("BF-pin", "C4", k, 42, 45)
+        first = ([_point(name=p1, external=external)] if p1 in external else []) if arm == "P1" else (
+            [_point(idx[bf])] if bf in idx else [])
+        rest = [e2f.get(f"exp35_{arm}_OFF_S40000_K{k}_s{s}_th45") for s in SEEDS[1:]]
+        whole = all(e and e["valid"] for e in rest)
+        pts[k] = first + ([_point(e) for e in rest] if whole else [])
+        notes += [] if whole else [f"K{k}: the E2-FAIL cells are incomplete, so the s42 one-pin point only (n 1)"]
+    one = "exp_25 P1-pin C4 th45 (external, d6ca307a)" if arm == "P1" else "BF-pin C4 th45 (this pin)"
+    mix = "; the P1 pin mix is justified by E1 (the CTL cells are exactly equal at d6ca307a and this pin)"
+    return _pointed(pts, f"E2 FAIL: s42 = the one-pin SDPA cell {one}, s43-46 = the E2-FAIL cells (this pin)"
+                    + (mix if arm == "P1" else "") + "".join(f"; {x}" for x in notes))
+
+
 def _seed_stats(flat, source):
     """``{"source", "1", "8"}``: per K the TABLE_KEYS mean ± sd over flat metric dicts, one per seed."""
     return dict({str(k): {key: _stats([float(m[key]) for m in ms]) for key in TABLE_KEYS} for k, ms in flat.items()},
                 source=source)
 
 
-def tables(cells, external, e2):
+def tables(cells, external, e2, e2f):
     """§1 (a) theta = 0, (b) 45 degrees and random yaw, (c) the Tier 3 spread. A reused exp_25 row is a pointer
     into ``external_reference`` (§5 item 3); every computed mean names its source; the A6 CSV reaches (b) only as
     E2's PASS rows (§5 item 6); on an E2 FAIL the 45-degree FLAC / OrbitRIR points are the s42 one-pin cells (§4)."""
@@ -1969,20 +2024,17 @@ def tables(cells, external, e2):
                                       for s in seeds if ("BF-pin", sub, k, s, deg) in idx]
     ext = lambda fmt, k, seeds: [external[fmt.format(k=k, s=s)] for s in seeds  # noqa: E731
                                  if fmt.format(k=k, s=s) in external]
-    one_pin = "E2 FAIL: the s42 one-pin SDPA cell ({}); s43-46 need the 16 contingency cells"
     if e2["status"] == "PASS":
         b45 = {m: _seed_stats({k: [r for r in e2["rows45"] if (r["method"], r["K"]) == (label, str(k))] for k in ks},
                               f"A6 CSV '{label}' 45 deg s42-46 (E2 PASS)") for m, label in A6_METHODS.items()}
     elif e2["status"] == "FAIL":
-        b45 = {"FLAC": _seed_stats({k: ext("exp25_P1_C4_S40000_K{k}_s{s}_th45", k, (42,)) for k in ks},
-                                   one_pin.format("exp_25 P1-pin C4 th45, external at d6ca307a")),
-               "OrbitRIR": _seed_stats({k: h35("C4", k, (42,), 45) for k in ks}, one_pin.format("exp_35 BF-pin C4 th45"))}
+        b45 = {m: _e2_fail_45(m, idx, external, e2f) for m in A6_METHODS}
     else:
         b45 = {m: {"source": f"pending: E2 {e2['status']}", "1": None, "8": None} for m in A6_METHODS}
     c45 = sorted((e for e in cells.values() if e["valid"] and e["row"]["block"] == "CANON-45"), key=lambda e: e["row"]["seed"])
-    b45["CANON"] = _seed_stats({k: ext("exp25_CANON_C4_S40000_K{k}_s{s}_th45", k, (42,)) + [
-        e["record"]["metrics"] for e in c45 if e["row"]["K"] == k] for k in ks},
-        "exp_25 C4+45 th45 s42 (external, d6ca307a) + exp_35 CANON-45 s43-46")
+    b45["CANON"] = _pointed({k: [_point(name=n, external=external) for n in [f"exp25_CANON_C4_S40000_K{k}_s42_th45"]
+                                 if n in external] + [_point(e) for e in c45 if e["row"]["K"] == k] for k in ks},
+                            "exp_25 C4+45 th45 s42 (external, d6ca307a) + exp_35 CANON-45 s43-46")
     b = {"45": b45, "R": {"FLAC": _seed_stats({k: ext("exp25_P1_R_S40000_K{k}_s{s}", k, SEEDS) for k in ks},
                                               "exp_25 P1-pin R s42-46 (external, d6ca307a)"),
                           "CANON": _seed_stats({k: ext("exp25_CANON_R_S40000_K{k}_s{s}", k, SEEDS) for k in ks},
@@ -1997,13 +2049,18 @@ def tables(cells, external, e2):
 
 
 def build_exp35_results(cells, *, pin, blocks, exp25, registry, registry_why, ctl, e2, control, control_why,
-                        probe_present, eps, external, external_why, exp25_base_dir, partial):
+                        probe_present, eps, external, external_why, exp25_base_dir, partial, e2f=None,
+                        e2f_present=()):
     """§5's fail-closed list -- it refuses even with ``partial``; cells not run yet, a B-F probe not run yet and an
     E2 that did not PASS are the only gaps, labelled under ``partial``."""
-    missing, invalid = completeness(cells)
-    digests = sorted({e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]})
-    problems = [f"stream registry: {x}" for x in registry_why] + [
-        f"{n}: {x} (stream registry)" for n, e in cells.items() if e["valid"] and registry
+    e2f, fail, present = e2f or {}, e2["status"] == "FAIL", list(e2f_present)   # present: ANY artifact (C3a C7)
+    every = {**cells, **(e2f if fail else {})}     # §14 A1.4: after an E2 FAIL the block is part of the campaign
+    missing, invalid = completeness(every)
+    digests = sorted({e["receipt"]["campaign_digest"] for e in every.values() if e["valid"]})
+    problems = [f"E2 {e2['status']} but {len(present)} E2-FAIL cell(s) exist ({', '.join(present[:3])}): that block "
+                "runs only after an E2 FAIL (§14 A1)"] if present and not fail else []
+    problems += [f"stream registry: {x}" for x in registry_why] + [
+        f"{n}: {x} (stream registry)" for n, e in every.items() if e["valid"] and registry
         for x in registry_reasons(e["row"], e["stream"], registry)]
     problems += [f"{len(invalid)} cell(s) failed verification ({', '.join(invalid[:3])})"] if invalid else []
     problems += [f"the cells span {len(digests)} campaign digests"] if len(digests) > 1 else []
@@ -2015,11 +2072,13 @@ def build_exp35_results(cells, *, pin, blocks, exp25, registry, registry_why, ct
         raise ValueError("RESULTS REFUSED (an integrity problem; --partial does not apply): " + "; ".join(problems))
     gaps = [f"{len(missing)} cell(s) not run ({', '.join(missing[:4])}{' ...' if len(missing) > 4 else ''})"] if missing else []
     gaps += ["the B-F probe has not run: Tier 2-C4 is not computable"] if control is None else []
-    gaps += [f"E2 {e2['status']}: the 45-degree FLAC / OrbitRIR points are " + (
-        "the s42 one-pin cells only" if e2["status"] == "FAIL" else "pending")] if e2["status"] != "PASS" else []
+    gaps += [f"E2 {e2['status']}: the 45-degree FLAC / OrbitRIR points are pending"] if e2["status"] not in (
+        "PASS", "FAIL") else []
+    gaps += [f"E2 FAIL: {sum(n in missing for n in e2f)} E2-FAIL cell(s) not run, so those 45-degree points fall back "
+             "to the s42 one-pin cell (n 1)"] if fail and any(n in missing for n in e2f) else []
     if gaps and not partial:
         raise ValueError("RESULTS REFUSED (pass --partial for a labelled partial table): " + "; ".join(gaps))
-    a, b, c = tables(cells, external, e2)
+    a, b, c = tables(cells, external, e2, e2f)
     return {"schema_version": 1, "campaign": "exp35", "pin": pin, "blocks": list(blocks), "partial": bool(gaps),
             "gaps": gaps, "missing": missing, "campaign_digest": digests[0] if digests else None,
             "external_reference": {
@@ -2049,8 +2108,13 @@ def exp35_results(manifest, *, pin, canon_index, blocks=None, base_dir=REPO, far
     exp25, exp25_why = load_exp25_reference()
     if exp25 is None:
         raise ValueError("RESULTS REFUSED: the external exp_25 results: " + "; ".join(exp25_why))
-    cells = collect_cells(manifest, select_cells(manifest, blocks), farm_root=farm, dump_root=dump_root, pin=pin,
-                          canon_index=canon_index, base_dir=base_dir, check_link=check_link, dump_check=dump_check)
+    kw_c = dict(farm_root=farm, dump_root=dump_root, pin=pin, canon_index=canon_index, base_dir=base_dir,
+                check_link=check_link, dump_check=dump_check)
+    cells = collect_cells(manifest, select_cells(manifest, [b for b in blocks if b not in EXPLICIT_BLOCKS]), **kw_c)
+    e2f_rows = select_cells(manifest, list(EXPLICIT_BLOCKS))                         # §14 A1.4: always examined
+    e2f = collect_cells(manifest, e2f_rows, **kw_c)
+    e2f_present = [r["cell"] for r in e2f_rows if cell_artifacts(r, manifest, farm_root=farm, dump_root=dump_root,
+                                                                 canon_index=canon_index, base_dir=base_dir)]
     registry, registry_why = load_registry()
     digests = {e["receipt"]["campaign_digest"] for e in cells.values() if e["valid"]}
     control, control_why, eps = load_control_bf(
@@ -2062,7 +2126,7 @@ def exp35_results(manifest, *, pin, canon_index, blocks=None, base_dir=REPO, far
                                ctl={k: exp35_ctl_check(k, **kw) for k in (1, 8)}, e2=exp35_e2(csv_path=a6_csv, **kw),
                                control=control, control_why=control_why, probe_present=os.path.exists(bf_probe_json),
                                eps=eps, external=external, external_why=external_why, exp25_base_dir=exp25_base_dir,
-                               partial=partial)
+                               partial=partial, e2f=e2f, e2f_present=e2f_present)
 
 
 EXP35_RESULTS = os.path.join(EXP35_DIR, "orbitrir_yaw_results")   # §1: orbitrir_yaw_results.{md,json}
@@ -2116,6 +2180,10 @@ def render_exp35_md(res):
         out += [f"| {m} ({res['table_b'][angle][m]['source']}) | {k} | " + " | ".join(
             _mean_n(res["table_b"][angle][m][k], key) for key in keys) + " |" for m in ("FLAC", "CANON", "OrbitRIR")
             for k in ks]
+        pooled = [(m, d) for m, d in res["table_b"][angle].items() if "points" in d]   # §14 A1.4: per-point provenance
+        out += ["", "Pooled rows, per point (seed, campaign, pin, attention backend):"] + [
+            f"- {m} K{k}: " + "; ".join(f"s{p['seed']} {p['campaign']} @{p['pin'][:12]} ({p['attention_backend']})"
+                                        for p in d["points"][k]) for m, d in pooled for k in ks] if pooled else []
     t3 = res["tier3"]["BF"]
     fails = {r: [f"K{c['K']} {name(c['metric'])}" for c in t3["checks"] if c["computable"] and not c[r]]
              for r in ("pass_c4", "pass_r")}

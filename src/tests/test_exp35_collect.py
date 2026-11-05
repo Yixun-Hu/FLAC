@@ -164,3 +164,21 @@ def test_cli_count_no_flash_refuses_a_bad_selection(tmp_path, capsys):
     cells = tmp_path / "cells.json"
     cells.write_text(json.dumps(MANIFEST))
     assert C.main(["--count-no-flash", "--cells", str(cells), "--blocks", "T,nope"]) == 2
+
+
+def test_the_e2_fail_block_is_selected_only_by_name(capsys):
+    """plan §14 A1.3: the 16 E2-FAIL rows are left out of every default selection (no --blocks and no --only,
+    with or without --limit); naming the block or its cells selects them -- the runner passes its --blocks /
+    --only / --limit through to this function (--count-no-flash, --plan)."""
+    m = C.load_cells(C.CELLS_JSON)
+    e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
+    rest = [c["cell"] for c in m["cells"] if c["block"] != "E2-FAIL"]
+    assert len(e2f) == 16 and len(rest) == 330 and m["cells"][-16:] == [c for c in m["cells"] if c["cell"] in e2f]
+    assert [c["cell"] for c in C.select_cells(m)] == rest
+    assert [c["cell"] for c in C.select_cells(m, limit=346)] == rest
+    assert [c["cell"] for c in C.select_cells(m, blocks=["E2-FAIL"])] == e2f
+    assert [c["cell"] for c in C.select_cells(m, only=e2f[3:5])] == e2f[3:5]
+    assert [c["cell"] for c in C.select_cells(m, blocks=list(m["blocks"]))] == rest + e2f
+    for argv, want in (([], 100), (["--blocks", "E2-FAIL"], 16), (["--only", ",".join(e2f[:2])], 2)):
+        assert C.main(["--count-no-flash", "--cells", C.CELLS_JSON] + argv) == 0
+        assert capsys.readouterr().out.strip().splitlines()[-1] == str(want), argv
