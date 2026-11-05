@@ -254,3 +254,91 @@ Timestamps from `date`. Logs: `orbitrir_yaw_evidence_<ts>_<what>.log` in this fo
     invalid probe" as a hard stop); cells not run, a probe not run and an E2 that did not PASS are gaps.
   - Outputs — `--exp35-out PREFIX` (default `<exp_35 folder>/orbitrir_yaw_results`); `--collect`, `--out-json`,
     `--out-md` are refused with `--exp35` instead of being silently ignored; the exp_25 mode is untouched.
+
+## 2026-11-05T14:54:29-05:00 — plan §14 A1: the E2-FAIL block (`4889f43b`, follow-up `753c5285`)
+- **Goal** — the Planner's amendment §14 A1 (localization-exp `65651775`), answering my interim report's open item:
+  pre-register the 16 E2-FAIL contingency rows ({P1, B-F} × 45° × K1/K8 × s43–46, priority 17, orders 330–345), keep
+  them out of every default selection and the supervisor's 33 chunks, and enforce the three E2 cases in `--exp35`.
+- **Evidence** — RED `…_14-40-44_a1_e2fail_red.log` (11 failed) → `…_14-42-27_…_attempt1_superseded_reading_test.log`
+  (1 failed: the (ii-a) test of my reading (4), replaced by A1.4 — updated) → GREEN `…_14-43-22_a1_e2fail_green.log`;
+  the collector / generator files `…_14-44-11_…` (1 failed: the page test's needle for the old label) →
+  `…_14-46-08_…_2.log` (468 passed); Codex C3a C7 (any artifact counts as present): RED `…_14-48-29_a1_c7_present_red.log`
+  (4 failed) → `…_14-48-56_…_attempt1_test_dump_path_bug.log` (1 failed: the test built the staging path from a fake
+  checkpoint name) → GREEN `…_14-50-51_…` (472 passed); the runner by block name `…_14-53-02_a1_runner_manifest_tests.log`.
+- **Follow-up `753c5285` (tests only)** — the full runner-file run `…_15-09-53_C3a_H1_runner_files.log` (1 failed, 78 passed)
+  showed one exp_25 harness test still expecting the old default selection (every row); my A1 regression run had
+  covered only a subset of that file. RED `…_16-04-18_…` → GREEN `…_16-04-24_…`.
+- **Decisions** — the E2-FAIL rows take subblock `OFF` (names `exp35_{P1,BF}_OFF_S40000_K{k}_s{s}_th45`, like CANON-45);
+  the fallback of §14 A1.4 ("that method's 45° point falls back to the labelled s42-only point") is applied per
+  (method, K) — each K is its own 45-degree point; the CANON 45-degree row (always mixed-pin) carries the same per-point
+  provenance; an exp_25 point's backend is stated as "sdpa (plan §3b; not in exp_25's schema-1 receipts)".
+- **Manifest** — 346 rows; `depth_canon_cells.json` sha256 `440eb1befb34…7037d`; the 116 exp_35 rows: sha256
+  `500d6f5ed9c7…252ea` = sha256 of the rows with order >= 230 as compact JSON (`json.dumps(row, separators=(",", ":"))`),
+  joined by "\n", plus a trailing "\n".
+
+## 2026-11-05T15:04:05-05:00 — Codex C3a fixes (`a1833f52`, `f4b49808`, `1d8d0ca1`, `a0f6960e`)
+- **BLOCKING 1 `a1833f52`** — RED `…_14-55-50_C3a_B1_probe_contract_red.log` (10 failed) →
+  `…_14-56-47_…_attempt1_floor_test_made_consistent_after.log` (1 failed: the determinism-floor test edited a raw value
+  without rebuilding the summaries, so the probe was refused for the stale summary instead of the floor) → GREEN
+  `…_14-57-23_…` (154 passed).
+- **HIGH 2 + HIGH 3 `f4b49808`** — RED `…_14-59-23_C3a_H2H3_tier2_red.log` (4 failed) → GREEN `…_14-59-55_…` (51 passed).
+  tier2_c4 is tested on synthetic entries (only the dump reader is replaced): the fixture's N = 8 items cannot give a
+  rare outlier below 1 %.
+- **NIT 1 `1d8d0ca1`** — RED `…_15-01-16_…` (2 failed) → GREEN `…_15-01-40_…` (284 passed with the exp_25 collector tests:
+  the exp_25 mode's live bf_historical() is unchanged).
+- **HIGH 1 `a0f6960e`** — RED `…_15-03-57_C3a_H1_runner_configs_red.log` (3 failed; the one-digest guard test passed, a
+  characterization) → GREEN `…_15-05-24_…` (6 passed) → the runner files `…_15-09-53_…` (78 passed; its one failure was
+  the A1 follow-up above). **Ambiguity resolved:** Codex's literal fix ("derive the config paths from the selected rows
+  only") would give the P1 and the B-F single-cell chunks different relevant trees, hence different campaign digests,
+  and §5 item 4 (one digest) would refuse the campaign; so the pin CHECK follows the selected rows, while the relevant
+  tree takes the exp_25 arms' configs for an exp_25-only selection (the d6ca307a set) and every arm's for any exp_35
+  selection. A guard test pins the one-digest property.
+
+## 2026-11-05T15:12:43-05:00 — round 6a (i): the training guard (`c58f2808`)
+- RED `…_15-10-05_r6a_guard_red.log` (the module absent: the tests had been written first, the guard was moved aside for
+  the RED) → `…_15-10-06_…_attempt1_two_test_bugs_one_parse_bug.log` (3 failed: a window count of 23 that is 24; the
+  fixture truncated a float sum so 4857 s became 4856 s; a real bug — `parse` created an epoch entry before refusing a
+  changed bar total) → GREEN `…_15-10-56_…` (22 passed).
+- **Real-log smoke** `…_15-11-18_r6a_guard_real_log_smoke.log` (read-only) found the PL bar reset under the OLD label
+  after each validation ("Epoch 0: 0/4550 [00:00<" before "Epoch 1:"), which the fixture lacked: RED
+  `…_15-11-49_r6a_guard_reset_red.log` → GREEN `…_15-12-01_…` (23 passed) → smoke 2 `…_15-12-16_…`: epochs 0–5 parse; the
+  unshared 100 / 500-step windows are 4.210–4.280 / 4.218–4.244 and epoch 0's worst (his table job) 9.950 / 9.712 —
+  the plan's §7 numbers exactly.
+- **Decisions** — windows are judged only when they END after the baseline step (our first spawn), so his history is
+  never judged against us; the mean is judged from the first step after the baseline, literally (no minimum length);
+  a repeat of a step is accepted only for the latest step; the anchor is the 4 KiB before the last line terminator.
+
+## 2026-11-05T16:22:05-05:00 — round 6a (ii)–(iv): the supervisor (`8efdaf5a`, `1307a182`, `fc1647dd`, `0b9e1a36`)
+- **(ii) `8efdaf5a`** — RED `…_15-14-54_r6a_supervisor_core_red.log` (the module absent) → GREEN `…_15-15-43_…` (29).
+- **(iii)** — the loop tests were written first: RED `…_15-19-06_…_superseded_by_the_corrected_tests.log` (22 failed;
+  four test mistakes fixed before any implementation) → RED `…_15-20-25_r6a_supervisor_loop_red.log` (23 failed) →
+  `…_15-22-38_…_attempt1_two_test_bugs.log` (2 failed: the probe spawn carries no ALLOW_SHARED_GPU, it does not go through
+  the runner; and the table-job test expected a hand-over where §13 B1 registers a latch — split into "during our cell:
+  latch" and "while we wait: hand-over") → GREEN `…_16-04-53_r6a_supervisor_loop_green.log` (54 passed). The loop counted
+  277 code lines, so it was split: **(iii-a) `1307a182`** lane ownership — its direct tests were written AFTER the
+  implementation, for the split (disclosed), RED against the parent `…_16-08-56_r6a_iii_a_lanes_red.log` (10 failed) →
+  GREEN `…_16-09-04_…` (39); **(iii-b) `fc1647dd`** the chunk transaction — RED against (iii-a) `…_16-09-46_…` (24 failed)
+  → GREEN `…_16-10-03_…` (64).
+- **(iv) `0b9e1a36`** — RED `…_16-19-58_r6a_iv_cli_red.log` (14 failed) → `…_16-21-17_…_attempt1_snapshot_followed_symlinks.log`
+  (2 failed: the test's file snapshot followed the fake /proc's dangling fd links) → GREEN `…_16-21-48_…` (14 passed).
+- **Decisions / ambiguities resolved**
+  - The chunk order inside "T s43–46, R, dup, C4+45" (§7): seed-major with K1 before K8; C4+45 angle-major 90, 180,
+    270, 45. Planning durations: §12 B1.3's for cells; the probe 10 min from §7's ETA (§12 gives none).
+  - "A new process on GPU 1 while our cell runs" (§13 B1) is checked after every poll, including the one at which our
+    cell is found finished (a conservative reading: it may have appeared while ours ran); our own processes are the
+    runner's /proc subtree; the approved trainer is excluded.
+  - A latch never interrupts the running cell: it is watched to its end and verified; its gates are skipped, so it stays
+    `runner_verified` for the Planner. A restart refuses while the latch is set; only the Planner clears it.
+  - Restart: an in-flight cell is adopted only if its receipt verifies (its rc and end recorded as None, `adopted_at_restart`),
+    an in-flight probe always latches, a `runner_verified` chunk re-runs its gates first.
+  - The first reservation (GPU 1, epoch 1) is created at the first spawn; a hand-over before any spawn creates GPU 0's
+    with epoch 1; at completion lane and reservation are released together.
+  - The runner is called with `GPU_MAX_POLLS=1`, so a lane refused at its own final check is an rc 2 (the latch), never a
+    silent wait; the supervisor waits instead, polling every 60 s (5 min while a cell runs).
+
+## 2026-11-05T16:18:48-05:00 — Codex C3b fixes (`f5a11e2a`, `526308c8`)
+- **HIGH 1 + NIT 1 `f5a11e2a`** — RED `…_16-10-37_C3b_H1N1_red.log` (10 failed) → GREEN `…_16-11-05_…` (63 passed).
+- **BLOCKING 1 + HIGH 2 `526308c8`** — RED `…_16-13-58_C3b_B1H2_state_reservation_red.log` (58 failed: the new pins in the
+  signatures plus the missing checks) → GREEN core + lanes `…_16-15-48_…` (79) → all supervisor tests `…_16-16-09_…` (104).
+  Loop tests updated to the exact schema (a complete runner_verified record; the hand-over test reads the last chunk's lane
+  because lane and reservation are released together at the end).

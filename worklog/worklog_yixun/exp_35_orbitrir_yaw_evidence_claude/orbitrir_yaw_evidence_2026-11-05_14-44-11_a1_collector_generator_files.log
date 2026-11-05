@@ -1,0 +1,4 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_mode.py::test_a_partial_page_is_labelled
+1 failed, 467 passed, 5 warnings in 81.42s (0:01:21)

@@ -1,0 +1,30 @@
+            world.apps.append((88888, G1))
+            proc_entry(world.procdir, 88888, cmdline=b"python\x00exp30_attn_eval.py\x00")
+        w.at_spawn(4, table_job)
+>       assert sup(w, g, cfg).run() == 0
+E       AssertionError: assert 3 == 0
+E        +  where 3 = run()
+E        +    where run = <exp35_supervisor.Supervisor object at 0x7530b37c6b30>.run
+E        +      where <exp35_supervisor.Supervisor object at 0x7530b37c6b30> = sup(<test_exp35_supervisor_loop.FakeWorld object at 0x7530b37c5900>, <test_exp35_supervisor_loop.FakeGates object at 0x7530b37c68c0>, {'h35': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'state': '/tmp/pytest-of-yixunhu/pytest-5461/test_his_table_job_re...eplacing_t0/approved.json', 'approved_sha256': '8ef6ab1ace5eee20e2336260f7ba4823ee6e39a99c6dfe89b6eb88a19fd237cf', ...})
+
+src/tests/test_exp35_supervisor_loop.py:280: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T15:23:31-05:00] supervisor started (a new state) 
+[2026-11-05T15:58:31-05:00] STOP LATCH {"reason": "a new process on GPU 1 (GPU-6ac2604a-e84e-0615-1221-ccbed7c268da) while chunk 4 ran: pids [88888]"}
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_trainer_exit_hands_over_to_gpu0_atomically
+FAILED src/tests/test_exp35_supervisor_loop.py::test_his_table_job_replacing_the_trainer_never_shares_a_cell
+2 failed, 51 passed, 3 warnings in 135.46s (0:02:15)

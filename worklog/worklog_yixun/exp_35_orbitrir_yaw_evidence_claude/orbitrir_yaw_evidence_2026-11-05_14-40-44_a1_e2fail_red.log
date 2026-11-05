@@ -1,0 +1,17 @@
+RED for the E2-FAIL block (plan §14 A1): the new / updated tests against HEAD cc088da7622b99000f64f7af5bd5cdd980794252 code (generator, collector unmodified)
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_make_cells.py::test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows
+FAILED src/tests/test_exp35_make_cells.py::test_exp35_names_are_registered_and_injective
+FAILED src/tests/test_exp35_make_cells.py::test_exp35_rows_per_block - Assert...
+FAILED src/tests/test_exp35_make_cells.py::test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46
+FAILED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+FAILED src/tests/test_exp35_collect_results.py::test_e2_fail_cells_without_an_e2_fail_verdict_are_refused[e2_pass]
+FAILED src/tests/test_exp35_collect_results.py::test_e2_fail_cells_without_an_e2_fail_verdict_are_refused[e2_refused]
+FAILED src/tests/test_exp35_collect_results.py::test_an_e2_fail_with_the_block_complete_gives_five_points_with_their_provenance
+FAILED src/tests/test_exp35_collect_results.py::test_an_e2_fail_with_the_block_incomplete_falls_back_to_s42_only_under_partial
+FAILED src/tests/test_exp35_collect_results.py::test_tier2_and_tier3_are_byte_identical_across_the_three_e2_cases
+FAILED src/tests/test_exp35_eval_run.py::test_the_runner_selects_the_e2_fail_block_by_name
+11 failed, 4 passed, 73 deselected, 5 warnings in 17.93s

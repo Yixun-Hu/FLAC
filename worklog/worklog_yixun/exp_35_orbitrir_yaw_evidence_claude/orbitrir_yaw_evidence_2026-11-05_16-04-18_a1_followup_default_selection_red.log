@@ -1,0 +1,6 @@
+RED: the exp_25 harness test still expects the pre-§14 A1 default selection (every row), at HEAD a0f6960e576254efeb686e24cbb57cb5279c5a01
+E       AssertionError: assert ['exp25_CANON..._K8_s42', ...] == ['exp25_CANON..._K8_s42', ...]
+E         
+E         Right contains 16 more items, first extra item: 'exp35_P1_OFF_S40000_K1_s43_th45'
+E         Use -v to get more diff
+1 failed, 51 deselected, 3 warnings in 4.62s

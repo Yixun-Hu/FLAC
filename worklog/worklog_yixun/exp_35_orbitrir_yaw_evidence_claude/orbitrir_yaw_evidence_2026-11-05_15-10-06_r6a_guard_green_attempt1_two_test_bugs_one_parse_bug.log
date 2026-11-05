@@ -1,0 +1,12 @@
+        hard = anchor_reasons(st, raw, anchor) + errors + ([] if epochs else ["no training-bar line in the log"])
+        reasons, summary, mean = judge(epochs, baseline) if not hard else ([], {}, None)
+        e = max(epochs) if epochs else None
+>       n = max(epochs[e]["steps"]) if e is not None else None
+E       ValueError: max() arg is an empty sequence
+
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_training_guard.py:150: ValueError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_training_guard.py::test_a_healthy_log_is_ok_and_reports_the_step
+FAILED src/tests/test_exp35_training_guard.py::test_the_500_step_window_threshold_is_strict[4857-STOP]
+FAILED src/tests/test_exp35_training_guard.py::test_a_restart_or_another_run_in_the_same_log_is_a_hard_stop[Epoch 2:   0%|          | 5/900 [00:20<2:46:19,  0.24it/s, v_num=0, train/loss=0.512, train/lr=4.94e-5]-total]
+3 failed, 19 passed in 5.48s

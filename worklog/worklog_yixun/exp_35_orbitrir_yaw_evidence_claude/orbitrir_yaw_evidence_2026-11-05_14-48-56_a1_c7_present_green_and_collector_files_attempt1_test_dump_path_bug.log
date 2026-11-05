@@ -1,0 +1,4 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_results.py::test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass[dump_staging]
+1 failed, 471 passed, 5 warnings in 81.92s (0:01:21)

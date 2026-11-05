@@ -1,0 +1,7 @@
+exp_35 guard, read-only smoke on Yixun's s43 log /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log 2026-11-05 15:11:18 EST
+parse errors: ['epoch 0: step 0 at 0 s after step 4550 at 36795 s: the bar went backwards'] | epochs: {0: (4550, 4551, 4550)}
+100-step windows: 45; min 4.220, median 8.340, max 9.950 (epoch 0 steps 3300-3400); worst ending <= global 4000: 9.950
+500-step windows: 9; min 5.004, median 8.236, max 9.712 (epoch 0 steps 2000-2500); worst ending <= global 4000: 9.712
+observe(baseline=None): HARD_STOP 2 {'epoch': 0, 'n': 4550, 'total': 4550, 'global': 4550} ['epoch 0: step 0 at 0 s after step 4550 at 36795 s: the bar went backwards'] mean: None
+observe(baseline=0): HARD_STOP 2 {'epoch': 0, 'n': 4550, 'total': 4550, 'global': 4550} ['epoch 0: step 0 at 0 s after step 4550 at 36795 s: the bar went backwards'] mean: None
+re-observe with the anchor: HARD_STOP | the log unchanged by the guard: True

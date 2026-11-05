@@ -1,0 +1,9 @@
+RED for Codex C3a HIGH 2 + HIGH 3 at HEAD a1833f52a90c13cad8bb8cf22b79998d1e99e38d (collector unmodified)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_part2.py::test_the_pooled_rule_carries_no_cap_of_its_own
+FAILED src/tests/test_exp35_collect_part2.py::test_a_rare_alarm_suspends_the_claim_while_the_p99_rules_pass
+FAILED src/tests/test_exp35_collect_part2.py::test_the_claim_status_otherwise_follows_the_registered_verdict
+FAILED src/tests/test_exp35_collect_mode.py::test_the_page_headlines_a_suspended_claim_with_its_alarm_items
+4 failed, 19 deselected, 5 warnings in 8.37s

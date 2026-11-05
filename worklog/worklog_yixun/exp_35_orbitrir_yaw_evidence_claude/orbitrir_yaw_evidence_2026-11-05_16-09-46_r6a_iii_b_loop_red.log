@@ -1,0 +1,29 @@
+RED for round 6a (iii-b): the loop tests against the committed iii-a supervisor 1307a182fe515712ea2c7ddd49518e6e0a30a855 (no execute / watch / gates / reconcile / run)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_clean_campaign_runs_the_33_chunks_in_order_on_the_shared_gpu1
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_guard_violation_while_a_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_new_process_on_gpu1_while_a_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[runner_rc]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[verify]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e1_mismatch]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e1_refused]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e2_refused]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[finalize]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_an_e2_fail_decides_the_45_degree_source_only
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_trainer_exit_hands_over_to_gpu0_atomically
+FAILED src/tests/test_exp35_supervisor_loop.py::test_his_table_job_starting_while_our_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_his_table_job_after_the_training_takes_no_shared_cell
+FAILED src/tests/test_exp35_supervisor_loop.py::test_another_process_on_gpu1_means_no_shared_spawn[extra_process]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_another_process_on_gpu1_means_no_shared_spawn[pid_reuse]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_predictor_refuses_a_shared_cell_that_could_meet_his_table_job
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_busy_gpu0_or_another_holder_delays_the_handover
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_foreign_process_on_gpu0_before_a_spawn_latches
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_set_latch_refuses_to_run
+FAILED src/tests/test_exp35_supervisor_loop.py::test_an_in_flight_chunk_at_restart[no_verified_receipt]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_an_in_flight_chunk_at_restart[a_verified_receipt]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_runner_verified_chunk_re_runs_its_gates_first
+FAILED src/tests/test_exp35_supervisor_loop.py::test_inconsistent_reservations_at_restart_latch
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_rotated_log_is_a_hard_stop
+24 failed, 1 passed, 3 warnings in 5.96s

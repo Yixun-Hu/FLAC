@@ -1,0 +1,7 @@
+RED for Codex C3a NIT 1 at HEAD f4b49808701387b63fe9d67918ba9c62aa53c77d
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_results.py::test_the_historical_bf_row_is_frozen_with_its_provenance
+FAILED src/tests/test_exp35_collect_results.py::test_the_exp35_results_never_open_model_comparison
+2 failed, 28 deselected, 5 warnings in 8.70s

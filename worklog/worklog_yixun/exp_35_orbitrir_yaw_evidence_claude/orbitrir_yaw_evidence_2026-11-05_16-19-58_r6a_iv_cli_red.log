@@ -1,0 +1,21 @@
+RED for round 6a (iv): the CLI / world / gates / dry-run tests at HEAD 526308c82ab9926f01860793cb0e5745325f272f
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_real_world_reads_nvidia_smi_fail_closed
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_real_world_spawns_into_the_chunk_log
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_gates_call_the_collector_clis_at_the_pin
+FAILED src/tests/test_exp35_supervisor_cli.py::test_verify_reads_the_receipt_and_runs_verify_cell_under_its_digest[valid]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_verify_reads_the_receipt_and_runs_verify_cell_under_its_digest[invalid]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_verify_reads_the_receipt_and_runs_verify_cell_under_its_digest[no_receipt]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_plans_the_33_chunks_and_checks_identity_read_only
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_reports_a_mismatch_and_still_writes_nothing
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_external_shas_helper
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_cli_refuses_malformed_pins[argv0]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_cli_refuses_malformed_pins[argv1]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_cli_refuses_malformed_pins[argv2]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_cli_dry_run_creates_nothing
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_cli_run_refuses_a_head_other_than_h35
+14 failed, 3 warnings in 5.47s

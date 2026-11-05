@@ -24,7 +24,20 @@ tests (`src/tests/`) and data (`*.json`, `*.md`, `*.log`, …); the < 200 rule a
 | `0afd2edd` | 5b (i) | `tier2_c4` (Tier 2-C4 vs the B-F control, T-dup, alarm, descriptive 45° / R) and `tier3_bf` (28 checks, P1-pin Δ_C4 from the pinned JSON) | +72 / −0 (72) | +121 / −0 (121) | — |
 | `812d4e38` | 5b (ii-a) | `exp35_results` / `build_exp35_results` / `tables`: §5 fail-closed list, gaps, pointers into `external_reference`, E2-only CSV reads (`rows45`), E2-FAIL one-pin cells, 24 external exp_25 cells | +121 / −5 (126) | +189 / −1 (190) | — |
 | `6145f93d` | 5b (ii-b) | `render_exp35_md` + CLI `--exp35` (`--exp35-out`, `--exp25-base-dir`, `--exp25-dump-root`, `--bf-probe-json`) | +95 / −0 (95) | +61 / −0 (61) | — |
+| `4889f43b` | §14 A1 | the E2-FAIL block (16 rows, 346 in all), its default exclusion, the `--exp35` enforcement (E2 PASS + any artifact → refuse; E2 FAIL → n 5 with per-point provenance), cells.json `440eb1be…` | +77 / −24 (101) | +109 / −10 (119) | +22 / −4 (cells.json) |
+| `a1833f52` | C3a fix | BLOCKING 1: `PROBE_CONTRACT_BF` recomputes every number from the item vectors | +40 / −15 (55) | +43 / −0 (43) | — |
+| `f4b49808` | C3a fix | HIGH 2: no pooled cap; HIGH 3: the explicit claim status (SUSPENDED on the alarm) | +11 / −5 (16) | +41 / −0 (41) | — |
+| `1d8d0ca1` | C3a fix | NIT 1: the historical B-F row frozen as constants (blob `bc523e0a…`) | +14 / −1 (15) | +21 / −0 (21) | — |
+| `c58f2808` | 6a (i) | the training guard `exp35_training_guard.py` (read-only tqdm parser, 9.712 / 9.950 / 8.521, anchor, hard stops) | +126 / −0 (126) | +177 / −0 (177) | — |
+| `8efdaf5a` | 6a (ii) | the supervisor's pure parts: the frozen 33 chunks, the predictor, the state file, O_EXCL reservations, the tables | +165 / −0 (165) | +157 / −0 (157) | — |
+| `a0f6960e` | C3a fix | HIGH 1: the runner's model configs and config pins follow the selection (one digest across exp_35 chunks) | +11 / −8 (19) | +26 / −0 (26) | — |
+| `753c5285` | §14 A1 follow-up | tests only: the exp_25 harness test of the default selection | +0 / −0 (0) | +2 / −1 (3) | — |
+| `1307a182` | 6a (iii-a) | the supervisor's lane ownership: `ready` (guard, tables, identity, predictor, waits) and the atomic `handover`; the commands | +149 / −0 (149) | +210 / −0 (210) | — |
+| `fc1647dd` | 6a (iii-b) | the chunk transaction: execute / watch (never signals) / verified / gates (E1, E2, the chunk-5 ledger) / reconcile / run | +132 / −0 (132) | +196 / −0 (196) | — |
+| `f5a11e2a` | C3b fix | HIGH 1: the E2-FAIL artifact scan fails closed on I/O errors; NIT 1: a malformed guard anchor is REFUSED | +15 / −2 (17) | +27 / −0 (27) | — |
+| `526308c8` | C3b fix | BLOCKING 1: exact state schemas with per-state evidence; HIGH 2: reservations authenticated field by field | +145 / −19 (164) | +110 / −11 (121) | — |
+| `0b9e1a36` | 6a (iv) | the real World, the collector gates, the read-only dry run, the CLI (`--dry-run`, `--external-shas`) | +138 / −0 (138) | +122 / −0 (122) | — |
 
-Records commits (no code): `aae9348e` (ledger + Coder log through the C1 fix) and the one carrying this row set.
+Records commits (no code): `aae9348e` (through the C1 fix), `cc088da7` (through round 5b) and the one carrying the rows from `4889f43b` on.
 Superseded, never committed: a first round-5b (ii) draft (+201 code lines, over the rule, and four departures from
 plan §4 / §5 found on re-reading) — see the Coder log, 2026-11-05T14:20:19-05:00.

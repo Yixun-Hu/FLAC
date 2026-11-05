@@ -1,0 +1,8 @@
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_results.py::test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass[receipt]
+FAILED src/tests/test_exp35_collect_results.py::test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass[stream]
+FAILED src/tests/test_exp35_collect_results.py::test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass[quarantined_metrics]
+FAILED src/tests/test_exp35_collect_results.py::test_any_e2_fail_artifact_counts_as_present_on_an_e2_pass[dump_staging]
+4 failed, 24 deselected, 5 warnings in 10.45s

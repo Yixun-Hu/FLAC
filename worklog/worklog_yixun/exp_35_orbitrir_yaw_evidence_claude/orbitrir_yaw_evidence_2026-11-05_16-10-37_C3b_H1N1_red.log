@@ -1,0 +1,15 @@
+RED for Codex C3b HIGH 1 (collector) and NIT 1 (guard) at HEAD 1307a182fe515712ea2c7ddd49518e6e0a30a855
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_results.py::test_an_unreadable_artifact_directory_refuses_the_results[err0]
+FAILED src/tests/test_exp35_collect_results.py::test_an_unreadable_artifact_directory_refuses_the_results[err1]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor0]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor1]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor2]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[x]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor4]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor5]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor6]
+FAILED src/tests/test_exp35_training_guard.py::test_a_malformed_anchor_is_refused[anchor7]
+10 failed, 53 deselected, 5 warnings in 9.15s

@@ -1,0 +1,7 @@
+the runner test files after the C3a HIGH 1 change (uncommitted), worktree 1d8d0ca132baa408c45f44efebade48a9972c870, Thu Nov  5 03:09:53 PM EST 2026
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+1 failed, 78 passed, 3 warnings in 1462.90s (0:24:22)

@@ -1,0 +1,6 @@
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_a_failed_determinism_floor_makes_the_probe_invalid
+1 failed, 86 passed, 5 warnings in 21.11s

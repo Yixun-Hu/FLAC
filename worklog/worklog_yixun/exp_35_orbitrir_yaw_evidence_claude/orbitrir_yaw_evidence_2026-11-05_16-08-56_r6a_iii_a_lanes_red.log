@@ -1,0 +1,15 @@
+RED for round 6a (iii-a): the lane tests against the supervisor at the parent 753c528561c0a86033c960e3437f44e9bcd2a659 (part 1 only; scratch clone)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_the_approved_trainer_alone_gives_the_shared_gpu1
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_an_extra_process_on_gpu1_waits_while_the_trainer_runs
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_the_trainer_gone_hands_over_to_gpu0_in_the_registered_order
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_a_busy_gpu0_or_another_holder_makes_the_handover_wait
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_a_foreign_process_on_gpu0_latches_before_a_spawn
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_ready_latches_when_it_cannot_judge[guard]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_ready_latches_when_it_cannot_judge[tables]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_ready_latches_when_it_cannot_judge[tuple]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_the_predictor_holds_a_shared_spawn
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_the_runner_and_probe_commands
+10 failed, 3 warnings in 5.65s

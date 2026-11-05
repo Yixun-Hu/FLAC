@@ -1,0 +1,15 @@
+RED for the guard's epoch-boundary reset (found in the real s43 log)
+FAILED src/tests/test_exp35_training_guard.py::test_a_healthy_log_is_ok_and_reports_the_step
+FAILED src/tests/test_exp35_training_guard.py::test_before_the_baseline_nothing_is_judged
+FAILED src/tests/test_exp35_training_guard.py::test_the_500_step_window_threshold_is_strict[4856-OK]
+FAILED src/tests/test_exp35_training_guard.py::test_the_500_step_window_threshold_is_strict[4857-STOP]
+FAILED src/tests/test_exp35_training_guard.py::test_a_100_step_window_alone_stops
+FAILED src/tests/test_exp35_training_guard.py::test_the_mean_since_the_baseline_stops_while_every_window_is_inside
+FAILED src/tests/test_exp35_training_guard.py::test_the_validation_between_epochs_is_in_no_window
+FAILED src/tests/test_exp35_training_guard.py::test_a_partial_last_line_is_not_parsed
+FAILED src/tests/test_exp35_training_guard.py::test_an_unchanged_or_growing_log_keeps_its_anchor
+FAILED src/tests/test_exp35_training_guard.py::test_a_restart_or_another_run_in_the_same_log_is_a_hard_stop[Epoch 0:   0%|          | 10/1200 [00:40<2:45:59,  0.24it/s, v_num=0, train/loss=0.512, train/lr=4.94e-5]-epoch 0 after epoch 1]
+FAILED src/tests/test_exp35_training_guard.py::test_a_restart_or_another_run_in_the_same_log_is_a_hard_stop[Epoch 2:   0%|          | 5/900 [00:20<2:46:19,  0.24it/s, v_num=0, train/loss=0.512, train/lr=4.94e-5]-total]
+FAILED src/tests/test_exp35_training_guard.py::test_the_cli_reports_json_with_the_exit_code_and_writes_nothing
+FAILED src/tests/test_exp35_training_guard.py::test_the_bar_reset_under_the_old_label_after_a_completed_epoch_is_accepted
+13 failed, 10 passed in 3.77s

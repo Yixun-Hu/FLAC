@@ -1,0 +1,20 @@
+exp_35 guard (with the PL bar-reset rule), read-only smoke on Yixun's s43 log /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log 2026-11-05 15:12:16 EST
+parse errors: [] | epochs (total, samples, last step): {0: (4550, 4551, 4550), 1: (4550, 4551, 4550), 2: (4550, 4551, 4550), 3: (4550, 4551, 4550), 4: (4550, 4551, 4550), 5: (4550, 878, 877)}
+  100-step windows epoch 0: n 45, min 4.220, max 9.950
+  100-step windows epoch 1: n 45, min 4.210, max 4.280
+  100-step windows epoch 2: n 45, min 4.220, max 4.280
+  100-step windows epoch 3: n 45, min 4.220, max 4.280
+  100-step windows epoch 4: n 45, min 4.230, max 5.380
+  100-step windows epoch 5: n 8, min 4.230, max 4.270
+100-step: worst over the whole log 9.950; worst ending <= global 4000: 9.950
+  500-step windows epoch 0: n 9, min 5.004, max 9.712
+  500-step windows epoch 1: n 9, min 4.218, max 4.238
+  500-step windows epoch 2: n 9, min 4.226, max 4.242
+  500-step windows epoch 3: n 9, min 4.228, max 4.244
+  500-step windows epoch 4: n 9, min 4.236, max 4.638
+  500-step windows epoch 5: n 1, min 4.252, max 4.252
+500-step: worst over the whole log 9.712; worst ending <= global 4000: 9.712
+observe(baseline=None): OK exit 0 step {'epoch': 5, 'n': 877, 'total': 4550, 'global': 23627} mean {'s_per_step': None, 'steps': 0, 'limit': 8.521} reasons []
+observe(baseline=0): OK exit 0 step {'epoch': 5, 'n': 878, 'total': 4550, 'global': 23628} mean {'s_per_step': 4.996106314542069, 'steps': 23628, 'limit': 8.521} reasons []
+observe(baseline=20499): OK exit 0 step {'epoch': 5, 'n': 878, 'total': 4550, 'global': 23628} mean {'s_per_step': 4.388622563119207, 'steps': 3129, 'limit': 8.521} reasons []
+re-observe with the anchor just taken: OK []

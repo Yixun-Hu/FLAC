@@ -1,0 +1,17 @@
+RED for Codex C3a BLOCKING 1 at HEAD 4889f43b097fac0be24fe2ecb5a5063ce9f402e1 (collector unmodified)
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[summary_and_control_forged_together]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_result_item_dropped_consistently]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_determinism_item_dropped_consistently]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_per_id_item_dropped_consistently]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[an_inf_value]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_negative_value]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_non_boolean_mask]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_non_boolean_determinism_mask]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[pooled_forged]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[ids_inconsistent]
+10 failed, 43 passed, 5 warnings in 9.69s

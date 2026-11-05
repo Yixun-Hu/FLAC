@@ -1,0 +1,31 @@
+RED for round 6a (iii): the supervisor loop tests at HEAD 8efdaf5a6ee3b60604a639bf36c751b736894c8e (the loop absent)
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_clean_campaign_runs_the_33_chunks_in_order_on_the_shared_gpu1
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_guard_violation_while_a_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_new_process_on_gpu1_while_a_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[runner_rc]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[verify]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e1_mismatch]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e1_refused]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[e2_refused]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_failure_latches_the_campaign[finalize]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_an_e2_fail_decides_the_45_degree_source_only
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_trainer_exit_hands_over_to_gpu0_atomically
+FAILED src/tests/test_exp35_supervisor_loop.py::test_his_table_job_replacing_the_trainer_never_shares_a_cell
+FAILED src/tests/test_exp35_supervisor_loop.py::test_another_process_on_gpu1_means_no_shared_spawn[extra_process]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_another_process_on_gpu1_means_no_shared_spawn[pid_reuse]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_predictor_refuses_a_shared_cell_that_could_meet_his_table_job
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_busy_gpu0_or_another_holder_delays_the_handover
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_foreign_process_on_gpu0_before_a_spawn_latches
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_set_latch_refuses_to_run
+FAILED src/tests/test_exp35_supervisor_loop.py::test_an_in_flight_chunk_at_restart_latches
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_runner_verified_chunk_re_runs_its_gates_first
+FAILED src/tests/test_exp35_supervisor_loop.py::test_inconsistent_reservations_at_restart_latch
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_rotated_log_is_a_hard_stop
+22 failed, 1 passed, 3 warnings in 6.43s

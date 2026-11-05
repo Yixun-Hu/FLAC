@@ -1,0 +1,3 @@
+test_m2_a re-run IN the worktree (REPO = /home/yixunhu/codespace/exp-35-orbitrir-yaw, not under /tmp) at HEAD cc088da7622b99000f64f7af5bd5cdd980794252 + uncommitted A1 work (the test and depth_canon_autolaunch.sh are untouched since d6ca307a: )
+.                                                                        [100%]
+1 passed, 51 deselected in 3.39s
