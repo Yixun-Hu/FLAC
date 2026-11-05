@@ -1,113 +1,265 @@
-> **STATUS: DRAFT r0 (2026-11-04 ≈ 22:52 EST) — awaiting Codex plan review and Yixun's decisions on the flagged deviations (§7) and open questions; NOTHING runs on a GPU before both.** Drafted by an Opus 5.5 research subagent for the Planner; evidence in `orbitrir_yaw_evidence_research_notes.md`.
+> **STATUS: PLAN r1 (2026-11-05 11:30:08 EST; Planner edits 2026-11-05 11:34:50 EST: §2b decisions, single-cell chunks) — Yixun's decisions of 2026-11-05 applied; Codex plan r0 findings addressed; awaiting Codex plan re-review r1.** Nothing runs on a GPU before Codex accepts r1, the code rounds pass review and the integrative review passes. Written by an Opus 5.5 planning subagent for the Planner. Evidence: `orbitrir_yaw_evidence_research_notes.md`; r0 review: `orbitrir_yaw_evidence_codex_plan_r0_review.md`.
 
-# plan_orbitrir_yaw_evidence — exp_35 (DRAFT for the Planner; not yet reviewed by Codex or approved by Yixun)
+# plan_orbitrir_yaw_evidence — exp_35 (r1)
 
-Draft by Claude Opus 5.5 (research subagent), finished ≈ 22:52 EST 2026-11-04 (the subagent first stamped it 23:30 EST, a time not yet reached; corrected by the Planner). Evidence: `research_notes.md` (same folder).
+## 1. Goal and frozen scope
+OrbitRIR (B-F) gets yaw-invariance evidence to the exp_25 standard, so CANON vs OrbitRIR can be stated on two axes: quality at θ=0 and invariance. No training.
+- **Checkpoint:** NAS `ar_40k_endpoints/BF/epoch=8-step=40000.ckpt`, sha256 `5319feb4…2328`, 723,922,667 B. Its embedded config equals `exp_07_fa_scratch_claude/FLAC_AR_BF.json` (sha `3e677204…a328`).
+- **Evaluator:** the exp_25 recipe — EMA, cfg 1.0, 1 Euler step, batch 64, bf16 conditioning autocast, `--expected-stream-count 6337`, `--record-per-scene --record-stream`, scored dumps on every cell. Attention runs through torch SDPA via the committed no-flash overlay (§3b).
+- **B-F flags:** `--cond-method fa_invariant --frame-avg-angles 0,90,180,270 --frame-avg-max-fwd-samples 64`.
+- **Chunk plan (announcement 06):** one angle per forward on the 99 full batches; the 1-item tail batch runs its 3 rotated variants in one forward. Eval mode takes no RoPE draw.
 
-## 1. Goal and what is reported
-Give OrbitRIR (B-F, `exp07_BF@40k`, NAS `ar_40k_endpoints/BF`, sha `5319feb4…`, `--cond-method fa_invariant`) the
-yaw-invariance evidence CANON has in exp_25, then state CANON vs OrbitRIR on both axes (θ = 0 quality, invariance).
-No training. Deliverable `exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_results.{md,json}`:
-(a) ONE θ = 0 table: FLAC (P1-pin, exp_25), CANON (exp_25), OrbitRIR (B-F T, exp_35) — T60, C50, EDT, R@1/5/10,
-K = 1 and 8, mean ± sd over seeds 42–46, item-weighted, unseen AR (6,337); the historical B-F row printed beside it.
-(b) the same six metrics at 45° and under random yaw for the three models.
-(c) the Tier 3 spread table (Δ_C4, 45° probe, Δ_R, sd(m_Z), item-weighted, exactly `depth_canon_collect.py`'s
-estimators) with a B-F row next to CANON / P1-pin / YAW-pin (those three read from the committed exp_25 results JSON),
-plus B-F's Tier 2 (dumps) and T-dup; and the off-orbit figure `analysis/yaw_robustness/generated/yaw_offorbit_metrics.{png,pdf}`
-+ `yaw_offorbit_metrics_summary.csv` (0/45/135/225°, FLAC / OrbitRIR / CANON, K = 1 and 8, 5 seeds).
+| phase | block (draft rows: scratch `cells_draft.json`, exact exp_25 26-field schema, orders 230–329) | cells |
+|---|---|---|
+| (i) GPU 1 co-tenant | **CTL**: P1, θ=0, s42, K1/K8 — evaluator identity, E1 hard stop | 2 |
+| (i) | **BF-pin T**: θ=0, K1/K8 × s42–46. Gives m_Z, sd(m_Z), the Δ_R partners and the Tier 2 references; the s42 cells are Yixun's 2 measurement cells (E2) | 10 |
+| (i) | **BF-pin R**: random yaw, K1/K8 × s42–46 | 10 |
+| (i) | **BF-pin C4**: 90/180/270/45, K1/K8, s42 | 8 |
+| (i) | **BF-dup**: θ=0 s42 re-run, K1/K8 | 2 |
+| (i) | **B-F probe**: the Tier 2-C4 reference (§5) | 1 run |
+| (ii) free cards only, after s43 ends and after the Planner's slowdown report | **OFF-P1** / **OFF-BF** / **OFF-CANON** (135/225 × K × s42–46) and **CANON-45** (45°, s43–46, mandatory) | 20 / 20 / 20 / 8 |
+| (ii), only if E2 FAILS | P1 and B-F at 45°, K1/K8 × s43–46 (s42 already exists at one pin) | 16 |
 
-Pre-registered expectations (written before any cell): E1 the P1 control cells reproduce exp_25's P1-pin T s42
-(bit-exact dumps under the no-flash shadow; else inside the vanilla envelope of research_notes (d)); E2 B-F θ = 0 s42 vs
-exp_10 inside |ΔT60| ≤ 0.001, |ΔC50| ≤ 0.0005, |ΔEDT| ≤ 0.005, |ΔFD| ≤ 0.0005, |ΔR@k| ≤ 0.2 pp → exp_10 B-F cells
-admissible for (b)/figure (not for the registered estimators); E3 B-F C4 pairs at the numerical floor (Tier 2 C4 PASS
-under a B-F control), Δ_C4 ≤ 10 % of P1-pin on the acoustic metrics (retrieval within 1–2 item flips of the threshold);
-E4 B-F 45° probe and Δ_R ≫ sd(m_Z) → B-F fails Tier 3's R rule and Tier 2 at 45°/R by construction (C4-only invariance);
-E5 B-F(135°) ≈ B-F(225°) ≈ B-F(45°) (C4 equivalence), CANON(135/225) ≈ CANON(0°), P1 degrades; T-dup exactly 0.
+Deliverables go to `orbitrir_yaw_results.{md,json}`:
+- **(a) θ=0 table:** FLAC (exp_25 P1-pin T), CANON (exp_25 T) and OrbitRIR (BF-pin T at H35). Columns T60, C50, EDT, R@1/5/10; K1 and K8; mean ± sd over seeds 42–46, item-weighted. The historical B-F row (legacy loop, flash era) is printed beneath as a reference only.
+- **(b) The same six metrics at 45° and under random yaw.**
+  - 45°: FLAC and OrbitRIR from the A6 CSV unless E2 fails; CANON from exp_25 s42 plus CANON-45.
+  - Random yaw: FLAC and CANON from exp_25 R; OrbitRIR from BF-pin R.
+- **(c) Tier 3 spread table** with a B-F row next to CANON / P1-pin / YAW-pin (those three taken from the exp_25 JSON). Also B-F Tier 2-C4, T-dup, and the 45° and random-yaw dump distances (descriptive).
+- **Figure:** `analysis/yaw_robustness/generated/yaw_offorbit_metrics.{png,pdf}` plus `_raw.csv` and `_summary.csv` (§6).
 
-## 2. Reuse vs new cells (evaluator = exp_25 runner, `--expected-stream-count 6337`, batch 64, EMA, cfg 1, 1 step, bf16 cond)
-Reused, never re-run: exp_25 CANON / P1-pin / YAW-pin results at `d6ca307a` (Tier 1–3, θ = 0, 45° s42, R, T-dup);
-exp_10 A6/a6c4 per-seed values for P1 and B-F at 0/45/90/180/270 (CSV only — the rotated raws are lost).
-New (draft rows in `cells_draft.json`, exact exp_25 schema, rows 230–329 appended after TRAJ; names `exp35_*`):
+## 2. Yixun's decisions of 2026-11-05 → where applied
+1. **Exact-standard phase (i)** (30 B-F + 2 CTL + probe, no CSV splice) → §1, §4 (no exp_10 value enters Tier 2 or Tier 3).
+2. **Committed, checksummed no-flash stub** inside the runner digest; receipts record the backend; exact CTL equality is a hard stop → §3b, §3c.
+3. **Tier 2-C4 is OrbitRIR's claim**; 45° and random-yaw distances are descriptive → §4.
+4. **The A6 CSV `0ae554c0…` controls E2** → §4.
+5. **CANON-45 ×8 is mandatory**; FLAC and OrbitRIR 45° come from the CSV with per-point provenance unless E2 fails → §1, §6.
+6. **GPU 1 co-tenancy for phase (i) only**, with the unrounded 9.712 / 8.521 guard and one cell per chunk at first. Figure cells go on free cards after s43 ends, after a measured-slowdown report → §7.
+7. **exp_22 uses the same no-flash backend**; its watcher never pre-empts the exp_35 lane → §7, §10.
 
-| phase | block | cells | purpose |
-|---|---|---|---|
-| 1a | CTL (P1 T s42, K1/K8) | 2 | evaluator-identity control vs exp_25 P1-pin T s42 (re-run as a control, not a result) |
-| 1a | BF-pin T s42 (K1/K8) | 2 | Yixun's "2 measurement cells" (B-F θ = 0 vs exp_10) |
-| 1b | BF-pin T s43–46 | 8 | Δ_R partners, sd(m_Z), Tier 2 θ = 0 references (exp_10 θ = 0 has no stream/dump) |
-| 1b | BF-pin R s42–46 | 10 | random yaw |
-| 1b | BF-dup | 2 | T-dup determinism (K1 + K8, as CANON) |
-| 1b | BF-pin C4+45 s42 | 8 | one-pin Δ_C4 / 45° probe + Tier 2 C4 pairs (recommended; see D2) |
-| 2 | OFF-P1, OFF-BF (135/225) | 40 | figure |
-| 3 | OFF-CANON (135/225) | 20 | figure |
-| 3 | CANON-45 (45°, s43–46) | 8 | 5-seed CANON at 45° (exp_25 has s42 only) — optional |
-Total 100 (Yixun's literal list was 11 + 60).
+## 2b. Planner decisions (2026-11-05, within Yixun's "proceed without asking")
+1. The overlay lives in a new top-level `overlays/no_flash/` (outside `src/`, so no training-closure gate sees it), shared with exp_22's backend round.
+2. The card reservation is a file `/home/yixunhu/codespace/.gpu_reservations/<GPU UUID>.json` (outside every checkout); the exp_22 watcher must honour it.
+3. The E2-fail contingency is 16 cells: s42 at 45° already exists at one SDPA pin per model (P1: exp_25 C4+45 at `d6ca307a`; B-F: this phase's C4+45 at H35); Codex's 20 counted without that reuse.
+4. Single-cell chunks throughout phase (i) (not 2-cell chunks after the first four): the guard can then never let a second cell start after a violation (≈ +30 min).
+5. The exp_25 R and 45° cells are external evidence: verified offline at their own pin and force-added with the records at the end (§5).
 
-## 3. Evaluator choice
-A new pin is unavoidable (the runner checks `make_cells.py --check` and a strict, committed HEAD). Code evidence that the
-eval path equals `d6ca307a`'s: `git diff d6ca307a 7bff64b8 -- eval_FLAC.py src ':(exclude)src/tests' data/AR` touches only
-6 `src/localization/*` files, imported by nothing outside `src/localization` and the tests; the arm configs, the runner,
-collector, generator, cells and probe are byte-identical in the main checkout and the exp-25 worktree. **But the numerics
-backend changed:** `flash-attn 2.7.4.post1` was installed into `flac` on Nov 1 (pip-freeze `e896c48f…` → `8b7a802e…`);
-exp_25 ran without it, exp_07/exp_10 with it. Recommended: run exp_35 with the import shadowed (`PYTHONPATH=<scratch dir
-holding flash_attn/__init__.py that raises ImportError>` exported to the runner; no env or code change; every cell log then
-prints the shadow's message), and require the 2 CTL cells to reproduce exp_25's P1-pin T s42 dumps bit-exactly (waveform
-sha256 from the force-added exp_25 receipts) — that proves "eval path unchanged". Alternative: run with flash and accept
-CTL within the vanilla envelope (disclosed). Either way: run from a dedicated worktree (new branch `exp-35-orbitrir-yaw`
-from `localization-exp` HEAD; CANON@40k / P1 / BF checkpoints staged into its cache, +2.2 GB) — never from the main
-checkout, whose HEAD moves with records and exp_22 work (runner aborts with PIN DRIFT, exit 4).
+## 3. r0 → r1
+| Codex r0 finding | r1 resolution | implementation site |
+|---|---|---|
+| P1 BLOCKING minimal scope | Frozen at 28 Tier-3 cells + 2 dup + 2 CTL + the probe. The 22-cell CSV splice is dropped (decision 1). | `depth_canon_make_cells.py:39`, `:138-164` |
+| P2 HIGH arm-aware protocol | One per-arm protocol table (vanilla default; BF = fa_invariant, angles `[0.0, 90.0, 180.0, 270.0]`, `batched`, cap 64, bf16). It drives argv, the `_fa_invariant_a4` suffix, record validation, probe binding and rendering. Guards: the exp_25-only render must equal the committed `depth_canon_cells.json` byte for byte (sha `1073ef64…0575`); the exp_25 mode must rewrite `depth_canon_results.json` byte for byte (sha `ec3fcd08…b6e0`). | make_cells `:49-51`, `:89-123`; collect `:123-129`, `:453-461`, `:1264-1266`; tests §9 |
+| P3 BLOCKING Tier 2 semantics | Tier 2-C4 is registered (§4) against B-F's own probe at d128 / d256 / d384. 45° and R are descriptive. Tier 3 unchanged. | collect `:1005-1049`, `:816-832`, `:915-986`; probe `:46-47`, `:82-115`, `:174-212`, `:225-296`, `:347-421` |
+| P4 BLOCKING backend provenance | Committed, sha-pinned overlay inside the runner digest, with a pre-flight and a per-cell sentinel check; receipt v2 records the backend; exact CTL equality is a hard stop with no fallback (§3b, §3c). | runner `:116-117`, `:129-138`, `:308-331`; collect `:372-379`, `:393-440`, `:624-670`, `:1402-1477` |
+| P5 HIGH E2 source | One reference: the A6 CSV `yaw_metrics_raw.csv` (sha `0ae554c0…bbfb23da`), rows FA B-F@40k / angle 0 / seed 42, per K. Units explicit (§4). | collect: new `--exp35-e2` |
+| P6 HIGH campaign separation | `--exp35` mode applies the §5 fail-closed list. | collect: new exp35 functions; `main :1547-1574` |
+| P7 HIGH figure | CANON-45 ×8 is mandatory; every point carries provenance columns (§6). | `plot_yaw_curves.py:16-19`, `:66-85`, new mode |
+| P8 BLOCKING GPU plan | One GPU 1 co-tenant lane. Single-cell chunks THROUGHOUT (Planner decision 4, §2b). Guard thresholds from his log: 500-step ≤ 9.712, running mean ≤ 8.521, 100-step early warning ≤ 9.950. Card reservation; phase (i) only; ETA (§7). | `exp35_training_guard.py` (round 6) |
+| P9 BLOCKING pre-registration | E1–E5 rewritten with expectation and verdict separated; FD stays in the Tier 3 verdict (§4); frozen launch checklist (§8). | §4, §8 |
+| P10 BLOCKING exp_22 | Reopened in an **exp_22 round, not exp_35 code**: its tests, gates, probe and passes put the same committed overlay on PYTHONPATH, and record the backend from the dispatch, not from `find_spec` (`eval_localization.py:719,863` misreports under a shadow). Its free-card watcher stays suspended until then and honours §7's reservation. | §7, §10 |
 
-## 4. Per-file planned changes (TDD, < 200 lines per commit, Codex review per round)
-- `exp_25…/depth_canon_make_cells.py`: arm `BF` (existing arm schema), per-arm flags (BF: `--cond-method fa_invariant
-  --frame-avg-angles 0,90,180,270 --frame-avg-max-fwd-samples 64` + common flags) and per-arm `cond_method` for the
-  `build_output_paths` suffix (`_fa_invariant_a4`); `exp35_` prefix; blocks CTL, BF-pin, BF-dup, OFF-P1, OFF-BF,
-  OFF-CANON, CANON-45 appended (priorities 10–16). Tests: the first 230 rows byte-identical to the committed file;
-  counts/order; BF argv + suffix; names/suffixes injective incl. vs exp_25; `--check` round trip.
-- `depth_canon_cells.json`: regenerated (330 rows).
-- `depth_canon_collect.py`: `ARM_PROTOCOL` (vanilla default; BF = fa_invariant / [0.0, 90.0, 180.0, 270.0] / "batched" /
-  64) used by `record_reasons` (:123-125) and `cell_paths` (:455-458); `make_pairs` / `_index` admit CTL, BF-pin,
-  BF-dup (dup excluded from `_index` like T-dup); `tier2` / `tier3` / `table_block` / `render_md` / `ARM_LABEL` gain BF;
-  an exp_35 collect mode = exp_35 blocks only at `--pin <H35>` plus read-only inputs: the exp_25 results JSON (sha256-pinned,
-  pin `d6ca307a`) for CANON / P1 / YAW rows and P1-pin Δ_C4, and the force-added exp_25 T receipts/streams for the CTL
-  bit-exact check and the cross-campaign `input_hash` identity (B-F T/R must reproduce exp_25's hashes per K/seed);
-  outputs to the exp_35 folder. exp_25 behaviour unchanged (existing tests stay green, incl. `gen_model_comparison`'s
-  exp25 contract).
-- `depth_canon_cond_probe.py` (only if Tier-2 option A): `--cond-method fa_invariant` (A = fa(md), B = fa(rot_d(md)), no
-  canonicalization), registered contract bound to the BF sha and H35; control used at d128/d256/d384 only.
-- `analysis/yaw_robustness/plot_yaw_curves.py`: `--mode offorbit` (angles 0/45/135/225; sources: θ = 0 and 135/225 from
-  metric JSONs, FLAC/OrbitRIR 45° from the committed `yaw_metrics_raw.csv`, CANON 45° from exp_25 s42 + CANON-45;
-  third style for CANON; labels FLAC / OrbitRIR / CANON; per-file checks of angle, seed, cond_method, n 6337, pin;
-  writes the raw + summary CSV and png/pdf). Existing modes untouched. Test file `src/tests/test_plot_yaw_offorbit.py`.
+### 3b. The no-flash overlay (decision 2)
+**The file.** `overlays/no_flash/flash_attn/__init__.py`, in a new top-level directory with no `__init__.py`, so `[tool.setuptools.packages.find]` never ships it. Exact content, sha256 `0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023`, verified in scratch:
+```
+"""No-flash overlay (exp_35; Yixun 2026-11-05 decision 2). Shadows the installed flash_attn so that
+src/models/transformer.py:12-18 falls back to torch SDPA, the attention backend exp_25 ran with.
+Put on PYTHONPATH by depth_canon_eval_run.sh only; never installed, never imported elsewhere."""
+raise ImportError("exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA")
+```
 
-## 5. GPU plan, monitoring, time
-One lane: `EXPECT_HEAD=<H35> ALLOW_SHARED_GPU=1 [PYTHONPATH=<shadow>] bash …/depth_canon_eval_run.sh --lanes 1 --only …`
-in chunks of ≤ 2 cells (`--only` / growing `--limit`; complete cells are skipped), never signalling anything.
-Headroom: GPU 1 has 40,080 MiB free beside Yixun's 8,248 MiB rank; exp_25 lanes used 1.9 GiB (B-F expected 2–4 GiB,
-measured in 1a); runner floor 10 GiB; his queue's own eval gate (19,160 MiB) stays satisfied.
-**Criterion (his log, read-only tail of `train_exp30_ACEattn_s43_*.log`, s/step from the tqdm elapsed field):** baseline
-4.22–4.24 s/step; during his own table job 7.61–9.71 per 500-step window, mean 8.52 (×2.01). While our lane runs: every
-completed 500-step window ≤ 9.71 s/step AND the mean since our first spawn ≤ 8.52; checked after every chunk; violation
-→ no further spawn, report to Yixun. When his training ends, move to `--lanes 0` (GPU 0 free while his s43 table job runs
-on GPU 1).
-Per-cell planning values (co-tenant; from exp_25 medians and exp_10 fa/vanilla ratios; replaced by 1a's measurements):
-vanilla/CANON K1 17.6, K8 19.2 min; B-F K1 ≈ 24 (18.5–28), K8 ≈ 35 (29–41) min; free card: vanilla ≈ 14.5 / 15.7,
-B-F ≈ 19 / 21 (uncertain). Phase 1a ≈ 1.6 h (+ ≈ 5 min probe); 1b ≈ 13.8 h (11–16) → **(i) ≈ 15.4 h (12.4–17.9)**,
-minimal variant (no C4+45, 1 dup) ≈ 11 h. Phase 2 ≈ 16.0 h, phase 3 ≈ 6.1 h (+2.5 h CANON-45) co-tenant →
-**figure cells ≈ 22–25 h on one co-tenant lane** (≈ 17–19 h on one free card, ≈ 8.5–9.5 h on two) → report to Yixun
-before phase 2 (≈ 1 day rule). Total ≈ 40 lane-hours co-tenant. Impact: ≈ 0.5 h of his training per co-tenant hour
-(his table job cost ≈ 4.9 h; phase (i) alone ≈ 7.7 h; all phases co-tenant ≈ 15–20 h). His s43 ETA unshared ≈ Nov 6
-10:10 EST. Collector ≈ 15 min CPU; NAS dumps ≈ 26 GB.
+**What it does (verified in scratch on CPU).** Under it, `find_spec("flash_attn")` resolves to the overlay and the import raises the sentinel. Importing `src.models.transformer` prints the sentinel, then `flash_attn not installed, disabling Flash Attention` (`transformer.py:15-16`), and leaves `flash_attn_func is None`, so the SDPA path runs (`:439-440`) instead of the flash branch (`:429-438`). `src` still resolves to the checkout.
 
-## 6. Risks
-Retrieval Tier-3 thresholds for B-F (10 % of P1's Δ_C4 = 3.5–6.8 items) are of the order of numerical jitter; NAS/CIFS
-stalls (dataset substitution → caught by `expected_stream_count` + cross-campaign `input_hash` checks); the co-tenant
-slowdown may exceed ×2 for fa cells (criterion stops us); the exp_22 free-card watcher must not pre-empt the lane;
-the shadow trick needs Yixun's consent; mixed provenance in the figure (45° FLAC/OrbitRIR from exp_10 CSV, flash era).
+**Runner changes:**
+- `overlays/no_flash` joins RELEVANT (`:116-117`), so the campaign, spawn and post digests and the dirty check cover it.
+- A constant `NO_FLASH_SHA256` is checked at start.
+- A CPU pre-flight runs before any spawn and must confirm three things: the `find_spec` origin is the overlay file, the import raises exactly the sentinel, and `src` comes from `<repo>/src`.
+- Every evaluator spawn (`:311`) runs with `PYTHONPATH=<repo>/overlays/no_flash`; any inherited PYTHONPATH is dropped.
 
-## 7. Deviations from Yixun's request (flagged)
-D1 B-F T ×10 at the new pin are required (exp_10 θ = 0 has no stream/dump). D2 B-F C4+45 ×8 recommended (registered
-estimators need one-pin input_hash pairs; the exp_10 C4 set mixes loop/batched evaluators and a neuronic K8 s42 cell).
-D3 CANON's composition control is invalid for FA → B-F probe (code) or labelled alternatives. D4 flash-attn backend change →
-shadow + 2 CTL cells. D5 CANON 45° s43–46 (8). D6 T-dup ×2. D7 worktree, not the main checkout. D8 co-tenancy scoped
-to phase (i) recommended. D9 runner logs land in the exp_25 folder (runner unchanged), copied to exp_35 afterwards.
-D10 a re-measured B-F row in `model_comparison.md` needs a generator contract change + neuronic regen (propose: results
-file only).
+**Per cell (no eval-path change).** After rc 0 the cell log must contain exactly one sentinel line, immediately followed by `flash_attn not installed, disabling Flash Attention`, and no `No module named 'flash_attn'`. Otherwise the cell FAILS, gets no receipt, and the campaign hard-stops. Receipt schema 2, for exp_35 blocks only, appends `attention_backend: "sdpa"` and `no_flash_overlay_sha256`. exp_25's schema-1 receipts are verified exactly as before. `verify_cell` re-reads the receipt's log for the sentinel pair.
+
+### 3c. E1 — CTL hard stop, before any B-F cell
+For each K, `exp35_P1_T_S40000_K{k}_s42` at H35 must equal `exp25_P1_T_S40000_K{k}_s42` at d6ca307a. The reference is the force-added receipt `outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp25_P1_T_S40000_K{k}_s42.cell.json` (sha K1 `fa1ea729…`, K8 `54490e2a…`). Equal means all of:
+1. The dump waveform sha256 (manifest `sha256` and the COMPLETE marker): K1 `8cb47c945d55…e8f8`, K8 `1aace782f222…0fd3`.
+2. Dump `n` 6337, `float32`, `[6337, 10240]`, and the same `input_hash`.
+3. The stream-sidecar sha256: K1 `31aa02dcd5dc…793d`, K8 `8d8018cabfd8…4af6`. This implies input_hash K1 `37d2f5693fa6…` / K8 `4c950c1e2ed0…` and assignment `4894d0e119f7…`.
+4. The metrics record: `metrics` and `by_scene` type-strictly equal, and every other key equal except `source_sha` and `eval_name` (`ckpt_path` is the same farm link).
+5. `ckpt_sha256_loaded` `c4c67882…` and `ckpt_bytes_loaded` 723,927,531.
+6. Receipt v2 `attention_backend == "sdpa"`.
+
+The check is `depth_canon_collect.py --exp35-ctl-check K` (exit 0 equal / 1 mismatch / 2 refused). Any mismatch stops the campaign with a report; no B-F cell runs.
+
+## 4. Pre-registration (frozen before any cell)
+- **E1:** §3c. Exact, no fallback.
+
+- **E2.** It decides only the 45° source, never phase (i). Per K at seed 42, the new `exp35_BF_T_S40000_K{k}_s42` is compared with the A6 CSV row (`yaw_metrics_raw.csv`, sha `0ae554c0…`, method `FA B-F@40k`, angle 0, seed 42):
+
+  | K | T60 | C50 | EDT | FD | R@1 | R@5 | R@10 | source |
+  |---|---|---|---|---|---|---|---|---|
+  | 1 | 9.4859 | 1.0547 | 41.2371 | 0.3284 | 5.2391 | 15.7014 | 23.7494 | `exp10_BF40_K1_s42` (legacy loop, A6000, flash era) |
+  | 8 | 8.1890 | 0.9805 | 38.8102 | 0.3332 | 5.3495 | 16.3484 | 24.2386 | `exp11_C4backfill_S40000_s42_K8` (batched, neuronic, flash) |
+
+  - PASS iff all 14 hold: |ΔT60| ≤ 0.001 (T60 error, %), |ΔC50| ≤ 0.0005 dB, |ΔEDT| ≤ 0.005 ms, |ΔFD| ≤ 0.0005, |ΔR@k| ≤ 0.2 percentage points.
+  - PASS → FLAC and OrbitRIR 45° come from the CSV.
+  - FAIL → the +16 phase-(ii) cells run, and 45° comes from one-pin SDPA cells (s42: exp_25 P1-pin C4 th45 and exp_35 BF C4 th45).
+  - Disclosed: the K8 reference is a neuronic batched cell, 0.0012 in T60 off the A6000 legacy record `exp07_BF40_fae_rot0`. Seeds 43–46 are compared descriptively.
+
+- **Tier 2-C4** (OrbitRIR's invariance claim; a verdict).
+  - Pairs: (K1, K8) × (90°, 180°, 270°) at s42, each against BF-pin T s42 with equal input_hash.
+  - Reference: the B-F probe's eval-protocol waveform relL2 p99 at the matched offset (90°→d128, 180°→d256, 270°→d384), and pooled over the three offsets.
+  - PASS iff every pair's p99(relL2) ≤ 3 × the matched control p99, AND the pooled-C4 p99 (all items of the six C4 pairs) ≤ 3 × the pooled control p99 (all probe items at the three offsets), AND every pair's p99 ≤ 1e-2.
+  - Alarm: any C4 item with relL2 > 0.1 suspends the claim until item triage.
+  - T-dup (K1, K8): max relL2 must be 0 and the dump sha256 equal (the determinism requirement).
+  - A control p99 of exactly 0 demands exact equality, as registered for exp_25.
+  - 45° and random-yaw pairs: relL2 / relL∞ summaries only — outside the claim, no verdict. B-F ε_cond (fp32, C4 offsets) is reported without a verdict.
+
+- **Tier 3** (verdict; registered rule, unchanged; item-weighted).
+  - Definitions: Δ_C4 = max−min over 0/90/180/270 at s42 (all four input_hash-equal). 45° probe = v45 − v0 at s42. Δ_R = mean over s42–46 of v(R) − v(T) (all five pairs input_hash-equal). sd(m_Z) = the n−1 SD of the five θ=0 values.
+  - `pass_c4`: Δ_C4(BF) ≤ 0.1 × Δ_C4(P1-pin). `pass_r`: |Δ_R(BF)| ≤ sd(m_Z BF). Both are checked for T60, C50, EDT, **FD**, R@1, R@5, R@10 at K1 and K8 — 28 checks, FD in the verdict.
+  - P1-pin Δ_C4 comes from the exp_25 JSON: K1 0.9223 / 0.1331 / 6.498 / 0.0059 / 0.647 / 0.7101 / 1.073; K8 0.9033 / 0.1337 / 6.807 / 0.0074 / 0.5523 / 0.7259 / 1.089.
+  - No exp_10 value enters.
+
+- **E3 (the registered `pass_c4` rule).** The verdict is the rule's. Non-binding expectation: it passes on T60, C50, EDT and FD; the retrieval rows are uncertain.
+
+- **E4 (expectation, kept separate from the verdict).** Expected: Tier 2-C4 PASS, T-dup exact; Tier 3 overall FAIL through `pass_r`, because B-F is C4-invariant only (the A6 45° probe was T60 +1.45 at K8 and +1.57 at K1); large 45° and R distances.
+
+- **E5 (descriptive only, no verdict; after phase (ii)).**
+  - B-F at 135° and 225° vs B-F at 45° (135 = 45+90, 225 = 45+180): same-pin s42 pairs, metric differences and dump relL2.
+  - CANON at 135° and 225° vs CANON at 0°.
+  - P1 vs angle.
+
+## 5. Collector and probe
+**`--exp35` collect mode** (`depth_canon_collect.py`) selects only exp_35 blocks at `--pin H35`. It refuses unless all of the following hold:
+1. **The external exp_25 JSON:** hash `ec3fcd08…b6e0`, `schema_version` 1, `pin` d6ca307a…, `partial` true with `missing` exactly the 20 registered S-block names, `invalid` == {}.
+2. **Every reused field is finite and non-null:**
+   - tier3 for CANON / P1 / YAW × K × item × 7 metrics: `n_z` 5, `n_r_pairs` 5, and `mean_z`, `sd_z`, `delta_c4`, `probe45`, `delta_r`;
+   - the θ=0 `table` stats with n 5.
+3. **Reused rows stay under `external_reference.exp25`** and never pair with H35 cells.
+4. **All H35 cells verify** with receipt v2, under exactly one campaign digest.
+5. **Every stream matches the registry** `exp35_exp25_stream_registry.json` (frozen by a reviewed helper from exp_25's P1, CANON and YAW artifacts, which agree across arms).
+   - Every B-F and OFF stream reproduces the registered input_hash per K/seed.
+   - R cells reproduce the assignment_hash per seed; fixed cells reproduce the angle's assignment_hash.
+
+   | stream | prefixes (12-hex here; full values in the registry) |
+   |---|---|
+   | T input, K1, s42–46 | `37d2f5693fa6 df150ea93d68 5709f434b246 fb4df53656ca 7d139a5679ed` |
+   | T input, K8, s42–46 | `4c950c1e2ed0 1c048da9c6af 8398cd8655ad ef2c937139f8 163f89a4b84a` |
+   | R assignment, s42–46 | `3df157e1df19 ea95d3cb08c8 fc3baefa5903 9d69ba364e6e bdc1eeba2fe0` |
+   | fixed 0/90/180/270/45 | `4894d0e119f7 1d76e861d6eb a2db1d990eae 2edc90b917cb 943070e7d264` |
+6. **The sha-pinned A6 CSV is read only by E2 and the figure.**
+7. **CTL equality holds** (§3c).
+
+The exp_25 R and 45° cells needed for (b) and the figure are external cells. They are verified offline at their own pin with `verify_cell(pin=d6ca307a, dump_check="receipt", check_link=False)` against the exp-25 worktree's artifacts, and force-added with the records at the end.
+
+The default (exp_25) mode is unchanged: with `--blocks` set to the 10 exp_25 blocks it must rewrite `depth_canon_results.json` byte for byte. This is a validation-ladder step on CPU, ≈ 15 min, with NAS reads:
+`CUDA_VISIBLE_DEVICES= python …/depth_canon_collect.py --collect --pin d6ca307a85b9b0a75ec9d47f4d237e63a3db527e --no-dump-blocks TRAJ --partial --blocks T,T-dup,C4+45,R,D-i,D-ii,S,P1-pin,YAW-pin,TRAJ --base-dir ~/codespace/exp-25-depth-canon --out-json <scratch>.json --out-md <scratch>.md`
+The output JSON must have sha256 `ec3fcd08…b6e0`.
+
+**B-F probe** (`depth_canon_cond_probe.py --arm BF`):
+- **Pairs:** A = FA(md) with no canonicalization; B = FA(rotate_d(md)) for d ∈ {128, 256, 384}. FA = `invariant_conditioning(conditioner, md, device, (0.0, 90.0, 180.0, 270.0), max_fwd_samples=64)` under each protocol's conditioning autocast.
+- **Stages and protocols:** the same four stages (cond, velocity, latent, waveform) and the same fixed per-item noise. Protocols fp32 (autocast off, matmul highest) and eval (bf16, medium), plus the determinism floor (A run twice).
+- **Items:** the first 64 of the unseen K=8 loader (`acousticroom_unseeneval.json`, sha `063c66c2…`); seed 42, batch 64, cuda.
+- **Binding:** checkpoint `5319feb4…` with loaded bytes 723,922,667; config `FLAC_AR_BF.json` `3e677204…` == embedded; the overlay sentinel present in its log.
+- **Registration and output:** registered only at H35 on a clean tree. Output `orbitrir_bf_cond_probe.json` + `.sha256`, untracked until the phase ends. Verdict = masks equal and determinism exact.
+- The collector's `PROBE_CONTRACT_BF` mirrors all of this.
+
+## 6. Figure (`plot_yaw_curves.py --mode offorbit`, after phase (ii))
+**Layout.** Angles 0 / 45 / 135 / 225; six panels; FLAC / OrbitRIR / CANON, with CANON in a third style; K=1 dashed hollow, K=8 solid; mean ± sd (ddof 1) over s42–46.
+
+**Sources per angle:**
+- θ=0: FLAC from exp_25 P1-pin T, OrbitRIR from BF-pin T (H35), CANON from exp_25 T.
+- 45°: FLAC and OrbitRIR from the A6 CSV if E2 passes, otherwise from one-pin cells; CANON from exp_25 s42 plus CANON-45.
+- 135 / 225: the phase-(ii) cells.
+
+**`_raw.csv` columns:** method, K, angle_deg, seed, campaign (exp10_A6 | exp25 | exp35), evaluator_pin (40-hex | `unrecorded`), attention_backend (flash | sdpa), orbit_execution (loop | batched | n/a; A6 45° is batched, inferred from the run date after `1479304`), source_path, source_sha256 (the JSON, or the CSV sha plus row key), then the metrics. The summary CSV holds n, mean and std.
+
+The existing modes are untouched. They cannot regenerate here, because the rotated raws are lost.
+
+## 7. GPU run, guard, ETA
+**Where.** Worktree `~/codespace/exp-35-orbitrir-yaw`, new branch `exp-35-orbitrir-yaw`, at H35 (the reviewed code commit).
+- Assets as in the exp-25 worktree: `AcousticRooms` → NAS; `weights/{AGREE,FLAC/VAE.ckpt,…}` as symlinks to the main checkout. The runner stages the farm cache (P1, BF, CANON@40k, ≈ 2.2 GB).
+- No commit lands in the worktree during a phase; records go to `localization-exp`.
+
+**Launch command.** `EXPECT_HEAD=H35 ALLOW_SHARED_GPU=1 bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only <chunk>`
+
+**Chunk sequence (33 single-cell chunks; Planner decision 4), with the check after each:**
+1. CTL K1 → E1
+2. CTL K8 → E1
+3. BF T s42 K1 → E2
+4. BF T s42 K8 → E2
+5. The probe
+6–33. Twenty-eight single-cell chunks: T s43–46, R, dup, C4+45. They start only if the guard held through chunks 1–4. A violation stops after the running cell (the runner is never signalled), so stop latency is at most one cell.
+
+**Guard.** Read-only, on Yixun's `train_exp30_ACEattn_s43_20261104T061255_741947.log`, through a reviewed parser `exp35_training_guard.py`. s/step comes from the tqdm elapsed field within an epoch; windows align to the epoch's step counter; epoch-boundary validation is excluded. STOP if any of these holds:
+- any completed 500-step window > 9.712;
+- the mean since our first spawn > 8.521;
+- any completed 100-step window > 9.950 (early warning: his own table job's worst 100-step window over s43 steps 0–4,000).
+
+For reference: unshared windows are 4.210–4.280 (100-step) and 4.218–4.244 (500-step); the baseline is 4.23. The guard is polled every ≤ 5 min and between chunks.
+
+**Hard stops** (no further spawn; report to Yixun): E1 mismatch; a guard violation; any receipt or verification failure (including the overlay sentinel); a failed overlay pre-flight; an invalid probe.
+
+**Reservation.** Before the first chunk the Planner writes `/home/yixunhu/codespace/.gpu_reservations/GPU-6ac2604a-e84e-0615-1221-ccbed7c268da.json` (holder exp_35, branch, H35, since) and removes it after the phase. The exp_22 free-card watcher (suspended; built later) must treat a reserved card as busy and never take GPU 1 while the lane runs.
+
+**When his s43 training ends.** His queue then starts its s43 table job on GPU 1. The remaining phase-(i) chunks move to `--lanes 0` once GPU 0 has no compute process; the lane never co-tenants with his table job. Phase (ii) runs without `ALLOW_SHARED_GPU`, so only on free cards.
+
+**ETA for phase (i), counted from the start of the first cell, co-tenant on GPU 1: ≈ 16.5 h (14–21 h).**
+- CTL 17.6 + 19.2 min.
+- B-F: 15 × K1 at ≈ 24 min (20–30) plus 15 × K8 at ≈ 35 min (30–45).
+- Probe ≈ 10 min.
+- Gates and checks over 33 chunks ≈ 70 min (single-cell chunks; ≈ +30 min vs 2-cell chunks).
+
+It is re-estimated after chunks 3–4, and is shorter if his training ends first. Each co-tenant hour costs him ≈ 0.5 h of training (≈ 8 h if phase (i) overlaps his training throughout; his own table job cost ≈ 4.9 h). His s43 was at step 20,499 / 40,000 at 11:20 EST Nov 5, running ≈ 4.235 s/step; unshared it ends ≈ Nov 6 10:15 EST.
+
+**Phase (ii)** (68 cells): ≈ 19 h on one free card, ≈ 9.5 h on two. If E2 fails, +16 cells ≈ 2.2 h on two.
+
+## 8. Frozen pre-launch checklist (in the launch entry, before the first cell)
+- **Code state:** H35, branch, worktree path, clean `git status`. `git diff --stat d6ca307a H35 -- eval_FLAC.py src ':(exclude)src/tests' data/AR` should touch only `src/localization/*`.
+- **Cells:** cells.json sha and 330 rows; `make_cells.py --check`; the exp_25-only render sha `1073ef64…`; the sha of the 100 exp_35 rows; the phase-(i) cell order.
+- **Checkpoints and configs:** P1 `c4c67882…`, BF `5319feb4…`, CANON@40k `52c64b52…` (CANON manifest `1e481447…`, NAS MANIFEST lines); configs BVp1 `733ca52b…`, BF `3e677204…`, CANON `aba94032…`; datasets `48753740…` / `063c66c2…`.
+- **Assets and environment:** VAE `6198ff0d…`, AGREE_fullAR `3a13243d…`, the DINOv3 HF snapshot; overlay `0d0e52ca…` and its pre-flight output; flac python, torch 2.7.0+cu126, flash-attn 2.7.4.post1 (present, shadowed), pip-freeze `8b7a802e…`.
+- **External references:** exp_25 JSON `ec3fcd08…`; the CTL receipts and hashes of §3c; the stream registry sha; the A6 CSVs `0ae554c0…` / `e4602115…` / `441ade8b…` / `b21ffbe7…`; the CANON probe `ac2f8baf…` (reference only).
+- **Contracts and gates:** the B-F probe contract; the stop gates (E1; guard 9.712 / 8.521 / 9.950; receipt failures).
+- **GPU:** lane GPU 1 by UUID, free memory ≥ 10,240 MiB, the co-tenant pids, the reservation file.
+- **His training:** the log path, its epoch/step, and the current 500-step rate.
+
+## 9. Per-file implementation
+TDD in `src/tests/`; commits under 200 code lines; Codex code review per round, then an integrative review.
+
+**Round 1 — backend.**
+- Files: new `overlays/no_flash/flash_attn/__init__.py`. Runner: RELEVANT += `overlays/no_flash` (`:116-117`); `NO_FLASH_SHA256` and the pre-flight after `:138`; PYTHONPATH at `:311`; at `:324-329`, the sentinel check and `--attention-backend sdpa --no-flash-overlay-sha256 <sha>`.
+- Tests (`test_depth_canon_eval_run.py` harness): sentinel present → receipt v2 with sdpa; sentinel absent or `No module named` → FAILED, no receipt; edited overlay → refused or PIN DRIFT; inherited PYTHONPATH dropped.
+
+**Round 2 — generator.**
+- Files: `depth_canon_make_cells.py` gets the BF arm (existing arm schema) and per-arm flags and `cond_method` (`:49-51`, `:89-123`); `exp35_` names; blocks CTL, BF-pin, BF-dup, OFF-P1, OFF-BF, OFF-CANON, CANON-45 (priorities 10–16, orders 230–329; `:39`, `:138-164`); regenerate `depth_canon_cells.json`.
+- Tests: the exp_25-only render equals the `1073ef64…` bytes; 330 rows; counts and order; the BF argv and suffix; names and suffixes injective, including against exp_25; `--check`.
+
+**Round 3 — collector protocol and receipt v2.**
+- Files: `ARM_PROTOCOL`; `record_reasons` (`:123-129`) and `cell_paths` (`:453-461`); `RECEIPT_KEYS` v2 (`:372-379`), `receipt_reasons` (`:393-440`), `build_receipt` (`:624-670`), CLI (`:1420-1431`, `:1448-1477`); the log re-check.
+- Tests: a valid BF record passes and each wrong field is refused; v1 receipts are unchanged; `test_gen_model_comparison_depth_canon.py` stays green.
+
+**Round 4 — probe.**
+- Files: `--arm BF` per §5 (`:46-47`, `:82-115`, `:174-212`, `:225-296`, `:347-446`, CLI).
+- Tests (toy stack): an invariant toy gives C4 relL2 0; no d64 or random for BF; BF refuses canonicalization; any deviation sets registered=false.
+
+**Round 5 — exp35 collect, two commits.**
+- 5a: external reference, the registry and its helper, `--exp35-ctl-check`, `--exp35-e2`.
+- 5b: Tier 2-C4, the Tier 3 BF row, tables (a)/(b)/(c), and rendering into the exp_35 folder. Touches `make_pairs :732-759`, `_index :1066-1074`, `tier2 :1005-1049`, `tier3 :1103-1121`, `table_block :1124-1135`, `render_md :1321-1394`, `main :1547-1574`.
+- Tests: every §5 fail-closed condition; a poisoned CSV leaves Tier 2/3 unchanged; a registry mismatch is refused.
+
+**Round 6 — figure and guard.**
+- Files: `plot_yaw_curves.py --mode offorbit` and `exp35_training_guard.py`.
+- Tests: `test_plot_yaw_offorbit.py` and `test_exp35_training_guard.py`, with fixture logs that include epoch boundaries.
+
+**Validation ladder:**
+1. CPU suites: depth_canon_*, gen_model_comparison, and the new tests.
+2. The exp_25 byte-for-byte collect.
+3. Runner `DRY_RUN=1` at H35: overlay pre-flight, plan of the 32 phase-(i) cells.
+4. Codex integrative review.
+5. Launch per §7.
+
+## 10. Residual risks
+- **Retrieval thresholds.** Tier 3 thresholds for retrieval (10 % of P1's Δ_C4 ≈ 3.5–6.8 items) are within numerical jitter, so `pass_c4` on R@k may turn on 1–2 item flips. It is reported as registered.
+- **E2 at K8** compares against a neuronic cell.
+- **B-F timing.** Co-tenant times for B-F cells have not been measured on this box since August, so the ETA range stays wide until chunks 3–4.
+- **NAS stalls.** The NAS (CIFS) can stall; any item substitution is caught by `--expected-stream-count` and the registry.
+- **exp_22 dependency.** exp_22's backend amendment and its watcher's reservation support belong to an exp_22 round (decision 7), not to exp_35 code. The exp_22 watcher stays suspended until then.
