@@ -217,8 +217,9 @@ def _top_reasons(doc, his_log, reservations):
     elif lane is not None and not (
             isinstance(lane, dict) and list(lane) == ["uuid", "shared"] and isinstance(lane["uuid"], str)
             and GPU_RE.fullmatch(lane["uuid"]) and type(lane["shared"]) is bool and lane["shared"] == (lane["uuid"] == GPU1_UUID)
-            and isinstance(res, dict) and list(res) == ["uuid", "epoch", "path"] and res["uuid"] == lane["uuid"]
-            and type(res["epoch"]) is int and res["epoch"] >= 1 and res["path"] == reservation_path(reservations, res["uuid"])):
+            and isinstance(res, dict) and list(res) == ["uuid", "epoch", "path", "sha256"] and res["uuid"] == lane["uuid"]
+            and type(res["epoch"]) is int and res["epoch"] >= 1 and res["path"] == reservation_path(reservations, res["uuid"])
+            and _hex(res["sha256"])):
         out.append(f"the lane {lane!r} and the reservation {res!r} do not agree")
     if latch is not None and not (isinstance(latch, dict) and list(latch) == ["reason", "time"]
                                   and _text(latch["reason"]) and _text(latch["time"])):
@@ -291,23 +292,59 @@ def reservation_path(dirpath, uuid):
 
 
 def create_reservation(dirpath, uuid, *, epoch, h35, now):
-    """§12 B1.4: O_CREAT | O_EXCL, never overwritten (``FileExistsError`` when the file exists)."""
+    """§12 B1.4: O_CREAT | O_EXCL, never overwritten (``FileExistsError`` when the file exists). Returns the path and the
+    sha256 of the exact bytes written -- the held record the state keeps (Codex C3d HIGH 1)."""
     path = reservation_path(dirpath, uuid)
+    raw = json.dumps({"holder": "exp35", "h35": h35, "gpu_uuid": uuid, "epoch": epoch, "created": now,
+                      "branch": BRANCH}).encode()
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-    with os.fdopen(fd, "w") as f:
-        json.dump({"holder": "exp35", "h35": h35, "gpu_uuid": uuid, "epoch": epoch, "created": now, "branch": BRANCH}, f)
+    with os.fdopen(fd, "wb") as f:
+        f.write(raw)
         f.flush()
         os.fsync(f.fileno())
     _fsync_dir(dirpath)
-    return path
-
-
-def remove_reservation(path):
-    os.unlink(path)
-    _fsync_dir(os.path.dirname(path))
+    return path, hashlib.sha256(raw).hexdigest()
 
 
 RES_KEYS = ("holder", "h35", "gpu_uuid", "epoch", "created", "branch")
+
+
+def _held(held, h35):
+    """``(reasons, (device, inode))`` of the file at ``held["path"]`` against the held record: the sha256 of its bytes,
+    then field by field this campaign's reservation of ``held["uuid"]`` at ``held["epoch"]``."""
+    try:
+        with open(held["path"], "rb") as f:
+            raw, st = f.read(), os.fstat(f.fileno())
+        doc = json.loads(raw)
+    except (OSError, ValueError) as err:
+        return [f"the held reservation {held['path']} is gone, unreadable or malformed ({err})"], None
+    out = [] if hashlib.sha256(raw).hexdigest() == held.get("sha256") else [f"{held['path']} is not the held record"]
+    out += ours_reasons(doc, held["uuid"], h35) if isinstance(doc, dict) else [f"{held['path']} is no reservation"]
+    if not out and doc["epoch"] != held["epoch"]:
+        out.append(f"{held['path']} has epoch {doc['epoch']}, the held record {held['epoch']}")
+    return out, (st.st_dev, st.st_ino)
+
+
+def held_reasons(held, h35):
+    """[] iff the file at ``held["path"]`` IS the record the state holds (Codex C3d HIGH 1)."""
+    return _held(held, h35)[0]
+
+
+def release_reservation(held, h35):
+    """Codex C3d HIGH 1: unlink the held file only while it IS the held record, through the inode just authenticated;
+    [] once removed, else the reasons -- and nothing is unlinked."""
+    out, ident = _held(held, h35)
+    if out:
+        return out
+    try:
+        st = os.lstat(held["path"])
+        if (st.st_dev, st.st_ino) != ident:
+            return [f"{held['path']} was replaced while it was authenticated"]
+        os.unlink(held["path"])
+    except OSError as err:
+        return [f"{held['path']} could not be removed ({err})"]
+    _fsync_dir(os.path.dirname(held["path"]))
+    return []
 
 
 def read_reservation(dirpath, uuid):
@@ -360,8 +397,7 @@ def reservation_reasons(dirpath, held, uuids, h35):
         return [f"exp_35 reservation file(s) {sorted(mine)} exist but the state holds none"] if mine else []
     if set(mine) != {held["uuid"]}:
         return [f"the state holds {held['uuid']} (epoch {held['epoch']}), the exp_35 files on disk are {sorted(mine)}"]
-    got = mine[held["uuid"]]["epoch"]
-    return [] if got == held["epoch"] else [f"the reservation of {held['uuid']} has epoch {got}, the state {held['epoch']}"]
+    return held_reasons(dict(held, path=reservation_path(dirpath, held["uuid"])), h35)     # the record (C3d HIGH 1)
 
 
 def gpu_map(text):
@@ -515,21 +551,44 @@ class Supervisor:
             raise ValueError(f"the GPU map {m} is not this box's two cards with {GPU1_UUID}")
         return m, compute_apps(self.w.nvsmi("apps"))
 
+    def listed_identity(self, pid, uuid):
+        """Codex C3d HIGH 2, tri-state for a PID listed on ``uuid``: ``("ok", identity)``; ``("gone", None)`` when its
+        identity cannot be read AND the re-queried compute table no longer lists it (it exited between the two
+        observations); ``("unreadable", why)`` when it is still listed, or the table cannot be re-read: never approved."""
+        try:
+            return "ok", self.I.proc_identity(pid, self.cfg["proc"])
+        except ValueError as err:
+            why = str(err)
+        try:
+            listed = (pid, uuid) in self.tables()[1]
+        except ValueError as err:
+            return "unreadable", f"{why}; the compute table could not be re-queried ({err})"
+        return ("unreadable", why) if listed else ("gone", None)
+
     def trainer_alive(self, approved):
-        """The approved processes all still run with their frozen identity (any change: they are gone)."""
+        """True: the approved processes all still run with their frozen identity; False: one is gone or changed; None
+        (latched): one is still listed on GPU 1 but its identity cannot be read (Codex C3d HIGH 2)."""
         for p in approved["processes"]:
-            try:
-                live = self.I.proc_identity(p["pid"], self.cfg["proc"])
-            except ValueError:
-                return False
-            if any(live[k] != p[k] for k in self.I.FIELDS):
+            got, live = self.listed_identity(p["pid"], GPU1_UUID)
+            if got == "unreadable":
+                self.latch(f"the approved process {p['pid']} is listed on GPU 1 but its identity is unreadable: {live}")
+                return None
+            if got == "gone" or any(live[k] != p[k] for k in self.I.FIELDS):
                 return False
         return True
 
+    def authentic(self, where):
+        """Codex C3c HIGH 1 / C3d HIGH 1: exactly the held reservation record (or none) is ours on disk -- else the latch."""
+        why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
+        if why:
+            self.latch(f"the reservation {where}: " + "; ".join(why))
+        return not why
+
     def ready(self, chunk):
-        """Wait until a lane may take ``chunk``: ``(uuid, index, shared)``, or None after a latch."""
+        """Wait until a lane may take ``chunk``: ``(uuid, index, shared)``, or None after a latch. The held reservation
+        is authenticated before every decision (Codex C3d HIGH 1)."""
         while True:
-            if self.observe() is None:
+            if self.observe() is None or not self.authentic(f"before chunk {chunk['n']}'s lane decision"):
                 return None
             try:
                 m, apps = self.tables()
@@ -546,6 +605,8 @@ class Supervisor:
                 return lane["uuid"], idx[lane["uuid"]], False
             why = self.I.check_reasons([p for p, u in apps if u == GPU1_UUID], GPU1_UUID, approved, self.cfg["proc"])
             alive = self.trainer_alive(approved)
+            if alive is None:
+                return None
             if not why:
                 ok, d = predictor_ok(self.last, now=self.w.now(), chunk=chunk)
                 if ok:
@@ -564,9 +625,12 @@ class Supervisor:
 
     def handover(self, m, apps):
         """§12 B1.4: GPU 0 free on two checks 60 s apart -> its O_EXCL reservation -> the state (epoch + 1) -> the
-        GPU 1 file removed. False: not now (waiting)."""
+        GPU 1 file removed. The held record is authenticated before and after the gap, right before the commit and
+        right before the removal; a mismatch latches and unlinks nothing (Codex C3d HIGH 1). False: not now, or latched."""
         uuid0 = next(u for u in m.values() if u != GPU1_UUID)
         for check in ("1st", "2nd"):
+            if not self.authentic(f"at the hand-over's {check} check"):
+                return False
             busy = sorted(p for p, u in apps if u == uuid0)
             if busy:
                 self.wait_note("hand-over waits: GPU 0 busy", pids=busy)
@@ -582,42 +646,61 @@ class Supervisor:
         old = self.st["reservation"]
         epoch = (old["epoch"] if old else 0) + 1
         try:
-            path = create_reservation(self.cfg["reservations"], uuid0, epoch=epoch, h35=self.cfg["h35"], now=self.w.now())
+            path, sha = create_reservation(self.cfg["reservations"], uuid0, epoch=epoch, h35=self.cfg["h35"],
+                                           now=self.w.now())
         except FileExistsError:
             self.wait_note("hand-over waits: GPU 0 is reserved by another holder")
             return False
-        self.st.update(lane={"uuid": uuid0, "shared": False}, reservation={"uuid": uuid0, "epoch": epoch, "path": path})
+        new = {"uuid": uuid0, "epoch": epoch, "path": path, "sha256": sha}
+        why = [x for r in (old, new) if r for x in held_reasons(r, self.cfg["h35"])]
+        if why:
+            self.latch("the reservations right before the hand-over's commit (nothing unlinked): " + "; ".join(why))
+            return False
+        self.st.update(lane={"uuid": uuid0, "shared": False}, reservation=new)
         self.save()
-        if old:
-            remove_reservation(old["path"])
+        why = release_reservation(old, self.cfg["h35"]) if old else []
+        if why:
+            self.latch("the GPU 1 reservation right before its removal at the hand-over (nothing unlinked): "
+                       + "; ".join(why))
+            return False
         self.event("hand-over to GPU 0", epoch=epoch)
         return True
 
     def execute(self, c, lane):
         uuid, index, shared = lane
-        if self.st["baseline"] is None:                                 # §11 B2: our first spawn
-            r = self.last
-            self.st["baseline"] = {"time": self.w.now(), "step": r["step"]["global"], "log": {
-                "path": self.cfg["his_log"], "inode": r["log"]["inode"], "size": r["log"]["size"]}}
         if self.st["reservation"] is None:
             try:
-                path = create_reservation(self.cfg["reservations"], uuid, epoch=1, h35=self.cfg["h35"], now=self.w.now())
+                path, sha = create_reservation(self.cfg["reservations"], uuid, epoch=1, h35=self.cfg["h35"],
+                                               now=self.w.now())
             except FileExistsError:
                 self.latch(f"{uuid} is reserved by another holder at our first spawn")
                 return
-            self.st.update(reservation={"uuid": uuid, "epoch": 1, "path": path}, lane={"uuid": uuid, "shared": shared})
+            self.st.update(reservation={"uuid": uuid, "epoch": 1, "path": path, "sha256": sha},
+                           lane={"uuid": uuid, "shared": shared})
         ts = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime(self.w.now()))
         if c["kind"] == "probe":
             (argv, env), log = probe_command(index), os.path.join(self.cfg["logdir"], f"orbitrir_bf_cond_probe_{ts}.log")
         else:
             (argv, env), log = runner_command(self.cfg, c, index, shared), os.path.join(
                 self.cfg["logdir"], f"exp35_supervisor_{ts}_chunk{c['n']:02d}_{c['cell']}.log")
-        why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
-        if why:                                        # re-authenticated right before every spawn (Codex C3c HIGH 1)
-            self.latch(f"the reservation before chunk {c['n']}: " + "; ".join(why))
+        if not self.authentic(f"before chunk {c['n']}"):          # re-authenticated before every spawn (C3c HIGH 1)
             return
+        first = self.st["baseline"] is None
+        if first:                                                       # §11 B2: our first spawn
+            r = self.last
+            self.st["baseline"] = {"time": self.w.now(), "step": r["step"]["global"], "log": {
+                "path": self.cfg["his_log"], "inode": r["log"]["inode"], "size": r["log"]["size"]}}
         c.update(state="in_flight", lane=uuid, shared=shared, started=_iso(self.w.now()), log=log)
         self.save()
+        why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
+        if why:                                  # ... and as the LAST step before it (Codex C3d HIGH 1): not spawned
+            for k in CHUNK_FLIGHT:
+                del c[k]
+            c["state"] = "planned"
+            self.st["baseline"] = None if first else self.st["baseline"]
+            self.latch(f"the reservation after chunk {c['n']}'s in-flight save (chunk {c['n']} NOT spawned): "
+                       + "; ".join(why))
+            return
         rc = self.watch(self.w.spawn(argv, env, log), c, uuid, shared)
         c.update({"ended": _iso(self.w.now()), "probe_rc" if c["kind"] == "probe" else "runner_rc": rc})
         self.save()
@@ -644,25 +727,24 @@ class Supervisor:
             except ValueError as err:
                 self.latch(f"the GPU tables while chunk {c['n']} ran: {err}")
                 continue
-            why = reservation_reasons(self.cfg["reservations"], self.st["reservation"], self.uuids, self.cfg["h35"])
-            if why:                                    # ... and at every poll (Codex C3c HIGH 1)
-                self.latch(f"the reservation changed while chunk {c['n']} ran: " + "; ".join(why))
+            if not self.authentic(f"while chunk {c['n']} ran"):            # ... and at every poll (C3c HIGH 1)
                 continue
             ours = descendants(proc.pid, self.cfg["proc"])
-            bad = sorted(p for p, u in apps if u == uuid and p not in ours and (p not in approved or self.replaced(approved[p])))
+            bad = [x for x in (self.foreign(p, uuid, approved) for p, u in apps if u == uuid and p not in ours) if x]
             if bad and self.st["stop_latch"] is None:     # every foreign process vs the COMPLETE identity (C3c HIGH 3)
-                self.latch(f"a new process, or a process with another identity, on {'GPU 1' if shared else 'GPU 0'} "
-                           f"({uuid}) while chunk {c['n']} ran: pids {bad}")
+                self.latch(f"a new process, or a process with another or an unreadable identity, on "
+                           f"{'GPU 1' if shared else 'GPU 0'} ({uuid}) while chunk {c['n']} ran: pids {bad}")
         return proc.returncode
 
-    def replaced(self, entry):
-        """The approved PID now runs another process (start time, cwd, cmdline or logs differ). Unreadable = gone: a
-        trainer that exited is not a replacement; a reuse is caught at the next poll or the pre-spawn check."""
-        try:
-            live = self.I.proc_identity(entry["pid"], self.cfg["proc"])
-        except ValueError:
-            return False
-        return any(live[k] != entry[k] for k in self.I.FIELDS)
+    def foreign(self, p, uuid, approved):
+        """Why ``p`` -- listed on our lane, not ours -- is not an approved process with its complete identity, or None:
+        not approved, another identity, or still listed with an unreadable one (Codex C3d HIGH 2; gone: None)."""
+        if p not in approved:
+            return f"{p} (not approved)"
+        got, live = self.listed_identity(p, uuid)
+        if got == "unreadable":
+            return f"{p} (listed, its identity unreadable: {live})"
+        return f"{p} (another identity)" if got == "ok" and any(live[k] != approved[p][k] for k in self.I.FIELDS) else None
 
     def probe_ledger_reasons(self, c, j, rel, digest):
         """Codex C3c HIGH 4: the three files hashed, the sidecar sealing the JSON, the JSON's launch record naming THIS
@@ -753,7 +835,7 @@ class Supervisor:
         try:
             st = load_state(c["state"], h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
                             approved_sha256=c["approved_sha256"], his_log=c["his_log"], reservations=c["reservations"])
-            self.uuids = uuids = tuple(sorted(self.tables()[0].values()))
+            self.uuids = tuple(sorted(self.tables()[0].values()))
             self.st = st or new_state(h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
                                       approved_sha256=c["approved_sha256"])
         except ValueError as err:
@@ -763,9 +845,7 @@ class Supervisor:
             print(f"SUPERVISOR REFUSED: the stop latch is set ({self.st['stop_latch']}); only the Planner clears it")
             return 3
         self.event("supervisor started" + (" (a new state)" if st is None else " (resumed)"))
-        why = reservation_reasons(c["reservations"], self.st["reservation"], uuids, c["h35"])
-        if why:
-            self.latch("the reservations are inconsistent at the start: " + "; ".join(why))
+        if not self.authentic("at the start (inconsistent)"):
             return 3
         self.reconcile()
         for ch in self.st["chunks"]:
@@ -778,9 +858,11 @@ class Supervisor:
                 self.execute(ch, lane)
         if self.st["stop_latch"] is not None or any(ch["state"] != "gates_verified" for ch in self.st["chunks"]):
             return 3
-        if self.st["reservation"]:
-            remove_reservation(self.st["reservation"]["path"])
-            self.st.update(reservation=None, lane=None)
+        why = release_reservation(self.st["reservation"], c["h35"]) if self.st["reservation"] else []
+        if why:                                             # authenticated right before the removal (Codex C3d HIGH 1)
+            self.latch("the reservation at the final release (nothing unlinked): " + "; ".join(why))
+            return 3
+        self.st.update(reservation=None, lane=None)
         self.event("phase (i) complete; the reservation released")
         return 0
 

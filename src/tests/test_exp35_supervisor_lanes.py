@@ -201,7 +201,14 @@ def _sup(tmp_path):
     s = S.Supervisor(cfg, w, g)
     s.st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
                        approved_sha256=cfg["approved_sha256"])
+    s.uuids = tuple(sorted((G0, G1)))                                          # as run() sets them from the GPU map
     return w, cfg, s
+
+
+def _hold_gpu1(cfg, w, s):
+    p1, sha = S.create_reservation(cfg["reservations"], G1, epoch=1, h35=cfg["h35"], now=w.t)
+    s.st.update(reservation={"uuid": G1, "epoch": 1, "path": p1, "sha256": sha}, lane={"uuid": G1, "shared": True})
+    return p1
 
 
 def test_the_approved_trainer_alone_gives_the_shared_gpu1(tmp_path):
@@ -222,14 +229,14 @@ def test_the_trainer_gone_hands_over_to_gpu0_in_the_registered_order(tmp_path, m
     """§12 B1.4: (a) GPU 0 free twice 60 s apart, (b) its file O_EXCL, (c) the state with epoch + 1, (d) the GPU 1 file
     removed -- so our reservation is never absent and the state never names a file that does not exist."""
     w, cfg, s = _sup(tmp_path)
-    p1 = S.create_reservation(cfg["reservations"], G1, epoch=1, h35=cfg["h35"], now=w.t)
-    s.st.update(reservation={"uuid": G1, "epoch": 1, "path": p1}, lane={"uuid": G1, "shared": True})
+    _hold_gpu1(cfg, w, s)
     w.remove_trainers()
-    order, real = [], (S.create_reservation, S.write_state, S.remove_reservation)
+    order, real = [], (S.create_reservation, S.write_state, S.release_reservation)
     monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (order.append(("create", a[1])), real[0](*a, **k))[1])
     monkeypatch.setattr(S, "write_state", lambda path, doc: (order.append(("state", (doc["reservation"] or {}).get(
         "epoch"))), real[1](path, doc))[1])
-    monkeypatch.setattr(S, "remove_reservation", lambda path: (order.append(("remove", os.path.basename(path))), real[2](path))[1])
+    monkeypatch.setattr(S, "release_reservation", lambda held, h35: (
+        order.append(("remove", os.path.basename(held["path"]))), real[2](held, h35))[1])
     assert s.ready(CH1) == (G0, 0, False)
     steps = [o for o in order if o[0] != "state" or o[1] == 2]
     assert steps[steps.index(("create", G0)):][:3] == [("create", G0), ("state", 2), ("remove", f"{G1}.json")]
@@ -247,6 +254,99 @@ def test_a_busy_gpu0_or_another_holder_makes_the_handover_wait(tmp_path):
     assert s.handover(*s.tables()) is False and "another holder" in s.st["events"][-1]["what"]
     (w.res / f"{G0}.json").unlink()
     assert s.handover(*s.tables()) is True and s.st["reservation"]["epoch"] == 1        # no GPU 1 file held yet
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 1: the held record authenticated before / after the gap, before the commit, before the removal
+# --------------------------------------------------------------------------- #
+HANDOVER_SPOILS = {
+    "deleted": lambda p: os.unlink(p),
+    "replaced_by_another_holder": lambda p: open(p, "w").write(json.dumps({"holder": "exp22", "gpu_uuid": G1})),
+    "another_epoch": lambda p: SC._rewrite(p, epoch=5),
+    "corrupt": lambda p: open(p, "w").write("{not json"),
+}
+
+
+def _content(p):
+    return open(p, "rb").read() if os.path.exists(p) else None
+
+
+@pytest.mark.parametrize("how", sorted(HANDOVER_SPOILS))
+def test_a_reservation_spoiled_during_the_handover_gap_latches_and_unlinks_nothing(tmp_path, how):
+    w, cfg, s = _sup(tmp_path)
+    p1 = _hold_gpu1(cfg, w, s)
+    w.remove_trainers()
+    seen = {}
+
+    def spoil(world):
+        HANDOVER_SPOILS[how](p1)
+        seen["after"] = _content(p1)
+    w.hooks.append((lambda world: world.sleeps[-1:] == [S.HANDOVER_GAP_S], spoil))         # inside the 60-s gap
+    assert s.ready(CH1) is None and "reservation" in s.st["stop_latch"]["reason"]
+    assert _content(p1) == seen["after"]                                       # the foreign record kept as it is
+    assert not os.path.exists(S.reservation_path(cfg["reservations"], G0)) and s.st["reservation"]["uuid"] == G1
+    assert len([e for e in s.st["events"] if e["what"].startswith("GPU 0 free")]) == 1
+
+
+@pytest.mark.parametrize("when", ["before_the_commit", "before_the_removal"])
+@pytest.mark.parametrize("how", sorted(HANDOVER_SPOILS))
+def test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing(tmp_path, monkeypatch, how, when):
+    w, cfg, s = _sup(tmp_path)
+    p1 = _hold_gpu1(cfg, w, s)
+    w.remove_trainers()
+    seen, real = {}, (S.create_reservation, S.write_state)
+
+    def spoil():
+        if "after" not in seen:
+            HANDOVER_SPOILS[how](p1)
+            seen["after"] = _content(p1)
+    if when == "before_the_commit":                            # right after GPU 0's file is created
+        monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (real[0](*a, **k), spoil())[0])
+    else:                                                      # right after the committed state is written
+        monkeypatch.setattr(S, "write_state", lambda path, doc: (real[1](path, doc), (doc["reservation"] or {}).get(
+            "uuid") == G0 and spoil())[0])
+    assert s.ready(CH1) is None and "nothing unlinked" in s.st["stop_latch"]["reason"]
+    assert _content(p1) == seen["after"] and os.path.exists(S.reservation_path(cfg["reservations"], G0))
+    assert s.st["reservation"]["uuid"] == (G1 if when == "before_the_commit" else G0)
+    assert not any(e["what"] == "hand-over to GPU 0" for e in s.st["events"])
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 2: a listed PID whose identity cannot be read is never the approved trainer
+# --------------------------------------------------------------------------- #
+UNREADABLE = {
+    "deleted": lambda w: shutil.rmtree(w.procdir / str(TR1)),
+    "corrupt_stat": lambda w: (w.procdir / str(TR1) / "stat").write_text("garbage\n"),
+    "no_fd_link": lambda w: os.unlink(w.procdir / str(TR1) / "fd" / "1"),
+}
+
+
+@pytest.mark.parametrize("how", sorted(UNREADABLE))
+def test_a_listed_trainer_with_an_unreadable_identity_latches_before_a_spawn(tmp_path, how):
+    w, cfg, s = _sup(tmp_path)
+    UNREADABLE[how](w)                                                         # still listed on GPU 1
+    assert s.ready(CH1) is None and str(TR1) in s.st["stop_latch"]["reason"]
+    assert "unreadable" in s.st["stop_latch"]["reason"] and w.sleeps == []
+    assert not any(e["what"].startswith("GPU 0 free") for e in s.st["events"]) and list(w.res.iterdir()) == []
+
+
+def test_an_unreadable_trainer_no_longer_listed_at_the_requery_is_gone(tmp_path):
+    """It exited between the two observations -- listed, unreadable, and the re-queried table no longer lists it: gone,
+    never a latch (the hand-over to GPU 0 follows). A regression guard: green before and after the fix."""
+    w, cfg, s = _sup(tmp_path)
+    w.apps.remove((TR0, G0))
+    shutil.rmtree(w.procdir / str(TR0))                                       # rank 0 has exited ...
+    shutil.rmtree(w.procdir / str(TR1))                                       # ... rank 1 is leaving: still listed
+    real, queries = w.nvsmi, []
+
+    def nvsmi(query):
+        if query == "apps":
+            queries.append(query)
+            if len(queries) == 2:                                             # the re-query: it has left the table
+                w.apps.remove((TR1, G1))
+        return real(query)
+    w.nvsmi = nvsmi
+    assert s.ready(CH1) == (G0, 0, False) and s.st["stop_latch"] is None
 
 
 def test_a_foreign_process_on_gpu0_latches_before_a_spawn(tmp_path):

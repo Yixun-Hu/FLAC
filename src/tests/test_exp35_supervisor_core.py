@@ -4,6 +4,7 @@ r4 §13; §14 A1.3) -- the frozen 33-chunk phase-(i) order, the end-of-training 
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -164,16 +165,23 @@ G0, G1 = "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "GPU-6ac2604a-e84e-0615-122
 
 
 def test_a_reservation_is_created_exclusively(tmp_path):
-    p = S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=100.0)
+    p, sha = S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=100.0)
     doc = json.load(open(p))
     assert p == os.path.join(str(tmp_path), f"{G1}.json")
     assert doc == {"holder": "exp35", "h35": H35, "gpu_uuid": G1, "epoch": 1, "created": 100.0,
                    "branch": "exp-35-orbitrir-yaw"}
+    assert sha == hashlib.sha256(open(p, "rb").read()).hexdigest()            # the held record (Codex C3d HIGH 1)
     with pytest.raises(FileExistsError):
         S.create_reservation(str(tmp_path), G1, epoch=2, h35=H35, now=200.0)
     assert json.load(open(p))["epoch"] == 1                                   # never overwritten
-    S.remove_reservation(p)
+    assert S.release_reservation({"uuid": G1, "epoch": 1, "path": p, "sha256": sha}, H35) == []
     assert not os.path.exists(p)
+
+
+def _held(tmp_path, uuid=G1, epoch=1):
+    """A reservation created on disk and the record the state holds for it."""
+    p, sha = S.create_reservation(str(tmp_path), uuid, epoch=epoch, h35=H35, now=1.0)
+    return {"uuid": uuid, "epoch": epoch, "path": p, "sha256": sha}
 
 
 @pytest.mark.parametrize("files, held, ok", [
@@ -186,19 +194,64 @@ def test_a_reservation_is_created_exclusively(tmp_path):
     ({G1: 1}, None, False),                                                   # a file of ours the state does not hold
 ])
 def test_restart_reservation_consistency(tmp_path, files, held, ok):
-    for uuid, epoch in files.items():
-        S.create_reservation(str(tmp_path), uuid, epoch=epoch, h35=H35, now=1.0)
-    reasons = S.reservation_reasons(str(tmp_path), None if held is None else {"uuid": held[0], "epoch": held[1]},
-                                    (G0, G1), H35)
+    shas = {uuid: S.create_reservation(str(tmp_path), uuid, epoch=epoch, h35=H35, now=1.0)[1]
+            for uuid, epoch in files.items()}
+    rec = None if held is None else {"uuid": held[0], "epoch": held[1], "sha256": shas.get(held[0], "0" * 64)}
+    reasons = S.reservation_reasons(str(tmp_path), rec, (G0, G1), H35)
     assert (reasons == []) is ok, reasons
 
 
 def test_another_holders_reservation_is_not_ours(tmp_path):
     (tmp_path / f"{G0}.json").write_text(json.dumps({"holder": "exp22", "gpu_uuid": G0}))
-    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) != []      # ours is missing
-    S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=1.0)
-    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) == []
+    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1, "sha256": "0" * 64}, (G0, G1), H35) != []
+    held = _held(tmp_path)
+    assert S.reservation_reasons(str(tmp_path), held, (G0, G1), H35) == []
     assert S.held_by_other(str(tmp_path), G0) and not S.held_by_other(str(tmp_path), G1)
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 1: the HELD record is the exact bytes written; a removal only of that record, through its inode
+# --------------------------------------------------------------------------- #
+def test_the_held_record_is_authenticated_as_the_exact_bytes_written(tmp_path):
+    held = _held(tmp_path)
+    assert S.held_reasons(held, H35) == [] and S.reservation_reasons(str(tmp_path), held, (G0, G1), H35) == []
+    doc = json.load(open(held["path"]))
+    open(held["path"], "w").write(json.dumps(dict(doc, created=2.0)))          # every field valid, another record
+    assert S.ours_reasons(json.load(open(held["path"])), G1, H35) == []
+    assert S.held_reasons(held, H35) != [] and S.reservation_reasons(str(tmp_path), held, (G0, G1), H35) != []
+    assert S.reservation_reasons(str(tmp_path), {k: held[k] for k in ("uuid", "epoch")}, (G0, G1), H35) != []
+
+
+def _rewrite(p, **kw):
+    """The record at ``p`` with ``kw`` changed (read first, then rewritten)."""
+    doc = json.load(open(p))
+    open(p, "w").write(json.dumps(dict(doc, **kw)))
+
+
+RELEASE_SPOILS = {
+    "deleted": lambda p: os.unlink(p),
+    "another_holder": lambda p: open(p, "w").write(json.dumps({"holder": "exp22", "gpu_uuid": G1})),
+    "another_epoch": lambda p: _rewrite(p, epoch=2),
+    "another_created": lambda p: _rewrite(p, created=9.0),
+    "corrupt": lambda p: open(p, "w").write("{not json"),
+}
+
+
+@pytest.mark.parametrize("how", sorted(RELEASE_SPOILS))
+def test_a_release_removes_only_the_held_record_and_unlinks_nothing_else(tmp_path, how):
+    held = _held(tmp_path)
+    RELEASE_SPOILS[how](held["path"])
+    before = open(held["path"], "rb").read() if os.path.exists(held["path"]) else None
+    assert S.release_reservation(held, H35) != []
+    assert (open(held["path"], "rb").read() if os.path.exists(held["path"]) else None) == before   # untouched
+
+
+def test_a_release_refuses_a_file_replaced_while_it_was_authenticated(tmp_path, monkeypatch):
+    held = _held(tmp_path)
+    real = os.lstat
+    monkeypatch.setattr(S.os, "lstat", lambda p, *a, **k: os.stat_result(
+        tuple(real(p, *a, **k))[:1] + (real(p, *a, **k).st_ino + 1,) + tuple(real(p, *a, **k))[2:]))
+    assert any("replaced" in x for x in S.release_reservation(held, H35)) and os.path.exists(held["path"])
 
 
 # --------------------------------------------------------------------------- #
@@ -245,7 +298,8 @@ def _done(st, upto):
                     "E2": {"e2": {"rc": 1, "verdict": "FAIL", "out": "x"}}}.get(c["gate"], {}))
         c["final_guard"] = {"status": "OK", "exit": 0, "t": 2.0, "time": "t2", "step": 101, "anchor": dict(ANCHOR)}
     st.update(baseline={"time": 1.0, "step": 100, "log": {"path": "/x.log", "inode": 5, "size": 9}},
-              lane={"uuid": G1, "shared": True}, reservation={"uuid": G1, "epoch": 1, "path": f"/r/{G1}.json"},
+              lane={"uuid": G1, "shared": True}, reservation={"uuid": G1, "epoch": 1, "path": f"/r/{G1}.json",
+                                                              "sha256": "6" * 64},
               his_log_anchor=dict(ANCHOR),
               events=[{"t": 1.0, "time": "t", "what": "supervisor started (a new state)"}])
     return st
@@ -271,7 +325,8 @@ def test_states_carrying_their_evidence_load(tmp_path):
     done.update(lane=None, reservation=None)                                    # released at the end
     assert _load(tmp_path, done) is not None
     early = _state()                                                            # a hand-over before our first spawn
-    early.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": f"/r/{G0}.json"})
+    early.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": f"/r/{G0}.json",
+                                                                  "sha256": "6" * 64})
     assert _load(tmp_path, early) is not None
 
 
@@ -307,7 +362,8 @@ STATE_EDITS = {
     "lane_and_reservation_disagree": lambda d: d["lane"].update(uuid=G0),
     "a_lane_without_its_reservation": lambda d: d.update(reservation=None),
     "a_shared_lane_on_gpu0": lambda d: d.update(lane={"uuid": G0, "shared": True},
-                                                reservation={"uuid": G0, "epoch": 2, "path": f"/r/{G0}.json"}),
+                                                reservation={"uuid": G0, "epoch": 2, "path": f"/r/{G0}.json",
+                                                             "sha256": "6" * 64}),
     "a_reservation_elsewhere": lambda d: d["reservation"].update(path="/r/other.json"),
     "a_reservation_epoch_0": lambda d: d["reservation"].update(epoch=0),
     "an_empty_latch": lambda d: d.update(stop_latch={}),
@@ -330,6 +386,9 @@ STATE_EDITS = {
     "a_negative_baseline_inode": lambda d: d["baseline"]["log"].update(inode=-1),
     "a_negative_baseline_size": lambda d: d["baseline"]["log"].update(size=-5),
     "a_reservation_outside_its_directory": lambda d: d["reservation"].update(path=f"/elsewhere/{G1}.json"),
+    # Codex C3d HIGH 1: the held record's sha256
+    "a_reservation_without_its_sha256": lambda d: d["reservation"].pop("sha256"),
+    "a_reservation_with_a_malformed_sha256": lambda d: d["reservation"].update(sha256="xyz"),
     "an_in_flight_failure_with_receipt_fields": lambda d: (d["chunks"][7].update(
         state="in_flight", lane=G1, shared=True, started="t", log="x", ended="t", runner_rc=1, receipt_sha256="1" * 64,
         campaign_digest="d" * 64), d.update(stop_latch={"reason": "r", "time": "t"})),
@@ -363,11 +422,12 @@ RES_EDITS = {
 
 @pytest.mark.parametrize("name", sorted(RES_EDITS))
 def test_a_reservation_of_ours_is_authenticated_field_by_field(tmp_path, name):
-    p = S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=1.0)
-    doc = json.load(open(p))
+    held = _held(tmp_path)
+    doc = json.load(open(held["path"]))
     RES_EDITS[name](doc)
-    open(p, "w").write(json.dumps(doc))
-    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) != []
+    open(held["path"], "w").write(json.dumps(doc))
+    assert S.reservation_reasons(str(tmp_path), held, (G0, G1), H35) != []
+    assert S.held_reasons(held, H35) != []
 
 
 def test_a_malformed_reservation_file_is_refused_and_never_free(tmp_path):

@@ -236,8 +236,8 @@ def test_the_dry_run_writes_nothing_in_a_fresh_snapshot_even_without_pythondontw
 def _gpu0_state(cfg, w):
     st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
                      approved_sha256=cfg["approved_sha256"])
-    path = S.create_reservation(cfg["reservations"], G0, epoch=1, h35=cfg["h35"], now=w.t)
-    st.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": path})
+    path, sha = S.create_reservation(cfg["reservations"], G0, epoch=1, h35=cfg["h35"], now=w.t)
+    st.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": path, "sha256": sha})
     S.write_state(cfg["state"], st)
 
 

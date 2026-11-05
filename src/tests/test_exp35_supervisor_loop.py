@@ -232,8 +232,8 @@ def test_a_runner_verified_chunk_re_runs_its_gates_first(tmp_path):
                      approved_sha256=cfg["approved_sha256"])
     st["chunks"][0].update(state="runner_verified", lane=G1, shared=True, started="t", log="x.log", ended="t",
                            runner_rc=0, receipt_sha256="1" * 64, campaign_digest="d" * 64)
-    S.create_reservation(cfg["reservations"], G1, epoch=1, h35=cfg["h35"], now=w.t)
-    st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1)},
+    _, sha = S.create_reservation(cfg["reservations"], G1, epoch=1, h35=cfg["h35"], now=w.t)
+    st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1), "sha256": sha},
               lane={"uuid": G1, "shared": True},
               baseline={"time": w.t, "step": 3 * TG.T, "log": {"path": cfg["his_log"], "inode": 1, "size": 1}})
     S.write_state(cfg["state"], st)
@@ -245,8 +245,8 @@ def test_inconsistent_reservations_at_restart_latch(tmp_path):
     w, g, cfg = make(tmp_path)
     st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
                      approved_sha256=cfg["approved_sha256"])
-    st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1)},
-              lane={"uuid": G1, "shared": True})                                # the state holds it; the file is gone
+    st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1),
+                           "sha256": "6" * 64}, lane={"uuid": G1, "shared": True})   # the state holds it; the file is gone
     S.write_state(cfg["state"], st)
     assert sup(w, g, cfg).run() == 3 and w.spawned == []
     assert "reservation" in state(cfg)["stop_latch"]["reason"]
@@ -372,6 +372,96 @@ def test_a_finalized_probe_without_its_consistent_ledger_latches(tmp_path, how):
     assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 5
     st = state(cfg)
     assert st["chunks"][4]["state"] == "runner_verified" and "probe" in st["stop_latch"]["reason"]
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 1: the reservation re-authenticated as the LAST step before a spawn and before the final release
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("how", sorted(SPOIL))
+def test_a_reservation_spoiled_by_the_in_flight_save_spawns_nothing(tmp_path, monkeypatch, how):
+    w, g, cfg = make(tmp_path)
+    real, done = S.write_state, []
+
+    def write_state(path, doc):
+        real(path, doc)
+        if doc["chunks"][2]["state"] == "in_flight" and not done:           # chunk 3's in-flight save
+            done.append(SPOIL[how](w))
+    monkeypatch.setattr(S, "write_state", write_state)
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 2                    # chunk 3 never spawned
+    st = state(cfg)
+    assert "NOT spawned" in st["stop_latch"]["reason"] and st["chunks"][2]["state"] == "planned"
+    assert S.load_state(cfg["state"], h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
+                        supervisor_sha256=cfg["supervisor_sha256"], approved_sha256=cfg["approved_sha256"],
+                        his_log=cfg["his_log"], reservations=cfg["reservations"]) is not None   # a loadable state
+
+
+class SpoilAndRecord(SpoilAfterVerify):
+    """... and records what the spoiled file then holds (None: deleted)."""
+
+    def verify(self, chunk):
+        out = super().verify(chunk)
+        if chunk["cell"] == self.cell:
+            p = _ours_path(self.w)
+            self.after = p.read_bytes() if p.exists() else None
+        return out
+
+
+@pytest.mark.parametrize("how", sorted(SPOIL))
+def test_a_reservation_spoiled_before_the_final_release_latches_and_unlinks_nothing(tmp_path, how):
+    w, _, cfg = make(tmp_path)
+    g = SpoilAndRecord(w, "exp35_BF_C4_S40000_K8_s42_th45", how)               # chunk 33, the last
+    g.probe_json = cfg["probe_json"]
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == N_CHUNKS
+    st, p = state(cfg), _ours_path(w)
+    assert "final release" in st["stop_latch"]["reason"] and "nothing unlinked" in st["stop_latch"]["reason"]
+    assert (p.read_bytes() if p.exists() else None) == g.after                 # the foreign record kept as it is
+    assert [c["state"] for c in st["chunks"]] == ["gates_verified"] * N_CHUNKS and st["reservation"]["uuid"] == G1
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 2: the trainer still listed on GPU 1 with an unreadable identity while a cell runs
+# --------------------------------------------------------------------------- #
+UNREADABLE = {
+    "deleted": lambda w: shutil.rmtree(w.procdir / str(TR1)),
+    "corrupt_stat": lambda w: (w.procdir / str(TR1) / "stat").write_text("garbage\n"),
+    "no_fd_link": lambda w: os.unlink(w.procdir / str(TR1) / "fd" / "1"),
+}
+
+
+@pytest.mark.parametrize("how", sorted(UNREADABLE))
+def test_a_listed_trainer_whose_identity_becomes_unreadable_stops_after_the_cell(tmp_path, how):
+    w, g, cfg = make(tmp_path)
+    w.behaviour = lambda argv: (3, 0)
+    w.at_spawn(3, UNREADABLE[how])                                              # (TR1, GPU 1) stays in the table
+    assert sup(w, g, cfg).run() == 3 and len(w.spawned) == 3
+    st = state(cfg)
+    assert str(TR1) in st["stop_latch"]["reason"] and "unreadable" in st["stop_latch"]["reason"]
+    assert st["chunks"][2]["runner_rc"] == 0 and all(p.returncode is not None for p in w.procs)   # it finished
+
+
+def test_the_trainer_exiting_between_two_observations_while_a_cell_runs_is_no_stop(tmp_path):
+    """Listed at a poll, its /proc entry already gone, absent from the re-queried table: it exited -- no latch, the
+    hand-over follows. A regression guard: green before and after the fix."""
+    w, g, cfg = make(tmp_path)
+    w.behaviour = lambda argv: (3, 0)
+    real, gone = w.nvsmi, {}
+
+    def leave(world):
+        world.apps.remove((TR0, G0))
+        shutil.rmtree(world.procdir / str(TR0))
+        shutil.rmtree(world.procdir / str(TR1))                                 # rank 1 still listed ...
+        gone["apps"] = 0
+
+    def nvsmi(query):
+        if query == "apps" and "apps" in gone:
+            gone["apps"] += 1
+            if gone["apps"] == 2 and (TR1, G1) in w.apps:                       # ... until the re-query
+                w.apps.remove((TR1, G1))
+        return real(query)
+    w.nvsmi = nvsmi
+    w.at_spawn(3, leave)
+    assert sup(w, g, cfg).run() == 0 and len(w.spawned) == N_CHUNKS
+    assert state(cfg)["stop_latch"] is None and all(r["uuid"] == G0 for r in w.spawned[3:])
 
 
 def test_the_probe_ledger_hashes_are_the_files(tmp_path):
