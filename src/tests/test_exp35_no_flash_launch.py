@@ -47,10 +47,13 @@ def _fallback_block():
 
 TARGET = r'''
 import json, os, sys
-import src.models.transformer as T
-report = {"argv": sys.argv, "name": __name__, "path": sys.path[:2], "pythonpath": os.environ.get("PYTHONPATH"),
-          "flash_none": T.flash_attn_func is None, "transformer": T.__file__, "dont_write": sys.dont_write_bytecode,
+report = {"argv": sys.argv, "name": __name__, "file": __file__, "file_abs": os.path.abspath(__file__),
+          "cwd": os.getcwd(), "pid": os.getpid(),
+          "path": sys.path[:2], "pythonpath": os.environ.get("PYTHONPATH"), "dont_write": sys.dont_write_bytecode,
           "path_all": sys.path}
+if os.environ.get("TARGET_NO_IMPORT") != "1":   # (a direct invocation would meet the real flash_attn)
+    import src.models.transformer as T
+    report.update(flash_none=T.flash_attn_func is None, transformer=T.__file__)
 with open(os.environ["TARGET_REPORT"], "w") as f:
     json.dump(report, f)
 if os.environ.get("TARGET_EXIT"):
@@ -86,9 +89,13 @@ def launch(root, *args, env=None, launcher=None):
     report = root.parent / "report.json"
     if report.exists():
         report.unlink()
-    p = subprocess.run([PY, str(launcher or root / "overlays" / "no_flash" / "exp35_no_flash_launch.py"), *args],
-                       env=e, cwd=str(root), capture_output=True, text=True, timeout=300)
-    return p.returncode, p.stdout, p.stderr, (json.loads(report.read_text()) if report.exists() else None)
+    p = subprocess.Popen([PY, str(launcher or root / "overlays" / "no_flash" / "exp35_no_flash_launch.py"), *args],
+                         env=e, cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out, err = p.communicate(timeout=300)
+    rep = json.loads(report.read_text()) if report.exists() else None
+    if rep is not None:
+        rep["launcher_pid"] = p.pid                     # the process the launcher ran in (NIT 1, Codex C1)
+    return p.returncode, out, err, rep
 
 
 def _sentinel(stdout):
@@ -152,6 +159,7 @@ def test_the_target_runs_in_this_interpreter_with_its_argv_after_one_sentinel(tm
     rc, out, err, rep = launch(root, "target.py", "--alpha", "1", "--beta")
     assert rc == 0, err
     assert rep["argv"] == ["target.py", "--alpha", "1", "--beta"] and rep["name"] == "__main__"
+    assert rep["pid"] == rep["launcher_pid"] and rep["file"] == "target.py" and rep["cwd"] == str(root)
     assert rep["path"] == [str(root / "overlays" / "no_flash"), str(root)]       # (3) overlay, then repo
     assert rep["flash_none"] is True and rep["dont_write"] is True
     assert os.path.realpath(rep["transformer"]) == str(root / "src" / "models" / "transformer.py")
@@ -160,6 +168,28 @@ def test_the_target_runs_in_this_interpreter_with_its_argv_after_one_sentinel(tm
     assert _sentinel(out) == {"attention_backend": "sdpa", "overlay_sha256": OVERLAY_SHA256,
                               "launcher_sha256": _sha(LAUNCHER), "target": "target.py"}
     assert not list((root / "overlays").rglob("__pycache__")) and not list(root.rglob("*.pyc"))
+
+
+def test_the_target_sees_what_a_direct_invocation_sees(tmp_path):
+    """runpy.run_path in the launcher's own process (NIT 1, Codex C1): the arguments, ``__name__``, the
+    script's resolved path and the cwd of ``python target.py ...`` from the same cwd. (A direct run on
+    Python >= 3.9 makes ``__file__`` absolute where run_path keeps the path as given; every consumer --
+    eval_FLAC.source_sha, the probe's repo root -- resolves it with abspath against the unchanged cwd.)"""
+    root = fake_repo(tmp_path)
+    rc, _, err, via = launch(root, "target.py", "--x", "y", env={"TARGET_NO_IMPORT": "1"})
+    assert rc == 0, err
+    report = tmp_path / "direct.json"
+    p = subprocess.run([PY, "target.py", "--x", "y"], cwd=str(root), capture_output=True, text=True, timeout=120,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", TARGET_NO_IMPORT="1",
+                                TARGET_REPORT=str(report)))
+    assert p.returncode == 0, p.stderr
+    direct = json.loads(report.read_text())
+    for key in ("name", "file_abs", "cwd"):
+        assert via[key] == direct[key], key
+    assert via["argv"][1:] == direct["argv"][1:] == ["--x", "y"]
+    assert os.path.basename(via["argv"][0]) == os.path.basename(direct["argv"][0]) == "target.py"
+    assert via["file"] == "target.py" and direct["file"] == str(root / "target.py")       # the one difference
+    assert via["pid"] == via["launcher_pid"] != direct["pid"]
 
 
 def test_preflight_checks_everything_and_runs_nothing(tmp_path):
@@ -271,8 +301,22 @@ def test_a_src_package_from_outside_the_repo_is_refused(tmp_path):
     hooks.mkdir()
     (hooks / "sitecustomize.py").write_text(f"import sys\nsys.path.insert(0, {str(elsewhere)!r})\n")
     rc, out, err, rep = launch(root, "target.py", env={"PYTHONPATH": str(hooks)})
-    _refused(rc, out, err, rep, "src.models.transformer is")
-    assert f"the package src is {elsewhere}" in err
+    _refused(rc, out, err, rep, "src.models.transformer")
+    assert f"{elsewhere}/src/__init__.py" in err and "not this checkout's" in err
+
+
+@pytest.mark.parametrize("link", ["src/models/transformer.py", "src/__init__.py", "src/models/__init__.py",
+                                  "src/models", "src"])
+def test_a_symlink_out_of_the_checkout_is_refused(tmp_path, link):
+    """(5), Codex C1 HIGH 1: every file on the transformer's import chain must REALLY be under this
+    checkout -- a symlinked file, or a symlinked src/ or src/models/ directory, pointing outside is refused."""
+    root = fake_repo(tmp_path)
+    outside = tmp_path / "outside" / link
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    os.rename(root / link, outside)
+    os.symlink(outside, root / link)
+    rc, out, err, rep = launch(root, "target.py")
+    _refused(rc, out, err, rep, "not this checkout's")
 
 
 def test_a_transformer_that_fails_to_import_is_refused(tmp_path):

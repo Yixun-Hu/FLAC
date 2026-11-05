@@ -62,7 +62,7 @@ MAKE_CELLS="$EXPDIR/depth_canon_make_cells.py"
 CELLS="$EXPDIR/depth_canon_cells.json"
 NO_FLASH_DIR="overlays/no_flash"                                   # exp_35: the no-flash backend, pinned
 NO_FLASH_OVERLAY="$NO_FLASH_DIR/flash_attn.py"; NO_FLASH_OVERLAY_SHA256="0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"
-NO_FLASH_LAUNCHER="$NO_FLASH_DIR/exp35_no_flash_launch.py"; NO_FLASH_LAUNCHER_SHA256="980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d"
+NO_FLASH_LAUNCHER="$NO_FLASH_DIR/exp35_no_flash_launch.py"; NO_FLASH_LAUNCHER_SHA256="bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
 IDENTITY="worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_gpu_identity.py"
 PY="/home/yixunhu/miniconda3/envs/flac/bin/python"        # the flac env, required
 EVAL_PROG="eval_FLAC.py"

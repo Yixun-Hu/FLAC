@@ -404,7 +404,7 @@ RECEIPT_KEYS_V2 = RECEIPT_KEYS + RECEIPT_V2_KEYS
 NO_FLASH = {"overlay": "overlays/no_flash/flash_attn.py",
             "overlay_sha256": "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023",
             "launcher": "overlays/no_flash/exp35_no_flash_launch.py",
-            "launcher_sha256": "980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d",
+            "launcher_sha256": "bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de",
             "backend": "sdpa", "sentinel": "EXP35_NO_FLASH_LAUNCHER", "target": "eval_FLAC.py",
             "overlay_line": "exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA",
             "fallback_line": "flash_attn not installed, disabling Flash Attention",   # src/models/transformer.py:16

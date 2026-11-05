@@ -135,19 +135,20 @@ def import_reasons():
 
 
 def transformer_reasons(repo=REPO):
-    """(5) this checkout's transformer, on its SDPA branch (``flash_attn_func is None``)."""
-    want = os.path.realpath(os.path.join(repo, "src", "models", "transformer.py"))
+    """(5) this checkout's transformer, on its SDPA branch (``flash_attn_func is None``): every file on its
+    import chain REALLY is the file at its lexical path under the canonical ``repo`` -- a symlinked file,
+    or a symlinked ``src`` / ``src/models`` directory, leading out of the checkout is refused."""
     try:
         mod = importlib.import_module("src.models.transformer")
     except Exception as err:                       # noqa: BLE001 -- an import failure is a refusal
         return [f"importing src.models.transformer failed ({type(err).__name__}: {err})"]
     out = []
-    got = os.path.realpath(getattr(mod, "__file__", None) or "")
-    if got != want:
-        out.append(f"src.models.transformer is {got}, not {want}")
-    src_init = os.path.realpath(getattr(sys.modules.get("src"), "__file__", None) or "")
-    if src_init != os.path.realpath(os.path.join(repo, "src", "__init__.py")):
-        out.append(f"the package src is {src_init}, not {repo}/src")
+    for name, rel in (("src", ("src", "__init__.py")), ("src.models", ("src", "models", "__init__.py")),
+                      ("src.models.transformer", ("src", "models", "transformer.py"))):
+        want = os.path.join(repo, *rel)            # lexical: REPO is canonical, nothing on this side resolves
+        got = os.path.realpath(getattr(sys.modules.get(name), "__file__", None) or "")
+        if got != want:
+            out.append(f"{name} is {got}, not this checkout's {want}")
     if getattr(mod, "flash_attn_func", "MISSING") is not None:
         out.append("src.models.transformer.flash_attn_func is not None: the flash-attention branch would run")
     return out
