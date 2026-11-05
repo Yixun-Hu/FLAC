@@ -91,8 +91,11 @@ def test_the_predictor_refuses_without_a_step_or_after_the_training():
 # --------------------------------------------------------------------------- #
 # the state file: schema v1, fail-closed load, atomic writes (temp + fsync + rename + directory fsync)
 # --------------------------------------------------------------------------- #
+PINS = dict(h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64, approved_sha256="e" * 64)
+
+
 def _state():
-    return S.new_state(h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64, approved_sha256="e" * 64)
+    return S.new_state(**PINS)
 
 
 def test_a_new_state_plans_every_chunk():
@@ -142,14 +145,14 @@ def test_an_inconsistent_state_refuses(tmp_path, edit, needle):
     edit(doc)
     S.write_state(path, doc)
     with pytest.raises(ValueError, match=needle):
-        S.load_state(path, h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64)
+        S.load_state(path, **PINS)
 
 
 def test_a_corrupt_or_absent_state(tmp_path):
-    assert S.load_state(str(tmp_path / "absent.json"), h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64) is None
+    assert S.load_state(str(tmp_path / "absent.json"), **PINS) is None
     (tmp_path / "bad.json").write_text("{")
     with pytest.raises(ValueError, match="corrupt"):
-        S.load_state(str(tmp_path / "bad.json"), h35=H35, cells_sha256="c" * 64, supervisor_sha256="d" * 64)
+        S.load_state(str(tmp_path / "bad.json"), **PINS)
 
 
 # --------------------------------------------------------------------------- #
@@ -184,15 +187,15 @@ def test_restart_reservation_consistency(tmp_path, files, held, ok):
     for uuid, epoch in files.items():
         S.create_reservation(str(tmp_path), uuid, epoch=epoch, h35=H35, now=1.0)
     reasons = S.reservation_reasons(str(tmp_path), None if held is None else {"uuid": held[0], "epoch": held[1]},
-                                    (G0, G1))
+                                    (G0, G1), H35)
     assert (reasons == []) is ok, reasons
 
 
 def test_another_holders_reservation_is_not_ours(tmp_path):
     (tmp_path / f"{G0}.json").write_text(json.dumps({"holder": "exp22", "gpu_uuid": G0}))
-    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1)) != []      # ours is missing
+    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) != []      # ours is missing
     S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=1.0)
-    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1)) == []
+    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) == []
     assert S.held_by_other(str(tmp_path), G0) and not S.held_by_other(str(tmp_path), G1)
 
 
@@ -222,3 +225,121 @@ def test_descendants_follow_the_parent_links(tmp_path):
     proc = _proc(tmp_path, {10: 1, 11: 10, 12: 11, 13: 1, 14: 13})
     assert S.descendants(10, proc) == {10, 11, 12} and S.descendants(13, proc) == {13, 14}
     assert S.descendants(99, proc) == set()
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3b BLOCKING 1: a state carries the evidence of every claim it makes -- or it refuses
+# --------------------------------------------------------------------------- #
+def _done(st, upto):
+    """Chunks 1..upto exactly as the loop leaves them: gates_verified with all their evidence."""
+    for c in st["chunks"][:upto]:
+        c.update(state="gates_verified", lane=G1, shared=True, started="t0", log="x.log", ended="t1")
+        if c["kind"] == "cell":
+            c.update(runner_rc=0, receipt_sha256="1" * 64, campaign_digest="d" * 64)
+        else:
+            c.update(probe_rc=0, probe_contract={"rc": 0, "out": "BF PROBE VALID"}, probe_json_sha256="2" * 64,
+                     sidecar_sha256="3" * 64, log_sha256="4" * 64)
+        c.update(**{"E1": {"e1": {"rc": 0, "verdict": "equal", "out": "ok"}},
+                    "E2": {"e2": {"rc": 1, "verdict": "FAIL", "out": "x"}}}.get(c["gate"], {}))
+    st.update(baseline={"time": 1.0, "step": 100, "log": {"path": "/x.log", "inode": 5, "size": 9}},
+              lane={"uuid": G1, "shared": True}, reservation={"uuid": G1, "epoch": 1, "path": f"/r/{G1}.json"},
+              his_log_anchor={"inode": 5, "device": 2, "size": 9, "offset": 9, "tail_sha256": "5" * 64},
+              events=[{"t": 1.0, "time": "t", "what": "supervisor started (a new state)"}])
+    return st
+
+
+def _load(tmp_path, doc, **pins):
+    path = str(tmp_path / "state.json")
+    S.write_state(path, doc)
+    return S.load_state(path, **dict(PINS, **pins))
+
+
+def test_states_carrying_their_evidence_load(tmp_path):
+    assert _load(tmp_path, _done(_state(), 7)) is not None
+    crash = _done(_state(), 7)                                                  # died while chunk 8 ran
+    crash["chunks"][7].update(state="in_flight", lane=G1, shared=True, started="t", log="y.log")
+    assert _load(tmp_path, crash) is not None
+    failed = _done(_state(), 7)                                                 # chunk 8 failed: recorded + latched
+    failed["chunks"][7].update(state="in_flight", lane=G1, shared=True, started="t", log="y.log", ended="t2",
+                               runner_rc=1)
+    failed["stop_latch"] = {"reason": "chunk 8 exited rc 1", "time": "t2"}
+    assert _load(tmp_path, failed) is not None
+    done = _done(_state(), 33)
+    done.update(lane=None, reservation=None)                                    # released at the end
+    assert _load(tmp_path, done) is not None
+    early = _state()                                                            # a hand-over before our first spawn
+    early.update(lane={"uuid": G0, "shared": False}, reservation={"uuid": G0, "epoch": 1, "path": f"/r/{G0}.json"})
+    assert _load(tmp_path, early) is not None
+
+
+STATE_EDITS = {
+    "a_fake_gates_verified_prefix": lambda d: [c.update(state="gates_verified") for c in d["chunks"][7:9]],
+    "a_missing_receipt": lambda d: d["chunks"][2].pop("receipt_sha256"),
+    "a_missing_rc": lambda d: d["chunks"][3].pop("runner_rc"),
+    "a_failed_rc": lambda d: d["chunks"][3].update(runner_rc=1),
+    "a_missing_e1": lambda d: d["chunks"][0].pop("e1"),
+    "a_failed_e1": lambda d: d["chunks"][1]["e1"].update(rc=1, verdict="mismatch"),
+    "a_missing_e2": lambda d: d["chunks"][3].pop("e2"),
+    "an_e2_verdict_off_its_rc": lambda d: d["chunks"][3]["e2"].update(verdict="PASS"),
+    "a_missing_probe_hash": lambda d: d["chunks"][4].pop("sidecar_sha256"),
+    "a_failed_probe_contract": lambda d: d["chunks"][4]["probe_contract"].update(rc=1),
+    "a_bad_digest": lambda d: d["chunks"][5].update(campaign_digest="not-hex"),
+    "two_campaign_digests": lambda d: d["chunks"][5].update(campaign_digest="e" * 64),
+    "another_approved_tuple": lambda d: d.update(approved_sha256="0" * 64),
+    "another_campaign": lambda d: d.update(campaign="exp25"),
+    "a_malformed_baseline": lambda d: d.update(baseline={"time": "t", "step": 1, "log": {}}),
+    "no_baseline_after_a_spawn": lambda d: d.update(baseline=None),
+    "a_malformed_anchor": lambda d: d.update(his_log_anchor={"inode": 1}),
+    "lane_and_reservation_disagree": lambda d: d["lane"].update(uuid=G0),
+    "a_lane_without_its_reservation": lambda d: d.update(reservation=None),
+    "a_shared_lane_on_gpu0": lambda d: d.update(lane={"uuid": G0, "shared": True},
+                                                reservation={"uuid": G0, "epoch": 2, "path": f"/r/{G0}.json"}),
+    "a_reservation_elsewhere": lambda d: d["reservation"].update(path="/r/other.json"),
+    "a_reservation_epoch_0": lambda d: d["reservation"].update(epoch=0),
+    "an_empty_latch": lambda d: d.update(stop_latch={}),
+    "a_latch_without_a_reason": lambda d: d.update(stop_latch={"reason": "", "time": "t"}),
+    "a_latch_with_more_keys": lambda d: d.update(stop_latch={"reason": "r", "time": "t", "x": 1}),
+    "a_malformed_event": lambda d: d["events"].append({"what": "x"}),
+    "an_extra_chunk_key": lambda d: d["chunks"][0].update(note="x"),
+    "evidence_on_a_planned_chunk": lambda d: d["chunks"][20].update(runner_rc=0),
+    "a_failure_without_the_latch": lambda d: d["chunks"][7].update(state="in_flight", lane=G1, shared=True,
+                                                                   started="t", log="x", ended="t", runner_rc=1),
+    "a_shared_flag_off_its_lane": lambda d: d["chunks"][2].update(shared="yes"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(STATE_EDITS))
+def test_a_state_without_its_evidence_refuses(tmp_path, name):
+    doc = _done(_state(), 7)
+    STATE_EDITS[name](doc)
+    with pytest.raises(ValueError, match="inconsistent"):
+        _load(tmp_path, doc)
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3b HIGH 2: a reservation of ours is authenticated field by field; a malformed file is never "free"
+# --------------------------------------------------------------------------- #
+RES_EDITS = {
+    "holder": lambda d: d.update(holder="exp22"), "h35": lambda d: d.update(h35="b" * 40),
+    "branch": lambda d: d.update(branch="main"), "gpu_uuid": lambda d: d.update(gpu_uuid=G0),
+    "epoch_type": lambda d: d.update(epoch="1"), "created_type": lambda d: d.update(created="t"),
+    "an_extra_key": lambda d: d.update(x=1), "a_missing_key": lambda d: d.pop("branch"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(RES_EDITS))
+def test_a_reservation_of_ours_is_authenticated_field_by_field(tmp_path, name):
+    p = S.create_reservation(str(tmp_path), G1, epoch=1, h35=H35, now=1.0)
+    doc = json.load(open(p))
+    RES_EDITS[name](doc)
+    open(p, "w").write(json.dumps(doc))
+    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) != []
+
+
+def test_a_malformed_reservation_file_is_refused_and_never_free(tmp_path):
+    (tmp_path / f"{G1}.json").write_text("{not json")
+    assert S.reservation_reasons(str(tmp_path), {"uuid": G1, "epoch": 1}, (G0, G1), H35) != []
+    assert S.reservation_reasons(str(tmp_path), None, (G0, G1), H35) != []
+    assert S.held_by_other(str(tmp_path), G1) is True
+    (tmp_path / f"{G0}.json").write_text("[]")
+    assert S.held_by_other(str(tmp_path), G0) is True

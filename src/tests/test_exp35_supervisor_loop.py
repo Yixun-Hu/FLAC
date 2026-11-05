@@ -109,7 +109,7 @@ def test_the_trainer_exit_hands_over_to_gpu0_atomically(tmp_path):
     assert all(r["files"] == [f"{G1}.json"] for r in w.spawned[:6]) and all(
         r["files"] == [f"{G0}.json"] for r in w.spawned[6:])
     st = state(cfg)
-    assert any(e["what"] == "hand-over to GPU 0" for e in st["events"]) and st["lane"]["uuid"] == G0
+    assert any(e["what"] == "hand-over to GPU 0" for e in st["events"]) and st["chunks"][-1]["lane"] == G0
     gap = [e for e in st["events"] if e["what"].startswith("GPU 0 free")]
     assert len(gap) == 2 and gap[1]["t"] - gap[0]["t"] >= S.HANDOVER_GAP_S
 
@@ -229,10 +229,12 @@ def test_a_runner_verified_chunk_re_runs_its_gates_first(tmp_path):
     w, g, cfg = make(tmp_path)
     st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
                      approved_sha256=cfg["approved_sha256"])
-    st["chunks"][0].update(state="runner_verified", runner_rc=0, receipt_sha256="r" * 64, campaign_digest="d" * 64)
+    st["chunks"][0].update(state="runner_verified", lane=G1, shared=True, started="t", log="x.log", ended="t",
+                           runner_rc=0, receipt_sha256="1" * 64, campaign_digest="d" * 64)
     S.create_reservation(cfg["reservations"], G1, epoch=1, h35=cfg["h35"], now=w.t)
     st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1)},
-              lane={"uuid": G1, "shared": True}, baseline={"time": w.t, "step": 3 * TG.T, "log": {}})
+              lane={"uuid": G1, "shared": True},
+              baseline={"time": w.t, "step": 3 * TG.T, "log": {"path": cfg["his_log"], "inode": 1, "size": 1}})
     S.write_state(cfg["state"], st)
     assert sup(w, g, cfg).run() == 0
     assert g.calls[0] == ("E1", 1) and len(w.spawned) == N_CHUNKS - 1
@@ -242,7 +244,8 @@ def test_inconsistent_reservations_at_restart_latch(tmp_path):
     w, g, cfg = make(tmp_path)
     st = S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"], supervisor_sha256=cfg["supervisor_sha256"],
                      approved_sha256=cfg["approved_sha256"])
-    st["reservation"] = {"uuid": G1, "epoch": 1, "path": "x"}                  # the file is gone
+    st.update(reservation={"uuid": G1, "epoch": 1, "path": S.reservation_path(cfg["reservations"], G1)},
+              lane={"uuid": G1, "shared": True})                                # the state holds it; the file is gone
     S.write_state(cfg["state"], st)
     assert sup(w, g, cfg).run() == 3 and w.spawned == []
     assert "reservation" in state(cfg)["stop_latch"]["reason"]
