@@ -1,0 +1,8 @@
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[launcher]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_sha]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_edited]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_gone]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[no_launch]
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_the_campaign_digest_and_the_receipts_bind_the_probe
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_cli_finalize_bf_probe
+44 failed, 5 warnings in 9.09s

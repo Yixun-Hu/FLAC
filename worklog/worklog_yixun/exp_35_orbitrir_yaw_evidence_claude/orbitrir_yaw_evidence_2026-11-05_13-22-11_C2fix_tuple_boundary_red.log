@@ -1,0 +1,12 @@
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_gpu_identity.py::test_cli_snapshot_validate_and_check
+FAILED src/tests/test_exp35_eval_run.py::test_the_tuple_must_carry_its_launch_entry_digest
+FAILED src/tests/test_exp35_eval_run.py::test_a_tuple_replaced_between_checks_refuses_the_cell[in_run_cell]
+FAILED src/tests/test_exp35_eval_run.py::test_a_process_joining_after_the_checkpoint_hash_is_caught_before_the_launch
+FAILED src/tests/test_exp35_eval_run.py::test_an_unshared_exp35_lane_is_rechecked_before_the_launch
+5 failed, 1 passed, 41 deselected, 3 warnings in 157.13s (0:02:37)

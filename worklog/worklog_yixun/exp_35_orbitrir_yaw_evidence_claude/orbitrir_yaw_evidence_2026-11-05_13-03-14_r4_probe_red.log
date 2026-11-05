@@ -1,0 +1,20 @@
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_bf_probe.py::test_the_bf_offsets_are_the_three_quarter_turns
+FAILED src/tests/test_exp35_bf_probe.py::test_b_is_the_evaluators_own_fixed_rotation_and_a_is_untouched
+FAILED src/tests/test_exp35_bf_probe.py::test_the_bf_stages_condition_through_the_frame_average[fp32-False-None]
+FAILED src/tests/test_exp35_bf_probe.py::test_the_bf_stages_condition_through_the_frame_average[eval-True-dtype1]
+FAILED src/tests/test_exp35_bf_probe.py::test_an_invariant_toy_gives_exactly_zero_at_every_stage
+FAILED src/tests/test_exp35_bf_probe.py::test_the_bf_report_has_no_off_orbit_key_and_no_canonical_tier
+FAILED src/tests/test_exp35_bf_probe.py::test_a_nondeterministic_condition_fails_the_verdict
+FAILED src/tests/test_exp35_bf_probe.py::test_the_bf_load_never_canonicalizes
+FAILED src/tests/test_exp35_bf_probe.py::test_bf_refuses_canonicalization_before_anything_loads
+FAILED src/tests/test_exp35_bf_probe.py::test_the_registered_bf_contract_constants
+FAILED src/tests/test_exp35_bf_probe.py::test_bf_main_end_to_end_registered
+FAILED src/tests/test_exp35_bf_probe.py::test_a_bf_deviation_is_a_labelled_diagnostic_or_refused
+12 failed, 5 warnings in 7.56s

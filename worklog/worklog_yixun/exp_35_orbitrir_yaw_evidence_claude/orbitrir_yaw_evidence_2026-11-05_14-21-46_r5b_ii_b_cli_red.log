@@ -1,0 +1,11 @@
+RED for round 5b (ii-b): the page / --exp35 CLI tests against the collector at 812d4e3827d1fa44a14a0d02f79dc68f9249caf2 (unmodified)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_mode.py::test_the_cli_writes_the_pipeline_s_results_and_a_page_that_resolves_the_pointers
+FAILED src/tests/test_exp35_collect_mode.py::test_the_default_output_is_the_exp35_folder
+FAILED src/tests/test_exp35_collect_mode.py::test_the_registered_output_prefix
+FAILED src/tests/test_exp35_collect_mode.py::test_a_refusal_exits_3_and_writes_nothing
+FAILED src/tests/test_exp35_collect_mode.py::test_a_partial_page_is_labelled
+FAILED src/tests/test_exp35_collect_mode.py::test_the_exp35_mode_refuses_exp25_blocks_and_the_exp25_outputs
+6 failed, 5 warnings in 9.75s

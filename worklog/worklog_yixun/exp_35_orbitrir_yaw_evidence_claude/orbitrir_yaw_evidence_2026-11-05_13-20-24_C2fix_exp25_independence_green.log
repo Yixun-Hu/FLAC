@@ -1,0 +1,21 @@
+.........                                                                [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 5 durations ==============================
+39.02s call     src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_runs_without_any_exp35_file
+10.85s call     src/tests/test_exp35_eval_run.py::test_the_cotenant_tuple_is_an_exp35_gate
+0.64s setup    src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_runs_without_any_exp35_file
+0.04s call     src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+0.02s setup    src/tests/test_exp35_eval_run.py::test_the_cotenant_tuple_is_an_exp35_gate
+9 passed, 38 deselected, 3 warnings in 55.97s

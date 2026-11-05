@@ -1,0 +1,5 @@
+FAILED src/tests/test_exp35_collect_part1.py::test_e2_fails_on_any_difference_beyond_its_tolerance[1-RIR_to_GT_RIR_R@1-0.21]
+FAILED src/tests/test_exp35_collect_part1.py::test_e2_is_refused_without_its_inputs
+FAILED src/tests/test_exp35_collect_part1.py::test_the_registered_e2_constants
+FAILED src/tests/test_exp35_collect_part1.py::test_cli_exp35_e2_exit_codes - ...
+41 failed, 3 warnings in 8.57s

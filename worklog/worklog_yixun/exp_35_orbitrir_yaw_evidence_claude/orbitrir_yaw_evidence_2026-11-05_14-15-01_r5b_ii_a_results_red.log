@@ -1,0 +1,23 @@
+RED for round 5b (ii-a): the new tests + the REF_PIN fixture fix, against the collector at the parent commit 0afd2eddb4279313226d6b70af3dc3497d9a86b0 (scratch clone)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_results.py::test_the_external_cells_are_the_registered_ones
+FAILED src/tests/test_exp35_collect_results.py::test_a_complete_world_gives_the_registered_results
+FAILED src/tests/test_exp35_collect_results.py::test_the_tables_point_at_the_reused_rows_and_name_every_source
+FAILED src/tests/test_exp35_collect_results.py::test_missing_cells_are_a_labelled_gap_only_under_partial
+FAILED src/tests/test_exp35_collect_results.py::test_a_b_f_probe_not_yet_run_is_a_gap
+FAILED src/tests/test_exp35_collect_results.py::test_a_poisoned_a6_csv_leaves_tier2_and_tier3_unchanged
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[a6_csv]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[ctl_mismatch]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[exp25_reference]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[external_cell]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[probe]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[registry]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[registry_file]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[two_digests]
+FAILED src/tests/test_exp35_collect_results.py::test_an_integrity_problem_refuses_even_under_partial[v1_receipt]
+FAILED src/tests/test_exp35_collect_results.py::test_control_cells_that_have_not_run_refuse_the_results
+FAILED src/tests/test_exp35_collect_results.py::test_the_exp35_mode_takes_exp35_blocks_only
+FAILED src/tests/test_exp35_collect_results.py::test_an_e2_failure_takes_the_s42_one_pin_cells
+FAILED src/tests/test_exp35_collect_results.py::test_an_e2_without_its_cells_leaves_the_45_degree_points_pending
+19 failed, 5 warnings in 11.27s

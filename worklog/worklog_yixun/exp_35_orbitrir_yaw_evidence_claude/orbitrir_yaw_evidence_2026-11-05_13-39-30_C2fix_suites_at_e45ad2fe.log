@@ -1,0 +1,12 @@
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../../../../../../home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../../../../../../home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+536 passed, 5 warnings in 1408.42s (0:23:28)

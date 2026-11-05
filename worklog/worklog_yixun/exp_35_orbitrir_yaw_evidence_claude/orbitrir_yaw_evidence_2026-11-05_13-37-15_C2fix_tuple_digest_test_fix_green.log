@@ -1,0 +1,3 @@
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_eval_run.py::test_the_tuple_must_carry_its_launch_entry_digest
+1 failed, 21 deselected, 3 warnings in 27.11s

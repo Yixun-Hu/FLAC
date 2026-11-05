@@ -1,0 +1,6 @@
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_eval_run.py::test_a_tuple_replaced_between_checks_refuses_the_cell[main_loop_recheck]
+FAILED src/tests/test_exp35_eval_run.py::test_a_tuple_replaced_between_checks_refuses_the_cell[in_run_cell]
+2 failed, 20 deselected, 3 warnings in 69.93s (0:01:09)

@@ -1,0 +1,5 @@
+src/tests/test_exp35_gpu_identity.py:103: Failed
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_gpu_identity.py::test_an_entry_that_changes_during_the_sample_is_refused[start_time]
+FAILED src/tests/test_exp35_gpu_identity.py::test_an_entry_that_changes_during_the_sample_is_refused[pid]
+2 failed, 23 passed in 2.90s

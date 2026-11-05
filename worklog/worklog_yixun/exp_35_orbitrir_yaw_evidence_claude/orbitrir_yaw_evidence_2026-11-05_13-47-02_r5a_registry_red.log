@@ -1,0 +1,5 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR src/tests/test_exp35_stream_registry.py - FileNotFoundError: [Errno 2] ...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+3 warnings, 1 error in 5.58s

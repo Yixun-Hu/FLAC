@@ -1,0 +1,14 @@
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_mode.py::test_a_complete_world_writes_the_results
+FAILED src/tests/test_exp35_collect_mode.py::test_missing_cells_are_a_labelled_gap_only_under_partial
+FAILED src/tests/test_exp35_collect_mode.py::test_a_poisoned_a6_csv_leaves_tier2_and_tier3_unchanged
+FAILED src/tests/test_exp35_collect_mode.py::test_an_integrity_problem_refuses_even_under_partial[registry-registry]
+FAILED src/tests/test_exp35_collect_mode.py::test_an_integrity_problem_refuses_even_under_partial[two_digests-campaign digest]
+FAILED src/tests/test_exp35_collect_mode.py::test_an_e2_failure_leaves_the_45_degree_points_pending
+6 failed, 45 passed, 5 warnings in 14.09s

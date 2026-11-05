@@ -1,0 +1,4 @@
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+89 passed, 201 deselected, 5 warnings in 10.67s

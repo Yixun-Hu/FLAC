@@ -132,3 +132,125 @@ Timestamps from `date`. Logs: `orbitrir_yaw_evidence_<ts>_<what>.log` in this fo
   (eval_FLAC `source_sha`, the probe's repo root) resolves it with abspath against the unchanged cwd.
 - **NIT 2** — this log, `commits_orbitrir_yaw_evidence.md`, the round-3 suite log (non-empty now) and the
   disclosure above.
+
+## 2026-11-05T13:06:39-05:00 — round 4a: the B-F composition probe, probe side (`c3c863bc`)
+- **Goal** — plan r2 §5 "B-F probe": `depth_canon_cond_probe.py --arm BF`. A = FA(md) with no canonicalization,
+  B = FA(rotate_d(md)) for d ∈ {128, 256, 384} (90 / 180 / 270 deg, keys d128 / d256 / d384), FA =
+  `invariant_conditioning(conditioner, md, device, (0, 90, 180, 270), max_fwd_samples=64)`; the same four stages,
+  protocols (fp32 / eval bf16) and determinism floor as the CANON probe; the first 64 unseen K=8 items, seed 42,
+  batch 64.
+- **Evidence** — RED `…_13-03-14_r4_probe_red.log` (12 failed) → `…_13-05-20_…_attempt1_test_reference_fixed_after.log`
+  (1 failed: the test's stage-spy reference was computed outside autocast — a test bug) → GREEN
+  `…_13-06-03_r4_probe_green.log` (113 passed with the existing cond-probe tests).
+- **Decisions** — B's rotation is `rotate_scene_metadata` + `offsets_to_radians`, checked equal to eval_FLAC's fixed
+  rotation (`math.radians(deg)` for 45 / 90 / 180 / 270); B-F takes no d64 and no random offset; `--arm BF` with
+  `--allow-canon-mismatch` is a usage error; the dirty check covers `overlays/no_flash` for B-F; `img_w` must be 512;
+  the B-F provenance records `cond_method`, `frame_avg_angles`, `frame_avg_max_fwd_samples` (no
+  `random_offset_seed`); any deviation from the registered B-F run sets `registered = false`.
+
+## 2026-11-05T13:39:18-05:00 — Codex code C2 (REQUEST-CHANGES) fixes (`38b809d6`, `e45ad2fe`)
+- **HIGH 1 (`38b809d6`)** — `proc_identity` opens `/proc/<pid>` ONCE (`O_DIRECTORY`), reads stat / cwd / cmdline /
+  fd 1 / fd 2 through that fd, and stats it before AND after; a different pid or start time → "changed during the
+  sample". RED `…_13-07-52_C2fix_identity_red.log` (2 failed) → GREEN `…_13-08-10_C2fix_identity_green.log` (25).
+- **HIGH 2 (`e45ad2fe`)** — the runner decides whether the selection holds exp_35 cells (`--count-no-flash`)
+  BEFORE it builds RELEVANT; the overlay, launcher and identity helper are added and pinned only then; the exp_25
+  plan entry keeps its shape (no `"no_flash": false`). RED `…_13-09-01_C2fix_exp25_independence_red.log` (9 failed)
+  → GREEN `…_13-20-24_C2fix_exp25_independence_green.log` (9 passed); the tests remove / mutate the exp_35 files
+  and compare the exp_25 plan and spawn byte for byte with the collector at `682df5db` (`_collector_at`).
+- **BLOCKING 1 (`e45ad2fe`)** — the approved tuple is bound to its launch-entry sha256
+  (`EXP35_APPROVED_COTENANTS_SHA256`, required) and its bytes are read once; the same digest is checked at every
+  identity check; a final `lane_state` / identity check runs inside `run_cell` after the farm validation and the
+  checkpoint sha256, immediately before the launcher (failure = hard stop, no receipt). Evidence:
+  RED `…_13-22-11_C2fix_tuple_boundary_red.log` (5 failed, 1 passed — the `main_loop_recheck` case passed because
+  its needle "hashes to" also matched an existing checkpoint message; needle tightened to "the launch entry pins")
+  → RED `…_13-25-01_…_red2.log` (both replacement cases fail as they should) → GREEN
+  `…_13-26-49_…_green.log` (46 passed, 1 failed: `test_the_tuple_must_carry_its_launch_entry_digest` passed
+  `None` as an env value, which the harness cannot take) → `…_13-37-15_…` (still 1 failed: one needle for two
+  different refusal messages) → `…_13-38-34_…` (passed with one needle per case). Production code unchanged across
+  these three test-only reruns.
+- **NIT 1** — the suite log at `f5a980bf` (`…_12-57-53_C1fix_suites_at_f5a980bf.log`) is non-empty now (508
+  passed; it was still being written when C2 read it) and is committed here; the suite log at `e45ad2fe` is
+  `…_13-39-30_C2fix_suites_at_e45ad2fe.log` (536 passed). Ledger / Coder-log updates stay in records commits.
+
+## 2026-11-05T13:42:58-05:00 — round 4b: the B-F control, collector side (`1e252642`), and `a99eab15`
+- **Goal** — §5 / §11 H3 / r3 §12 B3: `PROBE_CONTRACT_BF` mirrors the probe (offsets, keys, `fa_invariant`,
+  angles, cap 64, checkpoint `5319feb4…` with 723,922,667 loaded bytes, config `3e677204…`, target); the probe JSON
+  records the launch provenance (attention backend, overlay / launcher sha256, the H35 campaign digest, its log path
+  and log sha256) through `finalize_bf_probe` — the supervisor's non-logged step after chunk 5: atomic JSON +
+  regenerated `.sha256`, refusing a second pass, another arm, a wrong digest or a log without the backend evidence;
+  `load_control_bf` returns the eval-protocol control p99 per offset + pooled and eps_cond (no verdict).
+- **Evidence** — RED `…_13-41-00_r4b_contract_red.log` (44 failed) → `…_13-42-06_…_attempt1_one_test_moved_after.log`
+  (1 failed: the "other arm" case belonged in the finalization-refusal test, moved) → GREEN
+  `…_13-42-29_r4b_contract_green.log` (89 passed).
+- **`a99eab15` (tests only)** — `eval_FLAC.py` and `depth_canon_cond_probe.py` really start under the launcher
+  (`…_13-43-14_production_targets_under_launcher.log`, 2 passed). A characterization test: it passed against the
+  existing code, so it has no RED — disclosed.
+
+## 2026-11-05T13:53:09-05:00 — round 5a: the stream registry and the exp35 collect mode, part 1 (`999db221`, `2b129e30`)
+- **Registry (`999db221`)** — `exp35_make_stream_registry.py` verifies exp_25's P1-pin / CANON / YAW-pin unseen
+  40k T / R / C4 cells offline at `d6ca307a` (84 cells), requires them to agree across arms and freezes input_hash
+  per K / seed, assignment_hash per seed (R) and per angle (fixed); 135 / 225 are derived from the split's target
+  order + `yaw_column_shift` (192 / 320 columns), and the rule must first reproduce all five observed angles.
+  RED `…_13-47-02_r5a_registry_red.log` (collection error) → `…_13-47-37_…_attempt1_test_dirs_fixed_after.log`
+  (1 failed: a test reused a tmp dir that held dumps) → GREEN `…_13-48-09_r5a_registry_green.log` (6 passed);
+  frozen from the exp-25 worktree: `…_13-48-28_r5a_registry_freeze.log`, sha256 `9ec31f32…`; every prefix equals
+  the plan's §5 item 5 table.
+- **Part 1 (`2b129e30`)** — the exp_25 results pinned (`ec3fcd08…`) with §5 items 1–2 checked, the registry
+  pinned, `registry_reasons`, `--exp35-ctl-check K` (E1; the §3c constants equal the force-added receipts),
+  `--exp35-e2` (14 tolerances). RED `…_13-51-09_r5a_collect_part1_red.log` (41 failed) →
+  `…_13-52-13_…_attempt1_two_test_bugs_fixed_after.log` (10 failed: a dict built with int keys through `**`, a
+  fake E2 result without its `rule`) → GREEN `…_13-52-47_r5a_collect_part1_green.log` (41 passed).
+
+## 2026-11-05T13:57:14-05:00 — round 5b (i): Tier 2-C4 and the Tier 3 B-F row (`0afd2edd`)
+- RED `…_13-55-46_r5b_tiers_red.log` (13 failed) → `…_13-56-21_…_attempt1_two_test_bugs_fixed_after.log` (2 failed:
+  a 1e-9 perturbation is below float32 resolution, so the "zero control" case saw p99 0 — raised to 1e-6; the
+  check list holds 14 metric × K entries, each carrying BOTH rules = the registered 28 checks) → GREEN
+  `…_13-56-52_r5b_tiers_green.log` (13 passed).
+- **Decisions** — exp_25's registered implementation is kept for B-F: a C4 pair that is not computable counts as
+  not passing (`tier2`), Tier 3 is None when an input is missing (`tier3`); B-F's Tier 3 uses an index over the
+  BF-pin cells only, so BF-dup never enters; P1-pin's Δ_C4 is read from the pinned JSON at full precision (§11 N7).
+
+## 2026-11-05T14:20:19-05:00 — round 5b (ii): the results pipeline, the page and the CLI (`812d4e38`, `6145f93d`)
+- **A first draft was superseded before any commit.** It was written test-first (RED
+  `…_13-59-11_r5b_collect_mode_red.log`, 10 failed; then `…_14-00-39`, `…_14-01-23`, `…_14-02-05` attempts — one
+  production slip (an unbound `farm`), a fixture "exp_25 pin" that was not d6ca307a, and a missing
+  `--no-link-check` in the fixture —
+  and GREEN `…_14-03-24_r5b_collect_mode_green.log`, 10 passed; `…_14-04-43_r5b_collector_files_green.log`, 177).
+  At commit time it counted +201 code lines (over the rule), and re-reading plan §4 / §5 showed four departures:
+  the A6 CSV read outside E2 (§5 item 6), reused exp_25 rows copied into the tables (item 3), a CTL not yet run
+  treated as a gap (item 7) and "pending" instead of the s42 one-pin cells on an E2 FAIL (§4). It was set aside
+  (scratch `collect_r5b_ii_draft1.py`) and the round redone test-first in two commits.
+- **(ii-a) `812d4e38`** — `exp35_results` / `build_exp35_results` / `tables`. RED against the parent collector in a
+  scratch clone `…_14-15-01_r5b_ii_a_results_red.log` (19 failed: 18 × no `exp35_results`, 1 × no
+  `EXP25_EXTERNAL`) → `…_14-17-29_…_attempt1_test_name_bug.log` (1 failed: the test named the CANON-45 cells
+  `…_C4_…`; their registered names are `exp35_CANON_OFF_S40000_K{k}_s{s}_th45`) → GREEN
+  `…_14-18-14_r5b_ii_a_results_green.log` (19 passed); the collector test files `…_14-18-42_…` (446 passed).
+- **(ii-b) `6145f93d`** — `render_exp35_md` + `--exp35`. RED `…_14-21-46_r5b_ii_b_cli_red.log` (6 failed: no
+  `EXP35_RESULTS`, argparse exit 2 on `--exp35`) → GREEN `…_14-22-44_r5b_ii_b_cli_green.log` (6 passed); the
+  collector test files `…_14-23-46_…` (452 passed).
+- **Real-data smoke (read-only, CPU)** `…_14-25-33_r5b_real_data_smoke.log` (script embedded verbatim): the 24
+  external exp_25 cells verify offline at `d6ca307a` against `~/codespace/exp-25-depth-canon`; Δ_R recomputed from
+  the external R cells and the JSON's own θ = 0 values equals the JSON's Tier 3 `delta_r`, and the 45-degree probe
+  its `probe45`, exactly (max |diff| 0) — the external cells are the ones exp_25 used; `--exp35 --partial` today
+  exits 3 with "CTL K1 refused (E1 must be equal)" and writes nothing.
+- **Decisions / ambiguities resolved (plan quotes)**
+  - A6 CSV — §1 (b) "45°: FLAC and OrbitRIR from the A6 CSV unless E2 fails" vs §5 item 6 "The sha-pinned A6 CSV
+    is read only by E2 and the figure." → in the collector E2 is the CSV's only reader; its result carries the
+    45-degree rows (`rows45`, filled only on a PASS) and table (b) takes them from there; Tier 2 / Tier 3 never see
+    the CSV (§9 "a poisoned CSV leaves Tier 2/3 unchanged" — tested).
+  - Reused rows — §5 item 3 "Reused rows stay under `external_reference.exp25` and never pair with H35 cells." →
+    table (a) FLAC / CANON and table (c) CANON / P1 / YAW are pointers (`{"ref": "external_reference.exp25…"}`) the
+    page resolves; no paired statistic joins an exp_25 and an H35 cell. CANON at 45° pools exp_25 s42 with
+    CANON-45 s43–46 in one mean ± sd because §1 (b) prescribes it ("CANON from exp_25 s42 plus CANON-45"); its
+    source label says so.
+  - E1 — §5 "It refuses unless all of the following hold: … 7. CTL equality holds (§3c)." → "equal" is required
+    for any results, partial or not (a CTL not yet run refuses too; the supervisor runs CTL first).
+  - E2 FAIL — §4 "FAIL → the +16 phase-(ii) cells run, and 45° comes from one-pin SDPA cells (s42: exp_25 P1-pin
+    C4 th45 and exp_35 BF C4 th45)." → table (b) shows those s42 points (n 1), labelled, with a gap; hence the
+    external list holds the P1-pin th45 s42 cells too (24 cells). The 16 contingency cells have NO manifest rows
+    (open item for the Planner, see the hand-back).
+  - Integrity vs gap — an external cell that does not verify, an A6 CSV that is not the pinned one and a B-F probe
+    file that is present but not a valid control refuse even under `--partial` (pinned references; §7 lists "an
+    invalid probe" as a hard stop); cells not run, a probe not run and an E2 that did not PASS are gaps.
+  - Outputs — `--exp35-out PREFIX` (default `<exp_35 folder>/orbitrir_yaw_results`); `--collect`, `--out-json`,
+    `--out-md` are refused with `--exp35` instead of being silently ignored; the exp_25 mode is untouched.

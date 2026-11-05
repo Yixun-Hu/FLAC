@@ -1,0 +1,54 @@
+exp_35 round 5b real-data smoke at 6145f93d3a14f0a6dca40dd3862c6ec65b4ec519, Thu Nov  5 02:25:33 PM EST 2026; the script, verbatim (prefix '#   '):
+#   """exp_35 round 5b smoke (read-only, CPU): the 24 external exp_25 cells verify offline at d6ca307a against the
+#   exp-25 worktree, and agree with the pinned exp_25 JSON (Delta_R = mean_s R_s - T_s per arm / K / metric, the
+#   theta = 0 values taken from the JSON's own table); the --exp35 CLI refuses today (no exp_35 cell exists)."""
+#   import importlib.util
+#   import io
+#   import contextlib
+#   import os
+#   import statistics
+#   import sys
+#   
+#   REPO = os.path.expanduser("~/codespace/exp-35-orbitrir-yaw")
+#   sys.path.insert(0, REPO)
+#   spec = importlib.util.spec_from_file_location(
+#       "depth_canon_collect", os.path.join(REPO, "worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py"))
+#   C = importlib.util.module_from_spec(spec)
+#   spec.loader.exec_module(C)
+#   manifest = C.load_cells(C.CELLS_JSON)
+#   index = C.load_canon_index(C.find_canon_manifest(), manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+#   ext, why = C.external_exp25_cells(manifest, base_dir=C.EXP25_WORKTREE, canon_index=index)
+#   print(f"external cells verified: {len(ext)} / {len(C.EXP25_EXTERNAL)}; reasons: {why}")
+#   doc, reasons = C.load_exp25_reference()
+#   print(f"exp_25 reference reasons: {reasons}")
+#   worst = 0.0
+#   for arm in ("P1", "CANON"):
+#       for k in ("1", "8"):
+#           for key in C.TABLE_KEYS:
+#               t = doc["table"][arm][k]["item"][key]["values"]
+#               r = [float(ext[f"exp25_{arm}_R_S40000_K{k}_s{s}"][key]) for s in C.SEEDS]
+#               mine = statistics.mean(a - b for a, b in zip(r, t))
+#               theirs = doc["tier3"]["arms"][arm][k]["item"][key]["delta_r"]
+#               worst = max(worst, abs(mine - theirs))
+#   print(f"max |Delta_R(external R cells, JSON table) - Delta_R(JSON tier3)| over 2 arms x 2 K x 6 metrics: {worst:.3g}")
+#   for arm in ("P1", "CANON"):
+#       for k in ("1", "8"):
+#           for key in C.TABLE_KEYS:
+#               t0 = doc["table"][arm][k]["item"][key]["values"][0]
+#               v45 = float(ext[f"exp25_{arm}_C4_S40000_K{k}_s42_th45"][key])
+#               worst = max(worst, abs((v45 - t0) - doc["tier3"]["arms"][arm][k]["item"][key]["probe45"]))
+#   print(f"... and including the 45-degree probe (th45 s42 - theta0 s42 vs the JSON probe45): {worst:.3g}")
+#   out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "orbitrir_yaw_results_smoke")
+#   buf = io.StringIO()
+#   with contextlib.redirect_stdout(buf):
+#       rc = C.main(["--exp35", "--partial", "--pin", "0" * 40, "--exp35-out", out])
+#   print(f"--exp35 --partial at a fake pin, before any exp_35 cell: rc {rc}; wrote files: "
+#         f"{[p for p in (out + '.json', out + '.md') if os.path.exists(p)]}")
+#   print("message:", buf.getvalue().strip()[:600])
+---- output ----
+external cells verified: 24 / 24; reasons: []
+exp_25 reference reasons: []
+max |Delta_R(external R cells, JSON table) - Delta_R(JSON tier3)| over 2 arms x 2 K x 6 metrics: 0
+... and including the 45-degree probe (th45 s42 - theta0 s42 vs the JSON probe45): 0
+--exp35 --partial at a fake pin, before any exp_35 cell: rc 3; wrote files: []
+message: RESULTS REFUSED (an integrity problem; --partial does not apply): CTL K1 refused (E1 must be equal): exp35_P1_T_S40000_K1_s42 does not verify at 000000000000: missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp35_P1_T_S40000_K1_s42.json (FileNotFoundError); exp35_P1_T_S40000_K1_s42 does not verify at 000000000000: missing or unreadable stream artifact outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp35_P1_T_S40000_K1_s42.stream.json (FileNotFoundError); CTL K8 refused (E1 must be equal): exp35_P1_T_S40000_K8_s42 doe

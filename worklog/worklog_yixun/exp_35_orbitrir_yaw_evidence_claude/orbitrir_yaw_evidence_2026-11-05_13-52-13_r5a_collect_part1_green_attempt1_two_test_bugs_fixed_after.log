@@ -1,0 +1,25 @@
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect_part1.py::test_an_identical_control_is_equal[1]
+FAILED src/tests/test_exp35_collect_part1.py::test_an_identical_control_is_equal[8]
+FAILED src/tests/test_exp35_collect_part1.py::test_a_control_with_other_waveforms_is_a_mismatch
+FAILED src/tests/test_exp35_collect_part1.py::test_a_control_with_other_metrics_is_a_mismatch
+FAILED src/tests/test_exp35_collect_part1.py::test_a_control_with_other_scene_values_is_a_mismatch
+FAILED src/tests/test_exp35_collect_part1.py::test_an_undecidable_control_check_is_refused[no_control]
+FAILED src/tests/test_exp35_collect_part1.py::test_an_undecidable_control_check_is_refused[reference_receipt_changed]
+FAILED src/tests/test_exp35_collect_part1.py::test_an_undecidable_control_check_is_refused[control_unverified]
+FAILED src/tests/test_exp35_collect_part1.py::test_cli_exp35_ctl_check_exit_codes
+FAILED src/tests/test_exp35_collect_part1.py::test_cli_exp35_e2_exit_codes - ...
+10 failed, 31 passed, 3 warnings in 8.29s
