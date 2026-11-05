@@ -1,0 +1,8 @@
+LADDER 1/4 at 1f31c7a7c0e8163432b7260bca348ed94b6db823: the exp_25 byte-for-byte guard (plan §5) -- the exp_35 collector's exp_25 mode in a scratch clone of 1f31c7a7c0e8163432b7260bca348ed94b6db823 whose two REPO-relative exp_25 inputs equal the exp-25 worktree's (AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms, the exp-25 worktree's link; FLAC_AR_CANON.json -> the exp-25 worktree's byte-identical aba94032... file, named by absolute path in the CANON probe's provenance). The same command from the run worktree itself differs only through those two inputs (baseline at b15d8a82, committed). Started Thu Nov  5 05:19:57 PM EST 2026
+the clone's only changes:  T worklog/worklog_yixun/exp_25_depth_canon_claude/FLAC_AR_CANON.json ?? AcousticRooms 
+wrote /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/ladder_exp25_equiv_1f31c7a7_out/depth_canon_results.md and /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/ladder_exp25_equiv_1f31c7a7_out/depth_canon_results.json (PARTIAL)
+rc 0
+sha256 of the re-collected JSON: ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0
+registered (plan §5):             ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0
+md == the committed exp_25 md: identical
+finished Thu Nov  5 05:32:46 PM EST 2026

@@ -1,0 +1,27 @@
+Thu Nov  5 06:08:21 PM EST 2026
+plan §7: assets as in the exp-25 worktree (AcousticRooms -> NAS; weights/{AGREE, FLAC/VAE.ckpt} -> the main checkout)
+before: git status --short:
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/dry_run_artifacts_1f31c7a7/
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-19-57_LADDER_1_exp25_byte_guard_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-20-21_LADDER_2_supervisor_live_dry_run_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-31-20_LADDER_4_all_suites_in_worktree_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-33-10_LADDER_3_runner_dry_run_phase_i_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-34-26_LADDER_3b_bytecode_cleanup.log
+AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms (resolves: /media/diskstation/yixunhu/FLAC/AcousticRooms)
+weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE (resolves: /home/yixunhu/codespace/FLAC/weights/AGREE)
+weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt (resolves: /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt)
+6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf  weights/FLAC/VAE.ckpt
+3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787  weights/AGREE/AGREE_fullAR.pt
+depth_map
+metadata
+room_mesh_obj_format
+after: git status --short:
+?? AcousticRooms
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/dry_run_artifacts_1f31c7a7/
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-19-57_LADDER_1_exp25_byte_guard_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-20-21_LADDER_2_supervisor_live_dry_run_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-31-20_LADDER_4_all_suites_in_worktree_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-33-10_LADDER_3_runner_dry_run_phase_i_at_1f31c7a7.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_17-34-26_LADDER_3b_bytecode_cleanup.log
+HEAD 1f31c7a7c0e8163432b7260bca348ed94b6db823
+Thu Nov  5 06:08:22 PM EST 2026

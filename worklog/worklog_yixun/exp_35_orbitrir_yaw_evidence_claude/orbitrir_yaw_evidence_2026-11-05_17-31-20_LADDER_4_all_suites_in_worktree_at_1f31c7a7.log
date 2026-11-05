@@ -1,0 +1,18 @@
+LADDER 4/4 at 1f31c7a7c0e8163432b7260bca348ed94b6db823: every kit suite IN the worktree /home/yixunhu/codespace/exp-35-orbitrir-yaw (tracked tree clean: 0 changes), CPU only, started Thu Nov  5 05:31:20 PM EST 2026
+files: src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon_audit_gate.py src/tests/test_depth_canon_autolaunch.py src/tests/test_depth_canon_collect.py src/tests/test_depth_canon_cond_probe.py src/tests/test_depth_canon_eval.py src/tests/test_depth_canon_eval_run.py src/tests/test_depth_canon_stats.py src/tests/test_depth_canon_tie_audit.py src/tests/test_depth_canon_training.py src/tests/test_exp35_backend_receipt.py src/tests/test_exp35_bf_probe_contract.py src/tests/test_exp35_bf_probe.py src/tests/test_exp35_collect_mode.py src/tests/test_exp35_collect_part1.py src/tests/test_exp35_collect_part2.py src/tests/test_exp35_collect.py src/tests/test_exp35_collect_results.py src/tests/test_exp35_eval_run.py src/tests/test_exp35_gpu_identity.py src/tests/test_exp35_make_cells.py src/tests/test_exp35_no_flash_launch.py src/tests/test_exp35_stream_registry.py src/tests/test_exp35_supervisor_cli.py src/tests/test_exp35_supervisor_core.py src/tests/test_exp35_supervisor_lanes.py src/tests/test_exp35_supervisor_loop.py src/tests/test_exp35_training_guard.py src/tests/test_gen_model_comparison_depth_canon.py 
+src/tests/test_depth_canon_training.py::test_canonicalization_runs_once_first_and_feeds_the_conditioner[validation_step]
+src/tests/test_depth_canon_training.py::test_canonicalization_runs_once_first_and_feeds_the_conditioner[test_step]
+src/tests/test_depth_canon_training.py::test_disabled_steps_never_canonicalize[validation_step]
+src/tests/test_depth_canon_training.py::test_disabled_steps_never_canonicalize[test_step]
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/amp/autocast_mode.py:266: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+    warnings.warn(
+
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/configuration_validator.py:74: You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.
+
+src/tests/test_depth_canon_training.py::test_lightning_fit_transfers_then_canonicalizes_then_conditions
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:441: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=47` in the `DataLoader` to improve performance.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1462 passed, 1 skipped, 11 warnings in 1840.70s (0:30:40)
+finished Thu Nov  5 06:02:04 PM EST 2026
