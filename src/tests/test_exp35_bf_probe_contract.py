@@ -156,7 +156,59 @@ def _flip(r, *path):
     d[path[-1]] = not d[path[-1]]
 
 
+def _consistent(r):
+    """Recompute every summary, the pooled block, the control and the verdict from the (edited) item vectors with
+    the probe's own functions: a forgery that is internally consistent (Codex C3a BLOCKING 1)."""
+    import numpy as np
+    pr = TP.probe
+    for blocks in [r["results"][p] for p in r["results"]] + [{"det": r["determinism"][p]} for p in r["determinism"]]:
+        for blk in blocks.values():
+            for node in list(blk["cond"]["per_id"].values()) + [blk["cond"]["all"]] + [blk[s] for s in pr.STAGES[1:]]:
+                node["summary"] = pr.summarize({m: np.array(node[m]) for m in ("relL2", "relLinf")})
+    keys = list(r["results"]["eval"])
+    r["pooled"] = {p: pr._pooled(r["results"][p], keys) for p in r["results"]}
+    r["control_p99"] = {p: dict({k: r["results"][p][k]["waveform"]["summary"]["relL2"]["p99"] for k in keys},
+                                pooled=r["pooled"][p]["waveform"]["relL2"]["p99"]) for p in r["results"]}
+
+
+def _forge_d128(r):
+    r["results"]["eval"]["d128"]["waveform"]["summary"]["relL2"]["p99"] = 0.5      # the summary AND the control,
+    r["control_p99"]["eval"]["d128"] = 0.5                                         # together
+
+
+def _drop_one(node_path):
+    def edit(r):
+        node = r
+        for k in node_path:
+            node = node[k]
+        for m in ("relL2", "relLinf"):
+            node[m].pop()
+        _consistent(r)
+    return edit
+
+
+def _set(path, value):
+    def edit(r):
+        node = r
+        for k in path[:-1]:
+            node = node[k]
+        node[path[-1]] = value
+    return edit
+
+
 EDITS = {   # mutation before finalization -> (the refusal names it)
+    "summary_and_control_forged_together": (dict(mutate=_forge_d128), "summary"),
+    "a_result_item_dropped_consistently": (dict(mutate=_drop_one(("results", "eval", "d256", "waveform"))), "values"),
+    "a_determinism_item_dropped_consistently": (dict(mutate=_drop_one(("determinism", "fp32", "latent"))), "values"),
+    "a_per_id_item_dropped_consistently": (dict(mutate=lambda r: _drop_one(
+        ("results", "fp32", "d384", "cond", "per_id", r["results"]["fp32"]["d384"]["cond"]["ids"][0]))(r)), "values"),
+    "an_inf_value": (dict(mutate=_set(("results", "fp32", "d128", "velocity", "relL2", 0), float("inf"))), "finite"),
+    "a_negative_value": (dict(mutate=_set(("results", "eval", "d384", "latent", "relLinf", 1), -1.0)), "non-negative"),
+    "a_non_boolean_mask": (dict(mutate=_set(("results", "eval", "d384", "cond", "masks_equal"), 1)), "masks_equal"),
+    "a_non_boolean_determinism_mask": (dict(mutate=_set(("determinism", "eval", "cond", "masks_equal"), "true")),
+                                       "masks_equal"),
+    "pooled_forged": (dict(mutate=_set(("pooled", "eval", "waveform", "relL2", "p99"), 0.5)), "pooled"),
+    "ids_inconsistent": (dict(mutate=_set(("results", "eval", "d128", "cond", "ids"), [])), "ids"),
     "unregistered": (dict(registered=False), "registered"),
     "deviation": (dict(mutate=lambda r: r["deviations"].append("x")), "deviations"),
     "other_pin": (dict(pin="b" * 40), "source_sha"),
@@ -200,6 +252,7 @@ def test_an_unbound_or_inconsistent_bf_probe_is_not_a_control(tmp_path, monkeypa
 def test_a_failed_determinism_floor_makes_the_probe_invalid(tmp_path, monkeypatch):
     def nondet(r):
         r["determinism"]["eval"]["waveform"]["relL2"][0] = 1e-6
+        _consistent(r)                                    # the summaries agree: only the floor itself fails
         r["verdict"].update({"determinism": False, "pass": False})
     path, _, _ = _finalize(tmp_path, monkeypatch, mutate=nondet)
     control, reasons, _ = _load(path, tmp_path)

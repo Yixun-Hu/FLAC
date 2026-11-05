@@ -1093,30 +1093,64 @@ BF_PROVENANCE_KEYS = ("ckpt_path", "ckpt_sha256", "ckpt_sha256_loaded", "ckpt_by
                       "allow_canon_mismatch", "cond_method", "frame_avg_angles", "frame_avg_max_fwd_samples", "launch")
 
 
-def _bf_number_reasons(rep, P):
-    """The B-F report's control p99 (pooled recomputed from the items), eps_cond (reported, NO verdict)
-    and verdict must be what its own results imply -- and the verdict must hold."""
-    import numpy as np
+def _bf_vector_reasons(node, label, n):
+    """One stage record: ``relL2`` / ``relLinf`` exactly ``n`` finite, non-negative values each, and its summary the
+    recomputation from those items (Codex C3a BLOCKING 1: no stored summary is trusted)."""
     from src.tools import depth_canon_stats as stats
-    res, det, keys = rep.get("results"), rep.get("determinism"), list(P["offset_keys"])
-    if not (isinstance(res, dict) and list(res) == list(P["protocols"]) and isinstance(det, dict)
-            and list(det) == list(P["protocols"]) and all(
-                isinstance(res[p], dict) and list(res[p]) == keys and all(
-                    isinstance(res[p][k], dict) and all(st in res[p][k] for st in P["stages"]) for k in keys)
-                and all(st in det[p] for st in P["stages"]) for p in res)):
-        return ["probe results / determinism are not protocols x quarter turns x stages"]
+    if not (isinstance(node, dict) and all(isinstance(node.get(m), list) and len(node[m]) == n and all(
+            _finite(x) and x >= 0 for x in node[m]) for m in ("relL2", "relLinf"))):
+        return [f"{label}: relL2 / relLinf are not {n} finite, non-negative values each"]
     out = []
-    for p in P["protocols"]:
-        want = {k: res[p][k]["waveform"]["summary"]["relL2"]["p99"] for k in keys}
-        want["pooled"] = stats.paired_summary(np.array([v for k in keys for v in res[p][k]["waveform"]["relL2"]]))["p99"]
-        _eq(out, f"probe control_p99[{p}] (the results' waveform relL2 p99)", (rep.get("control_p99") or {}).get(p), want)
+    _eq(out, f"{label}.summary (recomputed from its items)", node.get("summary"),
+        {m: stats.paired_summary(node[m]) for m in ("relL2", "relLinf")})
+    return out
+
+
+def _bf_block_reasons(blk, label, P, ids):
+    """One protocol x quarter turn (or determinism) record: the four stages, the conditioner ids, a BOOL mask, and
+    every per-id / all / stage vector with its summary."""
+    if not (isinstance(blk, dict) and list(blk) == list(P["stages"]) and isinstance(blk["cond"], dict)):
+        return [f"{label}: not the stages {list(P['stages'])}"]
+    c = blk["cond"]
+    out = [] if type(c.get("masks_equal")) is bool else [f"{label}.cond.masks_equal {c.get('masks_equal')!r} is not a bool"]
+    if not (c.get("ids") == ids and isinstance(c.get("per_id"), dict) and sorted(c["per_id"]) == ids):
+        return out + [f"{label}.cond ids / per_id {c.get('ids')!r} are not the conditioner ids {ids}"]
+    for lab, node in [(f"{label}.cond.per_id.{i}", c["per_id"][i]) for i in ids] + [(f"{label}.cond.all", c.get("all"))] \
+            + [(f"{label}.{st}", blk[st]) for st in P["stages"][1:]]:
+        out += _bf_vector_reasons(node, lab, P["n_items"])
+    return out
+
+
+def _bf_number_reasons(rep, P):
+    """Every number of the B-F report is RECOMPUTED from its item vectors (Codex C3a BLOCKING 1): each vector holds
+    exactly n_items finite, non-negative values; every summary, the pooled block, the control p99 (per offset and
+    pooled), eps_cond (reported, NO verdict) and the verdict must equal the recomputation -- and the verdict hold."""
+    from src.tools import depth_canon_stats as stats
+    res, det, keys, protos = rep.get("results"), rep.get("determinism"), list(P["offset_keys"]), list(P["protocols"])
+    if not (isinstance(res, dict) and list(res) == protos and isinstance(det, dict) and list(det) == protos
+            and all(isinstance(res[p], dict) and list(res[p]) == keys and isinstance(res[p][k], dict)
+                    for p in protos for k in keys)):
+        return ["probe results / determinism are not protocols x quarter turns x stages"]
+    ids = (res[protos[0]][keys[0]].get("cond") or {}).get("ids")
+    if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids) and ids == sorted(set(ids))):
+        return [f"probe conditioner ids {ids!r} are not a sorted, non-empty list of names"]
+    out = [x for p in protos for k in keys for x in _bf_block_reasons(res[p][k], f"results.{p}.{k}", P, ids)]
+    out += [x for p in protos for x in _bf_block_reasons(det[p], f"determinism.{p}", P, ids)]
+    if out:
+        return out
+    rows = lambda p, st: [res[p][k]["cond"]["all"] if st == "cond" else res[p][k][st] for k in keys]  # noqa: E731
+    pooled = {p: {st: {m: stats.paired_summary([v for r in rows(p, st) for v in r[m]]) for m in ("relL2", "relLinf")}
+                  for st in P["stages"]} for p in protos}
+    _eq(out, "probe pooled (recomputed from the items)", rep.get("pooled"), pooled)
+    _eq(out, "probe control_p99 (recomputed from the waveform relL2 items)", rep.get("control_p99"), {
+        p: dict({k: stats.paired_summary(res[p][k]["waveform"]["relL2"])["p99"] for k in keys},
+                pooled=pooled[p]["waveform"]["relL2"]["p99"]) for p in protos})
     top = max((v, k, i, pos) for k in keys for i, d in res["fp32"][k]["cond"]["per_id"].items()
               for pos, v in enumerate(d["relL2"]))
     _eq(out, "probe eps_cond (reported without a verdict)", rep.get("eps_cond"),
         {"value": top[0], "argmax": {"key": top[1], "id": top[2], "position": top[3]}})
-    masks = all(res[p][k]["cond"]["masks_equal"] for p in res for k in keys) and all(
-        det[p]["cond"]["masks_equal"] for p in det)
-    exact = all(v == 0.0 for p in det for st in P["stages"]
+    masks = all(b["cond"]["masks_equal"] for p in protos for b in [res[p][k] for k in keys] + [det[p]])
+    exact = all(v == 0.0 for p in protos for st in P["stages"]
                 for v in (det[p]["cond"]["all"] if st == "cond" else det[p][st])["relL2"])
     _eq(out, "probe verdict (masks equal AND the determinism floor exact)", rep.get("verdict"),
         {"pass": masks and exact, "masks": masks, "determinism": exact})
