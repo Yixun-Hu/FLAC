@@ -1,0 +1,25 @@
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_make_cells.py::test_exp35_rows_per_block - Assert...
+FAILED src/tests/test_exp35_make_cells.py::test_the_bf_arm_is_the_endpoint_checkpoint
+FAILED src/tests/test_exp35_make_cells.py::test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup
+FAILED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+FAILED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+FAILED src/tests/test_depth_canon_eval_run.py::test_arm_checkpoints - Asserti...
+ERROR src/tests/test_exp35_make_cells.py::test_the_exp25_only_render_is_the_committed_exp25_manifest
+ERROR src/tests/test_exp35_make_cells.py::test_the_full_manifest_appends_100_exp35_rows_to_the_exp25_rows
+ERROR src/tests/test_exp35_make_cells.py::test_exp35_names_are_registered_and_injective
+ERROR src/tests/test_exp35_make_cells.py::test_vanilla_exp35_rows_carry_the_exp25_flags
+7 failed, 13 passed, 37 deselected, 3 warnings, 4 errors in 67.30s (0:01:07)

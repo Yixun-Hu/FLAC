@@ -1,0 +1,15 @@
+E       AssertionError: (0, 'exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA
+E         flash_attn not installed, disabling ...181a0f3e7c023 launcher_sha256=980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d target=target.py
+E         ', '')
+E       assert (0 == 86)
+
+src/tests/test_exp35_no_flash_launch.py:204: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_no_flash_launch.py::test_the_target_sees_what_a_direct_invocation_sees
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_src_package_from_outside_the_repo_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/transformer.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src]
+7 failed, 32 passed in 31.54s

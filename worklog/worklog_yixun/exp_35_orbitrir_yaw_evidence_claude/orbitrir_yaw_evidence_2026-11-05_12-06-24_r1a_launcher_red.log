@@ -1,0 +1,40 @@
+                           capture_output=True, text=True, timeout=900)
+>       assert p.returncode == 0, p.stderr
+E       AssertionError: /home/yixunhu/miniconda3/envs/flac/bin/python: can't open file '/home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/exp35_no_flash_launch.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', '/home/yixunhu/codespace/exp-35-orbitrir-yaw/o...unhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/exp35_no_flash_launch.py': [Errno 2] No such file or directory\n").returncode
+
+src/tests/test_exp35_no_flash_launch.py:345: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_no_flash_launch.py::test_overlays_holds_no_package_marker_and_only_the_two_files
+FAILED src/tests/test_exp35_no_flash_launch.py::test_packaging_excludes_the_overlay_tree
+FAILED src/tests/test_exp35_no_flash_launch.py::test_the_target_runs_in_this_interpreter_with_its_argv_after_one_sentinel
+FAILED src/tests/test_exp35_no_flash_launch.py::test_preflight_checks_everything_and_runs_nothing
+FAILED src/tests/test_exp35_no_flash_launch.py::test_the_exit_code_of_the_target_is_its_own
+FAILED src/tests/test_exp35_no_flash_launch.py::test_bytecode_writing_must_be_disabled_in_the_environment
+FAILED src/tests/test_exp35_no_flash_launch.py::test_an_inherited_pythonpath_is_dropped
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn/x.txt]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.cpython-310-x86_64-linux-gnu.so]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/flash_attn.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/exp35_no_flash_launch.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[notes.txt]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__pycache__/x.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[other/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_an_edited_overlay_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[preimported]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[meta_path]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_with_flash_attention_enabled_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_outside_the_repo_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_that_fails_to_import_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_missing_target_or_no_argument_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_the_real_launcher_preflight_on_this_checkout
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_fresh_python_child_with_the_runner_environment_hits_the_overlay
+FAILED src/tests/test_exp35_no_flash_launch.py::test_dataloader_fork_and_spawn_workers_run_the_sdpa_path
+30 failed, 3 passed in 6.25s

@@ -1,0 +1,15 @@
+        (elsewhere / "src" / "models" / "transformer.py").write_text(_fallback_block())
+        root = fake_repo(tmp_path)
+        shutil.rmtree(root / "src")
+        hooks = tmp_path / "hooks"
+        hooks.mkdir()
+        (hooks / "sitecustomize.py").write_text(f"import sys\nsys.path.append({str(elsewhere)!r})\n")
+        rc, out, err, rep = launch(root, "target.py", env={"PYTHONPATH": str(hooks)})
+        _refused(rc, out, err, rep, "src.models.transformer is")
+>       assert f"the package src is {elsewhere}" in err
+E       AssertionError: assert 'the package src is /tmp/pytest-of-yixunhu/pytest-5360/test_a_src_package_from_outsid0/elsewhere' in 'NO-FLASH LAUNCH REFUSED (nothing was run):\n  - src.models.transformer is /home/yixunhu/miniconda3/envs/flac/lib/pyth...n3.10/site-packages/src/__init__.py, not /tmp/pytest-of-yixunhu/pytest-5360/test_a_src_package_from_outsid0/repo/src\n'
+
+src/tests/test_exp35_no_flash_launch.py:274: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_src_package_from_outside_the_repo_is_refused
+1 failed, 32 passed in 40.44s

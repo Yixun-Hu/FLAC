@@ -1,0 +1,40 @@
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_backend_receipt.py::test_the_backend_constants_pin_the_committed_overlay_and_launcher
+FAILED src/tests/test_exp35_backend_receipt.py::test_the_real_launcher_output_passes_the_log_check
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_good_log_passes - Attr...
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[no_sentinel]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[two_sentinels]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[other_backend]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[other_overlay]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[other_launcher]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[extra_field]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[other_target]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[no_overlay_line]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[no_fallback_line]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[pair_not_adjacent]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[two_pairs]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[flash_missing]
+FAILED src/tests/test_exp35_backend_receipt.py::test_every_bad_log_is_refused[sentinel_first]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp35_cell_carries_receipt_schema_2_and_verifies[BF-pin_T_K1]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp35_cell_carries_receipt_schema_2_and_verifies[BF-pin_R_K8]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp35_cell_carries_receipt_schema_2_and_verifies[BF-dup_T_K8]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp35_cell_carries_receipt_schema_2_and_verifies[CTL_T_K1]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp35_cell_carries_receipt_schema_2_and_verifies[OFF-CANON_OFF_K1]
+FAILED src/tests/test_exp35_backend_receipt.py::test_an_exp25_receipt_is_schema_1_exactly_as_before
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[schema]
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[backend]
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[overlay]
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[launcher]
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[absent]
+FAILED src/tests/test_exp35_backend_receipt.py::test_a_v2_receipt_off_its_contract_is_refused[log]
+FAILED src/tests/test_exp35_backend_receipt.py::test_the_log_is_reread_at_every_verification
+FAILED src/tests/test_exp35_backend_receipt.py::test_build_receipt_binds_the_backend_to_the_campaign
+FAILED src/tests/test_exp35_backend_receipt.py::test_cli_check_backend_log - ...
+FAILED src/tests/test_exp35_backend_receipt.py::test_cli_write_receipt_for_an_exp35_cell_needs_the_backend_flags
+32 failed, 3 warnings in 19.52s

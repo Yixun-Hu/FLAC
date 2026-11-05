@@ -1,0 +1,3 @@
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+1 failed, 54 deselected, 3 warnings in 6.65s

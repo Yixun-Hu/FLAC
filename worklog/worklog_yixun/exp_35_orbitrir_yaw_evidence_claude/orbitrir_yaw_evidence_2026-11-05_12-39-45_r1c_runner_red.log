@@ -1,0 +1,30 @@
+src/tests/test_exp35_eval_run.py:179: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_eval_run.py::test_an_exp35_cell_runs_through_the_launcher_and_gets_receipt_2
+FAILED src/tests/test_exp35_eval_run.py::test_a_cell_log_without_the_backend_evidence_hard_stops_the_campaign[flash_missing]
+FAILED src/tests/test_exp35_eval_run.py::test_dry_run_runs_the_preflight_and_plans_without_spawning
+FAILED src/tests/test_exp35_eval_run.py::test_ignored_bytecode_under_the_overlay_fails_the_preflight
+FAILED src/tests/test_exp35_eval_run.py::test_an_edited_overlay_or_launcher_is_refused
+FAILED src/tests/test_exp35_eval_run.py::test_an_edit_of_the_launcher_between_two_cells_is_pin_drift
+FAILED src/tests/test_exp35_eval_run.py::test_sharing_an_exp35_cell_needs_the_identity_tuple
+FAILED src/tests/test_exp35_eval_run.py::test_the_approved_cotenant_shares_the_lane
+FAILED src/tests/test_exp35_eval_run.py::test_any_other_foreign_set_refuses_the_cell[extra]
+FAILED src/tests/test_exp35_eval_run.py::test_any_other_foreign_set_refuses_the_cell[missing]
+FAILED src/tests/test_exp35_eval_run.py::test_any_other_foreign_set_refuses_the_cell[replaced]
+FAILED src/tests/test_exp35_eval_run.py::test_any_other_foreign_set_refuses_the_cell[pid_reuse]
+FAILED src/tests/test_exp35_eval_run.py::test_any_other_foreign_set_refuses_the_cell[other_gpu]
+FAILED src/tests/test_exp35_eval_run.py::test_a_change_at_the_final_pre_spawn_check_refuses_the_cell
+14 failed, 1 passed, 3 warnings in 366.22s (0:06:06)

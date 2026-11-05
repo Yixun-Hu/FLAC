@@ -1,0 +1,28 @@
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: Deprecated call to `pkg_resources.declare_namespace('lightning_fabric')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_collect.py::test_the_arm_protocol_table - Attribu...
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+FAILED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+FAILED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+FAILED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+FAILED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+FAILED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+FAILED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+FAILED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells - as...
+13 failed, 9 passed, 32 deselected, 3 warnings in 7.12s

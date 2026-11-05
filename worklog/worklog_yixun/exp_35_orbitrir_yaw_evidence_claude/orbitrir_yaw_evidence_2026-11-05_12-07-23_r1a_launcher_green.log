@@ -1,0 +1,40 @@
+>       assert tracked == ["overlays/no_flash/exp35_no_flash_launch.py", "overlays/no_flash/flash_attn.py"]
+E       AssertionError: assert [] == ['overlays/no...lash_attn.py']
+E         
+E         Right contains 2 more items, first extra item: 'overlays/no_flash/exp35_no_flash_launch.py'
+E         Use -v to get more diff
+
+src/tests/test_exp35_no_flash_launch.py:124: AssertionError
+________________ test_a_transformer_outside_the_repo_is_refused ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5359/test_a_transformer_outside_the0')
+
+    def test_a_transformer_outside_the_repo_is_refused(tmp_path):
+        elsewhere = tmp_path / "elsewhere.py"
+        elsewhere.write_text(_fallback_block())
+        root = fake_repo(tmp_path)
+        (root / "src" / "models" / "transformer.py").unlink()
+        (root / "src" / "models" / "transformer.py").symlink_to(elsewhere)
+>       _refused(*launch(root, "target.py"), "src.models.transformer")
+
+src/tests/test_exp35_no_flash_launch.py:266: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+rc = 0
+out = 'exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA\nflash_attn not installed, disabling Flas...1f621181a0f3e7c023 launcher_sha256=980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d target=target.py\n'
+err = ''
+rep = {'argv': ['target.py'], 'name': '__main__', 'path': ['/tmp/pytest-of-yixunhu/pytest-5359/test_a_transformer_outside_th...repo'], 'pythonpath': '/tmp/pytest-of-yixunhu/pytest-5359/test_a_transformer_outside_the0/repo/overlays/no_flash', ...}
+needle = 'src.models.transformer'
+
+    def _refused(rc, out, err, rep, needle):
+>       assert rc == REFUSED and rep is None, (rc, out, err)
+E       AssertionError: (0, 'exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA
+E         flash_attn not installed, disabling ...181a0f3e7c023 launcher_sha256=980051acda4cf747f54f630956ab0a6f91475f25061ca50770f0874c7114151d target=target.py
+E         ', '')
+E       assert (0 == 86)
+
+src/tests/test_exp35_no_flash_launch.py:180: AssertionError
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_no_flash_launch.py::test_overlays_holds_no_package_marker_and_only_the_two_files
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_outside_the_repo_is_refused
+2 failed, 31 passed in 30.43s
