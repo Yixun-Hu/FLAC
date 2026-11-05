@@ -1,0 +1,11 @@
+RED for Codex C3c HIGH 2 against the supervisor with the C3d-1 + C3d-2 fixes (uncommitted on b15d8a828fefaf1957b46f2b5307b2d5af4650d7)
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_writes_nothing_in_a_fresh_snapshot_even_without_pythondontwritebytecode
+FAILED src/tests/test_exp35_supervisor_cli.py::test_after_a_handover_the_dry_run_checks_gpu0_and_no_predictor
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_refuses_anything_but_this_box_s_two_cards[gpus0]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_refuses_anything_but_this_box_s_two_cards[gpus1]
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_refuses_anything_but_this_box_s_two_cards[gpus2]
+5 failed, 14 deselected, 3 warnings in 5.66s

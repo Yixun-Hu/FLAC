@@ -37,7 +37,8 @@ tests (`src/tests/`) and data (`*.json`, `*.md`, `*.log`, …); the < 200 rule a
 | `f5a11e2a` | C3b fix | HIGH 1: the E2-FAIL artifact scan fails closed on I/O errors; NIT 1: a malformed guard anchor is REFUSED | +15 / −2 (17) | +27 / −0 (27) | — |
 | `526308c8` | C3b fix | BLOCKING 1: exact state schemas with per-state evidence; HIGH 2: reservations authenticated field by field | +145 / −19 (164) | +110 / −11 (121) | — |
 | `0b9e1a36` | 6a (iv) | the real World, the collector gates, the read-only dry run, the CLI (`--dry-run`, `--external-shas`) | +138 / −0 (138) | +122 / −0 (122) | — |
+| `dce4f27a` | C3c fix | BLOCKING 1 (per-chunk final-guard evidence, exact in_flight, the expected log / reservation directory, pins), HIGH 1 (the reservation re-authenticated before every spawn and at every poll), HIGH 2 (a read-only, lane-aware dry run), HIGH 3 (the full identity while a cell runs), HIGH 4 (the probe ledger) | +102 / −37 (139) | +209 / −8 (217) | — |
 
-Records commits (no code): `aae9348e` (through the C1 fix), `cc088da7` (through round 5b) and the one carrying the rows from `4889f43b` on.
+Records commits (no code): `aae9348e` (through the C1 fix), `cc088da7` (through round 5b), `b15d8a82` (through round 6a) and the one carrying the `dce4f27a` row.
 Superseded, never committed: a first round-5b (ii) draft (+201 code lines, over the rule, and four departures from
 plan §4 / §5 found on re-reading) — see the Coder log, 2026-11-05T14:20:19-05:00.

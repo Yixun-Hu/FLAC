@@ -1,0 +1,8 @@
+exp_25 byte-for-byte guard (plan §5): the exp_25 mode of the exp_35 collector at b15d8a828fefaf1957b46f2b5307b2d5af4650d7 re-collects the exp_25 campaign; started Thu Nov  5 04:26:50 PM EST 2026
+command: CUDA_VISIBLE_DEVICES= python worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py --collect --pin d6ca307a85b9b0a75ec9d47f4d237e63a3db527e --no-dump-blocks TRAJ --partial --blocks T,T-dup,C4+45,R,D-i,D-ii,S,P1-pin,YAW-pin,TRAJ --base-dir ~/codespace/exp-25-depth-canon --out-json /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/exp25_recollect/depth_canon_results.json --out-md /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/exp25_recollect/depth_canon_results.md
+wrote /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/exp25_recollect/depth_canon_results.md and /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/exp25_recollect/depth_canon_results.json (PARTIAL)
+rc 0
+sha256 of the re-collected JSON: acb15013074ca841c75a1d809336be4e71a7ef0e9a87b36e4a774037b020d8ef
+registered (plan §5):             ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0
+the md vs the committed exp_25 md: DIFFERENT
+finished Thu Nov  5 04:35:18 PM EST 2026

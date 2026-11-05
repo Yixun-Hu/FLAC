@@ -1,0 +1,13 @@
+RED for Codex C3c HIGH 3 + HIGH 4 against the supervisor with the C3d-1 fixes (uncommitted on b15d8a828fefaf1957b46f2b5307b2d5af4650d7); the fake world now has a 3000-sleep horizon
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37: Deprecated call to `pkg_resources.declare_namespace('pytorch_lightning')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_trainer_pid_reused_while_a_cell_runs_stops_after_it
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_finalized_probe_without_its_consistent_ledger_latches[json]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_finalized_probe_without_its_consistent_ledger_latches[sidecar]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_finalized_probe_without_its_consistent_ledger_latches[log]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_finalized_probe_without_its_consistent_ledger_latches[unsealed_json]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_finalized_probe_without_its_consistent_ledger_latches[another_log]
+6 failed, 1 passed, 34 deselected, 3 warnings in 595.79s (0:09:55)

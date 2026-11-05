@@ -1,0 +1,21 @@
+bytecode cleanup (Codex C3c HIGH 2, 'remove only what your own runs created'), Thu Nov  5 05:07:22 PM EST 2026
+every .pyc in the run worktree, all written 16:28:25-16:28:30 EST by MY first runner DRY_RUN (the runner calls the collector without PYTHONDONTWRITEBYTECODE; the supervisor's live dry run at 16:27:54 ran with -B and wrote none); none under overlays/no_flash:
+  2026-11-05 16:28:25  ./__pycache__/eval_FLAC.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/data/__pycache__/are_anchor.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/data/__pycache__/dataset.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/data/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/models/__pycache__/factory.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/models/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/models/__pycache__/pretrained.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/models/__pycache__/utils.cpython-310.pyc
+  2026-11-05 16:28:29  ./src/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 16:28:30  ./src/data/__pycache__/utils.cpython-310.pyc
+  2026-11-05 16:28:30  ./src/data/__pycache__/yaw_rotation.cpython-310.pyc
+  2026-11-05 16:28:30  ./src/training/__pycache__/factory.cpython-310.pyc
+  2026-11-05 16:28:30  ./src/training/__pycache__/__init__.cpython-310.pyc
+  removed the empty __pycache__
+  removed the empty src/__pycache__
+  removed the empty src/data/__pycache__
+  removed the empty src/models/__pycache__
+  removed the empty src/training/__pycache__
+after: 0 .pyc, 0 __pycache__; git status --ignored (non-log): 

@@ -1,0 +1,19 @@
+=== exp_25 depth_canon eval campaign -- 2026-11-05_16-45-43 -- HEAD b15d8a828fefaf1957b46f2b5307b2d5af4650d7 -- dry_run=1 -- harness=false ===
+evaluator pin OK: b15d8a828fefaf1957b46f2b5307b2d5af4650d7; evaluator tree digest 9cd502af07e67bc1bb386663a5caf062f6bdae8504b604af89aeb6beb239ee3c
+no-flash overlay + launcher OK: 0d0e52ca693e / bbd2847d3a50 (1 exp_35 cell(s))
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+cells manifest OK
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+plan: 1 cell(s) -> worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-05_16-45-43_eval_plan.json
+plan: 1 cell(s); dump root /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms; farm outputs_FLAC/exp25_depth_canon; lanes 1
+configs OK: every model / dataset config of the selection matches its manifest pin
+approved tuple OK: /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/sup_dryrun/approved_tuple_dryrun.json
+BACKEND OK worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-05_16-45-43_no_flash_preflight.log
+no-flash pre-flight OK: 1 exp_35 cell(s) spawn through overlays/no_flash/exp35_no_flash_launch.py (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-05_16-45-43_no_flash_preflight.log)
+dump root OK under DRY_RUN: /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms (exists)
+checkpoint cache space: 1 checkpoint(s) to stage = 723922667 B + 2147483648 B margin = 2871406315 B needed; 715619573760 B available on outputs_FLAC/exp25_depth_canon
+checkpoint OK (DRY_RUN, not staged): /media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/BF/epoch=8-step=40000.ckpt (5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+CELL exp35_BF_R_S40000_K1_s46 | BF-pin | BF | would run
+DRYRUN exp35_BF_R_S40000_K1_s46 argv: ["--model-config","worklog/worklog_yixun/exp_07_fa_scratch_claude/FLAC_AR_BF.json","--dataset-config","src/configs/dataset_configs/AR/eval/acousticroom_unseeneval_1.json","--cond-method","fa_invariant","--frame-avg-angles","0,90,180,270","--frame-avg-max-fwd-samples","64","--cond-autocast","bf16","--cfg-scale","1.0","--steps","1","--batch-size","64","--device","cuda","--record-per-scene","--record-stream","--expected-stream-count","6337","--seed","46","--rotate-mode","random","--rotate-seed","46","--eval-name","exp35_BF_R_S40000_K1_s46","--ckpt-path","outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt","--dump-scored-waveforms","/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms"]
+  (exp_35: spawned through overlays/no_flash/exp35_no_flash_launch.py, PYTHONPATH=/home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash)
+=== DRY_RUN summary: 1 cell(s) planned; nothing evaluated, linked, created or moved ===

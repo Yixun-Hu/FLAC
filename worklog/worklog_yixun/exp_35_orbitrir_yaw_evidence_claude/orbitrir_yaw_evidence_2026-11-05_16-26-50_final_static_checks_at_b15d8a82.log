@@ -1,0 +1,31 @@
+FINAL static checks at b15d8a828fefaf1957b46f2b5307b2d5af4650d7, Thu Nov  5 04:26:50 PM EST 2026
+== 1. whole-repo pytest --collect-only (CPU) ==
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+6421 tests collected in 22.53s
+== 2. git diff --check localization-exp..HEAD, code files ==
+clean
+== 3. git diff localization-exp HEAD -- eval_FLAC.py src ':(exclude)src/tests' (must be empty) ==
+(end; 0 diff lines)
+== 4. git diff --stat d6ca307a HEAD -- eval_FLAC.py src ':(exclude)src/tests' data/AR (plan §8: only src/localization/*) ==
+ src/localization/meshgrid_crossarm.py      |  750 ++++++++++++++
+ src/localization/meshgrid_engine.py        | 1250 ++++++++++++++++++++++--
+ src/localization/meshgrid_fa_parity.py     | 1451 ++++++++++++++++++++++++++++
+ src/localization/meshgrid_offgrid_probe.py |   92 +-
+ src/localization/meshgrid_report.py        |  440 ++++++++-
+ src/localization/meshgrid_segments.py      |  353 +++++++
+ 6 files changed, 4239 insertions(+), 97 deletions(-)
+== 5. the exp_25-only render (plan §3 P2 guard) ==
+exp_25-only render sha256 1073ef647434318d219dba3c20e3a18b5a909c90aa3ee6e6bd86021c965f0575 (registered 1073ef647434318d219dba3c20e3a18b5a909c90aa3ee6e6bd86021c965f0575)
+== the d6ca307a cells.json byte for byte: True
+full render == committed cells.json: True | sha256 440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d
+== 6. the pins in the kit ==
+0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023  overlays/no_flash/flash_attn.py
+bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de  overlays/no_flash/exp35_no_flash_launch.py
+9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_exp25_stream_registry.json
+5921824b1b618edfdea30f3695e3c26667a233e5baa08f199fb3ddbd04dc36a9  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_gpu_identity.py
+9016b77685f083b1feb06f3d3ad7c396cc99609e496df3825992bd0f47e363f7  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py
+6dce7b80608ae697ff6d053f3b7a71fc42ebe5052019ecd324294d6525f7f98a  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_training_guard.py
+e031dc53156a53e1741273d15b8e7aedbb8f980ca4f714d4c962aaef99071bbd  worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh
+75b5a1ebc33f9ebb5dd7cb8229545e54d3cbe12d0745329c7893e51c210f98e3  worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py
+0303564b1d672c60482199290ec1e12258c70b2812b2d5833ebb607ec466b0c1  worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py

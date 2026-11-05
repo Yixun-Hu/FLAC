@@ -342,3 +342,40 @@ Timestamps from `date`. Logs: `orbitrir_yaw_evidence_<ts>_<what>.log` in this fo
   signatures plus the missing checks) → GREEN core + lanes `…_16-15-48_…` (79) → all supervisor tests `…_16-16-09_…` (104).
   Loop tests updated to the exact schema (a complete runner_verified record; the hand-over test reads the last chunk's lane
   because lane and reservation are released together at the end).
+
+## 2026-11-05T17:20:00-05:00 — the verification baseline at `b15d8a82`, and the Codex C3c fixes (`dce4f27a`)
+- **Baseline at `b15d8a82`** (C3c judged it not H35; kept as a baseline):
+  - all kit suites IN the worktree `…_16-26-08_final_all_suites_in_worktree_at_b15d8a82.log`: **1420 passed, 1 skipped, 0
+    failed** (the autolaunch test that fails only in a /tmp clone passes here);
+  - static checks `…_16-26-50_final_static_checks_at_b15d8a82.log`: whole-repo `--collect-only` 6421 tests, 0 errors;
+    `git diff --check` clean; `eval_FLAC.py` / `src` (minus tests) untouched since localization-exp; since d6ca307a only
+    `src/localization/*`; the exp_25-only render `1073ef64…` byte-identical to d6ca307a's file;
+  - the exp_25 byte guard, plan §5 command verbatim from the worktree `…_16-26-50_final_exp25_recollect_byte_guard.log`:
+    `acb15013…`, NOT `ec3fcd08…` — two REPO-relative inputs fail in any checkout but the exp-25 worktree: the CANON probe's
+    provenance names its model config by ABSOLUTE path into the exp-25 worktree (the check compares realpaths with THIS
+    checkout's config), and the tie audit re-reads 9,650 depth maps under `REPO/AcousticRooms` (this worktree has no asset
+    link, per the brief). In a scratch clone of `b15d8a82` with those two inputs made equivalent (`AcousticRooms` -> the
+    same NAS path as the exp-25 worktree's link; `FLAC_AR_CANON.json` -> the exp-25 worktree's byte-identical file)
+    `…_16-37-00_final_exp25_recollect_byte_guard_equivalent_env.log`: **`ec3fcd08…` exactly, md identical** — the exp_25
+    mode is unchanged byte for byte; the difference was the environment only (an ambiguity of the plan's command, which
+    assumed those inputs resolve in the run worktree);
+  - the runner DRY_RUN over the 32 phase-(i) cells `…_16-28-25_…` (32 would run, the pre-flight OK, rc 0, GPU processes
+    unchanged) and the supervisor's 32 per-cell commands as dry runs in the §7 order `…_16-30-02_…` (32 rc 0, ONE campaign
+    digest `9cd502af…` — the one-digest property on the real tree); their artifacts moved to `dry_run_artifacts_b15d8a82/`;
+  - the supervisor's live read-only dry run `…_16-27-54_…` (run with `-B`): DRY RUN OK, identity OK ([3028196]), guard
+    OK, the reservation directory untouched;
+  - bytecode: my first runner DRY_RUN wrote 13 `.pyc` under `__pycache__/` and `src/**/__pycache__/` (the runner calls
+    the collector without PYTHONDONTWRITEBYTECODE; none under the overlay) — removed, `…_17-07-22_bytecode_cleanup.log`;
+  - his 100-step windows over epoch 5 stayed 4.22–4.34 s/step during these runs (one window at 4.34 around 16:45, while
+    two NAS-heavy runs overlapped — disclosed; the authoritative ladder runs the NAS-heavy byte guard alone).
+- **C3c fixes `dce4f27a`** — BLOCKING 1 + HIGH 1: RED `…_16-39-00_C3c_B1H1_red.log` (60 failed) → GREEN
+  `…_16-42-05_C3c_B1H1_green.log` (133); HIGH 3 + HIGH 4: RED `…_16-45-16_C3c_H3H4_red_hung_stopped_no_horizon.log` (the
+  PID-reuse test made the unfixed supervisor wait for ever for a busy GPU 0; I stopped my own run and gave the fake world a
+  sleep horizon) → RED `…_16-56-16_C3c_H3H4_red.log` (6 failed) → `…_17-06-56_…_attempt1_restart_test_fake_gates_without_probe_json.log`
+  (1 failed: a test fixture) → GREEN `…_17-10-28_C3c_H3H4_green.log` (140); HIGH 2: RED `…_17-10-39_C3c_H2_dry_run_red.log` (5 failed) + the defect demonstrated
+  `…_17-11-14_C3c_H2_bytecode_demo_red.log` (the committed dry run wrote two `.pyc` in a fresh snapshot while printing "nothing was
+  written") → `…_17-13-49_…_attempt1_two_test_bugs.log` (214 passed, 2 test bugs) → GREEN `…_17-17-29_C3c_H2_cli_green.log` (20) and every supervisor / guard /
+  identity file (214 + the two fixed tests).
+- **Decisions** — a vanished approved trainer is not a replacement (an unreadable /proc entry = gone; a reuse is caught
+  at the next poll or the pre-spawn check); the probe ledger is checked by the supervisor itself (the sidecar seals the
+  JSON; the launch record names this log, its sha256 and the campaign digest).

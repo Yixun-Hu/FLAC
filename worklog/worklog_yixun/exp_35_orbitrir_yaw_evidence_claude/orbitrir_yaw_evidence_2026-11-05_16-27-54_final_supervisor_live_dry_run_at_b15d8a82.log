@@ -1,0 +1,78 @@
+FINAL: the supervisor's dry run against the LIVE GPU state, read-only (nvidia-smi + /proc + his log; no spawn, no state, no reservation), at b15d8a828fefaf1957b46f2b5307b2d5af4650d7, Thu Nov  5 04:27:54 PM EST 2026
+== the approved tuple, snapshotted read-only into the scratchpad (NOT the launch entry's; the Planner freezes that one) ==
+snapshot rc 0
+    {
+     "schema_version": 1,
+     "gpu_uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+     "processes": [
+      {
+       "pid": 3028196,
+       "start_time": 767855653,
+       "cwd": "/home/yixunhu/codespace/flac-fork-attn",
+       "cmdline_sha256": "5b0ec86fb7143b6adf50c583e5e3cfe0329f1dd03be232e0355d59c7049389aa",
+       "fd1": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log",
+       "fd2": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log"
+      }
+     ]
+    }
+tuple sha256 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+== the reservation directory before: ls: cannot access '/home/yixunhu/codespace/.gpu_reservations': No such file or directory 
+== exp35_supervisor.py --dry-run ==
+exp_35 supervisor dry run 2026-11-05T16:27:54-05:00: H35 b15d8a828fefaf1957b46f2b5307b2d5af4650d7; state none (new); lane GPU-6ac2604a-e84e-0615-1221-ccbed7c268da (index 1, shared True); GPU map {0: 'GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', 1: 'GPU-6ac2604a-e84e-0615-1221-ccbed7c268da'}
+  chunk  1 planned         gate E1    17.6 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K1_s42
+  chunk  2 planned         gate E1    19.2 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K8_s42
+  chunk  3 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42
+  chunk  4 planned         gate E2    35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42
+  chunk  5 planned         gate PROBE 10.0 min  /home/yixunhu/miniconda3/envs/flac/bin/python overlays/no_flash/exp35_no_flash_launch.py worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py --arm BF --ckpt-path outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt
+  chunk  6 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s43
+  chunk  7 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s43
+  chunk  8 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s44
+  chunk  9 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s44
+  chunk 10 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s45
+  chunk 11 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s45
+  chunk 12 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s46
+  chunk 13 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s46
+  chunk 14 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s42
+  chunk 15 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s42
+  chunk 16 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s43
+  chunk 17 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s43
+  chunk 18 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s44
+  chunk 19 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s44
+  chunk 20 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s45
+  chunk 21 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s45
+  chunk 22 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s46
+  chunk 23 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s46
+  chunk 24 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42_dup
+  chunk 25 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42_dup
+  chunk 26 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th90
+  chunk 27 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th90
+  chunk 28 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th180
+  chunk 29 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th180
+  chunk 30 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th270
+  chunk 31 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th270
+  chunk 32 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th45
+  chunk 33 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th45
+identity OK: GPU 1 foreign pids [3028196]; the approved tuple [3028196]
+reservations OK
+guard OK: step {'epoch': 5, 'n': 1948, 'total': 4550, 'global': 24698}; no violation
+predictor for chunk 1: a shared spawn allowed {"step": 24698, "earliest_end": 1793967627.998295, "needed_after": 1793917988.2371001}
+no stop latch
+DRY RUN OK: nothing was spawned or written
+dry run rc 0
+== after: reservation dir: ls: cannot access '/home/yixunhu/codespace/.gpu_reservations': No such file or directory; scratch state written: ls: cannot access '/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/sup_dryrun/state_dryrun.json': No such file or directory
+== --external-shas ==
+{
+ "queue": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh",
+  "sha256": "9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa"
+ },
+ "evaluator": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh",
+  "sha256": "94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c"
+ },
+ "admission": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py",
+  "sha256": "8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907"
+ }
+}
+rc 0

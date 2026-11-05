@@ -1,0 +1,4 @@
+Codex C3c HIGH 2 demonstrated: the COMMITTED supervisor (b15d8a828fefaf1957b46f2b5307b2d5af4650d7) dry run from a fresh snapshot /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/bytecode_demo, PYTHONDONTWRITEBYTECODE unset, no -B, live read-only GPU state; Thu Nov  5 05:11:03 PM EST 2026
+before: 0 __pycache__
+fatal: not a git repository (or any of the parent directories): .git
+after: 0 __pycache__ / 0 .pyc:

@@ -1,0 +1,8 @@
+Codex C3c HIGH 2 demonstrated: the COMMITTED supervisor (b15d8a828fefaf1957b46f2b5307b2d5af4650d7) dry run from a fresh snapshot /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/bytecode_demo, PYTHONDONTWRITEBYTECODE unset, no -B, live read-only GPU state; Thu Nov  5 05:11:14 PM EST 2026
+before: 0 __pycache__
+identity OK: GPU 1 foreign pids [3028196]; the approved tuple [3028196]
+guard OK: step {'epoch': 5, 'n': 2555, 'total': 4550, 'global': 25305}; no violation
+DRY RUN OK: nothing was spawned or written
+after: 1 __pycache__ / 2 .pyc:
+  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/__pycache__/exp35_training_guard.cpython-310.pyc
+  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/__pycache__/exp35_gpu_identity.cpython-310.pyc
