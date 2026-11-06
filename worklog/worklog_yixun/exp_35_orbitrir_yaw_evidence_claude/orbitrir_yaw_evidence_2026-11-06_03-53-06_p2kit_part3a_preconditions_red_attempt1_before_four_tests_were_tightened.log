@@ -1,0 +1,42 @@
+p2kit part 3a (the kit self-pin, the report evidence, the run worktree, Yixun's pins, the evidence record) RED at 42e2a22cc9afe26980460ee61d678b701d6e91e9 -- 2026-11-06T03:53:06-05:00 -- the part-3a functions do not exist yet
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6404/test_every_failed_precondition8')
+    def test_every_failed_precondition_is_named(tmp_path, case, reason):
+b = namespace(cfg=Config(run='/tmp/pytest-of-yixunhu/pytest-6404/test_every_failed_precondition8/run', h35='035ceff10a316e...t-of-yixunhu/pytest-6404/test_every_failed_precondition8', res=<function make_box.<locals>.<lambda> at 0x744cd85dbd90>)
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_the_sandbox_kit_passes_its_self_pin_and_is_recorded
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_kit_that_is_not_the_reviewed_commit_is_refused[malformed-40-hex]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_kit_that_is_not_the_reviewed_commit_is_refused[foreign-commit-not in the kit commit]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_kit_that_is_not_the_reviewed_commit_is_refused[modified-committed, clean]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_kit_that_is_not_the_reviewed_commit_is_refused[inside-run-inside the run worktree]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_later_kit_head_with_identical_kit_bytes_passes
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_the_committed_report_is_the_evidence
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[sha-hashes to]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[untracked-committed]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[modified-committed]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[outside-outside]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[symlink-link]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_report_that_is_not_the_committed_bytes_is_refused[missing-readable]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_the_sandbox_run_worktree_holds
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[head-is not H35]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[branch-not exp-35-orbitrir-yaw]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[tracked-dirty-tracked tree is dirty]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[relevant-untracked-not committed and clean]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[digest-not the campaign digest]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_wrong_run_worktree_is_refused[not-root-not a worktree root]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_his_files_at_their_pins_and_his_s43_training_ended
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_stale_queue_pin_or_a_running_s43_is_refused[pin-not its pin]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_stale_queue_pin_or_a_running_s43_is_refused[running-has not ended]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_stale_queue_pin_or_a_running_s43_is_refused[restarted-has not ended]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_stale_queue_pin_or_a_running_s43_is_refused[unreadable-unreadable]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_the_evidence_holds_and_records_every_registered_fact
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_a_recorded_second_lane_is_evidence
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[phase-i-incomplete-not gates_verified]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[state-after-report-phase-i-state-sha256]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[cells-cells manifest hashes to]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[canon-CANON manifest hashes to]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[lanes-lanes]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[unrecorded-second-lane-second lane]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[prior-prior-runs]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[state-missing-keys]
+FAILED src/tests/test_exp35_phase_ii_preconditions.py::test_every_failed_precondition_is_named[supervisor-file-supervisor_sha256]
+36 failed in 5.23s
+pytest rc 1

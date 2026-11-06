@@ -166,3 +166,101 @@ def cfg_for(tmp_path, **over):
     assert all(str(v).startswith(root) for v in (cfg.run, cfg.reservations, cfg.queue_log, cfg.scan_proc,
                                                    cfg.nvidia_smi, *cfg.exp30_pins)), "a sandbox path escaped tmp_path"
     return cfg
+
+
+# --------------------------------------------------------------------------- #
+# part 3: a sandbox run worktree (git, on its branch) and a sandbox kit checkout (git) with the committed report
+# --------------------------------------------------------------------------- #
+RUNNER = f"{X25}/depth_canon_eval_run.sh"
+CANON_REL = f"{X25}/depth_canon_2026-10-26_07-44-41_exp25_CANON_checkpoints.sha256"
+REPORT_REL = f"{X35}/orbitrir_yaw_evidence_phase_i_report_to_yixun.md"
+
+
+def git(w, *args):
+    return subprocess.run(["git", "-C", str(w), "-c", "user.email=p2kit@sandbox", "-c", "user.name=p2kit", *args],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def _write(root, rel, data):
+    p = os.path.join(str(root), rel)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "wb") as f:
+        f.write(data if isinstance(data, bytes) else data.encode())
+    return p
+
+
+def make_run(root, runner=None):
+    """The sandbox run worktree <root>/run: the runner-relevant tree (stand-ins + the REAL cells manifest), the REAL
+    CANON manifest and supervisor, committed on branch exp-35-orbitrir-yaw. Returns (path, head, digest)."""
+    K = load_kit()
+    w = os.path.join(str(root), "run")
+    m = json.loads(real_cells())
+    files = {"eval_FLAC.py": "# stand-in\n", "src/__init__.py": "", "src/models/transformer.py": "# stand-in\n",
+             "src/tests/test_x.py": "# excluded by the pathspec\n", "data/AR/unseen_eval.json": "{}\n",
+             f"{X25}/depth_canon_collect.py": "# stand-in\n", f"{X25}/depth_canon_make_cells.py": "# stand-in\n",
+             f"{X25}/depth_canon_audit_gate.py": "# stand-in\n", "overlays/no_flash/flash_attn.py": "raise ImportError\n",
+             f"{X35}/exp35_gpu_identity.py": "# stand-in\n", "README.md": "sandbox run worktree\n",
+             RUNNER: runner or "#!/usr/bin/env bash\necho 'no stub runner in this sandbox - abort'\nexit 2\n",
+             f"{X25}/depth_canon_cells.json": real_cells(), CANON_REL: real_canon(),
+             f"{X35}/exp35_supervisor.py": real_supervisor()}
+    files.update({a["model_config"]: "{}\n" for a in m["arms"].values()})
+    for rel, data in files.items():
+        _write(w, rel, data)
+    os.chmod(os.path.join(w, RUNNER), 0o755)
+    git(w, "init", "-q", "-b", "exp-35-orbitrir-yaw")
+    git(w, "add", "-A")
+    git(w, "commit", "-q", "-m", "sandbox H35")
+    return w, git(w, "rev-parse", "HEAD"), K.tree_digest(w, K.relevant(m))
+
+
+def write_phase_i(run, head, digest, **over):
+    """The completed phase-(i) state (+ its unheld lock file) in the sandbox run worktree; returns its sha256."""
+    raw = (json.dumps(completed_state(h35=head, campaign_digest=digest, **over), indent=1)).encode()
+    p = _write(run, f"{X35}/exp35_supervisor_state.json", raw)
+    open(p + ".lock", "w").close()
+    return hashlib.sha256(raw).hexdigest()
+
+
+def report_text(h35, state_sha, lanes="0", decision="none", prior="none", eta="68 cells on GPU 0, about 19 h"):
+    body = "".join(f"exp35-phase-ii {k} {v}\n" for k, v in (
+        ("h35", h35), ("phase-i-state-sha256", state_sha), ("lanes", lanes), ("second-lane-decision", decision),
+        ("eta", eta), ("prior-runs", prior)))
+    return "# exp_35 phase (i) report to Yixun (sandbox)\n\nThe measured slowdown, the per-cell time, the plan.\n\n```\n" \
+        + body + "```\n"
+
+
+def make_kit(root, report, files=None):
+    """The sandbox kit checkout <root>/kit: the kit files (``files`` {name: text}, else the real ones) and the report,
+    committed. Returns (kit_dir, commit)."""
+    k = os.path.join(str(root), "kit")
+    for name in ("exp35_phase_ii.py", "exp35_phase_ii.sh"):
+        src = os.path.join(REPO, X35, name)
+        text = (files or {}).get(name)
+        if text is None and os.path.exists(src):
+            with open(src, "rb") as f:
+                text = f.read()
+        text = b"# not written yet\n" if text is None else text
+        _write(k, f"{X35}/{name}", text)
+    _write(k, REPORT_REL, report)
+    git(k, "init", "-q", "-b", "localization-exp")
+    git(k, "add", "-A")
+    git(k, "commit", "-q", "-m", "sandbox kit")
+    return os.path.join(k, X35), git(k, "rev-parse", "HEAD")
+
+
+def make_box(tmp_path, lanes="0", decision="none", runner=None, prior="none", **cfg_over):
+    """A complete sandbox for the preconditions and the reserve: the run worktree, the completed phase (i), Yixun's
+    files, the kit checkout with a matching committed report, and a Config naming only these paths."""
+    import types
+    run, head, digest = make_run(tmp_path, runner)
+    state_sha = write_phase_i(run, head, digest)
+    report = report_text(head, state_sha, lanes=lanes, decision=decision, prior=prior)
+    kit_dir, commit = make_kit(tmp_path, report)
+    cfg = cfg_for(tmp_path, run=run, h35=head, digest=digest, kit_dir=kit_dir,
+                  helper=os.path.join(kit_dir, "exp35_phase_ii.py"), **cfg_over)
+    for rel in (f"{X25}/.depth_canon_eval.lock",):
+        open(os.path.join(run, rel), "w").close()
+    rsha = hashlib.sha256(report.encode()).hexdigest()
+    return types.SimpleNamespace(cfg=cfg, run=run, head=head, digest=digest, state_sha=state_sha, kit_dir=kit_dir,
+                                 commit=commit, report=REPORT_REL, report_sha=rsha, tmp=str(tmp_path),
+                                 res=lambda u=GPU0: os.path.join(cfg.reservations, f"{u}.json"))

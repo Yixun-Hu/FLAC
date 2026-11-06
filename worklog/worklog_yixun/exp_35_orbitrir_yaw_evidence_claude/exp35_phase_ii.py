@@ -9,6 +9,8 @@ at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived 
 Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
 Part 2a: the read-only world (nvidia-smi, lock probes, process scans, his table-job rule, /proc identities).
 Part 2b: the O_EXCL reservation records with their exact authentication, and the one card observation every mode makes.
+Part 3a: the preconditions every mutating mode re-checks -- the kit's self-pin, the report evidence, the run worktree at
+H35 with its campaign digest, Yixun's pinned files and the end of his s43 training -- and the evidence record.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -682,3 +684,140 @@ def observe(world, cfg, lanes, held=()):
     out += [f"pid {p}: {why}" for p, why in live_procs(cfg)]
     return {"t": t, "iso": iso(t), "map": {str(k): v for k, v in m.items()}, "map_raw": map_raw, "apps_raw": apps_raw,
             "apps_sha256": sha256_bytes(apps_raw.encode()), "cards": cards, "locks": locks, "reasons": out}
+
+
+# --------------------------------------------------------------------------- #
+# part 3a: the preconditions every mutating mode re-checks (§15 items 1-5; S6 "checks and durable records")
+# --------------------------------------------------------------------------- #
+HEX40 = re.compile(r"[0-9a-f]{40}")
+S43_LINE = re.compile(r"\S+ (START|END) training ACEattn s43( .*)?")
+
+
+def _repo_of(path):
+    return os.path.realpath(git(path, "rev-parse", "--show-toplevel").strip())
+
+
+def kit_evidence(cfg, kit_commit):
+    """S6 self-pin: both kit files tracked, clean and byte-identical to their blobs at the reviewed ``kit_commit``, the
+    kit outside the run worktree. (reasons, the record: commit, checkout, HEAD, the files' sha256)."""
+    if not (isinstance(kit_commit, str) and HEX40.fullmatch(kit_commit)):
+        return [f"the kit commit {kit_commit!r} is not a 40-hex commit (EXPECT_KIT_COMMIT)"], None
+    try:
+        repo = _repo_of(cfg.kit_dir)
+        head = git(repo, "rev-parse", "HEAD").strip()
+    except ValueError as err:
+        return [f"the kit checkout: {err}"], None
+    kit, root = os.path.realpath(cfg.kit_dir), os.path.realpath(cfg.run)
+    out = [f"the kit {kit} lives inside the run worktree {root}"] if (kit + os.sep).startswith(root + os.sep) else []
+    files = {}
+    for name in KIT_FILES:
+        rel, s = os.path.relpath(os.path.join(kit, name), repo), snapshot(os.path.join(kit, name))
+        files[name] = s.sha256 if s else None
+        try:
+            blob = git(repo, "cat-file", "blob", f"{kit_commit}:{rel}", raw=True)
+            dirty = git(repo, "status", "--porcelain", "--untracked-files=all", "--", rel)
+        except ValueError as err:
+            out.append(f"{rel} is not in the kit commit {kit_commit} ({err})")
+            continue
+        if s is None or s.raw != blob or dirty:
+            out.append(f"{rel} is not the committed, clean bytes of the kit commit {kit_commit}")
+    return out, {"commit": kit_commit, "repo": repo, "head": head, "files": files}
+
+
+def report_evidence(cfg, path, sha256):
+    """The brief: the Planner's phase-(i) report to Yixun is a file of the kit's checkout, committed at HEAD, clean,
+    hashing to the given ``sha256``. (reasons, {path, sha256} or None, its bytes or None)."""
+    try:
+        repo = _repo_of(cfg.kit_dir)
+    except ValueError as err:
+        return [f"the kit checkout: {err}"], None, None
+    given = os.path.normpath(path if os.path.isabs(path) else os.path.join(repo, path))
+    full = os.path.join(os.path.realpath(os.path.dirname(given)), os.path.basename(given))
+    rel = os.path.relpath(full, repo)
+    if rel == os.curdir or rel.startswith(os.pardir):
+        return [f"the report {path} lies outside the kit checkout {repo}"], None, None
+    s = None if os.path.islink(full) else snapshot(full)
+    if s is None:
+        return [f"the report {rel} is a link, or not a readable regular file"], None, None
+    out = [] if s.sha256 == sha256 else [f"the report {rel} hashes to {s.sha256}, not the given {sha256}"]
+    try:
+        blob = git(repo, "cat-file", "blob", f"HEAD:{rel}", raw=True)
+        dirty = git(repo, "status", "--porcelain", "--untracked-files=all", "--", rel)
+    except ValueError as err:
+        return out + [f"the report {rel} is not committed at the kit checkout's HEAD ({err})"], None, None
+    out += [] if blob == s.raw and dirty == "" else [f"the report {rel} is not the committed, clean bytes of HEAD"]
+    return out, {"path": rel, "sha256": s.sha256}, s.raw
+
+
+def worktree_reasons(cfg, m):
+    """§15 item 2 + r1 (b): the run worktree's root at H35 on its branch, its tracked tree clean, the runner-relevant
+    tree committed and clean, and its digest exactly the campaign digest."""
+    try:
+        top = _repo_of(cfg.run)
+        if top != os.path.realpath(cfg.run):
+            return [f"{cfg.run} is not a worktree root (its root is {top})"]
+        head, branch = git(cfg.run, "rev-parse", "HEAD").strip(), git(cfg.run, "rev-parse", "--abbrev-ref", "HEAD").strip()
+        tracked = git(cfg.run, "status", "--porcelain", "--untracked-files=no")
+        paths = relevant(m)
+        dirty, digest = tree_dirty(cfg.run, paths), tree_digest(cfg.run, paths)
+    except ValueError as err:
+        return [f"the run worktree: {err}"]
+    return [why for why, bad in (
+        (f"the run worktree's HEAD {head} is not H35 {cfg.h35}", head != cfg.h35),
+        (f"the run worktree is on {branch!r}, not {BRANCH}", branch != BRANCH),
+        (f"the run worktree's tracked tree is dirty: {tracked.strip()[:300]!r}", tracked != ""),
+        (f"the runner-relevant tree is not committed and clean: {dirty.strip()[:300]!r}", dirty != ""),
+        (f"the runner-relevant tree digests to {digest}, not the campaign digest {cfg.digest}", digest != cfg.digest))
+        if bad]
+
+
+def s43_end(cfg):
+    """(his s43 END line or None, reasons): his s43 training ended iff the LAST s43 training line of his queue log is
+    its END line (exp30_attn_queue.sh writes 'END training <arm> s<seed> exit=<rc>' once the trainer is gone)."""
+    try:
+        with open(cfg.queue_log, "rb") as f:
+            lines = f.read().decode(errors="replace").splitlines()
+    except OSError as err:
+        return None, [f"his queue log {cfg.queue_log} is unreadable ({err})"]
+    last = ([ln for ln in lines if S43_LINE.fullmatch(ln)] or [None])[-1]
+    if last is not None and re.fullmatch(r"\S+ END training ACEattn s43 exit=-?\d+", last):
+        return last, []
+    return None, [f"his s43 training has not ended (its last training line: {last!r})"]
+
+
+def external_reasons(cfg):
+    """§13 NIT 3 / S6 'stale queue pin': his queue script, evaluator and admission helper at their pins, and the end
+    of his s43 training."""
+    out = []
+    for p, want in cfg.exp30_pins.items():
+        s = snapshot(p)
+        out += [] if s is not None and s.sha256 == want else [f"{p} hashes to {s.sha256 if s else None}, not its pin {want}"]
+    return out + s43_end(cfg)[1]
+
+
+def evidence(cfg, *, lanes, report, report_sha256, prior_runs):
+    """Every precondition of §15 items 1-5 and S6, recomputed now: (reasons, the record of what was checked)."""
+    cells, canon = snapshot(os.path.join(cfg.run, CELLS)), snapshot(os.path.join(cfg.run, CANON_MANIFEST))
+    out, m, rows = selection(cells.raw if cells else b"")
+    out += canon_reasons(canon.raw) if canon else [f"the CANON manifest {CANON_MANIFEST} is not a readable file"]
+    out += (worktree_reasons(cfg, m) if m is not None else []) + external_reasons(cfg)
+    sup, st = snapshot(os.path.join(cfg.run, SUP_FILE)), snapshot(os.path.join(cfg.run, SUP_STATE))
+    try:
+        doc = json.loads(st.raw) if st else None
+    except ValueError:
+        doc = None
+    out += phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None)
+    why, rep, raw = report_evidence(cfg, report, report_sha256)
+    fields, why2 = report_fields(raw) if raw is not None else ({}, [])
+    out += why + why2 + report_reasons(fields, h35=cfg.h35, lanes=lanes, state_sha256=st.sha256 if st else None,
+                                       prior_runs=prior_runs)
+    ck = {a: [m["arms"][a]["ckpt"]["path"], m["arms"][a]["ckpt"]["sha256"]] for a in ("P1", "BF")} if m else {}
+    return out, {"h35": cfg.h35, "run_worktree": cfg.run, "campaign_digest": cfg.digest,
+                 "cells_sha256": cells.sha256 if cells else None, "names_sha256": names_sha256([r["cell"] for r in rows]),
+                 "n_cells": len(rows), "blocks": list(BLOCKS), "dump_root": m.get("dump_root") if m else None,
+                 "canon_manifest": CANON_MANIFEST, "canon_manifest_sha256": canon.sha256 if canon else None,
+                 "checkpoints": dict(ck, CANON=list(CANON_CKPT)), "exp30": dict(cfg.exp30_pins),
+                 "queue_log": cfg.queue_log, "s43_end": s43_end(cfg)[0], "phase_i_state_sha256": st.sha256 if st else None,
+                 "supervisor_sha256": sup.sha256 if sup else None, "report": rep,
+                 "lanes": [{"index": i, "uuid": CARDS[i]} for i in lanes], "eta": fields.get("eta"),
+                 "second_lane_decision": fields.get("second-lane-decision"), "prior_runs": sorted(prior_runs)}
