@@ -105,12 +105,10 @@ MISMATCH = [
     (dict(metrics=dict(T.default_metrics(_row(REPLAY)), C50=1)), "metrics"),
     (dict(by_scene={s: dict(T.default_metrics(_row(REPLAY)), EDT=40.0 + i) for i, s in enumerate(T.SCENES)}),
      "by_scene"),
-    (dict(ckpt_load={"ckpt_sha256_loaded": MANIFEST["arms"]["YAW"]["ckpt"]["sha256"],
-                     "ckpt_bytes_loaded": T.CKPT_BYTES + 1}), "loaded checkpoint"),
 ]
 
 
-@pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene", "loaded_bytes"])
+@pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene"])
 def test_a_different_replay_is_a_mismatch(world, kw, needle):
     _rewrite(world, **kw)
     status, v = check(world)
@@ -130,6 +128,14 @@ def test_equality_is_type_strict(world, tmp_path):
     assert status == "mismatch" and any("type int != float" in x for x in v["reasons"]), v["reasons"]
     _rewrite(world, metrics=dict(m, T60=8.0))
     assert check(world)[0] == "equal"
+
+
+def test_the_loaded_checkpoint_must_be_the_pinned_one(world):
+    """A verified cell's loaded digest + length already equal its receipt's (the runner refuses otherwise); the
+    comparison binds both records and both receipts to the pinned (sha256, bytes) of the archived load."""
+    world["pins"]["loaded"] = [world["pins"]["loaded"][0], T.CKPT_BYTES + 1]
+    status, v = check(world)
+    assert status == "mismatch" and sum("loaded checkpoint" in x for x in v["reasons"]) == 4, v["reasons"]
 
 
 def test_a_different_stream_sidecar_is_a_mismatch(world):

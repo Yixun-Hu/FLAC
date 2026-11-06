@@ -2307,6 +2307,136 @@ def render_exp35_md(res):
     return "\n".join(out) + "\n"
 
 
+# --------------------------------------------------------------------------- #
+# exp_36 (plan_yaw_c4_spread.md r0 §2 items 2-3, Codex plan review B3 / H2): the replay hard stop
+# --------------------------------------------------------------------------- #
+EXP36_DIR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_36_yaw_c4_spread_claude")
+EXP36_TEMPLATE = "exp25_YAW_C4_S40000_K8_s42_th90"   # the archived cell the replay reproduces (exp-25 worktree)
+EXP36_REFERENCE = {   # its raw bytes as archived (read 2026-11-06, exp-25 worktree HEAD 5b7e663b) + its evaluator log
+    "metrics_sha256": "fc8cb212a9a5b852d1ad3bc31e01ff17c1b0b93b79141d92d0c016751eb11130",
+    "stream_sha256": "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8",
+    "receipt_sha256": "ee7d624a0c5a5df589fa7e47690aca85e2d6297007a466ad69820bf3c7bf9177",
+    "log_sha256": "8cbf6e24703c9957f9fdd6c9295af8c96063e19694fcf356f1ea0aeb6a0e8ea9",
+    "loaded": ["ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7", 723922667]}
+EXP25_FALLBACK = ("No module named 'flash_attn'", NO_FLASH["fallback_line"])   # flash-attn not installed then (H2)
+
+
+def _sha256(raw):
+    import hashlib
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _read(base_dir, rel):
+    with open(os.path.join(base_dir, rel), "rb") as f:
+        return f.read()
+
+
+def _exp36_paths(manifest, name, farm_root, dump_root):
+    row = next(c for c in manifest["cells"] if c["cell"] == name)
+    target, _ = expected_checkpoint(row, manifest, None)
+    return row, cell_paths(row, os.path.join(farm_root, row["arm"], os.path.basename(target)), dump_root)
+
+
+def exp36_reference(manifest, *, ref_base_dir=EXP25_WORKTREE, ref_dump_root=None, reference=None):
+    """``(files, reasons)`` of the archived exp_25 cell (B3, H2): its raw metrics / stream / receipt and its evaluator
+    log hash to the pinned digests, the log holds transformer.py's flash_attn ImportError + SDPA fallback pair exactly
+    once, back to back, and the cell verifies OFFLINE at d6ca307a in the exp-25 worktree WITH its dump."""
+    pins = reference or EXP36_REFERENCE
+    _, p = _exp36_paths(manifest, EXP36_TEMPLATE, manifest["farm_root"], ref_dump_root or manifest["dump_root"])
+    files, out = {}, []
+    for kind, rel in (("metrics", p.metrics), ("stream", p.stream), ("receipt", p.receipt)):
+        try:
+            raw = _read(ref_base_dir, rel)
+        except OSError as err:
+            return files, [f"the archived reference {kind} {rel} is unreadable under {ref_base_dir} ({err})"]
+        files[kind] = {"path": rel, "sha256": _sha256(raw)}
+        if files[kind]["sha256"] != pins[f"{kind}_sha256"]:
+            out.append(f"the archived reference {kind} {rel} hashes to {files[kind]['sha256']}, not the pinned "
+                       f"{pins[kind + '_sha256']}")
+    if out:
+        return files, out
+    log = json.loads(_read(ref_base_dir, p.receipt)).get("log")
+    try:
+        raw = _read(ref_base_dir, log)
+    except (OSError, TypeError) as err:
+        return files, [f"the archived evaluator log {log!r} is unreadable under {ref_base_dir} ({err})"]
+    files["log"] = {"path": log, "sha256": _sha256(raw)}
+    if files["log"]["sha256"] != pins["log_sha256"]:
+        return files, [f"the archived evaluator log {log} hashes to {files['log']['sha256']}, not the pinned "
+                       f"{pins['log_sha256']}"]
+    lines, (a, b) = raw.decode(errors="replace").splitlines(), EXP25_FALLBACK
+    if not (lines.count(a) == lines.count(b) == 1 and lines.index(b) == lines.index(a) + 1):
+        return files, ["the archived evaluator log lacks exactly one back-to-back flash_attn ImportError / SDPA "
+                       "fallback pair"]
+    why = verify_cell(p.stem, manifest=manifest, farm_root=manifest["farm_root"], dump_root=ref_dump_root or
+                      manifest["dump_root"], pin=EXP25_PIN, base_dir=ref_base_dir, dump_check="receipt",
+                      expect_dump=True, check_link=False)
+    return files, [f"the archived reference does not verify at {EXP25_PIN[:12]}: {x}" for x in why]
+
+
+def exp36_replay_check(*, pin, plan_json, manifest, base_dir=REPO, ref_base_dir=EXP25_WORKTREE, ref_dump_root=None,
+                       reference=None):
+    """B3 / H2, the hard stop: ``(status, verdict)``, status "equal", "mismatch" or "refused" (undecidable). Refused
+    unless the archived reference passes ``exp36_reference``, the replay run plan ``plan_json`` planned exactly the
+    replay (dump-free, no-flash) under one campaign digest, and the replay verifies here at ``pin`` dump-free under
+    that digest (receipt 2: sdpa, the pinned overlay + launcher, its log re-validated). Equal iff ``metrics``,
+    ``by_scene`` and every other record key but ``source_sha`` / ``eval_name`` (and the key order) are type-strictly
+    equal, the raw stream sidecars are identical and the loaded checkpoint (sha256, bytes) is the pinned one in both
+    records and receipts. ``reference``: the pinned digests (tests only)."""
+    pins = reference or EXP36_REFERENCE
+    verdict = {"schema_version": 1, "check": "exp36_replay", "result": "refused", "pin": pin, "campaign_digest": None,
+               "plan_json": plan_json, "plan_sha256": None, "reference": None, "replay": None, "loaded": pins["loaded"],
+               "compared": ["metrics", "by_scene", "every other record key but source_sha / eval_name, key order",
+                            "raw stream sidecar sha256", "loaded checkpoint sha256 + bytes (records, receipts)"],
+               "reasons": []}
+    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
+        return "refused", dict(verdict, reasons=[f"pin {pin!r} is not a full 40-hex commit"])
+    try:
+        raw = _read("", plan_json)
+        plan = json.loads(raw)
+        digest, (entry,) = plan["campaign_digest"], plan["cells"]
+        ok = (eval_FLAC._is_sha256_hex(digest) and plan["farm_root"] == manifest["farm_root"]
+              and isinstance(plan["dump_root"], str)
+              and (entry["cell"], entry["dump"], entry.get("no_flash")) == (EXP36_REPLAY, False, True))
+    except (OSError, TypeError, ValueError, KeyError) as err:
+        ok, digest = False, f"unreadable ({type(err).__name__}: {err})"
+    if not ok:
+        return "refused", dict(verdict, reasons=[f"the replay run plan {plan_json!r} is not the plan of exactly the "
+                                                 f"dump-free no-flash replay under one campaign digest ({digest!r:.80})"])
+    verdict.update(campaign_digest=digest, plan_sha256=_sha256(raw))
+    files, why = exp36_reference(manifest, ref_base_dir=ref_base_dir, ref_dump_root=ref_dump_root, reference=pins)
+    verdict["reference"] = {"cell": EXP36_TEMPLATE, "base_dir": ref_base_dir, "pin": EXP25_PIN, "dump": True,
+                            "receipt_schema": RECEIPT_SCHEMA_VERSION, "files": files,
+                            "backend": "sdpa (flash_attn not installed: the pinned log's ImportError + fallback pair)"}
+    _, p = _exp36_paths(manifest, EXP36_REPLAY, plan["farm_root"], plan["dump_root"])
+    why += [f"the replay does not verify at {pin[:12]}: {x}" for x in verify_cell(
+        p.stem, manifest=manifest, farm_root=plan["farm_root"], dump_root=plan["dump_root"], pin=pin, base_dir=base_dir,
+        dump_check="full", expect_dump=False, check_link=False, expect_digest=digest)]
+    if why:
+        return "refused", dict(verdict, reasons=why)
+    new = {k: _read(base_dir, getattr(p, k)) for k in ("metrics", "stream", "receipt")}
+    receipt = json.loads(new["receipt"])
+    nfiles = {k: {"path": getattr(p, k), "sha256": _sha256(v)} for k, v in new.items()}
+    nfiles["log"] = {"path": receipt["log"], "sha256": _sha256(_read(base_dir, receipt["log"]))}
+    verdict["replay"] = {"cell": EXP36_REPLAY, "base_dir": base_dir, "pin": pin, "dump": False,
+                         "receipt_schema": receipt["schema_version"], "files": nfiles,
+                         **{k: receipt[k] for k in RECEIPT_V2_KEYS}}
+    ref, rec = json.loads(_read(ref_base_dir, files["metrics"]["path"])), json.loads(new["metrics"])
+    ref_receipt, out = json.loads(_read(ref_base_dir, files["receipt"]["path"])), []
+    _eq(out, "record key order", list(rec), list(ref))
+    rest = lambda d: {k: v for k, v in d.items() if k not in ("metrics", "by_scene", "source_sha", "eval_name")}  # noqa
+    for key in ("metrics", "by_scene"):
+        diff = eval_FLAC._canon_strict_diff(rec.get(key), ref.get(key), key)
+        out += [f"record {key} differs from the archived cell: {diff}"] if diff else []
+    diff = eval_FLAC._canon_strict_diff(rest(rec), rest(ref), "record")
+    out += [f"the record differs from the archived cell (every key but source_sha / eval_name): {diff}"] if diff else []
+    _eq(out, "raw stream sidecar sha256", nfiles["stream"]["sha256"], pins["stream_sha256"])
+    for label, doc in (("replay record", rec), ("replay receipt", receipt), ("archived record", ref),
+                       ("archived receipt", ref_receipt)):
+        _eq(out, f"{label} loaded checkpoint (sha256, bytes)", [doc.get(k) for k in LOAD_KEYS], list(pins["loaded"]))
+    return ("mismatch" if out else "equal"), dict(verdict, result="mismatch" if out else "equal", reasons=out)
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
@@ -2372,6 +2502,10 @@ def main(argv=None):
     ap.add_argument("--attention-backend", default=None, help="--write-receipt, exp_35 cells: sdpa")
     ap.add_argument("--no-flash-overlay-sha256", default=None, help="--write-receipt, exp_35 cells")
     ap.add_argument("--no-flash-launcher-sha256", default=None, help="--write-receipt, exp_35 cells")
+    ap.add_argument("--exp36-replay-check", action="store_true",
+                    help="exp_36: the replay vs the archived exp_25 cell (--pin H36, --plan-json the replay run plan; "
+                         "the reference: --exp25-base-dir / --exp25-dump-root); exit 0 equal / 1 mismatch / 2 refused")
+    ap.add_argument("--verdict-out", default=None, help="--exp36-replay-check: write the verdict JSON (never replaced)")
     args = ap.parse_args(argv)
     if args.check_backend_log:
         reasons = backend_log_file_reasons(args.check_backend_log, args.backend_target)
@@ -2379,6 +2513,24 @@ def main(argv=None):
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
+    if args.exp36_replay_check:   # exp_36 (Codex B3 / B4): the hard stop before the 24 cells
+        if args.verdict_out and os.path.lexists(args.verdict_out):
+            print(f"EXP36 REPLAY REFUSED: the verdict file {args.verdict_out} exists (a verdict is never replaced)")
+            return 2
+        status, verdict = exp36_replay_check(pin=args.pin, plan_json=args.plan_json, manifest=manifest,
+                                             base_dir=args.base_dir, ref_base_dir=args.exp25_base_dir,
+                                             ref_dump_root=args.exp25_dump_root)
+        where = ""
+        if args.verdict_out:
+            tmp = f"{args.verdict_out}.tmp-{os.getpid()}"
+            with open(tmp, "w") as f:
+                json.dump(verdict, f, indent=1)
+            os.link(tmp, args.verdict_out)   # no-replace: FileExistsError if it appeared meanwhile
+            os.unlink(tmp)
+            with open(args.verdict_out, "rb") as f:
+                where = f"\nverdict: {args.verdict_out} (sha256 {_sha256(f.read())})"
+        print(f"EXP36 REPLAY {status.upper()}" + "".join(f"\n  - {x}" for x in verdict["reasons"]) + where)
+        return {"equal": 0, "mismatch": 1}.get(status, 2)
     if args.finalize_bf_probe:   # exp_35 §12 B3: chunk 5's non-logged finalization, then the contract
         try:
             finalize_bf_probe(args.finalize_bf_probe, args.probe_log, campaign_digest=args.campaign_digest,
