@@ -45,6 +45,7 @@ def main() -> None:
     parser.add_argument("--frame-avg-angles", type=float, nargs="+")   # B3: {0} / {0 180} / C4 (default)
     parser.add_argument("--candidate-subset", choices=("nested_1m", "c2f"))  # B2 timing passes
     parser.add_argument("--c2f-top-k", type=int, default=5)
+    parser.add_argument("--rotate-deg", type=float, default=0.0)   # B3: theta (accuracy-only when != 0)
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -82,6 +83,7 @@ def main() -> None:
         frame_angles=tuple(args.frame_avg_angles) if args.frame_avg_angles else None,
         candidate_subset=args.candidate_subset,
         c2f_top_k=args.c2f_top_k,
+        rotate_deg=args.rotate_deg,
     )
     print(json.dumps(result, indent=2))
 

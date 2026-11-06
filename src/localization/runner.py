@@ -516,6 +516,7 @@ def run_localization(
     frame_angles: tuple | None = None,
     candidate_subset: str | None = None,
     c2f_top_k: int = 5,
+    rotate_deg: float = 0.0,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -545,6 +546,14 @@ def run_localization(
         raise ValueError("the nested / c2f passes are timing passes: --measure-core-forward is required")
     if candidate_subset and stage_split:
         raise ValueError("a candidate subset pass is never a stage split pass")
+    if rotate_deg:
+        from src.localization.exp37_rotation import column_shift
+
+        column_shift(rotate_deg)                    # a whole number of panorama columns, else ValueError
+        if measure_core_forward or stage_split:
+            raise ValueError("rotated runs are accuracy-only: no --measure-core-forward / --stage-split")
+        if candidate_subset:
+            raise ValueError("rotated runs use the full frozen candidate set (no --candidate-subset)")
     if candidate_subset and (Path(output_dir) / "run_manifest.json").exists():
         raise RuntimeError("a nested / c2f pass is never resumed: use a fresh output directory")
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
@@ -592,6 +601,8 @@ def run_localization(
         identity["candidate_subset"] = candidate_subset
     if candidate_subset == "c2f":
         identity.update(c2f_top_k=int(c2f_top_k), c2f_chebyshev_radius_m=0.5)
+    if rotate_deg:
+        identity["rotate_deg"] = float(rotate_deg)
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
     write_host_record(
@@ -614,6 +625,10 @@ def run_localization(
         from src.localization import stage_split as split_module
 
         executor = split_module.execute_query_stage_split
+    elif rotate_deg:
+        from src.localization import exp37_rotation
+
+        executor = functools.partial(exp37_rotation.execute_query_rotated, rotate_deg=float(rotate_deg))
     elif candidate_subset == "c2f":
         from src.localization import exp37_c2f
 
