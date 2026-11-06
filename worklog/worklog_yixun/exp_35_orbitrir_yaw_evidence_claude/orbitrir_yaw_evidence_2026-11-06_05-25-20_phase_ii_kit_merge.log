@@ -1,0 +1,73 @@
+++ date -Is
+2026-11-06T05:25:20-05:00
+++ git fetch origin
+++ head -1
+++ git status -sb
+## localization-exp...origin/localization-exp
+++ git pull --rebase
+Already up to date.
++++ git rev-parse HEAD
+++ echo 'HEAD 917fd5b8fa12427715b81891aae56a20104d2865'
+HEAD 917fd5b8fa12427715b81891aae56a20104d2865
++++ git rev-parse HEAD
++++ git rev-parse origin/localization-exp
+++ test 917fd5b8fa12427715b81891aae56a20104d2865 = 917fd5b8fa12427715b81891aae56a20104d2865
++++ git status --porcelain --untracked-files=no
+++ test -z ''
++++ git rev-parse exp-35-phase-ii-kit
+++ test 7743ef4faadfc545dcce8dc5f7b58364babf1719 = 7743ef4faadfc545dcce8dc5f7b58364babf1719
++++ git merge-base HEAD exp-35-phase-ii-kit
+++ MB=9bd8e4683a5ead64256bc2d605cdd6781b4c5b54
+++ echo 'merge-base 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54'
+merge-base 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54
++++ tr '\n' ' '
++++ comm -12 /dev/fd/63 /dev/fd/62
+++++ git diff --name-only 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 HEAD
+++++ sort
+++++ git diff --name-only 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 exp-35-phase-ii-kit
+++++ sort
+++ echo 'paths changed on BOTH sides since the merge base: []'
+paths changed on BOTH sides since the merge base: []
++++ comm -12 /dev/fd/63 /dev/fd/62
+++++ git diff --name-only 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 HEAD
+++++ sort
+++++ git diff --name-only 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 exp-35-phase-ii-kit
+++++ sort
+++ test -z ''
+++ git merge --no-ff exp-35-phase-ii-kit -m 'exp_35: merge the phase-(ii) launch kit (branch exp-35-phase-ii-kit @ 7743ef4f; Codex code P2K-2 = SHIP after P2K-1'\''s fixes; plan §15 + the r1 clarifications + Codex S6) -- exp35_phase_ii.sh / exp35_phase_ii.py in the exp_35 folder + 13 sandboxed test files + the sandbox module; EXPECT_KIT_COMMIT = 7743ef4faadfc545dcce8dc5f7b58364babf1719' -m 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+++ cut -c1-120
+++ git log --oneline -1
+f3141e93 exp_35: merge the phase-(ii) launch kit (branch exp-35-phase-ii-kit @ 7743ef4f; Codex code P2K-2 = SHIP after P
+++ git log -1 '--format=parents %P'
+parents 917fd5b8fa12427715b81891aae56a20104d2865 7743ef4faadfc545dcce8dc5f7b58364babf1719
+++ X=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+++ git diff --quiet 7743ef4faadfc545dcce8dc5f7b58364babf1719 HEAD -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.sh worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.py src/tests
+++ echo 'kit files + src/tests identical to the reviewed 7743ef4f'
+kit files + src/tests identical to the reviewed 7743ef4f
+++ grep -v -E '^src/tests/(test_exp35_phase_ii[a-z_]*|exp35_phase_ii_sandbox)\.py$'
+++ cat
+++ git diff --name-only 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 HEAD -- ':(exclude)worklog'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/yixunhu/.local/share/claude/versions/2.1.287
+++ [[ -x /home/yixunhu/.local/share/claude/versions/2.1.287 ]]
+++ [[ ! -x /home/yixunhu/.local/share/claude/versions/2.1.287 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == \m\s\y\s ]]
+++ [[ linux-gnu == \c\y\g\w\i\n ]]
+++ [[ linux-gnu == \w\i\n\3\2 ]]
+++ exec -a ugrep /home/yixunhu/.local/share/claude/versions/2.1.287 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -v -E '^src/tests/(test_exp35_phase_ii[a-z_]*|exp35_phase_ii_sandbox)\.py$'
+++ echo '(non-worklog changes besides the kit tests: none above)'
+(non-worklog changes besides the kit tests: none above)
+++ git push -q
+++ head -1
+++ git status -sb
+## localization-exp...origin/localization-exp
+++ git rev-parse HEAD
+f3141e93012328fccc45d9a0c38c05b1562a52f0
+++ set +x
