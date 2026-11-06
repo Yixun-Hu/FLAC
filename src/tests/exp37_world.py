@@ -227,3 +227,17 @@ class World:
                 "latency_selection": str(self.root / "pilot_0p50.json"), "latency_selector": self.selectors["s050"],
                 "external_accuracy": str(self.root / "exp23_summary.json"),
                 "external_latency_csv": str(self.root / "latency_per_query.csv")}
+
+
+def add_timing_only_replays(world: World) -> World:
+    """The optional artifact replays of the timing-only passes (nested, c2f, orbit latency)."""
+    a50 = world.audits["audit_0p50"]
+    for arm in ("P1", "BF"):
+        world.make(f"b2t_nested_{arm}_s42_replay", arm, world.pilot, a50, kind="replay",
+                   of=world.runs / f"b2t_nested_{arm}_s42", candidate_subset="nested_1m")
+        world.make(f"b2t_c2f_{arm}_s42_replay", arm, world.pilot, a50, kind="replay", of=world.runs / f"b2t_c2f_{arm}_s42",
+                   candidate_subset="c2f", c2f_top_k=5)
+    for orbit, stem in (("0", "b3_lat_o0_s42"), ("0_180", "b3_lat_o0_180_s42"), ("c4", "b1_k8_BF_s42")):
+        world.make(f"{stem}_replay", "BF", world.pilot, a50, kind="replay", of=world.runs / stem,
+                   frame_angles=ORBIT_ANGLES[orbit])
+    return world

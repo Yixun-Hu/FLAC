@@ -1,213 +1,187 @@
-"""exp_37 round B-c: the B2 / B3 aggregation CLI (``tools/exp37_aggregate_b2b3.py``) end to end on a synthetic world:
-B2 accuracy per arm x grid over seeds (0.5 m, its nested 1.0 m and c2f readouts, the 0.75 m runs), the time axis of
-every point (L_q = core + shape-matched selector; c2f = its sequential total), the internal Pareto frontier, the B3
-orbit x theta table and orbit latencies, markdown, and the two-panel Pareto figure (PNG + PDF).
-CPU only. Written by the exp_37 Coder (Claude Opus 5.5, max effort), round B-c.
+"""exp_37 B2 / B3 aggregation on the complete synthetic registered world (Codex code review 1, BLOCKING 4, HIGH 3).
+
+Every accuracy number comes from a validated source with waveform coverage (accuracy-only runs: their inline dump;
+seed-42 timing passes: their bitwise replay); every accuracy statistic is n = 3 (seeds 42-44); times come from
+attested timing passes only; the summary carries an inventory of every source's hashes (inputs, selectors with their
+bindings and monitor heads, run / replay / dump manifests, per-query artifacts, host attestations, the pinned exp_23
+summary and bundle latency CSV, the synthesis metrics files). Publication outputs (JSON, markdown, PNG + PDF with the
+Pareto frontier) are written only when every timing is attested and the synthesis section is complete; otherwise a
+separate DIAGNOSTIC JSON / markdown without any frontier or figure, exit 3. Outputs are write-once.
+CPU only. Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 1 (replaces the round B-c tests).
 """
 import hashlib
 import json
+import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from exp37_fakes import attest_run, attest_selector, example_identity, selector_binding, write_attestation
-from src.localization import exp37_identity as ident
-from src.localization import exp37_latency as lat
-from src.localization import exp37_grid as grid
-from src.localization.exp37_grid import nested_subset
-from src.localization.pilot import canonical_sha256
-from src.localization.runner import initialize_run, save_query_result
+from exp37_fakes import write_attestation
+from exp37_world import World, add_timing_only_replays
 from tools import exp37_aggregate_b2b3 as tool
+from tools import exp37_build_b2b3_spec as builder
 
-C4 = [0.0, 90.0, 180.0, 270.0]
-HALF = np.array([[x, y, 1.0] for x in np.arange(0.0, 3.01, 0.5) for y in np.arange(0.0, 2.01, 0.5)], dtype=np.float32)
-SEVENTY_FIVE = np.array([[x, 0.0, 0.75] for x in np.arange(0.0, 3.01, 0.75)], dtype=np.float32)
-
-
-def _hashed(path, body):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
-    return {**body, "sha256": canonical_sha256(body)}
-
-
-class World:
-    def __init__(self, root: Path):
-        self.root = root
-        self.audits = {name: _hashed(root / f"{name}.json", {"mesh_root": f"/m/{name}", "grid": name,
-                                                              "rooms": {"R": {"mesh_sha256": "b" * 64}}})
-                       for name in ("audit_0p50", "audit_0p75")}
-        self.pilot = self._pilot("pilot_0p50.json", len(HALF))
-        self.pilot75 = self._pilot("pilot_0p75.json", len(SEVENTY_FIVE))
-        index = nested_subset(HALF)
-        recs = [{"index": r["index"], "query_id": r["query_id"], "room": r["room"], "candidate_count": len(index),
-                 "candidate_indices_sha256": hashlib.sha256(index.astype("<u4").tobytes()).hexdigest()}
-                for r in self.pilot["records"]]
-        self.nested = _hashed(root / "nested.json", {"subset": "nested_1m_integer", "records": recs, "query_count": 2,
-                                                     "parent_pilot_sha256": self.pilot["sha256"]})
-
-    def _pilot(self, name, count):
-        records = [{"index": i, "query_id": f"q{i}.wav", "room": f"r{i}", "candidate_count": count,
-                    "candidate_indices_sha256": f"h{i}"} for i in (1, 2)]
-        return _hashed(self.root / name, {"schema_version": 1, "query_count": 2, "records": records})
-
-    def selector(self, name, selection, seconds):
-        rows = [{"query_index": r["index"], "query_id": r["query_id"], "room": r["room"],
-                 "candidate_count": r["candidate_count"], "peak_memory_allocated_bytes": 5,
-                 "agree": {"median_seconds": {"scoring_total_seconds": seconds}}} for r in selection["records"]]
-        fields = {"record_type": "exp37_agree_selector_latency", "repeat_count": 3, "candidate_batch_size": 64,
-                  "queries": rows, "selection_sha256": selection["sha256"], "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
-                  "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256, "device": "cuda:0"}
-        binding = selector_binding(fields, self.root / name)
-        _hashed(self.root / name, {**fields, "binding": binding})
-        attest_selector(self.root / name, binding)
-        return str(self.root / name)
-
-    @staticmethod
-    def sims(c, seed):
-        truth = np.array([1.0, 1.0, 1.0])
-        return (1.0 - np.linalg.norm(c - truth, axis=1) / 10 + 0.01 * seed * (np.arange(len(c)) % 2)).astype(np.float32)
-
-    def c2f_run(self, name, arm):
-        """A FAITHFUL c2f pass over the parent (seed-42 0.5 m) arrays: the registered rule applied to its scores."""
-        from src.localization.exp37_grid import c2f_indices, query_scores
-        parent_sims = self.sims(HALF, 42)
-        rule = c2f_indices(HALF, query_scores(parent_sims.reshape(-1, 1), 0.1), k=5)
-        union, new = rule["union"], np.setdiff1d(rule["refined"], rule["coarse"])
-        sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
-        parts = {"observed_encoding": 0.05, "context_conditioning": 0.1, "coarse_generation": 0.3, "coarse_scoring": 0.1,
-                 "selection": 0.01, "refined_generation": 0.25, "refined_scoring": 0.08, "union_argmax": 0.01}
-        selector = ("observed_encoding", "coarse_scoring", "selection", "refined_scoring", "union_argmax")
-        winner = int(union[int(np.argmax(query_scores(parent_sims[union].reshape(-1, 1), 0.1)))])
-        per_query = {i: {"candidate_indices_sha256": sha, "parent_candidate_indices_sha256": f"h{i}",
-                         "latency_protocol": {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": 5,
-                                              "chebyshev_radius_m": 0.5, "selector_repeat_count": 3},
-                         "latency_seconds": {**parts, "c2f_total": sum(parts.values()), "core_forward_total": 0.65},
-                         "selector_repeat_seconds": {p: [parts[p]] * 3 for p in selector},
-                         "c2f": {"full_candidate_count": len(HALF), "coarse_count": len(rule["coarse"]),
-                                 "top_indices": rule["top"].tolist(), "refined_count": len(rule["refined"]),
-                                 "new_count": len(new), "union_indices": union.tolist(),
-                                 "generated_count": len(rule["coarse"]) + len(new), "winner_full_index": winner,
-                                 "union_indices_sha256": sha, "top_k": 5, "chebyshev_radius_m": 0.5}} for i in (1, 2)}
-        return self.run(name, arm, self.pilot, HALF[union], per_query=per_query, sims_rows=union,
-                        extra={"candidate_subset": "c2f", "c2f_top_k": 5, "c2f_chebyshev_radius_m": 0.5})
-
-    def run(self, name, arm, pilot, cands, *, seed=42, core=1.0, extra=None, per_query=None, timing=True, angles=None,
-            sims_rows=None):
-        audit = self.audits["audit_0p75" if pilot is self.pilot75 else "audit_0p50"]
-        expected = ident.registered_identity(arm, selection=pilot, audit=audit, seed=seed, timing=timing, frame_angles=angles)
-        identity = {**example_identity(expected, audit), **(extra or {})}
-        run_dir = self.root / name
-        manifest = initialize_run(run_dir, identity)
-        truth = np.array([1.0, 1.0, 1.0])
-        for r in pilot["records"]:
-            c = cands(r["index"]) if callable(cands) else cands
-            sims = self.sims(HALF, 42)[sims_rows] if sims_rows is not None else self.sims(c, seed)
-            win = int(np.argmax(sims.astype(np.float64)))
-            result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
-                      "candidate_indices_sha256": r["candidate_indices_sha256"],
-                      "room": r["room"], "candidate_count": len(c), "peak_memory_bytes": 7, "source_global": truth.tolist(),
-                      "metrics": {"1": grid.recomputed_k1_metrics(c, sims.reshape(-1, 1), truth.tolist(), 0.1)},
-                      "latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8},
-                      "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": core - 0.1,
-                                          "core_forward_total": core}, **((per_query or {}).get(r["index"], {}))}
-            save_query_result(run_dir, result=result, candidates=c, similarities=sims.reshape(-1, 1))
-        attest_run(run_dir)
-        return str(run_dir)
+REPO = Path(__file__).resolve().parents[2]
+E9 = REPO / "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude"
 
 
 @pytest.fixture
-def spec(tmp_path):
-    w = World(tmp_path)
-    b2 = [{"arm": arm, "grid": "0.50", "seed": s, "dir": w.run(f"{arm}_050_{s}", arm, w.pilot, HALF, seed=s, core=2.0)}
-          for arm in ("P1", "BF") for s in (42, 43, 44)]
-    b2 += [{"arm": arm, "grid": "0.75", "seed": s, "dir": w.run(f"{arm}_075_{s}", arm, w.pilot75, SEVENTY_FIVE, seed=s,
-                                                                 core=0.6)} for arm in ("P1", "BF") for s in (42, 43, 44)]
-    index = nested_subset(HALF)
-    sub_sha = hashlib.sha256(index.astype("<u4").tobytes()).hexdigest()
-    timing = [{"arm": arm, "kind": "nested_1m", "dir": w.run(f"{arm}_nested", arm, w.pilot, HALF[index], core=0.4,
-                                                              extra={"candidate_subset": "nested_1m"},
-                                                              per_query={i: {"candidate_subset": {"indices_sha256": sub_sha},
-                                                                             "candidate_indices_sha256": sub_sha,
-                                                                             "parent_candidate_indices_sha256": f"h{i}"}
-                                                                         for i in (1, 2)})} for arm in ("P1", "BF")]
-    timing += [{"arm": arm, "kind": "c2f", "dir": w.c2f_run(f"{arm}_c2f", arm)} for arm in ("P1", "BF")]
-    b3 = [{"orbit": o, "theta": t, "seed": s,
-           "dir": w.run(f"b3_{o}_{t}_{s}", "BF", w.pilot, HALF, seed=s, angles=angles, timing=(t == 0),
-                        extra={"rotate_deg": float(t)} if t else None)}
-          for o, angles in (("0", [0.0]), ("0_180", [0.0, 180.0])) for t in (0, 90) for s in (42, 43, 44)]
-    lat_runs = [{"orbit": o, "dir": w.run(f"lat_{o}", "BF", w.pilot, HALF, core=3.0, angles=a)}
-                for o, a in (("0", [0.0]), ("0_180", [0.0, 180.0]))]
-    body = {"pilot_0p50": str(tmp_path / "pilot_0p50.json"), "pilot_0p75": str(tmp_path / "pilot_0p75.json"),
-            "audit_0p50": str(tmp_path / "audit_0p50.json"), "audit_0p75": str(tmp_path / "audit_0p75.json"),
-            "nested_manifest": str(tmp_path / "nested.json"), "selector_0p50": w.selector("s050.json", w.pilot, 0.5),
-            "selector_0p75": w.selector("s075.json", w.pilot75, 0.2), "selector_nested": w.selector("s100.json", w.nested, 0.1),
-            "b2_runs": b2, "b2_timing": timing, "b3_runs": b3,
-            "b3_latency": {"selection": str(tmp_path / "pilot_0p50.json"), "selector": str(tmp_path / "s050.json"),
-                           "runs": lat_runs}}
-    path = tmp_path / "spec.json"
-    path.write_text(json.dumps(body))
-    return path
+def world(tmp_path, monkeypatch):
+    w = World(tmp_path).build()
+    summary_sha, csv_sha = w.external()
+    monkeypatch.setattr(tool, "EXP23_SUMMARY_SHA256", summary_sha)      # the synthetic world's own references
+    monkeypatch.setattr(tool, "LATENCY_CSV_SHA256", csv_sha)
+    return w
 
 
-def test_the_b2_points_carry_seed_statistics_time_and_validity(spec):
-    out = tool.build_summary(json.loads(spec.read_text()))
+def _spec(w, **kw):
+    synthesis = kw.pop("synthesis", "complete")
+    return builder.build_spec(w.inputs, w.runs, synthesis=w.synthesis(status="complete") if synthesis else None, **kw)
+
+
+def test_a_complete_world_is_publishable_with_n3_everywhere(world):
+    out = tool.build_summary(_spec(world))
+    assert out["publishable"] is True and out["reasons"] == [] and out["record_type"] == "exp37_b2_b3_summary"
     points = {(p["arm"], p["grid"]): p for p in out["b2"]["points"]}
     assert set(points) == {(a, g) for a in ("P1", "BF") for g in ("0.50", "0.75", "1.00_nested", "c2f_k5")}
-    half = points[("P1", "0.50")]
-    assert half["seconds_per_query"] == pytest.approx(2.5) and half["seconds_per_query_repeats"] == {"43": 2.5, "44": 2.5}
-    assert half["accuracy"]["median_localization_error_m"]["n"] == 3 and half["timing_valid"] is True
-    assert points[("BF", "1.00_nested")]["seconds_per_query"] == pytest.approx(0.5)          # 0.4 core + 0.1 selector
+    assert all(p["accuracy"][m]["n"] == 3 for p in points.values() for m in tool.METRICS)
+    assert points[("P1", "0.50")]["seconds_per_query"] == pytest.approx(2.5)                # 2.0 core + 0.5 selector
+    assert points[("BF", "1.00_nested")]["seconds_per_query"] == pytest.approx(0.5)
     assert points[("BF", "c2f_k5")]["seconds_per_query"] == pytest.approx(0.9)               # the sequential total
     assert points[("P1", "0.75")]["seconds_per_query"] == pytest.approx(0.8)
-    assert {s["grid"] for s in out["b2"]["sensitivity"]} == {"c2f_k1", "c2f_k3", "c2f_k10"}
-    frontier = out["b2"]["frontier"]["median_localization_error_m"]
-    assert frontier and all(isinstance(i, int) for i in frontier)
+    assert points[("P1", "0.50")]["seconds_per_query_repeats"] == {}                        # 43 / 44 accuracy-only
+    assert all(p["timing_valid"] for p in points.values()) and out["b2"]["frontier"]["success_1_0m"]
+    cells = {(r["orbit"], r["theta"]): r for r in out["b3"]["accuracy"]}
+    assert set(cells) == {(o, t) for o in ("0", "0_180", "c4") for t in (0, 90)}
+    assert all(r["accuracy"]["median_localization_error_m"]["n"] == 3 for r in cells.values())
+    c4 = next(p for p in out["b2"]["points"] if (p["arm"], p["grid"]) == ("BF", "0.50"))
+    assert cells[("c4", 0)]["accuracy"]["success_1_0m"] == c4["accuracy"]["success_1_0m"]   # C4 theta 0 = B2 B-F 0.50
+    assert sorted(r["orbit"] for r in out["b3"]["latency"]) == ["0", "0_180", "c4"]
+    assert out["b3"]["synthesis"]["status"] == "complete" and len(out["b3"]["synthesis"]["cells"]) == 12
 
 
-def test_the_b3_table_pairs_theta_per_orbit_and_reports_orbit_latency(spec):
-    out = tool.build_summary(json.loads(spec.read_text()))
-    rows = {(r["orbit"], r["theta"]): r for r in out["b3"]["accuracy"]}
-    assert set(rows) == {(o, t) for o in ("0", "0_180") for t in (0, 90)}
-    assert rows[("0", 90)]["accuracy"]["median_localization_error_m"]["n"] == 3
-    latency = {r["orbit"]: r for r in out["b3"]["latency"]}
-    assert latency["0"]["overall"]["mean_seconds"] == pytest.approx(3.5) and latency["0_180"]["timing_valid"] is True
+def test_the_inventory_binds_every_source(world):
+    spec = _spec(world)
+    out = tool.build_summary(spec)
+    inv = out["inventory"]
+    dirs = {i["dir"] for i in spec["b2_runs"] + spec["b2_timing"] + spec["b3_runs"] + spec["b3_latency"]["runs"]}
+    assert set(inv["runs"]) == dirs and len(dirs) == 34
+    seed42 = inv["runs"][next(i["dir"] for i in spec["b2_runs"] if (i["arm"], i["grid"], i["seed"]) == ("BF", "0.50", 42))]
+    assert seed42["replay"]["waveforms"]["mode"] == "replay" and len(seed42["attestation"]["monitor_head_sha256"]) == 64
+    acc = inv["runs"][next(i["dir"] for i in spec["b3_runs"])]
+    assert acc["waveforms"]["mode"] == "inline" and len(acc["waveforms"]["dump_manifest_sha256"]) == 64
+    assert set(inv["inputs"]) == set(tool.INPUT_KEYS) - {"selector_0p50", "selector_0p75", "selector_nested"}
+    assert set(inv["selectors"]) == {"selector_0p50", "selector_0p75", "selector_nested", "latency_selector"}
+    assert all(len(s["binding_sha256"]) == 64 for s in inv["selectors"].values())
+    assert inv["external"]["exp23_summary"]["sha256"] == tool.EXP23_SUMMARY_SHA256
+    assert inv["external"]["latency_csv"]["file_sha256"] == tool.LATENCY_CSV_SHA256
+    assert len(inv["synthesis"]) == 12 and out["spec_sha256"]
 
 
-def test_a_run_of_the_wrong_orbit_or_arm_is_refused(spec, tmp_path):
-    body = json.loads(spec.read_text())
-    body["b3_runs"][0]["orbit"] = "0_180"                                         # its identity says {0}
-    with pytest.raises(RuntimeError, match="frame_average_angles"):
-        tool.build_summary(body)
-    body = json.loads(spec.read_text())
-    body["b2_runs"][0]["arm"] = "BF"                                              # a P1 run claimed as B-F
-    with pytest.raises(RuntimeError):
-        tool.build_summary(body)
+def test_an_unattested_timing_withholds_publication_and_the_frontier(world, tmp_path):
+    run = world.runs / "b2_0p50_BF_s42"
+    shutil.rmtree(run / "cotenancy")
+    write_attestation(run / "cotenancy", json.loads((run / "run_manifest.json").read_text())["sha256"], co_tenant=True)
+    out = tool.build_summary(_spec(world))
+    assert out["publishable"] is False and out["b2"]["frontier"] is None
+    assert out["record_type"] == "exp37_b2_b3_DIAGNOSTIC" and any("BF 0.50" in r for r in out["reasons"])
 
 
-def test_the_cli_writes_json_markdown_and_both_figure_files(spec, tmp_path):
-    import subprocess
-    import sys
-    stem = tmp_path / "fig" / "b2_pareto"
-    argv = [sys.executable, str(Path(tool.__file__)), "--spec", str(spec), "--output-json", str(tmp_path / "o.json"),
-            "--output-md", str(tmp_path / "o.md"), "--figure-stem", str(stem)]
-    done = subprocess.run(argv, capture_output=True, text=True, timeout=600,
-                          env={"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin",
-                               "MPLCONFIGDIR": str(tmp_path / "mpl")})
-    assert done.returncode == 0, done.stderr
-    assert (stem.with_suffix(".png")).stat().st_size > 10000 and (stem.with_suffix(".pdf")).stat().st_size > 1000
-    text = (tmp_path / "o.md").read_text()
-    assert "Pareto" in text and "OrbitRIR" in text and "c2f" in text
-    assert json.loads((tmp_path / "o.json").read_text())["sha256"]
+def test_a_pending_synthesis_is_diagnostic_only(world):
+    out = tool.build_summary(_spec(world, synthesis=None))
+    assert out["publishable"] is False and any("synthesis" in r for r in out["reasons"])
+    assert out["b3"]["synthesis"]["status"] == "pending"
 
 
-def test_timing_validity_is_per_seed_headline_and_repeats(spec):
-    """A co-tenant during a seed-43 repeat must not invalidate the valid seed-42 headline (and vice versa)."""
-    body = json.loads(spec.read_text())
-    s43 = next(item["dir"] for item in body["b2_runs"] if (item["arm"], item["grid"], item["seed"]) == ("P1", "0.50", 43))
-    import shutil
-    shutil.rmtree(Path(s43) / "cotenancy")
-    write_attestation(Path(s43) / "cotenancy", json.loads((Path(s43) / "run_manifest.json").read_text())["sha256"],
-                      co_tenant=True)
-    point = next(p for p in tool.build_summary(body)["b2"]["points"] if (p["arm"], p["grid"]) == ("P1", "0.50"))
-    assert point["timing_valid"] is True and point["repeat_timing_valid"] == {"43": False, "44": True}
+def test_tampered_sources_are_refused(world):
+    spec = _spec(world)
+    cell = Path(spec["b3_synthesis"]["cells"][3]["metrics_json"])
+    cell.write_text(json.dumps({"t60_error_pct": 0.0, "c50_error_db": 0.0}))
+    with pytest.raises(RuntimeError, match="sha256"):
+        tool.build_summary(spec)
+    again = World(world.root / "again").build()
+    again.external()                                                     # the same synthetic references
+    spec = _spec(again)
+    np.save(world.root / "again" / "waves" / "b2_0p50_P1_s43" / "query_00001.npy", np.zeros((15, 1, 10240), np.float32))
+    with pytest.raises(RuntimeError, match="sha256"):
+        tool.build_summary(spec)
+
+
+def test_a_claimed_cell_must_be_the_run_s_identity(world):
+    spec = _spec(world)
+    a, b = spec["b3_runs"][0], spec["b3_runs"][3]                        # {0} theta 0 s42 <-> {0} theta 90 s42
+    a["dir"], b["dir"] = b["dir"], a["dir"]
+    with pytest.raises(RuntimeError, match="rotate_deg"):
+        tool.build_summary(spec)
+    spec = _spec(world)
+    p1, bf = (next(i for i in spec["b2_runs"] if (i["arm"], i["grid"], i["seed"]) == (arm, "0.75", 43)) for arm in ("P1", "BF"))
+    p1["dir"], bf["dir"] = bf["dir"], p1["dir"]
+    with pytest.raises(RuntimeError, match="checkpoint_sha256"):
+        tool.build_summary(spec)
+
+
+def test_timing_repeats_and_the_optional_replays_are_validated(tmp_path, monkeypatch):
+    w = add_timing_only_replays(World(tmp_path).build(seeds_43_44_timing=True))
+    monkeypatch.setattr(tool, "EXP23_SUMMARY_SHA256", w.external()[0])
+    monkeypatch.setattr(tool, "LATENCY_CSV_SHA256", w.external()[1])
+    out = tool.build_summary(_spec(w, seeds_43_44_timing=True, require_timing_replays=True))
+    assert out["publishable"] is True
+    half = next(p for p in out["b2"]["points"] if (p["arm"], p["grid"]) == ("P1", "0.50"))
+    assert half["seconds_per_query_repeats"] == {"43": 2.5, "44": 2.5} and half["repeat_timing_valid"] == {"43": True, "44": True}
+    assert all("replay" in out["inventory"]["runs"][i["dir"]] for i in _spec(w, require_timing_replays=True)["b2_timing"])
+
+
+def test_the_external_references_are_pinned_to_the_real_files():
+    real = {"accuracy": str(REPO / "worklog/worklog_yixun/exp_23_five_method_64_random_fallback/summary.json"),
+            "latency_csv": str(REPO / "NeurIPS_2026_Workshop_Latency_Reproducibility/expected/latency_per_query.csv")}
+    pilot = json.loads((E9 / "pilot_manifest_seed42_4_per_room.json").read_text())
+    inventory = {}
+    markers = tool.load_external(real, pilot, inventory)
+    assert set(markers) == {"few_shot_rir", "fem_omp"} and inventory["exp23_summary"]["sha256"] == tool.EXP23_SUMMARY_SHA256
+    assert tool.LATENCY_CSV_SHA256 == "3cac4a9c92f0943a57c0a228f94ca4d8d9357ea244214e202238cdb01b0191b8"
+
+
+def test_unpinned_external_references_are_refused(world, monkeypatch):
+    monkeypatch.setattr(tool, "EXP23_SUMMARY_SHA256", "0" * 64)
+    with pytest.raises(RuntimeError, match="pinned"):
+        tool.build_summary(_spec(world))
+
+
+def _main(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["exp37_aggregate_b2b3.py"] + [str(a) for a in argv])
+    return tool.main()
+
+
+def test_the_cli_publishes_once_and_otherwise_writes_only_a_diagnostic(world, tmp_path, monkeypatch):
+    monkeypatch.setenv("MPLCONFIGDIR", str(tmp_path / "mpl"))
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps(_spec(world)))
+    out, stem = tmp_path / "out" / "b2b3.json", tmp_path / "out" / "b2_pareto"
+    argv = ["--spec", spec, "--output-json", out, "--output-md", out.with_suffix(".md"), "--figure-stem", stem]
+    assert _main(monkeypatch, argv) == 0
+    assert stem.with_suffix(".png").stat().st_size > 10000 and stem.with_suffix(".pdf").stat().st_size > 1000
+    assert "Pareto frontier" in out.with_suffix(".md").read_text() and json.loads(out.read_text())["publishable"]
+    assert _main(monkeypatch, argv) == 2                                                    # write-once
+    pending = tmp_path / "pending.json"
+    pending.write_text(json.dumps(_spec(world, synthesis=None)))
+    out2 = tmp_path / "out2" / "b2b3.json"
+    argv2 = ["--spec", pending, "--output-json", out2, "--output-md", out2.with_suffix(".md"), "--figure-stem",
+             tmp_path / "out2" / "fig"]
+    assert _main(monkeypatch, argv2) == 3
+    assert not out2.exists() and not (tmp_path / "out2" / "fig.png").exists()
+    diagnostic = json.loads((tmp_path / "out2" / "b2b3.DIAGNOSTIC.json").read_text())
+    assert diagnostic["publishable"] is False and diagnostic["b2"]["frontier"] is None
+    text = (tmp_path / "out2" / "b2b3.DIAGNOSTIC.md").read_text()
+    assert text.startswith("# DIAGNOSTIC") and "Pareto frontier" not in text
+
+
+def test_the_cli_refuses_an_incomplete_spec_before_writing(world, tmp_path, monkeypatch):
+    body = _spec(world)
+    body["b2_runs"].pop()
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps(body))
+    out = tmp_path / "o" / "b2b3.json"
+    assert _main(monkeypatch, ["--spec", spec, "--output-json", out, "--output-md", out.with_suffix(".md")]) == 2
+    assert not (tmp_path / "o").exists()
