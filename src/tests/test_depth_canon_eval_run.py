@@ -30,8 +30,8 @@ COUNTS = {"T": 10, "T-dup": 2, "C4+45": 8, "R": 10, "D-i": 2, "D-ii": 2, "S": 10
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §1): 100 rows appended after the 230 exp_25 rows; the
 # exp_25 assertions below are scoped to the exp_25 blocks, test_exp35_make_cells.py pins the rest
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
-N_ROWS = 371   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows; exp_36: + the 25 YAW-C4S rows
-EXP36_BLOCKS = ("YAW-C4S",)
+N_ROWS = 386   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows; exp_36: + 25 YAW-C4S + 3 RPL-S42 + 12 OFF-S42
+EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")
 SEEDS = (42, 43, 44, 45, 46)
 # plan §5 common set (+ --batch-size 64 and --device cuda written out: never defaulted)
 COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": "1.0",
@@ -310,7 +310,7 @@ def test_selection_by_blocks_only_and_limit(manifest):
     a1_off = C.select_cells(manifest, blocks=[b for b in BLOCKS if b != "YAW-pin"])
     assert len(a1_off) == 192 and all(c["block"] != "YAW-pin" for c in a1_off)
     assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]   # exp_35 §14 A1.3:
-                                                            if c["block"] not in ("E2-FAIL", "YAW-C4S")]   # by name only
+                                                            if c["block"] not in ("E2-FAIL",) + EXP36_BLOCKS]   # by name
     names = ["exp25_YAW_S_S40000_K8_s46", "exp25_CANON_T_S40000_K1_s42"]
     assert [c["cell"] for c in C.select_cells(manifest, only=names)] == names[::-1]  # manifest order
     assert len(C.select_cells(manifest, blocks=["TRAJ"], limit=7)) == 7
@@ -448,8 +448,10 @@ DRIVER_REL = f"{EXPREL}/depth_canon_eval_run.sh"
 KIT = ("depth_canon_eval_run.sh", "depth_canon_collect.py", "depth_canon_make_cells.py",
        "depth_canon_cells.json", "depth_canon_audit_gate.py")
 EXP35REL = os.path.join("worklog", "worklog_yixun", "exp_35_orbitrir_yaw_evidence_claude")
+EXP36REL = os.path.join("worklog", "worklog_yixun", "exp_36_yaw_c4_spread_claude")
 KIT35 = ("overlays/no_flash/flash_attn.py", "overlays/no_flash/exp35_no_flash_launch.py",
-         f"{EXP35REL}/exp35_gpu_identity.py")
+         f"{EXP35REL}/exp35_gpu_identity.py",
+         f"{EXP36REL}/yaw_c4_spread_chain.sh")   # exp_36: in the relevant tree of every no-flash selection
 TESTMOD = os.path.join(REPO, "src", "tests", "test_depth_canon_collect.py")
 STUB_EVAL = r'''#!/usr/bin/env python3
 """Harness stub for eval_FLAC.py: records its call, then publishes exactly what the real
@@ -534,7 +536,7 @@ def clone(tmp_path_factory):
     subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", REPO, str(root)], check=True)
     _git(root, "sparse-checkout", "set", "--cone", "src", "data/AR",
          "worklog/worklog_yixun/exp_07_fa_scratch_claude", "worklog/worklog_yixun/exp_15_yaw_aug_claude",
-         EXPREL, "overlays", EXP35REL)                     # exp_35: the no-flash overlay + the identity helper
+         EXPREL, "overlays", EXP35REL, EXP36REL)           # exp_35: the no-flash overlay + the identity helper
     _git(root, "checkout", "-q", "--detach", _git(REPO, "rev-parse", "HEAD"))
     for f in KIT:
         if os.path.exists(os.path.join(EXPDIR, f)):

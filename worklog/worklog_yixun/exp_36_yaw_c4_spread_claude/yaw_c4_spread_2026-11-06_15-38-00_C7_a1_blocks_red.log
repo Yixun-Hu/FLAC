@@ -1,0 +1,326 @@
+RED, cycle 7 (attempt 2) at HEAD ceed2e8c37ae3145ea7041885cadd5a00e1c6a71 + the uncommitted tests. Attempt 1 (kept beside this log) found a real defect of cycle 5 (6a58a160): the runner's relevant tree of every no-flash selection now names the chain script, and the shared harness clone (test_depth_canon_eval_run.clone, sparse) did not check the exp_36 folder out, so 'git ls-files' listed a file sha256sum could not read -> TREE DIGEST FAILED for every exp_35 no-flash harness DRY_RUN. Fixed in the TESTS (production checkouts are never sparse): the clone's sparse set + kit overlay now include the exp_36 folder / chain script; test_exp36_chain.py reuses that clone.
+FFFFFF..FF...F.F................FFFFF.FFF....                            [100%]
+=================================== FAILURES ===================================
+______________________ test_the_a1_blocks_follow_yaw_c4s _______________________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_a1_blocks_follow_yaw_c4s(full):
+>       assert len(full["cells"]) == 386 and full["blocks"][-3:] == ["YAW-C4S", "RPL-S42", "OFF-S42"]
+E       AssertionError: assert (371 == 386)
+E        +  where 371 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_exp36_a1_make_cells.py:42: AssertionError
+___________ test_each_replay_is_its_reference_row_under_another_name ___________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_each_replay_is_its_reference_row_under_another_name(full):
+        by = _by_name(full)
+        for replay, ref_name in REPLAYS.items():
+>           new, ref = by[replay], by[ref_name]
+E           KeyError: 'exp36_P1_C4_S40000_K8_s42_th90'
+
+src/tests/test_exp36_a1_make_cells.py:55: KeyError
+_________ test_the_th315_rows_are_their_th225_siblings_at_315_degrees __________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_th315_rows_are_their_th225_siblings_at_315_degrees(full):
+        by = _by_name(full)
+        token = {"P1": "", "BF": "_fa_invariant_a4", "CANON": "_canon"}
+        for name in TH315:
+>           new, sib = by[name], by[name.replace("_th315", "_th225")]
+E           KeyError: 'exp35_P1_OFF_S40000_K1_s42_th315'
+
+src/tests/test_exp36_a1_make_cells.py:73: KeyError
+_______ test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles _______
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles(full):
+        by = _by_name(full)
+        for name in YAWOFF:
+>           new, ref = by[name], by[f"exp25_YAW_C4_S40000_K{by[name]['K']}_s42_th90"]
+E           KeyError: 'exp25_YAW_C4_S40000_K1_s42_th135'
+
+src/tests/test_exp36_a1_make_cells.py:85: KeyError
+____________________ test_the_24_off_orbit_production_cells ____________________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_24_off_orbit_production_cells(full):
+        by = _by_name(full)
+        prod = H35_OFF + TH315 + YAWOFF
+>       assert len(prod) == len(set(prod)) == 24 and all(n in by for n in prod)
+E       AssertionError: assert (24 == 24 and False)
+E        +  where 24 = len({'exp25_YAW_C4_S40000_K1_s42_th135', 'exp25_YAW_C4_S40000_K1_s42_th225', 'exp25_YAW_C4_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K8_s42_th135', 'exp25_YAW_C4_S40000_K8_s42_th225', 'exp25_YAW_C4_S40000_K8_s42_th315', ...})
+E        +    where {'exp25_YAW_C4_S40000_K1_s42_th135', 'exp25_YAW_C4_S40000_K1_s42_th225', 'exp25_YAW_C4_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K8_s42_th135', 'exp25_YAW_C4_S40000_K8_s42_th225', 'exp25_YAW_C4_S40000_K8_s42_th315', ...} = set(['exp35_P1_OFF_S40000_K1_s42_th135', 'exp35_P1_OFF_S40000_K1_s42_th225', 'exp35_P1_OFF_S40000_K8_s42_th135', 'exp35_P1_OFF_S40000_K8_s42_th225', 'exp35_BF_OFF_S40000_K1_s42_th135', 'exp35_BF_OFF_S40000_K1_s42_th225', ...])
+E        +  and   False = all(<generator object test_the_24_off_orbit_production_cells.<locals>.<genexpr> at 0x7dc42d723060>)
+
+src/tests/test_exp36_a1_make_cells.py:97: AssertionError
+_____________ test_names_and_suffixes_stay_injective_over_386_rows _____________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_names_and_suffixes_stay_injective_over_386_rows(full):
+>       assert len({c["cell"] for c in full["cells"]}) == 386 == len({c["metrics_suffix"] for c in full["cells"]})
+E       AssertionError: assert 371 == 386
+E        +  where 371 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+
+src/tests/test_exp36_a1_make_cells.py:105: AssertionError
+__________________ test_the_committed_file_is_the_full_render __________________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_committed_file_is_the_full_render(full):
+        with open(os.path.join(REPO, EXPREL, "depth_canon_cells.json")) as f:
+            assert f.read() == MC.render(full)
+>       assert MC.main(["--check"]) == 0 and len(full["cells"]) == 386            # + amendment A1's 15 rows
+E       AssertionError: assert (0 == 0 and 371 == 386)
+E        +  where 0 = <function main at 0x7dc42d72cdc0>(['--check'])
+E        +    where <function main at 0x7dc42d72cdc0> = MC.main
+E        +  and   371 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_exp36_make_cells.py:88: AssertionError
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+______ test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows ______
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+h35 = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows(full, h35):
+        assert full["cells"][:346] == h35["cells"]
+        rows = full["cells"][346:371]
+        assert [c["order"] for c in rows] == list(range(346, 371))
+        assert {c["block"] for c in rows} == {"YAW-C4S"} and {c["priority"] for c in rows} == {18}
+>       assert full["blocks"] == h35["blocks"] + ["YAW-C4S", "RPL-S42", "OFF-S42"] and full["blocks"].index("YAW-C4S") == 18
+E       AssertionError: assert (['T', 'T-dup'..., 'D-ii', ...] == ['T', 'T-dup'..., 'D-ii', ...]
+E         
+E         Right contains 2 more items, first extra item: 'RPL-S42'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_make_cells.py:97: AssertionError
+____________________ test_names_and_suffixes_stay_injective ____________________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+h35 = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_names_and_suffixes_stay_injective(full, h35):
+        names = [c["cell"] for c in full["cells"]]
+>       assert len(set(names)) == 386 and len({c["metrics_suffix"] for c in full["cells"]}) == 386
+E       AssertionError: assert (371 == 386)
+E        +  where 371 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+E        +    where {'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...} = set(['exp25_CANON_T_S40000_K1_s42', 'exp25_CANON_T_S40000_K1_s43', 'exp25_CANON_T_S40000_K1_s44', 'exp25_CANON_T_S40000_K1_s45', 'exp25_CANON_T_S40000_K1_s46', 'exp25_CANON_T_S40000_K8_s42', ...])
+
+src/tests/test_exp36_make_cells.py:145: AssertionError
+________ test_the_no_flash_decision_is_separate_from_the_exp35_identity ________
+
+    def test_the_no_flash_decision_is_separate_from_the_exp35_identity():
+>       assert C.EXP35_BLOCKS == EXP35 and C.EXP36_BLOCKS == EXP36 and C.EXPLICIT_BLOCKS == ("E2-FAIL",)
+E       AssertionError: assert (('CTL', 'BF-p...F-CANON', ...) == ('CTL', 'BF-p...F-CANON', ...)
+E         
+E         Use -v to get more diff and ('YAW-C4S',) == ('YAW-C4S', '...2', 'OFF-S42')
+E         
+E         Right contains 2 more items, first extra item: 'RPL-S42'
+E         Use -v to get more diff)
+
+src/tests/test_exp36_collect.py:40: AssertionError
+____________ test_the_a1_names_are_registered_in_their_blocks_only _____________
+
+    def test_the_a1_names_are_registered_in_their_blocks_only():
+>       assert [c["cell"] for c in MANIFEST["cells"] if c["block"] in ("RPL-S42", "OFF-S42")] == A1_NAMES
+E       AssertionError: assert [] == ['exp36_P1_C4...2_th315', ...]
+E         
+E         Right contains 15 more items, first extra item: 'exp36_P1_C4_S40000_K8_s42_th90'
+E         Use -v to get more diff
+
+src/tests/test_exp36_collect.py:138: AssertionError
+_ test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6542/test_a_dump_free_a1_cell_verif0')
+name = 'exp35_CANON_OFF_S40000_K8_s42_th315'
+
+    @pytest.mark.parametrize("name", ["exp35_CANON_OFF_S40000_K8_s42_th315", "exp35_BF_OFF_S40000_K1_s42_th315",
+                                      "exp36_CANON_C4_S40000_K8_s42_th90", "exp25_YAW_C4_S40000_K1_s42_th135"])
+    def test_a_dump_free_a1_cell_verifies_as_an_exp36_row(tmp_path, name):
+        """An exp35_-named OFF-S42 row is no exp_35 row (is_exp35 False): the exp_35 name/block check yields to the
+        exp_36 validator -- the cell verifies (receipt 2, backend log, canon sidecar for CANON)."""
+>       r = _row(name)
+
+src/tests/test_exp36_collect.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp35_CANON_OFF_S40000_K8_s42_th315'
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def _row(name, manifest=MANIFEST):
+>       (r,) = [c for c in manifest["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp36_collect.py:31: ValueError
+_ test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6542/test_a_dump_free_a1_cell_verif1')
+name = 'exp35_BF_OFF_S40000_K1_s42_th315'
+
+    @pytest.mark.parametrize("name", ["exp35_CANON_OFF_S40000_K8_s42_th315", "exp35_BF_OFF_S40000_K1_s42_th315",
+                                      "exp36_CANON_C4_S40000_K8_s42_th90", "exp25_YAW_C4_S40000_K1_s42_th135"])
+    def test_a_dump_free_a1_cell_verifies_as_an_exp36_row(tmp_path, name):
+        """An exp35_-named OFF-S42 row is no exp_35 row (is_exp35 False): the exp_35 name/block check yields to the
+        exp_36 validator -- the cell verifies (receipt 2, backend log, canon sidecar for CANON)."""
+>       r = _row(name)
+
+src/tests/test_exp36_collect.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp35_BF_OFF_S40000_K1_s42_th315'
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def _row(name, manifest=MANIFEST):
+>       (r,) = [c for c in manifest["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp36_collect.py:31: ValueError
+_ test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6542/test_a_dump_free_a1_cell_verif2')
+name = 'exp36_CANON_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", ["exp35_CANON_OFF_S40000_K8_s42_th315", "exp35_BF_OFF_S40000_K1_s42_th315",
+                                      "exp36_CANON_C4_S40000_K8_s42_th90", "exp25_YAW_C4_S40000_K1_s42_th135"])
+    def test_a_dump_free_a1_cell_verifies_as_an_exp36_row(tmp_path, name):
+        """An exp35_-named OFF-S42 row is no exp_35 row (is_exp35 False): the exp_35 name/block check yields to the
+        exp_36 validator -- the cell verifies (receipt 2, backend log, canon sidecar for CANON)."""
+>       r = _row(name)
+
+src/tests/test_exp36_collect.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp36_CANON_C4_S40000_K8_s42_th90'
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def _row(name, manifest=MANIFEST):
+>       (r,) = [c for c in manifest["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp36_collect.py:31: ValueError
+_ test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6542/test_a_dump_free_a1_cell_verif3')
+name = 'exp25_YAW_C4_S40000_K1_s42_th135'
+
+    @pytest.mark.parametrize("name", ["exp35_CANON_OFF_S40000_K8_s42_th315", "exp35_BF_OFF_S40000_K1_s42_th315",
+                                      "exp36_CANON_C4_S40000_K8_s42_th90", "exp25_YAW_C4_S40000_K1_s42_th135"])
+    def test_a_dump_free_a1_cell_verifies_as_an_exp36_row(tmp_path, name):
+        """An exp35_-named OFF-S42 row is no exp_35 row (is_exp35 False): the exp_35 name/block check yields to the
+        exp_36 validator -- the cell verifies (receipt 2, backend log, canon sidecar for CANON)."""
+>       r = _row(name)
+
+src/tests/test_exp36_collect.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp25_YAW_C4_S40000_K1_s42_th135'
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def _row(name, manifest=MANIFEST):
+>       (r,) = [c for c in manifest["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp36_collect.py:31: ValueError
+_______________________ test_render_is_one_cell_per_line _______________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_render_is_one_cell_per_line(manifest):
+        lines = MC.render(manifest).splitlines()
+        cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
+>       assert len(cell_lines) == len(manifest["cells"]) == N_ROWS and len(_exp25(manifest)) == 230
+E       AssertionError: assert (371 == 386)
+E        +  where 371 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_depth_canon_eval_run.py:119: AssertionError
+_____________________ test_block_counts_and_priority_order _____________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_block_counts_and_priority_order(manifest):
+        cells = manifest["cells"]
+        assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
+>       assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
+E       AssertionError: assert ('T', 'T-dup'..., 'D-ii', ...) == ('T', 'T-dup'..., 'D-ii', ...)
+E         
+E         Right contains 2 more items, first extra item: 'RPL-S42'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_eval_run.py:128: AssertionError
+_______________ test_eval_names_and_metrics_stems_are_injective ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'..._yaw_c4_spread.md r0 §2 + its Codex plan review (B2)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_eval_names_and_metrics_stems_are_injective(manifest):
+        cells = manifest["cells"]
+        names = [c["cell"] for c in cells]
+>       assert len(set(names)) == N_ROWS
+E       AssertionError: assert 371 == 386
+E        +  where 371 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+E        +    where {'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...} = set(['exp25_CANON_T_S40000_K1_s42', 'exp25_CANON_T_S40000_K1_s43', 'exp25_CANON_T_S40000_K1_s44', 'exp25_CANON_T_S40000_K1_s45', 'exp25_CANON_T_S40000_K1_s46', 'exp25_CANON_T_S40000_K8_s42', ...])
+
+src/tests/test_depth_canon_eval_run.py:139: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+PASSED src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+PASSED src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[removed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_committed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_uncommitted]
+FAILED src/tests/test_exp36_a1_make_cells.py::test_the_a1_blocks_follow_yaw_c4s
+FAILED src/tests/test_exp36_a1_make_cells.py::test_each_replay_is_its_reference_row_under_another_name
+FAILED src/tests/test_exp36_a1_make_cells.py::test_the_th315_rows_are_their_th225_siblings_at_315_degrees
+FAILED src/tests/test_exp36_a1_make_cells.py::test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles
+FAILED src/tests/test_exp36_a1_make_cells.py::test_the_24_off_orbit_production_cells
+FAILED src/tests/test_exp36_a1_make_cells.py::test_names_and_suffixes_stay_injective_over_386_rows
+FAILED src/tests/test_exp36_make_cells.py::test_the_committed_file_is_the_full_render
+FAILED src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+FAILED src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+FAILED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+FAILED src/tests/test_exp36_collect.py::test_the_a1_names_are_registered_in_their_blocks_only
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135]
+FAILED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+FAILED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+18 failed, 27 passed, 3 warnings in 67.55s (0:01:07)

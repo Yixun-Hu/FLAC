@@ -172,14 +172,14 @@ def test_the_e2_fail_block_is_selected_only_by_name(capsys):
     --only / --limit through to this function (--count-no-flash, --plan)."""
     m = C.load_cells(C.CELLS_JSON)
     e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
-    yaw = [c["cell"] for c in m["cells"] if c["block"] == "YAW-C4S"]          # exp_36 (Codex H1): by name only too
-    rest = [c["cell"] for c in m["cells"] if c["block"] not in ("E2-FAIL", "YAW-C4S")]
+    exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS]    # exp_36 (Codex H1): by name only too
+    rest = [c["cell"] for c in m["cells"] if c["block"] not in ("E2-FAIL",) + C.EXP36_BLOCKS]
     assert len(e2f) == 16 and len(rest) == 330 and m["cells"][330:346] == [c for c in m["cells"] if c["cell"] in e2f]
     assert [c["cell"] for c in C.select_cells(m)] == rest
-    assert [c["cell"] for c in C.select_cells(m, limit=371)] == rest
+    assert [c["cell"] for c in C.select_cells(m, limit=len(m["cells"]))] == rest
     assert [c["cell"] for c in C.select_cells(m, blocks=["E2-FAIL"])] == e2f
     assert [c["cell"] for c in C.select_cells(m, only=e2f[3:5])] == e2f[3:5]
-    assert [c["cell"] for c in C.select_cells(m, blocks=list(m["blocks"]))] == rest + e2f + yaw
+    assert [c["cell"] for c in C.select_cells(m, blocks=list(m["blocks"]))] == rest + e2f + exp36
     for argv, want in (([], 100), (["--blocks", "E2-FAIL"], 16), (["--only", ",".join(e2f[:2])], 2)):
         assert C.main(["--count-no-flash", "--cells", C.CELLS_JSON] + argv) == 0
         assert capsys.readouterr().out.strip().splitlines()[-1] == str(want), argv

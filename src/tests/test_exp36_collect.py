@@ -21,6 +21,7 @@ import test_depth_canon_collect as T
 
 C, MANIFEST, PIN = T.C, T.MANIFEST, T.PIN
 EXP35 = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
+EXP36 = ("YAW-C4S", "RPL-S42", "OFF-S42")   # + amendment A1's two blocks
 REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"
 CELLS24 = [f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 44, 45, 46) for d in (90, 180, 270)]
 YAW_C4S = [REPLAY] + CELLS24
@@ -36,9 +37,9 @@ def _stem(r):
 
 
 def test_the_no_flash_decision_is_separate_from_the_exp35_identity():
-    assert C.EXP35_BLOCKS == EXP35 and C.EXP36_BLOCKS == ("YAW-C4S",) and C.EXPLICIT_BLOCKS == ("E2-FAIL",)
+    assert C.EXP35_BLOCKS == EXP35 and C.EXP36_BLOCKS == EXP36 and C.EXPLICIT_BLOCKS == ("E2-FAIL",)
     for r in MANIFEST["cells"]:
-        assert C.uses_no_flash(r) is (r["block"] in EXP35 + ("YAW-C4S",)), r["cell"]
+        assert C.uses_no_flash(r) is (r["block"] in EXP35 + EXP36), r["cell"]
         assert C.is_exp35(r) is (r["block"] in EXP35), r["cell"]
     assert [c["cell"] for c in MANIFEST["cells"] if c["block"] == "YAW-C4S"] == YAW_C4S
 
@@ -58,7 +59,7 @@ def test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free():
 
 def test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag():
     kw = dict(farm_root="farm", dump_root="/d", canon_index=T.canon_index(), no_dump_blocks=[])
-    for e in C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if c["block"] not in ("YAW-C4S",)], **kw):
+    for e in C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if c["block"] not in EXP36], **kw):
         assert ("no_flash" in e) is (_row(e["cell"])["block"] in EXP35), e["cell"]
 
 
@@ -125,3 +126,33 @@ def test_verify_cell_refuses_a_misnamed_row(old, new, needle):
     r["cell"] = new                                                     # the suffix still finds the row
     reasons = C.verify_cell(_stem(r), manifest=m, farm_root=T.FARM, dump_root="/d", pin=PIN)
     assert len(reasons) == 1 and needle in reasons[0], reasons
+
+
+# ---- amendment A1: RPL-S42 / OFF-S42 -- exp_36 rows (some with exp35_ / exp25_ names) verify as exp_36 rows ---- #
+A1_NAMES = ([f"exp36_{a}_C4_S40000_K8_s42_th90" for a in ("P1", "BF", "CANON")]
+            + [f"exp35_{a}_OFF_S40000_K{k}_s42_th315" for a in ("P1", "BF", "CANON") for k in (1, 8)]
+            + [f"exp25_YAW_C4_S40000_K{k}_s42_th{d}" for k in (1, 8) for d in (135, 225, 315)])
+
+
+def test_the_a1_names_are_registered_in_their_blocks_only():
+    assert [c["cell"] for c in MANIFEST["cells"] if c["block"] in ("RPL-S42", "OFF-S42")] == A1_NAMES
+    for name in A1_NAMES:
+        r = _row(name)
+        assert C.exp36_name_reasons(r) == [] and C.uses_no_flash(r) and not C.is_exp35(r), name
+        for block in ("OFF-P1", "YAW-pin", "BF-pin", "YAW-C4S"):
+            assert C.exp36_name_reasons(dict(r, block=block)), (name, block)
+    other = "OFF-S42" if _row(A1_NAMES[0])["block"] == "RPL-S42" else "RPL-S42"
+    assert C.exp36_name_reasons(dict(_row(A1_NAMES[0]), block=other))       # each name in ITS block only
+
+
+@pytest.mark.parametrize("name", ["exp35_CANON_OFF_S40000_K8_s42_th315", "exp35_BF_OFF_S40000_K1_s42_th315",
+                                  "exp36_CANON_C4_S40000_K8_s42_th90", "exp25_YAW_C4_S40000_K1_s42_th135"])
+def test_a_dump_free_a1_cell_verifies_as_an_exp36_row(tmp_path, name):
+    """An exp35_-named OFF-S42 row is no exp_35 row (is_exp35 False): the exp_35 name/block check yields to the
+    exp_36 validator -- the cell verifies (receipt 2, backend log, canon sidecar for CANON)."""
+    r = _row(name)
+    T.write_cell(tmp_path, r, dump=False)
+    reasons = C.verify_cell(f"{T.ckpt_base(r)}_metrics_{r['metrics_suffix']}", manifest=MANIFEST, farm_root=T.FARM,
+                            dump_root=os.path.join(str(tmp_path), "dumps"), pin=PIN, canon_index=T.canon_index(),
+                            base_dir=str(tmp_path), check_link=False, expect_dump=False)
+    assert reasons == [], reasons

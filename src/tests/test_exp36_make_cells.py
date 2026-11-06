@@ -85,25 +85,26 @@ def test_the_exp25_only_render_is_unchanged():
 def test_the_committed_file_is_the_full_render(full):
     with open(os.path.join(REPO, EXPREL, "depth_canon_cells.json")) as f:
         assert f.read() == MC.render(full)
-    assert MC.main(["--check"]) == 0 and len(full["cells"]) == 371
+    assert MC.main(["--check"]) == 0 and len(full["cells"]) == 386            # + amendment A1's 15 rows
 
 
 # ---- the YAW-C4S block: 25 rows appended after the H35 rows (NIT 1: the replay belongs to the count) ---- #
 def test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows(full, h35):
     assert full["cells"][:346] == h35["cells"]
-    rows = full["cells"][346:]
+    rows = full["cells"][346:371]
     assert [c["order"] for c in rows] == list(range(346, 371))
     assert {c["block"] for c in rows} == {"YAW-C4S"} and {c["priority"] for c in rows} == {18}
-    assert full["blocks"] == h35["blocks"] + ["YAW-C4S"] and full["blocks"].index("YAW-C4S") == 18
-    assert full["block_counts"] == dict(h35["block_counts"], **{"YAW-C4S": 25})
-    assert full["plan"] == h35["plan"] + "; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)"
+    assert full["blocks"] == h35["blocks"] + ["YAW-C4S", "RPL-S42", "OFF-S42"] and full["blocks"].index("YAW-C4S") == 18
+    assert full["block_counts"] == dict(h35["block_counts"], **{"YAW-C4S": 25, "RPL-S42": 3, "OFF-S42": 12})
+    assert full["plan"] == h35["plan"] + ("; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)"
+                                          " + amendment A1 (the seed-42 off-orbit run)")
     same = [k for k in h35 if k not in ("cells", "blocks", "block_counts", "plan")]
     assert list(full) == list(h35) and {k: full[k] for k in same} == {k: h35[k] for k in same}
     assert all(list(c) == list(h35["cells"][0]) for c in rows) and len(rows[0]) == 26
 
 
 def test_the_replay_is_first_and_differs_from_its_template_only_by_name(full):
-    rows, by = full["cells"][346:], _by_name(full)
+    rows, by = full["cells"][346:371], _by_name(full)
     replay, ref = rows[0], by[TEMPLATE]
     assert (replay["cell"], replay["order"], ref["block"], ref["subblock"]) == (REPLAY, 346, "YAW-pin", "C4")
     assert replay["eval_args"] == _swap(ref["eval_args"], TEMPLATE, REPLAY)
@@ -114,7 +115,7 @@ def test_the_replay_is_first_and_differs_from_its_template_only_by_name(full):
 
 
 def test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46(full):
-    rows, by = full["cells"][347:], _by_name(full)
+    rows, by = full["cells"][347:371], _by_name(full)
     assert [c["cell"] for c in rows] == CELLS24                       # K, then seed, then angle
     for c in rows:
         d = c["rotate_deg"]
@@ -132,7 +133,7 @@ def test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name(f
     """Yixun's order: exactly the flags of the exp_25 YAW_C4 seed-42 cells -- per K, the s42 th90 row's argv except
     ``--seed`` / ``--rotate-deg`` / ``--eval-name``."""
     by = _by_name(full)
-    for c in full["cells"][346:]:
+    for c in full["cells"][346:371]:
         a, b = c["eval_args"], by[f"exp25_YAW_C4_S40000_K{c['K']}_s42_th90"]["eval_args"]
         assert len(a) == len(b) and [x for x in a if x.startswith("--")] == [y for y in b if y.startswith("--")]
         changed = {a[i - 1] for i in range(1, len(a)) if a[i] != b[i]}
@@ -141,7 +142,7 @@ def test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name(f
 
 def test_names_and_suffixes_stay_injective(full, h35):
     names = [c["cell"] for c in full["cells"]]
-    assert len(set(names)) == 371 and len({c["metrics_suffix"] for c in full["cells"]}) == 371
+    assert len(set(names)) == 386 and len({c["metrics_suffix"] for c in full["cells"]}) == 386
     old = {c["cell"] for c in h35["cells"]}
     assert not old & set(CELLS24 + [REPLAY])
     assert all("exp14_" not in n and "exp11_" not in n for n in names)
