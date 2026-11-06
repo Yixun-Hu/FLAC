@@ -160,5 +160,3 @@ def test_the_index_follows_the_uuid_not_the_name(tmp_path):
 def test_an_unknown_card_name_is_refused(tmp_path):
     with pytest.raises(ValueError):
         C.observe(FakeWorld(), cfg_for(tmp_path), "GPU2")
-
-
