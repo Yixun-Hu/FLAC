@@ -2498,11 +2498,13 @@ EXP25_WORKTREE_HEAD = "5b7e663b75da1bcaa08e170f1cae5005acfc1afd"
 EXP36_PUBLISH_SETS = {"A": EXP36_CELLS, "OFF": EXP36_YAW_OFF}   # A1 §5: two separate publications, one per set
 EXP36_PUBLICATION = os.path.join(EXP36_DIR, "yaw_c4_spread_publication_manifest_{}.json")   # .format(set)
 EXP36_TMP_PREFIX = ".exp36-publish-tmp-"
-EXP36_RECOVERY = (f"Every destination is absent or complete: each file is written to a temp file ({EXP36_TMP_PREFIX}"
-                  "<pid>-<name>) in the destination, fsynced, hard-linked to its final name (never replacing one) and "
-                  "re-hashed. After a stop or a crash, re-run the same command with --exp36-publish-resume: it re-checks "
-                  "every gate, accepts a present destination only if it is byte-identical to its source, removes only "
-                  "this tool's own temp files and copies the rest; nothing else is ever replaced or removed.")
+EXP36_RECOVERY = (f"Every destination is absent or complete: each file is written to a temp ({EXP36_TMP_PREFIX}<txid>-"
+                  "<name>) in the destination directory (opened once; every operation relative to it), fsynced, hard-linked "
+                  "to its final name (never replacing one) and re-hashed, all under the global publication lock. After a "
+                  "stop or a crash, re-run the same command with --exp36-publish-resume: it authenticates this manifest "
+                  "(in_progress / partial; every identity field and entry recomputed), accepts a present destination only "
+                  "if byte-identical to its source, removes only the temps this manifest names and copies the rest; "
+                  "nothing else is ever replaced or removed. A complete publication is final.")
 _PRESENT = "present (resume: byte-identical to its source)"
 
 
@@ -2539,13 +2541,6 @@ def publisher_closure(repo, pin):
     lines = "".join(f"{_sha256(_read(repo, f))}  {f}\n" for f in files)
     return {"repo": repo, "head": head, "collector": EXP36_COLLECTOR_REL,
             "collector_sha256": _sha256(_read(repo, EXP36_COLLECTOR_REL)), "closure_digest": _sha256(lines.encode())}, []
-
-
-def _write_json_atomic(path, doc):
-    tmp = f"{path}.tmp-{os.getpid()}"
-    with open(tmp, "w") as f:
-        json.dump(doc, f, indent=1)
-    os.replace(tmp, path)
 
 
 def _fsync_dir(path):
@@ -2703,98 +2698,119 @@ def _exp36_sources(manifest, *, cells, pin, digest, base_dir, dump_root, dest):
 def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, publisher_pin, base_dir=REPO, ref_base_dir=EXP25_WORKTREE,
                   ref_dump_root=None, dump_root=None, dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
                   resume=False, reference=None, git_head=_git_head, publisher_check=None):
-    """B4 / H4: ``(status, doc)`` -- "published", "partial" (stopped part-way; ``doc["recovery"]``) or "refused"
-    (nothing written). Every gate runs before any write: this worktree at ``pin``, the exp-25 worktree at
-    ``exp25_head``, ``dest`` its plain YAW farm directory, the YAW replay's verdict ``equal`` at ``pin`` and re-computed
-    identically now, the set's cells (A: 24, OFF: 6) verified under its campaign digest, none of their destinations
-    (metrics + stream) present (``resume``: present only byte-identical) and no temp file left (``resume``: only this
-    tool's own, removed)."""
+    """B4 / H4 / review II: ``(status, doc)`` -- "published", "partial" (stopped part-way; ``doc["recovery"]``) or
+    "refused" (nothing written). Under the global publication lock, held from before the first check through the final
+    manifest and directory fsync, every gate runs before any write: the publisher closure at ``publisher_pin``; this
+    run checkout at ``pin`` and the exp-25 worktree at ``exp25_head``; ``dest`` its plain YAW farm directory, opened
+    once (every later destination operation relative to that fd); the YAW replay's verdict ``equal`` at ``pin`` and
+    re-computed identically now; the set's cells (A: 24, OFF: 6) verified under its campaign digest; none of their
+    destinations present and no temp left (``resume``: the authenticated prior manifest's own temps and byte-identical
+    destinations only)."""
+    import uuid
+
     def refused(why):
         return "refused", {"status": "refused", "set": cell_set, "reasons": why}
     cells = EXP36_PUBLISH_SETS[cell_set]
-    publisher, why = (publisher_check or publisher_closure)(REPO, publisher_pin)
-    if why:
-        return refused(why)
-    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)) or git_head(base_dir) != pin:
-        return refused([f"this worktree {base_dir} is not at the pin {pin!r} (HEAD {git_head(base_dir)!r})"])
-    if git_head(ref_base_dir) != exp25_head:
-        return refused([f"the exp-25 worktree {ref_base_dir} is at {git_head(ref_base_dir)!r}, not {exp25_head}"])
-    want = os.path.join(ref_base_dir, manifest["farm_root"], "YAW")
-    if dest != want or os.path.islink(dest) or not os.path.isdir(dest) or os.path.realpath(dest) != os.path.abspath(dest):
-        return refused([f"the destination {dest!r} is not the plain directory {want} (no symlink on its path)"])
-    if os.path.lexists(out) and not resume:
-        return refused([f"the publication manifest {out} exists (a stopped publication: --exp36-publish-resume)"])
     try:
-        raw = _read("", verdict_path)
-        verdict = json.loads(raw)
-    except (OSError, TypeError, ValueError) as err:
-        return refused([f"the verdict {verdict_path!r} is unreadable ({err})"])
-    if not isinstance(verdict, dict) or (verdict.get("result"), verdict.get("pin")) != ("equal", pin):
-        return refused([f"the verdict {verdict_path} is not an equal verdict at {pin}"])
-    if (verdict.get("replay") or {}).get("cell") != EXP36_REPLAY:
-        return refused([f"the verdict {verdict_path} is not the YAW replay's ({EXP36_REPLAY}): YAW cells only"])
-    status, again = exp36_replay_check(pin=pin, plan_json=verdict.get("plan_json"), manifest=manifest, base_dir=base_dir,
-                                       ref_base_dir=ref_base_dir, ref_dump_root=ref_dump_root, reference=reference)
-    if status != "equal" or again != verdict:
-        return refused([f"the replay check re-run now is {status} and not the recorded verdict"] + again["reasons"][:3])
-    entries, why = _exp36_sources(manifest, cells=cells, pin=pin, digest=verdict["campaign_digest"], base_dir=base_dir,
-                                  dump_root=dump_root or manifest["dump_root"], dest=dest)
-    if why:
-        return refused(why)
-    names = {os.path.basename(e["dest"]) for e in entries}
-    temps = sorted(n for n in os.listdir(dest) if n.startswith(EXP36_TMP_PREFIX))
-    ours = [n for n in temps if re.fullmatch(re.escape(EXP36_TMP_PREFIX) + r"\d+-(.+)", n)
-            and re.fullmatch(re.escape(EXP36_TMP_PREFIX) + r"\d+-(.+)", n).group(1) in names]
-    present = [e for e in entries if os.path.lexists(e["dest"])]
-    if not resume and (temps or present):
-        return refused([f"{len(present)} destination path(s) already present ({[e['dest'] for e in present][:3]}) "
-                        f"and {len(temps)} temp file(s): nothing is published over them"])
-    if set(temps) != set(ours):
-        return refused([f"foreign temp file(s) {sorted(set(temps) - set(ours))} in {dest}"])
-    for e in present:
-        if os.path.islink(e["dest"]) or not os.path.isfile(e["dest"]) or _sha256(_read("", e["dest"])) != e["source_sha256"]:
-            return refused([f"{e['dest']} is present but not byte-identical to its source {e['source']}"])
-        e.update(dest_sha256=e["source_sha256"], state=_PRESENT)
-    for n in ours:
-        os.unlink(os.path.join(dest, n))
-    doc = {"schema_version": 1, "check": "exp36_publish", "set": cell_set, "status": "in_progress", "pin": pin,
-           "campaign_digest": verdict["campaign_digest"], "exp25_head": exp25_head, "base_dir": base_dir, "dest": dest,
-           "verdict": {"path": verdict_path, "sha256": _sha256(raw)},
-           "archived_reference": dict(EXP36_REPLAYS[EXP36_REPLAY], **(reference or {})),
-           "publisher": publisher,   # review I HIGH 1 / II HIGH 3: the reviewed copying code, beside the artifacts' pin
-           "entries": entries, "recovery": EXP36_RECOVERY, "reasons": []}
-    _write_json_atomic(out, doc)
+        lock = _publication_lock(ref_base_dir)
+    except OSError as err:
+        return refused([f"the global exp_36 publication lock on {ref_base_dir} is held or unavailable ({err})"])
+    dfd = None
     try:
-        for e in (e for e in entries if e["state"] == "planned"):
-            data = _read(base_dir, e["source"])
-            if _sha256(data) != e["source_sha256"]:
-                raise ValueError(f"{e['source']} changed during the publication")
-            tmp = os.path.join(dest, f"{EXP36_TMP_PREFIX}{os.getpid()}-{os.path.basename(e['dest'])}")
+        publisher, why = (publisher_check or publisher_closure)(REPO, publisher_pin)
+        if why:
+            return refused(why)
+        if not re.fullmatch(r"[0-9a-f]{40}", str(pin)) or git_head(base_dir) != pin:
+            return refused([f"this worktree {base_dir} is not at the pin {pin!r} (HEAD {git_head(base_dir)!r})"])
+        if git_head(ref_base_dir) != exp25_head:
+            return refused([f"the exp-25 worktree {ref_base_dir} is at {git_head(ref_base_dir)!r}, not {exp25_head}"])
+        dfd, why = _open_dest(dest, os.path.join(ref_base_dir, manifest["farm_root"], "YAW"))
+        if why:
+            return refused(why)
+        if os.path.lexists(out) and not resume:
+            return refused([f"the publication manifest {out} exists (a stopped publication: --exp36-publish-resume)"])
+        try:
+            raw = _read("", verdict_path)
+            verdict = json.loads(raw)
+        except (OSError, TypeError, ValueError) as err:
+            return refused([f"the verdict {verdict_path!r} is unreadable ({err})"])
+        if not isinstance(verdict, dict) or (verdict.get("result"), verdict.get("pin")) != ("equal", pin):
+            return refused([f"the verdict {verdict_path} is not an equal verdict at {pin}"])
+        if (verdict.get("replay") or {}).get("cell") != EXP36_REPLAY:
+            return refused([f"the verdict {verdict_path} is not the YAW replay's ({EXP36_REPLAY}): YAW cells only"])
+        status, again = exp36_replay_check(pin=pin, plan_json=verdict.get("plan_json"), manifest=manifest,
+                                           base_dir=base_dir, ref_base_dir=ref_base_dir, ref_dump_root=ref_dump_root,
+                                           reference=reference)
+        if status != "equal" or again != verdict:
+            return refused([f"the replay check re-run now is {status} and not the recorded verdict"] + again["reasons"][:3])
+        entries, why = _exp36_sources(manifest, cells=cells, pin=pin, digest=verdict["campaign_digest"],
+                                      base_dir=base_dir, dump_root=dump_root or manifest["dump_root"], dest=dest)
+        if why:
+            return refused(why)
+        doc = {"schema_version": 2, "check": "exp36_publish", "set": cell_set, "status": "in_progress", "txid": None,
+               "pin": pin, "campaign_digest": verdict["campaign_digest"], "exp25_head": exp25_head, "base_dir": base_dir,
+               "dest": dest, "verdict": {"path": verdict_path, "sha256": _sha256(raw)},
+               "archived_reference": dict(EXP36_REPLAYS[EXP36_REPLAY], **(reference or {})), "publisher": publisher,
+               "entries": entries, "recovery": EXP36_RECOVERY, "reasons": []}
+        prior, ident = None, None
+        if resume:
+            prior, ident, why = _authenticate(out, doc, entries)
+            if why:
+                return refused(why)
+        doc["txid"] = txid = prior["txid"] if prior else uuid.uuid4().hex
+        for e in entries:
+            e["tmp"] = f"{EXP36_TMP_PREFIX}{txid}-{os.path.basename(e['dest'])}"
+        temps = sorted(n for n in os.listdir(dfd) if n.startswith(EXP36_TMP_PREFIX))
+        ours = {e["tmp"] for e in entries} if prior else set()
+        if set(temps) - ours:
+            return refused([f"temp file(s) {sorted(set(temps) - ours)[:3]} in {dest} that no authenticated manifest of "
+                            "this publication names: nothing is published"])
+        present = [e for e in entries if _lexists_at(dfd, os.path.basename(e["dest"]))]
+        if present and not resume:
+            return refused([f"{len(present)} destination path(s) already present ({[e['dest'] for e in present][:3]}): "
+                            "nothing is published over them"])
+        for e in present:
+            if (_ident(os.path.basename(e["dest"]), dir_fd=dfd) or (0, 0, None))[2] != e["source_sha256"]:
+                return refused([f"{e['dest']} is present but not byte-identical to its source {e['source']}"])
+            e.update(dest_sha256=e["source_sha256"], state=_PRESENT)
+        for n in temps:                                       # every gate passed: the writes begin
+            os.unlink(n, dir_fd=dfd)
+        m = _Manifest(out, txid, ident)
+        m.write(doc)
+        try:
+            for e in (e for e in entries if e["state"] == "planned"):
+                data = _read(base_dir, e["source"])
+                if _sha256(data) != e["source_sha256"]:
+                    raise ValueError(f"{e['source']} changed during the publication")
+                name = os.path.basename(e["dest"])
+                try:
+                    _write_new(e["tmp"], data, dir_fd=dfd)
+                    os.link(e["tmp"], name, src_dir_fd=dfd, dst_dir_fd=dfd, follow_symlinks=False)   # never replacing
+                finally:
+                    if _lexists_at(dfd, e["tmp"]):
+                        os.unlink(e["tmp"], dir_fd=dfd)
+                e["dest_sha256"] = (_ident(name, dir_fd=dfd) or (0, 0, None))[2]
+                if e["dest_sha256"] != e["source_sha256"]:
+                    raise ValueError(f"{e['dest']} hashes to {e['dest_sha256']} after the copy, not its source's")
+                e["state"] = "published"
+                m.write(doc)
+            os.fsync(dfd)
+            if not _names(dest, dfd):
+                raise ValueError(f"the destination path {dest} no longer names the directory published into")
+            doc["status"] = "complete"
+            m.write(doc)
+        except (OSError, ValueError) as err:
+            doc.update(status="partial", reasons=[f"stopped part-way ({type(err).__name__}: {err}); see recovery"])
             try:
-                with open(tmp, "xb") as f:
-                    f.write(data)
-                    f.flush()
-                    os.fsync(f.fileno())
-                os.link(tmp, e["dest"])          # atomic and never replacing: FileExistsError if it appeared
-            finally:
-                if os.path.lexists(tmp):
-                    os.unlink(tmp)
-            e.update(dest_sha256=_sha256(_read("", e["dest"])))
-            if e["dest_sha256"] != e["source_sha256"]:
-                raise ValueError(f"{e['dest']} hashes to {e['dest_sha256']} after the copy, not its source's")
-            e["state"] = "published"
-    except (OSError, ValueError) as err:
-        doc.update(status="partial", reasons=[f"stopped part-way ({type(err).__name__}: {err}); see recovery"])
-        _write_json_atomic(out, doc)
-        return "partial", doc
-    fd = os.open(dest, os.O_RDONLY)
-    try:
-        os.fsync(fd)
+                m.write(doc)
+            except (OSError, ValueError) as err2:
+                doc["reasons"].append(f"the manifest could not record the stop ({err2})")
+            return "partial", doc
+        return "published", doc
     finally:
-        os.close(fd)
-    doc["status"] = "complete"
-    _write_json_atomic(out, doc)
-    return "published", doc
+        if dfd is not None:
+            os.close(dfd)
+        os.close(lock)
 
 
 def _csv(value):
