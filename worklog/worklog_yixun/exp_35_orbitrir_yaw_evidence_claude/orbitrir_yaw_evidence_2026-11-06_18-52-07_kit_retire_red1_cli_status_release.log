@@ -1,0 +1,23 @@
+exp_35 kit retirement RED 1 (exp_36 code review III HIGH 2: the shell CLI refuses reserve / dry-run / launch first; status / release kept) at 9f0f3e39a5f70f0248865bca62b9c54760082315 + test_exp35_phase_ii_retired.py part 1 (uncommitted; the kit files unchanged) -- 2026-11-06T18:52:07-05:00 -- CPU only
+FFFFFFFFFFFFFFFFFF...                                                    [100%]
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_shell_gate_is_its_first_decision
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_status_still_works_through_the_cli_and_names_the_retirement[True]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_status_still_works_through_the_cli_and_names_the_retirement[False]
+18 failed, 3 passed in 8.37s
+pytest rc 1
