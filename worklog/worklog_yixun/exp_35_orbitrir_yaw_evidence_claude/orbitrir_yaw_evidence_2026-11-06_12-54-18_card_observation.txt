@@ -1,0 +1,17 @@
+2026-11-06T12:54:18-05:00
+# read-only observation of the A6000 cards (nvidia-smi; /proc cmdline / cwd / start; the training logs' last progress lines)
+3027719, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e, 8248 MiB
+1672378, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e, 8310 MiB
+3028196, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da, 8248 MiB
+1672611, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da, 8308 MiB
+pid 3027719 start 'Wed Nov  4 06:12:54 2026' cwd /home/yixunhu/codespace/flac-fork-attn cmdline_sha256 841cce3c2402d8002714f34cd44e34a9b0f8ce5edd942647c7e55d6f87cbf558
+pid 1672378 start 'Fri Nov  6 11:38:29 2026' cwd /home/yixunhu/codespace/flac-fork-attn-eqtail cmdline_sha256 8bfdbcb49bd50319b682387ebcb30e483b26b647bed69d549294f8f7f87b9d45
+pid 3028196 start 'Wed Nov  4 06:13:02 2026' cwd /home/yixunhu/codespace/flac-fork-attn cmdline_sha256 5b0ec86fb7143b6adf50c583e5e3cfe0329f1dd03be232e0355d59c7049389aa
+pid 1672611 start 'Fri Nov  6 11:38:37 2026' cwd /home/yixunhu/codespace/flac-fork-attn-eqtail cmdline_sha256 2a80d54c73ece0e93325c5ea20640db86ee64f816771d03c7473232c188337a9
+log /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log mtime 2026-11-06 12:54:15.967096853 -0500
+Epoch 8:  31%|███▏      | 1430/4550 [2:38:01<5:44:46,  0.15it/s, v_num=0, train/lo
+log /home/yixunhu/codespace/flac-fork-attn-eqtail/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattneqtail_s43_20261106T113825_1672174.log mtime 2026-11-06 12:54:17.830122176 -0500
+Epoch 7:  81%|████████  | 3668/4550 [1:15:25<18:08,  0.81it/s, v_num=0, tr
+eqtail script: training on GPUs 0,1 then exp30_attn_eval.sh 1 <seed> <last> (GPU 1): exp30_attn_eqtail.sh sha256 7b1854036085ad4aced149aed6f93761e628b88c200af4323b6e1c4cc84efe99
+63:    CUDA_VISIBLE_DEVICES=$gpus setsid "$PY" train.py --ckpt-path "$ckpt" \
+85:        setsid bash "$R/exp30_attn_eval.sh" 1 "$seed" "$last" &
