@@ -59,6 +59,17 @@ def query_scores(similarities, tau: float) -> np.ndarray:
     return log_mean_exp_scores(torch.as_tensor(np.asarray(similarities)), (1,), tau=tau)[1].numpy()
 
 
+def recomputed_k1_metrics(candidates, similarities, truth, tau: float) -> dict:
+    """The runner's K=1 metric block (``runner._build_query_result``) recomputed from a run's own arrays."""
+    scores = log_mean_exp_scores(torch.as_tensor(np.asarray(similarities)).float(), (1,), tau=tau)[1]
+    winner = stable_argmax(scores)
+    values = localization_metrics(candidates, truth, winner)
+    values["prediction_global"] = np.asarray(candidates)[winner].astype(float).tolist()
+    values["winning_score"] = float(scores[winner])
+    values["mean_candidate_score"] = float(scores.mean())
+    return values
+
+
 def subset_readout(candidates, scores, truth, indices) -> dict:
     indices = np.asarray(indices)
     local = stable_argmax(np.asarray(scores)[indices])
@@ -89,10 +100,7 @@ def readout_run(run_dir: Path, pilot: dict, full_only: bool = False) -> dict:
         with np.load(run_dir / result["arrays_file"]) as arrays:
             candidates, similarities = arrays["candidates"], arrays["similarities"]
         scores, truth = query_scores(similarities, float(identity["tau"])), np.asarray(result["source_global"])
-        full = subset_readout(candidates, scores, truth, np.arange(len(candidates)))
-        recorded = result["metrics"]["1"]
-        if full["prediction_index"] != recorded["prediction_index"] or full["localization_error_m"] != recorded[
-                "localization_error_m"]:
+        if recomputed_k1_metrics(candidates, similarities, truth, float(identity["tau"])) != result["metrics"]["1"]:
             raise RuntimeError(f"{run_dir}: query {record['index']} arrays disagree with its recorded K=1 metrics")
         if full_only:
             sets = {"full": np.arange(len(candidates))}

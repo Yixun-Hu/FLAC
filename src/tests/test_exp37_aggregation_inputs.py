@@ -37,7 +37,7 @@ def _run(tmp_path, name, arm, pilot, *, identity=None, per_query=None, counts=No
         n = (counts or {}).get(record["index"], record["candidate_count"])
         candidates = np.array([[0.75 * k, 0.0, 1.0] for k in range(n)], dtype=np.float32)
         sims = np.linspace(0.1, 0.9, n, dtype=np.float32).reshape(n, 1)
-        metrics = {"prediction_index": n - 1, "localization_error_m": float(np.linalg.norm(candidates[-1] - [0.0, 0.0, 1.0]))}
+        metrics = grid.recomputed_k1_metrics(candidates, sims, [0.0, 0.0, 1.0], 0.1)
         result = {"run_manifest_sha256": manifest["sha256"], "query_index": record["index"], "query_id": record["query_id"],
                   "room": "r", "candidate_count": n, "peak_memory_bytes": 10, "source_global": [0.0, 0.0, 1.0],
                   "metrics": {"1": metrics},

@@ -14,6 +14,7 @@ import pytest
 from exp37_fakes import example_identity
 from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
+from src.localization import exp37_grid as grid
 from src.localization.exp37_grid import nested_subset
 from src.localization.pilot import canonical_sha256
 from src.localization.runner import initialize_run, save_query_result
@@ -74,7 +75,7 @@ class World:
             win = int(np.argmax(sims.astype(np.float64)))
             result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
                       "room": r["room"], "candidate_count": len(c), "peak_memory_bytes": 7, "source_global": truth.tolist(),
-                      "metrics": {"1": {"prediction_index": win, "localization_error_m": float(np.linalg.norm(c[win] - truth))}},
+                      "metrics": {"1": grid.recomputed_k1_metrics(c, sims.reshape(-1, 1), truth.tolist(), 0.1)},
                       "latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8},
                       "latency_seconds": {"context_conditioning": 0.1, "candidate_conditioning_and_generation": core - 0.1,
                                           "core_forward_total": core}, **((per_query or {}).get(r["index"], {}))}
