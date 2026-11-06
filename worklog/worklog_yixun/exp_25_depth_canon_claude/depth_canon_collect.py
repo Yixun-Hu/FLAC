@@ -2512,6 +2512,35 @@ def _git_head(path):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
+EXP36_COLLECTOR_REL = os.path.relpath(os.path.abspath(__file__), REPO)   # review II HIGH 3: the publisher's closure
+EXP36_CELLS_REL = os.path.relpath(CELLS_JSON, REPO)
+EXP36_PUBLISHER_CLOSURE = ("eval_FLAC.py", "src", ":(exclude)src/tests", EXP36_COLLECTOR_REL, EXP36_CELLS_REL)
+
+
+def publisher_closure(repo, pin):
+    """Review II HIGH 3: ``(info, reasons)`` -- the publishing checkout ``repo`` is at the full reviewed commit ``pin``
+    and its publication / replay-verification closure (``EXP36_PUBLISHER_CLOSURE``) is committed and clean: no
+    modified, deleted or untracked file. ``info`` = the HEAD, this collector's path + sha256 and the closure digest
+    (sha256 of the sorted ``<sha256>  <path>`` lines of the closure's files), recorded beside the artifacts' pin."""
+    import subprocess
+    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
+        return None, [f"the publisher pin {pin!r} is not a full 40-hex commit"]
+    head = _git_head(repo)
+    if head is None or head != pin:
+        return None, [f"the publishing checkout {repo} has HEAD {head!r} (no git HEAD or not the publisher pin {pin})"]
+    git = lambda *a: subprocess.run(["git", "-C", repo, *a], capture_output=True, text=True)  # noqa: E731
+    st = git("status", "--porcelain", "--untracked-files=all", "--", *EXP36_PUBLISHER_CLOSURE)
+    if st.returncode != 0 or st.stdout.strip():
+        return None, [f"the publication closure of {repo} is not clean at {pin}: {(st.stdout or st.stderr).strip()[:300]}"]
+    ls = git("ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *EXP36_PUBLISHER_CLOSURE)
+    files = sorted({f for f in ls.stdout.split("\0") if f})
+    if ls.returncode != 0 or EXP36_COLLECTOR_REL not in files:
+        return None, [f"the publication closure of {repo} is not clean at {pin}: {EXP36_COLLECTOR_REL} is not tracked"]
+    lines = "".join(f"{_sha256(_read(repo, f))}  {f}\n" for f in files)
+    return {"repo": repo, "head": head, "collector": EXP36_COLLECTOR_REL,
+            "collector_sha256": _sha256(_read(repo, EXP36_COLLECTOR_REL)), "closure_digest": _sha256(lines.encode())}, []
+
+
 def _write_json_atomic(path, doc):
     tmp = f"{path}.tmp-{os.getpid()}"
     with open(tmp, "w") as f:
@@ -2537,9 +2566,9 @@ def _exp36_sources(manifest, *, cells, pin, digest, base_dir, dump_root, dest):
     return entries, why
 
 
-def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, base_dir=REPO, ref_base_dir=EXP25_WORKTREE,
+def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, publisher_pin, base_dir=REPO, ref_base_dir=EXP25_WORKTREE,
                   ref_dump_root=None, dump_root=None, dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
-                  resume=False, reference=None, git_head=_git_head):
+                  resume=False, reference=None, git_head=_git_head, publisher_check=None):
     """B4 / H4: ``(status, doc)`` -- "published", "partial" (stopped part-way; ``doc["recovery"]``) or "refused"
     (nothing written). Every gate runs before any write: this worktree at ``pin``, the exp-25 worktree at
     ``exp25_head``, ``dest`` its plain YAW farm directory, the YAW replay's verdict ``equal`` at ``pin`` and re-computed
@@ -2549,6 +2578,9 @@ def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, base_dir=REPO, 
     def refused(why):
         return "refused", {"status": "refused", "set": cell_set, "reasons": why}
     cells = EXP36_PUBLISH_SETS[cell_set]
+    publisher, why = (publisher_check or publisher_closure)(REPO, publisher_pin)
+    if why:
+        return refused(why)
     if not re.fullmatch(r"[0-9a-f]{40}", str(pin)) or git_head(base_dir) != pin:
         return refused([f"this worktree {base_dir} is not at the pin {pin!r} (HEAD {git_head(base_dir)!r})"])
     if git_head(ref_base_dir) != exp25_head:
@@ -2595,7 +2627,7 @@ def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, base_dir=REPO, 
            "campaign_digest": verdict["campaign_digest"], "exp25_head": exp25_head, "base_dir": base_dir, "dest": dest,
            "verdict": {"path": verdict_path, "sha256": _sha256(raw)},
            "archived_reference": dict(EXP36_REPLAYS[EXP36_REPLAY], **(reference or {})),
-           "publisher": {"repo": REPO, "head": git_head(REPO)},   # review I HIGH 1: the copying code, beside the pin
+           "publisher": publisher,   # review I HIGH 1 / II HIGH 3: the reviewed copying code, beside the artifacts' pin
            "entries": entries, "recovery": EXP36_RECOVERY, "reasons": []}
     _write_json_atomic(out, doc)
     try:
@@ -2703,14 +2735,15 @@ def main(argv=None):
     ap.add_argument("--exp36-replay", default=EXP36_REPLAY, help="--exp36-replay-check: the replay (EXP36_REPLAYS)")
     ap.add_argument("--exp36-ref-dir", default=None, help="--exp36-replay-check: the reference worktree (default: pinned)")
     ap.add_argument("--exp36-publish", action="store_true",
-                    help="exp_36: copy the 24 verified cells into the pinned exp-25 YAW farm (--pin H36, --exp36-verdict); "
-                         "exit 0 published / 1 partial (see the manifest's recovery) / 2 refused (nothing written) / "
-                         "3 crashed")
+                    help="exp_36: copy the selected set's verified cells (--exp36-set A: 24 cells, 48 files; OFF: 6 cells, "
+                         "12 files) into the pinned exp-25 YAW farm (--pin H36_I, --exp36-verdict, --publisher-pin); exit 0 "
+                         "published / 1 partial (see the manifest's recovery) / 2 refused (nothing written) / 3 crashed")
     ap.add_argument("--exp36-verdict", default=None, help="--exp36-publish: the equal verdict of the replay check")
     ap.add_argument("--exp36-set", choices=sorted(EXP36_PUBLISH_SETS), default=None,
-                    help="--exp36-publish (required): A = the 24 YAW-C4S cells, OFF = the 6 YAW s42 off-orbit cells")
-    ap.add_argument("--publish-manifest-out", default=None,
-                    help="--exp36-publish: the publication manifest (default: the exp_36 folder, one per set)")
+                    help="--exp36-publish (required): A = the 24 YAW-C4S cells (48 files), OFF = the 6 YAW s42 off-orbit "
+                         "cells (12 files); the manifest is the set's own file in the exp_36 folder")
+    ap.add_argument("--publisher-pin", default=None,
+                    help="--exp36-publish (required): the full reviewed commit of THIS checkout (its closure must be clean)")
     ap.add_argument("--exp36-publish-resume", action="store_true", help="--exp36-publish: resume a stopped publication")
     args = ap.parse_args(argv)
     if args.check_backend_log:
@@ -2720,18 +2753,22 @@ def main(argv=None):
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
     if args.exp36_publish:   # exp_36 (Codex B4 / H4): a separate command, never run by the runner or the chain
-        if args.exp36_replay_check or os.path.abspath(args.exp25_base_dir) != EXP25_WORKTREE or not args.exp36_set:
-            print(f"EXP36 PUBLISH REFUSED: --exp36-set A | OFF is required, the exp-25 worktree is pinned "
-                  f"({EXP25_WORKTREE}), no --exp36-replay-check")
+        if (args.exp36_replay_check or os.path.abspath(args.exp25_base_dir) != EXP25_WORKTREE or not args.exp36_set
+                or not args.publisher_pin or os.path.abspath(args.cells) != CELLS_JSON):
+            print(f"EXP36 PUBLISH REFUSED: --exp36-set A | OFF and --publisher-pin are required, the exp-25 worktree is "
+                  f"pinned ({EXP25_WORKTREE}), the cells manifest is this collector's ({CELLS_JSON}), no "
+                  "--exp36-replay-check")
             return 2
-        out = args.publish_manifest_out or EXP36_PUBLICATION.format(args.exp36_set)
+        out = EXP36_PUBLICATION.format(args.exp36_set)
         try:
             status, doc = exp36_publish(cell_set=args.exp36_set, pin=args.pin, verdict_path=args.exp36_verdict,
-                                        manifest=manifest, out=out, base_dir=os.path.abspath(args.base_dir),
+                                        manifest=manifest, out=out, publisher_pin=args.publisher_pin,
+                                        base_dir=os.path.abspath(args.base_dir),
                                         ref_base_dir=EXP25_WORKTREE,
                                         ref_dump_root=args.exp25_dump_root, dump_root=args.dump_root,
                                         dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
-                                        resume=args.exp36_publish_resume, git_head=_git_head)
+                                        resume=args.exp36_publish_resume, git_head=_git_head,
+                                        publisher_check=publisher_closure)
         except Exception as err:   # noqa: BLE001 -- never exit 0 / 1 / 2 by accident
             print(f"EXP36 PUBLICATION CRASHED ({type(err).__name__}: {err}): inspect {out} -- "
                   "an in_progress manifest is recovered with --exp36-publish-resume")
