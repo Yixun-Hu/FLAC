@@ -384,3 +384,15 @@ def test_a_killed_supervisor_leaves_a_surviving_child_that_keeps_the_lock_and_th
     p = cli.run("release", "--orch", cli.orch)
     assert p.returncode == 0 and not os.path.exists(cli.res), p.stdout
     assert cli.state()["phase"] == "released" and cli.state()["released"]["by"] == "planner"
+
+
+def test_the_pinned_launchers_own_refusal_propagates_as_a_refused_line(box):
+    """A stray file beside the overlay (untracked: the tracked tree stays clean, the four pins hold) makes the REAL
+    launcher refuse with 86 before the target runs; T's record carries the exit code and the refusal, nothing runs on."""
+    open(box.path("overlays/no_flash/stray.txt"), "w").write("x")
+    assert box.sup().run() == 3
+    st, doc = box.state(), json.load(open(box.path(box.lines[0]["record"])))
+    assert st["phase"] == "stopped" and [ln["name"] for ln in st["lines"]] == ["T"]
+    assert doc["exit_code"] == 86 and "exit code 86" in doc["refusals"] and doc["sentinel"] is None
+    assert any("NO-FLASH LAUNCH REFUSED" in r for r in doc["refusals"]) and not os.path.exists(box.path(box.lines[0]["junit"]))
+    assert "NO-FLASH LAUNCH REFUSED" in open(box.path(box.lines[0]["log"])).read() and os.path.exists(box.res)
