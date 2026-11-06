@@ -1,0 +1,65 @@
+LADDER 2/4 at 5b065801e9d1c1844461ec84cd0558702c714326: the supervisor dry run against the LIVE GPU state (nvidia-smi + /proc + his log, read-only), run from the worktree WITHOUT -B and with PYTHONDONTWRITEBYTECODE UNSET, with the DEFAULT state path (the worktree's exp_35 folder: exp35_supervisor_state.json, its lock <state>.lock), the default log directory and the default reservation directory; the whole worktree (ignored files included, symlinks not followed -- the Planner's three asset links are lstat-ed, never entered; my LADDER transcripts excluded) and the reservation directory are snapshotted before and after. Thu Nov  5 07:23:49 PM EST 2026
+approved tuple (a scratch snapshot of the live s43 rank, NOT the launch entry's): /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp35_coder/sup_dryrun/approved_tuple_dryrun.json sha256 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+== exp35_supervisor.py --dry-run ==
+exp_35 supervisor dry run 2026-11-05T19:23:50-05:00: H35 5b065801e9d1c1844461ec84cd0558702c714326; state none (new); lane GPU-6ac2604a-e84e-0615-1221-ccbed7c268da (index 1, shared True); GPU map {0: 'GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', 1: 'GPU-6ac2604a-e84e-0615-1221-ccbed7c268da'}
+  chunk  1 planned         gate E1    17.6 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K1_s42
+  chunk  2 planned         gate E1    19.2 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K8_s42
+  chunk  3 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42
+  chunk  4 planned         gate E2    35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42
+  chunk  5 planned         gate PROBE 10.0 min  /home/yixunhu/miniconda3/envs/flac/bin/python overlays/no_flash/exp35_no_flash_launch.py worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py --arm BF --ckpt-path outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt
+  chunk  6 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s43
+  chunk  7 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s43
+  chunk  8 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s44
+  chunk  9 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s44
+  chunk 10 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s45
+  chunk 11 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s45
+  chunk 12 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s46
+  chunk 13 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s46
+  chunk 14 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s42
+  chunk 15 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s42
+  chunk 16 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s43
+  chunk 17 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s43
+  chunk 18 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s44
+  chunk 19 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s44
+  chunk 20 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s45
+  chunk 21 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s45
+  chunk 22 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s46
+  chunk 23 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s46
+  chunk 24 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42_dup
+  chunk 25 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42_dup
+  chunk 26 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th90
+  chunk 27 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th90
+  chunk 28 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th180
+  chunk 29 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th180
+  chunk 30 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th270
+  chunk 31 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th270
+  chunk 32 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th45
+  chunk 33 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th45
+identity OK: GPU 1 foreign pids [3028196]; the approved tuple [3028196]
+reservations OK
+guard OK: step {'epoch': 5, 'n': 4429, 'total': 4550, 'global': 27179}; no violation
+predictor for chunk 1: a shared spawn allowed {"step": 27179, "earliest_end": 1793969503.464563, "needed_after": 1793928544.3639493}
+no stop latch
+supervisor lock /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json.lock: absent (informational)
+DRY RUN OK: nothing was spawned or written
+dry run rc 0
+== the worktree snapshot before == after: IDENTICAL (5022 entries); __pycache__ in the worktree: 0
+== the reservation directory before: ls: cannot access '/home/yixunhu/codespace/.gpu_reservations': No such file or directory | after: ls: cannot access '/home/yixunhu/codespace/.gpu_reservations': No such file or directory
+== the default state file / its lock: ls: cannot access 'worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json': No such file or directory ls: cannot access 'worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json.lock': No such file or directory 
+== the three asset links (untouched): AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms; weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE; weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt; 
+== --external-shas ==
+{
+ "queue": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh",
+  "sha256": "9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa"
+ },
+ "evaluator": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh",
+  "sha256": "94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c"
+ },
+ "admission": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py",
+  "sha256": "8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907"
+ }
+}
+finished Thu Nov  5 07:23:52 PM EST 2026

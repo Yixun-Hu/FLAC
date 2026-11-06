@@ -1,0 +1,21 @@
+after LADDER 3 at 5b065801e9d1c1844461ec84cd0558702c714326 (the runner calls the collector without PYTHONDONTWRITEBYTECODE): the bytecode it wrote, removed -- ONLY entries absent before rung 3 (0 .pyc / __pycache__ entries before; none under overlays/no_flash), Thu Nov  5 07:25:08 PM EST 2026
+  2026-11-05 19:24:07  ./__pycache__/eval_FLAC.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/data/__pycache__/are_anchor.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/data/__pycache__/dataset.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/data/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/data/__pycache__/utils.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/data/__pycache__/yaw_rotation.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/models/__pycache__/factory.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/models/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/models/__pycache__/pretrained.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/models/__pycache__/utils.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/__pycache__/__init__.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/training/__pycache__/factory.cpython-310.pyc
+  2026-11-05 19:24:12  ./src/training/__pycache__/__init__.cpython-310.pyc
+  removed the empty ./src/training/__pycache__
+  removed the empty ./src/__pycache__
+  removed the empty ./src/models/__pycache__
+  removed the empty ./src/data/__pycache__
+  removed the empty ./__pycache__
+under overlays/no_flash: 0
+after: 0 .pyc, 0 __pycache__
