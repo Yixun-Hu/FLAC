@@ -15,7 +15,8 @@
 #       identity and first heartbeat. The supervisor's own flock refuses a second instance.
 #
 # Never signals, kills or edits any process; never writes into Yixun's checkout or the NAS; nvidia-smi queries only.
-# Written by the exp_35 Planner (Claude Opus 5.5 main session); revised after Codex INT (capture-launch binding).
+# Written by the exp_35 Planner (Claude Opus 5.5 main session); revised after Codex INT (capture-launch binding)
+# and INT-L2 (hidden-aware DINOv3 set, canonical names, freshness at the last look, a new dry-run transcript).
 set -uo pipefail
 
 MODE="${1:-}"; H35="${2:-}"
@@ -33,6 +34,8 @@ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU
 RES=/home/yixunhu/codespace/.gpu_reservations
 STATE="$RUNX/exp35_supervisor_state.json"
 TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
 NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
 DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
 DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
@@ -139,8 +142,8 @@ mutable_checks() {   # every external / untracked input the run reads, re-hashed
     IFS='|' read -r name path want <<<"$e"
     need "pin ${name}: ${path##*/} ${want:0:8}…" eq "$(sha "$path")" "$want"
   done
-  need "the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors" \
-    eq "$(ls "$DINO/snapshots" 2>/dev/null | paste -sd' ' -) | $(ls "$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32" 2>/dev/null | paste -sd' ' -)" \
+  need "the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)" \
+    eq "$(find "$DINO/snapshots" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -) | $(find "$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32" -mindepth 1 -printf '%P\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -)" \
        "114c1379950215c8b35dfcd4e90a5c251dde0d32 | config.json model.safetensors"
   need "AcousticRooms -> the NAS" eq "$(readlink "$RUN/AcousticRooms")" /media/diskstation/yixunhu/FLAC/AcousticRooms
   need "weights/AGREE -> the main checkout" eq "$(readlink "$RUN/weights/AGREE")" "$MAIN/weights/AGREE"
@@ -157,9 +160,9 @@ ladder_checks() {   # <draft>: the four-rung ladder at H35 (untracked transcript
   local short="${H35:0:8}" k f n
   local -a pat=("1_exp25_byte_guard" "2_supervisor_live_dry_run" "3_runner_dry_run_phase_i" "4_all_suites_in_worktree")
   for k in 0 1 2 3; do
-    n="$(ls "$RUNX"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | wc -l)"
+    n="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | wc -l)"
     need "exactly one ladder rung $((k + 1)) transcript at ${short}" eq "$n" 1
-    f="$(ls "$RUNX"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | head -n 1)"
+    f="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | head -n 1)"
     say "ladder rung $((k + 1)): ${f##*/} sha256 $(sha "$f")"
     printf 'ladder_%s %s %s\n' "$((k + 1))" "${f##*/}" "$(sha "$f")" >> "$1"
     case $k in
@@ -173,9 +176,10 @@ ladder_checks() {   # <draft>: the four-rung ladder at H35 (untracked transcript
 }
 dry_run() {   # <tuple> <sha>: the supervisor's read-only dry run in the exact launch environment; no file may change
   local log="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_${MODE}_supervisor_dry_run.log" mark rc
+  ( set -o noclobber; : > "$log" ) 2>/dev/null || { say "CHECK FAILED: the dry-run transcript ${log} already exists"; FAIL=1; return; }
   mark="$(mktemp)"; sleep 1
   args_for "$1" "$2"
-  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) > "$log" 2>&1; rc=$?
+  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
   cat "$log"
   say "dry run rc ${rc}; transcript ${log} sha256 $(sha "$log")"
   need "the supervisor dry run in the launch environment: rc 0 and DRY RUN OK" \
@@ -282,14 +286,20 @@ launch() {
   need "the seal names this script" eq "$(sv script_sha256)" "$SELF_SHA"
   need "the seal names the pinned campaign digest" eq "$(sv campaign_digest)" "$PIN_DIGEST"
   read -r tuple tsha <<<"$(sv tuple)"; read -r copy csha <<<"$(sv tuple_copy)"; read -r clog clsha <<<"$(sv capture_log)"
-  need "the tuple is the canonical run-worktree file" bash -c '[[ "$1" == "$2"/exp35_approved_cotenants_*.json ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR"
+  need "the tuple is the canonical run-worktree file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^exp35_approved_cotenants_$3\.json$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR" "$TS_RE"
   need "the tuple still hashes to the sealed value" eq "$(sha "$tuple")" "$tsha"
-  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
+  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ -f "$1" ] && [ ! -L "$1" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
+  need "the capture log is the canonical main-checkout file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^orbitrir_yaw_evidence_$3_phase_i_capture\.log$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$clog" "$MAINX" "$TS_RE"
   need "the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK" bash -c '[ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] && grep -q "^CAPTURE CHECKS OK" "$1" && ! grep -q "^CHECK FAILED" "$1"' _ "$clog" "$clsha"
-  age=$(( $(date +%s) - $(sv sealed_at | awk '{print $1}') ))
+  local sealed; sealed="$(sv sealed_at | awk '{print $1}')"
+  need "the seal's sealed_at is a decimal epoch (${sealed})" bash -c '[[ "$1" =~ ^[0-9]{10}$ ]]' _ "$sealed"
+  [[ "$sealed" =~ ^[0-9]{10}$ ]] || sealed=0
+  age=$(( $(date +%s) - sealed ))
   need "the seal is current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
   local k name path want; for k in 1 2 3 4; do
-    read -r name want <<<"$(sv "ladder_$k")"; need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$RUNX/$name")" "$want"; done
+    read -r name want <<<"$(sv "ladder_$k")"
+    need "ladder rung $k: a canonical basename" bash -c '[[ "$1" =~ ^orbitrir_yaw_evidence_$2_LADDER_$3_[a-z0-9_]+_at_$4\.log$ ]]' _ "$name" "$TS_RE" "$k" "${H35:0:8}"
+    need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$LADDER_DIR/$name")" "$want"; done
   need "the tuple validates" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
   mutable_checks
   common_checks
@@ -299,6 +309,8 @@ launch() {
   # the last look, immediately before the detachment
   need "last look: HEAD, apps, state, lock, reservations" bash -c '[ "$(git -C "$1" rev-parse HEAD)" = "$2" ] && [ ! -e "$3" ] && [ ! -e "$3.lock" ] && [ ! -e "$4" ] && [ ! -e "$5" ]' _ "$RUN" "$H35" "$STATE" "$RES/$GPU0.json" "$RES/$GPU1.json"
   need "last look: the compute apps are his two ranks" eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
+  age=$(( $(date +%s) - sealed ))
+  need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
   suplog="$RUNX/exp35_supervisor_${TS}.log"
   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
