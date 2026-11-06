@@ -122,3 +122,49 @@ D11 B3 seeds 42–44 for localization, seed 42 for synthesis.
 ## 9. Hard stops
 G0 failure; a run resolving to flash; a mesh sha mismatch; the 0.75 m pilot selecting other queries; any timed pass with another compute
 process on its card (discard + rerun, never publish). Each stops the affected arm and is reported.
+
+## 10. r1 — the Codex plan review's required changes (binding; applied 2026-11-06 per the review: "apply the changes, then proceed without another plan review")
+- **B1 timing passes:** the headline `core_forward_total` comes from an UNINSTRUMENTED pass (byte-near the bundle's timed region, no CUDA
+  events, no allocator resets inside the timer); the stage split runs as a SEPARATE instrumented pass whose per-query and aggregate core totals
+  are compared with the headline (≤ 2 %; outside 2 % only the split is withheld, never the headline). Stage boundaries: candidate conditioning =
+  batch start → after `merge_cached_conditioning()` + `get_conditioning_inputs()`; DiT = `deterministic_noise` + the one Euler / model step;
+  VAE decode = after `sample_discrete_euler` → decoded batch. Memory: a running whole-query maximum kept (bundle-compatible); stage peaks
+  reported as absolute allocated peaks (not additive); the selector's peak measured separately; the combined inference peak = a maximum, never a
+  sum; `max_memory_allocated`, `max_memory_reserved` and the loaded-weight footprint reported as different quantities.
+- **B2 time axis:** s/query = query-micro mean over the 64 matched queries of `core_forward_total + shape-matched AGREE selector`, the same
+  definition for every point; never `elapsed_seconds`. The AGREE-only benchmark is generalized to arbitrary query / candidate-count manifests
+  (warm-up, batch 64, 3 repeats, median-of-three kept); selector vectors re-measured for the 0.75 m and the nested 1.0 m counts (0.5 m and B3 share
+  one vector). Coarse-to-fine timing measures the actual sequential path (observed encoding once; coarse generation + encoding + similarity +
+  top-k; neighbour construction; refined generation + encoding + similarity; union argmax). Dedicated 1.0 m / c2f timing keeps the full 0.5 m
+  candidate indices for the noise seeds.
+- **B2 mathematics:** "1.0 m" = the nested integer-coordinate subset with full-grid common random numbers (not a native reindexed rerun);
+  top-k ordering by descending score then the original full-grid index; union ordering and ties inherited from the 0.5 m lattice; a fresh oracle
+  over each actual candidate set (0.5, 0.75, nested 1.0, and each model / seed's c2f union — never the full 0.5 m oracle for c2f). 0.75 m: the
+  audit's single GLOBAL height branch pinned to `z_band`, all 5,337 grids verified non-empty, the exact same 64 query IDs required; shared
+  coordinates get different generation noise (grid-index seeds) — disclosed; seeds 42–44 mitigate it.
+- **B3 rotation contract:** an immutable `base_metadata`; `rotate_scene_metadata(base_metadata, θ, 512)` applied once for the query / context
+  cache; every candidate item built from `base_metadata` and then rotated once; candidate arrays, filtering, truth and metrics in the global frame;
+  gates: θ = 0 byte-identical to the existing path, θ = 90 exactly one 128-column roll / pose rotation for query and candidate metadata.
+- **CPU co-tenancy:** publishable timing passes run only after exp_36 has left the host (Yixun's 15:30 order — the off-orbit run, then exp_36,
+  then exp_37 — makes this the schedule anyway); CPU affinity, torch intra / inter-op threads, OMP / MKL variables and every co-tenant recorded.
+- **G0 pinned:** query index 4467 (`single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav`, candidate hash `4f212dcb…86bf1`,
+  bundle `query_04467.npz`, K=1 `similarities [27,1]` present for P1, YAW and B-F); candidate arrays compared exactly; argmax equal; max
+  |Δ similarity| ≤ 1e-3 fixed (never relaxed post hoc); YAW (byte-identical checkpoint) runs first as the environment / backend control — YAW fail
+  ⇒ environment / backend parity failed; YAW pass but P1 / B-F fail ⇒ wrapped-vs-extracted EMA parity suspect.
+- **Pareto references:** FewShotRIR (same 64 queries, exp_23 accuracy, bundle-host latency) and FEM (exp_23 deterministic-random fallback
+  accuracy, policy-aware mixed-host latency, 7 failures on this subset) drawn as labelled external markers, excluded from any frontier.
+- **B3 synthesis:** the new {0} / {0,180} cells use the same evaluator closure, checkpoint, dataset, batch, conditioner autocast, no-flash backend
+  and aggregation as the reused exp_35 cells (H35 evaluator; on a leaf branch, the closure proved unchanged); synthesis is single-seed evidence.
+- **Corrected claims:** Vanilla fragility = 61/64 identical prediction indices, median 1.10822 vs 1.00927; Yaw-Aug = 60/64 per-query localization
+  errors match, median 0.91615 vs 0.89172 (its per-query indices are not in git); B4 = "no P1 step-87,500 checkpoint found in the searched known
+  local / NAS roots; skipped per Yixun's conditional instruction". The paper's `app:latency` sentence saying timing begins before loading the
+  observed / context RIRs and depth contradicts the bundle (input loading excluded) — flagged for correction; exp_37 reproduces the executable
+  bundle protocol.
+- **Provenance:** the resolved mesh-root override, the 16-mesh digest map, overlay + launcher digests, the selected attention backend, the exact
+  K_ctx = 1 context index / path, frame angles and rotation recorded per run; the audit itself byte-identical.
+- **NITs:** no-flash = best-supported match, inferred from the exp_09 logs; one repeat = the bundle's protocol, not a variance estimate; k ∈ {1,3,10}
+  strictly post-primary sensitivity.
+- **Coder split:** B-a (worktree / config, fail-closed no-flash launcher, mesh remap + provenance, exact G0, the uninstrumented headline mode);
+  B-b (K_ctx 1, arbitrary-manifest selector, 3-arm summarizer, the split pass + comparison); B-c (nested subset / c2f readout + timing, 0.75 m
+  audit, frame-angle / rotation, aggregation, figure); B-synthesis on a separate H35-compatible leaf.
+- **Schedule (Yixun 15:30):** exp_37's GPU work starts after the seed-42 off-orbit run and exp_36; its Coder rounds proceed now on CPU.

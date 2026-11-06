@@ -74,3 +74,22 @@ The 24 metrics JSONs (+ stream sidecars) in `exp-25-depth-canon/outputs_FLAC/exp
 file, the copy manifest, results note `yaw_c4_spread_results.md` (per-cell table + the replay check), commits on
 `exp-36-yaw-c4-spread` and the records on `localization-exp`. The figure script then needs `YAW_SEEDS = tuple(range(42, 47))`
 (a one-line change in the paper repo — Yixun's or the desktop session's call; not done here).
+
+## A1 — the seed-42 off-orbit run (Yixun 2026-11-06 15:30 / 15:32, NEW FIRST PRIORITY; verbatim in `yaw_c4_spread_yixun_query_a1.md`)
+- **Cells (24, eval seed 42 only, dumps off, no-flash):** the 12 H35 rows `exp35_{P1,BF,CANON}_OFF_S40000_K{1,8}_s42_th{135,225}` (OFF-P1 /
+  OFF-BF / OFF-CANON, byte-identical); 6 new `exp35_{P1,BF,CANON}_OFF_S40000_K{1,8}_s42_th315` (argv = the th225 sibling except `--rotate-deg` /
+  `--eval-name`); 6 new `exp25_YAW_C4_S40000_K{1,8}_s42_th{135,225,315}` (the YAW-pin C4 seed-42 template except `--rotate-deg` / `--eval-name`).
+  Seeds 43–46 at these angles are NOT wanted (exp_35 phase (ii)'s 68-cell plan is superseded).
+- **Replay hard stops (4, run first, the exp_36 equality rule):** `exp36_YAW_C4_S40000_K8_s42_th90` vs `exp25_YAW_…` (exp-25, `d6ca307a`);
+  `exp36_P1_C4_S40000_K8_s42_th90` vs `exp25_P1_C4_S40000_K8_s42_th90` (exp-25; JSON `88bb41c1…`, receipt `eb5a588c…`); `exp36_BF_C4_S40000_K8_s42_th90`
+  vs `exp35_BF_C4_S40000_K8_s42_th90` (the exp_35 run worktree, H35, no-flash; JSON `ef2840c7…`, receipt `431ceba6…`); `exp36_CANON_C4_S40000_K8_s42_th90`
+  vs `exp25_CANON_C4_S40000_K8_s42_th90` (exp-25; JSON `51025f3b…`, receipt `3fc4ed17…`, canon sidecar `5e3d6c4f…`); stream sidecar `e671270f…`
+  for all four. CANON cells take `--canon-ckpt-manifest …/depth_canon_2026-10-26_07-44-41_exp25_CANON_checkpoints.sha256` (`1e481447…`).
+- **Chain I (fail-closed):** the 4 replays on `--lanes 0,1` → all 4 comparators exit 0 → the 24 on `--lanes 0,1`; then chain II = the 24
+  YAW-C4S cells (A), which may reuse the YAW replay verdict if bound to the same H36 + digest. Publish: the 6 YAW off-orbit cells and, later,
+  the A set into the exp-25 YAW dir (hardened, separate invocations); P1 / B-F / CANON outputs stay in the exp_36 worktree farm.
+- **Order (Yixun):** these 24 first on both cards (REQUEST → PAUSED), then exp_36 A, then exp_37. ETA (forecast): chain I GPU-ready ≈ 16:45–17:15
+  after the Coder's amended round + a Codex code review in parallel with the handshake; replays ≈ 35 min; the 24 ≈ 3.0 h on two cards (P1 ≈ 12.5,
+  YAW ≈ 12.3, CANON ≈ 14, B-F ≈ 20 min per cell alone) → done ≈ 20:45–21:30.
+- **For Yixun's figure:** report the 24 JSON paths plus the B-F seed-42 cells at 0 / 45 / 90 / 180 / 270 from exp_35 phase (i) and CANON's
+  exp_25 CANON_T / CANON_C4 seed-42 cells.
