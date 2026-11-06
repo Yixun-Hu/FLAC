@@ -5,6 +5,7 @@ admission helper). No real nvidia-smi and no real collector run here (both are r
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import fcntl
 import hashlib
 import json
 import os
@@ -230,7 +231,24 @@ def test_the_dry_run_writes_nothing_in_a_fresh_snapshot_even_without_pythondontw
     assert rc == 0 and "DRY RUN OK" in out, out
     assert _snapshot_all(snap) == before and _snapshot_all(tmp_path / "reservations") == around
     assert not any("__pycache__" in k or k.endswith(".pyc") for k in _snapshot_all(snap))
-    assert not os.path.exists(cfg["state"])
+    assert not os.path.exists(cfg["state"]) and not os.path.exists(cfg["state"] + ".lock")        # (Planner P1)
+
+
+def test_the_dry_run_never_creates_the_lock_and_reports_it_read_only(tmp_path, capsys):
+    """Planner P1: the dry run creates no lock file; an existing one is probed with a shared non-blocking lock --
+    informational, the verdict unchanged."""
+    w, _, cfg = make(tmp_path)
+    lock = cfg["state"] + ".lock"
+    assert S.dry_run(cfg, w) == 0 and not os.path.exists(lock) and "absent" in capsys.readouterr().out
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        before = _snapshot(tmp_path)
+        assert S.dry_run(cfg, w) == 0 and "HELD" in capsys.readouterr().out
+        assert _snapshot(tmp_path) == before
+    finally:
+        os.close(fd)
+    assert S.dry_run(cfg, w) == 0 and "present, not held" in capsys.readouterr().out
 
 
 def _gpu0_state(cfg, w):

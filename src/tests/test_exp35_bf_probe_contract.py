@@ -14,6 +14,7 @@ import functools
 import hashlib
 import json
 import os
+import shutil
 from unittest import mock
 
 import pytest
@@ -134,10 +135,47 @@ def test_finalization_refuses_a_log_without_the_backend_evidence(tmp_path, monke
     assert open(path, "rb").read() == before                               # nothing written
 
 
-def test_finalization_refuses_a_second_pass_or_a_tampered_probe_output(tmp_path, monkeypatch):
+def test_a_second_finalization_of_the_identical_record_writes_nothing(tmp_path, monkeypatch):
+    """Codex C3d HIGH 3: a supervisor restart after the finalization re-runs it -- accepted unchanged (nothing
+    written) only when the JSON is the finalizer's own bytes, sealed by its sidecar, and its launch record is exactly
+    the one this call would write (backend, overlay + launcher sha256, digest, log path, the CURRENT log sha256)."""
     path, log, _ = _finalize(tmp_path, monkeypatch)
+    before = {p: (open(p, "rb").read(), os.stat(p).st_mtime_ns) for p in (path, path + ".sha256")}
+    assert C.finalize_bf_probe(path, log, campaign_digest=DIGEST, base_dir=str(tmp_path)) == path
+    assert {p: (open(p, "rb").read(), os.stat(p).st_mtime_ns) for p in before} == before         # nothing written
+    assert _load(path, tmp_path)[1] == []
+
+
+def _reserialized(path):
+    text = json.dumps(json.load(open(path)), indent=2) + "\n"                  # the same content, other bytes
+    open(path, "w").write(text)
+    open(path + ".sha256", "w").write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(path)}\n")
+
+
+@pytest.mark.parametrize("change", ["another_digest", "the_log_appended", "another_log_path", "another_overlay",
+                                    "another_launcher", "reserialized_json"])
+def test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing(tmp_path, monkeypatch, change):
+    path, log, _ = _finalize(tmp_path, monkeypatch)
+    digest = "e" * 64 if change == "another_digest" else DIGEST
+    if change == "the_log_appended":
+        open(log, "a").write("one more line\n")
+    elif change == "another_log_path":
+        shutil.copy(log, log + ".copy")
+        log += ".copy"
+    elif change in ("another_overlay", "another_launcher"):
+        key = "overlay_sha256" if change == "another_overlay" else "launcher_sha256"
+        monkeypatch.setattr(C, "NO_FLASH", dict(C.NO_FLASH, **{key: "f" * 64}))
+        write_log(tmp_path)                                                     # a log of that overlay / launcher
+    elif change == "reserialized_json":
+        _reserialized(path)
+    before = {p: open(p, "rb").read() for p in (path, path + ".sha256")}
     with pytest.raises(ValueError, match="already finalized"):
-        C.finalize_bf_probe(path, log, campaign_digest=DIGEST, base_dir=str(tmp_path))
+        C.finalize_bf_probe(path, log, campaign_digest=digest, base_dir=str(tmp_path))
+    assert {p: open(p, "rb").read() for p in before} == before                 # nothing written
+
+
+def test_finalization_refuses_a_tampered_probe_output(tmp_path, monkeypatch):
+    path, log, _ = _finalize(tmp_path, monkeypatch)
     path = write_bf_probe(tmp_path, monkeypatch)
     open(path, "a").write(" ")                                              # edited after the probe wrote it
     with pytest.raises(ValueError, match="sidecar"):
@@ -300,4 +338,8 @@ def test_cli_finalize_bf_probe(tmp_path, monkeypatch, capsys):
     argv = ["--finalize-bf-probe", path, "--probe-log", log, "--campaign-digest", DIGEST, "--pin", PIN, "--cells",
             str(cells), "--base-dir", str(tmp_path)]
     assert C.main(argv) == 0 and "BF PROBE VALID" in capsys.readouterr().out
-    assert C.main(argv) == 1 and "REFUSED" in capsys.readouterr().out      # a second finalization
+    before = open(path, "rb").read()
+    assert C.main(argv) == 0 and "BF PROBE VALID" in capsys.readouterr().out      # the identical record again
+    assert open(path, "rb").read() == before                                     # (Codex C3d HIGH 3): unchanged
+    argv[argv.index(DIGEST)] = "e" * 64
+    assert C.main(argv) == 1 and "REFUSED" in capsys.readouterr().out      # a second finalization of another record

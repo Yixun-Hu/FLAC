@@ -1257,14 +1257,16 @@ def finalize_bf_probe(path, log_path, *, campaign_digest, base_dir=REPO):
     """r3 §12 B3, the NON-logged step after the probe process exited and its log closed: verify the probe's own
     JSON + sidecar and the log's backend evidence, then write ``provenance.launch`` (backend, overlay +
     launcher sha256, the campaign digest, the log path + sha256), the JSON (atomically) and a fresh sidecar.
-    ``ValueError`` (nothing written) on any refusal."""
+    Idempotent (Codex C3d HIGH 3, a supervisor restart after the finalization): an already-finalized JSON is
+    accepted UNCHANGED only when it is the finalizer's own bytes, sealed by its sidecar, and its launch record is
+    exactly the one this call would write (the CURRENT log sha256). ``ValueError`` (nothing written) on any refusal."""
     import hashlib
-    _, rep, reasons = _read_probe(path)
+    raw_json, rep, reasons = _read_probe(path)
     if reasons:
         raise ValueError("; ".join(reasons))
     prov = rep.get("provenance")
-    if rep.get("arm") != "BF" or not isinstance(prov, dict) or "launch" in prov:
-        raise ValueError(f"{path}: not a B-F probe awaiting finalization (already finalized, or another arm)")
+    if rep.get("arm") != "BF" or not isinstance(prov, dict):
+        raise ValueError(f"{path}: not a B-F probe awaiting finalization (another arm, or no provenance)")
     if not eval_FLAC._is_sha256_hex(campaign_digest):
         raise ValueError(f"campaign digest {campaign_digest!r} is not a sha256 digest")
     with open(os.path.join(base_dir, log_path), "rb") as f:
@@ -1272,9 +1274,16 @@ def finalize_bf_probe(path, log_path, *, campaign_digest, base_dir=REPO):
     bad = backend_log_reasons(raw.decode(errors="replace"), PROBE_CONTRACT_BF["target"])
     if bad:
         raise ValueError(f"the probe log {log_path} lacks the backend evidence: " + "; ".join(bad))
-    prov["launch"] = {"attention_backend": NO_FLASH["backend"], "overlay_sha256": NO_FLASH["overlay_sha256"],
-                      "launcher_sha256": NO_FLASH["launcher_sha256"], "campaign_digest": campaign_digest,
-                      "log_path": log_path, "log_sha256": hashlib.sha256(raw).hexdigest()}
+    launch = {"attention_backend": NO_FLASH["backend"], "overlay_sha256": NO_FLASH["overlay_sha256"],
+              "launcher_sha256": NO_FLASH["launcher_sha256"], "campaign_digest": campaign_digest,
+              "log_path": log_path, "log_sha256": hashlib.sha256(raw).hexdigest()}
+    if "launch" in prov:
+        if not (isinstance(prov["launch"], dict) and list(prov["launch"].items()) == list(launch.items())
+                and raw_json == (json.dumps(rep, indent=1) + "\n").encode()):
+            raise ValueError(f"{path}: already finalized with another launch record (log, its sha256, the campaign "
+                             "digest, the overlay or the launcher) or in other bytes")
+        return path
+    prov["launch"] = launch
     text = json.dumps(rep, indent=1) + "\n"
     for target, body in ((path, text), (path + ".sha256",
                                         f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(path)}\n")):

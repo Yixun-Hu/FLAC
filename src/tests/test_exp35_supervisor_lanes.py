@@ -101,16 +101,19 @@ class FakeWorld:
             int(argv[argv.index("--lanes") + 1])]
         self.spawned.append({"argv": argv, "env": env, "log": log, "t": self.t, "uuid": uuid, "sleeps": len(self.sleeps),
                              "files": sorted(p.name for p in self.res.iterdir())})
-        with open(log, "w") as f:
-            f.write(f"fake {argv[1]}\n")
+        with open(log, "w") as f:                       # the probe's log carries the launcher's backend evidence
+            f.write(SC.T.backend_log(SC.T.C.PROBE_CONTRACT_BF["target"]) if "--arm" in argv else f"fake {argv[1]}\n")
         p = FakeProc(self, self.pid, polls, rc, uuid, self.probe_exit if "--arm" in argv else None)
         self.procs.append(p)
         return p
 
     def probe_exit(self, proc):
-        """The probe's own outputs: its JSON and the sha256 sidecar (finalization is the gates' business)."""
-        (self.tmp / "orbitrir_bf_cond_probe.json").write_text('{"fake": true}')
-        (self.tmp / "orbitrir_bf_cond_probe.json.sha256").write_text("x  orbitrir_bf_cond_probe.json\n")
+        """The probe's own outputs as write_report leaves them: a B-F report awaiting its finalization, and its sha256
+        sidecar (finalization is the gates' business)."""
+        text = json.dumps({"arm": "BF", "provenance": {}}, indent=1) + "\n"
+        (self.tmp / "orbitrir_bf_cond_probe.json").write_text(text)
+        (self.tmp / "orbitrir_bf_cond_probe.json.sha256").write_text(
+            f"{hashlib.sha256(text.encode()).hexdigest()}  orbitrir_bf_cond_probe.json\n")
 
     def at_spawn(self, k, fn):
         """Run ``fn`` once the k-th spawn happened (on the next sleep)."""
@@ -143,19 +146,16 @@ class FakeGates:
         return self.e2_rc, "E2 out"
 
     def finalize(self, log, digest):
-        """As the collector does: the probe JSON's provenance.launch names the log + its sha256 and the digest, the
-        JSON is rewritten and its sidecar sealed (only on success)."""
+        """The REAL collector finalizer over the probe's report (its production rule -- idempotent only on the identical
+        record, Codex C3d HIGH 3); the contract after it is ``finalize_rc``."""
         self.calls.append(("finalize", log, digest))
-        if self.finalize_rc == 0 and self.probe_json:
-            with open(os.path.join(S.REPO, log), "rb") as f:
-                log_sha = hashlib.sha256(f.read()).hexdigest()
-            text = json.dumps({"provenance": {"launch": {"campaign_digest": digest, "log_path": log,
-                                                         "log_sha256": log_sha}}}, indent=1) + "\n"
-            with open(self.probe_json, "w") as f:
-                f.write(text)
-            with open(self.probe_json + ".sha256", "w") as f:
-                f.write(f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(self.probe_json)}\n")
-        return self.finalize_rc, "BF PROBE VALID" if self.finalize_rc == 0 else "BF PROBE INVALID"
+        if self.finalize_rc != 0:
+            return self.finalize_rc, "BF PROBE INVALID"
+        try:
+            SC.T.C.finalize_bf_probe(self.probe_json, log, campaign_digest=digest, base_dir=S.REPO)
+        except (ValueError, OSError, TypeError) as err:
+            return 1, f"BF PROBE FINALIZATION REFUSED: {err}"
+        return 0, "BF PROBE VALID"
 
 
 def tuple_file(world):

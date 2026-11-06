@@ -21,6 +21,7 @@ Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_
 """
 import argparse
 import datetime
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -797,11 +798,13 @@ class Supervisor:
             bad = rc not in (0, 1) and "E2 refused"
         elif c["gate"] == "PROBE":
             rel, digest = os.path.relpath(c["log"], REPO), self.campaign_digest()
-            rc, out = self.g.finalize(rel, digest)
+            prior = {k: c[k] for k in GATE_KEYS["PROBE"][1:] if k in c}    # a restart after the finalization (C3d HIGH 3)
+            rc, out = self.g.finalize(rel, digest)                         # idempotent only on the identical record
             j = self.cfg.get("probe_json") or os.path.join(HERE, "orbitrir_bf_cond_probe.json")
             c.update(probe_contract={"rc": rc, "out": out[-2000:]}, probe_json_sha256=_sha_file(j),
                      sidecar_sha256=_sha_file(j + ".sha256"), log_sha256=_sha_file(c["log"]))
             why = self.probe_ledger_reasons(c, j, rel, digest) if rc == 0 else []
+            why += [f"{k} changed since the ledger recorded it" for k, v in prior.items() if c[k] != v]
             bad = (rc != 0 and "the B-F probe: finalization / PROBE_CONTRACT_BF refused") or (
                 why and "the B-F probe's ledger: " + "; ".join(why))
         else:
@@ -830,7 +833,21 @@ class Supervisor:
                 return self.gates(c)
 
     def run(self):
-        """0: phase (i) complete; 3: refused or stopped (the latch names why)."""
+        """0: phase (i) complete; 3: refused or stopped (the latch names why). ONE supervisor at a time (Planner P1): an
+        exclusive lock next to the state, taken before the state is read and held until the run ends."""
+        lock = self.cfg["state"] + ".lock"
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(f"SUPERVISOR REFUSED: another supervisor holds {lock}")
+                return 3
+            return self._run()
+        finally:
+            os.close(fd)
+
+    def _run(self):
         c = self.cfg
         try:
             st = load_state(c["state"], h35=c["h35"], cells_sha256=c["cells_sha256"], supervisor_sha256=c["supervisor_sha256"],
@@ -956,6 +973,25 @@ class CollectorGates:
                          "--pin", self.cfg["h35"])
 
 
+def lock_note(state):
+    """Planner P1, READ-ONLY: the supervisor's lock is never created here; an existing one is probed with a shared,
+    non-blocking lock (informational)."""
+    lock = state + ".lock"
+    try:
+        fd = os.open(lock, os.O_RDONLY)
+    except FileNotFoundError:
+        return f"supervisor lock {lock}: absent"
+    except OSError as err:
+        return f"supervisor lock {lock}: unreadable ({err})"
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return f"supervisor lock {lock}: present, not held"
+    except BlockingIOError:
+        return f"supervisor lock {lock}: HELD -- a supervisor is running"
+    finally:
+        os.close(fd)
+
+
 def dry_run(cfg, world):
     """§11 R8: plan the 33 chunks and check the live state READ-ONLY -- nvidia-smi, /proc, the reservations, the guard
     over his log, the state if one exists. Nothing is spawned or written. 0 iff identity, reservations and guard hold."""
@@ -998,6 +1034,7 @@ def dry_run(cfg, world):
         print(f"predictor for chunk {nxt['n']}: {'a shared spawn allowed' if ok else 'NO shared spawn'} {json.dumps(d)}")
     latch = (st or {}).get("stop_latch")
     print(f"STOP LATCH set: {latch}" if latch else "no stop latch")
+    print(lock_note(cfg["state"]) + " (informational)")
     good = not why and not res and g["exit"] == 0 and not latch
     print("DRY RUN OK: nothing was spawned or written" if good else "DRY RUN REFUSED (nothing was spawned or written)")
     return 0 if good else 1

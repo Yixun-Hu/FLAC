@@ -5,6 +5,7 @@ the REAL guard, and injected gates. It never signals: FakeProc has no kill / ter
 
 Written by the exp_35 Coder (Claude Opus 5.5, max effort) per plan_orbitrir_yaw_evidence.md r2/r3/r4.
 """
+import fcntl
 import hashlib
 import json
 import os
@@ -462,6 +463,116 @@ def test_the_trainer_exiting_between_two_observations_while_a_cell_runs_is_no_st
     w.at_spawn(3, leave)
     assert sup(w, g, cfg).run() == 0 and len(w.spawned) == N_CHUNKS
     assert state(cfg)["stop_latch"] is None and all(r["uuid"] == G0 for r in w.spawned[3:])
+
+
+# --------------------------------------------------------------------------- #
+# Codex C3d HIGH 3: a restart after the probe's finalization, before chunk 5's final guard
+# --------------------------------------------------------------------------- #
+def _die_before_the_probe_final_guard(tmp_path, monkeypatch):
+    """Runs until the probe's finalization + ledger are persisted, then the supervisor dies before chunk 5's final
+    guard; returns the world, the config and chunk 5 as persisted."""
+    w, g, cfg = make(tmp_path)
+    real = S.Supervisor.observe
+
+    def observe(self):
+        c5 = self.st["chunks"][4]
+        if c5["state"] == "runner_verified" and "probe_contract" in c5:
+            raise KeyboardInterrupt("the supervisor dies before chunk 5's final guard")
+        return real(self)
+    monkeypatch.setattr(S.Supervisor, "observe", observe)
+    with pytest.raises(KeyboardInterrupt):
+        sup(w, g, cfg).run()
+    monkeypatch.setattr(S.Supervisor, "observe", real)
+    c5 = state(cfg)["chunks"][4]
+    assert c5["state"] == "runner_verified" and c5["probe_contract"]["rc"] == 0 and "final_guard" not in c5
+    assert ("finalize", os.path.relpath(c5["log"], S.REPO), "d" * 64) in g.calls and len(w.spawned) == 5
+    w.spawned.clear()
+    return w, cfg, c5
+
+
+def test_a_restart_after_the_probe_finalization_completes_chunk_5_without_finalizing_anew(tmp_path, monkeypatch):
+    w, cfg, c5 = _die_before_the_probe_final_guard(tmp_path, monkeypatch)
+    probe = {p: open(p, "rb").read() for p in (cfg["probe_json"], cfg["probe_json"] + ".sha256")}
+    g2 = FakeGates()
+    g2.probe_json = cfg["probe_json"]
+    assert sup(w, g2, cfg).run() == 0
+    st = state(cfg)
+    keys = ("probe_contract", "probe_json_sha256", "sidecar_sha256", "log_sha256")
+    assert st["chunks"][4]["state"] == "gates_verified" and {k: st["chunks"][4][k] for k in keys} == {k: c5[k] for k in keys}
+    assert {p: open(p, "rb").read() for p in probe} == probe                     # the finalized probe untouched
+    assert len(w.spawned) == N_CHUNKS - 5 and not any("--arm" in r["argv"] for r in w.spawned)   # never re-run
+
+
+@pytest.mark.parametrize("how", ["the_log_appended", "the_json_resealed"])
+def test_a_restart_after_the_finalization_with_a_changed_ledger_latches(tmp_path, monkeypatch, how):
+    w, cfg, c5 = _die_before_the_probe_final_guard(tmp_path, monkeypatch)
+    if how == "the_log_appended":
+        open(c5["log"], "a").write("one more line\n")
+    else:                                                     # a re-sealed JSON in the finalizer's own format
+        doc = json.load(open(cfg["probe_json"]))
+        doc["note"] = "edited"
+        text = json.dumps(doc, indent=1) + "\n"
+        open(cfg["probe_json"], "w").write(text)
+        open(cfg["probe_json"] + ".sha256", "w").write(
+            f"{hashlib.sha256(text.encode()).hexdigest()}  {os.path.basename(cfg['probe_json'])}\n")
+    g2 = FakeGates()
+    g2.probe_json = cfg["probe_json"]
+    assert sup(w, g2, cfg).run() == 3 and w.spawned == []
+    st = state(cfg)
+    assert st["chunks"][4]["state"] == "runner_verified" and "probe" in st["stop_latch"]["reason"]
+
+
+# --------------------------------------------------------------------------- #
+# Planner P1: one supervisor at a time -- an exclusive lock next to the state, taken before the state is read
+# --------------------------------------------------------------------------- #
+def _hold(path):
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return fd
+
+
+@pytest.mark.parametrize("with_state", [False, True])
+def test_a_second_supervisor_is_refused_while_one_holds_the_lock(tmp_path, capsys, with_state):
+    w, g, cfg = make(tmp_path)
+    if with_state:
+        S.write_state(cfg["state"], S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
+                                                supervisor_sha256=cfg["supervisor_sha256"],
+                                                approved_sha256=cfg["approved_sha256"]))
+    before = open(cfg["state"], "rb").read() if with_state else None
+    fd = _hold(cfg["state"] + ".lock")                                          # the running supervisor
+    try:
+        assert sup(w, g, cfg).run() == 3
+        assert f"SUPERVISOR REFUSED: another supervisor holds {cfg['state']}.lock" in capsys.readouterr().out
+        assert (open(cfg["state"], "rb").read() if os.path.exists(cfg["state"]) else None) == before   # untouched
+        assert w.spawned == [] and list(w.res.iterdir()) == [] and g.calls == []
+    finally:
+        os.close(fd)
+    assert sup(w, g, cfg).run() == 0                                            # once it is gone
+
+
+class ProbeTheLock(FakeGates):
+    def __init__(self, lock):
+        super().__init__()
+        self.lock, self.held = lock, []
+
+    def verify(self, chunk):
+        fd = os.open(self.lock, os.O_RDONLY)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            self.held.append(False)
+        except BlockingIOError:
+            self.held.append(True)
+        finally:
+            os.close(fd)
+        return super().verify(chunk)
+
+
+def test_the_lock_is_held_for_the_whole_run_and_released_at_its_end(tmp_path):
+    w, _, cfg = make(tmp_path)
+    g = ProbeTheLock(cfg["state"] + ".lock")
+    g.probe_json = cfg["probe_json"]
+    assert sup(w, g, cfg).run() == 0 and len(g.held) == 32 and all(g.held)
+    os.close(_hold(cfg["state"] + ".lock"))                                     # free again after the run
 
 
 def test_the_probe_ledger_hashes_are_the_files(tmp_path):
