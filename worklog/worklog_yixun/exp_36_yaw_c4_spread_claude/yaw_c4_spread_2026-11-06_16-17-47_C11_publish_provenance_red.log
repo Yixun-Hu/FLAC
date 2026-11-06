@@ -1,0 +1,30 @@
+RED, cycle 11 (Codex code review I HIGH 1 follow-ups: the parsed CLI with --exp36-set OFF -> 12 destinations + its own manifest; per-set default manifest paths; the publisher's HEAD recorded apart from the artifacts' pin / digest) at HEAD 8f2c290b2f589c81bf9c419b3b39f33d91fa2e75 + the uncommitted test file
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6578/test_the_manifest_keeps_the_ar0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6578/test_the_manifest_keeps_the_ar0/exp36/plan.json', ...}
+
+    def test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head(pub):
+        pub["heads"][C.REPO] = PUBLISHER
+        status, doc = publish(pub)
+        assert status == "published", doc.get("reasons")
+        assert (doc["pin"], doc["campaign_digest"]) == (H36, T.DIGEST)                # the artifacts' provenance
+>       assert doc["publisher"] == {"repo": C.REPO, "head": PUBLISHER}                # the code that copied them
+E       KeyError: 'publisher'
+
+src/tests/test_exp36_publish_provenance.py:37: KeyError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+FAILED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+1 failed, 2 passed, 3 warnings in 5.94s
