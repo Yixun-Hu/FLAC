@@ -28,6 +28,8 @@ SELECTOR_RECORD_TYPES = ("exp37_agree_selector_latency", "localization_selector_
 TIMING_IDENTITY = {"score_sample_counts": [1], "measure_core_forward": True, "synchronize_timing": True,
                    "warmup_query_count": 1, "candidate_batch_size": 64, "tau": 0.1, "attention_backend": "sdpa"}
 CPU_COTENANT_PCPU = 10.0
+SPLIT_TOLERANCE = 0.02          # plan §10: outside 2 % the split is withheld, never the headline
+STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
 
 
 def _hashed(path: Path) -> dict:
@@ -109,8 +111,9 @@ def host_cotenancy(run_dir: Path) -> dict:
             "host_record_count": len(records), "unidentified_card": unknown}
 
 
-def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int) -> dict:
-    """``{query index: {core, context, candidate, peak_memory_bytes, candidate_count}}`` of one validated run."""
+def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False) -> dict:
+    """``{query index: {core, context, candidate, peak_memory_bytes, candidate_count}}`` of one validated run;
+    a headline run must be uninstrumented and a split run must be the split pass (plus its stage fields)."""
     run_dir = Path(run_dir)
     manifest = _hashed(run_dir / "run_manifest.json")
     identity = manifest["identity"]
@@ -119,6 +122,8 @@ def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int
             "pilot_manifest_sha256": selection["sha256"],
             "query_indices": [int(r["index"]) for r in selection["records"]]}
     bad = [key for key, value in want.items() if identity.get(key) != value]
+    if bool(identity.get("stage_split")) != stage_split:
+        bad.append("stage_split")
     if bad:
         raise RuntimeError(f"{run_dir}: identity fields {bad} differ from the {arm} K_ctx={context_count} protocol")
     protocol = {"name": f"fem_core_aligned_kctx{context_count}_kgen1", "context_count": int(context_count)}
@@ -129,11 +134,57 @@ def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int
         if query.get("run_manifest_sha256") != manifest["sha256"] or int(query["candidate_count"]) != int(
                 record["candidate_count"]) or query.get("query_id") != record["query_id"]:
             raise RuntimeError(f"{run_dir}: query {index} does not belong to this run / selection")
-        if any((query.get("latency_protocol") or {}).get(k) != v for k, v in protocol.items()):
-            raise RuntimeError(f"{run_dir}: query {index} latency_protocol is not {protocol}")
+        given = query.get("latency_protocol") or {}
+        if any(given.get(k) != v for k, v in protocol.items()) or bool(given.get("stage_split")) != stage_split:
+            raise RuntimeError(f"{run_dir}: query {index} latency_protocol is not {protocol} (stage_split={stage_split})")
         seconds = query["latency_seconds"]
         rows[index] = {"core": float(seconds["core_forward_total"]), "context": float(seconds["context_conditioning"]),
                        "candidate": float(seconds["candidate_conditioning_and_generation"]),
                        "peak_memory_bytes": int(query["peak_memory_bytes"]),
                        "candidate_count": int(query["candidate_count"])}
+        if stage_split:
+            rows[index].update(stage_seconds={k: float(query["stage_seconds"][k]) for k in STAGES},
+                               stage_sum=float(query["stage_sum_seconds"]),
+                               stage_peak_memory=query["stage_peak_memory"])
     return rows
+
+
+def split_comparison(headline: dict, split: dict, tolerance: float = SPLIT_TOLERANCE) -> dict:
+    """The split pass's core totals vs the uninstrumented headline's: publishable only if every query AND the
+    aggregate agree within ``tolerance``; the aggregate-only rule and the split's internal stage-sum check are
+    reported beside it."""
+    if set(headline) != set(split):
+        raise RuntimeError("split / headline query coverage mismatch")
+    ordered = sorted(headline)
+    rel = np.array([(split[i]["core"] - headline[i]["core"]) / headline[i]["core"] for i in ordered])
+    total = sum(headline[i]["core"] for i in ordered)
+    aggregate = (sum(split[i]["core"] for i in ordered) - total) / total
+    internal = np.array([(split[i]["stage_sum"] - split[i]["core"]) / split[i]["core"] for i in ordered])
+    strict = bool(abs(aggregate) <= tolerance and (np.abs(rel) <= tolerance).all())
+    return {"tolerance": tolerance, "aggregate_relative_difference": float(aggregate),
+            "per_query_relative_difference": {str(i): float(v) for i, v in zip(ordered, rel)},
+            "per_query_max_abs": float(np.abs(rel).max()), "per_query_median_abs": float(np.median(np.abs(rel))),
+            "per_query_within_fraction": float((np.abs(rel) <= tolerance).mean()),
+            "internal_stage_sum_vs_core_max_abs": float(np.abs(internal).max()),
+            "aggregate_rule_pass": bool(abs(aggregate) <= tolerance), "strict_rule_pass": strict,
+            "split_publishable": strict}
+
+
+def stage_breakdown(split: dict, selector: dict, counts: dict) -> dict:
+    """Per stage (+ the AGREE selector): summed s, s/query, dataset-wide ms/candidate, fraction of the total; the
+    memory segments' absolute peaks (max over queries -- peaks are never added)."""
+    ordered, total = sorted(counts), sum(counts.values())
+    sums = {name: sum(split[i]["stage_seconds"][name] for i in ordered) for name in STAGES}
+    sums["agree_selector"] = sum(selector[i] for i in ordered)
+    grand = sum(sums.values())
+    seconds = {name: {"summed_seconds": float(value), "mean_seconds_per_query": float(value / len(ordered)),
+                      "ms_per_candidate_dataset_wide": float(1000.0 * value / total), "fraction": float(value / grand)}
+               for name, value in sums.items()}
+    peaks = {}
+    for i in ordered:
+        for name, peak in split[i]["stage_peak_memory"].items():
+            if peak is None or peak.get("allocated_bytes") is None:
+                continue
+            old = peaks.get(name, {"allocated_bytes": 0, "reserved_bytes": 0})
+            peaks[name] = {k: max(old[k], int(peak[k])) for k in ("allocated_bytes", "reserved_bytes")}
+    return {"seconds": seconds, "peak_memory": peaks}
