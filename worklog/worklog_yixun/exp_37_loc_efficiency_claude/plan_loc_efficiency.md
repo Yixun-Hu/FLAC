@@ -168,3 +168,11 @@ process on its card (discard + rerun, never publish). Each stops the affected ar
   B-b (K_ctx 1, arbitrary-manifest selector, 3-arm summarizer, the split pass + comparison); B-c (nested subset / c2f readout + timing, 0.75 m
   audit, frame-angle / rotation, aggregation, figure); B-synthesis on a separate H35-compatible leaf.
 - **Schedule (Yixun 15:30):** exp_37's GPU work starts after the seed-42 off-orbit run and exp_36; its Coder rounds proceed now on CPU.
+
+## 11. Planner decisions with the round-2 fixes (after Codex code review 1; 2026-11-06T17:36:11-05:00)
+- **Waveforms (announcement 08; review BLOCKING 1):** the write-once artifact contract the review specifies; accuracy-only runs dump inline outside every timer; timing passes never dump — a deterministic artifact replay (no timer, same seeds / candidates / batches) regenerates and dumps a timing run's waveforms and must reproduce its per-candidate similarities bitwise; it runs for every timing pass whose accuracy is reported. Whether pure latency passes (B1) may skip waveforms is Yixun's call (asked); the replay serves either answer. Root: `/media/diskstation/yixunhu/FLAC/exp37_pred_waveforms/<run stem>/`.
+- **B2:** dedicated seed-42 B2 timing runs stay (review HIGH 4); reuse of B1's K8 runs only as a validated-superset accuracy readout.
+- **Split gate:** strict per-query AND aggregate 2 % kept (review Q1); a withheld split is reported as a comparison only.
+- **c2f:** the selector components measured three times with medians on the exact generated tensors (review BLOCKING 2).
+- **B3 synthesis:** 8 eval_FLAC cells on a separate leaf of the exp_36 code line (`exp-37-b3-synthesis`, built by the exp_36 Coder after its fix round; a BF replay hard stop; dumps on), reviewed in exp_37's round 2.
+- Every other finding fixed exactly as the review states (all in one revision; round 2 of 3 next).

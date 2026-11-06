@@ -25,3 +25,6 @@ REQUEST seen at 16:08:39. A has NOT paused. The yield protocol reached this sess
 Meanwhile each card has about 32 GB free (A's runs use about 16.6 GB per card).
 State at 16:09: main step 39,000 (final 40k about 18:45-19:00 at the shared rate), tail step 36,800 (first own checkpoint 37,500 about 17:50).
 ```
+
+## 2026-11-06T17:36:11-05:00 — Planner: announcement-08 correction — every exp_36 cell dumps
+- My plan r0 set dumps off for every exp_36 cell; announcement 08 (predicted waveforms are a required artifact of every generative eval run) and Yixun's A1 ("exactly the flags of its existing cells" — the templates dumped) both require dumps. Sent to the Coder with its fix round: dumps on for chains I and II (the manifest's dump root, collision-checked), replays verified WITH their dumps plus the exp_35 CTL-style waveform checks against the archived references, a new launch commit H36_I2 (the run worktree moved to it; DRY_RUNs repeated). The change and the publish fixes go to code review III (the last).
