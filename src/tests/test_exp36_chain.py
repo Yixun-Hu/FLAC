@@ -182,6 +182,8 @@ def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
                   "--canon-ckpt-manifest", CANON_CKPTS]
     assert a3 == ["--only", ",".join(CELLS24), "--no-dump-blocks", "YAW-C4S"] + tail
     assert f"--exp36-publish --exp36-set A --pin {ch['head']} --exp36-verdict {ch['dir'] / verdict}" in out
+    logs = [p for p in os.listdir(ch["dir"]) if p.endswith("_A_chain.log")]
+    assert len(logs) == 1 and "CHAIN COMPLETE" in (ch["dir"] / logs[0]).read_text()
 
 
 def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clone, ch):
@@ -221,8 +223,6 @@ def test_a_changed_canon_checkpoint_manifest_is_refused(clone, ch):
         assert rc == 2 and "CANON checkpoint manifest" in out and not calls(ch), out
     finally:
         path.write_bytes(original)
-    logs = [p for p in os.listdir(ch["dir"]) if p.endswith("_chain.log")]
-    assert len(logs) == 1 and "CHAIN COMPLETE" in (ch["dir"] / logs[0]).read_text()
 
 
 @pytest.mark.parametrize("env, rc_want, needle, kinds", [
@@ -233,7 +233,7 @@ def test_a_changed_canon_checkpoint_manifest_is_refused(clone, ch):
     ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
     ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
     ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
-    ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ({"STUB_RUNNER_RC_2": "4"}, 6, "the production run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
     ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
     ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
     ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
