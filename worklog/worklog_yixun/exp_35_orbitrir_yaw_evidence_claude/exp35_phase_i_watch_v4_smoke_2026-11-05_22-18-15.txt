@@ -1,0 +1,16 @@
+watcher v4 smoke test (read-only), 2026-11-05T22:18:15-05:00; v4 sha256 7db4810dd18cdadc24e2114a82c1d935531a9a5e2fc3286d23dfb77b0ef56595
+== live state, N=33 (expect: still waiting -> timeout rc 124)
+Terminated
+rc 124
+== empty
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v4_smoke/empty.json:43): schema
+== unknown
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v4_smoke/unknown.json:409): schema
+== noncontig
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v4_smoke/noncontig.json:409): schema
+== badn
+EVENT: the state is unreadable or malformed: jq: error (at /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v4_smoke/badn.json:409): schema
+== live state, N=1 (expect: milestone)
+EVENT: milestone: 5 chunks gates_verified (>= 1)
+== a wrong argv sha (expect: not the launched process)
+EVENT: the supervisor (pid 685273, start 781579512) is gone or no longer the launched process
