@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -81,17 +82,59 @@ def test_a_record_replaced_between_its_authentication_and_the_unlink_is_never_un
     assert os.path.lexists(held["path"])
 
 
-@pytest.mark.parametrize("content, status", [(None, "absent"), (b'{"holder": "exp22", "run": "x"}', "present (holder exp22)"),
-                                             (b"{", "present (malformed)"), (b"[1]", "present (malformed)"),
-                                             ("dangling", "present (a dangling link, or removed while it was read)")])
+@pytest.mark.parametrize("content, status", [
+    (None, "absent"), (b'{"holder": "exp22", "run": "x"}', "present (holder exp22)"),
+    (b"{", "present (malformed)"), (b"[1]", "present (malformed)"), (b"", "present (malformed)"),
+    (b'{"holder": ""}', "present (malformed)"), (b'{"holder": 5}', "present (malformed)"),
+    (b'{"holder": "exp 22"}', "present (malformed)"), (b'{"holder": "exp22\\n"}', "present (malformed)"),
+    (b'{"run": "x"}', "present (malformed)"),
+    ("dangling", "present (a link)"), ("link-to-a-valid-record", "present (a link)"),
+    ("fifo", "present (not a regular file)"), ("directory", "present (not a regular file)")])
 def test_the_reservation_status_of_any_file(tmp_path, content, status):
+    """Codex P2K-1 HIGH 3: ONE O_NOFOLLOW | O_NONBLOCK descriptor, S_ISREG required -- a link (even to a well-formed
+    record) and a non-regular file are never read as a holder's record, and a FIFO never blocks the inspection."""
     cfg = cfg_for(tmp_path)
     p = os.path.join(cfg.reservations, f"{GPU1}.json")
     if content == "dangling":
         os.symlink(str(tmp_path / "nowhere"), p)
+    elif content == "link-to-a-valid-record":
+        (tmp_path / "valid.json").write_text(json.dumps({"holder": "exp22", "run": "x"}))
+        os.symlink(str(tmp_path / "valid.json"), p)
+    elif content == "fifo":
+        os.mkfifo(p)
+    elif content == "directory":
+        os.mkdir(p)
     elif content is not None:
         open(p, "wb").write(content)
-    assert K.reservation_status(cfg, GPU1) == status
+    got = []
+    t = threading.Thread(target=lambda: got.append(K.reservation_status(cfg, GPU1)), daemon=True)
+    t.start()
+    t.join(10)
+    assert not t.is_alive(), "the inspection blocked"
+    assert got == [status]
+
+
+@pytest.mark.parametrize("entry", ["link-to-a-valid-record", "fifo"])
+def test_a_link_or_a_fifo_refuses_on_a_lane_and_on_the_other_card(tmp_path, entry):
+    cfg = cfg_for(tmp_path)
+    _locks(cfg)
+    for uuid in (GPU0, GPU1):
+        p = os.path.join(cfg.reservations, f"{uuid}.json")
+        if entry == "fifo":
+            os.mkfifo(p)
+        else:
+            (tmp_path / "valid.json").write_text(json.dumps({"holder": "exp22", "run": "x"}))
+            os.symlink(str(tmp_path / "valid.json"), p)
+        other = os.path.join(cfg.reservations, f"{GPU1 if uuid == GPU0 else GPU0}.json")
+        got = []
+        t = threading.Thread(target=lambda: got.append(K.observe(FakeWorld(), cfg, (0,))["reasons"]), daemon=True)
+        t.start()
+        t.join(10)
+        assert not t.is_alive(), "the observation blocked"
+        [reasons] = got
+        assert reasons and any(("reservation file exists" if uuid == GPU0 else "unexplained") in x for x in reasons)
+        os.unlink(p)
+        assert not os.path.lexists(other)
 
 
 def test_an_unreadable_reservation_directory_is_unreadable(tmp_path):

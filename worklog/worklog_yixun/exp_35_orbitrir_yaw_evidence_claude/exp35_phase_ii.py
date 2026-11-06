@@ -28,6 +28,7 @@ Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
 import argparse
 import collections
 import datetime
+import errno
 import fcntl
 import hashlib
 import json
@@ -596,32 +597,37 @@ def reservation_path(cfg, uuid):
     return os.path.join(cfg.reservations, f"{uuid}.json")
 
 
+HOLDER_RE = re.compile(r"[A-Za-z0-9_-]+")
+
+
 def reservation_status(cfg, uuid):
-    """'absent', 'present (holder X)' or 'present (...)' for any other file (malformed, a dangling link);
-    Unreadable when the directory is missing or unreadable or the file cannot be read."""
+    """'absent', 'present (holder X)' -- a regular file holding a JSON object with a well-formed holder -- or
+    'present (...)' for anything else: a link (never followed), a non-regular file (a FIFO never blocks), malformed
+    bytes. ONE O_NOFOLLOW | O_NONBLOCK descriptor (Codex P2K-1 HIGH 3); Unreadable when it cannot be read."""
     try:
         os.listdir(cfg.reservations)
     except OSError as err:
         raise Unreadable(f"the reservation directory {cfg.reservations} is missing or unreadable ({err})") from err
     path = reservation_path(cfg, uuid)
     try:
-        os.lstat(path)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except FileNotFoundError:
         return "absent"
     except OSError as err:
+        if err.errno == errno.ELOOP:
+            return "present (a link)"
         raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
     try:
-        with open(path, "rb") as f:
-            raw = f.read()
-    except FileNotFoundError:
-        return "present (a dangling link, or removed while it was read)"
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return "present (not a regular file)"
+        raw = b"".join(iter(lambda: os.read(fd, 1 << 16), b""))
     except OSError as err:
         raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
-    try:
-        doc = json.loads(raw)
-    except ValueError:
-        return "present (malformed)"
-    return f"present (holder {doc['holder']})" if isinstance(doc, dict) and isinstance(doc.get("holder"), str) else (
+    finally:
+        os.close(fd)
+    doc = _json(raw)
+    holder = doc.get("holder") if isinstance(doc, dict) else None
+    return f"present (holder {holder})" if isinstance(holder, str) and HOLDER_RE.fullmatch(holder) else (
         "present (malformed)")
 
 
