@@ -1,0 +1,152 @@
+=== exp_35 phase (i) LAUNCH -- 2026-11-05T20:20:14-05:00 -- H35 5b065801e9d1c1844461ec84cd0558702c714326 -- seal /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-19-20_phase_i_capture_seal.txt 5f7f2fa8bffa84f75bc2d601bc53d4ceaa36b36c08923c687ff0670616bd4ab3 ===
+this script: 7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c  /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c)
+CHECK OK: the seal is a regular file in the main checkout's exp_35 folder
+CHECK OK: the seal's sha256 is the given value
+ladder_1 orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log c3f62847a6a5836f0679a55590ef14dbba0175d57e445f3967ce9a4816b6edf7
+ladder_2 orbitrir_yaw_evidence_2026-11-05_19-23-49_LADDER_2_supervisor_live_dry_run_at_5b065801.log 587ee8f9da178849edad169c096a914f07f91774f815538654ef59c56111819b
+ladder_3 orbitrir_yaw_evidence_2026-11-05_19-24-07_LADDER_3_runner_dry_run_phase_i_at_5b065801.log 321dfc7daaf9bdd7753d0ba8371bfe116ad6bece844693fd30d18f7d0308a523
+ladder_4 orbitrir_yaw_evidence_2026-11-05_19-25-16_LADDER_4_all_suites_in_worktree_at_5b065801.log 1fc44f927f222fdde22487296d4288df1cfecab3a466e115ff29603de45ed0b4
+h35 5b065801e9d1c1844461ec84cd0558702c714326
+script_sha256 7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c
+tuple /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_approved_cotenants_2026-11-05_20-19-20.json 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+tuple_copy /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_approved_cotenants_2026-11-05_20-19-20.json 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+campaign_digest da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1
+pin_vae /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/FLAC/VAE.ckpt 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+pin_agree /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/AGREE/AGREE_fullAR.pt 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+pin_dino_config /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json 9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b
+pin_dino_weights /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors 4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d
+pin_queue /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh 9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa
+pin_evaluator /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh 94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c
+pin_admission /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py 8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907
+pin_cells /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cells.json 440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d
+pin_overlay /home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/flash_attn.py 0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023
+pin_launcher /home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/exp35_no_flash_launch.py bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de
+pin_exp25_results /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_results.json ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0
+pin_stream_registry /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_exp25_stream_registry.json 9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24
+pin_a6_raw /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_metrics_raw.csv 0ae554c09f45ce89b8957cf75a3d15e44f4173f4f8987497dbbebf16bbfb23da
+pin_a6_summary /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_metrics_summary.csv e4602115f9e75479cdb76166b53a2907d11b8d32c64e0d61f1fa2d5342b09034
+pin_a6_c4_raw /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_c4_metrics_raw.csv 441ade8b4931e69a358d760fb2b4fe29d72a6c40f4c00f5582eda0690a2598de
+pin_a6_c4_summary /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_c4_metrics_summary.csv b21ffbe7b264178bd7768bad8ac441c9dbd037217a0198c61c3ea5892cc9bf91
+pip_freeze 8b7a802e65114c44bbf98206f0ccce6b960d48e5b094941496c3801cea1defb2
+versions 3.10.20 2.7.0+cu126 12.6 2.7.4.post1
+his_step 27930
+capture_log /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-19-20_phase_i_capture.log 65603774eda4aad8a1a6dd5e6459c118502c71a39433e260c3096c452f75879d
+sealed_at 1793927985 2026-11-05T20:19:45-05:00
+CHECK OK: the seal names this H35
+CHECK OK: the seal names this script
+CHECK OK: the seal names the pinned campaign digest
+CHECK OK: the tuple is the canonical run-worktree file
+CHECK OK: the tuple still hashes to the sealed value
+CHECK OK: the record copy is the main-checkout file of the same name, byte-identical
+CHECK OK: the capture log is the canonical main-checkout file
+CHECK OK: the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK
+CHECK OK: the seal's sealed_at is a decimal epoch (1793927985)
+CHECK OK: the seal is current (29 s old <= 10800 s)
+CHECK OK: ladder rung 1: a canonical basename
+CHECK OK: ladder rung 1 transcript unchanged since the capture
+CHECK OK: ladder rung 2: a canonical basename
+CHECK OK: ladder rung 2 transcript unchanged since the capture
+CHECK OK: ladder rung 3: a canonical basename
+CHECK OK: ladder rung 3 transcript unchanged since the capture
+CHECK OK: ladder rung 4: a canonical basename
+CHECK OK: ladder rung 4 transcript unchanged since the capture
+CHECK OK: the tuple validates
+CHECK OK: pin vae: VAE.ckpt 6198ff0d…
+CHECK OK: pin agree: AGREE_fullAR.pt 3a13243d…
+CHECK OK: pin dino_config: config.json 9481247b…
+CHECK OK: pin dino_weights: model.safetensors 4610ad75…
+CHECK OK: pin queue: exp30_attn_queue.sh 9394ca90…
+CHECK OK: pin evaluator: exp30_attn_eval.sh 94fcc9e1…
+CHECK OK: pin admission: exp30_attn_queue_state.py 8572bb03…
+CHECK OK: pin cells: depth_canon_cells.json 440eb1be…
+CHECK OK: pin overlay: flash_attn.py 0d0e52ca…
+CHECK OK: pin launcher: exp35_no_flash_launch.py bbd2847d…
+CHECK OK: pin exp25_results: depth_canon_results.json ec3fcd08…
+CHECK OK: pin stream_registry: exp35_exp25_stream_registry.json 9ec31f32…
+CHECK OK: pin a6_raw: yaw_metrics_raw.csv 0ae554c0…
+CHECK OK: pin a6_summary: yaw_metrics_summary.csv e4602115…
+CHECK OK: pin a6_c4_raw: yaw_c4_metrics_raw.csv 441ade8b…
+CHECK OK: pin a6_c4_summary: yaw_c4_metrics_summary.csv b21ffbe7…
+CHECK OK: the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)
+CHECK OK: AcousticRooms -> the NAS
+CHECK OK: weights/AGREE -> the main checkout
+CHECK OK: weights/FLAC/VAE.ckpt -> the main checkout
+CHECK OK: AcousticRooms/depth_map and metadata reachable
+CHECK OK: the NAS MANIFEST lists P1 and BF at their pins
+CHECK OK: the dump root exists
+CHECK OK: python / torch / CUDA / flash-attn = 3.10.20 2.7.0+cu126 12.6 2.7.4.post1
+CHECK OK: pip freeze 8b7a802e… (the plan's environment)
+CHECK OK: s44 status line (§13 B1)
+CHECK OK: s44 EVAL_DONE line (§13 B1)
+CHECK OK: run worktree HEAD 5b065801e9d1c1844461ec84cd0558702c714326 = H35
+CHECK OK: branch exp-35-orbitrir-yaw
+CHECK OK: the tracked tree is clean
+CHECK OK: the campaign digest recomputes to da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1
+CHECK OK: the compute apps are exactly his two s43 ranks (3027719 on GPU 0, 3028196 on GPU 1)
+CHECK OK: GPU 1 free memory >= 10,240 MiB (§8)
+CHECK OK: no exp35 supervisor is running
+CHECK OK: no depth_canon_eval_run.sh is running
+CHECK OK: no exp_30 evaluation is running (his table job)
+CHECK OK: no exp_22 watcher runs (*exp22*watch* / *meshgrid*watch* / *free_card*)
+CHECK OK: no exp_22 watcher script exists in the exp_22 folder
+CHECK OK: the supervisor state file and its lock are absent (a new campaign)
+CHECK OK: no reservation of GPU 0 or GPU 1 exists
+CHECK OK: the live GPU 1 set equals the tuple
+exp_35 supervisor dry run 2026-11-05T20:20:19-05:00: H35 5b065801e9d1c1844461ec84cd0558702c714326; state none (new); lane GPU-6ac2604a-e84e-0615-1221-ccbed7c268da (index 1, shared True); GPU map {0: 'GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e', 1: 'GPU-6ac2604a-e84e-0615-1221-ccbed7c268da'}
+  chunk  1 planned         gate E1    17.6 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K1_s42
+  chunk  2 planned         gate E1    19.2 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_P1_T_S40000_K8_s42
+  chunk  3 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42
+  chunk  4 planned         gate E2    35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42
+  chunk  5 planned         gate PROBE 10.0 min  /home/yixunhu/miniconda3/envs/flac/bin/python overlays/no_flash/exp35_no_flash_launch.py worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py --arm BF --ckpt-path outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000.ckpt
+  chunk  6 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s43
+  chunk  7 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s43
+  chunk  8 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s44
+  chunk  9 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s44
+  chunk 10 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s45
+  chunk 11 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s45
+  chunk 12 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s46
+  chunk 13 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s46
+  chunk 14 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s42
+  chunk 15 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s42
+  chunk 16 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s43
+  chunk 17 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s43
+  chunk 18 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s44
+  chunk 19 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s44
+  chunk 20 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s45
+  chunk 21 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s45
+  chunk 22 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K1_s46
+  chunk 23 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_R_S40000_K8_s46
+  chunk 24 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K1_s42_dup
+  chunk 25 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_T_S40000_K8_s42_dup
+  chunk 26 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th90
+  chunk 27 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th90
+  chunk 28 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th180
+  chunk 29 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th180
+  chunk 30 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th270
+  chunk 31 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th270
+  chunk 32 planned         gate -     24.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K1_s42_th45
+  chunk 33 planned         gate -     35.0 min  bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only exp35_BF_C4_S40000_K8_s42_th45
+identity OK: GPU 1 foreign pids [3028196]; the approved tuple [3028196]
+reservations OK
+guard OK: step {'epoch': 6, 'n': 640, 'total': 4550, 'global': 27940}; no violation
+predictor for chunk 1: a shared spawn allowed {"step": 27940, "earliest_end": 1793970226.4438043, "needed_after": 1793931933.9841876}
+no stop latch
+supervisor lock /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json.lock: absent (informational)
+DRY RUN OK: nothing was spawned or written
+dry run rc 0; transcript /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-20-14_phase_i_launch_supervisor_dry_run.log sha256 2ede32930afda63b804a60ca99ad40a138bca3901e34f68f00633fdf78b9e6a3
+CHECK OK: the supervisor dry run in the launch environment: rc 0 and DRY RUN OK
+CHECK OK: the dry run wrote nothing under the run worktree (find -newer, .git excluded)
+CHECK OK: the dry run created no reservation, state or lock file
+CHECK OK: last look: HEAD, apps, state, lock, reservations
+CHECK OK: last look: the compute apps are his two ranks
+CHECK OK: last look: the seal is still current (37 s old <= 10800 s)
+starting: cd /home/yixunhu/codespace/exp-35-orbitrir-yaw && env -i HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin setsid nohup /home/yixunhu/miniconda3/envs/flac/bin/python /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py --h35 5b065801e9d1c1844461ec84cd0558702c714326 --approved /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_approved_cotenants_2026-11-05_20-19-20.json --approved-sha256 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e --state /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json --reservations /home/yixunhu/codespace/.gpu_reservations --his-log /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log --logdir /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude >> /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log 2>&1 < /dev/null &
+background pid 685273; exp35_supervisor.py processes now: 685273
+supervisor pid 685273: /home/yixunhu/miniconda3/envs/flac/bin/python /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py --h35 5b065801e9d1c1844461ec84cd0558702c714326 --approved /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_approved_cotenants_2026-11-05_20-19-20.json --approved-sha256 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e --state /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json --reservations /home/yixunhu/codespace/.gpu_reservations --his-log /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log --logdir /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude 
+  cwd /home/yixunhu/codespace/exp-35-orbitrir-yaw; start time 781579512; sid  685273
+  environment: HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin 
+--- the supervisor log so far (/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log) ---
+[2026-11-05T20:20:22-05:00] supervisor started (a new state) 
+---
+LAUNCHED: supervisor pid 685273, log /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log, state /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json

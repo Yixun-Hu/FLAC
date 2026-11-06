@@ -1,0 +1,14 @@
+{
+ "schema_version": 1,
+ "gpu_uuid": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+ "processes": [
+  {
+   "pid": 3028196,
+   "start_time": 767855653,
+   "cwd": "/home/yixunhu/codespace/flac-fork-attn",
+   "cmdline_sha256": "5b0ec86fb7143b6adf50c583e5e3cfe0329f1dd03be232e0355d59c7049389aa",
+   "fd1": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log",
+   "fd2": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log"
+  }
+ ]
+}
