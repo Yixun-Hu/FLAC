@@ -1,0 +1,653 @@
+{
+  "candidate_query_pairs": 6610,
+  "context_manifest_sha256": "b757da281dcde3ffc310aac67279a240dac5cb1ff1d9966bf918f69c4dde6f58",
+  "definition": "rows of the frozen origin-anchored 0.5 m candidates whose three coordinates are integers; indices are positions in the full 0.5 m candidate list (full-grid common random numbers)",
+  "geometry_audit_sha256": "ae09d9cf9416866d09dea498a1f8467e952866db8b1c914ed0bea6a75e06cf9a",
+  "parent_pilot_sha256": "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2",
+  "query_count": 64,
+  "records": [
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "e95935d838adbc664b168ac2d176cfb93d762673655dc312e10aa725107cd0c2",
+      "full_candidate_count": 176,
+      "index": 5194,
+      "parent_candidate_indices_sha256": "140ada034cda4ada2e3a05a9434c797e7fc53951c1cf1dec09d3bf4801b3aff5",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S006_R006_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "028ae169a8498078d3c290f7e5aecffe02219d32c30837f5b2cae39e68e00e41",
+      "full_candidate_count": 176,
+      "index": 5281,
+      "parent_candidate_indices_sha256": "9fcca28ea7e628a6ecf60a26a9dfa064d57d36730e878e84c48c963bfb48bcd8",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S010_R018_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "681ae844bf745d8f97ada9e56741a597edb037a6576bb9a485891a7e00c335fb",
+      "full_candidate_count": 176,
+      "index": 5334,
+      "parent_candidate_indices_sha256": "5425ab1f66b2180b6b68a240108790f34346b0e5d61296e038b42f030c52d0ab",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S001_R015_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "e6f25d734a0e75e162c30779684b16d31dae36d281c199456c600828a4ae4a57",
+      "full_candidate_count": 176,
+      "index": 5363,
+      "parent_candidate_indices_sha256": "c5e5e36c391c072d7a7b8a26c443036f691d3d5a311f5c8a5b6ac8ba92fc1c8c",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_42/S003_R021_hybrid_IR.wav",
+      "room": "Apartments_idx_42",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 34,
+      "candidate_indices_sha256": "ecd6070f4c19a4f0e6cb681411bcb37b0c837343ccdbc244c516c781806df72e",
+      "full_candidate_count": 220,
+      "index": 4945,
+      "parent_candidate_indices_sha256": "47c7ecb49e91f997818f055dfefa34a4d80f8f2faba029c4f5048852ffc4ffff",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S008_R007_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 34,
+      "candidate_indices_sha256": "a23e3d1c8c9c7082e3402c76675b4626f118d9445428058da0162d3011f397c8",
+      "full_candidate_count": 220,
+      "index": 4971,
+      "parent_candidate_indices_sha256": "1a0f2857eee2a07aab9fbb50277880c635dee0a824590e924fdc7e1b945c7fce",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S003_R014_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 34,
+      "candidate_indices_sha256": "3ceddb87aeb20461322361b907e41be67380e82d9c84844170089ebb32b69e44",
+      "full_candidate_count": 220,
+      "index": 5053,
+      "parent_candidate_indices_sha256": "1d3ed396b590052551fc87865a143054743f8a96677e4963cfcfadf2fc4513b0",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S002_R019_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 34,
+      "candidate_indices_sha256": "bf810f857c8fe8e7a865d936531c7e322bf15f35004310e3da5bc371f3367525",
+      "full_candidate_count": 220,
+      "index": 5094,
+      "parent_candidate_indices_sha256": "7b980fa248a88106e17467877e4ef8ff3611b390c827085f4f77d1949dbb20cf",
+      "query_id": "single_channel_ir_1/Apartments/Apartments_idx_50/S010_R001_hybrid_IR.wav",
+      "room": "Apartments_idx_50",
+      "scene": "Apartments"
+    },
+    {
+      "candidate_count": 595,
+      "candidate_indices_sha256": "ed0cefcc68d9d4d5fa3fc624c29cc06603f5b823f5c9848ca550593e3b459e6b",
+      "full_candidate_count": 3723,
+      "index": 3550,
+      "parent_candidate_indices_sha256": "286ba84ec07b6c968c2393971b19585519eb5874c19a6f4bb8293c0277b67ee9",
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S007_R038_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 595,
+      "candidate_indices_sha256": "7caa5ceb9fdbc8e201c0c9dc700820de98510d49c0d74609fb843122eaf33dd1",
+      "full_candidate_count": 3723,
+      "index": 3934,
+      "parent_candidate_indices_sha256": "b079d5d49f5b0e42a7ee9457b9b815bb68700d859a4f1bb0f349ad3b509ae4e2",
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S009_R060_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 595,
+      "candidate_indices_sha256": "b66b4b57d6780d49f2e2c4822e10275d36df3dabeb70e4a3d24e26bac14684d1",
+      "full_candidate_count": 3722,
+      "index": 4137,
+      "parent_candidate_indices_sha256": "c4c817473cb82742e0d42576447344aa6182c0fc56c9847c4424c521345cfe99",
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S004_R010_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 594,
+      "candidate_indices_sha256": "bdc3facd7d2e72e50e666eac97545d327973a85bbd1e4b9402e4faf4869777a4",
+      "full_candidate_count": 3722,
+      "index": 4206,
+      "parent_candidate_indices_sha256": "f6957ab381c31caaa7606878c3ebcce892db7f484b2b175a65710f267608344b",
+      "query_id": "single_channel_ir_1/Auditorium/Auditorium_idx_1/S003_R049_hybrid_IR.wav",
+      "room": "Auditorium_idx_1",
+      "scene": "Auditorium"
+    },
+    {
+      "candidate_count": 7,
+      "candidate_indices_sha256": "5d4ee6b6bfbf5bc154474987fa64547495be0e9c67e1e225c61a3bfff0025411",
+      "full_candidate_count": 27,
+      "index": 4467,
+      "parent_candidate_indices_sha256": "4f212dcbf53bea4e604969f50c2bc8f3f6330e9d383375a46b0a4563efd86bf1",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S009_R017_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 6,
+      "candidate_indices_sha256": "ad181c3687cbcd37f6180f5c18aa3b73cf5598268331e3f00a2c17647682b953",
+      "full_candidate_count": 27,
+      "index": 4513,
+      "parent_candidate_indices_sha256": "efd33a2567672c6770f6c6ea3a4e64ed3ecab1079029a8171a71d192aefcec6c",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S003_R011_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 7,
+      "candidate_indices_sha256": "7a682aeccb3ec9eb9f305eb75f14f7b1a5351548710bf95ccc67a053dedf4ee3",
+      "full_candidate_count": 28,
+      "index": 4617,
+      "parent_candidate_indices_sha256": "b1931b458b3760687c982fe7cb30cd93b5249dcff7b2df6b8b75b18dc302f42a",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S010_R020_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 7,
+      "candidate_indices_sha256": "4e4fc94e4b2de09e692a474b9a53af8d1ac9d7b95f8d7d172e43d730ca0b10c5",
+      "full_candidate_count": 27,
+      "index": 4652,
+      "parent_candidate_indices_sha256": "2b920691d69b03e1af7e43d52cd3b179a729fac2d10590745cfdef0d76364b06",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_14/S008_R013_hybrid_IR.wav",
+      "room": "Bathrooms_idx_14",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "b8cab1ac460cfabc00730809270408c941bac355cf5cd69edee11516de085c41",
+      "full_candidate_count": 56,
+      "index": 4728,
+      "parent_candidate_indices_sha256": "b5ce3fce0eb6cc0b19a4854eecc4a36714ab7102c03c8fd76778e8386b07fae8",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R023_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 10,
+      "candidate_indices_sha256": "c121f81add93eabd1a3e6557df37a133fa2ab32e13e88fa7d8f12dcc29375f33",
+      "full_candidate_count": 58,
+      "index": 4781,
+      "parent_candidate_indices_sha256": "bb0bca48e1b32afc9c19018e22aae0778de2007b8f39ae6172196acb0e24335e",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S010_R018_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "643c8127bc2b2d730691bb79707bcc0bab0d6c0caa2042924ae19729236efca0",
+      "full_candidate_count": 55,
+      "index": 4784,
+      "parent_candidate_indices_sha256": "fc8cac2cc3679ede2dd5f25e3723413aa15ba8d3acf3f14681db52a33e8704d1",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S005_R012_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "da9b7eee921090eebb14c6757ef763324a9069a98e1ffb86734af384e68fc133",
+      "full_candidate_count": 51,
+      "index": 4806,
+      "parent_candidate_indices_sha256": "864f057fb02ea1b266c87f9322e803a9e1ac9f09dd580e7e07a90b3fb64963b6",
+      "query_id": "single_channel_ir_1/Bathrooms/Bathrooms_idx_18/S009_R006_hybrid_IR.wav",
+      "room": "Bathrooms_idx_18",
+      "scene": "Bathrooms"
+    },
+    {
+      "candidate_count": 10,
+      "candidate_indices_sha256": "752398f3330b3c30baf20e873416ce6a338705b2a1837f5548b057172e90439b",
+      "full_candidate_count": 57,
+      "index": 1937,
+      "parent_candidate_indices_sha256": "982749d15d817432b59e7b8d6257e67caf9175eb370de84ee15c4ac25b5274ea",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S004_R014_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 10,
+      "candidate_indices_sha256": "392d71dd7a6c7a7fefc1e1da076f3bd574d8601529850e8da6831c085519488f",
+      "full_candidate_count": 58,
+      "index": 1991,
+      "parent_candidate_indices_sha256": "f3d8399cc0734abcf6dbfda66c6c3943ffc9f0f6627fbf22082130ac32127752",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S001_R016_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "87c4dd99faa90a9ee09302cd744909d9229bc2c626403fe3360cde4f6397936c",
+      "full_candidate_count": 56,
+      "index": 2128,
+      "parent_candidate_indices_sha256": "21084c1343b7877798d0970f148106b95c0352ea0c47a41e7412fdf41a88e050",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R002_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 10,
+      "candidate_indices_sha256": "4cf396bd9ca027eeeb5e51343fac7f736024ac18d9af5dd428b33b3767edcf6e",
+      "full_candidate_count": 57,
+      "index": 2134,
+      "parent_candidate_indices_sha256": "4bc0b7b5c4bff9145f106c34a1fffd10256b4363e2284117c02640061bb4c4b5",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_18/S005_R008_hybrid_IR.wav",
+      "room": "Bedrooms_idx_18",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 10,
+      "candidate_indices_sha256": "80e094406ebcc3721bac68d787bbc33b5bf7766685da7d36afc772186dd24878",
+      "full_candidate_count": 57,
+      "index": 2188,
+      "parent_candidate_indices_sha256": "3d20ecea8c89e3e12042b30773d8f10615e25e1ba6158058d906b5ec3e34222b",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S002_R015_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "7353c63626f9f3206de85b2bff037d8d461d1eb5b05a3c7b5506b0ddf11ab13d",
+      "full_candidate_count": 57,
+      "index": 2259,
+      "parent_candidate_indices_sha256": "77405aeec53a3cfcba95574a574b98b0ca51b7a05b9c65ad03846402b1ef8f2e",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "2dbc37e6ea271ff1b0b0223b6e349eada824cc3bf5500098a58276e36f956706",
+      "full_candidate_count": 56,
+      "index": 2345,
+      "parent_candidate_indices_sha256": "c7d4eecb75acaa8071bf6b37a106b1ff85823b08c07cca2b413c62cb4f86563c",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S004_R010_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 9,
+      "candidate_indices_sha256": "7353c63626f9f3206de85b2bff037d8d461d1eb5b05a3c7b5506b0ddf11ab13d",
+      "full_candidate_count": 57,
+      "index": 2414,
+      "parent_candidate_indices_sha256": "873912ed05a69dcba6f927e755dc489923ee83228c66d4b58b35feb2a0e309e7",
+      "query_id": "single_channel_ir_1/Bedrooms/Bedrooms_idx_33/S007_R021_hybrid_IR.wav",
+      "room": "Bedrooms_idx_33",
+      "scene": "Bedrooms"
+    },
+    {
+      "candidate_count": 628,
+      "candidate_indices_sha256": "7b04c23ff2bed9b68de0e0d39bb23675fe51d970fb53b838bf94b66ff5d2cf31",
+      "full_candidate_count": 5295,
+      "index": 179,
+      "parent_candidate_indices_sha256": "c7c877d2a53cf279b68918bf9b2fcc98b11e7b349f661a364fd709aa39dbb343",
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R088_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 628,
+      "candidate_indices_sha256": "87bcc93cdce1bc254225da9225fe670695f5e17966b85bfc1271844de5af524f",
+      "full_candidate_count": 5296,
+      "index": 335,
+      "parent_candidate_indices_sha256": "086b6157afff306b32a456ab6312e8b738c4bbd83139ee0b53a0b69a4e6c7f14",
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S008_R063_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 628,
+      "candidate_indices_sha256": "c23cf118d40dbcf290daf68393f4fd276648e152260440545f9bae3a6404e949",
+      "full_candidate_count": 5295,
+      "index": 699,
+      "parent_candidate_indices_sha256": "248cf686e71f5ca47d15da862f81cfc1d7af3f6b392b004c8ea63e0e4528cc85",
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S002_R085_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 628,
+      "candidate_indices_sha256": "a1103891b0856fe6e44b13f8141308290a8f3e7be6fef77acd85836b5ab3450a",
+      "full_candidate_count": 5296,
+      "index": 715,
+      "parent_candidate_indices_sha256": "bcf112a9c78877e8494725fabdafdf20eb5181f452ae8a1f61e1705661afb0f1",
+      "query_id": "single_channel_ir_1/Cafe/Cafe_idx_1/S009_R040_hybrid_IR.wav",
+      "room": "Cafe_idx_1",
+      "scene": "Cafe"
+    },
+    {
+      "candidate_count": 21,
+      "candidate_indices_sha256": "0f7ef0a41ac2791cb333ad47a3518d5f3baf6bd06cf7576ec869a14ef93ba393",
+      "full_candidate_count": 139,
+      "index": 5685,
+      "parent_candidate_indices_sha256": "8ab0d7e6e8acd01ca23c44c255fa08d3ba08cb4cf283f13223ae24631284232a",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R014_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 21,
+      "candidate_indices_sha256": "a3e394a961c1748e84c111c3263cc2a8a76e583e9e84942062276dab7333f68a",
+      "full_candidate_count": 139,
+      "index": 5782,
+      "parent_candidate_indices_sha256": "e57c4a3726179b91ef75d08f93003b0c344cead04d0a671e67ac1be9bea9dd63",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S004_R008_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 22,
+      "candidate_indices_sha256": "137df3140e5df1e2b3965cdf87c767192b7b6ea4515f27f66421557f28f7964e",
+      "full_candidate_count": 141,
+      "index": 5817,
+      "parent_candidate_indices_sha256": "cfc595b510eb3ab62a0accc32442b72d422417499ddf5956b01b467beab6a5e6",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S003_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 21,
+      "candidate_indices_sha256": "9b1fe17229b058e0570b2bd9578f395dc45df88f4b48ea040e5226806bf01aaf",
+      "full_candidate_count": 139,
+      "index": 5832,
+      "parent_candidate_indices_sha256": "62385975eb7b15c1bc93969c7d541f659365a0ded06de74a238e680637455758",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_25/S010_R017_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_25",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 54,
+      "candidate_indices_sha256": "ae3810b7ec78cea8a2e162bfbebe90fd56c7425c6d34e3717fce5868dfb7b097",
+      "full_candidate_count": 279,
+      "index": 5494,
+      "parent_candidate_indices_sha256": "2dc827c5479256e75d786264d89aeefcbc6f4b5df1dad30d4c179abc2cae5310",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S009_R011_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 54,
+      "candidate_indices_sha256": "e238cbc375a402508efc42257aa7a44b991eca4d0ab610d11abc02d8116e227a",
+      "full_candidate_count": 280,
+      "index": 5513,
+      "parent_candidate_indices_sha256": "8eac5e937a42d3d8d3f646925c50cd0c521eb28dc63eef159c804b7a621ebdd9",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R023_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 54,
+      "candidate_indices_sha256": "041b6e126eb23378d8e7752df9cb10a65fb87d7096b096e5cf1bd0ea1a7e9e8a",
+      "full_candidate_count": 280,
+      "index": 5625,
+      "parent_candidate_indices_sha256": "9dac20a2d7de495f4ca7324a04e2482b99250f84a378bbad32e778130797b5f0",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S004_R002_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 54,
+      "candidate_indices_sha256": "6b46981e65fd76eacd6f74140efa50f21bda7e644ebcbcee34faf07dbdadff4c",
+      "full_candidate_count": 280,
+      "index": 5636,
+      "parent_candidate_indices_sha256": "503ca759dc9a2eb52441e8033f00de6c2b22a9fd4cb40fc5bb243df8fb69dea9",
+      "query_id": "single_channel_ir_1/LivingRoomsWithHallway/LivingRoomsWithHallway_idx_30/S008_R004_hybrid_IR.wav",
+      "room": "LivingRoomsWithHallway_idx_30",
+      "scene": "LivingRoomsWithHallway"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "4168428c1c5ccb5d800834ec46703a1bf498e337e805a00c75c3af6b02a8d09e",
+      "full_candidate_count": 230,
+      "index": 1204,
+      "parent_candidate_indices_sha256": "d74f18817c4729bae52812c4a53dc1694618dbe75f9fa6ba37f4f8ab88ab4ce8",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S001_R004_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "91bb0beed2da4fc7cef99d0c61fafab2ab32ff0f22a3a3f28cb8c22e1d3db8e4",
+      "full_candidate_count": 230,
+      "index": 1218,
+      "parent_candidate_indices_sha256": "0c7244d8e0c159179fc2e714eb693408bb390b2da6ccb3691e62c9787abbda19",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S006_R016_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "e788a476fec636a495b91dd5bf8ea51ec19443f87ad5c3a60819d9b547566b21",
+      "full_candidate_count": 232,
+      "index": 1287,
+      "parent_candidate_indices_sha256": "503f5963e73daba584e2c942fcc298809cadd254486fe18bc836984967273ed2",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S003_R010_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 28,
+      "candidate_indices_sha256": "a12a669ff15bbcd1940a1b99794f38f5b7ff069ca1010c2694651b99058d5942",
+      "full_candidate_count": 230,
+      "index": 1368,
+      "parent_candidate_indices_sha256": "d523a2c29a2601ac9f53ffb1a2a9f4093ec7a451bd1c878dad13714312cbd315",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_20/S004_R025_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_20",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 16,
+      "candidate_indices_sha256": "ba839a5453d6adba01dd9297a070b7d6ddbe1c7d3bc33730780958e58a6b2fc1",
+      "full_candidate_count": 105,
+      "index": 978,
+      "parent_candidate_indices_sha256": "de50c1ea70ca29bf69f31af503ae5a86a78c74bb02ce36bc41214a6d8f41a0aa",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S010_R023_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 16,
+      "candidate_indices_sha256": "f0973465bb7b4b62d65a2949465d614c84a59a7347803130ed35e688998f4beb",
+      "full_candidate_count": 104,
+      "index": 1061,
+      "parent_candidate_indices_sha256": "49a9c41ce51ff306965bea9a0823c1eac0d83f941484d9cff9df4743d4d93d6e",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S002_R018_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 16,
+      "candidate_indices_sha256": "eb9cc402f5cc928eb1622d90a92250e316d6a4f4d15c4cd44b50af1c0b44a893",
+      "full_candidate_count": 106,
+      "index": 1088,
+      "parent_candidate_indices_sha256": "9241c74512c88c0f740e9dfb4d7cc890d8eac7020786b99e4a3c2e3375cd2593",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S004_R003_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 16,
+      "candidate_indices_sha256": "0e1d008332a739f900eeaaef3a585c16495461dfe12fec7f7c419c1ba95292c2",
+      "full_candidate_count": 105,
+      "index": 1157,
+      "parent_candidate_indices_sha256": "f6cd60a37338bbdcdf945e1ede4ea17eb43c509d8821fe16dd0a8775eda43a19",
+      "query_id": "single_channel_ir_1/MeetingRoom/MeetingRoom_idx_32/S003_R015_hybrid_IR.wav",
+      "room": "MeetingRoom_idx_32",
+      "scene": "MeetingRoom"
+    },
+    {
+      "candidate_count": 49,
+      "candidate_indices_sha256": "06e4c4a754475fb9f0f2a57a99c592c2addcdd1a1dfe034366ea3f8e588e689a",
+      "full_candidate_count": 254,
+      "index": 1446,
+      "parent_candidate_indices_sha256": "d493a43ad158427f31a27a1a023f6171249b260acf0931b735e63e487bff995b",
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S001_R018_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 50,
+      "candidate_indices_sha256": "081fda06787a7172e5aaea2186d63acd7b797a465a6251e293f27e5e6e6729b4",
+      "full_candidate_count": 254,
+      "index": 1500,
+      "parent_candidate_indices_sha256": "89de59897c4fdf94cbb1ba10494f962e68ca662995356633ef01ff4fbc24995f",
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S002_R012_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 50,
+      "candidate_indices_sha256": "da5a78c65bcf1906470a12781499753a9abc22e425a8a816d7ed66d89cd4420f",
+      "full_candidate_count": 254,
+      "index": 1577,
+      "parent_candidate_indices_sha256": "62c29299a81624f10f801bcdb60e986cd67d1f7d26701c8d10c4b2bf646687cd",
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S009_R016_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 50,
+      "candidate_indices_sha256": "c478c224ce2d420df805fd33e328ab0a31b394a831ad21cc513c47a837ecb995",
+      "full_candidate_count": 254,
+      "index": 1595,
+      "parent_candidate_indices_sha256": "f445427571516df39a7b5f09c98fab7b7159f7ea49652e03445c93aa90195e82",
+      "query_id": "single_channel_ir_1/Office/Office_idx_10/S004_R010_hybrid_IR.wav",
+      "room": "Office_idx_10",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 79,
+      "candidate_indices_sha256": "ef67e5d950eac440ab6e0b43b8c0a45276c92efdc1af69c7417f42c30ef8f856",
+      "full_candidate_count": 404,
+      "index": 1768,
+      "parent_candidate_indices_sha256": "c4da35ee86b7c8009f0ec7fd4786614e7e2a623ec570e37497887e52f166e23d",
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S009_R023_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 79,
+      "candidate_indices_sha256": "b3728b19c750f2f10ac5e8a5e34774b8528c130b837e0ade1a1727f105b77224",
+      "full_candidate_count": 404,
+      "index": 1870,
+      "parent_candidate_indices_sha256": "41aa833ad12a1eb0eb01c2f4369a1b7a7ab03a6240d0c3fe29f4429e95951dc7",
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S010_R024_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 78,
+      "candidate_indices_sha256": "bb2b1945e520f4764d17e797b8717a03fbc4a8b3710fd611cc643aa02c42afec",
+      "full_candidate_count": 402,
+      "index": 1880,
+      "parent_candidate_indices_sha256": "441338c5b1ebc04a14226040197fbe92b00803b526ac01717eeec0878cbe9311",
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S006_R003_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 79,
+      "candidate_indices_sha256": "a43c2c472d02cfb469bbe4f1346ae988b2279e6fcf3f2fed1aa97863b102c166",
+      "full_candidate_count": 404,
+      "index": 1896,
+      "parent_candidate_indices_sha256": "74f5438a2a12ed6b0ba901d47767671307f1a60d2479547cb4d0b0c6f97eb6f0",
+      "query_id": "single_channel_ir_1/Office/Office_idx_11/S008_R001_hybrid_IR.wav",
+      "room": "Office_idx_11",
+      "scene": "Office"
+    },
+    {
+      "candidate_count": 42,
+      "candidate_indices_sha256": "22dc7ce22997593ad4c4f660f6e0e9370a92ccd91ba73a0970df7772aaa17b63",
+      "full_candidate_count": 293,
+      "index": 5923,
+      "parent_candidate_indices_sha256": "d07246493b703bcb88cd001731e769a6e9c95051a0d67b9f8cc3e3cad2fb5ae2",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S001_R004_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 42,
+      "candidate_indices_sha256": "8f0cbd8faec4180b0512e7e3917bf2c84f1e6aa7d6b25c34d231e6770856641d",
+      "full_candidate_count": 292,
+      "index": 5934,
+      "parent_candidate_indices_sha256": "d31f00e26e9bb309ebc2bac4819a8da2ea3fb61b7ca8fe907d25e0e31dd2cc27",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S009_R017_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 42,
+      "candidate_indices_sha256": "59f846dd034a1d709baf87fc0c2178b662303e7a1e8df52545686e5f77d22c12",
+      "full_candidate_count": 292,
+      "index": 6016,
+      "parent_candidate_indices_sha256": "b829a9c298f3357f2f27d16146d57250a615f23443ab212af388394db5a153c8",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S004_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 42,
+      "candidate_indices_sha256": "740082e3dadf1fdf8212bb2becb32747fbd7525bab237c0988aec74ce8a4476f",
+      "full_candidate_count": 292,
+      "index": 6054,
+      "parent_candidate_indices_sha256": "3a44b51f7121d2d690e6b81aeda8f111617959f09834d985c5aa4ad07cb73cad",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_22/S005_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_22",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 43,
+      "candidate_indices_sha256": "70dbd34d2702cba2c05b5ac82cd1b1801b839fbe31b305cf06813d505d560a9b",
+      "full_candidate_count": 261,
+      "index": 6204,
+      "parent_candidate_indices_sha256": "e0e371e5ea339858fabffd218a91b281ad26c25c4690dee68de37b56a954d6d8",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S001_R002_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 43,
+      "candidate_indices_sha256": "4190869f1ed71d86eadd9e10029d8c5aa38cda3d343da9b60aa084245237b980",
+      "full_candidate_count": 260,
+      "index": 6252,
+      "parent_candidate_indices_sha256": "177ae0648c2dc317bd1891856f6894004657960e941fc96a2fd1527cd03f742c",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S005_R009_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 43,
+      "candidate_indices_sha256": "3b66a5df7c170cc07650b0589c773fa1d104aa422d7bb6c6689e1529a153ff31",
+      "full_candidate_count": 261,
+      "index": 6280,
+      "parent_candidate_indices_sha256": "a7d308f17f53f2c41ee0689ce1a665a6fba9714d98d50f699d4350713fd793a8",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S010_R006_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    },
+    {
+      "candidate_count": 43,
+      "candidate_indices_sha256": "7af375d90677472ea12b7ef9602dc4818a6da285922dae713ff7ee47f0053bf3",
+      "full_candidate_count": 261,
+      "index": 6281,
+      "parent_candidate_indices_sha256": "a2d3f332ed68b4cdb1c6fbe7bd487a6f975e3e97d6dc0ee77bb5309f6b461b9d",
+      "query_id": "single_channel_ir_1/Restaurants/Restaurants_idx_24/S006_R025_hybrid_IR.wav",
+      "room": "Restaurants_idx_24",
+      "scene": "Restaurants"
+    }
+  ],
+  "schema_version": 1,
+  "sha256": "c80eb12ed30f027e9ad8f07006eed55ccf6b3f5ee01060503d1d82503bd1c4d4",
+  "subset": "nested_1m_integer"
+}

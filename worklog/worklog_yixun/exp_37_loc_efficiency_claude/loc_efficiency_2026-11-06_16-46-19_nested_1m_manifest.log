@@ -1,0 +1,8 @@
+HEAD 68f872bdca9af443b7c7d0b7fa0b75efbd4bebe2
+{
+  "output": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/manifests/nested_1m_pilot_seed42_4_per_room.json",
+  "sha256": "c80eb12ed30f027e9ad8f07006eed55ccf6b3f5ee01060503d1d82503bd1c4d4",
+  "queries": 64,
+  "candidate_query_pairs": 6610
+}
+EXIT 0
