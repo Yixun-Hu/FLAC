@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from exp37_fakes import example_identity
+from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.exp37_grid import nested_subset
 from src.localization.pilot import canonical_sha256
@@ -33,6 +35,9 @@ def _hashed(path, body):
 class World:
     def __init__(self, root: Path):
         self.root = root
+        self.audits = {name: _hashed(root / f"{name}.json", {"mesh_root": f"/m/{name}", "grid": name,
+                                                              "rooms": {"R": {"mesh_sha256": "b" * 64}}})
+                       for name in ("audit_0p50", "audit_0p75")}
         self.pilot = self._pilot("pilot_0p50.json", len(HALF))
         self.pilot75 = self._pilot("pilot_0p75.json", len(SEVENTY_FIVE))
         index = nested_subset(HALF)
@@ -51,16 +56,15 @@ class World:
                  "candidate_count": r["candidate_count"], "peak_memory_allocated_bytes": 5,
                  "agree": {"median_seconds": {"scoring_total_seconds": seconds}}} for r in selection["records"]]
         _hashed(self.root / name, {"record_type": "exp37_agree_selector_latency", "repeat_count": 3,
-                                   "candidate_batch_size": 64, "host": HOST, "queries": rows})
+                                   "candidate_batch_size": 64, "host": HOST, "queries": rows,
+                                   "selection_sha256": selection["sha256"], "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
+                                   "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256})
         return str(self.root / name)
 
     def run(self, name, arm, pilot, cands, *, seed=42, core=1.0, extra=None, per_query=None, timing=True, angles=None):
-        cond = lat.ARM_PROTOCOL[arm]["cond"]
-        identity = {"conditioning_method": cond, "checkpoint_sha256": lat.ARM_PROTOCOL[arm]["ckpt"], "n_context": 8,
-                    "pilot_manifest_sha256": pilot["sha256"], "query_indices": [1, 2], "sample_seed": seed,
-                    "frame_average_angles": (angles or C4) if cond == "fa_invariant" else None, "tau": 0.1,
-                    "score_sample_counts": [1], "candidate_batch_size": 64, "attention_backend": "sdpa",
-                    **(lat.TIMING_IDENTITY if timing else {}), **(extra or {})}
+        audit = self.audits["audit_0p75" if pilot is self.pilot75 else "audit_0p50"]
+        expected = ident.registered_identity(arm, selection=pilot, audit=audit, seed=seed, timing=timing, frame_angles=angles)
+        identity = {**example_identity(expected, audit), **(extra or {})}
         run_dir = self.root / name
         manifest = initialize_run(run_dir, identity)
         truth = np.array([1.0, 1.0, 1.0])
@@ -106,6 +110,7 @@ def spec(tmp_path):
     lat_runs = [{"orbit": o, "dir": w.run(f"lat_{o}", "BF", w.pilot, HALF, core=3.0, angles=a)}
                 for o, a in (("0", [0.0]), ("0_180", [0.0, 180.0]))]
     body = {"pilot_0p50": str(tmp_path / "pilot_0p50.json"), "pilot_0p75": str(tmp_path / "pilot_0p75.json"),
+            "audit_0p50": str(tmp_path / "audit_0p50.json"), "audit_0p75": str(tmp_path / "audit_0p75.json"),
             "nested_manifest": str(tmp_path / "nested.json"), "selector_0p50": w.selector("s050.json", w.pilot, 0.5),
             "selector_0p75": w.selector("s075.json", w.pilot75, 0.2), "selector_nested": w.selector("s100.json", w.nested, 0.1),
             "b2_runs": b2, "b2_timing": timing, "b3_runs": b3,

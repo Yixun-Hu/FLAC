@@ -26,6 +26,7 @@ REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (paren
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.localization import exp37_aggregate as agg  # noqa: E402
+from src.localization import exp37_identity as ident  # noqa: E402
 from src.localization import exp37_grid as grid  # noqa: E402
 from src.localization import exp37_latency as lat  # noqa: E402
 from src.localization.pilot import canonical_sha256, load_pilot_manifest  # noqa: E402
@@ -63,6 +64,7 @@ def _stats(by_seed: dict) -> dict:
 
 def build_b2(spec: dict) -> dict:
     pilot, pilot75 = load_pilot_manifest(spec["pilot_0p50"]), load_pilot_manifest(spec["pilot_0p75"])
+    audits = {"0.50": _hashed(spec["audit_0p50"]), "0.75": _hashed(spec["audit_0p75"])}
     nested = _hashed(spec["nested_manifest"])
     indices = [int(r["index"]) for r in pilot["records"]]
     if [int(r["index"]) for r in pilot75["records"]] != indices or nested["parent_pilot_sha256"] != pilot["sha256"]:
@@ -74,7 +76,8 @@ def build_b2(spec: dict) -> dict:
     for item in spec["b2_runs"]:
         arm, g, seed, run_dir = item["arm"], item["grid"], int(item["seed"]), item["dir"]
         selection = {"0.50": pilot, "0.75": pilot75}[g]
-        core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=selection, context_count=8).items()}
+        core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=selection, audit=audits[g],
+                                                          seed=seed).items()}
         if _seed_of(run_dir) != seed or seed in summaries[(arm, g)]:
             raise RuntimeError(f"{run_dir}: not the seed-{seed} {arm} {g} run, or a duplicate")
         rows = grid.readout_run(run_dir, pilot) if g == "0.50" else {"0.75": grid.readout_run(
@@ -86,12 +89,12 @@ def build_b2(spec: dict) -> dict:
     for item in spec.get("b2_timing", []):
         arm, kind, run_dir = item["arm"], item["kind"], item["dir"]
         if kind == "nested_1m":
-            core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=pilot, context_count=8,
+            core = {i: r["core"] for i, r in lat.load_arm_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"],
                                                               subset_manifest=nested).items()}
             key, value, ok = (arm, "1.00_nested"), agg.mean_latency(core, terms["1.00_nested"][0], indices), \
                 terms["1.00_nested"][1]["timing_valid"]
         elif kind == "c2f":
-            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, top_k=5)
+            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5)
             key, value, ok = (arm, "c2f_k5"), sum(rows[i]["c2f_total"] for i in indices) / len(indices), True
         else:
             raise ValueError(f"unknown timing pass kind {kind!r}")
@@ -119,21 +122,18 @@ def build_b2(spec: dict) -> dict:
     return {"query_count": len(indices), "points": points, "frontier": frontier, "sensitivity": sensitivity}
 
 
-def _b3_reasons(identity: dict, orbit: str, theta: float, seed: int, pilot: dict) -> list[str]:
-    want = {"conditioning_method": "fa_invariant", "checkpoint_sha256": lat.ARM_PROTOCOL["BF"]["ckpt"],
-            "frame_average_angles": ORBITS[orbit], "pilot_manifest_sha256": pilot["sha256"], "n_context": 8,
-            "query_indices": [int(r["index"]) for r in pilot["records"]], "sample_seed": seed, "tau": 0.1,
-            "score_sample_counts": [1], "candidate_batch_size": 64, "attention_backend": "sdpa"}
-    bad = [key for key, value in want.items() if identity.get(key) != value]
-    return bad + (["rotate_deg"] if float(identity.get("rotate_deg", 0.0)) != float(theta) else [])
+def _b3_reasons(identity: dict, orbit: str, theta: float, seed: int, pilot: dict, audit: dict) -> list[str]:
+    want = ident.registered_identity("BF", selection=pilot, audit=audit, seed=seed, timing=not theta,
+                                     frame_angles=ORBITS[orbit], rotate_deg=theta)
+    return ident.identity_reasons(identity, want, audit)
 
 
 def build_b3(spec: dict) -> dict:
-    pilot = load_pilot_manifest(spec["pilot_0p50"])
+    pilot, audit = load_pilot_manifest(spec["pilot_0p50"]), _hashed(spec["audit_0p50"])
     by_cell = {}
     for item in spec.get("b3_runs", []):
         orbit, theta, seed, run_dir = item["orbit"], float(item["theta"]), int(item["seed"]), item["dir"]
-        bad = _b3_reasons(_hashed(Path(run_dir) / "run_manifest.json")["identity"], orbit, theta, seed, pilot)
+        bad = _b3_reasons(_hashed(Path(run_dir) / "run_manifest.json")["identity"], orbit, theta, seed, pilot, audit)
         cell = by_cell.setdefault((orbit, theta), {})
         if bad or seed in cell:
             raise RuntimeError(f"{run_dir}: identity fields {bad} differ from B-F orbit {orbit} theta {theta} seed {seed}"
@@ -147,7 +147,7 @@ def build_b3(spec: dict) -> dict:
         terms, selector_host = _selector(spec["b3_latency"]["selector"], selection)
         counts = {int(r["index"]): int(r["candidate_count"]) for r in selection["records"]}
         for item in spec["b3_latency"]["runs"]:
-            rows = lat.load_arm_run(item["dir"], arm="BF", selection=selection, context_count=8,
+            rows = lat.load_arm_run(item["dir"], arm="BF", selection=selection, audit=audit,
                                     frame_angles=ORBITS[item["orbit"]])
             stats = lat.latency_statistics({i: r["core"] for i, r in rows.items()}, terms, counts)
             latency.append({"orbit": item["orbit"], "angles": ORBITS[item["orbit"]], "overall": stats["overall"],

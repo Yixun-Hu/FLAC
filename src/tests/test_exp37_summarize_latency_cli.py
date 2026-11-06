@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from exp37_fakes import example_identity
+from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
 from src.localization.runner import initialize_run, save_query_result
@@ -18,6 +20,8 @@ from tools import exp37_summarize_latency as summ
 
 REPO = Path(__file__).resolve().parents[2]
 COUNTS = {1: 10, 2: 30}
+_AUDIT_BODY = {"mesh_root": "/m", "rooms": {"R": {"mesh_sha256": "b" * 64}}}
+AUDIT = {**_AUDIT_BODY, "sha256": canonical_sha256(_AUDIT_BODY)}
 
 
 def _write_hashed(path, body):
@@ -37,13 +41,16 @@ def world(tmp_path):
     host = {"pid": 43, "cuda_device": {"uuid": "6ac2604a-1111"}, "top_cpu_processes": {"lines": []},
             "gpu_compute_apps": {"lines": ["GPU-6ac2604a-1111, 43, python, 1 MiB"]}}
     selector = _write_hashed(tmp_path / "selector.json", {"record_type": "exp37_agree_selector_latency", "host": host,
-                                                           "repeat_count": 3, "candidate_batch_size": 64, "queries": rows})
+                                                           "repeat_count": 3, "candidate_batch_size": 64, "queries": rows,
+                                                           "selection_sha256": selection["sha256"],
+                                                           "agree_checkpoint_file_sha256": ident.AGREE_SHA256,
+                                                           "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256})
+    _write_hashed(tmp_path / "audit.json", _AUDIT_BODY)
 
     def run(name, arm, k=8, scale=1.0, split=False, cotenant=False):
-        identity = {"conditioning_method": lat.ARM_PROTOCOL[arm]["cond"], "checkpoint_sha256": lat.ARM_PROTOCOL[arm]["ckpt"],
-                    "n_context": k, "pilot_manifest_sha256": selection["sha256"], "query_indices": list(COUNTS),
-                    "frame_average_angles": lat.C4 if arm == "BF" else None,
-                    **lat.TIMING_IDENTITY, **({"stage_split": True} if split else {})}
+        expected = ident.registered_identity(arm, selection=selection, audit=AUDIT, seed=42, timing=True,
+                                             context_count=k, stage_split=split)
+        identity = example_identity(expected, AUDIT)
         run_dir = tmp_path / name
         manifest = initialize_run(run_dir, identity)
         for i, n in COUNTS.items():
@@ -77,7 +84,7 @@ def world(tmp_path):
 
 def test_rows_carry_the_bundle_statistics_memory_and_validity(world):
     selection, _sel_path, selector, run = world
-    out = summ.build_summary(selection, selector, runs=[("P1", 8, run("p1", "P1")), ("BF", 1, run("bf1", "BF", k=1))])
+    out = summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, run("p1", "P1")), ("BF", 1, run("bf1", "BF", k=1))])
     p1 = out["rows"][0]
     assert (p1["arm"], p1["context_count"], p1["timing_valid"]) == ("P1", 8, True)
     assert p1["overall"]["summed_seconds"] == pytest.approx(0.2 + 0.4 + 1.0)
@@ -93,9 +100,9 @@ def test_rows_carry_the_bundle_statistics_memory_and_validity(world):
 def test_the_split_is_published_within_two_percent_and_withheld_beyond(world):
     selection, _sel_path, selector, run = world
     head = run("head", "YAW")
-    near = summ.build_summary(selection, selector, runs=[("YAW", 8, head)], splits=[("YAW", 8, run("s1", "YAW", scale=1.01, split=True))])
+    near = summ.build_summary(selection, selector, audit=AUDIT, runs=[("YAW", 8, head)], splits=[("YAW", 8, run("s1", "YAW", scale=1.01, split=True))])
     assert near["rows"][0]["stage_split"]["published"] is True and "breakdown" in near["rows"][0]["stage_split"]
-    far = summ.build_summary(selection, selector, runs=[("YAW", 8, head)], splits=[("YAW", 8, run("s2", "YAW", scale=1.05, split=True))])
+    far = summ.build_summary(selection, selector, audit=AUDIT, runs=[("YAW", 8, head)], splits=[("YAW", 8, run("s2", "YAW", scale=1.05, split=True))])
     withheld = far["rows"][0]["stage_split"]
     assert withheld["published"] is False and "breakdown" not in withheld
     assert withheld["comparison"]["aggregate_relative_difference"] == pytest.approx(0.05)
@@ -106,16 +113,17 @@ def test_bad_combinations_are_refused(world):
     selection, _sel_path, selector, run = world
     p1 = run("p1", "P1")
     with pytest.raises(ValueError, match="duplicate"):
-        summ.build_summary(selection, selector, runs=[("P1", 8, p1), ("P1", 8, p1)])
+        summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, p1), ("P1", 8, p1)])
     with pytest.raises(ValueError, match="no headline"):
-        summ.build_summary(selection, selector, runs=[("P1", 8, p1)], splits=[("BF", 8, p1)])
+        summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, p1)], splits=[("BF", 8, p1)])
 
 
 def test_the_cli_writes_json_and_markdown_and_exits_3_on_a_co_tenant(world, tmp_path):
     _selection, sel_path, selector, run = world
     out_json, out_md = tmp_path / "s.json", tmp_path / "s.md"
     argv = [sys.executable, str(REPO / "tools/exp37_summarize_latency.py"), "--selection", str(sel_path),
-            "--selector", str(selector), "--run", "P1", "8", str(run("p1", "P1")), "--output-json", str(out_json),
+            "--selector", str(selector), "--geometry-audit", str(tmp_path / "audit.json"),
+            "--run", "P1", "8", str(run("p1", "P1")), "--output-json", str(out_json),
             "--output-md", str(out_md)]
     env = {"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin"}
     done = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=300)
@@ -130,8 +138,8 @@ def test_the_cli_writes_json_and_markdown_and_exits_3_on_a_co_tenant(world, tmp_
 def test_the_summary_records_the_selector_validity(world, tmp_path):
     selection, _sel_path, selector, run = world
     p1 = run("p1", "P1")
-    assert summ.build_summary(selection, selector, runs=[("P1", 8, p1)])["selector_timing_valid"] is True
+    assert summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, p1)])["selector_timing_valid"] is True
     body = {k: v for k, v in json.loads(selector.read_text()).items() if k not in ("sha256", "host")}
     bare = _write_hashed(tmp_path / "bare_selector.json", body)
-    out = summ.build_summary(selection, bare, runs=[("P1", 8, p1)])
+    out = summ.build_summary(selection, bare, audit=AUDIT, runs=[("P1", 8, p1)])
     assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no snapshot

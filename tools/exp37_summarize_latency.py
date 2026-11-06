@@ -42,7 +42,14 @@ def weights_footprint(run_dir: Path) -> dict | None:
     return {**(json.loads(loaded[0].read_text()).get("extra") or {}), "loaded_record_count": len(loaded)}
 
 
-def build_summary(selection: dict, selector_path: Path, runs: list, splits: list = ()) -> dict:
+def load_audit(path: Path) -> dict:
+    audit = json.loads(Path(path).read_text())
+    if audit.get("sha256") != canonical_sha256({k: v for k, v in audit.items() if k != "sha256"}):
+        raise RuntimeError(f"stale or corrupt sha256 in {path}")
+    return audit
+
+
+def build_summary(selection: dict, selector_path: Path, runs: list, splits: list = (), *, audit: dict) -> dict:
     keys = [(arm, int(k)) for arm, k, _d in runs]
     if len(set(keys)) != len(keys):
         raise ValueError("duplicate arm / K_ctx headline run")
@@ -56,7 +63,7 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
     counts = {int(r["index"]): int(r["candidate_count"]) for r in selection["records"]}
     rows = []
     for arm, k, run_dir in runs:
-        head = lat.load_arm_run(run_dir, arm=arm, selection=selection, context_count=int(k))
+        head = lat.load_arm_run(run_dir, arm=arm, selection=selection, audit=audit, seed=42, context_count=int(k))
         stats = lat.latency_statistics({i: r["core"] for i, r in head.items()}, terms, counts)
         host = lat.host_cotenancy(run_dir)
         peaks = [r["peak_memory_bytes"] for r in head.values()]
@@ -71,7 +78,8 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
                           "weights_footprint": weights_footprint(run_dir)}}
         if (arm, int(k)) in split_dirs:
             split_dir = split_dirs[(arm, int(k))]
-            split = lat.load_arm_run(split_dir, arm=arm, selection=selection, context_count=int(k), stage_split=True)
+            split = lat.load_arm_run(split_dir, arm=arm, selection=selection, audit=audit, seed=42,
+                                     context_count=int(k), stage_split=True)
             comparison = lat.split_comparison(head, split)
             split_host = lat.host_cotenancy(split_dir)
             entry = {"run_dir": str(split_dir), "run_manifest_sha256": _manifest_sha(split_dir), "host": split_host,
@@ -85,7 +93,7 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
     selector_host = lat.selector_cotenancy(selector_payload)
     body = {"schema_version": 1, "record_type": "exp37_latency_summary", "selection_sha256": selection["sha256"],
             "selector_file": str(selector_path), "selector_sha256": selector_payload.get("sha256"),
-            "selector_host": selector_host, "selector_timing_valid": selector_host["timing_valid"],
+            "geometry_audit_sha256": audit["sha256"], "selector_host": selector_host, "selector_timing_valid": selector_host["timing_valid"],
             "query_count": len(counts), "candidate_evaluations": sum(counts.values()),
             "formulas": "L_q = core_forward_total_q + selector median scoring_total_q; s/query over queries; "
                         "ms/candidate = 1000 sum L / sum |C| and query median / P90 of 1000 L_q / |C_q| (bundle)",
@@ -130,6 +138,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--selection", type=Path, required=True)
     parser.add_argument("--selector", type=Path, required=True)
+    parser.add_argument("--geometry-audit", type=Path, required=True)
     parser.add_argument("--run", nargs=3, action="append", required=True, metavar=("ARM", "K_CTX", "DIR"))
     parser.add_argument("--split", nargs=3, action="append", default=[], metavar=("ARM", "K_CTX", "DIR"))
     parser.add_argument("--output-json", type=Path, required=True)
@@ -142,7 +151,7 @@ def main() -> int:
         if arm not in LABELS:
             raise ValueError(f"unknown arm {arm}")
     summary = build_summary(selection, args.selector, [(a, int(k), Path(d)) for a, k, d in args.run],
-                            [(a, int(k), Path(d)) for a, k, d in args.split])
+                            [(a, int(k), Path(d)) for a, k, d in args.split], audit=load_audit(args.geometry_audit))
     for path, text in ((args.output_json, json.dumps(summary, indent=2, sort_keys=True) + "\n"),
                        (args.output_md, render_markdown(summary))):
         path.parent.mkdir(parents=True, exist_ok=True)
