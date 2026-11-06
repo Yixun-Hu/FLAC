@@ -17,6 +17,7 @@ Part 4b: the dry-run transaction (from 'reserved' only; the runner is never give
 Part 5a: the detached wrapper -- the kit lock, both complete identities and environment proofs, the exact rc.
 Part 5b: the launch (the matching fresh dry run, the recheck, launch_pending, the last look, the detachment).
 Part 6a: the authenticated release and the read-only status.
+Part 6b: the CLI dispatch (exp35_phase_ii.sh beside this file is the Planner's entry point).
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -1483,15 +1484,42 @@ def status(world, cfg, *, orch=None, kit_commit=None):
     return 0, "\n".join(out + (_status_of(cfg, target, m, rows) if target else []))
 
 def main(argv=None):
+    """The helper's CLI (exp35_phase_ii.sh calls it under env -i; ``wrap`` is started by ``launch`` only): 0 done,
+    1 refused or failed, 2 bad arguments, 3 a refused wrapper."""
     ap = argparse.ArgumentParser(description="exp_35 phase (ii): the launch kit's helper (run by exp35_phase_ii.sh)")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    for name in ("reserve", "dry-run", "launch", "release"):
+        p = sub.add_parser(name)
+        p.add_argument("--kit-commit", required=True)
+        p.add_argument("--h35", required=True)
+        for opt in (("--lanes", "--report", "--report-sha256") if name == "reserve" else ("--orch",)):
+            p.add_argument(opt, required=True)
+    s = sub.add_parser("status")
+    s.add_argument("--kit-commit", default="")
+    s.add_argument("--orch", default=None)
     w = sub.add_parser("wrap", help="the detached wrapper (started by launch only)")
     w.add_argument("--orch", required=True)
     w.add_argument("--lock-fd", type=int, required=True)
     args = ap.parse_args(argv)
     cfg = registered_config()
-    return wrap(cfg, orch=os.path.abspath(args.orch), lock_fd=args.lock_fd)
-
+    world, orch = World(cfg.nvidia_smi), os.path.abspath(args.orch) if getattr(args, "orch", None) else None
+    if args.cmd == "wrap":
+        return wrap(cfg, orch=orch, lock_fd=args.lock_fd)
+    if args.cmd == "status":
+        rc, msg = status(world, cfg, orch=orch, kit_commit=args.kit_commit or None)
+    elif args.cmd == "reserve":
+        try:
+            lanes = parse_lanes(args.lanes)
+        except ValueError as err:
+            print(f"RESERVE REFUSED (bad arguments): {err}", flush=True)
+            return 2
+        rc, msg = reserve(world, cfg, kit_commit=args.kit_commit, h35=args.h35, lanes=lanes, report=args.report,
+                          report_sha256=args.report_sha256)
+    else:
+        rc, msg = {"dry-run": dry_run, "launch": launch, "release": release}[args.cmd](
+            world, cfg, kit_commit=args.kit_commit, h35=args.h35, orch=orch)
+    print(msg, flush=True)
+    return rc
 
 if __name__ == "__main__":
     sys.exit(main())

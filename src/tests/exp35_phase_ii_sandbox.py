@@ -263,6 +263,30 @@ def replace_block(text, values):
     return text[:i] + first + "\n" + "".join(f"{k} = {v!r}\n" for k, v in values.items()) + text[j:]
 
 
+def replace_sh_block(text, values):
+    """The shell script ``text`` with ONLY its registered-config block replaced (exactly the block's names)."""
+    i = text.index(BEGIN)
+    j = text.index(END, i)
+    first, body = text[i:text.index("\n", i)], text[text.index("\n", i) + 1:j]
+    names = sorted(ln.split("=", 1)[0] for ln in body.splitlines() if ln and not ln.startswith("#"))
+    assert sorted(values) == names, (sorted(values), names)
+    return text[:i] + first + "\n" + "".join(f"{k}={v}\n" for k, v in values.items()) + text[j:]
+
+
+def fake_nvidia_smi(root, gpu_map=MAP, apps=""):
+    """<root>/bin/nvidia-smi answering the two queries from <root>/bin/{map,apps}.txt (the tests edit them)."""
+    d = os.path.join(str(root), "bin")
+    os.makedirs(d, exist_ok=True)
+    for name, text in (("map.txt", gpu_map), ("apps.txt", apps)):
+        with open(os.path.join(d, name), "w") as f:
+            f.write(text)
+    with open(os.path.join(d, "nvidia-smi"), "w") as f:
+        f.write(f"#!/bin/sh\ncase \"$1\" in --query-gpu=index,uuid) cat '{d}/map.txt';; "
+                f"--query-compute-apps=pid,gpu_uuid) cat '{d}/apps.txt';; *) exit 9;; esac\n")
+    os.chmod(os.path.join(d, "nvidia-smi"), 0o755)
+    return os.path.join(d, "nvidia-smi")
+
+
 def sandbox_block(cfg):
     """The helper's registered-config values naming the sandbox ``cfg`` (the copy a detached wrapper runs)."""
     exp30 = os.path.dirname(next(iter(cfg.exp30_pins)))
@@ -285,7 +309,11 @@ def make_box(tmp_path, lanes="0", decision="none", runner=None, prior="none", **
                   helper=os.path.join(kit_dir, "exp35_phase_ii.py"), **cfg_over)
     with open(KIT_PY) as f:
         helper = replace_block(f.read(), sandbox_block(cfg))
-    kit_dir, commit = make_kit(tmp_path, report, files={"exp35_phase_ii.py": helper})
+    files = {"exp35_phase_ii.py": helper}
+    if os.path.exists(KIT_SH):
+        with open(KIT_SH) as f:
+            files["exp35_phase_ii.sh"] = replace_sh_block(f.read(), {"PY": cfg.py})
+    kit_dir, commit = make_kit(tmp_path, report, files=files)
     for rel in (f"{X25}/.depth_canon_eval.lock",):
         open(os.path.join(run, rel), "w").close()
     rsha = hashlib.sha256(report.encode()).hexdigest()

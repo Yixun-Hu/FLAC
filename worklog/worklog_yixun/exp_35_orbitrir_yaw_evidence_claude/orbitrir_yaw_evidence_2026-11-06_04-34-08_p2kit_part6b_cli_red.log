@@ -1,0 +1,6 @@
+p2kit part 6b (the CLI exp35_phase_ii.sh, the helper's full dispatch, the never-list) RED at 8439987c93c285f314b102faf8b41a6add080dbb -- 2026-11-06T04:34:08-05:00 -- the .sh does not exist yet and the helper dispatches 'wrap' only (the final test file)
+      1 !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+      1 ERROR src/tests/test_exp35_phase_ii_cli.py
+      1 E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-35-phase-ii-kit/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.sh'
+      1 1 error in 0.19s
+pytest rc 2
