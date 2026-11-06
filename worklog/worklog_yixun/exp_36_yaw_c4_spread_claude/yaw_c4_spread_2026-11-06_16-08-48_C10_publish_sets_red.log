@@ -1,0 +1,755 @@
+RED, cycle 10 (amendment A1 §5: --exp36-set A | OFF, two separate publications; the YAW replay's verdict only; the replay plan resolved against --base-dir) at HEAD 461c58e0a70747d163e554ebb123a5869d3a38c2 + the uncommitted tests
+FFFFFFFFFFFFFFFFFFFFFFFFF                                                [100%]
+=================================== FAILURES ===================================
+_________________ test_the_48_files_are_published_and_recorded _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+
+    def test_the_48_files_are_published_and_recorded(pub):
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_the_48_files_are_publishe0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_the_48_files_are_publishe0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_______________ test_any_present_destination_refuses_everything ________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_any_present_destination_r0/exp36/plan.json', ...}
+
+    def test_any_present_destination_refuses_everything(pub):
+        taken = os.path.join(pub["dest"], os.path.basename(_rel(_row(CELLS24[7]), "stream")))
+        open(taken, "w").close()
+        before = _listing(pub["dest"])
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_any_present_destination_r0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_any_present_destination_r0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g0] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before0/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2290>, needle = 'not at the pin'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g1] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before1/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2320>, needle = 'exp-25 worktree'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before1/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g2] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before2/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf23b0>, needle = 'destination'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before2/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g3] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before3/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2440>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before3/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g4] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before4/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf24d0>, needle = 'not an equal verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before4/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g5] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before5/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2560>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before5/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g6] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before6/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf25f0>, needle = 're-run'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before6/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g7] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before7/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2680>, needle = 'verdict'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before7/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g8] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before8/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2710>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th270'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before8/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_every_gate_refuses_before_any_write[g9] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before9/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf27a0>
+needle = 'exp25_YAW_C4_S40000_K1_s44_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before9/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+________________ test_every_gate_refuses_before_any_write[g10] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before10/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2830>
+needle = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before10/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+________________ test_every_gate_refuses_before_any_write[g11] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before11/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf28c0>
+needle = 'exp25_YAW_C4_S40000_K1_s46_th90'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before11/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before11/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+________________ test_every_gate_refuses_before_any_write[g12] _________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before12/exp36/plan.json', ...}
+edit = <function <lambda> at 0x76903cdf2950>, needle = 'publication manifest'
+
+    @pytest.mark.parametrize("edit, needle", GATES, ids=[f"g{i}" for i in range(len(GATES))])
+    def test_every_gate_refuses_before_any_write(pub, edit, needle):
+        edit(pub)
+        before = _listing(pub["dest"]) if os.path.isdir(pub["dest"]) else None
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before12/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_every_gate_refuses_before12/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+___________________ test_a_symlinked_destination_is_refused ____________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0')
+
+    def test_a_symlinked_destination_is_refused(pub, tmp_path):
+        link = tmp_path / "YAWlink"
+        os.symlink(pub["dest"], link)
+>       assert publish(pub, dest=str(link))[0] == "refused"
+
+src/tests/test_exp36_publish.py:128: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0/exp36/plan.json', ...}
+kw = {'dest': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_symlinked_destination_i0/YAWlink'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+___________ test_a_stop_part_way_is_partial_and_resume_completes_it ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76903cdb1750>
+
+    def test_a_stop_part_way_is_partial_and_resume_completes_it(pub, monkeypatch):
+        real, calls = os.link, []
+    
+        def flaky(src, dst):
+            calls.append(dst)
+            if len(calls) == 6:
+                raise OSError("simulated crash at the sixth link")
+            return real(src, dst)
+    
+        monkeypatch.setattr(C.os, "link", flaky)
+>       status, doc = publish(pub)
+
+src/tests/test_exp36_publish.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_stop_part_way_is_partia0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_stop_part_way_is_partia0/exp36/plan.json', ...}
+kw = {}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+____________ test_resume_refuses_a_foreign_destination_or_temp_file ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+
+    def test_resume_refuses_a_foreign_destination_or_temp_file(pub):
+        name = os.path.basename(_rel(_row(CELLS24[2]), "metrics"))
+        with open(os.path.join(pub["dest"], name), "w") as f:
+            f.write("{}")
+>       status, doc = publish(pub, resume=True)
+
+src/tests/test_exp36_publish.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_resume_refuses_a_foreign_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_resume_refuses_a_foreign_0/exp36/plan.json', ...}
+kw = {'resume': True}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________________ test_cli_publish_needs_a_set _________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/exp25'), 'new': PosixPath('/tmp/py...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76903cff2aa0>
+capsys = <_pytest.capture.CaptureFixture object at 0x76903cff2fb0>
+
+    def test_cli_publish_needs_a_set(pub, tmp_path, monkeypatch, capsys):
+        """amendment A1 §5: two separate invocations, --exp36-set A (the 24) and --exp36-set OFF (the 6 YAW s42 off-orbit
+        cells); without a set nothing is published."""
+>       assert _cli(pub, tmp_path, monkeypatch) == 2 and "--exp36-set" in capsys.readouterr().out
+E       AssertionError: assert (0 == 2)
+E        +  where 0 = _cli({'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/exp25'), 'new': PosixPath('/tmp/py...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/exp36/plan.json', ...}, PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0'), <_pytest.monkeypatch.MonkeyPatch object at 0x76903cff2aa0>)
+
+src/tests/test_exp36_publish.py:191: AssertionError
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) into /tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_needs_a_set0/publication.json
+_________________________ test_cli_publish_exit_codes __________________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_exit_codes0/exp25'), 'new': PosixPath('/tmp/pyt...230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_exit_codes0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_publish_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76903cfd9570>
+capsys = <_pytest.capture.CaptureFixture object at 0x76903cfda950>
+
+    def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
+        A = ("--exp36-set", "A")
+>       assert _cli(pub, tmp_path, monkeypatch, *A, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
+
+src/tests/test_exp36_publish.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp36_publish.py:183: in _cli
+    return C.main(["--exp36-publish", "--pin", H36, "--exp36-verdict", p["verdict"], "--cells", str(cells),
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2705: in main
+    args = ap.parse_args(argv)
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='exp_25 depth_canon -- the cell verifier and results collec...(plan_depth_canon.md v9 §1', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --exp36-set A\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-publish]
+                   [--exp36-verdict EXP36_VERDICT]
+                   [--publish-manifest-out PUBLISH_MANIFEST_OUT]
+                   [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --exp36-set A
+________________ test_cli_a_crashed_publication_exits_3_never_0 ________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_a_crashed_publication0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_cli_a_crashed_publication0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_cli_a_crashed_publication0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76903ccc7dc0>
+capsys = <_pytest.capture.CaptureFixture object at 0x76903ccc7c70>
+
+    def test_cli_a_crashed_publication_exits_3_never_0(pub, tmp_path, monkeypatch, capsys):
+        def boom(**kw):
+            raise RuntimeError("simulated crash")
+        monkeypatch.setattr(C, "exp36_publish", boom)
+>       assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A") == 3 and "CRASHED" in capsys.readouterr().out
+
+src/tests/test_exp36_publish.py:208: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp36_publish.py:183: in _cli
+    return C.main(["--exp36-publish", "--pin", H36, "--exp36-verdict", p["verdict"], "--cells", str(cells),
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:2705: in main
+    args = ap.parse_args(argv)
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:1836: in parse_args
+    self.error(msg % ' '.join(argv))
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2594: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='__main__.py', usage=None, description='exp_25 depth_canon -- the cell verifier and results collec...(plan_depth_canon.md v9 §1', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = '__main__.py: error: unrecognized arguments: --exp36-set A\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+../../miniconda3/envs/flac/lib/python3.10/argparse.py:2581: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-publish]
+                   [--exp36-verdict EXP36_VERDICT]
+                   [--publish-manifest-out PUBLISH_MANIFEST_OUT]
+                   [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --exp36-set A
+_________________ test_the_off_set_publishes_its_12_files_only _________________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_the_off_set_publishes_its0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_the_off_set_publishes_its0/exp36/plan.json', ...}
+
+    def test_the_off_set_publishes_its_12_files_only(pub_off):
+        before = _listing(pub_off["dest"])
+>       status, doc = publish(pub_off, cell_set="OFF")
+
+src/tests/test_exp36_publish.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_the_off_set_publishes_its0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_the_off_set_publishes_its0/exp36/plan.json', ...}
+kw = {'cell_set': 'OFF'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+____________ test_each_set_needs_its_own_cells_and_the_yaw_verdict _____________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_each_set_needs_its_own_ce0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_each_set_needs_its_own_ce0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_each_set_needs_its_own_ce0')
+
+    def test_each_set_needs_its_own_cells_and_the_yaw_verdict(pub_off, tmp_path):
+>       status, doc = publish(pub_off, cell_set="A")                         # the 24 are not there
+
+src/tests/test_exp36_publish.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_each_set_needs_its_own_ce0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_each_set_needs_its_own_ce0/exp36/plan.json', ...}
+kw = {'cell_set': 'A'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+_________________ test_a_verdict_of_another_replay_is_refused __________________
+
+pub_off = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_verdict_of_another_repl0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_verdict_of_another_repl0/exp36/plan.json', ...}
+
+    def test_a_verdict_of_another_replay_is_refused(pub_off):
+        doc = json.load(open(pub_off["verdict"]))
+        doc["replay"]["cell"] = "exp36_P1_C4_S40000_K8_s42_th90"
+        with open(pub_off["verdict"], "w") as f:
+            json.dump(doc, f)
+>       status, doc = publish(pub_off, cell_set="OFF")
+
+src/tests/test_exp36_publish.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+p = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_verdict_of_another_repl0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_verdict_of_another_repl0/exp36/plan.json', ...}
+kw = {'cell_set': 'OFF'}
+
+    def publish(p, **kw):
+        args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+                    ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
+                    dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
+        args.update(kw)
+>       return C.exp36_publish(**args)
+E       TypeError: exp36_publish() got an unexpected keyword argument 'cell_set'
+
+src/tests/test_exp36_publish.py:47: TypeError
+___________ test_a_relative_plan_path_resolves_against_the_base_dir ____________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_relative_plan_path_reso0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6570/test_a_relative_plan_path_reso0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6570/test_a_relative_plan_path_reso0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x76903cc245e0>
+
+    def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, monkeypatch):
+        """The chain passes the runner's plan path relative to the checkout; the publish re-runs the check from another
+        cwd (--base-dir = the run worktree) -- the plan resolves against the base dir, never the cwd."""
+        rel = os.path.relpath(world["plan"], world["new"])
+        monkeypatch.chdir(tmp_path)
+        status, v = check(world, plan_json=rel)
+>       assert status == "equal" and v["plan_json"] == rel, v["reasons"]
+E       AssertionError: ['the replay run plan \'plan.json\' is not a plan of dump-free no-flash registered replays holding exp36_YAW_C4_S40000...2_th90 under one campaign digest ("unreadable (FileNotFoundError: [Errno 2] No such file or directory: \'plan.json\')']
+E       assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py:263: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+FAILED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+FAILED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+FAILED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+FAILED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+FAILED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set - Assert...
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - SystemE...
+FAILED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+FAILED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+FAILED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+FAILED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+FAILED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+25 failed, 3 warnings in 7.48s

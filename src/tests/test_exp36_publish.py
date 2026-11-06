@@ -40,7 +40,7 @@ def pub(world, tmp_path):
 
 
 def publish(p, **kw):
-    args = dict(pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
+    args = dict(cell_set="A", pin=H36, verdict_path=p["verdict"], manifest=MANIFEST, out=p["out"], base_dir=str(p["new"]),
                 ref_base_dir=str(p["ref"]), ref_dump_root=str(p["ref"] / "dumps"), dump_root=str(p["new"] / "dumps"),
                 dest=p["dest"], exp25_head=EXP25_HEAD, reference=p["pins"], git_head=lambda d: p["heads"].get(d))
     args.update(kw)
@@ -185,16 +185,79 @@ def _cli(p, tmp_path, monkeypatch, *extra):
                    "--dump-root", str(p["new"] / "dumps"), "--publish-manifest-out", p["out"], *extra])
 
 
+def test_cli_publish_needs_a_set(pub, tmp_path, monkeypatch, capsys):
+    """amendment A1 §5: two separate invocations, --exp36-set A (the 24) and --exp36-set OFF (the 6 YAW s42 off-orbit
+    cells); without a set nothing is published."""
+    assert _cli(pub, tmp_path, monkeypatch) == 2 and "--exp36-set" in capsys.readouterr().out
+    assert not os.path.exists(pub["out"])
+
+
 def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
-    assert _cli(pub, tmp_path, monkeypatch, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
+    A = ("--exp36-set", "A")
+    assert _cli(pub, tmp_path, monkeypatch, *A, "--exp25-base-dir", str(tmp_path)) == 2   # the pinned worktree only
     assert "exp-25" in capsys.readouterr().out and not os.path.exists(pub["out"])
-    assert _cli(pub, tmp_path, monkeypatch) == 0 and "EXP36 PUBLISHED 48" in capsys.readouterr().out
-    assert _cli(pub, tmp_path, monkeypatch) == 2 and "REFUSED" in capsys.readouterr().out
-    assert _cli(pub, tmp_path, monkeypatch, "--exp36-publish-resume") == 0                # all 48 byte-identical
+    assert _cli(pub, tmp_path, monkeypatch, *A) == 0 and "EXP36 PUBLISHED 48" in capsys.readouterr().out
+    assert _cli(pub, tmp_path, monkeypatch, *A) == 2 and "REFUSED" in capsys.readouterr().out
+    assert _cli(pub, tmp_path, monkeypatch, *A, "--exp36-publish-resume") == 0            # all 48 byte-identical
 
 
 def test_cli_a_crashed_publication_exits_3_never_0(pub, tmp_path, monkeypatch, capsys):
     def boom(**kw):
         raise RuntimeError("simulated crash")
     monkeypatch.setattr(C, "exp36_publish", boom)
-    assert _cli(pub, tmp_path, monkeypatch) == 3 and "CRASHED" in capsys.readouterr().out
+    assert _cli(pub, tmp_path, monkeypatch, "--exp36-set", "A") == 3 and "CRASHED" in capsys.readouterr().out
+
+
+# ---- amendment A1 §5: the OFF set -- the 6 YAW s42 off-orbit cells, its own invocation ---- #
+YAWOFF = [f"exp25_YAW_C4_S40000_K{k}_s42_th{d}" for k in (1, 8) for d in (135, 225, 315)]
+
+
+@pytest.fixture()
+def pub_off(world, tmp_path):
+    """The replay world + the 6 YAW off-orbit cells (chain I) + an equal YAW verdict on disk."""
+    for name in YAWOFF:
+        T.write_cell(world["new"], _row(name), pin=H36, dump=False)
+    status, verdict = check(world)
+    assert status == "equal", verdict["reasons"]
+    path = tmp_path / "verdict.json"
+    path.write_text(json.dumps(verdict, indent=1))
+    heads = {str(world["new"]): H36, str(world["ref"]): EXP25_HEAD}
+    return dict(world, verdict=str(path), dest=str(world["ref"] / T.FARM / "YAW"), out=str(tmp_path / "pub_off.json"),
+                heads=heads)
+
+
+def test_the_off_set_publishes_its_12_files_only(pub_off):
+    before = _listing(pub_off["dest"])
+    status, doc = publish(pub_off, cell_set="OFF")
+    assert status == "published" and doc["set"] == "OFF", doc.get("reasons")
+    added = sorted(set(_listing(pub_off["dest"])) - set(before))
+    assert added == sorted(os.path.basename(_rel(_row(n), k)) for n in YAWOFF for k in ("metrics", "stream"))
+    assert [e["cell"] for e in doc["entries"]][::2] == YAWOFF
+
+
+def test_each_set_needs_its_own_cells_and_the_yaw_verdict(pub_off, tmp_path):
+    status, doc = publish(pub_off, cell_set="A")                         # the 24 are not there
+    assert status == "refused" and any("exp25_YAW_C4_S40000_K1_s43_th90" in x for x in doc["reasons"]), doc
+    os.unlink(pub_off["new"] / _rel(_row(YAWOFF[4]), "receipt"))
+    status, doc = publish(pub_off, cell_set="OFF")
+    assert status == "refused" and any(YAWOFF[4] in x for x in doc["reasons"]), doc
+    with pytest.raises(KeyError):
+        publish(pub_off, cell_set="B")
+
+
+def test_a_verdict_of_another_replay_is_refused(pub_off):
+    doc = json.load(open(pub_off["verdict"]))
+    doc["replay"]["cell"] = "exp36_P1_C4_S40000_K8_s42_th90"
+    with open(pub_off["verdict"], "w") as f:
+        json.dump(doc, f)
+    status, doc = publish(pub_off, cell_set="OFF")
+    assert status == "refused" and any("YAW replay" in x for x in doc["reasons"]), doc
+
+
+def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, monkeypatch):
+    """The chain passes the runner's plan path relative to the checkout; the publish re-runs the check from another
+    cwd (--base-dir = the run worktree) -- the plan resolves against the base dir, never the cwd."""
+    rel = os.path.relpath(world["plan"], world["new"])
+    monkeypatch.chdir(tmp_path)
+    status, v = check(world, plan_json=rel)
+    assert status == "equal" and v["plan_json"] == rel, v["reasons"]
