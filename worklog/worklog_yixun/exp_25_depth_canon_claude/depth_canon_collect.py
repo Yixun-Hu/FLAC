@@ -2640,7 +2640,8 @@ def main(argv=None):
     ap.add_argument("--verdict-out", default=None, help="--exp36-replay-check: write the verdict JSON (never replaced)")
     ap.add_argument("--exp36-publish", action="store_true",
                     help="exp_36: copy the 24 verified cells into the pinned exp-25 YAW farm (--pin H36, --exp36-verdict); "
-                         "exit 0 published / 1 partial (see the manifest's recovery) / 2 refused (nothing written)")
+                         "exit 0 published / 1 partial (see the manifest's recovery) / 2 refused (nothing written) / "
+                         "3 crashed")
     ap.add_argument("--exp36-verdict", default=None, help="--exp36-publish: the equal verdict of the replay check")
     ap.add_argument("--publish-manifest-out", default=EXP36_PUBLICATION, help="--exp36-publish: the publication manifest")
     ap.add_argument("--exp36-publish-resume", action="store_true", help="--exp36-publish: resume a stopped publication")
@@ -2655,11 +2656,16 @@ def main(argv=None):
         if args.exp36_replay_check or os.path.abspath(args.exp25_base_dir) != EXP25_WORKTREE:
             print(f"EXP36 PUBLISH REFUSED: the exp-25 worktree is pinned ({EXP25_WORKTREE}); no --exp36-replay-check")
             return 2
-        status, doc = exp36_publish(pin=args.pin, verdict_path=args.exp36_verdict, manifest=manifest,
-                                    out=args.publish_manifest_out, base_dir=args.base_dir, ref_base_dir=EXP25_WORKTREE,
-                                    ref_dump_root=args.exp25_dump_root, dump_root=args.dump_root,
-                                    dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
-                                    resume=args.exp36_publish_resume, git_head=_git_head)
+        try:
+            status, doc = exp36_publish(pin=args.pin, verdict_path=args.exp36_verdict, manifest=manifest,
+                                        out=args.publish_manifest_out, base_dir=args.base_dir, ref_base_dir=EXP25_WORKTREE,
+                                        ref_dump_root=args.exp25_dump_root, dump_root=args.dump_root,
+                                        dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
+                                        resume=args.exp36_publish_resume, git_head=_git_head)
+        except Exception as err:   # noqa: BLE001 -- never exit 0 / 1 / 2 by accident
+            print(f"EXP36 PUBLICATION CRASHED ({type(err).__name__}: {err}): inspect {args.publish_manifest_out} -- "
+                  "an in_progress manifest is recovered with --exp36-publish-resume")
+            return 3
         head = {"published": f"EXP36 PUBLISHED {len(doc.get('entries', []))} file(s) into {EXP36_PUBLISH_DEST}; "
                 f"manifest {args.publish_manifest_out}", "partial": "EXP36 PUBLICATION PARTIAL (see the manifest's "
                 f"recovery): {args.publish_manifest_out}"}.get(status, "EXP36 PUBLISH REFUSED (nothing written)")
@@ -2669,9 +2675,13 @@ def main(argv=None):
         if args.verdict_out and os.path.lexists(args.verdict_out):
             print(f"EXP36 REPLAY REFUSED: the verdict file {args.verdict_out} exists (a verdict is never replaced)")
             return 2
-        status, verdict = exp36_replay_check(pin=args.pin, plan_json=args.plan_json, manifest=manifest,
-                                             base_dir=args.base_dir, ref_base_dir=args.exp25_base_dir,
-                                             ref_dump_root=args.exp25_dump_root)
+        try:
+            status, verdict = exp36_replay_check(pin=args.pin, plan_json=args.plan_json, manifest=manifest,
+                                                 base_dir=args.base_dir, ref_base_dir=args.exp25_base_dir,
+                                                 ref_dump_root=args.exp25_dump_root)
+        except Exception as err:   # noqa: BLE001 -- an uncaught crash would exit 1, the mismatch code
+            print(f"EXP36 REPLAY REFUSED: the check crashed ({type(err).__name__}: {err}); no verdict written")
+            return 2
         where = ""
         if args.verdict_out:
             tmp = f"{args.verdict_out}.tmp-{os.getpid()}"

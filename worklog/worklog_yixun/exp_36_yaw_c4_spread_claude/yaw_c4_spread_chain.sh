@@ -18,8 +18,9 @@
 #   exp_25_depth_canon_claude/ (depth_canon_<runner TS>_*) -- both locations are kept; this log names the runner's.
 # Resume: re-run the same command: the runner SKIPs every complete-and-verified cell, the replay is re-checked under a
 #   new verdict, then the remaining cells run.
-# Exit: 0 the 24 complete | 2 a gate refused | 3 the replay run failed or gave no plan | 4 REPLAY MISMATCH |
-#   5 REPLAY CHECK REFUSED | 6 the 24-cell run did not complete (re-run to resume).
+# Exit: 0 the 24 complete | 2 a gate refused | 3 the replay run failed or gave no plan | 4 REPLAY MISMATCH (rc 1 with
+#   a mismatch verdict) | 5 REPLAY CHECK REFUSED (anything else but rc 0 with an equal verdict) | 6 the 24-cell run
+#   did not complete (re-run to resume).
 # EXP36_CHAIN_HARNESS=<dir under /tmp holding a .exp36_chain_harness marker>: tests only -- EXP36_CHAIN_RUNNER /
 #   EXP36_CHAIN_COLLECT (stubs in that dir) are honoured and the log / lock / verdict move into it.
 #
@@ -103,10 +104,12 @@ if [ "$DRY_RUN" = 1 ]; then
 else
   echo "--- step 2/3: the replay check (the hard stop) ---"
   CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 "$PY" "$COLLECT" "${CHECK[@]}"; RC=$?
-  case "$RC" in
-    0) echo "replay check EQUAL: verdict ${VERDICT} (sha256 $(sha256sum -- "$VERDICT" | awk '{print $1}'))" ;;
-    1) echo "HARD STOP: REPLAY MISMATCH (verdict ${VERDICT}); the 24 cells are NOT run -- report to Yixun"; exit 4 ;;
-    *) echo "HARD STOP: REPLAY CHECK REFUSED (rc ${RC}); the 24 cells are NOT run -- report to Yixun"; exit 5 ;;
+  RESULT="$(jq -r '.result' "$VERDICT" 2>/dev/null || echo none)"   # the exit code AND the verdict must agree
+  case "${RC}:${RESULT}" in
+    0:equal) echo "replay check EQUAL: verdict ${VERDICT} (sha256 $(sha256sum -- "$VERDICT" | awk '{print $1}'))" ;;
+    1:mismatch) echo "HARD STOP: REPLAY MISMATCH (verdict ${VERDICT}); the 24 cells are NOT run -- report to Yixun"; exit 4 ;;
+    *) echo "HARD STOP: REPLAY CHECK REFUSED (rc ${RC}, verdict '${RESULT}'); the 24 cells are NOT run -- report to Yixun"
+       exit 5 ;;
   esac
 fi
 

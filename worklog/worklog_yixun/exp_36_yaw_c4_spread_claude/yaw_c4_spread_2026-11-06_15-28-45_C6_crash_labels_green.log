@@ -1,0 +1,87 @@
+GREEN, cycle 6 at HEAD 87091900565c50f4201cf5c99671f130bd5fd985 + the uncommitted CLI crash mapping and the chain's verdict agreement
+.......................................................................  [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________________ test_cli_publish_exit_codes __________________________
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) into /tmp/pytest-of-yixunhu/pytest-6538/test_cli_publish_exit_codes0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6538/test_cli_publish_exit_codes0/publication.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_the_chain_runs_replay_check_then_the_24
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+71 passed, 3 warnings in 134.87s (0:02:14)
