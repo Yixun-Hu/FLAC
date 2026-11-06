@@ -30,7 +30,8 @@ COUNTS = {"T": 10, "T-dup": 2, "C4+45": 8, "R": 10, "D-i": 2, "D-ii": 2, "S": 10
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §1): 100 rows appended after the 230 exp_25 rows; the
 # exp_25 assertions below are scoped to the exp_25 blocks, test_exp35_make_cells.py pins the rest
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
-N_ROWS = 346   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows
+N_ROWS = 371   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows; exp_36: + the 25 YAW-C4S rows
+EXP36_BLOCKS = ("YAW-C4S",)
 SEEDS = (42, 43, 44, 45, 46)
 # plan §5 common set (+ --batch-size 64 and --device cuda written out: never defaulted)
 COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": "1.0",
@@ -124,7 +125,7 @@ def test_render_is_one_cell_per_line(manifest):
 def test_block_counts_and_priority_order(manifest):
     cells = manifest["cells"]
     assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
-    assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS
+    assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
     assert [c["order"] for c in cells] == list(range(N_ROWS))
     assert [c["order"] for c in _exp25(manifest)] == list(range(230))       # the exp_25 rows come first
     assert [c["priority"] for c in cells] == sorted(c["priority"] for c in cells)
@@ -136,7 +137,9 @@ def test_eval_names_and_metrics_stems_are_injective(manifest):
     cells = manifest["cells"]
     names = [c["cell"] for c in cells]
     assert len(set(names)) == N_ROWS
-    assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells)
+    assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells
+               if c["block"] not in EXP36_BLOCKS)                 # exp_36: 24 exp25_ aliases + one exp36_ replay
+    assert sorted(c["cell"][:6] for c in cells if c["block"] in EXP36_BLOCKS) == ["exp25_"] * 24 + ["exp36_"]
     assert all("exp14_" not in n and "exp11_" not in n for n in names)
     stems, suffixes = set(), set()
     for c in cells:
@@ -307,7 +310,7 @@ def test_selection_by_blocks_only_and_limit(manifest):
     a1_off = C.select_cells(manifest, blocks=[b for b in BLOCKS if b != "YAW-pin"])
     assert len(a1_off) == 192 and all(c["block"] != "YAW-pin" for c in a1_off)
     assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]   # exp_35 §14 A1.3:
-                                                            if c["block"] not in C.EXPLICIT_BLOCKS]   # E2-FAIL only by name
+                                                            if c["block"] not in ("E2-FAIL", "YAW-C4S")]   # by name only
     names = ["exp25_YAW_S_S40000_K8_s46", "exp25_CANON_T_S40000_K1_s42"]
     assert [c["cell"] for c in C.select_cells(manifest, only=names)] == names[::-1]  # manifest order
     assert len(C.select_cells(manifest, blocks=["TRAJ"], limit=7)) == 7

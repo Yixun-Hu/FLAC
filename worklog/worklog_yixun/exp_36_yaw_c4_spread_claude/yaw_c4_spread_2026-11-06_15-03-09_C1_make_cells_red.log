@@ -1,0 +1,273 @@
+RED, cycle 1 (generator: YAW-C4S, 25 rows; H35 / exp_25 renders pinned; default selection) at HEAD e68b7a04e03941b97ff50fd2733fd49f2aba782b + the uncommitted tests
+EFFEFF.EF.EEEEEEEEE...............................FFF.                   [100%]
+==================================== ERRORS ====================================
+_____ ERROR at setup of test_the_h35_render_is_the_committed_h35_manifest ______
+
+    @pytest.fixture(scope="module")
+    def h35():
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp36_make_cells.py:59: TypeError
+_ ERROR at setup of test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows _
+
+    @pytest.fixture(scope="module")
+    def h35():
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp36_make_cells.py:59: TypeError
+___________ ERROR at setup of test_names_and_suffixes_stay_injective ___________
+
+    @pytest.fixture(scope="module")
+    def h35():
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp36_make_cells.py:59: TypeError
+_ ERROR at setup of test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+____ ERROR at setup of test_the_h35_render_is_the_manifest_committed_at_h35 ____
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+_______ ERROR at setup of test_exp35_names_are_registered_and_injective ________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+_________________ ERROR at setup of test_exp35_rows_per_block __________________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+__ ERROR at setup of test_bf_rows_carry_the_registered_frame_average_protocol __
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+_______ ERROR at setup of test_vanilla_exp35_rows_carry_the_exp25_flags ________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+_________ ERROR at setup of test_the_bf_arm_is_the_endpoint_checkpoint _________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+___ ERROR at setup of test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup ____
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+_ ERROR at setup of test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46 _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+>       return MC.build_manifest(exp36=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp35_make_cells.py:54: TypeError
+=================================== FAILURES ===================================
+___________________ test_the_exp25_only_render_is_unchanged ____________________
+
+    def test_the_exp25_only_render_is_unchanged():
+        text = MC.render(MC.build_manifest(exp35=False))
+        assert _sha(text) == EXP25_CELLS_SHA256 and text == _at(EXP25_PIN)
+        with pytest.raises(ValueError, match="exp35"):
+>           MC.build_manifest(exp35=False, exp36=True)
+E           TypeError: build_manifest() got an unexpected keyword argument 'exp36'
+
+src/tests/test_exp36_make_cells.py:82: TypeError
+__________________ test_the_committed_file_is_the_full_render __________________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_committed_file_is_the_full_render(full):
+        with open(os.path.join(REPO, EXPREL, "depth_canon_cells.json")) as f:
+            assert f.read() == MC.render(full)
+>       assert MC.main(["--check"]) == 0 and len(full["cells"]) == 371
+E       AssertionError: assert (0 == 0 and 346 == 371)
+E        +  where 0 = <function main at 0x74349ee66a70>(['--check'])
+E        +    where <function main at 0x74349ee66a70> = MC.main
+E        +  and   346 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_exp36_make_cells.py:88: AssertionError
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+_____ test_the_replay_is_first_and_differs_from_its_template_only_by_name ______
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_replay_is_first_and_differs_from_its_template_only_by_name(full):
+        rows, by = full["cells"][346:], _by_name(full)
+>       replay, ref = rows[0], by[TEMPLATE]
+E       IndexError: list index out of range
+
+src/tests/test_exp36_make_cells.py:107: IndexError
+_________ test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46 __________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46(full):
+        rows, by = full["cells"][347:], _by_name(full)
+>       assert [c["cell"] for c in rows] == CELLS24                       # K, then seed, then angle
+E       AssertionError: assert [] == ['exp25_YAW_C...4_th270', ...]
+E         
+E         Right contains 24 more items, first extra item: 'exp25_YAW_C4_S40000_K1_s43_th90'
+E         Use -v to get more diff
+
+src/tests/test_exp36_make_cells.py:118: AssertionError
+________________ test_only_a_yaw_c4s_row_takes_an_explicit_name ________________
+
+    def test_only_a_yaw_c4s_row_takes_an_explicit_name():
+        args = ("YAW", 40000, "unseen", 8, 42, ("fixed", 90))
+>       with pytest.raises(ValueError):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_exp36_make_cells.py:152: Failed
+_______________________ test_render_is_one_cell_per_line _______________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_render_is_one_cell_per_line(manifest):
+        lines = MC.render(manifest).splitlines()
+        cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
+>       assert len(cell_lines) == len(manifest["cells"]) == N_ROWS and len(_exp25(manifest)) == 230
+E       AssertionError: assert (346 == 371)
+E        +  where 346 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_depth_canon_eval_run.py:119: AssertionError
+_____________________ test_block_counts_and_priority_order _____________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_block_counts_and_priority_order(manifest):
+        cells = manifest["cells"]
+        assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
+>       assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
+E       AssertionError: assert ('T', 'T-dup'..., 'D-ii', ...) == ('T', 'T-dup'..., 'D-ii', ...)
+E         
+E         Right contains one more item: 'YAW-C4S'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_eval_run.py:128: AssertionError
+_______________ test_eval_names_and_metrics_stems_are_injective ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...ws: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_eval_names_and_metrics_stems_are_injective(manifest):
+        cells = manifest["cells"]
+        names = [c["cell"] for c in cells]
+>       assert len(set(names)) == N_ROWS
+E       AssertionError: assert 346 == 371
+E        +  where 346 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+E        +    where {'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...} = set(['exp25_CANON_T_S40000_K1_s42', 'exp25_CANON_T_S40000_K1_s43', 'exp25_CANON_T_S40000_K1_s44', 'exp25_CANON_T_S40000_K1_s45', 'exp25_CANON_T_S40000_K1_s46', 'exp25_CANON_T_S40000_K8_s42', ...])
+
+src/tests/test_depth_canon_eval_run.py:139: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______________ test_cli_count_no_flash_refuses_a_bad_selection ________________
+----------------------------- Captured stdout call -----------------------------
+SELECTION REFUSED: unknown, duplicate or empty block selection ['T', 'nope']
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+PASSED src/tests/test_exp35_make_cells.py::test_the_exp25_only_render_is_the_committed_exp25_manifest
+PASSED src/tests/test_exp35_collect.py::test_the_arm_protocol_table
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CTL_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-P1_OFF_K8_s46_225]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-CANON_OFF_K1_s42_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CANON-45_OFF_K8_s43_45]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles1]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles2]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[orbit_execution4]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap5]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_autocast7]
+PASSED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+PASSED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+PASSED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+PASSED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells
+PASSED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args0-0]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args1-30]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args2-1]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args3-100]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args4-3]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash_refuses_a_bad_selection
+PASSED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+ERROR src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+ERROR src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+ERROR src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+ERROR src/tests/test_exp35_make_cells.py::test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows
+ERROR src/tests/test_exp35_make_cells.py::test_the_h35_render_is_the_manifest_committed_at_h35
+ERROR src/tests/test_exp35_make_cells.py::test_exp35_names_are_registered_and_injective
+ERROR src/tests/test_exp35_make_cells.py::test_exp35_rows_per_block - TypeErr...
+ERROR src/tests/test_exp35_make_cells.py::test_bf_rows_carry_the_registered_frame_average_protocol
+ERROR src/tests/test_exp35_make_cells.py::test_vanilla_exp35_rows_carry_the_exp25_flags
+ERROR src/tests/test_exp35_make_cells.py::test_the_bf_arm_is_the_endpoint_checkpoint
+ERROR src/tests/test_exp35_make_cells.py::test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup
+ERROR src/tests/test_exp35_make_cells.py::test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46
+FAILED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+FAILED src/tests/test_exp36_make_cells.py::test_the_committed_file_is_the_full_render
+FAILED src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+FAILED src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+FAILED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+FAILED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+FAILED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+8 failed, 34 passed, 3 warnings, 12 errors in 7.50s

@@ -43,7 +43,7 @@ def test_the_arm_protocol_table():
     got = dict(zip(flags[::2], flags[1::2]))
     assert got["--cond-method"] == BF["cond_method"] and int(got["--frame-avg-max-fwd-samples"]) == BF["frame_avg_fwd_cap"]
     assert [float(a) for a in got["--frame-avg-angles"].split(",")] == BF["frame_avg_angles"]
-    assert [c["block"] for c in MANIFEST["cells"] if C.is_exp35(c)] == [c["block"] for c in MANIFEST["cells"][230:]]
+    assert [c["block"] for c in MANIFEST["cells"] if C.is_exp35(c)] == [c["block"] for c in MANIFEST["cells"][230:346]]
 
 
 @pytest.mark.parametrize("spec", EXP35_CASES, ids=[f"{c[0]}_{c[1]}_K{c[2]}_s{c[3]}_{c[4]}" for c in EXP35_CASES])
@@ -142,7 +142,7 @@ def _collector_at(commit):
 
 def test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector():
     old = _collector_at("682df5db")
-    rows = [c for c in MANIFEST["cells"] if not C.is_exp35(c)]
+    rows = [c for c in MANIFEST["cells"] if c["block"] in C.EXP25_BLOCKS]      # exp_36: YAW-C4S is no exp_25 block
     kw = dict(farm_root="farm", dump_root="/nas/d", canon_index=T.canon_index(), no_dump_blocks=["TRAJ"])
     new_plan, old_plan = C.plan_cells(MANIFEST, rows, **kw), old.plan_cells(MANIFEST, rows, **kw)
     assert len(new_plan) == 230 and json.dumps(new_plan) == json.dumps(old_plan)
@@ -172,13 +172,14 @@ def test_the_e2_fail_block_is_selected_only_by_name(capsys):
     --only / --limit through to this function (--count-no-flash, --plan)."""
     m = C.load_cells(C.CELLS_JSON)
     e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
-    rest = [c["cell"] for c in m["cells"] if c["block"] != "E2-FAIL"]
-    assert len(e2f) == 16 and len(rest) == 330 and m["cells"][-16:] == [c for c in m["cells"] if c["cell"] in e2f]
+    yaw = [c["cell"] for c in m["cells"] if c["block"] == "YAW-C4S"]          # exp_36 (Codex H1): by name only too
+    rest = [c["cell"] for c in m["cells"] if c["block"] not in ("E2-FAIL", "YAW-C4S")]
+    assert len(e2f) == 16 and len(rest) == 330 and m["cells"][330:346] == [c for c in m["cells"] if c["cell"] in e2f]
     assert [c["cell"] for c in C.select_cells(m)] == rest
-    assert [c["cell"] for c in C.select_cells(m, limit=346)] == rest
+    assert [c["cell"] for c in C.select_cells(m, limit=371)] == rest
     assert [c["cell"] for c in C.select_cells(m, blocks=["E2-FAIL"])] == e2f
     assert [c["cell"] for c in C.select_cells(m, only=e2f[3:5])] == e2f[3:5]
-    assert [c["cell"] for c in C.select_cells(m, blocks=list(m["blocks"]))] == rest + e2f
+    assert [c["cell"] for c in C.select_cells(m, blocks=list(m["blocks"]))] == rest + e2f + yaw
     for argv, want in (([], 100), (["--blocks", "E2-FAIL"], 16), (["--only", ",".join(e2f[:2])], 2)):
         assert C.main(["--count-no-flash", "--cells", C.CELLS_JSON] + argv) == 0
         assert capsys.readouterr().out.strip().splitlines()[-1] == str(want), argv

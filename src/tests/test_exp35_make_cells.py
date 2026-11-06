@@ -50,7 +50,8 @@ MC = _load(os.path.join(REPO, EXPREL, "depth_canon_make_cells.py"), "depth_canon
 
 @pytest.fixture(scope="module")
 def full():
-    return MC.build_manifest()
+    """The H35 manifest (exp_25 + exp_35, 346 rows): exp_36 appends its YAW-C4S rows after it (test_exp36_make_cells.py)."""
+    return MC.build_manifest(exp36=False)
 
 
 @pytest.fixture(scope="module")
@@ -100,10 +101,12 @@ def test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows(full, exp25)
     assert len(exp25["cells"][0]) == 26
 
 
-def test_the_committed_file_is_the_full_render(full):
-    with open(os.path.join(REPO, EXPREL, "depth_canon_cells.json")) as f:
-        assert f.read() == MC.render(full)
-    assert MC.main(["--check"]) == 0
+def test_the_h35_render_is_the_manifest_committed_at_h35(full):
+    """exp_36 (Codex plan review B2): the committed file now holds 371 rows; the H35 render stays exact."""
+    text = MC.render(full)
+    assert hashlib.sha256(text.encode()).hexdigest() == "440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d"
+    assert text == subprocess.run(["git", "-C", REPO, "show", f"5b065801:{EXPREL}/depth_canon_cells.json"],
+                                  capture_output=True, text=True, check=True).stdout
 
 
 # --------------------------------------------------------------------------- #
