@@ -211,3 +211,14 @@ def test_a_run_never_seen_on_its_own_card_is_not_valid(tmp_path):
     _host(run, "end", "6ac2604a-1111", ["GPU-0a1aaa90-2222, 42, python, 9 MiB"])
     verdict = lat.host_cotenancy(run)
     assert verdict["timing_valid"] is False and verdict["own_process_seen_on_card"] is False
+
+
+def test_the_selector_vector_s_own_host_snapshot_is_judged_like_a_run(tmp_path):
+    def payload(apps, uuid="6ac2604a-1111"):
+        return {"host": {"pid": 42, "cuda_device": {"uuid": uuid}, "gpu_compute_apps": {"lines": apps},
+                         "top_cpu_processes": {"lines": []}}}
+    assert lat.selector_cotenancy(payload(["GPU-6ac2604a-1111, 42, python, 1 MiB"]))["timing_valid"] is True
+    assert lat.selector_cotenancy(payload(["GPU-6ac2604a-1111, 42, python, 1 MiB",
+                                           "GPU-6ac2604a-1111, 7, python, 1 MiB"]))["timing_valid"] is False
+    assert lat.selector_cotenancy(payload([]))["timing_valid"] is False               # never seen on its card
+    assert lat.selector_cotenancy({})["timing_valid"] is False                         # no snapshot (e.g. the bundle's)

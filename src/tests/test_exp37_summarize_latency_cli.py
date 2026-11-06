@@ -122,3 +122,9 @@ def test_the_cli_writes_json_and_markdown_and_exits_3_on_a_co_tenant(world, tmp_
     out_json.unlink()
     done = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=300)
     assert done.returncode == 3 and json.loads(out_json.read_text())["rows"][0]["timing_valid"] is False
+
+
+def test_the_summary_records_the_selector_validity(world):
+    selection, _sel_path, selector, run = world
+    out = summ.build_summary(selection, selector, runs=[("P1", 8, run("p1", "P1"))])
+    assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no snapshot
