@@ -31,6 +31,12 @@ RED commits hold the tests (and the RED log), GREEN commits the implementation (
 | `8f2c290b` | docs | two docstrings brought up to date (no behaviour change) | 0 (docstrings) | 0 | 0 |
 | `2881a3ad` | 11 RED | Codex code review I HIGH 1 follow-ups: parsed CLI OFF (12 files, own manifest), per-set manifest paths, publisher provenance | 0 | +23 | +24 |
 | `0d99eeaf` | 11 GREEN | publication manifest records `publisher` = {repo, HEAD} beside `pin` / `campaign_digest` | +3 / -1 | 0 | +78 |
+| `5ee1d6fe` | records | the suites at H36_I / the dev head, the comparator CLI smoke, notebook, ledger | 0 | 0 | data only |
+| `7f5af103` | 12 RED | Codex code review II HIGH 3 + NIT 1-3: `publisher_closure` / `--publisher-pin`, own cells only, per-set default manifests (no override), the cross-version relative-plan guard, help A 48 / OFF 12; shared helpers adapted | 0 | +143 / -24 | +784 |
+| `a5f0f898` | 12 GREEN a | `publisher_closure()` + required `--publisher-pin`; `--publish-manifest-out` removed; help (two HIGH 2 tests stay RED until 13) | +44 / -15 | 0 | +127 |
+| `2f6cc928` | 13 RED | review II HIGH 1 + HIGH 2: global lock, concurrent same-set / A-OFF / path swap, txid temps, exclusive + authenticated manifest, resume refusals | 0 | +168 | +363 |
+| `8628dbc2` | 13 GREEN 1/2 | the publication helpers only (lock, once-opened destination, exclusive no-follow writes, identities, `_Manifest`, `_authenticate`); not wired (split for the < 200 rule) | +99 | 0 | +4 |
+| `3d2246d0` | 13 GREEN 2/2 | `exp36_publish` wired to them (the last code commit of the fix round) | +104 / -89 | 0 | +140 |
 
 Every code commit is < 200 changed code lines; one test commit (`65f9fcd4`, 243 test lines) exceeds 200 because it
 removes a duplicated clone fixture (-97) while adding the A1 tests.

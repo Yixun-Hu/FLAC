@@ -63,3 +63,33 @@
   comparison: 1513 passed / 1 skipped / 0 failed. The comparator CLI smoke at H36_I (all four REAL references pass;
   absent replays refused rc 2) in `*_comparator_cli_smoke_at_461c58e0.log`. Temporary baseline worktree
   `~/codespace/.exp36-baseline-H35` removed (its three symlinks first; targets intact).
+
+## 2026-11-06T17:25:00-05:00 — Coder r1, fix round after Codex code review II (REQUEST-CHANGES, no BLOCKING; round 2 of 3)
+- **Goal** — fix every finding of review II that is the Coder's (HIGH 1-3, NIT 1-3; HIGH 4 / NIT 4 are the Planner's
+  records), each covered by tests; publication code only -- H36_I `461c58e0` and the run worktree stay untouched.
+- **Change** — HIGH 1: ONE global nonblocking publication lock = flock on the exp-25 worktree root directory (no lock
+  file; every publisher of either set from any checkout contends on that inode, which a swap of the YAW path does not
+  replace), held from before the first check through the final manifest + directory fsync; the destination opened once
+  O_DIRECTORY | O_NOFOLLOW (inode == path), every temp creation / link / hash / unlink relative to that fd; a transaction
+  id per publication names its temps; a path swap ends the owner as `partial` (it never writes through the new path).
+  HIGH 2: the manifest created O_CREAT | O_EXCL | O_NOFOLLOW (file + directory fsync), rewritten after every file through an
+  exclusive no-follow temp that replaces ONLY the still-authenticated manifest (inode + bytes); a resume requires a
+  regular non-symlink manifest of exactly this publication (check, set, pin, digest, exp-25 HEAD, base dir, destination,
+  verdict path + sha256, publisher, the complete entry set incl. source hashes and txid-named temps, status in_progress |
+  partial) with no writer temp beside it, and removes only the temps it names; a complete publication is final; the
+  CLI writes only the set's fixed default manifest (`--publish-manifest-out` removed). HIGH 3: a required
+  `--publisher-pin` (full SHA) checked by `publisher_closure` -- HEAD == pin and the closure (eval_FLAC.py, src/ but its
+  tests, the collector, the cells manifest) committed and clean; the manifest records `publisher` = {repo, head,
+  collector path + sha256, closure digest} beside the artifacts' `pin` (461c58e0) + `campaign_digest`; the publication
+  reads only the collector's own cells manifest. NITs: the parsed CLI's per-set default routing tested (A 48 / OFF 12,
+  two files), the cross-version guard now = old collector + relative plan in the run checkout vs this collector + the
+  same string from another cwd (parsed-dict equality), help + test header name both sets.
+- **Version Control** — `7f5af103` RED, `a5f0f898` GREEN a, `2f6cc928` RED, `8628dbc2` + `3d2246d0` GREEN (split for the
+  < 200-line rule: 99 / 193 code lines). Since 461c58e0 the runner, the chain, the generator, the cells manifest, the
+  overlay, eval_FLAC.py and src/ are byte-identical; the collector changed only in the publication section, its CLI and
+  (cycle 10) the base-dir-relative plan read, verdict-neutral (cross-version guard).
+- **Result** — passed: the publication suites 96 passed (`*_C13_lock_manifest_green.log`); the read-only gate smoke
+  with the real worktrees (`*_publish_gate_smoke_after_review_II.log`): lock, publisher closure, HEADs and destination
+  pass, refused at the verdict, a wrong / missing publisher pin refused, nothing written. The full post-fix suites:
+  `*_SUITES_exp36_collector_runner_at_3d2246d0.log`.
+- **Next** — Codex code review III (the last) of `5ee1d6fe..` before either publication.

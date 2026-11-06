@@ -1,0 +1,14 @@
+publish gate smoke after the review-II fixes (read-only; expected REFUSED at the verdict, nothing written) from this checkout at 3d2246d0d776cd98be7694636c7b5dde699432ed against the run worktree at 461c58e0 and the real exp-25 worktree
+EXP36 PUBLISH REFUSED (nothing written)
+  - the verdict '/nonexistent/verdict.json' is unreadable ([Errno 2] No such file or directory: '/nonexistent/verdict.json')
+rc=2 (set OFF, publisher pin = HEAD)
+EXP36 PUBLISH REFUSED (nothing written)
+  - the verdict '/nonexistent/verdict.json' is unreadable ([Errno 2] No such file or directory: '/nonexistent/verdict.json')
+rc=2 (set A, publisher pin = HEAD)
+EXP36 PUBLISH REFUSED (nothing written)
+  - the publishing checkout /home/yixunhu/codespace/exp-36-yaw-c4-spread has HEAD '3d2246d0d776cd98be7694636c7b5dde699432ed' (no git HEAD or not the publisher pin 461c58e0a70747d163e554ebb123a5869d3a38c2)
+rc=2 (a wrong publisher pin)
+EXP36 PUBLISH REFUSED: --exp36-set A | OFF and --publisher-pin are required, the exp-25 worktree is pinned (/home/yixunhu/codespace/exp-25-depth-canon), the cells manifest is this collector's (/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cells.json), no --exp36-replay-check
+rc=2 (no publisher pin)
+0
+0
