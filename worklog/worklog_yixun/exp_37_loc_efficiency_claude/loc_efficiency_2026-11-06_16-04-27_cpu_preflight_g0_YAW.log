@@ -1,0 +1,24 @@
+HEAD 2f44450e6464934344809370edbf6b6386942780 (+ uncommitted runner reorder under test)
+exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA
+flash_attn not installed, disabling Flash Attention
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605c1b4fe0 target=localize_FLAC.py
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+Traceback (most recent call last):
+  File "/home/yixunhu/codespace/exp-37-loc-efficiency/overlays/no_flash/exp37_no_flash_launch.py", line 201, in <module>
+    sys.exit(main())
+  File "/home/yixunhu/codespace/exp-37-loc-efficiency/overlays/no_flash/exp37_no_flash_launch.py", line 196, in main
+    runpy.run_path(target, run_name="__main__")
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/runpy.py", line 289, in run_path
+    return _run_module_code(code, init_globals, run_name,
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/runpy.py", line 96, in _run_module_code
+    _run_code(code, mod_globals, init_globals,
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "localize_FLAC.py", line 80, in <module>
+    main()
+  File "localize_FLAC.py", line 53, in main
+    result = run_localization(
+  File "/home/yixunhu/codespace/exp-37-loc-efficiency/src/localization/runner.py", line 479, in run_localization
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+EXIT 1

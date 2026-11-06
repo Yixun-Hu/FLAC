@@ -467,8 +467,6 @@ def run_localization(
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
     if geometry_audit.get("sha256") != canonical_sha256(audit_content):
         raise RuntimeError("geometry audit SHA-256 mismatch")
-    if not torch.cuda.is_available() or torch.device(device).type != "cuda":
-        raise RuntimeError("formal localization requires an available CUDA device")
     joined = resolve_pilot_records(pilot_manifest, context_manifest, geometry_audit)
     joined = select_queries(joined, query_limit=query_limit, query_index=query_index)
     # exp_37 provenance, verified before anything is written: the attention backend actually selected (and,
@@ -477,6 +475,8 @@ def run_localization(
     handoff = no_flash_launch_handoff(REPO_ROOT) if require_attention_backend else None
     mesh_remap = resolve_mesh_root(geometry_audit, mesh_root) if mesh_root is not None else None
     mesh_paths = {room: row["mesh_path"] for room, row in (mesh_remap or {"rooms": {}})["rooms"].items()}
+    if not torch.cuda.is_available() or torch.device(device).type != "cuda":
+        raise RuntimeError("formal localization requires an available CUDA device")
 
     identity = {
         "model_config_sha256": file_sha256(model_config_path),
