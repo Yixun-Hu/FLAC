@@ -3,9 +3,13 @@ Planner-run CLI ``exp35_phase_ii.sh`` (reserve | dry-run | launch | status | rel
 the self-pin by EXPECT_KIT_COMMIT, the phase-(i) launch environment for the helper whatever the caller's environment,
 a log per mutating mode (never for status), the detached wrapper outliving its launcher -- and the never-list as
 static checks of the kit's own source (no signal, kill or attach; no git write; no install; no sharing; no
---no-dump-blocks; no E2-FAIL; no exp_22; nvidia-smi only for its two queries).
+--no-dump-blocks; no E2-FAIL; no exp_22; nvidia-smi only for its two queries). Since the retirement (exp_36 code
+review III HIGH 2) the CLI refuses reserve / dry-run / launch (test_exp35_phase_ii_retired.py proves it in full):
+the end-to-end test drives a legacy orchestration through the dormant library machinery instead, and the CLI's
+status and release.
 
-Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
+Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort); adapted to the retirement by the exp_35
+kit-retirement Coder (Claude Opus 5.5, max effort).
 """
 import ast
 import hashlib
@@ -19,9 +23,10 @@ import time
 import pytest
 
 import exp35_phase_ii_sandbox as SB
-from exp35_phase_ii_sandbox import make_box
+from exp35_phase_ii_sandbox import FakeWorld, make_box
 
 K = SB.load_kit()
+T_DRY = 1_800_000_100.0
 
 
 def _lab(tmp_path):
@@ -43,56 +48,79 @@ def _logs(b):
     return sorted(n for n in os.listdir(b.kit_dir) if "_phase_ii_" in n and n.endswith(".log"))
 
 
-def test_the_five_modes_end_to_end_through_the_cli(tmp_path):
+def _refused(b, mode, *args, **kw):
+    """A retired mode through the CLI: rc 1, the one retirement line, still no mode log at all."""
+    p = _sh(b, mode, *args, **kw)
+    assert p.returncode == 1 and p.stdout.startswith(f"REFUSED (RETIRED): exp35_phase_ii.sh {mode} -- "), p.stdout
+    assert _logs(b) == []
+
+
+def test_the_retired_cli_end_to_end_status_and_release_kept(tmp_path):
+    """reserve / dry-run / launch refuse at every stage of a legacy orchestration that the dormant library machinery
+    carries to 'exited' (its state unchanged by each refusal); status and release still work under env -i whatever
+    the caller's environment, and only release writes a log."""
     b = _lab(tmp_path)
     dirty = {"ALLOW_SHARED_GPU": "1", "EXP35_APPROVED_COTENANTS": "/x.json", "PYTHONPATH": "/x", "DRY_RUN": "1",
              "GIT_DIR": os.path.join(b.tmp, "not-a-git-dir"), "GPU_MAX_POLLS": "1"}  # env -i drops all of them
-    p = _sh(b, "reserve", b.head, "--lanes", "0", "--report", b.report, "--report-sha256", b.report_sha, extra=dirty)
-    assert p.returncode == 0 and "RESERVED " in p.stdout, p.stdout + p.stderr
-    outputs = [p.stdout]
-    orch = re.search(r"^RESERVED (\S+):", p.stdout, re.M)[1]
-    p = _sh(b, "dry-run", b.head, "--orch", orch, extra=dirty)
-    assert p.returncode == 0 and "DRY RUN PASSED" in p.stdout, p.stdout[-3000:]
-    outputs.append(p.stdout)
-    p = _sh(b, "launch", b.head, "--orch", orch, extra=dirty)
-    assert p.returncode == 0 and "LAUNCHED: wrapper pid" in p.stdout, p.stdout[-3000:]
-    outputs.append(p.stdout)
+    _refused(b, "reserve", b.head, "--lanes", "0", "--report", b.report, "--report-sha256", b.report_sha, extra=dirty)
+    assert not os.path.lexists(b.res()) and K.orchestrations(b.cfg) == []
+    rc, msg = K.reserve(FakeWorld(), b.cfg, kit_commit=b.commit, h35=b.head, lanes=(0,), report=b.report,
+                        report_sha256=b.report_sha)
+    assert rc == 0, msg
+    orch = msg.split()[1].rstrip(":")
+    state = os.path.join(orch, "state.json")
+    for mode, step, t in (("dry-run", K.dry_run, T_DRY), ("launch", K.launch, T_DRY + 60)):
+        before = open(state, "rb").read()
+        _refused(b, mode, b.head, "--orch", orch, extra=dirty)
+        assert open(state, "rb").read() == before
+        rc, msg = step(FakeWorld(t=t), b.cfg, kit_commit=b.commit, h35=b.head, orch=orch)
+        assert rc == 0, msg
     deadline = time.time() + 120
-    while not (json.load(open(os.path.join(orch, "state.json")))["phase"] == "exited"
-               and json.load(open(os.path.join(orch, "state.json")))["exit"]["logs"]):
+    while not (json.load(open(state))["phase"] == "exited" and json.load(open(state))["exit"]["logs"]):
         assert time.time() < deadline, "the detached wrapper did not finish"
         time.sleep(0.2)
-    st = json.load(open(os.path.join(orch, "state.json")))
+    st = json.load(open(state))
     assert st["exit"]["rc"] == 0 and st["runner"]["sharing_absent"] and st["wrapper"]["environ_is_the_launch_env"]
     [_, run] = SB.stub_calls(tmp_path)
-    assert SB.stub_env(tmp_path, run["pid"]) == dict(K.LAUNCH_ENV, EXPECT_HEAD=b.head)     # the caller's env dropped
-    while os.path.exists(f"/proc/{st['wrapper']['pid']}"):                       # detached: not our child to reap
-        assert time.time() < deadline
-        time.sleep(0.1)
-    logs = _logs(b)
-    p = _sh(b, "status", "--orch", orch)
-    assert p.returncode == 0 and "phase exited" in p.stdout and "receipts: 68/68" in p.stdout and _logs(b) == logs
-    p = _sh(b, "release", b.head, "--orch", orch)
+    assert SB.stub_env(tmp_path, run["pid"]) == dict(K.LAUNCH_ENV, EXPECT_HEAD=b.head)
+    while time.time() < deadline:                        # launched in-process, the wrapper is our child: reap it
+        try:
+            if os.waitpid(st["wrapper"]["pid"], os.WNOHANG)[0] == st["wrapper"]["pid"]:
+                break
+        except ChildProcessError:
+            break
+        time.sleep(0.05)
+    before = open(state, "rb").read()
+    _refused(b, "launch", b.head, "--orch", orch, extra=dirty)
+    assert open(state, "rb").read() == before
+    p = _sh(b, "status", "--orch", orch, extra=dirty)
+    assert p.returncode == 0 and "phase exited" in p.stdout and "receipts: 68/68" in p.stdout and _logs(b) == []
+    p = _sh(b, "release", b.head, "--orch", orch, extra=dirty)
     assert p.returncode == 0 and "RELEASED" in p.stdout and not os.path.lexists(b.res())
-    outputs.append(p.stdout)
-    modes = [re.search(r"_phase_ii_(\w[\w-]*)\.log$", n)[1] for n in _logs(b)]
-    assert sorted(modes) == ["dry-run", "launch", "release", "reserve"]
-    for out in outputs:                       # Codex P2K-1 NIT 1: the FINAL file's digest, printed outside the log
-        digest, path = re.search(r"^log sha256 ([0-9a-f]{64})  (\S+) \(the final file", out, re.M).groups()
-        raw = open(path, "rb").read()
-        assert hashlib.sha256(raw).hexdigest() == digest and raw.decode().splitlines()[-1] == f"rc 0; log {path}"
-        assert digest not in raw.decode()
+    assert [re.search(r"_phase_ii_(\w[\w-]*)\.log$", n)[1] for n in _logs(b)] == ["release"]
+    digest, path = re.search(r"^log sha256 ([0-9a-f]{64})  (\S+) \(the final file", p.stdout, re.M).groups()
+    raw = open(path, "rb").read()                    # Codex P2K-1 NIT 1: the FINAL file's digest, printed outside it
+    assert hashlib.sha256(raw).hexdigest() == digest and raw.decode().splitlines()[-1] == f"rc 0; log {path}"
+    assert digest not in raw.decode()
 
 
-def test_without_the_reviewed_commit_a_mode_refuses(tmp_path):
+def test_without_the_reviewed_commit_release_refuses_and_reserve_stays_retired(tmp_path):
     b = _lab(tmp_path)
+    rc, msg = K.reserve(FakeWorld(), b.cfg, kit_commit=b.commit, h35=b.head, lanes=(0,), report=b.report,
+                        report_sha256=b.report_sha)
+    assert rc == 0, msg
+    state = os.path.join(msg.split()[1].rstrip(":"), "state.json")
+    before = open(state, "rb").read()
+    p = _sh(b, "release", b.head, "--orch", os.path.dirname(state), expect=False)
+    assert p.returncode == 1 and "40-hex" in p.stdout and os.path.exists(b.res()) and open(state, "rb").read() == before
     p = _sh(b, "reserve", b.head, "--lanes", "0", "--report", b.report, "--report-sha256", b.report_sha, expect=False)
-    assert p.returncode == 1 and "40-hex" in p.stdout and not os.path.lexists(b.res())
+    assert p.returncode == 1 and p.stdout.startswith("REFUSED (RETIRED): exp35_phase_ii.sh reserve -- ")
 
 
-@pytest.mark.parametrize("args", [[], ["nonsense"], ["reserve"], ["reserve", "x" * 40], ["dry-run", "x" * 40],
-                                  ["reserve", "a" * 40, "--lanes", "0,0", "--report", "r", "--report-sha256", "0" * 64]])
+@pytest.mark.parametrize("args", [[], ["nonsense"], ["release"], ["release", "x" * 40], ["release", "a" * 40, "--orch"],
+                                  ["status", "--lanes", "0"]])
 def test_bad_arguments_are_refused_with_rc_2(tmp_path, args):
+    """(A retired mode refuses with rc 1 whatever its arguments: test_exp35_phase_ii_retired.py.)"""
     b = _lab(tmp_path)
     assert _sh(b, *args).returncode == 2 and not os.path.lexists(b.res())
 

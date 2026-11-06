@@ -9,6 +9,8 @@ Sandbox only (``exp35_phase_ii_sandbox``): never the real kit, runner, reservati
 
 Written by the exp_35 kit-retirement Coder (Claude Opus 5.5, max effort).
 """
+import argparse
+import ast
 import hashlib
 import json
 import os
@@ -181,3 +183,77 @@ def test_release_still_works_through_the_cli(tmp_path, upto):
     digest, path = re.search(r"^log sha256 ([0-9a-f]{64})  (\S+) \(the final file", p.stdout, re.M).groups()
     assert path == os.path.join(b.kit_dir, log) and log.endswith("_phase_ii_release.log")
     assert hashlib.sha256(open(path, "rb").read()).hexdigest() == digest
+
+
+# --------------------------------------------------------------------------- #
+# the helper's own CLI refuses them first and never dispatches them
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("mode", RETIRED)
+def test_the_helper_cli_refuses_each_retired_mode_before_anything(tmp_path, mode):
+    b = box(tmp_path, UPTO[mode])
+    argv = [sys.executable, "-B", b.cfg.helper, mode, "--kit-commit", b.commit, "--h35", *args_of(b, mode)]
+    calls, before = len(SB.stub_calls(tmp_path)), tree(b.tmp)
+    p = subprocess.run(argv, cwd=b.run, env=dict(K.LAUNCH_ENV, **DIRTY), capture_output=True, text=True, timeout=600)
+    assert (p.returncode, p.stderr) == (1, "") and tree(b.tmp) == before, p.stdout + p.stderr
+    assert len(SB.stub_calls(tmp_path)) == calls
+    assert refusal_body(p.stdout, "exp35_phase_ii.py", mode) == K.RETIRED_BODY
+
+
+class Touched(BaseException):
+    """A sentinel ran: nothing of the kit may run before a retirement refusal (not an Exception: never swallowed)."""
+
+
+SENTINELS = ("registered_config", "World", "reserve", "dry_run", "launch", "release", "status", "wrap", "parse_lanes",
+             "kit_lock", "kit_evidence", "evidence", "observe", "create_reservation", "dry_spawn", "spawn",
+             "write_exclusive", "write_json_atomic", "snapshot", "git")
+ORCH, PIN = "/nonexistent/exp35_phase_ii_20261106T153000", ["--kit-commit", "a" * 40, "--h35", "b" * 40]
+
+
+def armed(monkeypatch):
+    """Every kit function a mode could reach, and the config and the world, replaced by sentinels raising Touched."""
+    hit = []
+    for name in SENTINELS:
+        def sentinel(*a, _name=name, **k):
+            hit.append(_name)
+            raise Touched(_name)
+        monkeypatch.setattr(K, name, sentinel)
+    return hit
+
+
+@pytest.mark.parametrize("argv", [["reserve", *PIN, "--lanes", "0", "--report", "r", "--report-sha256", "0" * 64],
+                                  ["dry-run", *PIN, "--orch", ORCH], ["launch", *PIN, "--orch", ORCH], ["reserve"],
+                                  ["dry-run", "--help"], ["launch", "--lanes", "0,0"]])
+def test_main_refuses_first_before_its_parser_config_or_world(monkeypatch, capsys, argv):
+    hit = armed(monkeypatch)
+    monkeypatch.setattr(K, "argparse", None)                                     # not even a parser may be built
+    assert K.main(argv) == 1 and hit == []
+    assert refusal_body(capsys.readouterr().out, "exp35_phase_ii.py", argv[0]) == K.RETIRED_BODY
+
+
+def test_main_without_arguments_reads_sys_argv(monkeypatch, capsys):
+    hit = armed(monkeypatch)
+    monkeypatch.setattr(K, "argparse", None)
+    monkeypatch.setattr(sys, "argv", ["exp35_phase_ii.py", "launch", "--orch", ORCH])
+    assert K.main() == 1 and hit == []
+    assert refusal_body(capsys.readouterr().out, "exp35_phase_ii.py", "launch") == K.RETIRED_BODY
+
+
+@pytest.mark.parametrize("mode", RETIRED)
+def test_a_retired_mode_a_parser_reaches_anyway_is_refused_before_config_and_world(monkeypatch, capsys, mode):
+    """This Python's argparse reaches a subcommand only as argv[0]; should a parser reach one otherwise, the allowlist
+    after parsing (status, release, wrap) refuses it all the same, before the config or the world exist."""
+    hit = armed(monkeypatch)
+    monkeypatch.setattr(argparse.ArgumentParser, "parse_args", lambda self, args=None, namespace=None: (
+        argparse.Namespace(cmd=mode, kit_commit="a" * 40, h35="b" * 40, orch=ORCH)))
+    assert K.main(["--", mode]) == 1 and hit == []
+    assert refusal_body(capsys.readouterr().out, "exp35_phase_ii.py", mode) == K.RETIRED_BODY
+
+
+def test_main_cannot_dispatch_a_retired_mode():
+    module = ast.parse(open(SB.KIT_PY).read())
+    main = next(f for f in module.body if isinstance(f, ast.FunctionDef) and f.name == "main")
+    names = {n.id for n in ast.walk(main) if isinstance(n, ast.Name)}
+    assert not names & {"reserve", "dry_run", "launch", "parse_lanes"} and {"release", "status", "wrap"} <= names
+    assert K.RETIRED_MODES == RETIRED
+    doc = ast.get_docstring(module)
+    assert "RETIRED" in doc and "2026-11-06 15:30" in doc and "exp_36" in doc

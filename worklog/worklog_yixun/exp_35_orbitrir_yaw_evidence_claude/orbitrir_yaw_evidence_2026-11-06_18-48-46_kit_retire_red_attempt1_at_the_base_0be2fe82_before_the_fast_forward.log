@@ -1,0 +1,38 @@
+exp_35 kit retirement (exp_36 code review III HIGH 2) RED at 0be2fe823130e681569b4af225057769a63e4316 + the retirement tests (uncommitted; the kit files unchanged) -- 2026-11-06T18:48:46-05:00 -- test_exp35_phase_ii_retired.py + test_exp35_phase_ii_cli.py, CPU only
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[reserve-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[dry-run-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-valid]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-valid without EXPECT_KIT_COMMIT]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-bare]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-help]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_cli_refuses_each_retired_mode_before_anything[launch-junk]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_shell_gate_is_its_first_decision
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_helper_cli_refuses_each_retired_mode_before_anything[reserve]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_helper_cli_refuses_each_retired_mode_before_anything[dry-run]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_the_helper_cli_refuses_each_retired_mode_before_anything[launch]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv0]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv1]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv2]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv3]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv4]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_refuses_first_before_its_parser_config_or_world[argv5]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_without_arguments_reads_sys_argv
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_a_retired_mode_a_parser_reaches_anyway_is_refused_before_config_and_world[reserve]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_a_retired_mode_a_parser_reaches_anyway_is_refused_before_config_and_world[dry-run]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_a_retired_mode_a_parser_reaches_anyway_is_refused_before_config_and_world[launch]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_main_cannot_dispatch_a_retired_mode
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_status_still_works_through_the_cli_and_names_the_retirement[True]
+FAILED src/tests/test_exp35_phase_ii_retired.py::test_status_still_works_through_the_cli_and_names_the_retirement[False]
+FAILED src/tests/test_exp35_phase_ii_cli.py::test_the_retired_cli_end_to_end_status_and_release_kept
+FAILED src/tests/test_exp35_phase_ii_cli.py::test_without_the_reviewed_commit_release_refuses_and_reserve_stays_retired
+34 failed, 38 passed in 12.21s
+pytest rc 1
