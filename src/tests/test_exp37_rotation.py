@@ -18,6 +18,7 @@ from src.data.yaw_rotation import azimuth_rotation_matrix
 from src.localization import exp37_rotation as rot
 from src.localization import runner
 from src.localization.engine import candidate_metadata
+from src.localization.exp37_waveforms import WaveformDump
 
 
 def _base():
@@ -89,22 +90,27 @@ class NormConditioner:
         return out
 
 
-def test_an_invariant_model_scores_theta_90_like_theta_0_and_metrics_stay_global(inputs):
+def _dump(tmp_path, stem):
+    return WaveformDump(tmp_path / "w" / stem, run_stem=stem, root=tmp_path / "w")
+
+
+def test_an_invariant_model_scores_theta_90_like_theta_0_and_metrics_stay_global(inputs, tmp_path):
     module = FakeModule()
     module.diffusion.conditioner = NormConditioner()
     head, head_c, head_s = runner.execute_query(cond_method="vanilla", **{**inputs, "module": module})
-    turned, turned_c, turned_s = rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0,
+    turned, turned_c, turned_s = rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, dump=_dump(tmp_path, "a"),
                                                            **{**inputs, "module": module})
     assert np.array_equal(turned_c, head_c) and np.allclose(turned_s, head_s, rtol=0.0, atol=1e-6)
     assert turned["source_global"] == head["source_global"] and turned["rotation"]["column_shift"] == 128
-    variant = rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, **inputs)[2]
+    variant = rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, dump=_dump(tmp_path, "b"), **inputs)[2]
     assert not np.allclose(variant, runner.execute_query(cond_method="vanilla", **inputs)[2], atol=1e-6)
 
 
-def test_theta_0_timing_and_off_column_angles_are_refused(inputs):
+def test_theta_0_timing_and_off_column_angles_are_refused(inputs, tmp_path):
     with pytest.raises(ValueError, match="headline"):
-        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=0.0, **inputs)
+        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=0.0, dump=_dump(tmp_path, "c"), **inputs)
     with pytest.raises(ValueError, match="column"):
-        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=10.0, **inputs)
+        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=10.0, dump=_dump(tmp_path, "d"), **inputs)
     with pytest.raises(ValueError, match="accuracy"):
-        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, measure_core_forward=True, **inputs)
+        rot.execute_query_rotated(cond_method="vanilla", rotate_deg=90.0, measure_core_forward=True,
+                                  dump=_dump(tmp_path, "e"), **inputs)

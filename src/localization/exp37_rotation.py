@@ -24,7 +24,7 @@ from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES, rotate_scene_metadata
 from src.localization.engine import (
     CONTEXT_CONDITIONING_IDS, FA_CONTEXT_CONDITIONING_IDS, FA_DYNAMIC_CONDITIONING_IDS, SOURCE_CONDITIONING_IDS,
     candidate_metadata, candidate_seed, encode_audio_features, filter_frozen_query_candidates,
-    generate_and_score_batch, load_frozen_query,
+    generate_rir_batch, load_frozen_query,
 )
 from src.localization.runner import _build_query_result, _cache_branch, _repeat_branch, validate_frame_angles
 
@@ -51,7 +51,7 @@ def rotated_candidate_items(base: dict, candidates, receiver_global, theta_deg: 
 
 @torch.inference_mode()
 def execute_query_rotated(*, module, retrieval, selected, record, audit, room_base, dataset_root, device, cond_method,
-                          candidate_batch_size, sample_seed, tau, run_sha256, rotate_deg, score_sample_counts=(1,),
+                          candidate_batch_size, sample_seed, tau, run_sha256, rotate_deg, dump, score_sample_counts=(1,),
                           synchronize_timing=False, measure_core_forward=False, context_count=8,
                           frame_angles=DEFAULT_FRAME_ANGLES, candidate_subset=None):
     if measure_core_forward:
@@ -75,7 +75,7 @@ def execute_query_rotated(*, module, retrieval, selected, record, audit, room_ba
         context = _cache_branch(module, [query], FA_CONTEXT_CONDITIONING_IDS if cond_method == "fa_invariant"
                                 else CONTEXT_CONDITIONING_IDS, device, cond_method, frame_angles=frame_angles)
     samples = max(score_sample_counts)
-    chunks = []
+    chunks, waves = [], []
     for start in range(0, len(candidates), candidate_batch_size):
         stop = min(start + candidate_batch_size, len(candidates))
         items = rotated_candidate_items(base, candidates[start:stop], record["receiver_global"], rotate_deg)
@@ -86,15 +86,18 @@ def execute_query_rotated(*, module, retrieval, selected, record, audit, room_ba
                                      frame_angles=frame_angles) if cond_method == "fa_invariant" else None)
         seeds = [candidate_seed(sample_seed, int(record["index"]), i, s) for i in range(start, stop)
                  for s in range(samples)]
-        scores = generate_and_score_batch(module, retrieval, _repeat_branch(source, samples), context,
-                                          observation_features, seeds,
-                                          dynamic_branch=_repeat_branch(dynamic, samples) if dynamic else None)
+        generated = generate_rir_batch(module, _repeat_branch(source, samples), context, seeds,
+                                       dynamic_branch=_repeat_branch(dynamic, samples) if dynamic else None)
+        scores = encode_audio_features(retrieval, generated) @ observation_features.T   # = generate_and_score_batch
         chunks.append(scores.reshape(stop - start, samples).cpu())
+        waves.append(generated.cpu())
     similarities = torch.cat(chunks, dim=0).float()
     peak = int(torch.cuda.max_memory_allocated(device)) if device_type == "cuda" else 0
     result = _build_query_result(selected=selected, record=record, candidates=candidates, similarities=similarities,
                                  run_sha256=run_sha256, elapsed_seconds=time.perf_counter() - start_time, peak_memory_bytes=peak, tau=tau,
                                  random_seed=sample_seed, score_sample_counts=tuple(score_sample_counts))
+    entry = dump.write(int(record["index"]), torch.cat(waves, dim=0).numpy(), np.arange(len(candidates)))
+    result["waveforms"] = {"dump_dir": str(dump.dir), **entry}
     result["rotation"] = {"rotate_deg": float(rotate_deg), "panorama_width": PANORAMA_WIDTH, "column_shift": shift,
                           "effective_deg": 360.0 * shift / PANORAMA_WIDTH,
                           "contract": "query rotated once; candidates built from the base then rotated once; "
