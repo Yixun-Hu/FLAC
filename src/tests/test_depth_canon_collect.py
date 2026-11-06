@@ -219,7 +219,7 @@ def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root
     entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
                          canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
     assert entry["link"] == link and entry["metrics"] == metrics_rel
-    backend = C.backend_fields() if C.is_exp35(r) else None      # exp_35: receipt schema 2 + its log
+    backend = C.backend_fields() if C.uses_no_flash(r) else None  # exp_35 / exp_36: receipt schema 2 + its log
     if backend:
         os.makedirs(os.path.join(str(tmp), "logs"), exist_ok=True)
         with open(os.path.join(str(tmp), "logs", "x.log"), "w") as f:

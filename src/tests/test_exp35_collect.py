@@ -146,7 +146,7 @@ def test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector():
     kw = dict(farm_root="farm", dump_root="/nas/d", canon_index=T.canon_index(), no_dump_blocks=["TRAJ"])
     new_plan, old_plan = C.plan_cells(MANIFEST, rows, **kw), old.plan_cells(MANIFEST, rows, **kw)
     assert len(new_plan) == 230 and json.dumps(new_plan) == json.dumps(old_plan)
-    exp35 = C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if C.is_exp35(c)], **kw)
+    exp35 = C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if C.uses_no_flash(c)], **kw)   # + exp_36's
     assert all(e["no_flash"] is True and list(e)[-1] == "no_flash" for e in exp35)
 
 

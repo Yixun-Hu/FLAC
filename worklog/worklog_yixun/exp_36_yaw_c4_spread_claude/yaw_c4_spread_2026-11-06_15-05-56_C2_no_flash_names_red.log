@@ -1,0 +1,342 @@
+RED, cycle 2 (uses_no_flash, the exp_36 name validator; Codex B1) at HEAD c4cbebb6ba8d41ddfe866f482bb078934a02408f + the uncommitted tests
+FF.FFF..FFFFFFFFFF                                                       [100%]
+=================================== FAILURES ===================================
+________ test_the_no_flash_decision_is_separate_from_the_exp35_identity ________
+
+    def test_the_no_flash_decision_is_separate_from_the_exp35_identity():
+        assert C.EXP35_BLOCKS == EXP35 and C.EXP36_BLOCKS == ("YAW-C4S",) and C.EXPLICIT_BLOCKS == ("E2-FAIL",)
+        for r in MANIFEST["cells"]:
+>           assert C.uses_no_flash(r) is (r["block"] in EXP35 + ("YAW-C4S",)), r["cell"]
+E           AttributeError: module 'depth_canon_collect' has no attribute 'uses_no_flash'
+
+src/tests/test_exp36_collect.py:41: AttributeError
+______ test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free _______
+
+    def test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free():
+        plan = C.plan_cells(MANIFEST, C.select_cells(MANIFEST, blocks=["YAW-C4S"]), farm_root="farm", dump_root="/d",
+                            canon_index=None, no_dump_blocks=["YAW-C4S"])
+        ck = MANIFEST["arms"]["YAW"]["ckpt"]
+        assert [e["cell"] for e in plan] == YAW_C4S
+        for e in plan:
+            r = _row(e["cell"])
+>           assert (e["no_flash"], e["dump"], list(e)[-1]) == (True, False, "no_flash"), e["cell"]
+E           KeyError: 'no_flash'
+
+src/tests/test_exp36_collect.py:53: KeyError
+__________ test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_cli_count_no_flash_counts0')
+capsys = <_pytest.capture.CaptureFixture object at 0x7b3e6a182f50>
+args = ['--blocks', 'YAW-C4S'], want = 25
+
+    @pytest.mark.parametrize("args, want", [(["--blocks", "YAW-C4S"], 25), (["--only", REPLAY], 1),
+                                            (["--only", ",".join(CELLS24)], 24), ([], 100),
+                                            (["--blocks", "YAW-pin"], 0), (["--blocks", "YAW-C4S,CTL"], 27)])
+    def test_cli_count_no_flash_counts_the_yaw_c4s_cells(tmp_path, capsys, args, want):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        assert C.main(["--count-no-flash", "--cells", str(cells)] + args) == 0
+>       assert capsys.readouterr().out.strip().splitlines()[-1] == str(want)
+E       AssertionError: assert '0' == '25'
+E         
+E         - 25
+E         + 0
+
+src/tests/test_exp36_collect.py:72: AssertionError
+__________ test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_cli_count_no_flash_counts1')
+capsys = <_pytest.capture.CaptureFixture object at 0x7b3e693dde70>
+args = ['--only', 'exp36_YAW_C4_S40000_K8_s42_th90'], want = 1
+
+    @pytest.mark.parametrize("args, want", [(["--blocks", "YAW-C4S"], 25), (["--only", REPLAY], 1),
+                                            (["--only", ",".join(CELLS24)], 24), ([], 100),
+                                            (["--blocks", "YAW-pin"], 0), (["--blocks", "YAW-C4S,CTL"], 27)])
+    def test_cli_count_no_flash_counts_the_yaw_c4s_cells(tmp_path, capsys, args, want):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        assert C.main(["--count-no-flash", "--cells", str(cells)] + args) == 0
+>       assert capsys.readouterr().out.strip().splitlines()[-1] == str(want)
+E       AssertionError: assert '0' == '1'
+E         
+E         - 1
+E         + 0
+
+src/tests/test_exp36_collect.py:72: AssertionError
+__________ test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_cli_count_no_flash_counts2')
+capsys = <_pytest.capture.CaptureFixture object at 0x7b3e6a182410>
+args = ['--only', 'exp25_YAW_C4_S40000_K1_s43_th90,exp25_YAW_C4_S40000_K1_s43_th180,exp25_YAW_C4_S40000_K1_s43_th270,exp25_YA...S40000_K8_s45_th270,exp25_YAW_C4_S40000_K8_s46_th90,exp25_YAW_C4_S40000_K8_s46_th180,exp25_YAW_C4_S40000_K8_s46_th270']
+want = 24
+
+    @pytest.mark.parametrize("args, want", [(["--blocks", "YAW-C4S"], 25), (["--only", REPLAY], 1),
+                                            (["--only", ",".join(CELLS24)], 24), ([], 100),
+                                            (["--blocks", "YAW-pin"], 0), (["--blocks", "YAW-C4S,CTL"], 27)])
+    def test_cli_count_no_flash_counts_the_yaw_c4s_cells(tmp_path, capsys, args, want):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        assert C.main(["--count-no-flash", "--cells", str(cells)] + args) == 0
+>       assert capsys.readouterr().out.strip().splitlines()[-1] == str(want)
+E       AssertionError: assert '0' == '24'
+E         
+E         - 24
+E         + 0
+
+src/tests/test_exp36_collect.py:72: AssertionError
+__________ test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_cli_count_no_flash_counts5')
+capsys = <_pytest.capture.CaptureFixture object at 0x7b3e693dd420>
+args = ['--blocks', 'YAW-C4S,CTL'], want = 27
+
+    @pytest.mark.parametrize("args, want", [(["--blocks", "YAW-C4S"], 25), (["--only", REPLAY], 1),
+                                            (["--only", ",".join(CELLS24)], 24), ([], 100),
+                                            (["--blocks", "YAW-pin"], 0), (["--blocks", "YAW-C4S,CTL"], 27)])
+    def test_cli_count_no_flash_counts_the_yaw_c4s_cells(tmp_path, capsys, args, want):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        assert C.main(["--count-no-flash", "--cells", str(cells)] + args) == 0
+>       assert capsys.readouterr().out.strip().splitlines()[-1] == str(want)
+E       AssertionError: assert '2' == '27'
+E         
+E         - 27
+E         + 2
+
+src/tests/test_exp36_collect.py:72: AssertionError
+_ test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_0')
+name = 'exp36_YAW_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", [REPLAY, CELLS24[0], CELLS24[-1]])
+    def test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log(tmp_path, name):
+        r = _row(name)
+>       T.write_cell(tmp_path, r, dump=False)
+
+src/tests/test_exp36_collect.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:183: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_0')
+r = {'cell': 'exp36_YAW_C4_S40000_K8_s42_th90', 'order': 346, 'priority': 18, 'block': 'YAW-C4S', ...}
+link = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000.ckpt'
+metrics_rel = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.json'
+dump = False, pin = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ckpt_sha = None
+dump_root = '/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_0/dumps'
+
+    def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
+        """The driver's receipt, written by the REAL writer (``depth_canon_collect.write_receipt``)
+        from a real plan entry; ``ckpt_sha`` tampers the written file afterwards."""
+        dump_root = dump_root or os.path.join(str(tmp), "dumps")
+        entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
+                             canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
+        assert entry["link"] == link and entry["metrics"] == metrics_rel
+>       backend = C.backend_fields() if C.uses_no_flash(r) else None  # exp_35 / exp_36: receipt schema 2 + its log
+E       AttributeError: module 'depth_canon_collect' has no attribute 'uses_no_flash'
+
+src/tests/test_depth_canon_collect.py:222: AttributeError
+_ test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_1')
+name = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("name", [REPLAY, CELLS24[0], CELLS24[-1]])
+    def test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log(tmp_path, name):
+        r = _row(name)
+>       T.write_cell(tmp_path, r, dump=False)
+
+src/tests/test_exp36_collect.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:183: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_1')
+r = {'cell': 'exp25_YAW_C4_S40000_K1_s43_th90', 'order': 347, 'priority': 18, 'block': 'YAW-C4S', ...}
+link = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000.ckpt'
+metrics_rel = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th90_rot90.json'
+dump = False, pin = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ckpt_sha = None
+dump_root = '/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_1/dumps'
+
+    def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
+        """The driver's receipt, written by the REAL writer (``depth_canon_collect.write_receipt``)
+        from a real plan entry; ``ckpt_sha`` tampers the written file afterwards."""
+        dump_root = dump_root or os.path.join(str(tmp), "dumps")
+        entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
+                             canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
+        assert entry["link"] == link and entry["metrics"] == metrics_rel
+>       backend = C.backend_fields() if C.uses_no_flash(r) else None  # exp_35 / exp_36: receipt schema 2 + its log
+E       AttributeError: module 'depth_canon_collect' has no attribute 'uses_no_flash'
+
+src/tests/test_depth_canon_collect.py:222: AttributeError
+_ test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_2')
+name = 'exp25_YAW_C4_S40000_K8_s46_th270'
+
+    @pytest.mark.parametrize("name", [REPLAY, CELLS24[0], CELLS24[-1]])
+    def test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log(tmp_path, name):
+        r = _row(name)
+>       T.write_cell(tmp_path, r, dump=False)
+
+src/tests/test_exp36_collect.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_depth_canon_collect.py:183: in write_cell
+    write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha, dump_root=dump_root)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_2')
+r = {'cell': 'exp25_YAW_C4_S40000_K8_s46_th270', 'order': 370, 'priority': 18, 'block': 'YAW-C4S', ...}
+link = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000.ckpt'
+metrics_rel = 'outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K8_s46_th270_rot270.json'
+dump = False, pin = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ckpt_sha = None
+dump_root = '/tmp/pytest-of-yixunhu/pytest-6525/test_a_dump_free_yaw_c4s_cell_2/dumps'
+
+    def write_receipt(tmp, r, link, metrics_rel, dump, pin, ckpt_sha=None, dump_root=None):
+        """The driver's receipt, written by the REAL writer (``depth_canon_collect.write_receipt``)
+        from a real plan entry; ``ckpt_sha`` tampers the written file afterwards."""
+        dump_root = dump_root or os.path.join(str(tmp), "dumps")
+        entry = C.plan_cells(MANIFEST, [r], farm_root=os.path.dirname(os.path.dirname(link)), dump_root=dump_root,
+                             canon_index=canon_index(), no_dump_blocks=[] if dump else [r["block"]])[0]
+        assert entry["link"] == link and entry["metrics"] == metrics_rel
+>       backend = C.backend_fields() if C.uses_no_flash(r) else None  # exp_35 / exp_36: receipt schema 2 + its log
+E       AttributeError: module 'depth_canon_collect' has no attribute 'uses_no_flash'
+
+src/tests/test_depth_canon_collect.py:222: AttributeError
+_____________ test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6525/test_a_schema1_receipt_is_refu0')
+
+    def test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell(tmp_path):
+        r = _row(CELLS24[5])
+        T.write_cell(tmp_path, r, dump=False, receipt=False)
+        entry = C.plan_cells(MANIFEST, [r], farm_root=T.FARM, dump_root=str(tmp_path / "dumps"), canon_index=None,
+                             no_dump_blocks=["YAW-C4S"])[0]
+        kw = dict(base_dir=str(tmp_path), lane=1, log="logs/x.log", rc=0, pin=PIN, ckpt_sha256=entry["sha256"],
+                  ckpt_bytes=T.CKPT_BYTES, campaign_digest=T.DIGEST, spawn_digest=T.DIGEST, post_digest=T.DIGEST)
+>       with pytest.raises(ValueError, match="attention backend"):
+E       Failed: DID NOT RAISE ValueError
+
+src/tests/test_exp36_collect.py:100: Failed
+____________ test_the_25_yaw_c4s_names_are_admitted_and_only_there _____________
+
+    def test_the_25_yaw_c4s_names_are_admitted_and_only_there():
+>       assert all(C.exp36_name_reasons(r) == [] for r in MANIFEST["cells"])
+
+src/tests/test_exp36_collect.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7b3e6952f070>
+
+>   assert all(C.exp36_name_reasons(r) == [] for r in MANIFEST["cells"])
+E   AttributeError: module 'depth_canon_collect' has no attribute 'exp36_name_reasons'
+
+src/tests/test_exp36_collect.py:113: AttributeError
+_ test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36] _
+
+old = 'exp25_YAW_C4_S40000_K1_s43_th270'
+new = 'exp25_YAW_C4_S40000_K1_s43_th91', needle = 'registered exp_36'
+
+    @pytest.mark.parametrize("old, new, needle", [(CELLS24[2], "exp25_YAW_C4_S40000_K1_s43_th91", "registered exp_36"),
+                                                  ("exp25_YAW_C4_S40000_K8_s42_th90", REPLAY, "exp_36 name"),
+                                                  ("exp25_YAW_T_S40000_K1_s43", CELLS24[0], "exp_36 name")])
+    def test_verify_cell_refuses_a_misnamed_row(old, new, needle):
+        m = copy.deepcopy(MANIFEST)
+        r = _row(old, m)
+        r["cell"] = new                                                     # the suffix still finds the row
+        reasons = C.verify_cell(_stem(r), manifest=m, farm_root=T.FARM, dump_root="/d", pin=PIN)
+>       assert len(reasons) == 1 and needle in reasons[0], reasons
+E       AssertionError: ['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW...depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th91_rot270.cell.json (FileNotFoundError)']
+E       assert (3 == 1)
+E        +  where 3 = len(['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW...depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th91_rot270.cell.json (FileNotFoundError)'])
+
+src/tests/test_exp36_collect.py:127: AssertionError
+_ test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name] _
+
+old = 'exp25_YAW_C4_S40000_K8_s42_th90', new = 'exp36_YAW_C4_S40000_K8_s42_th90'
+needle = 'exp_36 name'
+
+    @pytest.mark.parametrize("old, new, needle", [(CELLS24[2], "exp25_YAW_C4_S40000_K1_s43_th91", "registered exp_36"),
+                                                  ("exp25_YAW_C4_S40000_K8_s42_th90", REPLAY, "exp_36 name"),
+                                                  ("exp25_YAW_T_S40000_K1_s43", CELLS24[0], "exp_36 name")])
+    def test_verify_cell_refuses_a_misnamed_row(old, new, needle):
+        m = copy.deepcopy(MANIFEST)
+        r = _row(old, m)
+        r["cell"] = new                                                     # the suffix still finds the row
+        reasons = C.verify_cell(_stem(r), manifest=m, farm_root=T.FARM, dump_root="/d", pin=PIN)
+>       assert len(reasons) == 1 and needle in reasons[0], reasons
+E       AssertionError: ['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW..._depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.cell.json (FileNotFoundError)']
+E       assert (3 == 1)
+E        +  where 3 = len(['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW..._depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.cell.json (FileNotFoundError)'])
+
+src/tests/test_exp36_collect.py:127: AssertionError
+_ test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name] _
+
+old = 'exp25_YAW_T_S40000_K1_s43', new = 'exp25_YAW_C4_S40000_K1_s43_th90'
+needle = 'exp_36 name'
+
+    @pytest.mark.parametrize("old, new, needle", [(CELLS24[2], "exp25_YAW_C4_S40000_K1_s43_th91", "registered exp_36"),
+                                                  ("exp25_YAW_C4_S40000_K8_s42_th90", REPLAY, "exp_36 name"),
+                                                  ("exp25_YAW_T_S40000_K1_s43", CELLS24[0], "exp_36 name")])
+    def test_verify_cell_refuses_a_misnamed_row(old, new, needle):
+        m = copy.deepcopy(MANIFEST)
+        r = _row(old, m)
+        r["cell"] = new                                                     # the suffix still finds the row
+        reasons = C.verify_cell(_stem(r), manifest=m, farm_root=T.FARM, dump_root="/d", pin=PIN)
+>       assert len(reasons) == 1 and needle in reasons[0], reasons
+E       AssertionError: ['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW.../exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th90.cell.json (FileNotFoundError)']
+E       assert (3 == 1)
+E        +  where 3 = len(['missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW.../exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S40000_K1_s43_th90.cell.json (FileNotFoundError)'])
+
+src/tests/test_exp36_collect.py:127: AssertionError
+____ test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector _____
+
+    def test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector():
+        old = _collector_at("682df5db")
+        rows = [c for c in MANIFEST["cells"] if c["block"] in C.EXP25_BLOCKS]      # exp_36: YAW-C4S is no exp_25 block
+        kw = dict(farm_root="farm", dump_root="/nas/d", canon_index=T.canon_index(), no_dump_blocks=["TRAJ"])
+        new_plan, old_plan = C.plan_cells(MANIFEST, rows, **kw), old.plan_cells(MANIFEST, rows, **kw)
+        assert len(new_plan) == 230 and json.dumps(new_plan) == json.dumps(old_plan)
+>       exp35 = C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if C.uses_no_flash(c)], **kw)   # + exp_36's
+
+src/tests/test_exp35_collect.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7b3e69358790>
+
+>   exp35 = C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if C.uses_no_flash(c)], **kw)   # + exp_36's
+E   AttributeError: module 'depth_canon_collect' has no attribute 'uses_no_flash'
+
+src/tests/test_exp35_collect.py:149: AttributeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+FAILED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+FAILED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+FAILED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+FAILED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+FAILED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+FAILED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+FAILED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+FAILED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+FAILED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+FAILED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+FAILED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+FAILED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+FAILED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+15 failed, 3 passed, 3 warnings in 7.18s
