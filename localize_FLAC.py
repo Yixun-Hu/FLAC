@@ -41,6 +41,7 @@ def main() -> None:
     parser.add_argument("--mesh-root", type=Path)
     parser.add_argument("--require-attention-backend", choices=("sdpa",))
     parser.add_argument("--context-count", type=int, choices=(8, 1), default=8)
+    parser.add_argument("--stage-split", action="store_true")  # the SEPARATE instrumented pass
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -74,6 +75,7 @@ def main() -> None:
         mesh_root=args.mesh_root,
         require_attention_backend=args.require_attention_backend,
         context_count=args.context_count,
+        stage_split=args.stage_split,
     )
     print(json.dumps(result, indent=2))
 

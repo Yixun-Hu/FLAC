@@ -473,6 +473,7 @@ def run_localization(
     mesh_root: Path | None = None,
     require_attention_backend: str | None = None,
     context_count: int = 8,
+    stage_split: bool = False,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -491,6 +492,8 @@ def run_localization(
         raise ValueError(f"unsupported context count {context_count}; supported: {SUPPORTED_CONTEXT_COUNTS}")
     if measure_core_forward and score_sample_counts != (1,):
         raise ValueError("core-forward latency requires exactly one RIR per candidate")
+    if stage_split and not (measure_core_forward and synchronize_timing):
+        raise ValueError("the stage split pass needs --measure-core-forward and --synchronize-latency")
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
     if geometry_audit.get("sha256") != canonical_sha256(audit_content):
         raise RuntimeError("geometry audit SHA-256 mismatch")
@@ -532,6 +535,8 @@ def run_localization(
         identity["mesh_root_override"] = mesh_remap
     if context_count != 8:
         identity["context_selection"] = K1_CONTEXT_SELECTION
+    if stage_split:
+        identity["stage_split"] = True
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
     write_host_record(
@@ -544,6 +549,12 @@ def run_localization(
     module, _config = load_flac_module(model_config_path, checkpoint_path, device)
     retrieval = load_agree_retrieval(agree_checkpoint_path, device)
 
+    if stage_split:
+        from src.localization import stage_split as split_module
+
+        executor = split_module.execute_query_stage_split
+    else:
+        executor = execute_query
     room_bases: dict[str, np.ndarray] = {}
     if warmup_query_count > len(joined):
         raise ValueError("warmup_query_count exceeds the selected query count")
@@ -554,7 +565,7 @@ def run_localization(
             room_bases[room] = reconstruct_room_base_candidates(
                 room, geometry_audit, mesh_path=mesh_paths.get(room)
             )
-        execute_query(
+        executor(
             module=module,
             retrieval=retrieval,
             selected=selected,
@@ -597,7 +608,7 @@ def run_localization(
                 room, geometry_audit, mesh_path=mesh_paths.get(room)
             )
         torch.cuda.reset_peak_memory_stats(device)
-        result, candidates, similarities = execute_query(
+        result, candidates, similarities = executor(
             module=module,
             retrieval=retrieval,
             selected=selected,
