@@ -8,7 +8,8 @@
         record is released), then the first durable state ``reserved`` (O_EXCL)
   run --orch D --lock-fd N        the detached supervisor (holds the inherited exp22 lock for its whole life)
   confirm --orch D --pid P        the launcher: the supervisor's recorded identity is the live pid's, the lock held
-  active [--except-orch D]        exit 0 iff no exp22 run is active or unresolved
+  active [--except-orch D] [--holding-lock]   exit 0 iff no exp22 run is active or unresolved (--holding-lock: the
+        caller -- the launcher's last look -- holds the exclusive exp22 lock itself)
   release --orch D                the Planner, by hand, after a stop or a crash: only with no live supervisor or line
         child (pid + start time, never a pid alone) and only our exact record (bytes + inode) is unlinked
 
@@ -210,12 +211,13 @@ def alive(ident, proc):
         "cmdline_sha256", live["cmdline_sha256"]) == live["cmdline_sha256"])
 
 
-def active_reasons(cfg, worktree, except_orch=None):
+def active_reasons(cfg, worktree, except_orch=None, holding_lock=False):
     """Why an exp22 run is active or unresolved: the exp22 lock held, a supervisor process, an exp22 reservation on
-    either card, or a state (other than ``except_orch``'s) neither released nor stopped; unreadable = a reason."""
+    either card, or a state (other than ``except_orch``'s) neither released nor stopped; unreadable = a reason.
+    ``holding_lock``: the caller (the launcher's last look) holds the exclusive lock itself, so no other one does."""
     out = []
     try:
-        if C.lock_status(lock_path(worktree)) == "held":
+        if not holding_lock and C.lock_status(lock_path(worktree)) == "held":
             out.append(f"the exp22 lock {lock_path(worktree)} is held: a supervisor or a line child lives")
         pids = C.procs_named(SUPERVISOR, cfg.proc)
         out += [f"exp22 supervisor process(es) {pids} run"] if pids else []
@@ -574,7 +576,9 @@ def main(argv=None):
     c.add_argument("--orch", required=True)
     c.add_argument("--pid", type=int, required=True)
     c.add_argument("--timeout", type=float, default=60.0)
-    sub.add_parser("active").add_argument("--except-orch")
+    a = sub.add_parser("active")
+    a.add_argument("--except-orch")
+    a.add_argument("--holding-lock", action="store_true", help="the caller holds the exp22 lock itself")
     sub.add_parser("release").add_argument("--orch", required=True)
     args = ap.parse_args(argv)
     cfg, orch = C.registered_config(), os.path.abspath(args.orch) if getattr(args, "orch", None) else None
@@ -588,7 +592,7 @@ def main(argv=None):
     elif args.cmd == "release":
         rc, msg = planner_release(cfg, WORKTREE, orch)
     else:
-        why = active_reasons(cfg, WORKTREE, except_orch=args.except_orch)
+        why = active_reasons(cfg, WORKTREE, except_orch=args.except_orch, holding_lock=args.holding_lock)
         rc, msg = (1, "EXP22 RUN ACTIVE OR UNRESOLVED: " + "; ".join(why)) if why else (0, "no exp22 run is active")
     print(msg, flush=True)
     return rc
