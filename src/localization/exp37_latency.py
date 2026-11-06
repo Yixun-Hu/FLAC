@@ -94,7 +94,7 @@ def host_cotenancy(run_dir: Path) -> dict:
     """GPU co-tenants (another pid on the run's card -> invalid; no record or an unidentified card -> invalid) and
     CPU co-tenants (other processes at >= 10 %CPU in the top lists -- recorded for the Planner's judgement)."""
     records = sorted((Path(run_dir) / "host_records").glob("*.json"))
-    gpu, cpu, unknown = [], [], not records
+    gpu, cpu, unknown, own_seen = [], [], not records, False
     for path in records:
         snapshot = json.loads(path.read_text())["snapshot"]
         pid, card = int(snapshot["pid"]), _norm_uuid((snapshot.get("cuda_device") or {}).get("uuid"))
@@ -103,12 +103,14 @@ def host_cotenancy(run_dir: Path) -> dict:
             fields = [f.strip() for f in line.split(",")]
             if _norm_uuid(fields[0]) == card and int(fields[1]) != pid:
                 gpu.append(f"{path.name}: {line}")
+            own_seen |= _norm_uuid(fields[0]) == card and int(fields[1]) == pid
         for line in snapshot.get("top_cpu_processes", {}).get("lines", []):
             fields = line.split()
             if int(fields[0]) != pid and float(fields[3]) >= CPU_COTENANT_PCPU and line not in cpu:
                 cpu.append(line)
-    return {"timing_valid": not gpu and not unknown, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
-            "host_record_count": len(records), "unidentified_card": unknown}
+    # fail-closed uuid matching: the run itself must be seen on its own card (else co-tenants could be missed)
+    return {"timing_valid": not gpu and not unknown and own_seen, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
+            "host_record_count": len(records), "unidentified_card": unknown, "own_process_seen_on_card": own_seen}
 
 
 def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False) -> dict:
