@@ -248,3 +248,12 @@ def test_status_reports_a_live_run_and_its_held_lock(tmp_path):
         except ChildProcessError:
             break
         time.sleep(0.05)
+
+
+def test_an_unreadable_exp35_folder_is_unreadable_not_a_crash(tmp_path):
+    b = make_box(tmp_path, runner=SB.install_stub(tmp_path))
+    cfg = b.cfg._replace(run=os.path.join(b.tmp, "no-such-run-worktree"))
+    with pytest.raises(K.Unreadable):
+        K.orchestrations(cfg)
+    rc, text = K.status(FakeWorld(), cfg)
+    assert rc == 0 and "orchestrations: unreadable" in text

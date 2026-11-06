@@ -65,6 +65,7 @@ def test_the_dry_run_runs_the_exact_command_and_records_everything(tmp_path, mon
     assert d["preflight"]["sha256"] == K.sha256_bytes(K.PREFLIGHT.encode())
     _, m, rows = K.selection(SB.real_cells())
     assert d["n_ids"] == 68 and d["ids_sha256"] == K.NAMES_SHA256 and d["benign_lines"] == 2
+    assert d["ids"] == [r["cell"] for r in rows]                                  # the exact planned set, in order
     assert d["argv_records"] == [e["argv"] for e in K.expected_plan(m, rows, run=b.run, digest=b.digest)["cells"]]
     assert d["before"]["reasons"] == [] and d["after"]["reasons"] == []
     assert K.held_reasons(st["reservations"][0]) == [] and st["failure"] is None
@@ -139,3 +140,14 @@ def test_every_runner_fault_is_a_retained_dry_run_failure(tmp_path, fault, reaso
     assert rc == 1 and reason in msg, msg
     assert st["phase"] == "dry_run_failed" and st["dry_run"]["rc"] == {"abort": 2, "rc": 3}.get(next(iter(fault)), 0)
     assert len(SB.stub_calls(tmp_path)) == 1 and K.held_reasons(st["reservations"][0]) == []   # the record stays
+
+
+def test_a_runner_that_cannot_be_spawned_is_a_retained_dry_run_failure(tmp_path, monkeypatch):
+    b = _box(tmp_path)
+    real = K.runner_command
+    monkeypatch.setattr(K, "runner_command", lambda cfg, lanes, dry: (
+        [os.path.join(b.tmp, "no-such-bash")] + real(cfg, lanes, dry)[0][1:],) + real(cfg, lanes, dry)[1:])
+    rc, msg = _dry(b)
+    st = _state(b)
+    assert rc == 1 and st["phase"] == "dry_run_failed" and "could not be spawned" in msg
+    assert SB.stub_calls(tmp_path) == [] and K.held_reasons(st["reservations"][0]) == []

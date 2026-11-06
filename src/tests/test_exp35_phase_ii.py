@@ -88,6 +88,7 @@ def test_the_fixed_pins_are_the_registered_facts():
                                                      f"{X35}/exp35_supervisor_state.json.lock")
     assert (K.RUNNER_LOCK, K.KIT_LOCK) == (f"{X25}/.depth_canon_eval.lock", f"{X35}/exp35_phase_ii.lock")
     assert K.FINAL_EVENT == SB.FINAL_EVENT and K.KIT_FILES == ("exp35_phase_ii.sh", "exp35_phase_ii.py")
+    assert not hasattr(K, "HEX64")                                               # no unused pin left behind
 
 
 def test_the_pins_hold_on_the_h35_objects():

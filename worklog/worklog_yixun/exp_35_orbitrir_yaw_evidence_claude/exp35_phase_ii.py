@@ -84,7 +84,6 @@ SUP_STATE, SUP_FILE = f"{X35}/exp35_supervisor_state.json", f"{X35}/exp35_superv
 SUP_LOCK, RUNNER_LOCK, KIT_LOCK = f"{SUP_STATE}.lock", f"{X25}/.depth_canon_eval.lock", f"{X35}/exp35_phase_ii.lock"
 FINAL_EVENT = "phase (i) complete; the reservation released"                 # exp35_supervisor.py's last event
 KIT_FILES = ("exp35_phase_ii.sh", "exp35_phase_ii.py")
-HEX64 = re.compile(r"[0-9a-f]{64}")
 Config = collections.namedtuple("Config", "run h35 digest reservations exp30_pins queue_log nvidia_smi proc scan_proc "
                                 "py gap_s confirm_s identify_s dry_max_age_s kit_dir helper")
 
@@ -860,8 +859,12 @@ def load_state(orch):
 def orchestrations(cfg):
     """[(directory, state or why it is unreadable)] of every phase-(ii) orchestration in the run worktree."""
     base = os.path.join(cfg.run, X35)
+    try:
+        names = sorted(os.listdir(base))
+    except OSError as err:
+        raise Unreadable(f"the exp_35 folder {base} is unreadable ({err})") from err
     out = []
-    for n in sorted(os.listdir(base)):
+    for n in names:
         if n.startswith(ORCH_PREFIX):
             try:
                 out.append((os.path.join(base, n), load_state(os.path.join(base, n))))
@@ -1130,6 +1133,8 @@ def dry_run(world, cfg, *, kit_commit, h35, orch):
                 why += more
         except Unreadable as err:
             why = [f"unreadable: {err}"]
+        except OSError as err:                           # the runner could not be spawned, or its log written
+            why = [f"the dry run could not be spawned or its outer log written ({err})"]
         st.update(phase="dry_run_failed" if why else "dry_run_passed", dry_run=dict(rec, reasons=why),
                   failure={"reasons": why, "time": iso(world.now())} if why else None)
         event(st, world.now(), st["phase"], reasons=why[:5])
@@ -1151,8 +1156,8 @@ def artifacts(cfg, raw, st, rec):
         return ["the cells manifest is unreadable"]
     lanes = tuple(x["index"] for x in st["lanes"])
     why, info = parse_dry_run(raw.decode(errors="replace"), cfg=cfg, m=m, rows=rows, lanes=lanes)
-    rec.update(ts=info["ts"], n_ids=len(info["ids"]), ids_sha256=names_sha256(info["ids"]), argv_records=info["argv"],
-               benign_lines=info["benign_lines"])
+    rec.update(ts=info["ts"], n_ids=len(info["ids"]), ids=info["ids"], ids_sha256=names_sha256(info["ids"]),
+               argv_records=info["argv"], benign_lines=info["benign_lines"])
     want = {"internal_log": raw, "plan": expected_plan(m, rows, run=os.path.realpath(cfg.run), digest=cfg.digest),
             "preflight": PREFLIGHT.encode()}
     for key, name in (("internal_log", "eval_run.log"), ("plan", "eval_plan.json"),
@@ -1477,9 +1482,13 @@ def status(world, cfg, *, orch=None, kit_commit=None):
         out.append(f"exp_35 processes: {live_procs(cfg) or 'none'}")
     except (ValueError, Unreadable) as err:
         out.append(f"unreadable: {err}")
-    orchs = orchestrations(cfg)
-    out.append("orchestrations: " + (", ".join(f"{os.path.basename(d)} "
-                                               f"({s['phase'] if isinstance(s, dict) else s})" for d, s in orchs) or "none"))
+    try:
+        orchs = orchestrations(cfg)
+    except Unreadable as err:
+        orchs, out = [], out + [f"orchestrations: unreadable: {err}"]
+    else:
+        out.append("orchestrations: " + (", ".join(f"{os.path.basename(d)} ({s['phase'] if isinstance(s, dict) else s})"
+                                                   for d, s in orchs) or "none"))
     target = orch or (orchs[-1][0] if orchs else None)
     return 0, "\n".join(out + (_status_of(cfg, target, m, rows) if target else []))
 

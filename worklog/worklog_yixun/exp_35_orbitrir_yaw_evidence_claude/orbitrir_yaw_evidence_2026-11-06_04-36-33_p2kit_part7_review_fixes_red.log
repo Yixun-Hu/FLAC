@@ -1,0 +1,10 @@
+p2kit part 7 (self-review fixes: the planned ids recorded, a runner spawn error retained, an unreadable exp_35 folder unreadable, no unused pin) RED at 13ff4616d05b02d43aa3068dc7c2e6d7aaa4b7fc -- 2026-11-06T04:36:33-05:00
+        assert st["phase"] == "dry_run_passed" and d["reasons"] == [] and d["rc"] == 0
+                    # The error must be from chdir(cwd).
+                    err_msg = os.strerror(errno_num)
+FAILED src/tests/test_exp35_phase_ii.py::test_the_fixed_pins_are_the_registered_facts
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_the_dry_run_runs_the_exact_command_and_records_everything
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_a_runner_that_cannot_be_spawned_is_a_retained_dry_run_failure
+FAILED src/tests/test_exp35_phase_ii_release.py::test_an_unreadable_exp35_folder_is_unreadable_not_a_crash
+4 failed, 89 passed in 12.98s
+pytest rc 1
