@@ -8,6 +8,7 @@ static checks of the kit's own source (no signal, kill or attach; no git write; 
 Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
 """
 import ast
+import hashlib
 import json
 import os
 import re
@@ -48,11 +49,14 @@ def test_the_five_modes_end_to_end_through_the_cli(tmp_path):
              "GIT_DIR": os.path.join(b.tmp, "not-a-git-dir"), "GPU_MAX_POLLS": "1"}  # env -i drops all of them
     p = _sh(b, "reserve", b.head, "--lanes", "0", "--report", b.report, "--report-sha256", b.report_sha, extra=dirty)
     assert p.returncode == 0 and "RESERVED " in p.stdout, p.stdout + p.stderr
+    outputs = [p.stdout]
     orch = re.search(r"^RESERVED (\S+):", p.stdout, re.M)[1]
     p = _sh(b, "dry-run", b.head, "--orch", orch, extra=dirty)
     assert p.returncode == 0 and "DRY RUN PASSED" in p.stdout, p.stdout[-3000:]
+    outputs.append(p.stdout)
     p = _sh(b, "launch", b.head, "--orch", orch, extra=dirty)
     assert p.returncode == 0 and "LAUNCHED: wrapper pid" in p.stdout, p.stdout[-3000:]
+    outputs.append(p.stdout)
     deadline = time.time() + 120
     while not (json.load(open(os.path.join(orch, "state.json")))["phase"] == "exited"
                and json.load(open(os.path.join(orch, "state.json")))["exit"]["logs"]):
@@ -70,11 +74,14 @@ def test_the_five_modes_end_to_end_through_the_cli(tmp_path):
     assert p.returncode == 0 and "phase exited" in p.stdout and "receipts: 68/68" in p.stdout and _logs(b) == logs
     p = _sh(b, "release", b.head, "--orch", orch)
     assert p.returncode == 0 and "RELEASED" in p.stdout and not os.path.lexists(b.res())
+    outputs.append(p.stdout)
     modes = [re.search(r"_phase_ii_(\w[\w-]*)\.log$", n)[1] for n in _logs(b)]
     assert sorted(modes) == ["dry-run", "launch", "release", "reserve"]
-    for n in _logs(b):
-        text = open(os.path.join(b.kit_dir, n)).read()
-        assert re.search(r"^rc 0; log \S+ sha256 [0-9a-f]{64}$", text, re.M), n
+    for out in outputs:                       # Codex P2K-1 NIT 1: the FINAL file's digest, printed outside the log
+        digest, path = re.search(r"^log sha256 ([0-9a-f]{64})  (\S+) \(the final file", out, re.M).groups()
+        raw = open(path, "rb").read()
+        assert hashlib.sha256(raw).hexdigest() == digest and raw.decode().splitlines()[-1] == f"rc 0; log {path}"
+        assert digest not in raw.decode()
 
 
 def test_without_the_reviewed_commit_a_mode_refuses(tmp_path):

@@ -1,0 +1,4 @@
+p2kit fix 6 (Codex P2K-1 NIT 1: the mode log's final digest printed outside it) RED at 70df118fcd8c95970e33fc7109a0b1514b8ffa2b -- 2026-11-06T05:15:25-05:00 -- the .sh still writes the pre-footer hash into the log
+E           AttributeError: 'NoneType' object has no attribute 'groups'
+1 failed, 35 deselected in 3.86s
+pytest rc 1

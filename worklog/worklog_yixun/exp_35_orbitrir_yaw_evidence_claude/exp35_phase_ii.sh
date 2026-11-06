@@ -2,7 +2,7 @@
 # exp_35 phase (ii): the Planner-run launch kit (plan_orbitrir_yaw_evidence.md §15 + its r1 clarifications (a)-(c);
 # Codex plan §15 r1 "S6 -- binding kit and test contract"). Every check lives in exp35_phase_ii.py beside this file;
 # this CLI runs it in the phase-(i) launch environment (env -i), pins the reviewed kit commit, and tees every
-# mutating mode to orbitrir_yaw_evidence_<ts>_phase_ii_<mode>.log here.
+# mutating mode to orbitrir_yaw_evidence_<ts>_phase_ii_<mode>.log here (its final sha256 printed after it, outside it).
 #
 #   EXPECT_KIT_COMMIT=<reviewed commit> bash exp35_phase_ii.sh reserve <H35> --lanes 0 --report <path> --report-sha256 <hex>
 #   EXPECT_KIT_COMMIT=<reviewed commit> bash exp35_phase_ii.sh dry-run <H35> --orch <orchestration directory>
@@ -42,5 +42,7 @@ LOG="$HERE/orbitrir_yaw_evidence_$(date +%Y-%m-%d_%H-%M-%S)_phase_ii_${MODE}.log
 env -i "${ENV[@]}" "$PY" -B "$HELPER" "$MODE" --kit-commit "${EXPECT_KIT_COMMIT:-}" --h35 "$2" "${@:3}" 2>&1 \
   | tee -a "$LOG"
 rc=${PIPESTATUS[0]}
-echo "rc ${rc}; log ${LOG} sha256 $(sha256sum < "$LOG" | cut -c1-64)" | tee -a "$LOG"
+echo "rc ${rc}; log ${LOG}" | tee -a "$LOG"
+# the FINAL file's digest, footer included, printed outside the log (Codex P2K-1 NIT 1)
+echo "log sha256 $(sha256sum < "$LOG" | cut -c1-64)  ${LOG} (the final file, printed outside it)"
 exit "$rc"
