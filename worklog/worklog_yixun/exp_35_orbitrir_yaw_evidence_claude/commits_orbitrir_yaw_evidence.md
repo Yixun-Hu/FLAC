@@ -38,7 +38,9 @@ tests (`src/tests/`) and data (`*.json`, `*.md`, `*.log`, …); the < 200 rule a
 | `526308c8` | C3b fix | BLOCKING 1: exact state schemas with per-state evidence; HIGH 2: reservations authenticated field by field | +145 / −19 (164) | +110 / −11 (121) | — |
 | `0b9e1a36` | 6a (iv) | the real World, the collector gates, the read-only dry run, the CLI (`--dry-run`, `--external-shas`) | +138 / −0 (138) | +122 / −0 (122) | — |
 | `dce4f27a` | C3c fix | BLOCKING 1 (per-chunk final-guard evidence, exact in_flight, the expected log / reservation directory, pins), HIGH 1 (the reservation re-authenticated before every spawn and at every poll), HIGH 2 (a read-only, lane-aware dry run), HIGH 3 (the full identity while a cell runs), HIGH 4 (the probe ledger) | +102 / −37 (139) | +209 / −8 (217) | — |
+| `955ac38c` | C3d fix | HIGH 1 (the held reservation = the sha256 of its exact bytes, authenticated before every lane decision, before / after the hand-over gap, before the commit, before every removal and as the LAST step before a spawn; removals only of that record, through its inode; a mismatch latches and unlinks nothing), HIGH 2 (a GPU-listed PID with an unreadable identity is tri-state, never approved) | +112 / −49 (161) | +206 / −26 (232) | — |
+| `d3381fed` | C3d fix + P1 | HIGH 3 (the B-F finalization idempotent only on the identical record; the chunk-5 ledger kept across a restart), Planner P1 (one supervisor at a time: `flock` on `<state>.lock` before the state is read; the dry run never creates it) | +45 / −7 (52) | +151 / −18 (169) | — |
 
-Records commits (no code): `aae9348e` (through the C1 fix), `cc088da7` (through round 5b), `b15d8a82` (through round 6a) and the one carrying the `dce4f27a` row.
+Records commits (no code): `aae9348e` (through the C1 fix), `cc088da7` (through round 5b), `b15d8a82` (through round 6a), `1f31c7a7` (the `dce4f27a` row) and the one carrying the `955ac38c` / `d3381fed` rows.
 Superseded, never committed: a first round-5b (ii) draft (+201 code lines, over the rule, and four departures from
 plan §4 / §5 found on re-reading) — see the Coder log, 2026-11-05T14:20:19-05:00.

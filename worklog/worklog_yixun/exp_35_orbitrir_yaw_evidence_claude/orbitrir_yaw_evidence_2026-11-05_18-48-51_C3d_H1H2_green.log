@@ -1,0 +1,15 @@
+== C3d_H1H2_green at HEAD 1f31c7a7c0e8163432b7260bca348ed94b6db823 (working tree: 5 tracked changes), Thu Nov  5 06:48:51 PM EST 2026
+== CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider -q src/tests/test_exp35_supervisor_core.py src/tests/test_exp35_supervisor_lanes.py src/tests/test_exp35_supervisor_loop.py src/tests/test_exp35_supervisor_cli.py
+........................................................................ [ 36%]
+........................................................................ [ 73%]
+.....................................................                    [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+197 passed, 3 warnings in 266.13s (0:04:26)
+== pytest rc 0, finished Thu Nov  5 06:53:19 PM EST 2026

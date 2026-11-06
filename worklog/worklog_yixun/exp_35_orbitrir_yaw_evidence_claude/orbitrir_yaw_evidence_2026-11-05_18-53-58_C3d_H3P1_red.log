@@ -1,0 +1,217 @@
+== C3d_H3P1_red at HEAD 955ac38c764da2f2f47ff6be337c9ff38745ccac (working tree: 4 tracked changes), Thu Nov  5 06:53:58 PM EST 2026
+== CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider -q src/tests/test_exp35_bf_probe_contract.py src/tests/test_exp35_supervisor_lanes.py src/tests/test_exp35_supervisor_loop.py src/tests/test_exp35_supervisor_cli.py
+.....F.....................................................F............ [ 43%]
+..................................................................F..FFF [ 86%]
+................F.....                                                   [100%]
+=================================== FAILURES ===================================
+______ test_a_second_finalization_of_the_identical_record_writes_nothing _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_finalization_of_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x737df5b85630>
+
+    def test_a_second_finalization_of_the_identical_record_writes_nothing(tmp_path, monkeypatch):
+        """Codex C3d HIGH 3: a supervisor restart after the finalization re-runs it -- accepted unchanged (nothing
+        written) only when the JSON is the finalizer's own bytes, sealed by its sidecar, and its launch record is exactly
+        the one this call would write (backend, overlay + launcher sha256, digest, log path, the CURRENT log sha256)."""
+        path, log, _ = _finalize(tmp_path, monkeypatch)
+        before = {p: (open(p, "rb").read(), os.stat(p).st_mtime_ns) for p in (path, path + ".sha256")}
+>       assert C.finalize_bf_probe(path, log, campaign_digest=DIGEST, base_dir=str(tmp_path)) == path
+
+src/tests/test_exp35_bf_probe_contract.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = '/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_finalization_of_0/orbitrir_bf_cond_probe.json'
+log_path = '/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_finalization_of_0/orbitrir_bf_cond_probe.log'
+campaign_digest = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+base_dir = '/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_finalization_of_0'
+
+    def finalize_bf_probe(path, log_path, *, campaign_digest, base_dir=REPO):
+        """r3 §12 B3, the NON-logged step after the probe process exited and its log closed: verify the probe's own
+        JSON + sidecar and the log's backend evidence, then write ``provenance.launch`` (backend, overlay +
+        launcher sha256, the campaign digest, the log path + sha256), the JSON (atomically) and a fresh sidecar.
+        ``ValueError`` (nothing written) on any refusal."""
+        import hashlib
+        _, rep, reasons = _read_probe(path)
+        if reasons:
+            raise ValueError("; ".join(reasons))
+        prov = rep.get("provenance")
+        if rep.get("arm") != "BF" or not isinstance(prov, dict) or "launch" in prov:
+>           raise ValueError(f"{path}: not a B-F probe awaiting finalization (already finalized, or another arm)")
+E           ValueError: /tmp/pytest-of-yixunhu/pytest-5606/test_a_second_finalization_of_0/orbitrir_bf_cond_probe.json: not a B-F probe awaiting finalization (already finalized, or another arm)
+
+worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py:1267: ValueError
+__________________________ test_cli_finalize_bf_probe __________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_cli_finalize_bf_probe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x737df5cbdba0>
+capsys = <_pytest.capture.CaptureFixture object at 0x737df5cbf550>
+
+    def test_cli_finalize_bf_probe(tmp_path, monkeypatch, capsys):
+        path = write_bf_probe(tmp_path, monkeypatch)
+        log = write_log(tmp_path)
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        argv = ["--finalize-bf-probe", path, "--probe-log", log, "--campaign-digest", DIGEST, "--pin", PIN, "--cells",
+                str(cells), "--base-dir", str(tmp_path)]
+        assert C.main(argv) == 0 and "BF PROBE VALID" in capsys.readouterr().out
+        before = open(path, "rb").read()
+>       assert C.main(argv) == 0 and "BF PROBE VALID" in capsys.readouterr().out      # the identical record again
+E       AssertionError: assert (1 == 0)
+E        +  where 1 = <function main at 0x737e6baad2d0>(['--finalize-bf-probe', '/tmp/pytest-of-yixunhu/pytest-5606/test_cli_finalize_bf_probe0/orbitrir_bf_cond_probe.json', ...itrir_bf_cond_probe.log', '--campaign-digest', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', ...])
+E        +    where <function main at 0x737e6baad2d0> = C.main
+
+src/tests/test_exp35_bf_probe_contract.py:342: AssertionError
+----------------------------- Captured stdout call -----------------------------
+BF PROBE FINALIZATION REFUSED: /tmp/pytest-of-yixunhu/pytest-5606/test_cli_finalize_bf_probe0/orbitrir_bf_cond_probe.json: not a B-F probe awaiting finalization (already finalized, or another arm)
+_ test_a_restart_after_the_probe_finalization_completes_chunk_5_without_finalizing_anew _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_a_restart_after_the_probe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x737df5ab65f0>
+
+    def test_a_restart_after_the_probe_finalization_completes_chunk_5_without_finalizing_anew(tmp_path, monkeypatch):
+        w, cfg, c5 = _die_before_the_probe_final_guard(tmp_path, monkeypatch)
+        probe = {p: open(p, "rb").read() for p in (cfg["probe_json"], cfg["probe_json"] + ".sha256")}
+        g2 = FakeGates()
+        g2.probe_json = cfg["probe_json"]
+>       assert sup(w, g2, cfg).run() == 0
+E       AssertionError: assert 3 == 0
+E        +  where 3 = run()
+E        +    where run = <exp35_supervisor.Supervisor object at 0x737df5ab5600>.run
+E        +      where <exp35_supervisor.Supervisor object at 0x737df5ab5600> = sup(<test_exp35_supervisor_lanes.FakeWorld object at 0x737df5ab71f0>, <test_exp35_supervisor_lanes.FakeGates object at 0x737df5ab7ee0>, {'h35': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'state': '/tmp/pytest-of-yixunhu/pytest-5606/test_a_restart_after_..._the_probe0/approved.json', 'approved_sha256': '8ef6ab1ace5eee20e2336260f7ba4823ee6e39a99c6dfe89b6eb88a19fd237cf', ...})
+
+src/tests/test_exp35_supervisor_loop.py:498: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:58:15-05:00] supervisor started (a new state) 
+[2026-11-05T19:48:15-05:00] supervisor started (resumed) 
+[2026-11-05T19:48:15-05:00] reconcile: re-running the gates {"chunk": 5}
+[2026-11-05T19:48:15-05:00] STOP LATCH {"reason": "the B-F probe: finalization / PROBE_CONTRACT_BF refused"}
+_____ test_a_second_supervisor_is_refused_while_one_holds_the_lock[False] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_supervisor_is_re0')
+capsys = <_pytest.capture.CaptureFixture object at 0x737df543e620>
+with_state = False
+
+    @pytest.mark.parametrize("with_state", [False, True])
+    def test_a_second_supervisor_is_refused_while_one_holds_the_lock(tmp_path, capsys, with_state):
+        w, g, cfg = make(tmp_path)
+        if with_state:
+            S.write_state(cfg["state"], S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
+                                                    supervisor_sha256=cfg["supervisor_sha256"],
+                                                    approved_sha256=cfg["approved_sha256"]))
+        before = open(cfg["state"], "rb").read() if with_state else None
+        fd = _hold(cfg["state"] + ".lock")                                          # the running supervisor
+        try:
+>           assert sup(w, g, cfg).run() == 3
+E           AssertionError: assert 0 == 3
+E            +  where 0 = run()
+E            +    where run = <exp35_supervisor.Supervisor object at 0x737df5cce380>.run
+E            +      where <exp35_supervisor.Supervisor object at 0x737df5cce380> = sup(<test_exp35_supervisor_lanes.FakeWorld object at 0x737df5cce410>, <test_exp35_supervisor_lanes.FakeGates object at 0x737df5ccc250>, {'h35': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'state': '/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_supervi...isor_is_re0/approved.json', 'approved_sha256': '8ef6ab1ace5eee20e2336260f7ba4823ee6e39a99c6dfe89b6eb88a19fd237cf', ...})
+
+src/tests/test_exp35_supervisor_loop.py:544: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:58:21-05:00] supervisor started (a new state) 
+[2026-11-06T00:28:21-05:00] phase (i) complete; the reservation released 
+______ test_a_second_supervisor_is_refused_while_one_holds_the_lock[True] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_supervisor_is_re1')
+capsys = <_pytest.capture.CaptureFixture object at 0x737df5cbe6e0>
+with_state = True
+
+    @pytest.mark.parametrize("with_state", [False, True])
+    def test_a_second_supervisor_is_refused_while_one_holds_the_lock(tmp_path, capsys, with_state):
+        w, g, cfg = make(tmp_path)
+        if with_state:
+            S.write_state(cfg["state"], S.new_state(h35=cfg["h35"], cells_sha256=cfg["cells_sha256"],
+                                                    supervisor_sha256=cfg["supervisor_sha256"],
+                                                    approved_sha256=cfg["approved_sha256"]))
+        before = open(cfg["state"], "rb").read() if with_state else None
+        fd = _hold(cfg["state"] + ".lock")                                          # the running supervisor
+        try:
+>           assert sup(w, g, cfg).run() == 3
+E           AssertionError: assert 0 == 3
+E            +  where 0 = run()
+E            +    where run = <exp35_supervisor.Supervisor object at 0x737df5cbcb20>.run
+E            +      where <exp35_supervisor.Supervisor object at 0x737df5cbcb20> = sup(<test_exp35_supervisor_lanes.FakeWorld object at 0x737df5cbcd00>, <test_exp35_supervisor_lanes.FakeGates object at 0x737df5cbd0c0>, {'h35': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'state': '/tmp/pytest-of-yixunhu/pytest-5606/test_a_second_supervi...isor_is_re1/approved.json', 'approved_sha256': '8ef6ab1ace5eee20e2336260f7ba4823ee6e39a99c6dfe89b6eb88a19fd237cf', ...})
+
+src/tests/test_exp35_supervisor_loop.py:544: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:58:33-05:00] supervisor started (resumed) 
+[2026-11-06T00:28:33-05:00] phase (i) complete; the reservation released 
+_______ test_the_lock_is_held_for_the_whole_run_and_released_at_its_end ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_the_lock_is_held_for_the_0')
+
+    def test_the_lock_is_held_for_the_whole_run_and_released_at_its_end(tmp_path):
+        w, _, cfg = make(tmp_path)
+        g = ProbeTheLock(cfg["state"] + ".lock")
+        g.probe_json = cfg["probe_json"]
+>       assert sup(w, g, cfg).run() == 0 and len(g.held) == 32 and all(g.held)
+
+src/tests/test_exp35_supervisor_loop.py:574: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:858: in run
+    self.execute(ch, lane)
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:710: in execute
+    self.verified(c)
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:775: in verified
+    ok, info = self.g.verify(c)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_exp35_supervisor_loop.ProbeTheLock object at 0x737df5cbd630>
+chunk = {'n': 1, 'kind': 'cell', 'cell': 'exp35_P1_T_S40000_K1_s42', 'gate': 'E1', ...}
+
+    def verify(self, chunk):
+>       fd = os.open(self.lock, os.O_RDONLY)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-5606/test_the_lock_is_held_for_the_0/state.json.lock'
+
+src/tests/test_exp35_supervisor_loop.py:559: FileNotFoundError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:58:45-05:00] supervisor started (a new state) 
+_______ test_the_dry_run_never_creates_the_lock_and_reports_it_read_only _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5606/test_the_dry_run_never_creates0')
+capsys = <_pytest.capture.CaptureFixture object at 0x737df58f7580>
+
+    def test_the_dry_run_never_creates_the_lock_and_reports_it_read_only(tmp_path, capsys):
+        """Planner P1: the dry run creates no lock file; an existing one is probed with a shared non-blocking lock --
+        informational, the verdict unchanged."""
+        w, _, cfg = make(tmp_path)
+        lock = cfg["state"] + ".lock"
+>       assert S.dry_run(cfg, w) == 0 and not os.path.exists(lock) and "absent" in capsys.readouterr().out
+E       assert (0 == 0 and not False and 'absent' in 'exp_35 supervisor dry run 2026-11-05T18:58:59-05:00: H35 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; state none (new); ...: 1794050539.5755324, "needed_after": 1793927051.5755324}\nno stop latch\nDRY RUN OK: nothing was spawned or written\n')
+E        +  where 0 = <function dry_run at 0x737df5cc2dd0>({'h35': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'state': '/tmp/pytest-of-yixunhu/pytest-5606/test_the_dry_run_neve...er_creates0/approved.json', 'approved_sha256': '8ef6ab1ace5eee20e2336260f7ba4823ee6e39a99c6dfe89b6eb88a19fd237cf', ...}, <test_exp35_supervisor_lanes.FakeWorld object at 0x737df58f7af0>)
+E        +    where <function dry_run at 0x737df5cc2dd0> = S.dry_run
+E        +  and   False = <function exists at 0x73805ad724d0>('/tmp/pytest-of-yixunhu/pytest-5606/test_the_dry_run_never_creates0/state.json.lock')
+E        +    where <function exists at 0x73805ad724d0> = <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'>.exists
+E        +      where <module 'posixpath' from '/home/yixunhu/miniconda3/envs/flac/lib/python3.10/posixpath.py'> = os.path
+E        +  and   'exp_35 supervisor dry run 2026-11-05T18:58:59-05:00: H35 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; state none (new); ...: 1794050539.5755324, "needed_after": 1793927051.5755324}\nno stop latch\nDRY RUN OK: nothing was spawned or written\n' = CaptureResult(out='exp_35 supervisor dry run 2026-11-05T18:58:59-05:00: H35 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; ...539.5755324, "needed_after": 1793927051.5755324}\nno stop latch\nDRY RUN OK: nothing was spawned or written\n', err='').out
+E        +    where CaptureResult(out='exp_35 supervisor dry run 2026-11-05T18:58:59-05:00: H35 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; ...539.5755324, "needed_after": 1793927051.5755324}\nno stop latch\nDRY RUN OK: nothing was spawned or written\n', err='') = readouterr()
+E        +      where readouterr = <_pytest.capture.CaptureFixture object at 0x737df58f7580>.readouterr
+
+src/tests/test_exp35_supervisor_cli.py:242: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_the_identical_record_writes_nothing
+FAILED src/tests/test_exp35_bf_probe_contract.py::test_cli_finalize_bf_probe
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_restart_after_the_probe_finalization_completes_chunk_5_without_finalizing_anew
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_second_supervisor_is_refused_while_one_holds_the_lock[False]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_a_second_supervisor_is_refused_while_one_holds_the_lock[True]
+FAILED src/tests/test_exp35_supervisor_loop.py::test_the_lock_is_held_for_the_whole_run_and_released_at_its_end
+FAILED src/tests/test_exp35_supervisor_cli.py::test_the_dry_run_never_creates_the_lock_and_reports_it_read_only
+7 failed, 159 passed, 5 warnings in 300.64s (0:05:00)
+== pytest rc 1, finished Thu Nov  5 06:59:02 PM EST 2026

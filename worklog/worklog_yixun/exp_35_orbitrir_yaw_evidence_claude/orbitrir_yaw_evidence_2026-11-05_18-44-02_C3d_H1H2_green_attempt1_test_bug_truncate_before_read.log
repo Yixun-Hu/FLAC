@@ -1,0 +1,297 @@
+== C3d_H1H2_green at HEAD 1f31c7a7c0e8163432b7260bca348ed94b6db823 (working tree: 5 tracked changes), Thu Nov  5 06:44:02 PM EST 2026
+== CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider -q src/tests/test_exp35_supervisor_core.py src/tests/test_exp35_supervisor_lanes.py src/tests/test_exp35_supervisor_loop.py src/tests/test_exp35_supervisor_cli.py
+............................FF.......................................... [ 36%]
+..............................F...FF.................................... [ 73%]
+.....................................................                    [100%]
+=================================== FAILURES ===================================
+_ test_a_release_removes_only_the_held_record_and_unlinks_nothing_else[another_created] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5568/test_a_release_removes_only_th0')
+how = 'another_created'
+
+    @pytest.mark.parametrize("how", sorted(RELEASE_SPOILS))
+    def test_a_release_removes_only_the_held_record_and_unlinks_nothing_else(tmp_path, how):
+        held = _held(tmp_path)
+>       RELEASE_SPOILS[how](held["path"])
+
+src/tests/test_exp35_supervisor_core.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp35_supervisor_core.py:229: in <lambda>
+    "another_created": lambda p: open(p, "w").write(json.dumps(dict(json.load(open(p)), created=9.0))),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:293: in load
+    return loads(fp.read(),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x727193c389a0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:355: JSONDecodeError
+_ test_a_release_removes_only_the_held_record_and_unlinks_nothing_else[another_epoch] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5568/test_a_release_removes_only_th1')
+how = 'another_epoch'
+
+    @pytest.mark.parametrize("how", sorted(RELEASE_SPOILS))
+    def test_a_release_removes_only_the_held_record_and_unlinks_nothing_else(tmp_path, how):
+        held = _held(tmp_path)
+>       RELEASE_SPOILS[how](held["path"])
+
+src/tests/test_exp35_supervisor_core.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/tests/test_exp35_supervisor_core.py:228: in <lambda>
+    "another_epoch": lambda p: open(p, "w").write(json.dumps(dict(json.load(open(p)), epoch=2))),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:293: in load
+    return loads(fp.read(),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x727193c389a0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:355: JSONDecodeError
+_ test_a_reservation_spoiled_during_the_handover_gap_latches_and_unlinks_nothing[another_epoch] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_dur0')
+how = 'another_epoch'
+
+    @pytest.mark.parametrize("how", sorted(HANDOVER_SPOILS))
+    def test_a_reservation_spoiled_during_the_handover_gap_latches_and_unlinks_nothing(tmp_path, how):
+        w, cfg, s = _sup(tmp_path)
+        p1 = _hold_gpu1(cfg, w, s)
+        w.remove_trainers()
+        seen = {}
+    
+        def spoil(world):
+            HANDOVER_SPOILS[how](p1)
+            seen["after"] = _content(p1)
+        w.hooks.append((lambda world: world.sleeps[-1:] == [S.HANDOVER_GAP_S], spoil))         # inside the 60-s gap
+>       assert s.ready(CH1) is None and "reservation" in s.st["stop_latch"]["reason"]
+
+src/tests/test_exp35_supervisor_lanes.py:285: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:620: in ready
+    if not alive and self.handover(m, apps):
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:640: in handover
+    self.w.sleep(HANDOVER_GAP_S)
+src/tests/test_exp35_supervisor_lanes.py:91: in sleep
+    hook[1](self)
+src/tests/test_exp35_supervisor_lanes.py:282: in spoil
+    HANDOVER_SPOILS[how](p1)
+src/tests/test_exp35_supervisor_lanes.py:265: in <lambda>
+    "another_epoch": lambda p: open(p, "w").write(json.dumps(dict(json.load(open(p)), epoch=5))),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:293: in load
+    return loads(fp.read(),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x727193c389a0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:355: JSONDecodeError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:44:10-05:00] no shared spawn: the approved trainer is gone; hand-over to GPU 0 {"why": ["the foreign compute processes on GPU-6ac2604a-e84e-0615-1221-ccbed7c268da are [], the approved tuple [3028196] (an extra, missing or replaced process)", "process 3028196: its /proc identity is unreadable (FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_dur0/proc/3028196')"]}
+[2026-11-05T18:44:10-05:00] GPU 0 free (1st check) 
+_ test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing[another_epoch-before_the_commit] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_at_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x726fa5e9f250>
+how = 'another_epoch', when = 'before_the_commit'
+
+    @pytest.mark.parametrize("when", ["before_the_commit", "before_the_removal"])
+    @pytest.mark.parametrize("how", sorted(HANDOVER_SPOILS))
+    def test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing(tmp_path, monkeypatch, how, when):
+        w, cfg, s = _sup(tmp_path)
+        p1 = _hold_gpu1(cfg, w, s)
+        w.remove_trainers()
+        seen, real = {}, (S.create_reservation, S.write_state)
+    
+        def spoil():
+            if "after" not in seen:
+                HANDOVER_SPOILS[how](p1)
+                seen["after"] = _content(p1)
+        if when == "before_the_commit":                            # right after GPU 0's file is created
+            monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (real[0](*a, **k), spoil())[0])
+        else:                                                      # right after the committed state is written
+            monkeypatch.setattr(S, "write_state", lambda path, doc: (real[1](path, doc), (doc["reservation"] or {}).get(
+                "uuid") == G0 and spoil())[0])
+>       assert s.ready(CH1) is None and "nothing unlinked" in s.st["stop_latch"]["reason"]
+
+src/tests/test_exp35_supervisor_lanes.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:620: in ready
+    if not alive and self.handover(m, apps):
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:649: in handover
+    path, sha = create_reservation(self.cfg["reservations"], uuid0, epoch=epoch, h35=self.cfg["h35"],
+src/tests/test_exp35_supervisor_lanes.py:304: in <lambda>
+    monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (real[0](*a, **k), spoil())[0])
+src/tests/test_exp35_supervisor_lanes.py:301: in spoil
+    HANDOVER_SPOILS[how](p1)
+src/tests/test_exp35_supervisor_lanes.py:265: in <lambda>
+    "another_epoch": lambda p: open(p, "w").write(json.dumps(dict(json.load(open(p)), epoch=5))),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:293: in load
+    return loads(fp.read(),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x727193c389a0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:355: JSONDecodeError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:44:10-05:00] no shared spawn: the approved trainer is gone; hand-over to GPU 0 {"why": ["the foreign compute processes on GPU-6ac2604a-e84e-0615-1221-ccbed7c268da are [], the approved tuple [3028196] (an extra, missing or replaced process)", "process 3028196: its /proc identity is unreadable (FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_at_0/proc/3028196')"]}
+[2026-11-05T18:44:10-05:00] GPU 0 free (1st check) 
+[2026-11-05T18:45:10-05:00] GPU 0 free (2nd check) 
+_ test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing[another_epoch-before_the_removal] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_at_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x726fa60c9d20>
+how = 'another_epoch', when = 'before_the_removal'
+
+    @pytest.mark.parametrize("when", ["before_the_commit", "before_the_removal"])
+    @pytest.mark.parametrize("how", sorted(HANDOVER_SPOILS))
+    def test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing(tmp_path, monkeypatch, how, when):
+        w, cfg, s = _sup(tmp_path)
+        p1 = _hold_gpu1(cfg, w, s)
+        w.remove_trainers()
+        seen, real = {}, (S.create_reservation, S.write_state)
+    
+        def spoil():
+            if "after" not in seen:
+                HANDOVER_SPOILS[how](p1)
+                seen["after"] = _content(p1)
+        if when == "before_the_commit":                            # right after GPU 0's file is created
+            monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (real[0](*a, **k), spoil())[0])
+        else:                                                      # right after the committed state is written
+            monkeypatch.setattr(S, "write_state", lambda path, doc: (real[1](path, doc), (doc["reservation"] or {}).get(
+                "uuid") == G0 and spoil())[0])
+>       assert s.ready(CH1) is None and "nothing unlinked" in s.st["stop_latch"]["reason"]
+
+src/tests/test_exp35_supervisor_lanes.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:620: in ready
+    if not alive and self.handover(m, apps):
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:660: in handover
+    self.save()
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor.py:517: in save
+    write_state(self.cfg["state"], self.st)
+src/tests/test_exp35_supervisor_lanes.py:307: in <lambda>
+    "uuid") == G0 and spoil())[0])
+src/tests/test_exp35_supervisor_lanes.py:301: in spoil
+    HANDOVER_SPOILS[how](p1)
+src/tests/test_exp35_supervisor_lanes.py:265: in <lambda>
+    "another_epoch": lambda p: open(p, "w").write(json.dumps(dict(json.load(open(p)), epoch=5))),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:293: in load
+    return loads(fp.read(),
+../../miniconda3/envs/flac/lib/python3.10/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x727193c389a0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../miniconda3/envs/flac/lib/python3.10/json/decoder.py:355: JSONDecodeError
+----------------------------- Captured stdout call -----------------------------
+[2026-11-05T18:44:11-05:00] no shared spawn: the approved trainer is gone; hand-over to GPU 0 {"why": ["the foreign compute processes on GPU-6ac2604a-e84e-0615-1221-ccbed7c268da are [], the approved tuple [3028196] (an extra, missing or replaced process)", "process 3028196: its /proc identity is unreadable (FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-5568/test_a_reservation_spoiled_at_1/proc/3028196')"]}
+[2026-11-05T18:44:11-05:00] GPU 0 free (1st check) 
+[2026-11-05T18:45:11-05:00] GPU 0 free (2nd check) 
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp35_supervisor_core.py::test_a_release_removes_only_the_held_record_and_unlinks_nothing_else[another_created]
+FAILED src/tests/test_exp35_supervisor_core.py::test_a_release_removes_only_the_held_record_and_unlinks_nothing_else[another_epoch]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_a_reservation_spoiled_during_the_handover_gap_latches_and_unlinks_nothing[another_epoch]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing[another_epoch-before_the_commit]
+FAILED src/tests/test_exp35_supervisor_lanes.py::test_a_reservation_spoiled_at_the_commit_or_the_removal_latches_and_unlinks_nothing[another_epoch-before_the_removal]
+5 failed, 192 passed, 3 warnings in 268.31s (0:04:28)
+== pytest rc 1, finished Thu Nov  5 06:48:32 PM EST 2026

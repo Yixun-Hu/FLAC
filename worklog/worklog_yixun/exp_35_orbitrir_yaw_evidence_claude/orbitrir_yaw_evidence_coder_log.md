@@ -379,3 +379,49 @@ Timestamps from `date`. Logs: `orbitrir_yaw_evidence_<ts>_<what>.log` in this fo
 - **Decisions** — a vanished approved trainer is not a replacement (an unreadable /proc entry = gone; a reuse is caught
   at the next poll or the pre-spawn check); the probe ledger is checked by the supervisor itself (the sidecar seals the
   JSON; the launch record names this log, its sha256 and the campaign digest).
+
+## 2026-11-05T19:06:20-05:00 — the Codex C3d fixes (`955ac38c`, `d3381fed`) and Planner P1
+Codex C3d (`orbitrir_yaw_evidence_codex_code_C3d_review.md`, main checkout) = REQUEST-CHANGES, 3 HIGH, all in
+`exp35_supervisor.py`; the Planner accepted Codex's fixes and added P1 (a single-instance lock).
+- **HIGH 1 + HIGH 2 `955ac38c`** — RED `…_18-32-50_C3d_H1H2_red.log` (49 failed, 148 passed; the unreadable-PID tests
+  ran the unfixed supervisor into the fake world's 600-sleep horizon) → `…_18-44-02_C3d_H1H2_green_attempt1_test_bug_truncate_before_read.log`
+  (5 failed: my test helper truncated a reservation file before reading it, `open(p, "w").write(json.load(open(p)))`) →
+  GREEN `…_18-48-51_C3d_H1H2_green.log` (197 passed: the four supervisor files).
+- **HIGH 3 + P1 `d3381fed`** — RED `…_18-53-58_C3d_H3P1_red.log` (7 failed, 159 passed) → GREEN `…_18-59-29_C3d_H3P1_green.log`
+  (264 passed: the probe-contract file + the four supervisor files) and `…_19-05-12_C3d_H3_collector_files_green.log`
+  (183 passed: every other `test_exp35_collect*` file, the guard and the identity helper).
+- Regression guards that pass before AND after (disclosed, not RED): a trainer that exits between two observations
+  (listed, unreadable, absent from the re-queried table) is gone -- no latch, the hand-over follows (lanes + loop); a
+  second finalization of any OTHER record is refused and writes nothing (6 cases); a restart with a changed ledger
+  latches (the log appended; the JSON re-sealed in the finalizer's own format -- this one needs the supervisor's ledger
+  check once the finalizer is idempotent).
+- **The four rules (for the launch entry):**
+  1. *Unreadable PID:* a PID nvidia-smi lists on our lane whose complete `/proc` identity cannot be read is re-checked
+     against a freshly queried compute table -- gone only if it is no longer listed; still listed (or the table cannot
+     be re-read) = the stop latch, never "approved" (the running-cell watch: the cell finishes, never signalled;
+     `ready()`: no spawn, no hand-over).
+  2. *Authenticated transfer / release:* the state holds the reservation as `{uuid, epoch, path, sha256}` (the sha256
+     of the exact bytes written); it is authenticated (sha256, then field by field, the epoch) before every lane
+     decision, before and after the 60-s hand-over gap, right before the hand-over commit (the old and the new
+     record), right before every removal, and after the in-flight save as the LAST step before a spawn (a spoiled
+     record there spawns nothing and returns the chunk to planned); a removal unlinks only the authenticated file,
+     through the inode just read; any mismatch latches and unlinks nothing.
+  3. *Probe restart:* from chunk 5's persisted post-finalizer / pre-final-guard state a restart re-runs the gate; the
+     collector's finalization is idempotent only when the JSON is its own bytes, sealed by its sidecar, with a launch
+     record exactly equal to the one it would write (backend, overlay + launcher sha256, campaign digest, log path,
+     the CURRENT log sha256) -- then nothing is written and the contract re-runs; the supervisor also requires the
+     re-computed JSON / sidecar / log sha256 to equal the ledger it persisted; then the final guard; anything else latches.
+  4. *Single instance:* `Supervisor.run()` takes `flock(LOCK_EX | LOCK_NB)` on `<state>.lock` before reading the state
+     and holds it until the run ends; held -> `SUPERVISOR REFUSED: another supervisor holds <lock>`, rc 3, the state
+     untouched; `--dry-run` never creates the lock (an existing one is probed with `LOCK_SH | LOCK_NB`, informational).
+- **Decisions / readings** -- HIGH 3 by Codex's first option (an idempotent finalizer; the exp_25 mode never calls it)
+  plus the persisted-ledger equality; HIGH 1's "complete fields" as the sha256 of the exact bytes (STATE_SCHEMA stays
+  1: the `supervisor_sha256` pin already binds any state to this exact code); the first-spawn baseline now set after
+  the reservation step (a refused first reservation used to leave a baseline without a started chunk -- an unloadable
+  latched state); the re-query happens at once, no delay.
+- **Residuals (disclosed)** -- POSIX has no compare-and-unlink: between the inode check and the unlink there remain
+  microseconds; a trainer caught mid-exit (its fds closed, its CUDA context not yet released) and still listed at the
+  re-query latches (fail-closed; a short re-query delay would reduce that, not added); the dry run's `LOCK_SH` probe
+  could make a supervisor starting in that same microsecond refuse (rc 3, nothing touched); a crash between the
+  hand-over commit and the GPU 1 removal still latches at the restart (both files on disk; unchanged).
+- The authoritative ladder runs at this records commit; its transcripts stay untracked (H35 = this HEAD).
