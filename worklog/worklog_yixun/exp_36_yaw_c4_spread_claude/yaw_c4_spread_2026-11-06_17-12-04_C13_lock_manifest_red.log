@@ -1,0 +1,419 @@
+RED, cycle 13 (Codex code review II HIGH 1 + HIGH 2: the global publication lock, the fd-relative destination, transaction ids, the exclusive / authenticated manifest) at HEAD a5f0f898bc1c464d5facf0ee570ad94d1e2c064f + the uncommitted tests
+FFFFFFFFFFFFFFFF.F                                                       [100%]
+=================================== FAILURES ===================================
+___ test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_held_lock_refuses_befor0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_held_lock_refuses_befor0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e7261a0>
+
+    def test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write(pub, monkeypatch):
+        fd = os.open(pub["ref"], os.O_RDONLY | os.O_DIRECTORY)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            before = _listing(pub["dest"])
+            status, doc = publish(pub)
+>           assert status == "refused" and any("lock" in x for x in doc["reasons"]), doc
+E           AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E           assert ('published' == 'refused'
+E             
+E             - refused
+E             + published)
+
+src/tests/test_exp36_publish_concurrency.py:73: AssertionError
+__________________ test_two_concurrent_same_set_publications ___________________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_two_concurrent_same_set_p0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_two_concurrent_same_set_p0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e479990>
+
+    def test_two_concurrent_same_set_publications(pub, monkeypatch):
+        t, box, go = _paused(pub, monkeypatch)
+        before, manifest = _listing(pub["dest"]), _bytes(pub["out"])
+        status, doc = publish(pub)                                            # the same set, the same manifest path
+>       assert status == "refused" and any("lock" in x for x in doc["reasons"]), doc
+E       AssertionError: {'status': 'refused', 'set': 'A', 'reasons': ['the publication manifest /tmp/pytest-of-yixunhu/pytest-6612/test_two_concurrent_same_set_p0/publication_A.json exists (a stopped publication: --exp36-publish-resume)']}
+E       assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_two_concurrent_same_set_publications.<locals>.<genexpr> at 0x748c7e22bb50>)
+
+src/tests/test_exp36_publish_concurrency.py:99: AssertionError
+____________________ test_concurrent_a_and_off_publications ____________________
+
+both = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_concurrent_a_and_off_publ0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_concurrent_a_and_off_publ0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_concurrent_a_and_off_publ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e3b99f0>
+
+    def test_concurrent_a_and_off_publications(both, tmp_path, monkeypatch):
+        t, box, go = _paused(both, monkeypatch, cell_set="A")
+        before, off_out = _listing(both["dest"]), str(tmp_path / "publication_OFF.json")
+        status, doc = publish(both, cell_set="OFF", out=off_out)
+>       assert status == "refused" and any("lock" in x for x in doc["reasons"]), doc
+E       AssertionError: {'status': 'refused', 'set': 'OFF', 'reasons': ['0 destination path(s) already present ([]) and 1 temp file(s): nothing is published over them']}
+E       assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_concurrent_a_and_off_publications.<locals>.<genexpr> at 0x748c7e618740>)
+
+src/tests/test_exp36_publish_concurrency.py:109: AssertionError
+____________ test_a_destination_path_swap_cannot_redirect_the_owner ____________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_destination_path_swap_c0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_destination_path_swap_c0/exp36/plan.json', ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_destination_path_swap_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e568d60>
+
+    def test_a_destination_path_swap_cannot_redirect_the_owner(pub, tmp_path, monkeypatch):
+        t, box, go = _paused(pub, monkeypatch)
+        moved = pub["dest"] + ".moved"
+        os.rename(pub["dest"], moved)
+        os.mkdir(pub["dest"])                                                 # the path now names another directory
+        status, doc = publish(pub, out=str(tmp_path / "second.json"))
+>       assert status == "refused" and any("lock" in x for x in doc["reasons"]) and os.listdir(pub["dest"]) == []
+E       AssertionError: assert ('refused' == 'refused'
+E         
+E           refused and False)
+E        +  where False = any(<generator object test_a_destination_path_swap_cannot_redirect_the_owner.<locals>.<genexpr> at 0x748c7e619000>)
+
+src/tests/test_exp36_publish_concurrency.py:122: AssertionError
+___ test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those ____
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_temps_are_named_by_the_tr0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_temps_are_named_by_the_tr0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e742f20>
+
+    def test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those(pub, monkeypatch):
+        real, n = os.link, [0]
+    
+        def link(*a, **k):
+            n[0] += 1
+            if n[0] == 4:
+                raise OSError("simulated crash")
+            return real(*a, **k)
+    
+        monkeypatch.setattr(C.os, "link", link)
+        assert publish(pub)[0] == "partial"
+        monkeypatch.setattr(C.os, "link", real)
+        doc = json.loads(_bytes(pub["out"]))
+>       assert len(doc["txid"]) == 32 and all(e["tmp"] == f"{C.EXP36_TMP_PREFIX}{doc['txid']}-{os.path.basename(e['dest'])}"
+                                              for e in doc["entries"])
+E       KeyError: 'txid'
+
+src/tests/test_exp36_publish_concurrency.py:145: KeyError
+_____________ test_a_resume_authenticates_the_prior_manifest[none] _____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th0/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e5545e0>, needle = 'no regular'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+_____________ test_a_resume_authenticates_the_prior_manifest[json] _____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th1/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th1/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554670>, needle = 'not this publication'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+_____________ test_a_resume_authenticates_the_prior_manifest[file] _____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th2/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th2/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554700>, needle = 'not a JSON'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+___________ test_a_resume_authenticates_the_prior_manifest[symlink] ____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th3/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th3/exp36/plan.json', ...}
+edit = <function _symlinked at 0x748c7e554550>, needle = 'no regular'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+__________ test_a_resume_authenticates_the_prior_manifest[other_set] ___________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th4/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th4/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554790>, needle = 'not this publication'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+___________ test_a_resume_authenticates_the_prior_manifest[verdict] ____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th5/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th5/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554820>, needle = 'not this publication'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+___________ test_a_resume_authenticates_the_prior_manifest[entries] ____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th6/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th6/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e5548b0>, needle = 'entry set'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+____________ test_a_resume_authenticates_the_prior_manifest[source] ____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th7/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th7/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554940>, needle = 'entry set'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+___________ test_a_resume_authenticates_the_prior_manifest[complete] ___________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th8/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th8/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e5549d0>, needle = 'status'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+_____________ test_a_resume_authenticates_the_prior_manifest[txid] _____________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th9/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th9/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554a60>, needle = 'transaction'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+_________ test_a_resume_authenticates_the_prior_manifest[writer_temp] __________
+
+stopped = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th10/exp25'), 'new': PosixPath('/tmp...26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_a_resume_authenticates_th10/exp36/plan.json', ...}
+edit = <function <lambda> at 0x748c7e554af0>, needle = 'writer temp'
+
+    @pytest.mark.parametrize("edit, needle", RESUME, ids=["none", "json", "file", "symlink", "other_set", "verdict",
+                                                          "entries", "source", "complete", "txid", "writer_temp"])
+    def test_a_resume_authenticates_the_prior_manifest(stopped, edit, needle):
+        edit(stopped)
+        before = _listing(stopped["dest"])
+        state = os.path.islink(stopped["out"]), _bytes(stopped["out"]) if os.path.lexists(stopped["out"]) else None
+        status, doc = publish(stopped, resume=True)
+>       assert status == "refused" and any(needle in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'refused'
+E         
+E         - refused
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:210: AssertionError
+__________ test_an_update_never_replaces_a_manifest_it_did_not_write ___________
+
+pub = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6612/test_an_update_never_replaces_0/exp25'), 'new': PosixPath('/tmp/...c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6612/test_an_update_never_replaces_0/exp36/plan.json', ...}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x748c7e37acb0>
+
+    def test_an_update_never_replaces_a_manifest_it_did_not_write(pub, monkeypatch):
+        t, box, go = _paused(pub, monkeypatch)
+        os.rename(pub["out"], pub["out"] + ".mine")
+        with open(pub["out"], "w") as f:                                      # the manifest swapped under the publication
+            f.write("foreign\n")
+        _finish(t, go)
+        status, doc = box["result"]
+>       assert status == "partial" and any("changed under the publication" in x for x in doc["reasons"]), doc
+E       AssertionError: {'schema_version': 1, 'check': 'exp36_publish', 'set': 'A', 'status': 'complete', ...}
+E       assert ('published' == 'partial'
+E         
+E         - partial
+E         + published)
+
+src/tests/test_exp36_publish_concurrency.py:230: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_concurrency.py::test_the_initial_manifest_is_created_exclusively
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write
+FAILED src/tests/test_exp36_publish_concurrency.py::test_two_concurrent_same_set_publications
+FAILED src/tests/test_exp36_publish_concurrency.py::test_concurrent_a_and_off_publications
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_destination_path_swap_cannot_redirect_the_owner
+FAILED src/tests/test_exp36_publish_concurrency.py::test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[none]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[json]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[file]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[symlink]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[other_set]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[verdict]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[entries]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[source]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[complete]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[txid]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[writer_temp]
+FAILED src/tests/test_exp36_publish_concurrency.py::test_an_update_never_replaces_a_manifest_it_did_not_write
+17 failed, 1 passed, 3 warnings in 7.36s
+Exception in thread Thread-1 (<lambda>):
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 54, in <lambda>
+    t = threading.Thread(target=lambda: box.update(result=publish(p, **kw)))
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py", line 58, in publish
+    return C.exp36_publish(**args)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py", line 2644, in exp36_publish
+    os.link(tmp, e["dest"])          # atomic and never replacing: FileExistsError if it appeared
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 50, in link
+    assert go.wait(120)
+AssertionError: assert False
+ +  where False = wait(120)
+ +    where wait = <threading.Event object at 0x748c7e47a5c0>.wait
+Exception in thread Thread-2 (<lambda>):
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 54, in <lambda>
+    t = threading.Thread(target=lambda: box.update(result=publish(p, **kw)))
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py", line 58, in publish
+    return C.exp36_publish(**args)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py", line 2644, in exp36_publish
+    os.link(tmp, e["dest"])          # atomic and never replacing: FileExistsError if it appeared
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 50, in link
+    assert go.wait(120)
+AssertionError: assert False
+ +  where False = wait(120)
+ +    where wait = <threading.Event object at 0x748c7e3b9840>.wait
+Exception in thread Thread-3 (<lambda>):
+Traceback (most recent call last):
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/threading.py", line 953, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 54, in <lambda>
+    t = threading.Thread(target=lambda: box.update(result=publish(p, **kw)))
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py", line 58, in publish
+    return C.exp36_publish(**args)
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_collect.py", line 2644, in exp36_publish
+    os.link(tmp, e["dest"])          # atomic and never replacing: FileExistsError if it appeared
+  File "/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish_concurrency.py", line 50, in link
+    assert go.wait(120)
+AssertionError: assert False
+ +  where False = wait(120)
+ +    where wait = <threading.Event object at 0x748c7e569c60>.wait
