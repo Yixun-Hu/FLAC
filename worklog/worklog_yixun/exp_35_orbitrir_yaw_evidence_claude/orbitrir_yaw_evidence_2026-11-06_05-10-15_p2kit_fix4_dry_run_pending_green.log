@@ -1,0 +1,5 @@
+p2kit fix 4 GREEN at 025c803ace35599462430ab154fad76bb853c4ab + dry_run_pending / dry_spawn (uncommitted) -- 2026-11-06T05:10:15-05:00 -- the whole kit suite
+........................................................................ [ 93%]
+........................................                                 [100%]
+616 passed in 42.82s
+pytest rc 0

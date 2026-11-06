@@ -151,3 +151,67 @@ def test_a_runner_that_cannot_be_spawned_is_a_retained_dry_run_failure(tmp_path,
     st = _state(b)
     assert rc == 1 and st["phase"] == "dry_run_failed" and "could not be spawned" in msg
     assert SB.stub_calls(tmp_path) == [] and K.held_reasons(st["reservations"][0]) == []
+
+
+# --------------------------------------------------------------------------- #
+# Codex P2K-1 HIGH 1: one dry run per orchestration even across a crash -- 'dry_run_pending' (argv / env / cwd) is
+# durable BEFORE the spawn, terminal on a crash (never retried, never released by the kit)
+# --------------------------------------------------------------------------- #
+class Crash(BaseException):
+    """A simulated kill: not an Exception, so no handler of the code under test swallows it."""
+
+
+def test_dry_run_pending_is_durable_before_the_spawn(tmp_path, monkeypatch):
+    b, seen = _box(tmp_path), []
+    real = K.dry_spawn
+
+    def spy(argv, **kw):
+        seen.append(_state(b))
+        return real(argv, **kw)
+    monkeypatch.setattr(K, "dry_spawn", spy)
+    assert _dry(b)[0] == 0
+    [at_spawn] = seen
+    argv, env, cwd = K.runner_command(b.cfg, (0,), dry=True)
+    assert at_spawn["phase"] == "dry_run_pending" and at_spawn["dry_run"]["argv"] == argv
+    assert (at_spawn["dry_run"]["env"], at_spawn["dry_run"]["cwd"]) == (env, cwd)
+    assert [e["what"].split(":")[0] for e in _state(b)["events"]][-2:] == ["dry_run_pending", "dry_run_passed"]
+
+
+def _after_crash(b, tmp_path, calls):
+    st = _state(b)
+    assert st["phase"] == "dry_run_pending" and len(SB.stub_calls(tmp_path)) == calls
+    rc, msg = _dry(b)
+    assert rc == 1 and "not reserved" in msg and len(SB.stub_calls(tmp_path)) == calls      # never a second dry run
+    rc, msg = K.release(FakeWorld(t=1_800_000_300.0), b.cfg, kit_commit=b.commit, h35=b.head, orch=b.orch)
+    assert rc == 1 and "dry_run_pending" in msg and os.path.exists(b.res())               # manual review, not the kit
+    assert _state(b) == st
+
+
+def test_a_crash_right_before_the_spawn_is_terminal(tmp_path, monkeypatch):
+    b = _box(tmp_path)
+    monkeypatch.setattr(K, "dry_spawn", lambda *a, **k: (_ for _ in ()).throw(Crash()))
+    with pytest.raises(Crash):
+        _dry(b)
+    monkeypatch.undo()
+    _after_crash(b, tmp_path, 0)
+
+
+def test_a_crash_right_after_the_spawn_is_terminal(tmp_path, monkeypatch):
+    b, started = _box(tmp_path), []
+    real = K.dry_spawn
+    monkeypatch.setattr(K, "dry_spawn", lambda argv, **kw: started.append(real(argv, **kw)) or (_ for _ in ()).throw(Crash()))
+    with pytest.raises(Crash):
+        _dry(b)
+    monkeypatch.undo()
+    started[0].communicate()                                   # the orphaned dry run ends by itself; reaped here
+    _after_crash(b, tmp_path, 1)
+
+
+def test_a_crash_before_the_rc_and_the_logs_are_published_is_terminal(tmp_path, monkeypatch):
+    b = _box(tmp_path)
+    monkeypatch.setattr(K, "artifacts", lambda *a, **k: (_ for _ in ()).throw(Crash()))
+    with pytest.raises(Crash):
+        _dry(b)
+    monkeypatch.undo()
+    assert os.path.exists(os.path.join(b.orch, "dry_run_runner.log"))
+    _after_crash(b, tmp_path, 1)

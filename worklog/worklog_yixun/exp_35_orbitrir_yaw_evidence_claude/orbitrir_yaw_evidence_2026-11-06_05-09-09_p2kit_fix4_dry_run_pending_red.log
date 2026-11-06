@@ -1,0 +1,8 @@
+p2kit fix 4 (Codex P2K-1 HIGH 1: a durable, crash-terminal dry_run_pending before the dry-run spawn) RED at 025c803ace35599462430ab154fad76bb853c4ab -- 2026-11-06T05:09:09-05:00 -- no dry_spawn / dry_run_pending yet
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_dry_run_pending_is_durable_before_the_spawn
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_a_crash_right_before_the_spawn_is_terminal
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_a_crash_right_after_the_spawn_is_terminal
+FAILED src/tests/test_exp35_phase_ii_dry_run.py::test_a_crash_before_the_rc_and_the_logs_are_published_is_terminal
+FAILED src/tests/test_exp35_phase_ii_cli.py::test_subprocesses_run_only_git_nvidia_smi_the_runner_and_the_wrapper
+5 failed, 55 passed in 10.77s
+pytest rc 1

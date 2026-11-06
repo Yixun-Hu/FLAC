@@ -153,7 +153,7 @@ def test_subprocesses_run_only_git_nvidia_smi_the_runner_and_the_wrapper():
                 if isinstance(c, ast.Attribute) and isinstance(c.value, ast.Name) and c.value.id == "subprocess" and \
                         c.attr in ("run", "Popen", "call", "check_call", "check_output"):
                     owners.add(f.name)
-    assert owners == {"git", "nvsmi", "spawn", "dry_run"}
+    assert owners == {"git", "nvsmi", "spawn", "dry_spawn"}
     assert K.World.QUERIES == {"map": "--query-gpu=index,uuid", "apps": "--query-compute-apps=pid,gpu_uuid"}
 
 

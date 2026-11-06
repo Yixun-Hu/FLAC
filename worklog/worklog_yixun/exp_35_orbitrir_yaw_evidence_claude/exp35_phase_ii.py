@@ -1275,8 +1275,9 @@ def recheck(world, cfg, st, orch):
 
 
 def dry_run(world, cfg, *, kit_commit, h35, orch):
-    """§15 item 7: from 'reserved' only -- the recheck, the EXACT runner command under DRY_RUN=1, its transcript parsed
-    exactly and its own artifacts checked; then 'dry_run_passed', or 'dry_run_failed' (retained). (rc, message)."""
+    """§15 item 7: from 'reserved' only -- the recheck, 'dry_run_pending' (durable, crash-terminal: never retried or
+    released by the kit), the EXACT runner command under DRY_RUN=1, its transcript parsed exactly and its own
+    artifacts checked; then 'dry_run_passed', or 'dry_run_failed' (retained). (rc, message)."""
     opened, why = open_mode(cfg, kit_commit, h35, orch, ("reserved",))
     if opened is None:
         return 1, "DRY RUN REFUSED (nothing changed): " + "; ".join(why)
@@ -1286,9 +1287,11 @@ def dry_run(world, cfg, *, kit_commit, h35, orch):
         rec = {"argv": argv, "env": env, "cwd": cwd, "started": world.now()}
         try:
             why, rec["before"] = recheck(world, cfg, st, orch)
-            if not why:
-                p = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT)
+            if not why:                                  # Codex P2K-1 HIGH 1: durable BEFORE the spawn, crash-terminal
+                st.update(phase="dry_run_pending", dry_run=dict(rec))
+                event(st, world.now(), "dry_run_pending: the dry-run runner is spawned next")
+                write_json_atomic(state_path(orch), st)
+                p = dry_spawn(argv, cwd=cwd, env=env)
                 raw = p.communicate()[0]                                         # no timeout: never killed
                 path = os.path.join(orch, "dry_run_runner.log")
                 rec.update(rc=p.returncode, ended=world.now(), outer_log={
@@ -1311,6 +1314,12 @@ def dry_run(world, cfg, *, kit_commit, h35, orch):
         return 1, "DRY RUN FAILED (retained; release, then reserve anew): " + "; ".join(why)
     return 0, (f"DRY RUN PASSED: {rec['n_ids']} cells, {len(rec['argv_records'])} argv, the runner's log, plan and "
                "pre-flight exact")
+
+
+def dry_spawn(argv, *, cwd, env):
+    """The dry-run runner: its exact argv, environment and cwd, stdin /dev/null, stdout + stderr piped to the kit."""
+    return subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
 
 
 def artifacts(cfg, raw, st, rec):
