@@ -1,0 +1,6 @@
+p2kit fix 1 (Codex P2K-1 BLOCKING 1: no killing subprocess timeout) RED at 581a1773cd5ba28a80d3459537bbafb7d410b93f -- 2026-11-06T04:57:50-05:00 -- git() and World.nvsmi() still pass timeout=
+E       assert ['subprocess....timeout=120)'] == []
+E         Left contains 2 more items, first extra item: "subprocess.run(['git', '--no-optional-locks', '-C', repo, *args], capture_output=True, timeout=600)"
+E         Use -v to get more diff
+1 failed, 34 deselected in 2.52s
+pytest rc 1

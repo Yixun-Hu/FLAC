@@ -1,0 +1,22 @@
+p2kit part 5a (the wrapper) RED at b2db1dd14b52c0fd492d492908d2a1a394ae17a4 -- 2026-11-06T04:18:39-05:00 -- the part-5a functions do not exist yet (the final 14 tests)
+     14 E       AttributeError: module 'exp35_phase_ii' has no attribute 'launch_spec'
+     14         """A box reserved, dry-run-passed and put at launch_pending exactly as launch() writes it (its own launch_spec),
+      2 tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6463/test_a_spawn_error_is_a_durabl0')
+      1 _____________ test_a_spawn_error_is_a_durable_runner_spawn_failure _____________
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_wrapper_records_the_runners_exact_rc_and_both_identities[run3-4]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_wrapper_records_the_runners_exact_rc_and_both_identities[run2-2]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_wrapper_records_the_runners_exact_rc_and_both_identities[run1-1]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_wrapper_records_the_runners_exact_rc_and_both_identities[run0-0]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_runner_environment_proof_is_read_from_proc_not_from_the_spec
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_the_launch_spec_is_the_exact_runner_command_and_the_detached_wrapper
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_wrapper_without_the_kit_lock_refuses_and_writes_nothing
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_wrapper_finding_another_phase_refuses_and_writes_nothing
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_spawn_error_is_a_durable_runner_spawn_failure
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_an_unidentified_runner_is_still_waited_for_and_its_rc_recorded
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_crash_before_the_spawn_leaves_spawning_without_a_runner
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_crash_after_the_spawn_leaves_the_runner_running_and_the_state_for_review[wait]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_crash_after_the_spawn_leaves_the_runner_running_and_the_state_for_review[identify]
+      1 FAILED src/tests/test_exp35_phase_ii_wrap.py::test_a_contaminated_wrapper_environment_is_refused_before_any_spawn
+      1     def test_a_spawn_error_is_a_durable_runner_spawn_failure(tmp_path, monkeypatch):
+      1 14 failed in 6.71s
+pytest rc 1

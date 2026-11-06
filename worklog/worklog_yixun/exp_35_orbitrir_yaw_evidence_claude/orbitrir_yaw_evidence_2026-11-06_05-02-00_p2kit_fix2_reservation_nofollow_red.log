@@ -1,0 +1,12 @@
+p2kit fix 2 (Codex P2K-1 HIGH 3) RED at 12ccb874d122b60fc6b0398b27b36e817eeba309 -- 2026-11-06T05:02:00-05:00 -- the OLD reservation_status (lstat, then a following, blocking open) against the final thread-guarded tests
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[{"holder": ""}-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[{"holder": "exp 22"}-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[{"holder": "exp22\n"}-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[dangling-present (a link)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[link-to-a-valid-record-present (a link)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[fifo-present (not a regular file)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[directory-present (not a regular file)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_link_or_a_fifo_refuses_on_a_lane_and_on_the_other_card[link-to-a-valid-record]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_link_or_a_fifo_refuses_on_a_lane_and_on_the_other_card[fifo]
+9 failed, 34 passed in 23.36s
+pytest rc 1

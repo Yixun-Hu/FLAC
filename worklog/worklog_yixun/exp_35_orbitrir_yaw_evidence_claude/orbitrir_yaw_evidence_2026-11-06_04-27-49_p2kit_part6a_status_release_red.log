@@ -1,0 +1,52 @@
+p2kit part 6a (the read-only status, the authenticated release) RED at 44e2fdbe8143cb46ce7808e96747c18d7cc4e44e -- 2026-11-06T04:27:49-05:00 -- the part-6a functions do not exist yet
+      5     @pytest.mark.parametrize("phase", ["dry_run_failed", "launch_refused", "wrapper_spawn_failed", "wrapper_refused",
+      2     @pytest.mark.parametrize("upto", ["reserved", "dry_run_passed"])
+      2 E       AttributeError: module 'exp35_phase_ii' has no attribute 'status'. Did you mean: 'stat'?
+      1 upto = 'dry_run_passed'
+      1 _____ test_every_durable_refusal_state_is_releasable[wrapper_spawn_failed] _____
+      1 _____ test_every_durable_refusal_state_is_releasable[runner_spawn_failed] ______
+      1 ________ test_every_durable_refusal_state_is_releasable[dry_run_failed] ________
+      1 ________ test_a_never_launched_reservation_is_withdrawn[dry_run_passed] ________
+      1 _____ test_a_crash_or_unresolvable_state_is_never_released[reserve_failed] _____
+      1 _____ test_a_crash_or_unresolvable_state_is_never_released[release_failed] _____
+      1 phase = 'wrapper_spawn_failed'
+      1 phase = 'runner_spawn_failed'
+      1 phase = 'reserve_failed'
+      1 phase = 'release_failed'
+      1 phase = 'dry_run_failed'
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_two_lanes_are_authenticated_together_before_any_unlink
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_status_writes_nothing_before_any_orchestration
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_status_reports_an_exited_campaign_without_writing
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_status_reports_a_live_run_and_its_held_lock
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_durable_refusal_state_is_releasable[wrapper_spawn_failed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_durable_refusal_state_is_releasable[wrapper_refused]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_durable_refusal_state_is_releasable[runner_spawn_failed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_durable_refusal_state_is_releasable[launch_refused]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_durable_refusal_state_is_releasable[dry_run_failed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[unidentified-no-exit-never identified]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[supervisor-exp35_supervisor.py]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[runner-proc-depth_canon_eval_run.sh]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[runner-lock-runner lock is held]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[missing-gone]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[live-wrapper-may be alive]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[live-runner-may be alive]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[kit-lock-kit lock]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[inode-another inode]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[bytes-other bytes]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_reused_pid_is_another_process_and_does_not_block
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_record_lost_at_its_unlink_is_a_retained_release_failure
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_an_exited_campaign_releases_its_exact_record
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_never_launched_reservation_is_withdrawn[reserved]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_never_launched_reservation_is_withdrawn[dry_run_passed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[spawning]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[running]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[reserving]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[reserve_refused]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[reserve_failed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[release_failed]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[released]
+      1 FAILED src/tests/test_exp35_phase_ii_release.py::test_a_crash_or_unresolvable_state_is_never_released[launch_pending]
+      1 E           AttributeError: module 'exp35_phase_ii' has no attribute 'status'. Did you mean: 'stat'?
+      1         b = _box(tmp_path, "dry_run_passed", hold=hold)
+      1 32 failed in 7.80s
+pytest rc 1

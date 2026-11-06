@@ -1,0 +1,5 @@
+p2kit part 6b GREEN at 8439987c93c285f314b102faf8b41a6add080dbb + the .sh and the dispatch (uncommitted) -- 2026-11-06T04:34:09-05:00 -- the whole kit suite
+........................................................................ [ 85%]
+................................................                         [100%]
+336 passed in 39.24s
+pytest rc 0

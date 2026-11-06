@@ -1,0 +1,5 @@
+p2kit fix 5 GREEN at 01f436e23f3d44456addd3bd013a25af5c67e7f6 + the terminal release_refused (uncommitted) -- 2026-11-06T05:12:13-05:00 -- the whole kit suite
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[bytes-other bytes]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[inode-another inode]
+9 failed, 609 passed in 43.44s
+pytest rc 1

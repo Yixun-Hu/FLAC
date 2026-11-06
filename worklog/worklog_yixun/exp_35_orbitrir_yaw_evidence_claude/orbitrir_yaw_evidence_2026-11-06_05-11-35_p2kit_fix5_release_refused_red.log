@@ -1,0 +1,12 @@
+p2kit fix 5 (Codex P2K-1 HIGH 2: a post-open release refusal is a durable, terminal release_refused) RED at 01f436e23f3d44456addd3bd013a25af5c67e7f6 -- 2026-11-06T05:11:35-05:00
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[live-runner-may be alive]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[live-wrapper-may be alive]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[unidentified-no-exit-never identified]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[supervisor-exp35_supervisor.py]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[runner-proc-depth_canon_eval_run.sh]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[runner-lock-runner lock is held]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[missing-gone]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[bytes-other bytes]
+FAILED src/tests/test_exp35_phase_ii_release.py::test_every_ambiguous_or_live_evidence_refuses_the_release[inode-another inode]
+9 failed, 26 passed in 8.35s
+pytest rc 1

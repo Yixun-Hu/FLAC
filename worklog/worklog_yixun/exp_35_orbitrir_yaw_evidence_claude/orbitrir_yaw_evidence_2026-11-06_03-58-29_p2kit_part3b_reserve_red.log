@@ -1,0 +1,23 @@
+p2kit part 3b (the orchestration, the durable state, the kit lock, the reserve transaction) RED at 56b15a6f0119810a1ee4a678f15072a1bdbb5be2 -- 2026-11-06T03:58:29-05:00 -- the part-3b functions do not exist yet
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_reserve_writes_the_exact_records_after_two_observations_and_a_recheck
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_two_recorded_lanes_are_reserved_together
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[kit-40-hex]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[h35-registered]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[latched-stop latch]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[busy-first-compute process]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[busy-second-compute process]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[map-change-GPU map]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[unresolved-unresolved]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[unnamed-prior-run-prior-runs]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[unreadable-unreadable]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_every_refusal_before_the_acquisition_writes_nothing[lock-is held]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_lost_o_excl_race_touches_nothing_of_the_winner
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_partial_two_lane_acquisition_releases_our_first_record_only
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_an_occupation_seen_after_the_acquisition_releases_our_record
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_record_replaced_right_after_the_acquisition_is_never_unlinked
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_crash_inside_the_transaction_leaves_everything_for_review[before-the-record]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_crash_inside_the_transaction_leaves_everything_for_review[after-the-record]
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_resolved_earlier_orchestration_does_not_block_and_a_named_prior_run_passes
+FAILED src/tests/test_exp35_phase_ii_reserve.py::test_a_malformed_earlier_state_is_unresolved
+20 failed in 3.89s
+pytest rc 1

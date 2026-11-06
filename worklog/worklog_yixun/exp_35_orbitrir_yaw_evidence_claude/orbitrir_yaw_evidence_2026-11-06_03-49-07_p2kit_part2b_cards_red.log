@@ -1,0 +1,35 @@
+p2kit part 2b (O_EXCL reservation records, authentication, the card observation) RED at a44cca685aeaff18ddf9195da70dd4983da2eda0 -- 2026-11-06T03:49:07-05:00 -- the part-2b functions do not exist yet
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_reservation_is_an_exact_o_excl_record
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_record_that_is_not_ours_is_never_unlinked[bytes]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_record_that_is_not_ours_is_never_unlinked[inode]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_record_that_is_not_ours_is_never_unlinked[symlink]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_record_that_is_not_ours_is_never_unlinked[missing]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_our_exact_record_is_released_and_the_directory_synced
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_record_replaced_between_its_authentication_and_the_unlink_is_never_unlinked
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[None-absent]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[{"holder": "exp22", "run": "x"}-present (holder exp22)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[{-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[[1]-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_the_reservation_status_of_any_file[dangling-present (a dangling link, or removed while it was read)]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_an_unreadable_reservation_directory_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_free_gpu0_lane_is_observed_free
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[busy-compute process]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[reserved-exp22-reservation file exists]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[reserved-malformed-reservation]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[exp35-other-card-exp35 reservation]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[malformed-other-card-unexplained]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[swapped-map-registered]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[third-card-registered]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[unknown-uuid-unknown]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[supervisor-proc-exp35_supervisor.py]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[runner-proc-depth_canon_eval_run.sh]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_every_occupied_or_inconsistent_observation_is_refused[gpu1-table-job-EVAL_DONE]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_an_exp22_record_on_the_other_card_is_no_obstacle
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_gpu1_lane_needs_the_table_job_terminally_complete
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_held_supervisor_or_runner_lock_refuses[supervisor]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_held_supervisor_or_runner_lock_refuses[runner]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_with_held_records_the_lane_file_must_be_our_exact_record
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_malformed_table_is_unreadable[map]
+FAILED src/tests/test_exp35_phase_ii_cards.py::test_a_malformed_table_is_unreadable[apps]
+32 failed in 2.80s
+pytest rc 1

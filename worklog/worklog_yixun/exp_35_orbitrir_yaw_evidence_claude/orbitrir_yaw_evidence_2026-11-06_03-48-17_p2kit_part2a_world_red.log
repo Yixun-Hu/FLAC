@@ -1,0 +1,20 @@
+p2kit part 2a (nvidia-smi tables, lock probes, process scans, table-job rule, identities) RED at 0e9050b39fe0f4a9ea8fa9be9f724148455ae076 -- 2026-11-06T03:48:17-05:00 -- the part-2a functions do not exist yet
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_gpu_map_and_the_compute_table_parse
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0, GPU-x\n0, GPU-y\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0, GPU-x\n1, GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[zero, GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0 GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[4242\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[x, GPU-a\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[1, 2, 3\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_world_queries_nvidia_smi_and_every_failure_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_lock_probe_never_creates_and_sees_a_holder
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_unreadable_lock_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_scan_finds_every_exp35_process_and_nothing_else
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_unreadable_cmdline_or_cwd_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_table_job_rule_for_gpu1
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_live_identity_is_complete_and_matches_only_its_own_process
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_identity_of_this_very_process_reads_through_the_real_proc
+17 failed in 2.68s
+pytest rc 1
