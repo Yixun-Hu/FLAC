@@ -158,7 +158,8 @@ def _wrapper(tmp_path, apps=""):
     nv.chmod(0o755)
     tools = sandbox_tools(tmp_path / "W", common=dict(
         RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC=cfg.proc,
-        NVIDIA_SMI=str(nv), POLL_S=0.05, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=600),
+        NVIDIA_SMI=str(nv), POLL_S=0.05, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=600, PY=sys.executable,
+        PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05),
         shells={"exp22_free_card_detect.sh": {"PY": sys.executable}})
     return os.path.join(tools, "exp22_free_card_detect.sh")
 

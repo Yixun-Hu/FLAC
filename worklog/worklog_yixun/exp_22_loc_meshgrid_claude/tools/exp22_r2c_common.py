@@ -39,6 +39,9 @@ QUEUE_LOG = ("/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_3
 PROC = "/proc"
 NVIDIA_SMI = "nvidia-smi"
 POLL_S, WINDOW_POLLS, POLL_SLACK_S, FRESH_S = 60, 31, 15, 600     # A7 r2 (v)(1) / r3 (b): 31 polls = 30 min; 10 min
+PY = "/home/yixunhu/miniconda3/envs/flac/bin/python"                 # $PY of the command list
+PYTEST_MAIN = "/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/pytest/__main__.py"
+CHILD_POLL_S = 30                                                 # the supervisor's poll + heartbeat during a line (<= 60 s)
 # --- END REGISTERED CONFIG ---
 
 CARDS = {"GPU0": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "GPU1": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da"}
@@ -302,7 +305,7 @@ def observe(world, cfg, card, held=None, ours=()):
         pids = sorted(p for p, u in compute_apps(apps_raw) if u == uuid and p not in ours)
     except ValueError as err:
         raise Unreadable(f"the compute table: {err}") from err
-    reasons = [f"compute process(es) {pids} on {card} ({uuid})"] if pids else []
+    reasons = []
     if held is None:
         res = reservation_status(cfg.reservations, uuid)
         if res != "absent":
@@ -318,9 +321,11 @@ def observe(world, cfg, card, held=None, ours=()):
     else:
         done, why = table_job_status(cfg.queue_log, cfg.proc)
         rule, reasons = f"his s43 table job {'terminally complete' if done else 'NOT complete'}", reasons + why
+    busy = [f"compute process(es) {pids} on {card} ({uuid})"] if pids else []
     return {"t": t, "iso": iso(t), "card": card, "uuid": uuid, "index": next(i for i, u in m.items() if u == uuid),
             "gpu_map_raw": map_raw, "apps_raw": apps_raw, "apps_sha256": sha256_bytes(apps_raw.encode()),
-            "pids_on_card": pids, "reservation": res, "rule": rule, "free": not reasons, "reasons": reasons}
+            "pids_on_card": pids, "reservation": res, "rule": rule, "free": not (busy or reasons),
+            "reasons": busy + reasons, "rule_reasons": reasons}
 
 
 def detect(world, cfg, max_seconds):

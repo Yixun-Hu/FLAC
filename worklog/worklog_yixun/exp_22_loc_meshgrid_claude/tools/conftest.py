@@ -5,6 +5,7 @@ import importlib.util
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True
@@ -154,3 +155,98 @@ def reserve(cfg, world, w, orch, seal, card="GPU0", index=0):
 
 def res_file(cfg, uuid=GPU0):
     return os.path.join(cfg.reservations, f"{uuid}.json")
+
+
+# --------------------------------------------------------------------------- #
+# a sandbox CHECKOUT for the supervisor and the launcher (CPU, no torch): the real PIN2 files, a stand-in transformer
+# carrying the real fallback block, stand-ins for localize_meshgrid.py, meshgrid_fa_parity and the eleven T tests,
+# all driven by an untracked a7_control.json; git-committed, so HEAD = its "PIN2"
+# --------------------------------------------------------------------------- #
+REPO = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
+PIN_PATHS = ("overlays/no_flash/flash_attn.py", "overlays/no_flash/exp35_no_flash_launch.py",
+             "src/tests/test_exp35_no_flash_launch.py", "pyproject.toml")
+STANDIN_TARGET = r'''"""A7 sandbox stand-in for localize_meshgrid.py: the registered evidence name into --out-dir."""
+import json, os, sys, time
+a = sys.argv[1:]
+if "--probe" in a:
+    name = "diagnostics_BF_bathrooms14"
+elif "--cache-parity-check" in a:
+    name = "vanilla_cache_parity" if "--expect-arm" in a else "fa_cache_parity"
+else:
+    name = {"--fa-split-parity-check": "fa_split_parity", "--fa-production-parity-check": "fa_production_parity",
+            "--fa-production-drift-measurement": "fa_production_drift",
+            "--replay-check": "vanilla_replay_regression"}[next(x for x in a if x.endswith(("-check", "-measurement")))]
+me = (json.load(open("a7_control.json")) if os.path.exists("a7_control.json") else {}).get(name, {})
+time.sleep(me.get("sleep", 0))
+out = a[a.index("--out-dir") + 1]
+os.makedirs(out, exist_ok=True)
+doc = ({"projection": {"projected_gpu_hours": {"total": me.get("total", 100.0)}}} if name.startswith("diagnostics")
+       else {"name": name, "pass": me.get("pass", True)})
+if not me.get("no_output"):
+    with open(os.path.join(out, name + ".json"), "w") as f:
+        json.dump(doc, f)
+print("stand-in", name, "argv", json.dumps(a), flush=True)
+for line in me.get("print", []):
+    print(line, flush=True)
+sys.exit(me.get("rc", 0))
+'''
+STANDIN_PARITY = 'def reverify_gate_evidence(doc):\n    return [] if doc.get("pass") else ["the stand-in evidence does not pass"]\n'
+STANDIN_TEST_HEAD = '''import json, os, pytest
+
+
+def _behave(name):
+    kind = (json.load(open("a7_control.json")) if os.path.exists("a7_control.json") else {}).get("T", {}).get(name)
+    if kind == "fail":
+        assert False, "stand-in failure"
+    if kind == "skip":
+        pytest.skip("stand-in skip")
+
+
+'''
+
+
+def _fallback_block():
+    with open(os.path.join(REPO, "src", "models", "transformer.py")) as f:
+        text = f.read()
+    start = text.index("try:\n    from flash_attn import flash_attn_func\n")
+    end = text.index("    flash_attn_func = None\n", start) + len("    flash_attn_func = None\n")
+    return text[start:end]
+
+
+def _git(w, *args):
+    return subprocess.run(["git", "-C", str(w), "-c", "user.email=a7@sandbox", "-c", "user.name=a7", *args],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def sandbox_repo(root, common=None, shells=None):
+    """``(W, pin2)``: the sandbox checkout under ``root``."""
+    w = os.path.join(str(root), "W")
+    for rel in PIN_PATHS:
+        os.makedirs(os.path.dirname(os.path.join(w, rel)) or w, exist_ok=True)
+        shutil.copy(os.path.join(REPO, rel), os.path.join(w, rel))
+    files = {"src/__init__.py": "", "src/models/__init__.py": "", "src/models/transformer.py": _fallback_block(),
+             "src/localization/__init__.py": "", "src/localization/meshgrid_fa_parity.py": STANDIN_PARITY,
+             "localize_meshgrid.py": STANDIN_TARGET}
+    ids = load("exp22_r2c_evidence").T_NODE_IDS
+    for path in sorted({i.split("::")[0] for i in ids}):
+        body, seen = STANDIN_TEST_HEAD, set()
+        for nid in ids:
+            p, name = nid.split("[")[0].split("::")
+            if p != path or name in seen:
+                continue
+            seen.add(name)
+            param = "[" in nid
+            body += (("@pytest.mark.parametrize('n', [4, 64])\n" if param else "")
+                     + f"def {name}({'n' if param else ''}):\n    _behave({name!r})\n\n\n")
+        files[path] = body
+    for rel, text in files.items():
+        os.makedirs(os.path.dirname(os.path.join(w, rel)) or w, exist_ok=True)
+        with open(os.path.join(w, rel), "w") as f:
+            f.write(text)
+    if common is not None:                       # tools only with a test config (never runnable production copies)
+        sandbox_tools(w, common=common, shells=shells)
+    os.makedirs(os.path.join(w, "outputs_loc", "exp22"))
+    _git(w, "init", "-q")
+    _git(w, "add", "-A", ".")
+    _git(w, "commit", "-q", "-m", "sandbox PIN2")
+    return w, _git(w, "rev-parse", "HEAD")
