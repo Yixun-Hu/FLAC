@@ -261,3 +261,21 @@ def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, mon
     monkeypatch.chdir(tmp_path)
     status, v = check(world, plan_json=rel)
     assert status == "equal" and v["plan_json"] == rel, v["reasons"]
+
+
+def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world):
+    """The publication re-computes the replay verdict and requires it byte-for-byte equal (as JSON) to the recorded one;
+    chain I records its verdicts with the collector at H36_I 461c58e0 -- this collector must produce the same dict."""
+    import subprocess
+    import types
+    path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
+    src = subprocess.run(["git", "-C", T.REPO, "show", f"461c58e0:{os.path.relpath(path, T.REPO)}"], check=True,
+                         capture_output=True, text=True).stdout
+    old = types.ModuleType("depth_canon_collect_at_461c58e0")
+    old.__file__ = path
+    exec(compile(src, f"{path}@461c58e0", "exec"), old.__dict__)
+    kw = dict(pin=H36, plan_json=world["plan"], manifest=MANIFEST, base_dir=str(world["new"]),
+              ref_base_dir=str(world["ref"]), ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"],
+              canon_index=T.canon_index())
+    assert old.exp36_replay_check(**kw) == C.exp36_replay_check(**kw)
+    assert old.exp36_replay_check(**kw)[0] == "equal"
