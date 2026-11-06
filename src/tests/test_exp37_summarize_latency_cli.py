@@ -109,23 +109,6 @@ def test_bad_combinations_are_refused(world):
         summ.build_summary(selection, selector, audit=AUDIT, runs=[("P1", 8, p1)], splits=[("BF", 8, p1)])
 
 
-def test_the_cli_writes_json_and_markdown_and_exits_3_on_a_co_tenant(world, tmp_path):
-    _selection, sel_path, selector, run = world
-    out_json, out_md = tmp_path / "s.json", tmp_path / "s.md"
-    argv = [sys.executable, str(REPO / "tools/exp37_summarize_latency.py"), "--selection", str(sel_path),
-            "--selector", str(selector), "--geometry-audit", str(tmp_path / "audit.json"),
-            "--run", "P1", "8", str(run("p1", "P1")), "--output-json", str(out_json),
-            "--output-md", str(out_md)]
-    env = {"CUDA_VISIBLE_DEVICES": "", "PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin"}
-    done = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=300)
-    assert done.returncode == 0, done.stderr
-    assert json.loads(out_json.read_text())["rows"][0]["arm"] == "P1" and "Vanilla FLAC" in out_md.read_text()
-    argv[argv.index("--run") + 3] = str(run("busy", "P1", cotenant=True))
-    out_json.unlink()
-    done = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=300)
-    assert done.returncode == 3 and json.loads(out_json.read_text())["rows"][0]["timing_valid"] is False
-
-
 def test_the_summary_records_the_selector_validity(world, tmp_path):
     selection, _sel_path, selector, run = world
     p1 = run("p1", "P1")
@@ -134,3 +117,81 @@ def test_the_summary_records_the_selector_validity(world, tmp_path):
     bare = _write_hashed(tmp_path / "bare_selector.json", body)
     out = summ.build_summary(selection, bare, audit=AUDIT, runs=[("P1", 8, p1)])
     assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no binding
+
+
+# --------------------------------------------------------------------------- #
+# fix round (Codex BLOCKING 4 / HIGH 3, NIT 2): the registered B1 table, replays, inventory, diagnostic outputs
+# --------------------------------------------------------------------------- #
+def _registered(run, *, k1_splits=True, busy=None):
+    runs = [(arm, k, run(f"h_{arm}_{k}", arm, k=k, cotenant=(arm, k) == busy)) for arm in ("P1", "YAW", "BF")
+            for k in (8, 1)]
+    splits = [(arm, k, run(f"s_{arm}_{k}", arm, k=k, split=True)) for arm in ("P1", "YAW", "BF")
+              for k in ((8, 1) if k1_splits else (8,))]
+    return runs, splits
+
+
+def _argv(sel_path, selector, tmp_path, runs, splits, out, extra=()):
+    argv = ["--selection", sel_path, "--selector", selector, "--geometry-audit", tmp_path / "audit.json",
+            "--output-json", out, "--output-md", out.with_suffix(".md")]
+    for arm, k, d in runs:
+        argv += ["--run", arm, k, d]
+    for arm, k, d in splits:
+        argv += ["--split", arm, k, d]
+    return [str(a) for a in argv + list(extra)]
+
+
+def _main(monkeypatch, argv):
+    monkeypatch.setattr(sys, "argv", ["exp37_summarize_latency.py"] + argv)
+    return summ.main()
+
+
+def test_the_registered_table_publishes_once_with_its_inventory(world, tmp_path, monkeypatch):
+    selection, sel_path, selector, run = world
+    runs, splits = _registered(run)
+    out = tmp_path / "b1" / "summary.json"
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 0
+    summary = json.loads(out.read_text())
+    inventory = summary["inventory"]
+    assert set(inventory["runs"]) == {str(d) for _a, _k, d in runs + splits}
+    assert all(len(e["attestation"]["monitor_head_sha256"]) == 64 for e in inventory["runs"].values())
+    assert inventory["selector"]["binding_sha256"] and inventory["selection"]["sha256"] == selection["sha256"]
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 2          # write-once
+
+
+def test_the_k1_splits_are_all_or_none_and_the_rows_are_exactly_registered(world, tmp_path, monkeypatch):
+    _selection, sel_path, selector, run = world
+    runs, splits = _registered(run, k1_splits=False)                     # NIT 2: the K_ctx 1 splits dropped
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, tmp_path / "a" / "s.json")) == 0
+    for bad_runs, bad_splits in ((runs[:-1], splits), (runs, splits[:2]),
+                                 (runs, splits + [("P1", 1, run("s1_only", "P1", k=1, split=True))])):
+        out = tmp_path / "bad" / "s.json"
+        assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, bad_runs, bad_splits, out)) == 2
+        assert not out.parent.exists()
+
+
+def test_an_unattested_row_writes_only_a_diagnostic(world, tmp_path, monkeypatch):
+    _selection, sel_path, selector, run = world
+    runs, splits = _registered(run, busy=("BF", 1))
+    out = tmp_path / "b1" / "summary.json"
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out)) == 3
+    assert not out.exists() and not out.with_suffix(".md").exists()
+    diagnostic = json.loads((tmp_path / "b1" / "summary.DIAGNOSTIC.json").read_text())
+    assert diagnostic["publishable"] is False and any("BF" in r for r in diagnostic["reasons"])
+    assert (tmp_path / "b1" / "summary.DIAGNOSTIC.md").read_text().startswith("# DIAGNOSTIC")
+
+
+def test_replays_are_validated_and_can_be_required(world, tmp_path, monkeypatch):
+    from exp37_world import World
+    selection, sel_path, selector, run = world
+    runs, splits = _registered(run)
+    out = tmp_path / "r" / "s.json"
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, ["--require-replays"])) == 2
+    w = World(tmp_path / "w")
+    replays = [("--replay", a, k, w.make(f"{Path(d).name}_replay", a, selection, AUDIT, kind="replay", of=d,
+                                          context_count=k)) for a, k, d in runs]
+    replays += [("--split-replay", a, k, w.make(f"{Path(d).name}_replay", a, selection, AUDIT, kind="replay", of=d,
+                                                 context_count=k)) for a, k, d in splits]
+    extra = [str(x) for item in replays for x in item] + ["--require-replays"]
+    assert _main(monkeypatch, _argv(sel_path, selector, tmp_path, runs, splits, out, extra)) == 0
+    entry = json.loads(out.read_text())["inventory"]["runs"][str(runs[0][2])]
+    assert entry["replay"]["waveforms"]["mode"] == "replay"
