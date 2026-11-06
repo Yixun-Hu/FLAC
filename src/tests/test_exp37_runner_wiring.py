@@ -369,3 +369,48 @@ def test_the_cli_passes_the_b3_and_subset_flags(monkeypatch):
                                              "--c2f-top-k", "3"])
     localize_FLAC.main()
     assert seen["frame_angles"] == (0.0, 180.0) and seen["candidate_subset"] == "c2f" and seen["c2f_top_k"] == 3
+
+
+def test_a_rotated_run_uses_the_rotation_executor_and_records_the_angle(frozen, tmp_path, stubbed, monkeypatch):
+    from src.localization import exp37_rotation
+    calls = _recording_executor(monkeypatch, exp37_rotation, "execute_query_rotated")
+    monkeypatch.setattr(runner, "execute_query", lambda **kw: (_ for _ in ()).throw(AssertionError("headline ran")))
+    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0,), rotate_deg=90.0)
+    identity = _identity(tmp_path)
+    assert identity["rotate_deg"] == 90.0 and identity["frame_average_angles"] == [0.0]
+    assert calls[0]["rotate_deg"] == 90.0 and calls[0]["frame_angles"] == (0.0,)
+
+
+def test_theta_zero_is_the_existing_identity_and_executor(frozen, tmp_path, stubbed, monkeypatch):
+    calls = _recording_executor(monkeypatch, runner, "execute_query")
+    _run(frozen, tmp_path, query_index=4467, rotate_deg=0.0)
+    assert "rotate_deg" not in _identity(tmp_path) and len(calls) == 1
+
+
+@pytest.mark.parametrize("extra, needle", [({"rotate_deg": 90.0, "measure_core_forward": True}, "accuracy"),
+                                           ({"rotate_deg": 10.0}, "column"),
+                                           ({"rotate_deg": 90.0, "candidate_subset": "nested_1m",
+                                             "measure_core_forward": True}, "rotat")])
+def test_rotated_runs_are_accuracy_only_on_whole_columns(frozen, tmp_path, stubbed, extra, needle):
+    with pytest.raises(ValueError, match=needle):
+        _run(frozen, tmp_path, query_index=4467, **extra)
+    assert not (tmp_path / "run").exists()
+
+
+def test_the_cli_passes_the_rotation(monkeypatch):
+    sys.path.insert(0, str(REPO))
+    import localize_FLAC
+
+    seen = {}
+    monkeypatch.setattr(localize_FLAC, "run_localization", lambda **kw: seen.update(kw) or {"ok": True})
+    base = ["localize_FLAC.py", "--model-config", "c.json", "--ckpt-path", "k.ckpt", "--agree-ckpt", "a.pt",
+            "--context-manifest", str(E9 / "context_manifest_exp01_seed42.json"),
+            "--geometry-audit", str(E9 / "geometry_audit.json"), "--pilot-manifest", str(SELECTION_128),
+            "--dataset-root", "AcousticRooms", "--output-dir", str(REPO / "never_created_by_this_test"),
+            "--cond-method", "vanilla"]
+    monkeypatch.setattr(sys, "argv", base)
+    localize_FLAC.main()
+    assert seen["rotate_deg"] == 0.0
+    monkeypatch.setattr(sys, "argv", base + ["--rotate-deg", "90"])
+    localize_FLAC.main()
+    assert seen["rotate_deg"] == 90.0
