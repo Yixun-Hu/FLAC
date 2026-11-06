@@ -19,6 +19,17 @@ from src.localization.pilot import (
 )
 
 
+def same_queries_reasons(manifest: dict, reference: dict) -> list[str]:
+    """exp_37: a rebuilt pilot (e.g. on the 0.75 m audit) must select exactly the reference's queries, in order."""
+    ours = [(int(r["index"]), r["query_id"]) for r in manifest["records"]]
+    theirs = [(int(r["index"]), r["query_id"]) for r in reference["records"]]
+    if ours == theirs:
+        return []
+    missing = sorted(set(theirs) - set(ours))[:5]
+    return [f"the rebuilt pilot selects other queries than the reference ({len(set(theirs) - set(ours))} of "
+            f"{len(theirs)} reference queries missing, e.g. {missing}; order equal: {sorted(ours) == sorted(theirs)})"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context-manifest", type=Path, required=True)
@@ -27,6 +38,7 @@ def main() -> None:
     parser.add_argument("--queries-per-room", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--exclude-pilot-manifest", type=Path)
+    parser.add_argument("--require-same-queries-as", type=Path)                # exp_37: refuse other queries
     args = parser.parse_args()
     context = load_context_manifest(args.context_manifest)
     audit = json.loads(args.geometry_audit.read_text())
@@ -42,6 +54,11 @@ def main() -> None:
         seed=args.seed,
         excluded_pilot_manifest=excluded,
     )
+    if args.require_same_queries_as is not None:
+        reasons = same_queries_reasons(manifest, load_pilot_manifest(args.require_same_queries_as))
+        if reasons:
+            print("PILOT REBUILD REFUSED (nothing written): " + "; ".join(reasons), file=sys.stderr)
+            raise SystemExit(3)
     save_pilot_manifest(manifest, args.output)
     print(
         json.dumps(

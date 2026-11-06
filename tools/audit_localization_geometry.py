@@ -51,12 +51,29 @@ def _summary(values, threshold=0.5):
     }
 
 
+Z_BRANCHES = ("z_band", "full_height")
+
+
+def decide_z_branch(computed: str, z_counts, pin: str | None) -> str:
+    """exp_37: the computed global branch, unless pinned (a pinned z_band refuses any empty query grid)."""
+    if pin is None:
+        return computed
+    if pin not in Z_BRANCHES:
+        raise ValueError(f"unknown z branch {pin!r}; expected one of {Z_BRANCHES}")
+    empty = int(sum(int(count) <= 0 for count in z_counts))
+    if pin == "z_band" and empty:
+        raise RuntimeError(f"the pinned z_band branch leaves {empty} queries with an empty grid")
+    return pin
+
+
 def audit(
     context_manifest: Path,
     mesh_root: Path,
     *,
     continue_on_anchor_failure: bool = False,
     compute_topology: bool = True,
+    grid_spacing: float = 0.5,
+    pin_z_branch: str | None = None,
 ) -> dict:
     manifest = load_context_manifest(context_manifest)
     records = manifest["records"]
@@ -85,7 +102,7 @@ def audit(
     for (scene_name, room_name), room_records in sorted(grouped.items()):
         mesh_path = mesh_root / scene_name / f"{room_name}.obj"
         mesh = load_raycast_scene(mesh_path, compute_topology=compute_topology)
-        raw_points = build_lattice(mesh.aabb_min, mesh.aabb_max, 0.5)
+        raw_points = build_lattice(mesh.aabb_min, mesh.aabb_max, grid_spacing)
         base_mask, distances = classify_mesh_candidates(
             mesh, raw_points, SURFACE_CLEARANCE_METERS
         )
@@ -223,7 +240,8 @@ def audit(
     full_errors = [record["full_oracle_m"] for record in query_results]
     z_errors = [record["z_oracle_m"] if record["z_oracle_m"] is not None else np.inf for record in query_results]
     z_counts = [record["z_count"] for record in query_results]
-    chosen = choose_z_band_branch(full_errors, z_errors, z_counts)
+    computed = choose_z_band_branch(full_errors, z_errors, z_counts)
+    chosen = decide_z_branch(computed, z_counts, pin_z_branch)
     chosen_pairs = total_z_pairs if chosen == "z_band" else total_full_pairs
     chosen_receiver_pairs = total_z_receiver_pairs if chosen == "z_band" else total_full_receiver_pairs
     chosen_errors = z_errors if chosen == "z_band" else full_errors
@@ -240,7 +258,7 @@ def audit(
         "excluded_queries": 1000,
         "included_queries": 5337,
         "included_rooms": 16,
-        "grid_spacing_m": [0.5, 0.5, 0.5],
+        "grid_spacing_m": [float(grid_spacing)] * 3,
         "validity_backend": "31-direction odd-ray-parity majority",
         "ray_parity_direction_count": RAY_PARITY_DIRECTION_COUNT,
         "ray_parity_directions_sha256": hashlib.sha256(
@@ -275,6 +293,8 @@ def audit(
             "chosen_oracle": _summary(chosen_errors),
         },
     }
+    if pin_z_branch is not None:                    # exp_37: recorded only when pinned (the default output is unchanged)
+        result.update(z_branch_pinned=True, z_branch_computed=computed)
     result["sha256"] = hashlib.sha256(
         json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -337,12 +357,16 @@ def main() -> None:
     parser.add_argument("--output-md", type=Path, required=True)
     parser.add_argument("--diagnostic-continue-on-anchor-failure", action="store_true")
     parser.add_argument("--fast-cost-audit", action="store_true")
+    parser.add_argument("--grid-spacing", type=float, default=0.5)            # exp_37 B2 (0.75 m)
+    parser.add_argument("--pin-z-branch", choices=Z_BRANCHES)                 # exp_37 §10: pin the global branch
     args = parser.parse_args()
     result = audit(
         args.context_manifest,
         args.mesh_root,
         continue_on_anchor_failure=args.diagnostic_continue_on_anchor_failure,
         compute_topology=not args.fast_cost_audit,
+        grid_spacing=args.grid_spacing,
+        pin_z_branch=args.pin_z_branch,
     )
     _atomic_write(args.output_json, json.dumps(result, indent=2, sort_keys=True) + "\n")
     _atomic_write(args.output_md, _markdown(result))
