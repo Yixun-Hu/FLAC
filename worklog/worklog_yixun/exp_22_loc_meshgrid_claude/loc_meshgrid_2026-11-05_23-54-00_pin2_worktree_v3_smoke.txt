@@ -1,0 +1,37 @@
+worktree script v3 smoke (read-only: verify mode only), 2026-11-05T23:54:00-05:00; v3 sha256 feb11da7f8ac30526bf7f5da382ab0ed4c662169559dbe61a48ab2737c433baa
+== verify at the PIN2 42ecdece (expect VERIFY PASS, rc 0)
+=== exp22_pin2_worktree verify -- 2026-11-05T23:54:00-05:00 -- PIN2 42ecdecee3f1e66fefc707f3372e20021087afb0 -- /home/yixunhu/codespace/exp-22-pin2 -- this script feb11da7f8ac30526bf7f5da382ab0ed4c662169559dbe61a48ab2737c433baa
+untracked weights entries of the main checkout (23): weights/AGREE weights/AGREE_AR.pt weights/AGREE_fullAR.pt weights/AGREE_fullHAA.pt weights/FLAC/.cache weights/FLAC/.gitattributes weights/FLAC/FLAC.ckpt weights/FLAC/FLAC_EMA.ckpt weights/FLAC/FLAC_HAA.ckpt weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed42.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed43.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed44.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed45.stream.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.json weights/FLAC/FLAC_HAA_metrics_1_1.0_exp19_rcal_released_seed46.stream.json weights/FLAC/README.md weights/FLAC/VAE.ckpt weights/FLAC/VAE.safetensors weights/exp20
+OK: HEAD = PIN2
+OK: HEAD is detached
+OK: the tracked tree is clean
+OK: outputs_loc -> /home/yixunhu/codespace/FLAC/outputs_loc
+OK: AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+OK: required weights/exp20/YAW_40k.ckpt is the main checkout's file
+OK: required weights/exp20/BF_40k.ckpt is the main checkout's file
+OK: required weights/exp20/P1_40k.ckpt is the main checkout's file
+OK: required weights/FLAC/FLAC_EMA.ckpt is the main checkout's file
+OK: required weights/FLAC/VAE.ckpt is the main checkout's file
+OK: required weights/AGREE/AGREE_fullAR.pt is the main checkout's file
+OK: required outputs_loc/exp22/d1_context_manifest.json
+OK: required outputs_loc/exp22/g1_audit/geometry_audit_report.json
+OK: required outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+OK: required AcousticRooms/metadata/
+OK: required AcousticRooms/depth_map/
+OK: required AcousticRooms/single_channel_ir_1/
+OK: the worktree's untracked weights entries are exactly the links
+VERIFY PASS
+rc 0
+== verify against the superseded b722d5f0, whose launcher has no WEIGHT_ASSETS (expect REFUSED: stale list, rc 1)
+REFUSED: the launcher at PIN2 has no single WEIGHT_ASSETS=( ... ) assignment
+rc 1
+== a worktree path inside the main checkout (expect REFUSED, rc 1)
+REFUSED: the worktree must not lie inside the main checkout /home/yixunhu/codespace/FLAC
+rc 1
+== a non-canonical worktree path (expect REFUSED, rc 1)
+REFUSED: the worktree path must be canonical (no link, no trailing slash)
+rc 1
+== the parser on the PIN2 launcher (the three arrays as parsed)
+WEIGHT_ASSETS: weights/exp20/YAW_40k.ckpt weights/exp20/BF_40k.ckpt weights/exp20/P1_40k.ckpt weights/FLAC/FLAC_EMA.ckpt weights/FLAC/VAE.ckpt weights/AGREE/AGREE_fullAR.pt 
+ASSETS: outputs_loc/exp22/d1_context_manifest.json outputs_loc/exp22/g1_audit/geometry_audit_report.json 
+ASSET_DIRS: outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged AcousticRooms/metadata AcousticRooms/depth_map AcousticRooms/single_channel_ir_1 

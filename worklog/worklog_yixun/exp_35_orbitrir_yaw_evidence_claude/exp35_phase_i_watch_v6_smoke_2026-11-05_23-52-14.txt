@@ -1,0 +1,46 @@
+watcher v6 smoke test (read-only), 2026-11-05T23:52:14-05:00; v6 sha256 df8c81670044aa5421e7602ee94e4b891820f3b31f10c754729de1347f1c089a
+== the real log + state, N=33 (expect: still waiting -> timeout rc 124)
+Terminated
+rc 124
+== the real log + state, N=1 (expect: milestone)
+EVENT: milestone: 8 chunks gates_verified (>= 1)
+== a copied state (expect: argument error, not the supervisor's --state)
+EVENT: WATCHER ARGUMENT ERROR: state /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v6_smoke/copied_state.json is not the supervisor's --state /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json
+== a stale archived snapshot (expect: argument error)
+EVENT: WATCHER ARGUMENT ERROR: state /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_23-36-44_phase_i_state_snapshot.json is not the supervisor's --state /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json
+== an alternate log (a copy; expect: argument error, not the file fd 1 / fd 2 write)
+EVENT: WATCHER ARGUMENT ERROR: pid 685273 is not the launched supervisor writing /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v6_smoke/alternate_log.log (start time, cwd, argv sha256, fd 1 / fd 2)
+== a link to the real log (expect: argument error, a link is refused)
+EVENT: WATCHER ARGUMENT ERROR: log /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/watch_v6_smoke/log_link.log is not a regular file (a link is refused)
+== a wrong argv sha (expect: argument error, not the launched supervisor)
+EVENT: WATCHER ARGUMENT ERROR: pid 685273 is not the launched supervisor writing /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log (start time, cwd, argv sha256, fd 1 / fd 2)
+== --check-state-file on the copied live state (expect: OK <n>)
+OK 8
+rc 0
+== --check-state-file on a latched copy (expect: LATCH <n>)
+LATCH 8
+rc 0
+== --check-state-file wrong_kind (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/wrong_kind.json:475): schema
+rc 5
+== --check-state-file wrong_cell (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/wrong_cell.json:475): schema
+rc 5
+== --check-state-file wrong_gate (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/wrong_gate.json:475): schema
+rc 5
+== --check-state-file swapped_cells (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/swapped_cells.json:475): schema
+rc 5
+== --check-state-file empty (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/empty.json:43): schema
+rc 5
+== --check-state-file unknown (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/unknown.json:475): schema
+rc 5
+== --check-state-file noncontig (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/noncontig.json:475): schema
+rc 5
+== --check-state-file badn (expect: schema error, rc != 0)
+jq: error (at watch_v5_smoke/badn.json:475): schema
+rc 5

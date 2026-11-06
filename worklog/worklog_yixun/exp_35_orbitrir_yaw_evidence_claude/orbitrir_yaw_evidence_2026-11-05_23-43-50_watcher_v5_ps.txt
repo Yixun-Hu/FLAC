@@ -1,0 +1,5 @@
+2026-11-05T23:43:50-05:00
+# every process whose argv names exp35_phase_i_watch (read-only ps; v4 must be absent, exactly one v5)
+ 945320  298892 Thu Nov  5 23:34:57 2026 /bin/bash -c source /home/yixunhu/.claude/shell-snapshots/snapshot-bash-1792785313071-a43vmt.sh 2>/dev/null || true && shopt -u extglob 2>/dev/null || true && { \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3
+ 945324  945320 Thu Nov  5 23:34:57 2026 bash $S/exp35_phase_i_watch_v5.sh 685273 781579512 70f7c4a3c19bd60c721fe3eab6c78c2919a0cc8ce9d3855ec4dc496bb7c14679 /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claud
+# v5 bytes at its path: 32d74fbc76b6eeadd86ffa8f1db381b77e7e77c35e74d83e79cea3994ac226e9
