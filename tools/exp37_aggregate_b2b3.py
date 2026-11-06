@@ -50,7 +50,7 @@ def _hashed(path) -> dict:
 
 def _selector(path, selection):
     rows = lat.load_selector(path, selection)
-    return {i: r["scoring_total_seconds"] for i, r in rows.items()}, lat.selector_cotenancy(json.loads(Path(path).read_text()))
+    return {i: r["scoring_total_seconds"] for i, r in rows.items()}, lat.selector_cotenancy(path)
 
 
 def _seed_of(run_dir) -> int:

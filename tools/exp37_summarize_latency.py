@@ -90,7 +90,7 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
             row["stage_split"] = entry
         rows.append(row)
     selector_payload = json.loads(Path(selector_path).read_text())
-    selector_host = lat.selector_cotenancy(selector_payload)
+    selector_host = lat.selector_cotenancy(selector_path)
     body = {"schema_version": 1, "record_type": "exp37_latency_summary", "selection_sha256": selection["sha256"],
             "selector_file": str(selector_path), "selector_sha256": selector_payload.get("sha256"),
             "geometry_audit_sha256": audit["sha256"], "selector_host": selector_host, "selector_timing_valid": selector_host["timing_valid"],
@@ -105,7 +105,7 @@ def render_markdown(summary: dict) -> str:
     lines = [f"# exp_37 latency summary ({summary['query_count']} queries, {summary['candidate_evaluations']:,} "
              "candidates; K_gen 1, batch 64, SDPA)", "",
              "AGREE selector vector: " + ("valid (exclusive card)" if summary["selector_timing_valid"] else
-                                          "NOT PUBLISHABLE (co-tenant, unknown card or no host snapshot)"), "",
+                                          "NOT PUBLISHABLE (see selector_host.reasons)"), "",
              "| Arm | K_ctx | Mean [s/query] | Median | P90 | ms/cand (dataset) | Query median | Query P90 | "
              "Query peak [MiB] | Combined peak [MiB] | Timing |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     for row in summary["rows"]:
@@ -114,7 +114,7 @@ def render_markdown(summary: dict) -> str:
                      f"{o['p90_seconds']:.3f} | {1000 * c['amortized_seconds']:.3f} | {1000 * c['median_seconds']:.3f} | "
                      f"{1000 * c['p90_seconds']:.3f} | {m['query_peak_allocated_max_bytes'] / MIB:.0f} | "
                      f"{m['combined_inference_peak_allocated_bytes'] / MIB:.0f} | "
-                     f"{'valid' if row['timing_valid'] else 'NOT PUBLISHABLE (co-tenant / unknown card)'} |")
+                     f"{'valid' if row['timing_valid'] else 'NOT PUBLISHABLE (see host.reasons)'} |")
     lines += ["", "Stage split (dataset-wide ms/candidate; published only within 2 % of the headline):", "",
               "| Arm | K_ctx | context | cand. conditioning | DiT | VAE decode | AGREE | aggregate / max per-query diff |",
               "|---|---:|---:|---:|---:|---:|---:|---|"]

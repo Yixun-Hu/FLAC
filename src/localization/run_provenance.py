@@ -8,7 +8,9 @@
   unless this very process was started by ``overlays/no_flash/exp37_no_flash_launch.py`` on this checkout's
   overlay and launcher bytes and runs SDPA.
 - ``host_snapshot()`` / ``write_host_record()``: CPU affinity, torch intra- / inter-op threads, OMP / MKL / BLAS
-  variables, the CUDA card, and every co-tenant (GPU compute apps, top CPU processes) -- outside every timer.
+  variables, the CUDA card, the GPU compute apps and EVERY process (``ps``, no cut) -- outside every timer; each
+  record is hashed (canonical sha256) and bound to its run manifest. The continuous attestation over the timed
+  interval is the run-bound monitor (``exp37_cotenancy``).
 
 Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1, round B-a.
 """
@@ -25,6 +27,8 @@ from pathlib import Path
 
 import torch
 
+from src.localization.pilot import canonical_sha256
+
 LAUNCH_ENV = "EXP37_NO_FLASH_LAUNCH"
 SENTINEL = "EXP37_NO_FLASH_LAUNCHER"
 OVERLAY_SHA256 = "0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"   # the reviewed exp_35 bytes
@@ -34,7 +38,6 @@ HANDOFF_KEYS = frozenset({"attention_backend", "flash_attn_func_is_none", "overl
                           "pid", "target", "sentinel"})
 THREAD_ENVIRONMENT = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS",
                       "VECLIB_MAXIMUM_THREADS", "CUDA_VISIBLE_DEVICES", "PYTORCH_CUDA_ALLOC_CONF")
-TOP_PROCESSES = 20
 
 
 def _sha256(path: Path) -> str:
@@ -120,7 +123,7 @@ def host_snapshot(device: str, *, run=subprocess.run) -> dict:
         "gpu_compute_apps": _command(run, ["nvidia-smi", "--query-compute-apps=gpu_uuid,pid,process_name,used_memory",
                                            "--format=csv,noheader"]),
         "top_cpu_processes": _command(run, ["ps", "-eo", "pid,ppid,user,pcpu,pmem,etime,comm", "--sort=-pcpu",
-                                            "--no-headers"], limit=TOP_PROCESSES),
+                                            "--no-headers"]),                    # every process (no cut)
     }
 
 
@@ -143,6 +146,7 @@ def write_host_record(output_dir: Path | str, label: str, *, device: str, handof
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"label": label, "run_manifest_sha256": run_manifest_sha256, "no_flash_launch_handoff": handoff,
                "snapshot": snapshot, "extra": extra}
+    payload["sha256"] = canonical_sha256(payload)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     os.replace(temporary, path)

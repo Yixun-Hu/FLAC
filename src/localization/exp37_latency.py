@@ -4,8 +4,8 @@ The bundle's formulas, unchanged (``tools/summarize_core_forward_latency.py``): 
 ``L_q = core_forward_total_q + selector_q`` (the AGREE selector's median ``scoring_total_seconds``); s/query = mean /
 median / P90 (``np.quantile`` linear) over the queries; ms/candidate dataset-wide = ``sum L / sum |C|``, query median
 / P90 of ``L_q / |C_q|``. Every run is validated against its arm's protocol (conditioning, the pinned local checkpoint,
-K_ctx, K_gen 1, the bundle's timing flags, SDPA) and its host records (a timing with another compute process on its
-card, or on an unidentified card, is never valid). Never ``elapsed_seconds``.
+K_ctx, K_gen 1, the bundle's timing flags, SDPA) and its run-bound co-tenancy attestation (the monitor over the
+whole timed interval plus bound host records; ``host_cotenancy`` / ``selector_cotenancy``). Never ``elapsed_seconds``.
 
 Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1, round B-b.
 """
@@ -29,7 +29,6 @@ REGISTERED_SUPERSETS = {
     "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2":          # the 64-query seed-42 pilot
         ("9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",),   # the 128-query latency selection
 }
-CPU_COTENANT_PCPU = 10.0
 SPLIT_TOLERANCE = 0.02          # plan §10: outside 2 % the split is withheld, never the headline
 STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
 C4 = [0.0, 90.0, 180.0, 270.0]
@@ -110,50 +109,61 @@ def load_selector(path: Path, selection: dict) -> dict:
     return out
 
 
-def _norm_uuid(value) -> str:
-    text = str(value or "").strip().lower()
-    return text[4:] if text.startswith("gpu-") else text
-
-
-def _snapshot_verdict(snapshot: dict, name: str, gpu: list, cpu: list) -> tuple[bool, bool]:
-    """Collect one snapshot's GPU / CPU co-tenants; return (card identified, own pid seen on the card)."""
-    pid, card = int(snapshot["pid"]), _norm_uuid((snapshot.get("cuda_device") or {}).get("uuid"))
-    apps = snapshot.get("gpu_compute_apps", {})
-    own_seen = False
-    for line in apps.get("lines", []):
-        fields = [f.strip() for f in line.split(",")]
-        if _norm_uuid(fields[0]) == card and int(fields[1]) != pid:
-            gpu.append(f"{name}: {line}")
-        own_seen |= _norm_uuid(fields[0]) == card and int(fields[1]) == pid
-    for line in snapshot.get("top_cpu_processes", {}).get("lines", []):
-        fields = line.split()
-        if int(fields[0]) != pid and float(fields[3]) >= CPU_COTENANT_PCPU and line not in cpu:
-            cpu.append(line)
-    return bool(card) and "lines" in apps, own_seen
-
-
 def host_cotenancy(run_dir: Path) -> dict:
-    """GPU co-tenants (another pid on the run's card -> invalid; no record, an unidentified card, or the run never
-    seen on its own card -- a uuid-matching failure that could hide co-tenants -> invalid) and CPU co-tenants
-    (other processes at >= 10 %CPU in the ``ps`` top lists -- ps pcpu is a lifetime average, so this is a coarse
-    record for the Planner's judgement, not a verdict)."""
-    records = sorted((Path(run_dir) / "host_records").glob("*.json"))
-    gpu, cpu, unknown, own_seen = [], [], not records, False
-    for path in records:
-        identified, seen = _snapshot_verdict(json.loads(path.read_text())["snapshot"], path.name, gpu, cpu)
-        unknown |= not identified
-        own_seen |= seen
-    return {"timing_valid": not gpu and not unknown and own_seen, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
-            "host_record_count": len(records), "unidentified_card": unknown, "own_process_seen_on_card": own_seen}
+    """A run's timing attestation (Codex code review 1, BLOCKING 3): the run-bound monitor's verdict over the whole
+    timed interval (``exp37_cotenancy.monitor_verdict``) plus exactly one hashed start / loaded / end host record,
+    each bound to the run manifest. Anything missing, unhashed or foreign withholds the timing."""
+    from src.localization import exp37_cotenancy as cot
+
+    run_dir = Path(run_dir)
+    try:
+        manifest = _hashed(run_dir / "run_manifest.json")
+    except (OSError, ValueError, RuntimeError) as error:
+        return {"timing_valid": False, "reasons": [f"no readable run manifest: {error}"]}
+    reasons, records = [], {}
+    for path in sorted((run_dir / "host_records").glob("*.json")):
+        try:
+            record = _hashed(path)
+        except (OSError, ValueError, RuntimeError):
+            reasons.append(f"host record {path.name} is unhashed or corrupt")
+            continue
+        if record.get("run_manifest_sha256") != manifest["sha256"]:
+            reasons.append(f"host record {path.name} is bound to another run")
+        records[path.name] = record["sha256"]
+    labels = sorted(name.split("_")[0] for name in records)
+    if labels != ["end", "loaded", "start"]:
+        reasons.append(f"the host records {labels} are not exactly start / loaded / end")
+    verdict = cot.monitor_verdict(run_dir / "cotenancy", binding_sha256=manifest["sha256"])
+    return {"timing_valid": bool(verdict["timing_valid"] and not reasons), "reasons": verdict["reasons"] + reasons,
+            "monitor": verdict, "host_records": records}
 
 
-def selector_cotenancy(payload: dict) -> dict:
-    """The selector vector's own end-of-run snapshot, judged like a run (no snapshot -> not timing-valid)."""
-    gpu, cpu = [], []
-    snapshot = payload.get("host")
-    identified, own_seen = _snapshot_verdict(snapshot, "selector", gpu, cpu) if snapshot else (False, False)
-    return {"timing_valid": identified and own_seen and not gpu, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
-            "unidentified_card": not identified, "own_process_seen_on_card": own_seen}
+SELECTOR_BOUND = ("selection_sha256", "context_manifest_sha256", "agree_checkpoint_file_sha256", "candidate_batch_size",
+                  "repeat_count", "device")
+
+
+def selector_cotenancy(path: Path) -> dict:
+    """A selector vector's attestation: its binding (hashed, naming this file and the payload's selection / AGREE /
+    context / batch / repeats / device) and the monitor verdict in ``<file>.cotenancy`` bound to it."""
+    from src.localization import exp37_cotenancy as cot
+
+    path = Path(path)
+    try:
+        payload = _hashed(path)
+    except (OSError, ValueError, RuntimeError) as error:
+        return {"timing_valid": False, "reasons": [f"unreadable selector vector: {error}"]}
+    binding = payload.get("binding")
+    if not isinstance(binding, dict) or binding.get("sha256") != canonical_sha256(
+            {k: v for k, v in binding.items() if k != "sha256"}):
+        return {"timing_valid": False, "reasons": ["the selector vector has no hashed binding (no monitored run)"]}
+    differ = [k for k in SELECTOR_BOUND if binding.get(k) != payload.get(k)]
+    if Path(str(binding.get("output", ""))).name != path.name or binding.get("record_type") != "exp37_selector_binding":
+        differ.append("output")
+    if differ:
+        return {"timing_valid": False, "reasons": [f"the selector binding does not describe this vector: {differ}"]}
+    verdict = cot.monitor_verdict(Path(f"{path}.cotenancy"), binding_sha256=binding["sha256"])
+    return {"timing_valid": bool(verdict["timing_valid"]), "reasons": verdict["reasons"], "monitor": verdict,
+            "binding_sha256": binding["sha256"]}
 
 
 def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed: int = 42, context_count: int = 8,
