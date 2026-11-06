@@ -79,3 +79,13 @@ def test_a_subset_that_is_not_full_grid_indices_is_refused(inputs):
         _run(inputs, cond_method="vanilla", candidate_subset=lambda candidates: np.array([5, 2]))      # unsorted
     with pytest.raises(ValueError, match="candidate_subset"):
         _run(inputs, cond_method="vanilla", candidate_subset=lambda candidates: np.array([], dtype=int))
+
+
+def test_a_subset_result_s_active_hash_is_the_subset_s_and_the_parent_is_kept(inputs):
+    """HIGH 2 consistency: the active candidate hash describes the scored set; the full grid's hash is the parent."""
+    sub, _, _ = _run(inputs, cond_method="vanilla", candidate_subset=nested_subset)
+    index = nested_subset(GRID)
+    assert sub["candidate_indices_sha256"] == hashlib.sha256(index.astype("<u4").tobytes()).hexdigest()
+    assert sub["parent_candidate_indices_sha256"] == "h"
+    full, _, _ = _run(inputs, cond_method="vanilla")
+    assert full["candidate_indices_sha256"] == "h" and "parent_candidate_indices_sha256" not in full

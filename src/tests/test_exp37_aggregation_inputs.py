@@ -24,7 +24,8 @@ AUDIT = {"sha256": "a" * 64, "mesh_root": "/m", "rooms": {"R": {"mesh_sha256": "
 
 
 def _pilot(counts):
-    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c} for i, c in counts.items()]
+    records = [{"index": i, "query_id": f"q{i}.wav", "room": "r", "candidate_count": c, "candidate_indices_sha256": f"h{i}"}
+               for i, c in counts.items()]
     body = {"schema_version": 1, "query_count": len(records), "records": records}
     return {**body, "sha256": canonical_sha256(body)}
 
@@ -66,13 +67,19 @@ def _subset(pilot, counts):
 def test_a_nested_timing_pass_is_bound_to_its_subset_manifest(tmp_path):
     pilot = _pilot({1: 9, 2: 12})
     subset = _subset(pilot, {1: 2, 2: 3})
-    per_query = {i: {"candidate_subset": {"name": "nested_subset", "indices_sha256": f"s{i}"}} for i in (1, 2)}
+    per_query = {i: {"candidate_subset": {"name": "nested_subset", "indices_sha256": f"s{i}"},
+                     "candidate_indices_sha256": f"s{i}", "parent_candidate_indices_sha256": f"h{i}"} for i in (1, 2)}
     run = _run(tmp_path, "nested", "P1", pilot, identity={"candidate_subset": "nested_1m"}, per_query=per_query,
                counts={1: 2, 2: 3})
     rows = lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8, subset_manifest=subset, audit=AUDIT)
     assert rows[2]["candidate_count"] == 3
     with pytest.raises(RuntimeError, match="candidate_subset"):
         lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8, audit=AUDIT)            # not a headline run
+    parentless = _run(tmp_path, "nested_parentless", "P1", pilot, identity={"candidate_subset": "nested_1m"},
+                      counts={1: 2, 2: 3}, per_query={i: {**per_query[i], "parent_candidate_indices_sha256": "x"}
+                                                        for i in (1, 2)})
+    with pytest.raises(RuntimeError, match="subset"):
+        lat.load_arm_run(parentless, arm="P1", selection=pilot, context_count=8, subset_manifest=subset, audit=AUDIT)
     bad = _run(tmp_path, "nested_bad", "P1", pilot, identity={"candidate_subset": "nested_1m"}, counts={1: 2, 2: 3},
                per_query={1: per_query[1], 2: {"candidate_subset": {"indices_sha256": "other"}}})
     with pytest.raises(RuntimeError, match="subset"):
