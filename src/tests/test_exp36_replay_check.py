@@ -73,7 +73,7 @@ def world(tmp_path):
 
 def check(w, **kw):
     args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
-                ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"])
+                ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
     args.update(kw)
     return C.exp36_replay_check(**args)
 
@@ -202,11 +202,11 @@ def test_a_bad_pin_is_refused(world):
 
 
 def _cli(w, tmp_path, monkeypatch, *extra):
-    monkeypatch.setattr(C, "EXP36_REFERENCE", w["pins"])
+    monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **w["pins"]))
     cells = tmp_path / "cells.json"
     cells.write_text(json.dumps(MANIFEST))
-    return C.main(["--exp36-replay-check", "--pin", H36, "--plan-json", w["plan"], "--cells", str(cells),
-                   "--base-dir", str(w["new"]), "--exp25-base-dir", str(w["ref"]),
+    return C.main(["--exp36-replay-check", "--exp36-replay", REPLAY, "--pin", H36, "--plan-json", w["plan"],
+                   "--cells", str(cells), "--base-dir", str(w["new"]), "--exp36-ref-dir", str(w["ref"]),
                    "--exp25-dump-root", str(w["ref"] / "dumps"), *extra])
 
 
@@ -234,9 +234,9 @@ ARCHIVE = os.path.expanduser("~/codespace/exp-25-depth-canon")
 def test_the_real_archived_reference_verifies_against_the_pinned_digests():
     """Read-only: the archived exp_25 YAW C4 K8 s42 th90 cell in the exp-25 worktree hashes to the pinned digests,
     its evaluator log shows the SDPA fallback, and it verifies offline at d6ca307a under this branch's manifest."""
-    files, reasons = C.exp36_reference(C.load_cells(C.CELLS_JSON), ref_base_dir=ARCHIVE)
+    files, reasons = C.exp36_reference(C.load_cells(C.CELLS_JSON), replay=REPLAY)
     assert reasons == [], reasons
-    pins = C.EXP36_REFERENCE
+    pins = C.EXP36_REPLAYS[REPLAY]
     assert [files[k]["sha256"] for k in ("metrics", "stream", "receipt", "log")] == [
         pins["metrics_sha256"], pins["stream_sha256"], pins["receipt_sha256"], pins["log_sha256"]]
     assert pins["metrics_sha256"].startswith("fc8cb212") and pins["stream_sha256"].startswith("e671270f")

@@ -1,0 +1,854 @@
+RED, cycle 8 (amendment A1: the registry EXP36_REPLAYS of the four replays, --exp36-replay / --exp36-ref-dir, the canon sidecar, the launcher-log backend proof of the B-F reference, plans of several replays) at HEAD 7c3c973a643a15d75197c08196ee63e78bf033e3 + the uncommitted tests
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                     [100%]
+=================================== FAILURES ===================================
+_____ test_the_registry_holds_the_four_replays_with_the_amendment_digests ______
+
+    def test_the_registry_holds_the_four_replays_with_the_amendment_digests():
+>       assert list(C.EXP36_REPLAYS) == [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")]
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_a1_replays.py:83: AttributeError
+_________________ test_each_replay_equal_to_its_reference[P1] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_equal_to_its_0')
+arm = 'P1'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+>       status, v = check(w)
+
+src/tests/test_exp36_a1_replays.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_P1_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_equ...35240ae454725043d7378d70', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+_________________ test_each_replay_equal_to_its_reference[BF] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_equal_to_its_1')
+arm = 'BF'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+>       status, v = check(w)
+
+src/tests/test_exp36_a1_replays.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_BF_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_equ...9ea0b0c34effd6302eda9550', 'log_sha256': '67bbeb831d80b93db1060bdd005d898c99d54ef726fd2936b7f5d078123aef87', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+________________ test_each_replay_equal_to_its_reference[CANON] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_equal_to_its_2')
+arm = 'CANON'
+
+    @pytest.mark.parametrize("arm", ["P1", "BF", "CANON"])
+    def test_each_replay_equal_to_its_reference(tmp_path, arm):
+        w = make(tmp_path, arm)
+>       status, v = check(w)
+
+src/tests/test_exp36_a1_replays.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_CANON_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_each_replay_...45bb41fad683e4f40fcf7768', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+______________ test_a_plan_of_the_four_replays_serves_each_check _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_plan_of_the_four_replay0')
+
+    def test_a_plan_of_the_four_replays_serves_each_check(tmp_path):
+        names = [f"exp36_{a}_{C4}" for a in ("YAW", "P1", "BF", "CANON")]
+        for arm in ("P1", "CANON"):
+            w = make(tmp_path, arm, replays=names)
+>           assert check(w)[0] == "equal"
+
+src/tests/test_exp36_a1_replays.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_P1_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_plan_of_the_f...881965d30acf84cb7b38db12', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+_________________ test_a_different_canon_sidecar_is_a_mismatch _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_canon_sidecar0')
+
+    def test_a_different_canon_sidecar_is_a_mismatch(tmp_path):
+        w = make(tmp_path, "CANON")
+        r = _row(w["replay"])
+        path = w["new"] / _paths(r).canon
+        path.write_text(json.dumps(json.loads(path.read_text()), indent=1))          # same content, other bytes
+        T.write_receipt(w["new"], r, f"{T.FARM}/CANON/{T.ckpt_base(r)}.ckpt", _paths(r).metrics, False, H36)
+>       status, v = check(w)
+
+src/tests/test_exp36_a1_replays.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_CANON_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_...052ac8e5ab23fff30e075362', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+________________ test_the_backend_proof_of_each_reference_kind _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_backend_proof_of_each0')
+
+    def test_the_backend_proof_of_each_reference_kind(tmp_path):
+        w = make(tmp_path, "BF")                                         # the launcher's sentinel, re-validated
+        text = (w["ref"] / "logs" / "x.log").read_text()
+        (w["ref"] / "logs" / "x.log").write_text(text.replace("EXP35_NO_FLASH_LAUNCHER", "SOMETHING_ELSE"))
+        w["pins"]["log_sha256"] = _sha(w["ref"] / "logs" / "x.log")
+>       status, v = check(w)
+
+src/tests/test_exp36_a1_replays.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'replay': 'exp36_BF_C4_S40000_K8_s42_th90', 'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_backend_pro...0d4842260ff17c4c053a14ae', 'log_sha256': 'e944a0971ff116ddff92181836a3f43e23fe0f63e9d4c7e7fdea83223dd930e0', ...}, ...}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(replay=w["replay"], pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]),
+                    ref_base_dir=str(w["ref"]), ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"],
+                    canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_a1_replays.py:79: TypeError
+________________ test_the_real_archived_references_verify[YAW] _________________
+
+arm = 'YAW'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+>       e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_a1_replays.py:146: AttributeError
+_________________ test_the_real_archived_references_verify[P1] _________________
+
+arm = 'P1'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+>       e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_a1_replays.py:146: AttributeError
+_________________ test_the_real_archived_references_verify[BF] _________________
+
+arm = 'BF'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+>       e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_a1_replays.py:146: AttributeError
+_______________ test_the_real_archived_references_verify[CANON] ________________
+
+arm = 'CANON'
+
+    @pytest.mark.parametrize("arm", ["YAW", "P1", "BF", "CANON"])
+    def test_the_real_archived_references_verify(arm):
+        """Read-only: each archived reference hashes to the amendment's digests, proves its backend and verifies offline
+        at its pin (CANON with the tracked launcher checkpoint manifest)."""
+>       e = C.EXP36_REPLAYS[f"exp36_{arm}_{C4}"]
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_a1_replays.py:146: AttributeError
+__________________ test_the_replay_equal_to_the_archived_cell __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_the_replay_equal_to_the_a0/exp36/plan.json'}
+
+    def test_the_replay_equal_to_the_archived_cell(world):
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_the_replay_equal_to_the_a0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+__________________ test_a_different_replay_is_a_mismatch[T60] __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m0/exp36/plan.json'}
+kw = {'metrics': {'T60': 7.5, 'C50': 9.6, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_a_different_replay_is_a_mismatch[C50_int] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m1/exp36/plan.json'}
+kw = {'metrics': {'T60': 9.5, 'C50': 1, 'EDT': 9.7, 'FD': 9.8, ...}}
+needle = 'metrics'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m1/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+_______________ test_a_different_replay_is_a_mismatch[by_scene] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m2/exp36/plan.json'}
+kw = {'by_scene': {'Apartments': {'T60': 9.5, 'C50': 9.6, 'EDT': 40.0, 'FD': 9.8, ...}, 'Auditorium': {'T60': 9.5, 'C50': 9...9.5, 'C50': 9.6, 'EDT': 42.0, 'FD': 9.8, ...}, 'Bedrooms': {'T60': 9.5, 'C50': 9.6, 'EDT': 43.0, 'FD': 9.8, ...}, ...}}
+needle = 'by_scene'
+
+    @pytest.mark.parametrize("kw, needle", MISMATCH, ids=["T60", "C50_int", "by_scene"])
+    def test_a_different_replay_is_a_mismatch(world, kw, needle):
+        _rewrite(world, **kw)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_replay_is_a_m2/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+_________________________ test_equality_is_type_strict _________________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_equality_is_type_strict0/exp25b'), 'new': PosixPath('/tmp/p...2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_equality_is_type_strict0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_equality_is_type_strict0')
+
+    def test_equality_is_type_strict(world, tmp_path):
+        """8 is not 8.0: a reference published with T60 = 8.0, the replay with T60 = 8 (then 8.0: equal)."""
+        m, ref = T.default_metrics(_row(TEMPLATE)), tmp_path / "exp25b"
+        T.write_cell(ref, _row(TEMPLATE), pin=EXP25_PIN, metrics=dict(m, T60=8.0))
+        (ref / "logs").mkdir()
+        (ref / "logs" / "x.log").write_text(FALLBACK)
+        world["ref"] = ref
+        world["pins"].update({f"{k}_sha256": _sha(ref / _rel(_row(TEMPLATE), k)) for k in ("metrics", "stream", "receipt")})
+        _rewrite(world, metrics=dict(m, T60=8))
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_equality_is_type_strict0/exp25b'), 'new': PosixPath('/tmp/p...2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_equality_is_type_strict0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+______________ test_the_loaded_checkpoint_must_be_the_pinned_one _______________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_loaded_checkpoint_mus0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_the_loaded_checkpoint_mus0/exp36/plan.json'}
+
+    def test_the_loaded_checkpoint_must_be_the_pinned_one(world):
+        """A verified cell's loaded digest + length already equal its receipt's (the runner refuses otherwise); the
+        comparison binds both records and both receipts to the pinned (sha256, bytes) of the archived load."""
+        world["pins"]["loaded"] = [world["pins"]["loaded"][0], T.CKPT_BYTES + 1]
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_the_loaded_checkpoint_mus0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_the_loaded_checkpoint_mus0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_a_different_stream_sidecar_is_a_mismatch _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_stream_sideca0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_stream_sideca0/exp36/plan.json'}
+
+    def test_a_different_stream_sidecar_is_a_mismatch(world):
+        path = world["new"] / _rel(_row(REPLAY), "stream")
+        path.write_text(json.dumps(json.loads(path.read_text()), indent=1))           # same content, other bytes
+        rel_metrics = _rel(_row(REPLAY), "metrics")
+        T.write_receipt(world["new"], _row(REPLAY), f"{T.FARM}/YAW/epoch=8-step=40000.ckpt", rel_metrics, False, H36)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_stream_sideca0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_different_stream_sideca0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r0] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison0/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36a70>
+needle = 'archived reference metrics'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r1] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison1/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36b00>
+needle = 'archived reference stream'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison1/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison1/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r2] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison2/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36b90>
+needle = 'archived reference receipt'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison2/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison2/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r3] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison3/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison3/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36c20>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison3/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison3/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r4] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison4/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison4/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36cb0>, needle = 'archived evaluator log'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison4/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison4/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r5] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison5/exp25'), 'new': PosixPath('/tmp/...f9e1a73c87d827689', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison5/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36d40>, needle = 'fallback'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison5/exp25'), 'new': PosixPath('/tmp/...f9e1a73c87d827689', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison5/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r6] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison6/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison6/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36dd0>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison6/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison6/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r7] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison7/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison7/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36e60>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison7/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison7/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r8] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison8/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison8/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36ef0>, needle = 'replay does not verify'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison8/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison8/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r9] _________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison9/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison9/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd36f80>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison9/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison9/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r10] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison10/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison10/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd37010>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison10/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison10/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r11] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison11/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison11/exp36/plan.json'}
+edit = <function <lambda> at 0x7d3dbdd370a0>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison11/exp25'), 'new': PosixPath('/tmp...6230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison11/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________________ test_an_undecidable_comparison_is_refused[r12] ________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison12/exp25'), 'new': PosixPath('/tmp...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison12/exp36/absent.json'}
+edit = <function <lambda> at 0x7d3dbdd37130>, needle = 'replay run plan'
+
+    @pytest.mark.parametrize("edit, needle", REFUSED, ids=[f"r{i}" for i in range(len(REFUSED))])
+    def test_an_undecidable_comparison_is_refused(world, edit, needle):
+        edit(world)
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison12/exp25'), 'new': PosixPath('/tmp...30c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_an_undecidable_comparison12/exp36/absent.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+________ test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused _________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_replay_run_with_a_dump_0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_replay_run_with_a_dump_0/exp36/plan.json'}
+
+    def test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused(world):
+        T.write_cell(world["new"], _row(REPLAY), pin=H36, dump=True, dump_root=str(world["new"] / "dumps"))
+>       status, v = check(world)
+
+src/tests/test_exp36_replay_check.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_replay_run_with_a_dump_0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_replay_run_with_a_dump_0/exp36/plan.json'}
+kw = {}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+__________________________ test_a_bad_pin_is_refused ___________________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_bad_pin_is_refused0/exp25'), 'new': PosixPath('/tmp/pytes...e5b2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_bad_pin_is_refused0/exp36/plan.json'}
+
+    def test_a_bad_pin_is_refused(world):
+        for pin in ("b" * 39, None, EXP25_PIN.upper()):
+>           assert check(world, pin=pin)[0] == "refused"
+
+src/tests/test_exp36_replay_check.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_a_bad_pin_is_refused0/exp25'), 'new': PosixPath('/tmp/pytes...e5b2b46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_a_bad_pin_is_refused0/exp36/plan.json'}
+kw = {'pin': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}
+
+    def check(w, **kw):
+        args = dict(pin=H36, plan_json=w["plan"], manifest=MANIFEST, base_dir=str(w["new"]), ref_base_dir=str(w["ref"]),
+                    ref_dump_root=str(w["ref"] / "dumps"), reference=w["pins"], canon_index=T.canon_index())
+        args.update(kw)
+>       return C.exp36_replay_check(**args)
+E       TypeError: exp36_replay_check() got an unexpected keyword argument 'canon_index'
+
+src/tests/test_exp36_replay_check.py:78: TypeError
+___________________ test_cli_exit_codes_and_the_verdict_file ___________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d3dbd7edcf0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7d3dbde318a0>
+
+    def test_cli_exit_codes_and_the_verdict_file(world, tmp_path, monkeypatch, capsys):
+        out = tmp_path / "verdict.json"
+>       assert _cli(world, tmp_path, monkeypatch, "--verdict-out", str(out)) == 0
+
+src/tests/test_exp36_replay_check.py:215: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d3dbd7edcf0>
+extra = ('--verdict-out', '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_exit_codes_and_the_ve0/verdict.json')
+
+    def _cli(w, tmp_path, monkeypatch, *extra):
+>       monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **w["pins"]))
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_replay_check.py:205: AttributeError
+_____ test_the_real_archived_reference_verifies_against_the_pinned_digests _____
+
+    @pytest.mark.skipif(not os.path.isfile(os.path.join(ARCHIVE, _rel(_row(TEMPLATE), "receipt"))),
+                        reason="the archived exp_25 cell is not on this machine")
+    def test_the_real_archived_reference_verifies_against_the_pinned_digests():
+        """Read-only: the archived exp_25 YAW C4 K8 s42 th90 cell in the exp-25 worktree hashes to the pinned digests,
+        its evaluator log shows the SDPA fallback, and it verifies offline at d6ca307a under this branch's manifest."""
+>       files, reasons = C.exp36_reference(C.load_cells(C.CELLS_JSON), replay=REPLAY)
+E       TypeError: exp36_reference() got an unexpected keyword argument 'replay'
+
+src/tests/test_exp36_replay_check.py:237: TypeError
+_____________ test_cli_a_crashed_check_is_refused_never_a_mismatch _____________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d3dbdc2add0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7d3dbdc92b00>
+
+    def test_cli_a_crashed_check_is_refused_never_a_mismatch(world, tmp_path, monkeypatch, capsys):
+        """An uncaught exception would exit 1 -- the mismatch code; the CLI maps any crash to 2 (refused)."""
+        def boom(**kw):
+            raise RuntimeError("simulated crash")
+        monkeypatch.setattr(C, "exp36_replay_check", boom)
+        out = tmp_path / "v.json"
+>       assert _cli(world, tmp_path, monkeypatch, "--verdict-out", str(out)) == 2 and not out.exists()
+
+src/tests/test_exp36_replay_check.py:252: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+w = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0/exp25'), 'new': PosixPath('/tmp/...46230c26e64c3bd09', ...}, 'plan': '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0/exp36/plan.json'}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d3dbdc2add0>
+extra = ('--verdict-out', '/tmp/pytest-of-yixunhu/pytest-6546/test_cli_a_crashed_check_is_re0/v.json')
+
+    def _cli(w, tmp_path, monkeypatch, *extra):
+>       monkeypatch.setitem(C.EXP36_REPLAYS, REPLAY, dict(C.EXP36_REPLAYS[REPLAY], **w["pins"]))
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP36_REPLAYS'. Did you mean: 'EXP36_REPLAY'?
+
+src/tests/test_exp36_replay_check.py:205: AttributeError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+FAILED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+FAILED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+FAILED src/tests/test_exp36_a1_replays.py::test_a_different_canon_sidecar_is_a_mismatch
+FAILED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+FAILED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+FAILED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+FAILED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict - T...
+FAILED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+FAILED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+FAILED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+FAILED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+FAILED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused - Type...
+FAILED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+FAILED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+FAILED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+36 failed, 3 warnings in 6.05s
