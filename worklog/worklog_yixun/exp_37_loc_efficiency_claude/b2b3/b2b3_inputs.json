@@ -1,0 +1,14 @@
+{
+  "pilot_0p50": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json",
+  "pilot_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/pilot_manifest_0p75_seed42_4_per_room.json",
+  "audit_0p50": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json",
+  "audit_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.json",
+  "nested_manifest": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/manifests/nested_1m_pilot_seed42_4_per_room.json",
+  "selector_0p50": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_128.json",
+  "selector_0p75": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_0p75.json",
+  "selector_nested": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_nested_1m.json",
+  "latency_selection": "NeurIPS_2026_Workshop_Latency_Reproducibility/data/selection/frozen_16room_128.json",
+  "latency_selector": "worklog/worklog_yixun/exp_37_loc_efficiency_claude/selector/selector_128.json",
+  "external_accuracy": "worklog/worklog_yixun/exp_23_five_method_64_random_fallback/summary.json",
+  "external_latency_csv": "NeurIPS_2026_Workshop_Latency_Reproducibility/expected/latency_per_query.csv"
+}
