@@ -94,3 +94,63 @@ def test_the_payload_is_hashed_and_records_its_inputs():
     assert payload["selection_sha256"] == selection["sha256"] and payload["repeat_count"] == 3
     assert payload["timed_function"] == "tools/benchmark_localization_selector_latency.py::benchmark_agree_query"
     assert payload["sha256"] == canonical_sha256({k: v for k, v in payload.items() if k != "sha256"})
+
+
+def test_the_binding_names_this_vector_s_inputs_and_output():
+    """BLOCKING 3: the selector vector is bound (before the measurement) to its selection / AGREE / context / batch /
+    repeats / device and its output file; the payload carries the binding."""
+    from src.localization.exp37_latency import SELECTOR_BOUND
+    selection = _selection({3: 27})
+    binding = sel.make_binding(selection=selection, context_sha256="c" * 64, agree_sha256="a" * 64, device="cuda:0",
+                               batch_size=64, repeat_count=3, output=Path("/x/selector_128.json"))
+    assert binding["record_type"] == "exp37_selector_binding" and binding["output"] == "/x/selector_128.json"
+    assert binding["sha256"] == canonical_sha256({k: v for k, v in binding.items() if k != "sha256"})
+    payload = sel.build_payload(selection=selection, context_sha256="c" * 64, agree_path=Path("a.pt"),
+                                agree_sha256="a" * 64, device="cuda:0", batch_size=64, repeat_count=3, rows=[],
+                                host={"pid": 1}, binding=binding)
+    assert payload["binding"] == binding and all(payload[k] == binding[k] for k in SELECTOR_BOUND)
+
+
+def test_a_cuda_selector_run_is_monitored_around_its_measurement(tmp_path, monkeypatch):
+    import sys
+    events = []
+
+    class FakeMonitor:
+        def __init__(self, directory, *, binding_sha256, card_uuid, **kw):
+            events.append(("monitor", str(directory), binding_sha256, card_uuid))
+
+        def start(self):
+            return self
+
+        def marker(self, name):
+            events.append(("marker", name))
+
+        def stop(self):
+            events.append(("stop",))
+            return 0
+    monkeypatch.setattr(sel, "Monitor", FakeMonitor)
+    monkeypatch.setattr(sel, "card_uuid", lambda device: "6ac2604a-1111")
+    monkeypatch.setattr(sel, "load_agree_retrieval", lambda path, device: events.append(("load",)) or FakeRetrieval())
+    monkeypatch.setattr(sel, "measure_selector", lambda *a, **k: events.append(("measure",)) or [])
+    monkeypatch.setattr(sel, "host_snapshot", lambda device: {"pid": 1})
+    selection_path = tmp_path / "selection.json"
+    selection = _selection({3: 27})
+    selection_path.write_text(json.dumps(selection))
+    context = {"records": [{"index": 3, "query_id": "q3.wav"}]}
+    context_path = tmp_path / "context.json"
+    context_path.write_text(json.dumps({**context, "sha256": canonical_sha256(context)}))
+    agree = tmp_path / "agree.pt"
+    agree.write_bytes(b"agree")
+    output = tmp_path / "selector.json"
+    argv = ["exp37_selector_latency.py", "--selection", str(selection_path), "--context-manifest", str(context_path),
+            "--dataset-root", str(tmp_path), "--agree-checkpoint", str(agree), "--device", "cuda:0", "--output", str(output)]
+    monkeypatch.setattr(sys, "argv", argv)
+    sel.main()
+    payload = json.loads(output.read_text())
+    assert events[0] == ("monitor", f"{output}.cotenancy", payload["binding"]["sha256"], "6ac2604a-1111")
+    assert [e[1] if e[0] == "marker" else e[0] for e in events[1:]] == ["load", "gpu_resident", "timed_start", "measure",
+                                                                         "timed_end", "stop"]
+    output.unlink()
+    (tmp_path / "selector.json.cotenancy").mkdir()
+    with pytest.raises(RuntimeError, match="cotenancy"):
+        sel.main()
