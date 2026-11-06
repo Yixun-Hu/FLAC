@@ -1,0 +1,14 @@
+2026-11-06T01:54:02-05:00
+# every process whose argv names exp35_phase_i_watch_v<k>.sh as its script (untruncated; read-only /proc). Expect: exactly one, v6, now run under the Monitor tool (30-min windows).
+pid 1073675 ppid 1073674 start_ticks 783580505 lstart Fri Nov  6 01:53:51 2026
+  argv[0] bash
+  argv[1] /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/exp35_phase_i_watch_v6.sh
+  argv[2] 685273
+  argv[3] 781579512
+  argv[4] 70f7c4a3c19bd60c721fe3eab6c78c2919a0cc8ce9d3855ec4dc496bb7c14679
+  argv[5] /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-14.log
+  argv[6] /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_state.json
+  argv[7] 33
+  argv[8] 60
+  argv sha256 7635d880a7b45c670d30f9e72abdb6f3259593540364e975b7a9ffe54d733b92
+  script bytes df8c81670044aa5421e7602ee94e4b891820f3b31f10c754729de1347f1c089a
