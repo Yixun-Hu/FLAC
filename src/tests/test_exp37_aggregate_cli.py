@@ -165,3 +165,13 @@ def test_the_cli_writes_json_markdown_and_both_figure_files(spec, tmp_path):
     text = (tmp_path / "o.md").read_text()
     assert "Pareto" in text and "OrbitRIR" in text and "c2f" in text
     assert json.loads((tmp_path / "o.json").read_text())["sha256"]
+
+
+def test_timing_validity_is_per_seed_headline_and_repeats(spec):
+    """A co-tenant during a seed-43 repeat must not invalidate the valid seed-42 headline (and vice versa)."""
+    body = json.loads(spec.read_text())
+    s43 = next(item["dir"] for item in body["b2_runs"] if (item["arm"], item["grid"], item["seed"]) == ("P1", "0.50", 43))
+    busy = dict(HOST, gpu_compute_apps={"lines": ["GPU-6ac2604a-1111, 42, py, 1 MiB", "GPU-6ac2604a-1111, 77, py, 9 MiB"]})
+    (Path(s43) / "host_records" / "end_x_pid42.json").write_text(json.dumps({"label": "end", "snapshot": busy}))
+    point = next(p for p in tool.build_summary(body)["b2"]["points"] if (p["arm"], p["grid"]) == ("P1", "0.50"))
+    assert point["timing_valid"] is True and point["repeat_timing_valid"] == {"43": False, "44": True}
