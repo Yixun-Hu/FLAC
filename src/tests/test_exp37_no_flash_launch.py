@@ -190,3 +190,123 @@ def test_the_exit_code_of_the_target_is_its_own(tmp_path):
     assert rc == 7 and rep is not None and _pair_then_sentinel(out)
 
 
+def _refused(rc, out, err, rep, needle):
+    assert rc == REFUSED and rep is None, (rc, out, err)
+    assert "NO-FLASH LAUNCH REFUSED" in err and needle in err, err
+    assert SENTINEL not in out
+
+
+def test_bytecode_writing_must_be_disabled_in_the_environment(tmp_path):
+    _refused(*launch(fake_repo(tmp_path), "target.py", env={"PYTHONDONTWRITEBYTECODE": None}),
+             "PYTHONDONTWRITEBYTECODE")
+
+
+def test_an_inherited_pythonpath_is_dropped(tmp_path):
+    """(3): an inherited entry never reaches sys.path -- even one holding an importable flash_attn."""
+    root = fake_repo(tmp_path)
+    foreign = tmp_path / "foreign"
+    (foreign / "flash_attn").mkdir(parents=True)
+    (foreign / "flash_attn" / "__init__.py").write_text("flash_attn_func = object()\n")
+    rc, out, err, rep = launch(root, "target.py", env={"PYTHONPATH": f"{foreign}{os.pathsep}{root}"})
+    assert rc == 0, err
+    assert str(foreign) not in rep["path_all"] and rep["flash_none"] is True
+    assert rep["path_all"][:2] == [str(root / "overlays" / "no_flash"), str(root)]
+    assert rep["path_all"].count(str(root)) == 1 and rep["pythonpath"] == str(root / "overlays" / "no_flash")
+
+
+@pytest.mark.parametrize("shadow", ["flash_attn.py", "flash_attn/__init__.py", "flash_attn/x.txt",
+                                    "flash_attn.cpython-310-x86_64-linux-gnu.so", "flash_attn.pyc"])
+def test_a_repo_root_shadow_is_refused(tmp_path, shadow):
+    root = fake_repo(tmp_path)
+    (root / shadow).parent.mkdir(parents=True, exist_ok=True)
+    (root / shadow).write_text("flash_attn_func = object()\n")
+    _refused(*launch(root, "target.py"), "repo root")
+
+
+@pytest.mark.parametrize("stray", ["__pycache__/flash_attn.cpython-310.pyc", "flash_attn.pyc",
+                                   "__pycache__/exp37_no_flash_launch.cpython-310.pyc", "flash_attn/__init__.py",
+                                   "exp35_no_flash_launch.py", "notes.txt"])
+def test_anything_besides_the_two_files_under_the_overlay_is_refused(tmp_path, stray):
+    root = fake_repo(tmp_path)
+    path = root / "overlays" / "no_flash" / stray
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\x00stray")
+    _refused(*launch(root, "target.py"), "overlays/no_flash")
+
+
+@pytest.mark.parametrize("stray", ["__init__.py", "__pycache__/x.cpython-310.pyc", "other/__init__.py"])
+def test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused(tmp_path, stray):
+    root = fake_repo(tmp_path)
+    (root / "overlays" / stray).parent.mkdir(parents=True, exist_ok=True)
+    (root / "overlays" / stray).write_text("")
+    _refused(*launch(root, "target.py"), "overlays")
+
+
+def test_an_edited_overlay_is_refused(tmp_path):
+    root = fake_repo(tmp_path)
+    with open(root / "overlays" / "no_flash" / "flash_attn.py", "a") as f:
+        f.write("# edited\n")
+    _refused(*launch(root, "target.py"), "pinned")
+
+
+@pytest.mark.parametrize("hook", [
+    # flash_attn already imported (from elsewhere) before the launcher ran
+    "import sys, types\nm = types.ModuleType('flash_attn'); m.__file__ = '/elsewhere/flash_attn.py'\n"
+    "sys.modules['flash_attn'] = m\n",
+    # a meta-path finder that resolves flash_attn to another origin
+    "import sys, importlib.machinery as M\nclass F:\n    @staticmethod\n    def find_spec(name, path=None, target=None):\n"
+    "        return M.ModuleSpec(name, M.SourceFileLoader(name, '/elsewhere/flash_attn.py'), origin='/elsewhere/flash_attn.py') "
+    "if name == 'flash_attn' else None\nsys.meta_path.insert(0, F)\n"], ids=["preimported", "meta_path"])
+def test_a_wrong_spec_origin_is_refused(tmp_path, hook):
+    """(4): whatever the route (a startup hook here), flash_attn must resolve to the overlay file."""
+    root = fake_repo(tmp_path)
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "sitecustomize.py").write_text(hook)
+    _refused(*launch(root, "target.py", env={"PYTHONPATH": str(hooks)}), "flash_attn")
+
+
+def test_a_transformer_with_flash_attention_enabled_is_refused(tmp_path):
+    root = fake_repo(tmp_path, transformer="flash_attn_func = object()\n")
+    _refused(*launch(root, "target.py"), "flash_attn_func")
+
+
+def test_a_src_package_from_outside_the_repo_is_refused(tmp_path):
+    """(5): a ``src`` that is not this checkout's (put first on the path by a startup hook)."""
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "src" / "models").mkdir(parents=True)
+    (elsewhere / "src" / "__init__.py").write_text("")
+    (elsewhere / "src" / "models" / "__init__.py").write_text("")
+    (elsewhere / "src" / "models" / "transformer.py").write_text(_fallback_block())
+    root = fake_repo(tmp_path)
+    shutil.rmtree(root / "src")
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "sitecustomize.py").write_text(f"import sys\nsys.path.insert(0, {str(elsewhere)!r})\n")
+    rc, out, err, rep = launch(root, "target.py", env={"PYTHONPATH": str(hooks)})
+    _refused(rc, out, err, rep, "src.models.transformer")
+    assert f"{elsewhere}/src/__init__.py" in err and "not this checkout's" in err
+
+
+@pytest.mark.parametrize("link", ["src/models/transformer.py", "src/__init__.py", "src/models/__init__.py",
+                                  "src/models", "src"])
+def test_a_symlink_out_of_the_checkout_is_refused(tmp_path, link):
+    """(5): every file on the transformer's import chain must REALLY be under this checkout."""
+    root = fake_repo(tmp_path)
+    outside = tmp_path / "outside" / link
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    os.rename(root / link, outside)
+    os.symlink(outside, root / link)
+    rc, out, err, rep = launch(root, "target.py")
+    _refused(rc, out, err, rep, "not this checkout's")
+
+
+def test_a_transformer_that_fails_to_import_is_refused(tmp_path):
+    _refused(*launch(fake_repo(tmp_path, transformer="raise RuntimeError('boom')\n"), "target.py"),
+             "src.models.transformer")
+
+
+def test_a_missing_target_or_no_argument_is_refused(tmp_path):
+    root = fake_repo(tmp_path)
+    _refused(*launch(root, "absent.py"), "absent.py")
+    _refused(*launch(root), "usage")
