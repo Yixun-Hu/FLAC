@@ -32,6 +32,7 @@ from src.localization.engine import (
     load_frozen_query,
     reconstruct_room_base_candidates,
 )
+from src.localization.exp37_identity import K1_CONTEXT_SELECTION
 from src.localization.mesh_remap import resolve_mesh_root
 from src.localization.pilot import canonical_sha256, resolve_pilot_records
 from src.localization.run_provenance import (
@@ -52,10 +53,6 @@ RUN_SCHEMA_VERSION = 1
 QUERY_SCHEMA_VERSION = 1
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUPPORTED_CONTEXT_COUNTS = (8, 1)
-K1_CONTEXT_SELECTION = {
-    "model_contexts": "contexts[0] of the frozen context manifest (its exp_09 seed-42 loader order)",
-    "candidate_filter_contexts": "all 8 manifest contexts (candidate_filter_context_sources_global)",
-}
 
 
 def context_count_view(record: dict, context_count: int) -> dict:

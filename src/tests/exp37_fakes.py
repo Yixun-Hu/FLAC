@@ -65,3 +65,25 @@ def _fake_query(record, root):
 
 CANDIDATES = np.array([[0.25 * i, 0.5, 1.0] for i in range(70)])                     # two batches of 64 + 6
 GRID = np.array([[x, y, 1.0] for x in np.arange(0.0, 4.01, 0.5) for y in np.arange(0.0, 3.01, 0.5)])   # 63 points
+
+
+def example_identity(expected: dict, audit: dict) -> dict:
+    """The run-manifest identity a correct runner writes for ``expected`` (test support; exp37_identity)."""
+    import copy
+
+    from src.localization.exp37_identity import ABSENT
+    out = {}
+    for key, want in expected.items():
+        if want is ABSENT:
+            continue
+        if key == "mesh_root_override":
+            out[key] = {"argument": "AcousticRooms/room_mesh_obj_format", "resolved": "/x", "audit_mesh_root": audit["mesh_root"],
+                        "rooms": {room: {"mesh_path": f"/x/{room}.obj", "mesh_sha256": row["mesh_sha256"]}
+                                  for room, row in audit["rooms"].items()}}
+        elif key == "waveform_dump":
+            out[key] = {"mode": want, "dir": "/dump"}
+        elif key == "replay_of":
+            out[key] = {"run_manifest_sha256": want, "run_dir": "/run"}
+        else:
+            out[key] = copy.deepcopy(want)
+    return out
