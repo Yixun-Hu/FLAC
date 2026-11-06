@@ -15,6 +15,15 @@
 #       reservation, the re-check after it and the first durable state "reserved"; the supervisor DETACHED (setsid +
 #       nohup, an env -i environment, cwd = the worktree) with the lock fd inherited; its identity confirmed.
 #
+# The layout of the PIN2 worktree W (checked by every capture and launch; A7-C3):
+#   outputs_loc   -> /home/yixunhu/codespace/FLAC/outputs_loc    one link (untracked at PIN2)
+#   AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms   one link (untracked at PIN2)
+#   weights/      the worktree's OWN directory -- PIN2 tracks files under weights/FLAC/, so it can never be one link
+#                 (git would read them as deleted) -- holding one link per UNTRACKED entry of the main checkout's
+#                 weights/: weights/AGREE, weights/exp20 and weights/AGREE_*.pt -> main; weights/FLAC/{FLAC.ckpt,
+#                 FLAC_EMA.ckpt, VAE.ckpt, VAE.safetensors, ...} -> main. Each registered asset under weights/ must BE
+#                 the main checkout's file (test -ef: same device + inode once every link is resolved).
+#
 # The Planner runs it by hand; nothing here acts unattended. It never signals, kills or edits any process; nvidia-smi
 # queries only. Written by the exp_22 A7 Coder (Claude Opus 5.5, max effort).
 set -uo pipefail
@@ -38,10 +47,13 @@ PINS=("overlays/no_flash/flash_attn.py|0d0e52ca693e236a2e0a44cd61f61539fdf995cff
       "pyproject.toml|6422eae5482773db252372760825749f41ac061487be892e350fda997b619a74")
 TOOL_FILES=(exp22_r2c_common.py exp22_r2c_evidence.py exp22_r2c_supervisor.py exp22_free_card_detect.sh
             exp22_r2c_preflight.sh exp22_r2c_preflight_lines.json)
-ASSETS=(outputs_loc/exp22/d1_context_manifest.json outputs_loc/exp22/g1_audit/geometry_audit_report.json
-        weights/exp20/YAW_40k.ckpt weights/exp20/BF_40k.ckpt weights/exp20/P1_40k.ckpt
-        weights/FLAC/FLAC_EMA.ckpt weights/AGREE/AGREE_fullAR.pt)       # the last two: T's tests skip without them
-ASSET_DIRS=(outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged AcousticRooms/metadata AcousticRooms/depth_map)
+ASSETS=(outputs_loc/exp22/d1_context_manifest.json outputs_loc/exp22/g1_audit/geometry_audit_report.json)
+# every weights/ file a line opens (A7-C3, statically): the gates' / probe's --ckpt-path (exp20), the model config's
+# AGREE checkpoint and the AGREE dinoV3 audio tower's pretrained VAE (every AGREE scorer build), T's released FLAC_EMA
+WEIGHT_ASSETS=(weights/exp20/YAW_40k.ckpt weights/exp20/BF_40k.ckpt weights/exp20/P1_40k.ckpt
+               weights/FLAC/FLAC_EMA.ckpt weights/FLAC/VAE.ckpt weights/AGREE/AGREE_fullAR.pt)
+ASSET_DIRS=(outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged AcousticRooms/metadata AcousticRooms/depth_map
+            AcousticRooms/single_channel_ir_1)                     # the last three: T's real-data tests skip without them
 LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu LANG=en_US.UTF-8
             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin PYTHONDONTWRITEBYTECODE=1)
 RUN_RE='^r2_preflight_[0-9]{8}T[0-9]{6}$'
@@ -67,7 +79,11 @@ common_checks() {   # <orch> <run>: the preconditions both modes check right bef
   need "the tracked tree is clean" eq "$(git -C "$W" status --porcelain --untracked-files=no 2>&1)" ""
   for e in "${PINS[@]}"; do IFS='|' read -r rel want <<<"$e"; need "pin ${rel} ${want:0:8}..." eq "$(sha "$W/$rel")" "$want"; done
   need "outputs_loc -> ${OUTPUTS_TARGET}" eq "$(readlink -f "$W/outputs_loc")" "$OUTPUTS_TARGET"
-  need "weights -> ${WEIGHTS_TARGET}" eq "$(readlink -f "$W/weights")" "$WEIGHTS_TARGET"
+  need "weights/ is this worktree's own directory, not a link (PIN2 tracks files under it)" test -d "$W/weights" -a ! -L "$W/weights"
+  for rel in "${WEIGHT_ASSETS[@]}"; do
+    need "asset ${rel} is the main checkout's file (${WEIGHTS_TARGET}/${rel#weights/}: same device + inode)" \
+      test -f "$W/$rel" -a "$W/$rel" -ef "$WEIGHTS_TARGET/${rel#weights/}"
+  done
   need "AcousticRooms -> ${ROOMS_TARGET}" eq "$(readlink -f "$W/AcousticRooms")" "$ROOMS_TARGET"
   for rel in "${ASSETS[@]}"; do need "asset ${rel}" test -f "$W/$rel"; done
   for rel in "${ASSET_DIRS[@]}"; do need "asset ${rel}/" test -d "$W/$rel"; done

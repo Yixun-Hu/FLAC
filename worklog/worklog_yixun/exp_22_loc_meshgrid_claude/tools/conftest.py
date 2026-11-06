@@ -223,8 +223,9 @@ def _git(w, *args):
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-def sandbox_repo(root, common=None, shells=None):
-    """``(W, pin2)``: the sandbox checkout under ``root``."""
+def sandbox_repo(root, common=None, shells=None, tracked=None):
+    """``(W, pin2)``: the sandbox checkout under ``root``; ``tracked`` ({path: text}) adds files committed with it
+    (e.g. under weights/, as PIN2 tracks files there)."""
     w = os.path.join(str(root), "W")
     for rel in PIN_PATHS:
         os.makedirs(os.path.dirname(os.path.join(w, rel)) or w, exist_ok=True)
@@ -244,7 +245,7 @@ def sandbox_repo(root, common=None, shells=None):
             body += (("@pytest.mark.parametrize('n', [4, 64])\n" if param else "")
                      + f"def {name}({'n' if param else ''}):\n    _behave({name!r})\n\n\n")
         files[path] = body
-    for rel, text in files.items():
+    for rel, text in dict(files, **(tracked or {})).items():
         os.makedirs(os.path.dirname(os.path.join(w, rel)) or w, exist_ok=True)
         with open(os.path.join(w, rel), "w") as f:
             f.write(text)

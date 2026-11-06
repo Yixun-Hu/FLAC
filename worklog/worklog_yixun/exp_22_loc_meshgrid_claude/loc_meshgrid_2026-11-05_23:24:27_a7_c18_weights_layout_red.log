@@ -1,0 +1,1109 @@
+# exp_22 A7 c18_weights_layout RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T23:24:27-05:00 -- branch exp-22-a7-noflash HEAD 44c2241b; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py
+F.................FFFFFFF.FFFFFFFFFFFF..                                 [100%]
+=================================== FAILURES ===================================
+_____________ test_capture_seal_launch_run_detached_to_the_release _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0')
+
+    def test_capture_seal_launch_run_detached_to_the_release(tmp_path):
+        lab = make_lab(tmp_path)
+>       seal, ssha, out = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W', pin2='f2889ecc00e512ae45c8b3649aff...unction make_lab.<locals>.<lambda> at 0x7da0c9e9ea70>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9e9e0>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:24:27-05:00 -- host mae-cab-lab-server -- PIN2 f2889ecc00e512ae45c8b3649affe8e8880d8767 -- GPU0 -- run 20261105T232427 ===
+E         this script: 67ae73a999115d62fa65855d07eb43425aff15410e0043f49f75cbe93e399eaa  /tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (67ae73a999115d62fa65855d07eb43425aff15410e0043f49f75cbe93e399eaa)
+E         CHECK OK: HEAD f2889ecc00e512ae45c8b3649affe8e8880d8767 = PIN2 f2889ecc00e512ae45c8b3649affe8e8880d8767
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232427 and r2_probe_BF_20261105T232427 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939068.0943325, "iso": "2026-11-05T23:24:28-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W/outputs_loc/exp22/r2_preflight_20261105T232427/capture.log sha256 ec10ae97fe2610954a557a454276610299330230af176a5fae8b9791fe9d5c23
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_capture_seal_launch_run_d0/W/worklog/worklog_y...ight_20261105T232427/capture.log sha256 ec10ae97fe2610954a557a454276610299330230af176a5fae8b9791fe9d5c23\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+______________ test_the_capture_refuses_and_seals_nothing[t-vae] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_capture_refuses_and_s11')
+breakage = 't-vae'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                          "weights-dir-link", "asset-copy", "asset-wrong-link"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+        lab = make_lab(tmp_path)
+        card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
+        if breakage == "busy-card":
+            (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")
+        elif breakage == "head":
+            subprocess.run(["git", "-C", lab.w, "-c", "user.email=x@y", "-c", "user.name=x", "commit", "-q", "--allow-empty",
+                            "-m", "moved"], check=True)
+        elif breakage == "dirty":
+            open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
+        elif breakage == "asset":
+            os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+        elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+            os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+        elif breakage == "t-agree":                                          # the T tests would skip without it
+            os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+        elif breakage == "t-wavs":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+        elif breakage == "weights-dir-link":                                 # the whole directory as one link
+            shutil.rmtree(os.path.join(lab.w, "weights"))
+            os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+        elif breakage == "asset-copy":                                       # byte-identical, another inode
+            link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+            os.unlink(link)
+            shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "asset-wrong-link":                                 # a link to another file
+            link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+            os.unlink(link)
+            os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "t-depth-map":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+        elif breakage == "t-dinov3-cache":
+            os.rmdir(lab.tmp / "dinov3")
+        elif breakage == "active-exp22":
+            open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
+        elif breakage == "pin":
+            subprocess.run(["git", "-C", lab.w, "rm", "-q", "--cached", "pyproject.toml"], check=True)
+            open(os.path.join(lab.w, "pyproject.toml"), "a").write("# x\n")
+        else:
+            open(lab.cfg.queue_log, "w").write("2026-11-04T06:12:55-05:00 START training ACEattn s43\n")
+        p = lab.run("capture", lab.pin2, card)
+        assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
+        assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                    os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+        expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                       "CHECK FAILED: weights/ is this worktree's own directory"],
+                  "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+                  "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+                  "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+                  "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+>       assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+E       AssertionError: (['CHECK FAILED: asset weights/FLAC/VAE.ckpt'], '=== exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:24:30-05:00 -- ho...22/r2_preflight_20261105T232430/capture.log sha256 b3f20f3fb40f033ff0061aa91361c7598db506b9ba794c1c4be608bc48abf767
+E         ')
+E       assert False
+E        +  where False = all(<generator object test_the_capture_refuses_and_seals_nothing.<locals>.<genexpr> at 0x7da0c9d11d20>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:198: AssertionError
+______________ test_the_capture_refuses_and_seals_nothing[t-wavs] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_capture_refuses_and_s12')
+breakage = 't-wavs'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                          "weights-dir-link", "asset-copy", "asset-wrong-link"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+        lab = make_lab(tmp_path)
+        card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
+        if breakage == "busy-card":
+            (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")
+        elif breakage == "head":
+            subprocess.run(["git", "-C", lab.w, "-c", "user.email=x@y", "-c", "user.name=x", "commit", "-q", "--allow-empty",
+                            "-m", "moved"], check=True)
+        elif breakage == "dirty":
+            open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
+        elif breakage == "asset":
+            os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+        elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+            os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+        elif breakage == "t-agree":                                          # the T tests would skip without it
+            os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+        elif breakage == "t-wavs":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+        elif breakage == "weights-dir-link":                                 # the whole directory as one link
+            shutil.rmtree(os.path.join(lab.w, "weights"))
+            os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+        elif breakage == "asset-copy":                                       # byte-identical, another inode
+            link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+            os.unlink(link)
+            shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "asset-wrong-link":                                 # a link to another file
+            link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+            os.unlink(link)
+            os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "t-depth-map":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+        elif breakage == "t-dinov3-cache":
+            os.rmdir(lab.tmp / "dinov3")
+        elif breakage == "active-exp22":
+            open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
+        elif breakage == "pin":
+            subprocess.run(["git", "-C", lab.w, "rm", "-q", "--cached", "pyproject.toml"], check=True)
+            open(os.path.join(lab.w, "pyproject.toml"), "a").write("# x\n")
+        else:
+            open(lab.cfg.queue_log, "w").write("2026-11-04T06:12:55-05:00 START training ACEattn s43\n")
+        p = lab.run("capture", lab.pin2, card)
+        assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
+        assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                    os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+        expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                       "CHECK FAILED: weights/ is this worktree's own directory"],
+                  "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+                  "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+                  "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+                  "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+>       assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+E       AssertionError: (['CHECK FAILED: asset AcousticRooms/single_channel_ir_1/'], '=== exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:24:3...22/r2_preflight_20261105T232431/capture.log sha256 4700e12b0b2cc44525fce231609bd9097a2ed6cd6a44d16c590248def26ba42f
+E         ')
+E       assert False
+E        +  where False = all(<generator object test_the_capture_refuses_and_seals_nothing.<locals>.<genexpr> at 0x7da0c9d12490>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:198: AssertionError
+_________ test_the_capture_refuses_and_seals_nothing[weights-dir-link] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_capture_refuses_and_s13')
+breakage = 'weights-dir-link'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                          "weights-dir-link", "asset-copy", "asset-wrong-link"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+        lab = make_lab(tmp_path)
+        card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
+        if breakage == "busy-card":
+            (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")
+        elif breakage == "head":
+            subprocess.run(["git", "-C", lab.w, "-c", "user.email=x@y", "-c", "user.name=x", "commit", "-q", "--allow-empty",
+                            "-m", "moved"], check=True)
+        elif breakage == "dirty":
+            open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
+        elif breakage == "asset":
+            os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+        elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+            os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+        elif breakage == "t-agree":                                          # the T tests would skip without it
+            os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+        elif breakage == "t-wavs":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+        elif breakage == "weights-dir-link":                                 # the whole directory as one link
+            shutil.rmtree(os.path.join(lab.w, "weights"))
+            os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+        elif breakage == "asset-copy":                                       # byte-identical, another inode
+            link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+            os.unlink(link)
+            shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "asset-wrong-link":                                 # a link to another file
+            link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+            os.unlink(link)
+            os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "t-depth-map":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+        elif breakage == "t-dinov3-cache":
+            os.rmdir(lab.tmp / "dinov3")
+        elif breakage == "active-exp22":
+            open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
+        elif breakage == "pin":
+            subprocess.run(["git", "-C", lab.w, "rm", "-q", "--cached", "pyproject.toml"], check=True)
+            open(os.path.join(lab.w, "pyproject.toml"), "a").write("# x\n")
+        else:
+            open(lab.cfg.queue_log, "w").write("2026-11-04T06:12:55-05:00 START training ACEattn s43\n")
+        p = lab.run("capture", lab.pin2, card)
+        assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
+        assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                    os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+        expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                       "CHECK FAILED: weights/ is this worktree's own directory"],
+                  "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+                  "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+                  "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+                  "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+>       assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+E       AssertionError: (['CHECK FAILED: the tracked tree is clean', "CHECK FAILED: weights/ is this worktree's own directory"], '=== exp_22 R...22/r2_preflight_20261105T232431/capture.log sha256 04cab2f5cd21049c10dc5746075d3a0ab425849e60008b0c3e7413f579fd672d
+E         ')
+E       assert False
+E        +  where False = all(<generator object test_the_capture_refuses_and_seals_nothing.<locals>.<genexpr> at 0x7da0c9d12810>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:198: AssertionError
+____________ test_the_capture_refuses_and_seals_nothing[asset-copy] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_capture_refuses_and_s14')
+breakage = 'asset-copy'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                          "weights-dir-link", "asset-copy", "asset-wrong-link"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+        lab = make_lab(tmp_path)
+        card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
+        if breakage == "busy-card":
+            (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")
+        elif breakage == "head":
+            subprocess.run(["git", "-C", lab.w, "-c", "user.email=x@y", "-c", "user.name=x", "commit", "-q", "--allow-empty",
+                            "-m", "moved"], check=True)
+        elif breakage == "dirty":
+            open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
+        elif breakage == "asset":
+            os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+        elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+            os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+        elif breakage == "t-agree":                                          # the T tests would skip without it
+            os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+        elif breakage == "t-wavs":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+        elif breakage == "weights-dir-link":                                 # the whole directory as one link
+            shutil.rmtree(os.path.join(lab.w, "weights"))
+            os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+        elif breakage == "asset-copy":                                       # byte-identical, another inode
+            link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+            os.unlink(link)
+            shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "asset-wrong-link":                                 # a link to another file
+            link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+            os.unlink(link)
+            os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "t-depth-map":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+        elif breakage == "t-dinov3-cache":
+            os.rmdir(lab.tmp / "dinov3")
+        elif breakage == "active-exp22":
+            open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
+        elif breakage == "pin":
+            subprocess.run(["git", "-C", lab.w, "rm", "-q", "--cached", "pyproject.toml"], check=True)
+            open(os.path.join(lab.w, "pyproject.toml"), "a").write("# x\n")
+        else:
+            open(lab.cfg.queue_log, "w").write("2026-11-04T06:12:55-05:00 START training ACEattn s43\n")
+        p = lab.run("capture", lab.pin2, card)
+        assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
+        assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                    os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+        expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                       "CHECK FAILED: weights/ is this worktree's own directory"],
+                  "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+                  "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+                  "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+                  "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+>       assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+E       AssertionError: (["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"], '=== exp_22 R2-C pre-flight CAPTURE -- 202...22/r2_preflight_20261105T232431/capture.log sha256 f4a70eb77170e032b2dca3503942f8ba887f058f2c9f7e9572ddfa72b2c2fb52
+E         ')
+E       assert False
+E        +  where False = all(<generator object test_the_capture_refuses_and_seals_nothing.<locals>.<genexpr> at 0x7da0c9d12c70>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:198: AssertionError
+_________ test_the_capture_refuses_and_seals_nothing[asset-wrong-link] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_capture_refuses_and_s15')
+breakage = 'asset-wrong-link'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                          "weights-dir-link", "asset-copy", "asset-wrong-link"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+        lab = make_lab(tmp_path)
+        card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
+        if breakage == "busy-card":
+            (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")
+        elif breakage == "head":
+            subprocess.run(["git", "-C", lab.w, "-c", "user.email=x@y", "-c", "user.name=x", "commit", "-q", "--allow-empty",
+                            "-m", "moved"], check=True)
+        elif breakage == "dirty":
+            open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
+        elif breakage == "asset":
+            os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+        elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+            os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+        elif breakage == "t-agree":                                          # the T tests would skip without it
+            os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+        elif breakage == "t-wavs":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+        elif breakage == "weights-dir-link":                                 # the whole directory as one link
+            shutil.rmtree(os.path.join(lab.w, "weights"))
+            os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+        elif breakage == "asset-copy":                                       # byte-identical, another inode
+            link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+            os.unlink(link)
+            shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "asset-wrong-link":                                 # a link to another file
+            link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+            os.unlink(link)
+            os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+        elif breakage == "t-depth-map":
+            os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
+        elif breakage == "t-dinov3-cache":
+            os.rmdir(lab.tmp / "dinov3")
+        elif breakage == "active-exp22":
+            open(lab.res(GPU1), "w").write(json.dumps({"holder": "exp22", "run": "20261101T000000"}))
+        elif breakage == "pin":
+            subprocess.run(["git", "-C", lab.w, "rm", "-q", "--cached", "pyproject.toml"], check=True)
+            open(os.path.join(lab.w, "pyproject.toml"), "a").write("# x\n")
+        else:
+            open(lab.cfg.queue_log, "w").write("2026-11-04T06:12:55-05:00 START training ACEattn s43\n")
+        p = lab.run("capture", lab.pin2, card)
+        assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
+        assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                    os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+        expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                       "CHECK FAILED: weights/ is this worktree's own directory"],
+                  "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+                  "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+                  "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+                  "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+>       assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+E       AssertionError: (["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"], '=== exp_22 R2-C pre-flight CAPTURE -...22/r2_preflight_20261105T232431/capture.log sha256 36cbca97db5f2555c4d6111a08248b3e57274475361871e2c5084b15319125ac
+E         ')
+E       assert False
+E        +  where False = all(<generator object test_the_capture_refuses_and_seals_nothing.<locals>.<genexpr> at 0x7da0c9d130d0>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:198: AssertionError
+___ test_the_per_entry_layout_passes_the_capture_with_tracked_weights_files ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0')
+
+    def test_the_per_entry_layout_passes_the_capture_with_tracked_weights_files(tmp_path):
+        lab = make_lab(tmp_path)
+        tracked = subprocess.run(["git", "-C", lab.w, "ls-files", "weights"], capture_output=True, text=True).stdout.split()
+        assert tracked == [TRACKED_WEIGHT] and os.path.isdir(os.path.join(lab.w, "weights"))
+>       seal, ssha, out = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W', pin2='bc4188fe161d55ba2b1719865ded...unction make_lab.<locals>.<lambda> at 0x7da0c9d16170>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9d15750>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:24:31-05:00 -- host mae-cab-lab-server -- PIN2 bc4188fe161d55ba2b1719865deddfd6a06992b3 -- GPU0 -- run 20261105T232431 ===
+E         this script: b2bc70cc706e1df7d719dfae4289fb26a86f965ac6d5e616caac5d13d47d9811  /tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (b2bc70cc706e1df7d719dfae4289fb26a86f965ac6d5e616caac5d13d47d9811)
+E         CHECK OK: HEAD bc4188fe161d55ba2b1719865deddfd6a06992b3 = PIN2 bc4188fe161d55ba2b1719865deddfd6a06992b3
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232431 and r2_probe_BF_20261105T232431 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939072.0137072, "iso": "2026-11-05T23:24:32-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W/outputs_loc/exp22/r2_preflight_20261105T232431/capture.log sha256 3260ff3b60c47c1bda4c57047a368081aad8e8c44558f4805115e2a9b142abba
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_per_entry_layout_pass0/W/worklog/worklog_y...ight_20261105T232431/capture.log sha256 3260ff3b60c47c1bda4c57047a368081aad8e8c44558f4805115e2a9b142abba\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+____ test_pin2_tracks_files_under_weights_so_the_per_asset_form_is_required ____
+
+    def test_pin2_tracks_files_under_weights_so_the_per_asset_form_is_required():
+        """The defect A7-C3 fixes: at PIN2 weights/ holds tracked files, so it can never be one link (git would read them
+        as deleted); every registered weights asset is an untracked file reached through a per-entry link."""
+        repo = os.path.abspath(os.path.join(os.path.dirname(SCRIPT), "..", "..", "..", ".."))
+        tracked = subprocess.run(["git", "-C", repo, "ls-files", "weights"], capture_output=True, text=True,
+                                 check=True).stdout.split()
+        assert tracked and all(t.startswith("weights/FLAC/") for t in tracked)
+>       assert tuple(_script_array("WEIGHT_ASSETS")) == WEIGHT_ASSETS and not set(WEIGHT_ASSETS) & set(tracked)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'WEIGHT_ASSETS'
+
+    def _script_array(name):
+>       return re.search(name + r"=\(([^)]*)\)", open(SCRIPT).read())[1].split()
+E       TypeError: 'NoneType' object is not subscriptable
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:211: TypeError
+______ test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_a_card_that_turns_busy_du0')
+
+    def test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed(tmp_path):
+        lab = make_lab(tmp_path, poll_s=0.5)
+        p = lab.run("capture", lab.pin2, "GPU0", popen=True)
+        deadline = time.time() + 60
+        while time.time() < deadline and not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
+                                              os.path.exists(os.path.join(lab.ex, d, "capture_polls.jsonl"))]:
+            time.sleep(0.01)
+        (lab.tmp / "apps.txt").write_text(f"4242, {GPU0}\n")                   # a process arrives mid-window
+        out, _ = p.communicate(timeout=120)
+>       assert p.returncode == 1 and "CHECK FAILED: every sealed poll on time and free" in out and "SEAL " not in out
+E       AssertionError: assert (1 == 1 and 'CHECK FAILED: every sealed poll on time and free' in '=== exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:24:32-05:00 -- host mae-cab-lab-server -- PIN2 76790c278e53ea1895...p22/r2_preflight_20261105T232432/capture.log sha256 145707f0dad2ff27064c63b16aa7dc9d77eea27c7fa8778c6085be6c0b940604\n')
+E        +  where 1 = <Popen: returncode: 1 args: ['bash', '/tmp/pytest-of-yixunhu/pytest-6346/tes...>.returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:249: AssertionError
+___________________ test_the_launch_refuses_a_stale_capture ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0')
+
+    def test_the_launch_refuses_a_stale_capture(tmp_path):
+        lab = make_lab(tmp_path, fresh_s=2)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W', pin2='4051dd6edd352bd0767402855bee...unction make_lab.<locals>.<lambda> at 0x7da0c9d15d80>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9d16950>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:32-05:00 -- host mae-cab-lab-server -- PIN2 4051dd6edd352bd0767402855bee2ca2f2928ad7 -- GPU0 -- run 20261105T232532 ===
+E         this script: 46ac4a182324dee6ac359d7cebac90a0d154c1b98fd7ae7b35f7169ea88a8165  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (46ac4a182324dee6ac359d7cebac90a0d154c1b98fd7ae7b35f7169ea88a8165)
+E         CHECK OK: HEAD 4051dd6edd352bd0767402855bee2ca2f2928ad7 = PIN2 4051dd6edd352bd0767402855bee2ca2f2928ad7
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232532 and r2_probe_BF_20261105T232532 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939132.3264003, "iso": "2026-11-05T23:25:32-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W/outputs_loc/exp22/r2_preflight_20261105T232532/capture.log sha256 e02a1c5ec7a82999764399bf874115ce89a819ffc567486faf52fa44ef8dbf05
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_a_stal0/W/worklog/worklog_y...ight_20261105T232532/capture.log sha256 e02a1c5ec7a82999764399bf874115ce89a819ffc567486faf52fa44ef8dbf05\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+____________ test_the_launch_refuses_and_reserves_nothing[seal-sha] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0')
+tamper = 'seal-sha'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W', pin2='bc52a243b0b8adc6cef95c0cc61f...unction make_lab.<locals>.<lambda> at 0x7da0c9d157e0>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9d17910>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:32-05:00 -- host mae-cab-lab-server -- PIN2 bc52a243b0b8adc6cef95c0cc61f4789c59ef65b -- GPU0 -- run 20261105T232532 ===
+E         this script: 9f14670d13d4215086955f2fd4f896ea575605b7a01961020bff1faee5c481f1  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (9f14670d13d4215086955f2fd4f896ea575605b7a01961020bff1faee5c481f1)
+E         CHECK OK: HEAD bc52a243b0b8adc6cef95c0cc61f4789c59ef65b = PIN2 bc52a243b0b8adc6cef95c0cc61f4789c59ef65b
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232532 and r2_probe_BF_20261105T232532 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939132.5425062, "iso": "2026-11-05T23:25:32-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W/outputs_loc/exp22/r2_preflight_20261105T232532/capture.log sha256 5eae14ba30e7f2af3017f5fceab8f6197fc20f855d57b9e21d313ed58babe708
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re0/W/worklog/worklog_y...ight_20261105T232532/capture.log sha256 5eae14ba30e7f2af3017f5fceab8f6197fc20f855d57b9e21d313ed58babe708\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+_____________ test_the_launch_refuses_and_reserves_nothing[record] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1')
+tamper = 'record'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W', pin2='cb0dbc79a5316840d0c41fc27510...unction make_lab.<locals>.<lambda> at 0x7da0c9d170a0>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9d17010>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:32-05:00 -- host mae-cab-lab-server -- PIN2 cb0dbc79a5316840d0c41fc27510066ed9a1e207 -- GPU0 -- run 20261105T232532 ===
+E         this script: 6a3e1613a7e3463d5e83158bbf24f483983f91e64d9f72716d2bc5441d7ba94e  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (6a3e1613a7e3463d5e83158bbf24f483983f91e64d9f72716d2bc5441d7ba94e)
+E         CHECK OK: HEAD cb0dbc79a5316840d0c41fc27510066ed9a1e207 = PIN2 cb0dbc79a5316840d0c41fc27510066ed9a1e207
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232532 and r2_probe_BF_20261105T232532 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939132.7644298, "iso": "2026-11-05T23:25:32-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W/outputs_loc/exp22/r2_preflight_20261105T232532/capture.log sha256 97777e93833d2e966a891e77f6b9db57b2ccefa7956c0151e72d8d4eb4ce753a
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re1/W/worklog/worklog_y...ight_20261105T232532/capture.log sha256 97777e93833d2e966a891e77f6b9db57b2ccefa7956c0151e72d8d4eb4ce753a\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+__________ test_the_launch_refuses_and_reserves_nothing[capture-log] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2')
+tamper = 'capture-log'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W', pin2='079088d85ae04e001c382d044b4c...unction make_lab.<locals>.<lambda> at 0x7da0c9e9dbd0>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9e200>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:32-05:00 -- host mae-cab-lab-server -- PIN2 079088d85ae04e001c382d044b4cb43505cc4368 -- GPU0 -- run 20261105T232532 ===
+E         this script: 9176d3db1b36f9602e24e1b43030d2f6647f1c82f13dc07257e8d2bbc1d39398  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (9176d3db1b36f9602e24e1b43030d2f6647f1c82f13dc07257e8d2bbc1d39398)
+E         CHECK OK: HEAD 079088d85ae04e001c382d044b4cb43505cc4368 = PIN2 079088d85ae04e001c382d044b4cb43505cc4368
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232532 and r2_probe_BF_20261105T232532 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939132.974286, "iso": "2026-11-05T23:25:32-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W/outputs_loc/exp22/r2_preflight_20261105T232532/capture.log sha256 5cfceab222714d5532982bc4e7b2b26399791262503d01c87c04aaedde1b075e
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re2/W/worklog/worklog_y...ight_20261105T232532/capture.log sha256 5cfceab222714d5532982bc4e7b2b26399791262503d01c87c04aaedde1b075e\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+______________ test_the_launch_refuses_and_reserves_nothing[tool] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3')
+tamper = 'tool'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W', pin2='6c93fa8147f17d4b61349edc97a3...unction make_lab.<locals>.<lambda> at 0x7da0c9e9f250>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9f370>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:33-05:00 -- host mae-cab-lab-server -- PIN2 6c93fa8147f17d4b61349edc97a3f7b524a0de18 -- GPU0 -- run 20261105T232533 ===
+E         this script: 0bae74cef831033eab724f3fe7cb7582ca0f81246c04115dc6fba226695f1268  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (0bae74cef831033eab724f3fe7cb7582ca0f81246c04115dc6fba226695f1268)
+E         CHECK OK: HEAD 6c93fa8147f17d4b61349edc97a3f7b524a0de18 = PIN2 6c93fa8147f17d4b61349edc97a3f7b524a0de18
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232533 and r2_probe_BF_20261105T232533 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939133.1781704, "iso": "2026-11-05T23:25:33-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W/outputs_loc/exp22/r2_preflight_20261105T232533/capture.log sha256 22a5edd6f1fc1bdb61367938b22b8f8950c4f4443010cb5a20152901741a3b7c
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re3/W/worklog/worklog_y...ight_20261105T232533/capture.log sha256 22a5edd6f1fc1bdb61367938b22b8f8950c4f4443010cb5a20152901741a3b7c\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+______ test_the_launch_refuses_and_reserves_nothing[foreign-reservation] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4')
+tamper = 'foreign-reservation'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W', pin2='04c4b85d9e71075e13eddc3feca4...unction make_lab.<locals>.<lambda> at 0x7da0c9e9d990>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9d7e0>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:33-05:00 -- host mae-cab-lab-server -- PIN2 04c4b85d9e71075e13eddc3feca46dda158e52f3 -- GPU0 -- run 20261105T232533 ===
+E         this script: 27bb75e366ae849bc4b178177670dfe9387596787c3e566bc0059a57206021fc  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (27bb75e366ae849bc4b178177670dfe9387596787c3e566bc0059a57206021fc)
+E         CHECK OK: HEAD 04c4b85d9e71075e13eddc3feca46dda158e52f3 = PIN2 04c4b85d9e71075e13eddc3feca46dda158e52f3
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232533 and r2_probe_BF_20261105T232533 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939133.3943298, "iso": "2026-11-05T23:25:33-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W/outputs_loc/exp22/r2_preflight_20261105T232533/capture.log sha256 2d31a69ad1da3c645103ab4943398caf109a98d0b302f692c96eace1f6293322
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re4/W/worklog/worklog_y...ight_20261105T232533/capture.log sha256 2d31a69ad1da3c645103ab4943398caf109a98d0b302f692c96eace1f6293322\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+___________ test_the_launch_refuses_and_reserves_nothing[lock-held] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5')
+tamper = 'lock-held'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W', pin2='4f91fa77daa11daec186803cf3ae...unction make_lab.<locals>.<lambda> at 0x7da0c9e18c10>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e18ca0>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:33-05:00 -- host mae-cab-lab-server -- PIN2 4f91fa77daa11daec186803cf3ae346af2a2dd6c -- GPU0 -- run 20261105T232533 ===
+E         this script: 0948f454dd1aa1ca9572d4813362a2c2e06d00b6fd003279e644419c5cbb235f  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (0948f454dd1aa1ca9572d4813362a2c2e06d00b6fd003279e644419c5cbb235f)
+E         CHECK OK: HEAD 4f91fa77daa11daec186803cf3ae346af2a2dd6c = PIN2 4f91fa77daa11daec186803cf3ae346af2a2dd6c
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232533 and r2_probe_BF_20261105T232533 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939133.6132855, "iso": "2026-11-05T23:25:33-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W/outputs_loc/exp22/r2_preflight_20261105T232533/capture.log sha256 6cacfd8dd047d8a0c7857b1851e2ce9728833149030cc41bfdcc3282882e94b1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re5/W/worklog/worklog_y...ight_20261105T232533/capture.log sha256 6cacfd8dd047d8a0c7857b1851e2ce9728833149030cc41bfdcc3282882e94b1\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+___________ test_the_launch_refuses_and_reserves_nothing[wrong-pin2] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6')
+tamper = 'wrong-pin2'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W', pin2='1d73e61d2656fe429ec7db98b076...unction make_lab.<locals>.<lambda> at 0x7da0c9e9de10>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9dc60>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:33-05:00 -- host mae-cab-lab-server -- PIN2 1d73e61d2656fe429ec7db98b076211c5eda697b -- GPU0 -- run 20261105T232533 ===
+E         this script: 081d090e72b05d1ccb23390eccbcced88495db2883cee1cfb3e0e22580fc55fe  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (081d090e72b05d1ccb23390eccbcced88495db2883cee1cfb3e0e22580fc55fe)
+E         CHECK OK: HEAD 1d73e61d2656fe429ec7db98b076211c5eda697b = PIN2 1d73e61d2656fe429ec7db98b076211c5eda697b
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232533 and r2_probe_BF_20261105T232533 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939133.8285797, "iso": "2026-11-05T23:25:33-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W/outputs_loc/exp22/r2_preflight_20261105T232533/capture.log sha256 2c82ebd056cd20b063f49b8273be58a0107aaa71ae04b93509902d0b5ece675a
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re6/W/worklog/worklog_y...ight_20261105T232533/capture.log sha256 2c82ebd056cd20b063f49b8273be58a0107aaa71ae04b93509902d0b5ece675a\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+__________ test_the_launch_refuses_and_reserves_nothing[wrong-script] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7')
+tamper = 'wrong-script'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W', pin2='ca70ef57445e7b7f9ff189e47fbf...unction make_lab.<locals>.<lambda> at 0x7da0c9e9c790>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9e3b0>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:33-05:00 -- host mae-cab-lab-server -- PIN2 ca70ef57445e7b7f9ff189e47fbfb62499d7f28b -- GPU0 -- run 20261105T232533 ===
+E         this script: 505e360899f11221d37ebf3866da715a5ab1ed523c20cd07b952be63d6c4077f  /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (505e360899f11221d37ebf3866da715a5ab1ed523c20cd07b952be63d6c4077f)
+E         CHECK OK: HEAD ca70ef57445e7b7f9ff189e47fbfb62499d7f28b = PIN2 ca70ef57445e7b7f9ff189e47fbfb62499d7f28b
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232533 and r2_probe_BF_20261105T232533 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939134.0381606, "iso": "2026-11-05T23:25:34-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W/outputs_loc/exp22/r2_preflight_20261105T232533/capture.log sha256 3c325eeebce3863f7b2b85e049c9537cc722253bcb4f1a422174654bbe266810
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_the_launch_refuses_and_re7/W/worklog/worklog_y...ight_20261105T232533/capture.log sha256 3c325eeebce3863f7b2b85e049c9537cc722253bcb4f1a422174654bbe266810\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+__ test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0')
+
+    def test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays(tmp_path):
+        wrapper = tmp_path / "py_wrapper.sh"
+        wrapper.write_text(f"#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = run ] && exit 7; done\nexec {sys.executable} \"$@\"\n")
+        wrapper.chmod(0o755)
+        lab = make_lab(tmp_path, py=str(wrapper))
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:305: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W', pin2='8c8dcaa0a2b4a3e5145d3717b1af...unction make_lab.<locals>.<lambda> at 0x7da0c9e9dab0>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9e9d870>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:34-05:00 -- host mae-cab-lab-server -- PIN2 8c8dcaa0a2b4a3e5145d3717b1afe954ef3ef414 -- GPU0 -- run 20261105T232534 ===
+E         this script: bc592b64e972f17b29eb216f905afd7cfcc118566a74cc49fb9b7f2f3469dd56  /tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (bc592b64e972f17b29eb216f905afd7cfcc118566a74cc49fb9b7f2f3469dd56)
+E         CHECK OK: HEAD 8c8dcaa0a2b4a3e5145d3717b1afe954ef3ef414 = PIN2 8c8dcaa0a2b4a3e5145d3717b1afe954ef3ef414
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232534 and r2_probe_BF_20261105T232534 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939134.2555509, "iso": "2026-11-05T23:25:34-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W/outputs_loc/exp22/r2_preflight_20261105T232534/capture.log sha256 27a5bb81c912c6aa210deaccf8e284a109dc28bf6178f1318098be434cd44c11
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_a_supervisor_dying_at_its0/W/worklog/worklog_y...ight_20261105T232534/capture.log sha256 27a5bb81c912c6aa210deaccf8e284a109dc28bf6178f1318098be434cd44c11\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+______ test_a_launch_after_a_launcher_killed_past_its_reservation_refuses ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0')
+
+    def test_a_launch_after_a_launcher_killed_past_its_reservation_refuses(tmp_path):
+        lab = make_lab(tmp_path)
+>       seal, ssha, _ = captured(lab)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:319: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+lab = namespace(w='/tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W', pin2='3b0c8deeae0e4df4713cacb46382...unction make_lab.<locals>.<lambda> at 0x7da0c9ab40d0>, control=<function make_lab.<locals>.<lambda> at 0x7da0c9ab4040>)
+card = 'GPU0'
+
+    def captured(lab, card="GPU0"):
+        p = lab.run("capture", lab.pin2, card)
+>       assert p.returncode == 0, p.stdout[-4000:] + p.stderr[-2000:]
+E       AssertionError: === exp_22 R2-C pre-flight CAPTURE -- 2026-11-05T23:25:34-05:00 -- host mae-cab-lab-server -- PIN2 3b0c8deeae0e4df4713cacb46382b209b2f4243a -- GPU0 -- run 20261105T232534 ===
+E         this script: 32a28295df7e965c5a673de54c563d48a24853b639f005d6506d6ca5dcfab34b  /tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh
+E         CHECK OK: EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (32a28295df7e965c5a673de54c563d48a24853b639f005d6506d6ca5dcfab34b)
+E         CHECK OK: HEAD 3b0c8deeae0e4df4713cacb46382b209b2f4243a = PIN2 3b0c8deeae0e4df4713cacb46382b209b2f4243a
+E         CHECK OK: the tracked tree is clean
+E         CHECK OK: pin overlays/no_flash/flash_attn.py 0d0e52ca...
+E         CHECK OK: pin overlays/no_flash/exp35_no_flash_launch.py bbd2847d...
+E         CHECK OK: pin src/tests/test_exp35_no_flash_launch.py d61a3c02...
+E         CHECK OK: pin pyproject.toml 6422eae5...
+E         CHECK OK: outputs_loc -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W/outputs_loc
+E         CHECK FAILED: weights -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/main/weights
+E         CHECK OK: AcousticRooms -> /tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W/AcousticRooms
+E         CHECK OK: asset outputs_loc/exp22/d1_context_manifest.json
+E         CHECK OK: asset outputs_loc/exp22/g1_audit/geometry_audit_report.json
+E         CHECK OK: asset weights/exp20/YAW_40k.ckpt
+E         CHECK OK: asset weights/exp20/BF_40k.ckpt
+E         CHECK OK: asset weights/exp20/P1_40k.ckpt
+E         CHECK OK: asset weights/FLAC/FLAC_EMA.ckpt
+E         CHECK OK: asset weights/AGREE/AGREE_fullAR.pt
+E         CHECK OK: asset outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged/
+E         CHECK OK: asset AcousticRooms/metadata/
+E         CHECK OK: asset AcousticRooms/depth_map/
+E         CHECK OK: the flac interpreter and pytest's own __main__.py
+E         CHECK OK: the DINOv3 HF cache T's tests need (/tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/dinov3)
+E         CHECK OK: the run's r2_gates_20261105T232534 and r2_probe_BF_20261105T232534 do not exist
+E         no exp22 run is active
+E         CHECK OK: no exp22 run is active or unresolved
+E         observation: {"t": 1793939134.4702501, "iso": "2026-11-05T23:25:34-05:00", "card": "GPU0", "uuid": "GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e", "index": 0, "gpu_map_raw": "0, GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e\n1, GPU-6ac2604a-e84e-0615-1221-ccbed7c268da\n", "apps_raw": "", "apps_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "pids_on_card": [], "reservation": "absent", "rule": "exp35 lock absent", "free": true, "reasons": [], "rule_reasons": []}
+E         CHECK OK: GPU0 is free under its rule now
+E         CAPTURE REFUSED before the polls: at least one CHECK failed (see above)
+E         rc 1; capture log /tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W/outputs_loc/exp22/r2_preflight_20261105T232534/capture.log sha256 35f668d3ad9be2c48b9dcbaf1c2e48ea39f56f0f0434c86d93d756f5e9ae8a51
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6346/test_a_launch_after_a_launcher0/W/worklog/worklog_y...ight_20261105T232534/capture.log sha256 35f668d3ad9be2c48b9dcbaf1c2e48ea39f56f0f0434c86d93d756f5e9ae8a51\n', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:82: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_capture_seal_launch_run_detached_to_the_release
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-vae]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-wavs]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[weights-dir-link]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[asset-copy]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[asset-wrong-link]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_per_entry_layout_passes_the_capture_with_tracked_weights_files
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_pin2_tracks_files_under_weights_so_the_per_asset_form_is_required
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_a_stale_capture
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[seal-sha]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[record]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[capture-log]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[tool]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[foreign-reservation]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[lock-held]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-pin2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-script]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_launch_after_a_launcher_killed_past_its_reservation_refuses
+20 failed, 20 passed in 66.94s (0:01:06)
+rc 1

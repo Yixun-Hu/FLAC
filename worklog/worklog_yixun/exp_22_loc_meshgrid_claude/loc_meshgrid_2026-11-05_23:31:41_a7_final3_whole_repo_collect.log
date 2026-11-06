@@ -1,0 +1,6 @@
+# exp_22 A7 final3 (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T23:31:41-05:00 -- HEAD 54b06199; CPU only; whole-repo collection
+$ python -m pytest --collect-only -q --color=no -p no:cacheprovider
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+6281 tests collected in 20.26s
+rc 0
