@@ -7,13 +7,16 @@ generated batches of ``--candidate-batch-size``, similarity, concatenation + arg
 unreported warm-up batch, ``--repeat-count`` repeats per query, per-field medians; ``scoring_total_seconds`` is the
 selector term of L_q) for any hashed manifest whose records carry ``index / query_id / room / candidate_count``:
 the 128 latency selection, the 64-query pilot, the 0.75 m pilot, or the nested 1.0 m subset counts. The selector's
-own peak memory (allocated / reserved, absolute) is recorded per query, outside the timers.
+own peak memory (allocated / reserved, absolute) is recorded per query, outside the timers. A CUDA run is bound
+before its measurement (``make_binding``) and attested by the run-bound co-tenancy monitor in ``<output>.cotenancy``
+(Codex code review 1, BLOCKING 3; judged by ``exp37_latency.selector_cotenancy``).
 Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1, round B-b.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -26,8 +29,9 @@ REPO_ROOT = next(parent for parent in Path(__file__).resolve().parents if (paren
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.localization.engine import encode_audio_features, load_agree_retrieval, load_frozen_query  # noqa: E402
+from src.localization.exp37_cotenancy import Monitor  # noqa: E402
 from src.localization.pilot import canonical_sha256  # noqa: E402
-from src.localization.run_provenance import host_snapshot  # noqa: E402
+from src.localization.run_provenance import card_uuid, host_snapshot  # noqa: E402
 from tools.benchmark_localization_selector_latency import benchmark_agree_query  # noqa: E402
 
 RECORD_TYPE = "exp37_agree_selector_latency"
@@ -83,13 +87,23 @@ def measure_selector(selection: dict, context_records: dict, dataset_root: Path,
     return rows
 
 
+def make_binding(*, selection: dict, context_sha256: str, agree_sha256: str, device: str, batch_size: int,
+                 repeat_count: int, output: Path) -> dict:
+    """BLOCKING 3: what the co-tenancy monitor binds to, fixed BEFORE the measurement (exp37_latency.SELECTOR_BOUND)."""
+    body = {"record_type": "exp37_selector_binding", "selection_sha256": selection["sha256"],
+            "context_manifest_sha256": context_sha256, "agree_checkpoint_file_sha256": agree_sha256, "device": device,
+            "candidate_batch_size": int(batch_size), "repeat_count": int(repeat_count), "output": str(output),
+            "pid": os.getpid(), "started_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    return {**body, "sha256": canonical_sha256(body)}
+
+
 def build_payload(*, selection: dict, context_sha256: str, agree_path: Path, agree_sha256: str, device: str,
-                  batch_size: int, repeat_count: int, rows: list[dict], host: dict) -> dict:
+                  batch_size: int, repeat_count: int, rows: list[dict], host: dict, binding: dict | None = None) -> dict:
     body = {"schema_version": 1, "record_type": RECORD_TYPE, "timed_function": TIMED_FUNCTION,
             "selection_sha256": selection["sha256"], "context_manifest_sha256": context_sha256,
             "agree_checkpoint": str(agree_path), "agree_checkpoint_file_sha256": agree_sha256, "device": device,
             "candidate_batch_size": int(batch_size), "repeat_count": int(repeat_count), "query_count": len(rows),
-            "host": host, "queries": rows}
+            "host": host, "binding": binding, "queries": rows}
     return {**body, "sha256": canonical_sha256(body)}
 
 
@@ -108,19 +122,35 @@ def main() -> None:
         raise ValueError("batch size and repeat count must be positive")
     if args.output.exists():
         raise RuntimeError(f"{args.output} exists (selector vectors are written once)")
+    attestation = Path(f"{args.output}.cotenancy")
+    if attestation.exists():
+        raise RuntimeError(f"{attestation} exists (a selector vector's cotenancy directory is written once)")
     selection = load_selection(args.selection)
     context = _hashed(args.context_manifest)
     if selection.get("context_manifest_sha256", context["sha256"]) != context["sha256"]:
         raise RuntimeError("the selection and the context manifest do not match")
     agree_path = args.agree_checkpoint.resolve()
     agree_sha256 = hashlib.sha256(agree_path.read_bytes()).hexdigest()
+    binding = make_binding(selection=selection, context_sha256=context["sha256"], agree_sha256=agree_sha256,
+                           device=args.device, batch_size=args.candidate_batch_size, repeat_count=args.repeat_count,
+                           output=args.output)
+    monitor = None
+    if torch.device(args.device).type == "cuda":          # a CPU smoke is never a timing source (no attestation)
+        monitor = Monitor(attestation, binding_sha256=binding["sha256"], card_uuid=card_uuid(args.device)).start()
     retrieval = load_agree_retrieval(agree_path, args.device)
+    if monitor is not None:
+        monitor.marker("gpu_resident")
+        monitor.marker("timed_start")
     rows = measure_selector(selection, {int(r["index"]): r for r in context["records"]}, args.dataset_root.resolve(),
                             retrieval, device=args.device, batch_size=args.candidate_batch_size,
                             repeat_count=args.repeat_count)
+    if monitor is not None:
+        monitor.marker("timed_end")
+        monitor.stop()
     payload = build_payload(selection=selection, context_sha256=context["sha256"], agree_path=agree_path,
                             agree_sha256=agree_sha256, device=args.device, batch_size=args.candidate_batch_size,
-                            repeat_count=args.repeat_count, rows=rows, host=host_snapshot(args.device))
+                            repeat_count=args.repeat_count, rows=rows, host=host_snapshot(args.device),
+                            binding=binding)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
