@@ -4,6 +4,15 @@ Codex plan §15 r1 "S6 -- binding kit and test contract"). ``exp35_phase_ii.sh``
 environment for the Planner's five modes -- reserve | dry-run | launch | status | release -- and ``launch`` starts
 it once more, detached, as the wrapper that runs the H35 runner and durably records its exact exit code.
 
+RETIRED (exp_36 code review III HIGH 2): Yixun superseded phase (ii) on 2026-11-06 15:30 EST ("Seeds 43-46 at these
+angles are NOT wanted"); its 24-cell seed-42 off-orbit replacement runs only through the exp_36 chain, and the generic
+exp_25 runner this kit reaches would quarantine the H35 OFF dumps that chain shares by name. Both CLIs refuse
+reserve / dry-run / launch FIRST (``RETIRED_MODES``; rc 1; the one line of ``RETIRED_BODY``): exp35_phase_ii.sh
+before its config, any log or this helper, and ``main`` here before its parser, config or world -- it dispatches only
+status, release and wrap. The functions below stay as reviewed: status and release share them, and the tests keep
+the dormant machinery covered. ``wrap`` stays: only ``launch`` starts it, for a fresh 'launch_pending' orchestration
+that no remaining path creates (nothing was ever reserved: the exp_35 notebook, 2026-11-06T15:33:03).
+
 Part 1a: the registered pins, the durable writers and the pure checks -- the 68-cell selection of the cells manifest
 at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived row by row, the lane list.
 Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
@@ -24,7 +33,8 @@ Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dum
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
 relaunches, clears a failure, changes a lane or starts exp_22.
 
-Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
+Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort); retired by the exp_35 kit-retirement
+Coder (Claude Opus 5.5, max effort).
 """
 import argparse
 import collections
@@ -86,6 +96,14 @@ SUP_STATE, SUP_FILE = f"{X35}/exp35_supervisor_state.json", f"{X35}/exp35_superv
 SUP_LOCK, RUNNER_LOCK, KIT_LOCK = f"{SUP_STATE}.lock", f"{X25}/.depth_canon_eval.lock", f"{X35}/exp35_phase_ii.lock"
 FINAL_EVENT = "phase (i) complete; the reservation released"                 # exp35_supervisor.py's last event
 KIT_FILES = ("exp35_phase_ii.sh", "exp35_phase_ii.py")
+RETIRED_MODES = ("reserve", "dry-run", "launch")             # refused FIRST by both CLIs (exp_36 code review III HIGH 2)
+RETIRED_BODY = ("the exp_35 phase-(ii) kit is RETIRED -- Yixun superseded phase (ii) on 2026-11-06 15:30 EST ('Seeds "
+                "43-46 at these angles are NOT wanted'); its 24-cell seed-42 off-orbit replacement runs ONLY through the "
+                "exp_36 chain (worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh on branch "
+                "exp-36-yaw-c4-spread, as its yaw_c4_spread_command.md records), because the generic exp_25 runner this "
+                "kit reaches would quarantine the H35 OFF dumps that chain shares by name (exp_36 code review III HIGH "
+                "2); nothing was logged, reserved, spawned or queried; status and release remain for inspection and "
+                "cleanup.")                                  # exp35_phase_ii.sh prints the same text (a test pins both)
 Config = collections.namedtuple("Config", "run h35 digest reservations exp30_pins queue_log nvidia_smi proc scan_proc "
                                 "py gap_s confirm_s identify_s dry_max_age_s kit_dir helper")
 
@@ -1641,7 +1659,8 @@ def status(world, cfg, *, orch=None, kit_commit=None):
     """S6: READ-ONLY -- no lock taken or created, no state written, no git index refreshed: the kit pin, the
     preconditions, the locks, the cards, every orchestration, and for ``orch`` (else the newest) its records,
     identities, runner log, receipts of the exact 68 cells and final rc. (0, report)."""
-    out = [f"exp_35 phase (ii) status at {iso(world.now())} (read-only)"]
+    out = [f"exp_35 phase (ii) status at {iso(world.now())} (read-only)",
+           f"RETIRED: {' / '.join(RETIRED_MODES)} refuse -- {RETIRED_BODY}"]
     if kit_commit:
         why = kit_evidence(cfg, kit_commit)[0]
         out.append("kit: " + ("; ".join(why) or f"the reviewed commit {kit_commit}, clean"))
@@ -1674,9 +1693,20 @@ def status(world, cfg, *, orch=None, kit_commit=None):
     target = orch or (orchs[-1][0] if orchs else None)
     return 0, "\n".join(out + (_status_of(cfg, target, m, rows) if target else []))
 
+def retired(mode):
+    """The retirement refusal of this CLI: the one line, rc 1 -- nothing else read, written, spawned or queried."""
+    print(f"REFUSED (RETIRED): exp35_phase_ii.py {mode} -- {RETIRED_BODY}", flush=True)
+    return 1
+
+
 def main(argv=None):
     """The helper's CLI (exp35_phase_ii.sh calls it under env -i; ``wrap`` is started by ``launch`` only): 0 done,
-    1 refused or failed, 2 bad arguments, 3 a refused wrapper."""
+    1 refused or failed, 2 bad arguments, 3 a refused wrapper. RETIRED (exp_36 code review III HIGH 2): reserve,
+    dry-run and launch are refused FIRST -- before the parser, the config, the world or any lock, file, process or
+    nvidia-smi query -- and whatever a parser returns, only status, release and wrap are ever dispatched."""
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] and argv[0] in RETIRED_MODES:
+        return retired(argv[0])
     ap = argparse.ArgumentParser(description="exp_35 phase (ii): the launch kit's helper (run by exp35_phase_ii.sh)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("reserve", "dry-run", "launch", "release"):
@@ -1692,23 +1722,16 @@ def main(argv=None):
     w.add_argument("--orch", required=True)
     w.add_argument("--lock-fd", type=int, required=True)
     args = ap.parse_args(argv)
+    if args.cmd not in ("status", "release", "wrap"):              # a retired mode, however a parser reached it
+        return retired(args.cmd)
     cfg = registered_config()
     world, orch = World(cfg.nvidia_smi), os.path.abspath(args.orch) if getattr(args, "orch", None) else None
     if args.cmd == "wrap":
         return wrap(cfg, orch=orch, lock_fd=args.lock_fd)
     if args.cmd == "status":
         rc, msg = status(world, cfg, orch=orch, kit_commit=args.kit_commit or None)
-    elif args.cmd == "reserve":
-        try:
-            lanes = parse_lanes(args.lanes)
-        except ValueError as err:
-            print(f"RESERVE REFUSED (bad arguments): {err}", flush=True)
-            return 2
-        rc, msg = reserve(world, cfg, kit_commit=args.kit_commit, h35=args.h35, lanes=lanes, report=args.report,
-                          report_sha256=args.report_sha256)
-    else:
-        rc, msg = {"dry-run": dry_run, "launch": launch, "release": release}[args.cmd](
-            world, cfg, kit_commit=args.kit_commit, h35=args.h35, orch=orch)
+    else:                                                        # release: the only other mode the allowlist passes
+        rc, msg = release(world, cfg, kit_commit=args.kit_commit, h35=args.h35, orch=orch)
     print(msg, flush=True)
     return rc
 
