@@ -1,1 +1,1 @@
-d92aef106de09496715b26ecc42f924ead104090  H36_I2: the launch commit of chains I and II (exp_36 addendum: every cell dumps); the run worktree ~/codespace/exp-36-run is detached here
+6be49f46ec31e899f1bee01f72c6a5827e701c6c  H36_I3: the launch commit of chains I and II (Codex code review III HIGH 1 + NIT 1 + NIT 2; supersedes H36_I2 d92aef10, never launched)

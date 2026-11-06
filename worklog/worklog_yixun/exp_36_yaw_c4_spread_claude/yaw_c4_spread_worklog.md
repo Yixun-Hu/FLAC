@@ -116,3 +116,24 @@
   tests GREEN (154 passed / 1 skipped until the launch commit was recorded); the full suites at H36_I2:
   `*_SUITES_at_H36_I2_d92aef10_in_the_run_worktree.log`. Note: the 12 H35 OFF rows' dump names are exp_35's; if exp_35
   phase (ii) (superseded) were ever run into the same dump root, its runner would quarantine (rename) these dumps.
+
+## 2026-11-06T18:50:52-05:00 — Coder r1: Codex code review III (the last; cap) step 1 -- the replacement launch commit H36_I3
+- **Goal** — the Planner's priority interrupt: review III HIGH 1 + NIT 1 + NIT 2 in a replacement launch commit before
+  chain I can launch; every fix is "fixed after review III, not re-reviewed (cap)".
+- **Change** (cycle 15: `9a8440dc` RED, committed 18:32:37 EST / `6be49f46` GREEN, committed 18:49:40 EST) -- HIGH 1: the
+  dump preflight takes the launch pin (`--pin`; the chain passes `EXPECT_HEAD`) and treats an existing dump directory or
+  `.staging-` sibling as this checkout's only when the cell's receipt AUTHENTICATES: read through one no-follow,
+  non-blocking descriptor, a regular file, parseable JSON, `cell` + `stem` of the selected cell, `expect_head` = the
+  launch pin, `ckpt_link` under the farm root, `dump_root` = the dump root, `dump: true`; such an owned dump, complete
+  or damaged, stays the runner's reviewed predicate (SKIP if verified, else QUARANTINE + rerun); anything else collides.
+  NIT 1: the chain prints only a pointer to `yaw_c4_spread_command.md` of the publisher checkout (+ the pin, base dir
+  and verdict the command needs); a printed publication command lacking `--publisher-pin`, `--base-dir` or the
+  publisher checkout fails the chain test. NIT 2: the comparator / test descriptions say every replay dumps, the
+  comparison checks waveforms + markers, publication verifies dump evidence offline and never copies a dump.
+- **Result** — GREEN: 167 passed (the exp_36 modules), then the preflight + chain modules 65 + 23 passed after the
+  single-descriptor read; 11 mutation checks of HIGH 1, all caught (one survived first -- the test's alarm raised an
+  OSError subclass the open swallowed; fixed in the test, re-run: all caught). H36_I3 recorded in
+  `yaw_c4_spread_launch_commit.txt` (this commit).
+- **Next** (not done at this entry's commit) — move `~/codespace/exp-36-run` to H36_I3 after the /proc + lsof check
+  (my own H36_I2 suite still runs there, ETA ≈ 18:56 EST), repeat both DRY_RUNs, send the Planner the chain commands;
+  then HIGH 3 + NIT 3 (step 2); then the exp_37 B3 leaf on top.
