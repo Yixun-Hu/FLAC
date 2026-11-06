@@ -154,3 +154,14 @@ def test_a_host_record_is_written_atomically_under_host_records(tmp_path):
     assert payload["label"] == "start" and payload["run_manifest_sha256"] == "abc"
     assert payload["no_flash_launch_handoff"] == {"pid": os.getpid()} and payload["snapshot"]["pid"] == os.getpid()
     assert not list((tmp_path / "host_records").glob("*.tmp"))
+
+
+def test_a_host_record_can_carry_extra_measurements(tmp_path):
+    run, _ = _fake_run({"nvidia-smi": "", "ps": ""})
+    path = rp.write_host_record(tmp_path, "loaded", device="cpu", handoff=None, run_manifest_sha256="abc", run=run,
+                                extra={"memory_after_flac_load": None})
+    assert json.loads(path.read_text())["extra"] == {"memory_after_flac_load": None}
+
+
+def test_the_weights_footprint_is_none_off_cuda():
+    assert rp.weights_footprint("cpu") is None

@@ -56,7 +56,7 @@ class _Stubs:
     """Records what the runner hands to the stubbed heavy steps."""
 
     def __init__(self):
-        self.reconstruct, self.host, self.executed, self.records = [], [], [], []
+        self.reconstruct, self.host, self.executed, self.records, self.extra = [], [], [], [], []
 
 
 @pytest.fixture
@@ -85,10 +85,13 @@ def stubbed(monkeypatch, tmp_path):
 
     def host(output_dir, label, **kw):
         s.host.append((label, kw["handoff"], kw["run_manifest_sha256"]))
+        s.extra.append(kw.get("extra"))
 
     monkeypatch.setattr(runner, "reconstruct_room_base_candidates", reconstruct)
     monkeypatch.setattr(runner, "execute_query", execute)
     monkeypatch.setattr(runner, "write_host_record", host)
+    footprints = iter([{"memory_allocated_bytes": 10}, {"memory_allocated_bytes": 25}])
+    monkeypatch.setattr(runner, "weights_footprint", lambda device: next(footprints))
     return s
 
 
@@ -118,7 +121,9 @@ def test_the_default_run_adds_only_the_attention_backend(frozen, tmp_path, stubb
     assert set(identity) == ORIGINAL_IDENTITY_KEYS | {"attention_backend"}
     assert identity["attention_backend"] == "flash_attn" and out["completed_queries"] == 2
     assert all(mesh_path is None for _room, mesh_path in stubbed.reconstruct)
-    assert [label for label, *_ in stubbed.host] == ["start", "end"]
+    assert [label for label, *_ in stubbed.host] == ["start", "loaded", "end"]
+    assert stubbed.extra[1] == {"memory_after_flac_load": {"memory_allocated_bytes": 10},
+                                "memory_after_agree_load": {"memory_allocated_bytes": 25}}
     assert all(handoff is None for _label, handoff, _sha in stubbed.host)
 
 
@@ -143,7 +148,7 @@ def test_the_exp37_options_reach_the_identity_the_rooms_and_the_host_records(fro
     assert identity["mesh_root_override"] == remap
     assert stubbed.reconstruct == [("Bathrooms_idx_14", "/m/Bathrooms_idx_14.obj")]   # warm-up + measured: one build
     assert stubbed.executed == [4467, 4467]                                               # the warm-up, then the query
-    assert [(label, h) for label, h, _ in stubbed.host] == [("start", handoff), ("end", handoff)]
+    assert [(label, h) for label, h, _ in stubbed.host] == [("start", handoff), ("loaded", handoff), ("end", handoff)]
 
 
 def test_a_required_backend_refuses_before_anything_is_written(frozen, tmp_path, stubbed, monkeypatch):
