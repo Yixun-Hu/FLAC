@@ -13,11 +13,14 @@ import numpy as np
 import pytest
 
 from src.localization import exp37_grid as grid
+from exp37_fakes import example_identity
+from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
 from src.localization.runner import initialize_run, save_query_result
 
 C4 = [0.0, 90.0, 180.0, 270.0]
+AUDIT = {"sha256": "a" * 64, "mesh_root": "/m", "rooms": {"R": {"mesh_sha256": "b" * 64}}}
 
 
 def _pilot(counts):
@@ -27,12 +30,9 @@ def _pilot(counts):
 
 
 def _run(tmp_path, name, arm, pilot, *, identity=None, per_query=None, counts=None):
-    ident = {"conditioning_method": lat.ARM_PROTOCOL[arm]["cond"], "checkpoint_sha256": lat.ARM_PROTOCOL[arm]["ckpt"],
-             "n_context": 8, "pilot_manifest_sha256": pilot["sha256"], "query_indices": [r["index"] for r in pilot["records"]],
-             "frame_average_angles": C4 if arm == "BF" else None, "tau": 0.1, "score_sample_counts": [1],
-             **lat.TIMING_IDENTITY, **(identity or {})}
+    expected = ident.registered_identity(arm, selection=pilot, audit=AUDIT, seed=42, timing=True)
     run = tmp_path / name
-    manifest = initialize_run(run, ident)
+    manifest = initialize_run(run, {**example_identity(expected, AUDIT), **(identity or {})})
     for record in pilot["records"]:
         n = (counts or {}).get(record["index"], record["candidate_count"])
         candidates = np.array([[0.75 * k, 0.0, 1.0] for k in range(n)], dtype=np.float32)
@@ -69,25 +69,25 @@ def test_a_nested_timing_pass_is_bound_to_its_subset_manifest(tmp_path):
     per_query = {i: {"candidate_subset": {"name": "nested_subset", "indices_sha256": f"s{i}"}} for i in (1, 2)}
     run = _run(tmp_path, "nested", "P1", pilot, identity={"candidate_subset": "nested_1m"}, per_query=per_query,
                counts={1: 2, 2: 3})
-    rows = lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8, subset_manifest=subset)
+    rows = lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8, subset_manifest=subset, audit=AUDIT)
     assert rows[2]["candidate_count"] == 3
     with pytest.raises(RuntimeError, match="candidate_subset"):
-        lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8)            # not a headline run
+        lat.load_arm_run(run, arm="P1", selection=pilot, context_count=8, audit=AUDIT)            # not a headline run
     bad = _run(tmp_path, "nested_bad", "P1", pilot, identity={"candidate_subset": "nested_1m"}, counts={1: 2, 2: 3},
                per_query={1: per_query[1], 2: {"candidate_subset": {"indices_sha256": "other"}}})
     with pytest.raises(RuntimeError, match="subset"):
-        lat.load_arm_run(bad, arm="P1", selection=pilot, context_count=8, subset_manifest=subset)
+        lat.load_arm_run(bad, arm="P1", selection=pilot, context_count=8, subset_manifest=subset, audit=AUDIT)
 
 
 def test_the_orbit_is_checked_and_a_rotated_run_is_never_a_timing_source(tmp_path):
     pilot = _pilot({1: 4})
     orbit = _run(tmp_path, "orbit0", "BF", pilot, identity={"frame_average_angles": [0.0]})
-    assert lat.load_arm_run(orbit, arm="BF", selection=pilot, context_count=8, frame_angles=(0.0,))
+    assert lat.load_arm_run(orbit, arm="BF", selection=pilot, context_count=8, frame_angles=(0.0,), audit=AUDIT)
     with pytest.raises(RuntimeError, match="frame_average_angles"):
-        lat.load_arm_run(orbit, arm="BF", selection=pilot, context_count=8)            # the default orbit is C4
+        lat.load_arm_run(orbit, arm="BF", selection=pilot, context_count=8, audit=AUDIT)            # the default orbit is C4
     turned = _run(tmp_path, "turned", "BF", pilot, identity={"rotate_deg": 90.0})
     with pytest.raises(RuntimeError, match="rotate_deg"):
-        lat.load_arm_run(turned, arm="BF", selection=pilot, context_count=8)
+        lat.load_arm_run(turned, arm="BF", selection=pilot, context_count=8, audit=AUDIT)
 
 
 def test_a_c2f_pass_is_validated_and_returns_its_sequential_totals(tmp_path):
@@ -98,10 +98,10 @@ def test_a_c2f_pass_is_validated_and_returns_its_sequential_totals(tmp_path):
     run = _run(tmp_path, "c2f", "BF", pilot, identity={"candidate_subset": "c2f", "c2f_top_k": 5,
                                                          "c2f_chebyshev_radius_m": 0.5}, per_query=per_query,
                counts={1: 9, 2: 10})
-    rows = lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=5)
+    rows = lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=5, audit=AUDIT)
     assert rows[2] == {"c2f_total": 1.0, "core": 0.8, "union_count": 10, "generated_count": 11}
     with pytest.raises(RuntimeError, match="c2f_top_k"):
-        lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=3)
+        lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=3, audit=AUDIT)
     head = _run(tmp_path, "head", "BF", pilot)
     with pytest.raises(RuntimeError, match="candidate_subset"):
-        lat.load_c2f_run(head, arm="BF", selection=pilot, top_k=5)
+        lat.load_c2f_run(head, arm="BF", selection=pilot, top_k=5, audit=AUDIT)

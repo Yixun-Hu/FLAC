@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from exp37_fakes import example_identity
+from src.localization import exp37_identity as ident
 from src.localization import exp37_latency as lat
 from src.localization.pilot import canonical_sha256
 from src.localization.runner import initialize_run, save_query_result
@@ -18,6 +20,7 @@ from src.localization.runner import initialize_run, save_query_result
 REPO = Path(__file__).resolve().parents[2]
 LB = REPO / "NeurIPS_2026_Workshop_Latency_Reproducibility"
 BUNDLE_ARMS = {"P1": "vanilla_flac", "BF": "fa_bf_flac", "YAW": "yawaug_flac"}
+AUDIT = {"sha256": "a" * 64, "mesh_root": "/m", "rooms": {"R": {"mesh_sha256": "b" * 64}}}
 
 
 def _bundle_queries(arm):
@@ -63,22 +66,26 @@ def _selector_file(tmp_path, selection, repeat_count=3, rows=None):
         {"query_index": r["index"], "query_id": r["query_id"], "room": r["room"], "candidate_count": r["candidate_count"],
          "agree": {"median_seconds": {"scoring_total_seconds": 0.25}}, "peak_memory_allocated_bytes": 100}
         for r in selection["records"]]
-    body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": "anything", "repeat_count": repeat_count,
-            "candidate_batch_size": 64, "queries": rows}
+    body = {"record_type": "exp37_agree_selector_latency", "selection_sha256": selection["sha256"],
+            "repeat_count": repeat_count, "candidate_batch_size": 64, "queries": rows,
+            "agree_checkpoint_file_sha256": ident.AGREE_SHA256, "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256}
     path = tmp_path / "selector.json"
     path.write_text(json.dumps({**body, "sha256": canonical_sha256(body)}))
     return path
 
 
-def test_the_selector_vector_may_cover_more_queries_but_must_match_each_one(tmp_path):
+def test_the_selector_vector_may_cover_more_queries_but_must_match_each_one(tmp_path, monkeypatch):
     big = _selection({1: 10, 2: 20, 3: 30})
     small = _selection({1: 10, 3: 30})
+    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (big["sha256"],))
     rows = lat.load_selector(_selector_file(tmp_path, big), small)
     assert sorted(rows) == [1, 3] and rows[3]["scoring_total_seconds"] == 0.25 and rows[3]["peak_memory_allocated_bytes"] == 100
-    with pytest.raises(RuntimeError, match="coverage"):
+    with pytest.raises(RuntimeError, match="superset"):                      # a smaller vector never serves
         lat.load_selector(_selector_file(tmp_path, small), big)
+    wrong = _selection({1: 11, 3: 30})
+    monkeypatch.setitem(lat.REGISTERED_SUPERSETS, small["sha256"], (wrong["sha256"],))
     with pytest.raises(RuntimeError, match="identity"):
-        lat.load_selector(_selector_file(tmp_path, _selection({1: 11, 3: 30})), small)
+        lat.load_selector(_selector_file(tmp_path, wrong), small)
     with pytest.raises(RuntimeError, match="repeat"):
         lat.load_selector(_selector_file(tmp_path, small, repeat_count=1), small)
 
@@ -107,12 +114,9 @@ def test_co_tenancy_from_the_host_records(tmp_path):
 
 
 def _arm_run(tmp_path, name, arm, selection, *, context_count=8, over=None, query_over=None):
-    identity = {"conditioning_method": lat.ARM_PROTOCOL[arm]["cond"], "checkpoint_sha256": lat.ARM_PROTOCOL[arm]["ckpt"],
-                "n_context": context_count, "score_sample_counts": [1], "measure_core_forward": True,
-                "synchronize_timing": True, "warmup_query_count": 1, "candidate_batch_size": 64, "tau": 0.1,
-                "attention_backend": "sdpa", "pilot_manifest_sha256": selection["sha256"],
-                "query_indices": [r["index"] for r in selection["records"]],
-                "frame_average_angles": lat.C4 if arm == "BF" else None, **(over or {})}
+    expected = ident.registered_identity(arm, selection=selection, audit=AUDIT, seed=42, timing=True,
+                                         context_count=context_count)
+    identity = {**example_identity(expected, AUDIT), **(over or {})}
     run = tmp_path / name
     manifest = initialize_run(run, identity)
     for r in selection["records"]:
@@ -129,7 +133,7 @@ def _arm_run(tmp_path, name, arm, selection, *, context_count=8, over=None, quer
 
 def test_an_arm_run_is_validated_against_its_protocol(tmp_path):
     selection = _selection({1: 10, 2: 20})
-    rows = lat.load_arm_run(_arm_run(tmp_path, "ok", "BF", selection), arm="BF", selection=selection, context_count=8)
+    rows = lat.load_arm_run(_arm_run(tmp_path, "ok", "BF", selection), arm="BF", selection=selection, context_count=8, audit=AUDIT)
     assert rows[2]["core"] == pytest.approx(0.3) and rows[2]["peak_memory_bytes"] == 1020
     for name, arm, over, needle in [("cond", "BF", {"conditioning_method": "vanilla"}, "conditioning_method"),
                                     ("flash", "P1", {"attention_backend": "flash_attn"}, "attention_backend"),
@@ -137,12 +141,12 @@ def test_an_arm_run_is_validated_against_its_protocol(tmp_path):
                                     ("pilot", "P1", {"pilot_manifest_sha256": "x"}, "pilot_manifest_sha256")]:
         with pytest.raises(RuntimeError, match=needle):
             lat.load_arm_run(_arm_run(tmp_path, name, arm, selection, over=over), arm=arm, selection=selection,
-                             context_count=8)
+                             context_count=8, audit=AUDIT)
     k1 = _arm_run(tmp_path, "k1", "P1", selection, context_count=1)
-    assert sorted(lat.load_arm_run(k1, arm="P1", selection=selection, context_count=1)) == [1, 2]
+    assert sorted(lat.load_arm_run(k1, arm="P1", selection=selection, context_count=1, audit=AUDIT)) == [1, 2]
     with pytest.raises(RuntimeError, match="latency_protocol"):
         lat.load_arm_run(_arm_run(tmp_path, "proto", "P1", selection, query_over={"latency_protocol": {}}),
-                         arm="P1", selection=selection, context_count=8)
+                         arm="P1", selection=selection, context_count=8, audit=AUDIT)
 
 
 def _rows(cores, stage_sums=None):
@@ -177,13 +181,13 @@ def test_headline_and_split_runs_are_never_confused(tmp_path):
     selection = _selection({1: 10})
     split_dir = _arm_run(tmp_path, "split", "P1", selection, over={"stage_split": True},
                          query_over=_split_query_over(10))
-    rows = lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8, stage_split=True)
+    rows = lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8, stage_split=True, audit=AUDIT)
     assert rows[1]["stage_seconds"]["vae_decode"] == pytest.approx(0.05) and rows[1]["stage_sum"] == pytest.approx(0.2)
     with pytest.raises(RuntimeError, match="stage_split"):
-        lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8)          # not a headline
+        lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8, audit=AUDIT)          # not a headline
     head_dir = _arm_run(tmp_path, "head", "P1", selection)
     with pytest.raises(RuntimeError, match="stage_split"):
-        lat.load_arm_run(head_dir, arm="P1", selection=selection, context_count=8, stage_split=True)
+        lat.load_arm_run(head_dir, arm="P1", selection=selection, context_count=8, stage_split=True, audit=AUDIT)
 
 
 def test_the_stage_breakdown_adds_the_selector_and_reports_absolute_peaks():

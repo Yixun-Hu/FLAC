@@ -17,16 +17,16 @@ from pathlib import Path
 
 import numpy as np
 
+from src.localization import exp37_identity as ident
 from src.localization.pilot import canonical_sha256
 
-ARM_PROTOCOL = {
-    "P1": {"cond": "vanilla", "ckpt": "c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c"},
-    "YAW": {"cond": "vanilla", "ckpt": "ac1f26034e4f341fe0c2cb4638e2eb473959d66ddd2fd95d184dc2fd4f264de7"},
-    "BF": {"cond": "fa_invariant", "ckpt": "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328"},
-}
+ARM_PROTOCOL = ident.ARMS
 SELECTOR_RECORD_TYPES = ("exp37_agree_selector_latency", "localization_selector_latency_kctx8_kgen1")
-TIMING_IDENTITY = {"score_sample_counts": [1], "measure_core_forward": True, "synchronize_timing": True,
-                   "warmup_query_count": 1, "candidate_batch_size": 64, "tau": 0.1, "attention_backend": "sdpa"}
+# a selection served by a selector vector measured on a registered superset (records contained identically)
+REGISTERED_SUPERSETS = {
+    "6eeeec401c3f63e47ab446b4b43efe2f1db260bad9decf74de423d0872b659a2":          # the 64-query seed-42 pilot
+        ("9bf75810a7fe6972049650748e015f9856b586f0c66d0554ef1b67c6bf8e041b",),   # the 128-query latency selection
+}
 CPU_COTENANT_PCPU = 10.0
 SPLIT_TOLERANCE = 0.02          # plan §10: outside 2 % the split is withheld, never the headline
 STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
@@ -64,13 +64,33 @@ def latency_statistics(core: dict, selector: dict, counts: dict) -> dict:
             "latency_seconds": {str(i): values[i] for i in ordered}}
 
 
+def ordered_subsequence(small: list, big: list) -> bool:
+    """True when every record of ``small`` occurs, identical and in order, among ``big``'s records."""
+    position = 0
+    for record in small:
+        while position < len(big) and big[position] != record:
+            position += 1
+        if position == len(big):
+            return False
+        position += 1
+    return True
+
+
 def load_selector(path: Path, selection: dict) -> dict:
-    """Per selection query: the selector term and its peak; the vector may cover MORE queries (e.g. the 128 vector
-    serving the 64-query pilot), never fewer, and each row must name the same query and candidate count."""
+    """Per selection query: the selector term and its peak. The vector must be the registered AGREE on the registered
+    context manifest, measured on this selection or on a REGISTERED superset; each row must name the same query,
+    room, candidate count (and candidate hash when recorded)."""
     payload = _hashed(path)
     if payload.get("record_type") not in SELECTOR_RECORD_TYPES or int(payload.get("repeat_count", -1)) != 3 \
             or int(payload.get("candidate_batch_size", -1)) != 64:
         raise RuntimeError(f"{path}: not a 3-repeat, batch-64 AGREE selector record")
+    if payload.get("agree_checkpoint_file_sha256") != ident.AGREE_SHA256:
+        raise RuntimeError(f"{path}: not the registered AGREE checkpoint")
+    if payload.get("context_manifest_sha256") != ident.CONTEXT_MANIFEST_SHA256:
+        raise RuntimeError(f"{path}: not the registered context manifest")
+    if payload.get("selection_sha256") != selection["sha256"] and payload.get("selection_sha256") not in \
+            REGISTERED_SUPERSETS.get(selection["sha256"], ()):
+        raise RuntimeError(f"{path}: measured on another selection that is not a registered superset of this one")
     rows = {int(row["query_index"]): row for row in payload["queries"]}
     out = {}
     for record in selection["records"]:
@@ -78,7 +98,9 @@ def load_selector(path: Path, selection: dict) -> dict:
         row = rows.get(index)
         if row is None:
             raise RuntimeError(f"{path}: selector coverage misses query {index}")
-        if any(row[key] != record[key] for key in ("query_id", "room", "candidate_count")):
+        keys = ["query_id", "room", "candidate_count"] + (
+            ["candidate_indices_sha256"] if "candidate_indices_sha256" in record and row.get("candidate_indices_sha256") else [])
+        if any(row[key] != record[key] for key in keys):
             raise RuntimeError(f"{path}: selector identity mismatch at query {index}")
         out[index] = {"scoring_total_seconds": float(row["agree"]["median_seconds"]["scoring_total_seconds"]),
                       "peak_memory_allocated_bytes": row.get("peak_memory_allocated_bytes"),
@@ -132,17 +154,8 @@ def selector_cotenancy(payload: dict) -> dict:
             "unidentified_card": not identified, "own_process_seen_on_card": own_seen}
 
 
-def _arm_identity(arm: str, selection: dict, context_count: int, frame_angles) -> dict:
-    return {**TIMING_IDENTITY, "conditioning_method": ARM_PROTOCOL[arm]["cond"],
-            "checkpoint_sha256": ARM_PROTOCOL[arm]["ckpt"], "n_context": int(context_count),
-            "pilot_manifest_sha256": selection["sha256"],
-            "query_indices": [int(r["index"]) for r in selection["records"]],
-            "frame_average_angles": (list(map(float, frame_angles)) if frame_angles else C4)
-            if ARM_PROTOCOL[arm]["cond"] == "fa_invariant" else None}
-
-
-def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False,
-                 subset_manifest: dict | None = None, frame_angles=None) -> dict:
+def load_arm_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, seed: int = 42, context_count: int = 8,
+                 stage_split: bool = False, subset_manifest: dict | None = None, frame_angles=None) -> dict:
     """``{query index: {core, context, candidate, peak_memory_bytes, candidate_count}}`` of one validated run;
     a headline run must be uninstrumented and a split run must be the split pass (plus its stage fields); the
     orbit (``frame_angles``, default C4 for fa) is checked; a rotated run is never a timing source; a nested-1.0 m
@@ -150,20 +163,14 @@ def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int
     run_dir = Path(run_dir)
     manifest = _hashed(run_dir / "run_manifest.json")
     identity = manifest["identity"]
-    want = _arm_identity(arm, selection, context_count, frame_angles)
-    if subset_manifest is not None:
-        if subset_manifest.get("parent_pilot_sha256") != selection["sha256"]:
-            raise RuntimeError("the subset manifest is not a subset of this selection")
-        want["candidate_subset"] = "nested_1m"
-    bad = [key for key, value in want.items() if identity.get(key) != value]
-    if bool(identity.get("stage_split")) != stage_split:
-        bad.append("stage_split")
-    if subset_manifest is None and "candidate_subset" in identity:
-        bad.append("candidate_subset")
-    if "rotate_deg" in identity:
-        bad.append("rotate_deg")
+    if subset_manifest is not None and subset_manifest.get("parent_pilot_sha256") != selection["sha256"]:
+        raise RuntimeError("the subset manifest is not a subset of this selection")
+    want = ident.registered_identity(arm, selection=selection, audit=audit, seed=seed, timing=True,
+                                     context_count=context_count, frame_angles=frame_angles, stage_split=stage_split,
+                                     candidate_subset="nested_1m" if subset_manifest is not None else None)
+    bad = ident.identity_reasons(identity, want, audit)
     if bad:
-        raise RuntimeError(f"{run_dir}: identity fields {bad} differ from the {arm} K_ctx={context_count} protocol")
+        raise RuntimeError(f"{run_dir}: {bad} (the {arm} K_ctx={context_count} seed-{seed} registered protocol)")
     protocol = {"name": f"fem_core_aligned_kctx{context_count}_kgen1", "context_count": int(context_count)}
     subset_rows = {int(r["index"]): r for r in (subset_manifest or {}).get("records", [])}
     rows = {}
@@ -233,16 +240,16 @@ def stage_breakdown(split: dict, selector: dict, counts: dict) -> dict:
     return {"seconds": seconds, "peak_memory": peaks}
 
 
-def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, top_k: int = 5) -> dict:
+def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, top_k: int = 5) -> dict:
     """``{query index: {c2f_total, core, union_count, generated_count}}`` of one validated c2f sequential pass."""
     run_dir = Path(run_dir)
     manifest = _hashed(run_dir / "run_manifest.json")
     identity = manifest["identity"]
-    want = {**_arm_identity(arm, selection, 8, None), "candidate_subset": "c2f", "c2f_top_k": int(top_k)}
-    bad = [key for key, value in want.items() if identity.get(key) != value]
-    bad += [key for key in ("rotate_deg", "stage_split") if key in identity]
+    want = ident.registered_identity(arm, selection=selection, audit=audit, seed=42, timing=True,
+                                     candidate_subset="c2f", c2f_top_k=top_k)
+    bad = ident.identity_reasons(identity, want, audit)
     if bad:
-        raise RuntimeError(f"{run_dir}: identity fields {bad} differ from the {arm} c2f (k = {top_k}) protocol")
+        raise RuntimeError(f"{run_dir}: {bad} (the {arm} c2f k = {top_k} registered protocol)")
     rows = {}
     for record in selection["records"]:
         index = int(record["index"])
