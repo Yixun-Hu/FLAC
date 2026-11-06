@@ -1,0 +1,35 @@
+GREEN, cycle 5 at HEAD cc6ded6d32afab5c38d8a533c6306a7fa9784f5d + the uncommitted chain script yaw_c4_spread_chain.sh (sha256 36d43632b69c7e283250095af0c67e39485625a8145bbf475e7a8f2cf2662b34) and the runner's RELEVANT binding
+......................                                                   [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_the_chain_runs_replay_check_then_the_24
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+22 passed, 3 warnings in 132.79s (0:02:12)

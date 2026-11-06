@@ -66,6 +66,7 @@ NO_FLASH_DIR="overlays/no_flash"                                   # exp_35: the
 NO_FLASH_OVERLAY="$NO_FLASH_DIR/flash_attn.py"; NO_FLASH_OVERLAY_SHA256="0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"
 NO_FLASH_LAUNCHER="$NO_FLASH_DIR/exp35_no_flash_launch.py"; NO_FLASH_LAUNCHER_SHA256="bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
 IDENTITY="worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_gpu_identity.py"
+EXP36_CHAIN="worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh"   # exp_36 (Codex H6): bound
 PY="/home/yixunhu/miniconda3/envs/flac/bin/python"        # the flac env, required
 EVAL_PROG="eval_FLAC.py"
 FARM_ROOT="outputs_FLAC/exp25_depth_canon"
@@ -140,7 +141,7 @@ else ARMS_JQ='. as $m | [.cells[] | select(.cell | startswith("exp35_") | not) |
 mapfile -t MODEL_CFGS < <(jq -r "$ARMS_JQ" "$CELLS")
 RELEVANT=(eval_FLAC.py src ':(exclude)src/tests' data/AR "${MODEL_CFGS[@]}" "$SELF" "$COLLECT" "$MAKE_CELLS"
           "$EXPDIR/depth_canon_cells.json" "$EXPDIR/depth_canon_audit_gate.py")
-[ "$N_NOFLASH" -gt 0 ] && RELEVANT+=("$NO_FLASH_DIR" "$IDENTITY")   # exp_35 (Codex C2 HIGH 2): only then
+[ "$N_NOFLASH" -gt 0 ] && RELEVANT+=("$NO_FLASH_DIR" "$IDENTITY" "$EXP36_CHAIN")   # exp_35 (Codex C2 HIGH 2) / exp_36
 tree_dirty() { git status --porcelain --untracked-files=all -- "${RELEVANT[@]}"; }
 tree_digest() {   # sha256 of the sorted sha256sum lines of every tracked + untracked (unignored) relevant file
   local lines
