@@ -106,8 +106,8 @@ def _run(frozen, tmp_path, **extra):
     return runner.run_localization(
         model_config_path=REPO / "src/configs/model_configs/FLAC/AR/FLAC_AR.json", checkpoint_path=_ckpt(tmp_path),
         agree_checkpoint_path=_ckpt(tmp_path), context_manifest=context, geometry_audit=audit, pilot_manifest=pilot,
-        dataset_root=tmp_path, output_dir=tmp_path / "run", device="cuda:0", cond_method="vanilla",
-        score_sample_counts=(1,), **extra)
+        dataset_root=tmp_path, output_dir=tmp_path / "run", device="cuda:0",
+        cond_method=extra.pop("cond_method", "vanilla"), score_sample_counts=(1,), **extra)
 
 
 def _identity(tmp_path):
@@ -290,3 +290,82 @@ def test_the_cli_passes_the_stage_split_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", base + ["--stage-split"])
     localize_FLAC.main()
     assert seen["stage_split"] is True
+
+
+
+def _recording_executor(monkeypatch, target, attribute):
+    """Route ``target.attribute`` to the fixture's recording stub and keep every call's keyword arguments."""
+    calls, stub = [], runner.execute_query
+    monkeypatch.setattr(target, attribute, lambda **kw: calls.append(kw) or stub(**kw))
+    return calls
+
+
+def test_frame_angles_reach_the_identity_and_the_executor(frozen, tmp_path, stubbed, monkeypatch):
+    calls = _recording_executor(monkeypatch, runner, "execute_query")
+    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0, 180.0))
+    assert _identity(tmp_path)["frame_average_angles"] == [0.0, 180.0] and calls[0]["frame_angles"] == (0.0, 180.0)
+
+
+def test_the_c4_default_keeps_the_bundle_identity(frozen, tmp_path, stubbed):
+    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant")
+    identity = _identity(tmp_path)
+    assert identity["frame_average_angles"] == [0.0, 90.0, 180.0, 270.0] and "candidate_subset" not in identity
+
+
+@pytest.mark.parametrize("cond, angles", [("vanilla", (0.0,)), ("fa_invariant", (0.0, 90.0)), ("fa_invariant", (90.0,))])
+def test_frame_angles_must_be_a_registered_fa_orbit(frozen, tmp_path, stubbed, cond, angles):
+    with pytest.raises(ValueError, match="frame"):
+        _run(frozen, tmp_path, query_index=4467, cond_method=cond, frame_angles=angles)
+    assert not (tmp_path / "run").exists()
+
+
+def test_the_nested_pass_uses_the_headline_executor_with_the_subset(frozen, tmp_path, stubbed, monkeypatch):
+    from src.localization.exp37_grid import nested_subset
+    calls = _recording_executor(monkeypatch, runner, "execute_query")
+    _run(frozen, tmp_path, query_index=4467, candidate_subset="nested_1m", measure_core_forward=True,
+         synchronize_timing=True)
+    assert calls[0]["candidate_subset"] is nested_subset and _identity(tmp_path)["candidate_subset"] == "nested_1m"
+
+
+def test_the_c2f_pass_uses_its_own_executor(frozen, tmp_path, stubbed, monkeypatch):
+    from src.localization import exp37_c2f
+    calls = _recording_executor(monkeypatch, exp37_c2f, "execute_query_c2f")
+    monkeypatch.setattr(runner, "execute_query", lambda **kw: (_ for _ in ()).throw(AssertionError("headline ran")))
+    _run(frozen, tmp_path, query_index=4467, candidate_subset="c2f", c2f_top_k=5, measure_core_forward=True,
+         synchronize_timing=True)
+    identity = _identity(tmp_path)
+    assert (identity["candidate_subset"], identity["c2f_top_k"], identity["c2f_chebyshev_radius_m"]) == ("c2f", 5, 0.5)
+    assert calls[0]["top_k_count"] == 5 and calls[0]["candidate_subset"] is None
+
+
+def test_subset_passes_are_timing_passes_never_resumed_and_never_split(frozen, tmp_path, stubbed):
+    with pytest.raises(ValueError, match="measure-core-forward"):
+        _run(frozen, tmp_path, query_index=4467, candidate_subset="nested_1m")
+    with pytest.raises(ValueError, match="subset"):
+        _run(frozen, tmp_path, query_index=4467, candidate_subset="c2f", measure_core_forward=True,
+             synchronize_timing=True, stage_split=True)
+    _run(frozen, tmp_path, query_index=4467, candidate_subset="nested_1m", measure_core_forward=True,
+         synchronize_timing=True)
+    with pytest.raises(RuntimeError, match="fresh"):
+        _run(frozen, tmp_path, query_index=4467, candidate_subset="nested_1m", measure_core_forward=True,
+             synchronize_timing=True)
+
+
+def test_the_cli_passes_the_b3_and_subset_flags(monkeypatch):
+    sys.path.insert(0, str(REPO))
+    import localize_FLAC
+
+    seen = {}
+    monkeypatch.setattr(localize_FLAC, "run_localization", lambda **kw: seen.update(kw) or {"ok": True})
+    base = ["localize_FLAC.py", "--model-config", "c.json", "--ckpt-path", "k.ckpt", "--agree-ckpt", "a.pt",
+            "--context-manifest", str(E9 / "context_manifest_exp01_seed42.json"),
+            "--geometry-audit", str(E9 / "geometry_audit.json"), "--pilot-manifest", str(SELECTION_128),
+            "--dataset-root", "AcousticRooms", "--output-dir", str(REPO / "never_created_by_this_test"),
+            "--cond-method", "fa_invariant"]
+    monkeypatch.setattr(sys, "argv", base)
+    localize_FLAC.main()
+    assert seen["frame_angles"] is None and seen["candidate_subset"] is None and seen["c2f_top_k"] == 5
+    monkeypatch.setattr(sys, "argv", base + ["--frame-avg-angles", "0", "180", "--candidate-subset", "c2f",
+                                             "--c2f-top-k", "3"])
+    localize_FLAC.main()
+    assert seen["frame_angles"] == (0.0, 180.0) and seen["candidate_subset"] == "c2f" and seen["c2f_top_k"] == 3
