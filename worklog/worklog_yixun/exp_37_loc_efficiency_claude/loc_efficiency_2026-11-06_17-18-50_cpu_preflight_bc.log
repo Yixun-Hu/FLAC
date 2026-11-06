@@ -1,0 +1,23 @@
+HEAD 5aa7ddc66a660c654d8627d4c26f101ccc8300d0
+=== case nested: --ckpt-path weights/exp20/P1_40k.ckpt --cond-method vanilla --geometry-audit worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json --pilot-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json --sample-seed 42 --synchronize-latency --warmup-query-count 1 --measure-core-forward --candidate-subset nested_1m
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+exists after: none
+=== case c2f: --ckpt-path weights/exp20/BF_40k.ckpt --cond-method fa_invariant --geometry-audit worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json --pilot-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json --sample-seed 42 --synchronize-latency --warmup-query-count 1 --measure-core-forward --candidate-subset c2f --c2f-top-k 5
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+exists after: none
+=== case 0p75: --ckpt-path weights/exp20/BF_40k.ckpt --cond-method fa_invariant --geometry-audit worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.json --pilot-manifest worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/pilot_manifest_0p75_seed42_4_per_room.json --sample-seed 43 --synchronize-latency --warmup-query-count 1 --measure-core-forward
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+exists after: none
+=== case rot90_0_180: --ckpt-path weights/exp20/BF_40k.ckpt --cond-method fa_invariant --geometry-audit worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json --pilot-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json --sample-seed 44 --frame-avg-angles 0 180 --rotate-deg 90
+EXP37_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=8fd288ea9d768665c21277789a88477234400e1de9b2118a976dfc605
+    raise RuntimeError("formal localization requires an available CUDA device")
+RuntimeError: formal localization requires an available CUDA device
+exists after: none
+=== selector selection OK: worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/pilot_manifest_0p75_seed42_4_per_room.json queries 64 candidates 11537
+=== selector selection OK: worklog/worklog_yixun/exp_37_loc_efficiency_claude/manifests/nested_1m_pilot_seed42_4_per_room.json queries 64 candidates 6610
