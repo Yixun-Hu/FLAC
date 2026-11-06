@@ -7,6 +7,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -24,6 +25,13 @@ LAUNCH_ENV = ["HOME=/home/yixunhu", "USER=yixunhu", "LOGNAME=yixunhu", "LANG=en_
               "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "PYTHONDONTWRITEBYTECODE=1"]
 
 
+WEIGHT_ASSETS = ("weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt",
+                 "weights/FLAC/FLAC_EMA.ckpt", "weights/FLAC/VAE.ckpt", "weights/AGREE/AGREE_fullAR.pt")
+TRACKED_WEIGHT = "weights/FLAC/FLAC_EMA_metrics_tracked_stand_in.json"   # PIN2 tracks files under weights/FLAC/
+WEIGHT_LINKS = {"weights/AGREE": "weights/AGREE", "weights/exp20": "weights/exp20",   # the Planner's layout
+                "weights/FLAC/FLAC_EMA.ckpt": "weights/FLAC/FLAC_EMA.ckpt", "weights/FLAC/VAE.ckpt": "weights/FLAC/VAE.ckpt"}
+
+
 def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
     cfg = cfg_for(tmp_path)
     with open(cfg.queue_log, "a") as f:
@@ -32,23 +40,26 @@ def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
     (tmp_path / "apps.txt").write_text("")
     nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
     nv.chmod(0o755)
-    w = tmp_path / "W"
-    w, pin2 = sandbox_repo(tmp_path, common=dict(
+    w, main = tmp_path / "W", tmp_path / "main"
+    w, pin2 = sandbox_repo(tmp_path, tracked={TRACKED_WEIGHT: "{}"}, common=dict(
         RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
         NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
         PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
         "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
-                                       OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                       OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(main / "weights"),
                                        ROOMS_TARGET=str(w / "AcousticRooms"), DINO_CACHE=str(tmp_path / "dinov3"),
                                        CONFIRM_TIMEOUT_S=30),
         "exp22_free_card_detect.sh": dict(PY=sys.executable)})
     for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
-              "weights/exp20", "weights/FLAC", "weights/AGREE", "AcousticRooms/metadata", "AcousticRooms/depth_map"):
+              "AcousticRooms/metadata", "AcousticRooms/depth_map", "AcousticRooms/single_channel_ir_1"):
         os.makedirs(os.path.join(w, d), exist_ok=True)
-    for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
-              "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt",
-              "weights/FLAC/FLAC_EMA.ckpt", "weights/AGREE/AGREE_fullAR.pt"):
+    for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json"):
         open(os.path.join(w, f), "w").write("{}")
+    for rel in WEIGHT_ASSETS:                                           # the main checkout's untracked weights
+        os.makedirs(os.path.dirname(main / rel), exist_ok=True)
+        (main / rel).write_text(f"stand-in {rel}\n")
+    for rel, target in WEIGHT_LINKS.items():                            # one link per untracked entry (the layout)
+        os.symlink(main / target, os.path.join(w, rel))
     os.makedirs(tmp_path / "dinov3")                                    # the stand-in DINOv3 HF cache
     script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
     sha = E.sha256_bytes(open(script, "rb").read())
@@ -59,7 +70,7 @@ def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
         if popen:
             return subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         return subprocess.run(argv, env=env, capture_output=True, text=True, timeout=600)
-    lab = types.SimpleNamespace(w=str(w), pin2=pin2, cfg=cfg, run=run, sha=sha, tmp=tmp_path,
+    lab = types.SimpleNamespace(w=str(w), pin2=pin2, cfg=cfg, run=run, sha=sha, tmp=tmp_path, main=main,
                                 ex=os.path.join(str(w), "outputs_loc", "exp22"),
                                 res=lambda u=GPU0: os.path.join(cfg.reservations, f"{u}.json"))
     lab.control = lambda d: open(os.path.join(lab.w, "a7_control.json"), "w").write(json.dumps(d))
@@ -132,7 +143,8 @@ def test_the_capture_refuses_without_the_reviewed_script_sha256(tmp_path):
 
 
 @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
-                                      "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+                                      "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache", "t-vae", "t-wavs",
+                                      "weights-dir-link", "asset-copy", "asset-wrong-link"])
 def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
     lab = make_lab(tmp_path)
     card = "GPU1" if breakage == "gpu1-table-job" else "GPU0"
@@ -144,10 +156,24 @@ def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
     elif breakage == "dirty":
         open(os.path.join(lab.w, "localize_meshgrid.py"), "a").write("# edited\n")
     elif breakage == "asset":
-        os.unlink(os.path.join(lab.w, "weights", "exp20", "BF_40k.ckpt"))
-    elif breakage in ("t-checkpoint", "t-agree"):                        # the T tests would skip without them
-        os.unlink(os.path.join(lab.w, "weights", *(("FLAC", "FLAC_EMA.ckpt") if breakage == "t-checkpoint"
-                                                     else ("AGREE", "AGREE_fullAR.pt"))))
+        os.unlink(lab.main / "weights" / "exp20" / "BF_40k.ckpt")
+    elif breakage in ("t-checkpoint", "t-vae"):                          # a missing per-entry link
+        os.unlink(os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt" if breakage == "t-checkpoint" else "VAE.ckpt"))
+    elif breakage == "t-agree":                                          # the T tests would skip without it
+        os.unlink(lab.main / "weights" / "AGREE" / "AGREE_fullAR.pt")
+    elif breakage == "t-wavs":
+        os.rmdir(os.path.join(lab.w, "AcousticRooms", "single_channel_ir_1"))
+    elif breakage == "weights-dir-link":                                 # the whole directory as one link
+        shutil.rmtree(os.path.join(lab.w, "weights"))
+        os.symlink(lab.main / "weights", os.path.join(lab.w, "weights"))
+    elif breakage == "asset-copy":                                       # byte-identical, another inode
+        link = os.path.join(lab.w, "weights", "FLAC", "VAE.ckpt")
+        os.unlink(link)
+        shutil.copy(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
+    elif breakage == "asset-wrong-link":                                 # a link to another file
+        link = os.path.join(lab.w, "weights", "FLAC", "FLAC_EMA.ckpt")
+        os.unlink(link)
+        os.symlink(lab.main / "weights" / "FLAC" / "VAE.ckpt", link)
     elif breakage == "t-depth-map":
         os.rmdir(os.path.join(lab.w, "AcousticRooms", "depth_map"))
     elif breakage == "t-dinov3-cache":
@@ -163,6 +189,52 @@ def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
     assert p.returncode == 1 and "CHECK FAILED" in p.stdout and "SEAL " not in p.stdout, p.stdout[-3000:]
     assert not [d for d in os.listdir(lab.ex) if d.startswith("r2_preflight_") and
                 os.path.exists(os.path.join(lab.ex, d, "seal.txt"))]
+    expect = {"weights-dir-link": ["CHECK FAILED: the tracked tree is clean",
+                                   "CHECK FAILED: weights/ is this worktree's own directory"],
+              "asset-copy": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt is the main checkout's file"],
+              "asset-wrong-link": ["CHECK FAILED: asset weights/FLAC/FLAC_EMA.ckpt is the main checkout's file"],
+              "t-vae": ["CHECK FAILED: asset weights/FLAC/VAE.ckpt"],
+              "t-wavs": ["CHECK FAILED: asset AcousticRooms/single_channel_ir_1/"]}.get(breakage, [])
+    assert all(e in p.stdout for e in expect), (expect, p.stdout[-3000:])
+
+
+def test_the_per_entry_layout_passes_the_capture_with_tracked_weights_files(tmp_path):
+    lab = make_lab(tmp_path)
+    tracked = subprocess.run(["git", "-C", lab.w, "ls-files", "weights"], capture_output=True, text=True).stdout.split()
+    assert tracked == [TRACKED_WEIGHT] and os.path.isdir(os.path.join(lab.w, "weights"))
+    seal, ssha, out = captured(lab)
+    assert "CHECK OK: weights/ is this worktree's own directory" in out
+    assert all(f"CHECK OK: asset {rel} is the main checkout's file" in out for rel in WEIGHT_ASSETS), out[-3000:]
+
+
+def _script_array(name):
+    return re.search(name + r"=\(([^)]*)\)", open(SCRIPT).read())[1].split()
+
+
+def test_pin2_tracks_files_under_weights_so_the_per_asset_form_is_required():
+    """The defect A7-C3 fixes: at PIN2 weights/ holds tracked files, so it can never be one link (git would read them
+    as deleted); every registered weights asset is an untracked file reached through a per-entry link."""
+    repo = os.path.abspath(os.path.join(os.path.dirname(SCRIPT), "..", "..", "..", ".."))
+    tracked = subprocess.run(["git", "-C", repo, "ls-files", "weights"], capture_output=True, text=True,
+                             check=True).stdout.split()
+    assert tracked and all(t.startswith("weights/FLAC/") for t in tracked)
+    assert tuple(_script_array("WEIGHT_ASSETS")) == WEIGHT_ASSETS and not set(WEIGHT_ASSETS) & set(tracked)
+
+
+def test_the_weight_assets_cover_every_weights_file_the_lines_and_t_open():
+    """Statically: the gates' and the probe's --ckpt-path, the model config's AGREE checkpoint (the scorer every line
+    builds), the AGREE dinoV3 audio tower's pretrained VAE (opened while that scorer is built) and T's released
+    FLAC checkpoint (test_eval_localization._FLAC_CKPT); T's other files are not under weights/."""
+    repo = os.path.abspath(os.path.join(os.path.dirname(SCRIPT), "..", "..", "..", ".."))
+    lines = json.load(open(os.path.join(os.path.dirname(SCRIPT), "exp22_r2c_preflight_lines.json")))["lines"]
+    ckpts = {ln["argv"][ln["argv"].index("--ckpt-path") + 1] for ln in lines if "--ckpt-path" in ln["argv"]}
+    agree = json.load(open(os.path.join(repo, "src/configs/model_configs/FLAC/AR/FLAC_AR.json")))["training"]["metrics"]
+    vae = json.load(open(os.path.join(repo, "AGREE/AGREE/model_configs/dinoV3.json")))["audio_cfg"]["pretrained"]
+    text = open(os.path.join(repo, "src/tests/test_eval_localization.py")).read()
+    flac = re.search(r'^_FLAC_CKPT = os\.path\.join\(_REPO_ROOT, "weights", "FLAC", "FLAC_EMA\.ckpt"\)$', text, re.M)
+    want = ckpts | {agree["AGREE_ckpt"], vae, "weights/FLAC/FLAC_EMA.ckpt" if flac else "?"}
+    assert ckpts == {"weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"}
+    assert want == set(WEIGHT_ASSETS), want
 
 
 def test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed(tmp_path):
