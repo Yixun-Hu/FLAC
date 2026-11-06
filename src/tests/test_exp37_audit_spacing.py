@@ -62,4 +62,4 @@ def test_the_pilot_cli_refuses_to_write_other_queries(monkeypatch, tmp_path):
                                      str(E9 / "pilot_manifest_seed42_4_per_room.json")])
     with pytest.raises(SystemExit) as stop:
         pilot_tool.main()
-    assert stop.value.code == 2 and not out.exists()
+    assert stop.value.code == 3 and not out.exists()                    # 3 = refused (argparse errors exit 2)
