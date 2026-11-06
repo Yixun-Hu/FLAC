@@ -162,7 +162,7 @@ def _wait_gone(b, pid, timeout=60):
 def test_a_crash_before_the_spawn_leaves_spawning_without_a_runner(tmp_path, monkeypatch):
     b = _pending(tmp_path)
     _in_process(monkeypatch)
-    monkeypatch.setattr(K.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(Crash()))
+    monkeypatch.setattr(K, "spawn", lambda *a, **k: (_ for _ in ()).throw(Crash()))
     try:
         with pytest.raises(Crash):
             K.wrap(b.cfg, orch=b.orch, lock_fd=b.fd)
@@ -176,7 +176,7 @@ def test_a_crash_before_the_spawn_leaves_spawning_without_a_runner(tmp_path, mon
 def test_a_spawn_error_is_a_durable_runner_spawn_failure(tmp_path, monkeypatch):
     b = _pending(tmp_path)
     _in_process(monkeypatch)
-    monkeypatch.setattr(K.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("exec failed")))
+    monkeypatch.setattr(K, "spawn", lambda *a, **k: (_ for _ in ()).throw(OSError("exec failed")))
     try:
         assert K.wrap(b.cfg, orch=b.orch, lock_fd=b.fd) == 3
     finally:
@@ -191,8 +191,8 @@ def test_a_crash_after_the_spawn_leaves_the_runner_running_and_the_state_for_rev
     b = _pending(tmp_path, hold=hold)
     _in_process(monkeypatch)
     spawned = []
-    real_popen = K.subprocess.Popen
-    monkeypatch.setattr(K.subprocess, "Popen", lambda *a, **k: spawned.append(real_popen(*a, **k)) or spawned[-1])
+    real_spawn = K.spawn
+    monkeypatch.setattr(K, "spawn", lambda *a, **k: spawned.append(real_spawn(*a, **k)) or spawned[-1])
     monkeypatch.setattr(K, "identify" if point == "identify" else "wait_for",
                         lambda *a, **k: (_ for _ in ()).throw(Crash()))
     try:

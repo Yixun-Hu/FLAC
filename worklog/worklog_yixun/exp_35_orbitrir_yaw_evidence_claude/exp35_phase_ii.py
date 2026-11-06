@@ -15,6 +15,7 @@ Part 3b: the orchestration directory, its durable state machine, the kit lock an
 Part 4a: the exact runner command and the exact parser of its DRY_RUN transcript.
 Part 4b: the dry-run transaction (from 'reserved' only; the runner is never given a timeout: the kit never kills).
 Part 5a: the detached wrapper -- the kit lock, both complete identities and environment proofs, the exact rc.
+Part 5b: the launch (the matching fresh dry run, the recheck, launch_pending, the last look, the detachment).
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -1214,6 +1215,17 @@ def identify(p, spec, cfg):
         time.sleep(0.01)
 
 
+def spawn(argv, *, cwd, env, log, lock_fd):
+    """One child: its exact argv, environment and cwd, stdin /dev/null, stdout + stderr into ``log`` (created O_EXCL),
+    the kit lock's fd passed on (so every descendant holds the lock while it lives), every other fd closed."""
+    fd = os.open(log, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    try:
+        return subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=fd, stderr=subprocess.STDOUT,
+                                pass_fds=(lock_fd,), close_fds=True)
+    finally:
+        os.close(fd)
+
+
 def wait_for(p):
     """The runner's exit code, waited for: never a timeout, never a signal (S5)."""
     return p.wait()
@@ -1266,12 +1278,7 @@ def wrap(cfg, *, orch, lock_fd, world=None):
     spec = st["launch"]["runner"]
     commit("spawning")
     try:
-        fd = os.open(spec["log"], os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-        try:
-            p = subprocess.Popen(spec["argv"], cwd=spec["cwd"], env=spec["env"], stdin=subprocess.DEVNULL, stdout=fd,
-                                 stderr=subprocess.STDOUT, pass_fds=(lock_fd,), close_fds=True)
-        finally:
-            os.close(fd)
+        p = spawn(spec["argv"], cwd=spec["cwd"], env=spec["env"], log=spec["log"], lock_fd=lock_fd)
     except OSError as err:
         commit("runner_spawn_failed", failure={"reasons": [f"the runner could not be spawned ({err})"],
                                                "time": iso(world.now())})
@@ -1291,6 +1298,82 @@ def wrap(cfg, *, orch, lock_fd, world=None):
     write_json_atomic(state_path(orch), st)
     return 0
 
+
+
+# --------------------------------------------------------------------------- #
+# part 5b: the launch (S6 "before launch, reauthenticate every reservation, recheck the cards and runner lock, and
+# require the matching successful dry run") and its read-only confirmation
+# --------------------------------------------------------------------------- #
+def launch(world, cfg, *, kit_commit, h35, orch):
+    """§15 item 7: from 'dry_run_passed' only -- the dry run of THIS exact command, fresh; the recheck; 'launch_pending'
+    BEFORE any spawn; the last look; then the wrapper DETACHED with the kit lock's fd, and its identity confirmed.
+    A refusal is retained ('launch_refused'). Never waits for, signals or controls the runner. (rc, message)."""
+    opened, why = open_mode(cfg, kit_commit, h35, orch, ("dry_run_passed",))
+    if opened is None:
+        return 1, "LAUNCH REFUSED (nothing changed): " + "; ".join(why)
+    lock, st = opened
+    try:
+        spec, d, now = launch_spec(cfg, st, orch, lock), st["dry_run"], world.now()
+        r = spec["runner"]
+        why = [] if (d["argv"], d["env"], d["cwd"]) == (r["argv"], dict(r["env"], DRY_RUN="1"), r["cwd"]) else [
+            "the passed dry run is not this exact command"]
+        why += [] if 0 <= now - d["ended"] <= cfg.dry_max_age_s else [
+            f"the dry run ended {now - d['ended']:.0f} s ago: older than {cfg.dry_max_age_s} s, or in the future"]
+        try:
+            more, before = recheck(world, cfg, st, orch)
+        except Unreadable as err:
+            more, before = [f"unreadable: {err}"], None
+        if not why + more:
+            st.update(phase="launch_pending", launch=dict(spec, started=now, before=before))
+            event(st, now, "launch_pending: the detached wrapper is spawned next")
+            write_json_atomic(state_path(orch), st)
+            try:
+                last = observe(world, cfg, tuple(x["index"] for x in st["lanes"]), held=st["reservations"])["reasons"]
+            except Unreadable as err:
+                last = [f"unreadable: {err}"]
+            more = [f"at the last look: {x}" for x in last]
+        if why + more:
+            st.update(phase="launch_refused", failure={"reasons": why + more, "time": iso(world.now())})
+            event(st, world.now(), "launch_refused", reasons=(why + more)[:5])
+            write_json_atomic(state_path(orch), st)
+            return 1, "LAUNCH REFUSED (retained; release, then reserve anew): " + "; ".join(why + more)
+        w = spec["wrapper"]
+        try:
+            p = spawn(w["argv"], cwd=w["cwd"], env=w["env"], log=w["log"], lock_fd=lock)
+        except OSError as err:
+            st.update(phase="wrapper_spawn_failed", failure={"reasons": [f"the wrapper could not be spawned ({err})"],
+                                                             "time": iso(world.now())})
+            write_json_atomic(state_path(orch), st)
+            return 1, f"LAUNCH FAILED (retained): the wrapper could not be spawned ({err})"
+    finally:
+        os.close(lock)                                  # the detached wrapper keeps the lock through its inherited fd
+    return confirm(cfg, orch, p.pid)
+
+
+def confirm(cfg, orch, pid):
+    """Read-only, after the detachment: within ``confirm_s`` the state must name the live ``pid`` as the wrapper with
+    its complete identity and the runner alive -- or report what the wrapper recorded instead. Never signals."""
+    deadline, st = time.monotonic() + cfg.confirm_s, None
+    while st is None or st["phase"] not in ("running", "exited", "wrapper_refused", "runner_spawn_failed"):
+        if time.monotonic() > deadline:
+            return 1, (f"LAUNCH NOT CONFIRMED within {cfg.confirm_s} s (phase {st['phase'] if st else None}); the "
+                       f"wrapper pid {pid} is never signalled: inspect {orch} with status")
+        time.sleep(0.1)
+        try:
+            st = load_state(orch)
+        except ValueError:
+            st = None
+    if st["phase"] != "running":
+        return 1, f"LAUNCHED, BUT {st['phase']}: {st['exit'] or st['failure']} -- the Planner reviews; no relaunch"
+    w, r = st["wrapper"], st["runner"]
+    try:
+        ok = w["pid"] == pid and identity_status(w, cfg.proc) == "alive" and identity_status(r, cfg.proc) == "alive"
+    except ValueError as err:                            # an unidentified runner, or an unreadable identity
+        ok, w = False, dict(w, why=str(err))
+    if not ok:
+        return 1, f"LAUNCH NOT CONFIRMED: the recorded wrapper {w} / runner {r} are not both alive as pid {pid}'s run"
+    return 0, (f"LAUNCHED: wrapper pid {pid} (start time {w['start_time']}), runner pid {r['pid']} (start time "
+               f"{r['start_time']}); state running; {orch}")
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="exp_35 phase (ii): the launch kit's helper (run by exp35_phase_ii.sh)")
