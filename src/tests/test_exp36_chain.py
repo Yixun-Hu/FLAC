@@ -138,8 +138,10 @@ H, a = os.environ["EXP36_CHAIN_HARNESS"], sys.argv[1:]
 with open(os.path.join(H, "calls.txt"), "a") as f:
     f.write("COLLECT\nenv CVD=%s\n" % os.environ.get("CUDA_VISIBLE_DEVICES", "unset") + "\n".join(a) + "\nEND\n")
 rc = int(os.environ.get("STUB_CHECK_RC", "0"))
-with open(a[a.index("--verdict-out") + 1], "x") as f:
-    json.dump({"result": {0: "equal", 1: "mismatch"}.get(rc, "refused")}, f)
+verdict = os.environ.get("STUB_VERDICT", {0: "equal", 1: "mismatch"}.get(rc, "refused"))
+if verdict != "none":
+    with open(a[a.index("--verdict-out") + 1], "x") as f:
+        json.dump({"result": verdict}, f)
 print("EXP36 REPLAY " + {0: "EQUAL", 1: "MISMATCH"}.get(rc, "REFUSED"))
 sys.exit(rc)
 """
@@ -200,6 +202,10 @@ def test_the_chain_runs_replay_check_then_the_24(clone36, ch):
     ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
     ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
     ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+    ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+    ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
 ])
 def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
     rc, out = chain(clone36, ch, env=env)

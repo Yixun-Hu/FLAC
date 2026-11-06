@@ -189,3 +189,10 @@ def test_cli_publish_exit_codes(pub, tmp_path, monkeypatch, capsys):
     assert _cli(pub, tmp_path, monkeypatch) == 0 and "EXP36 PUBLISHED 48" in capsys.readouterr().out
     assert _cli(pub, tmp_path, monkeypatch) == 2 and "REFUSED" in capsys.readouterr().out
     assert _cli(pub, tmp_path, monkeypatch, "--exp36-publish-resume") == 0                # all 48 byte-identical
+
+
+def test_cli_a_crashed_publication_exits_3_never_0(pub, tmp_path, monkeypatch, capsys):
+    def boom(**kw):
+        raise RuntimeError("simulated crash")
+    monkeypatch.setattr(C, "exp36_publish", boom)
+    assert _cli(pub, tmp_path, monkeypatch) == 3 and "CRASHED" in capsys.readouterr().out

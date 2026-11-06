@@ -241,3 +241,13 @@ def test_the_real_archived_reference_verifies_against_the_pinned_digests():
         pins["metrics_sha256"], pins["stream_sha256"], pins["receipt_sha256"], pins["log_sha256"]]
     assert pins["metrics_sha256"].startswith("fc8cb212") and pins["stream_sha256"].startswith("e671270f")
     assert pins["receipt_sha256"].startswith("ee7d624a") and pins["log_sha256"].startswith("8cbf6e24")
+
+
+def test_cli_a_crashed_check_is_refused_never_a_mismatch(world, tmp_path, monkeypatch, capsys):
+    """An uncaught exception would exit 1 -- the mismatch code; the CLI maps any crash to 2 (refused)."""
+    def boom(**kw):
+        raise RuntimeError("simulated crash")
+    monkeypatch.setattr(C, "exp36_replay_check", boom)
+    out = tmp_path / "v.json"
+    assert _cli(world, tmp_path, monkeypatch, "--verdict-out", str(out)) == 2 and not out.exists()
+    assert "REFUSED" in capsys.readouterr().out
