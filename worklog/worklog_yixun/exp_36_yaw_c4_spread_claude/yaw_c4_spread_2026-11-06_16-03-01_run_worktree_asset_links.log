@@ -1,0 +1,11 @@
+Fri Nov  6 04:03:01 PM EST 2026
+amendment A1: chain I (offorbit) runs from a DETACHED run worktree /home/yixunhu/codespace/exp-36-run at H36_I 461c58e0a70747d163e554ebb123a5869d3a38c2, so that further commits on branch exp-36-yaw-c4-spread (the publish sets, records) can never move the HEAD of a running campaign (the runner re-checks HEAD == EXPECT_HEAD before every spawn)
+HEAD 461c58e0a70747d163e554ebb123a5869d3a38c2 (HEAD)
+AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms (resolves: /media/diskstation/yixunhu/FLAC/AcousticRooms)
+weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE (resolves: /home/yixunhu/codespace/FLAC/weights/AGREE)
+weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt (resolves: /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt)
+6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf  weights/FLAC/VAE.ckpt
+3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787  weights/AGREE/AGREE_fullAR.pt
+git status --short:
+?? AcousticRooms
+Fri Nov  6 04:03:03 PM EST 2026

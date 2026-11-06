@@ -1,0 +1,11 @@
+publish gate smoke (read-only; expected REFUSED at the verdict, nothing written) from the dev worktree at a198d46d4f7ffced646e64ae97cb3b7c940bbf33 against the run worktree at 461c58e0 and the real exp-25 worktree
+EXP36 PUBLISH REFUSED (nothing written)
+  - the verdict '/nonexistent/verdict.json' is unreadable ([Errno 2] No such file or directory: '/nonexistent/verdict.json')
+rc=2
+EXP36 PUBLISH REFUSED (nothing written)
+  - the verdict '/nonexistent/verdict.json' is unreadable ([Errno 2] No such file or directory: '/nonexistent/verdict.json')
+rc=2
+EXP36 PUBLISH REFUSED (nothing written)
+  - the verdict '/nonexistent/verdict.json' is unreadable ([Errno 2] No such file or directory: '/nonexistent/verdict.json')
+rc=2 (base dir = this dev worktree, pin = its HEAD)
+0

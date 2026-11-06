@@ -2,3 +2,40 @@
 
 ## 2026-11-06T14:52:04-05:00 — Planner: the one Codex plan review = APPROVE-WITH-CHANGES → the Coder round starts
 - Review: `yaw_c4_spread_codex_plan_review.md` (verbatim). Binding (in the brief `yaw_c4_spread_coder_brief_r1.md`, which names the review as overriding the plan): B1 `uses_no_flash()` separate from `is_exp35()` (`EXP35_BLOCKS` unchanged) + an exp_36 name validator; B2 explicit generator name/tag control, block `YAW-C4S` = 25 rows (orders 346–370, priority 18, replay first), the H35 render (`build_manifest(exp36=False)`, sha256 `440eb1be…`) and the exp_25-only render (`1073ef64…`) preserved by regression tests; B3 a cross-worktree replay verification (reference at the exp-25 worktree, pin `d6ca307a`, dump expected; replay at the exp_36 worktree, pin H36, dump-free, campaign digest; the three archived raw digests verified first; a SHA-bound verdict); B4 one fail-closed chain replay → comparator → the 24 (exit 0 required), publish re-checks or consumes the verdict; H1 `YAW-C4S` out of default selection; H2 no further key excluded from equality; H4 hardened publication (pinned plain destination, exp-25 HEAD, 48-path preflight, atomic no-replace, never the replay or receipts, recovery); H5 A on ONE fixed card (GPU 1), B on GPU 0, `ALLOW_SHARED_GPU` unset, RELEASE only by the A/B coordinator (the Planner) after both; H6 the exp_36 records imported into the leaf branch, the runner's log locations handled; H7 the paper script needs `YAW_SEEDS = 42–46` AND its seed-42 labels changed (Yixun's / the desktop session's paper-repo edit).
+
+## 2026-11-06T16:20:00-05:00 — Coder r1 (Opus 5.5): the exp_36 code round + amendment A1, TDD cycles 1-10
+- **Goal** — implement the brief r1 (plan r0 as overridden by the Codex plan review B1-B4 / H1-H7) and the Planner's
+  amendment A1 (Yixun 15:30 / 15:32: the seed-42 off-orbit run FIRST), CPU only, no GPU work.
+- **Change** — `depth_canon_make_cells.py` (+ `depth_canon_cells.json`, 386 rows): YAW-C4S (25: the replay first, the
+  24 aliases), RPL-S42 (3 replays P1 / B-F / CANON), OFF-S42 (6 exp35_*_th315 + 6 exp25_YAW_C4_*_s42_th{135,225,315});
+  explicit names only for exp_36 rows; `build_manifest(exp36=False)` = the H35 render, `exp35=False` = the exp_25 render.
+  `depth_canon_collect.py`: `uses_no_flash` (EXP35 + EXP36 blocks) for no_flash / receipt 2 / backend log /
+  `build_receipt` / `--count-no-flash` (`is_exp35`, `EXP35_BLOCKS` unchanged); `EXP36_NAMES` validator (ahead of the
+  exp_35 name/block check); `DEFAULT_EXCLUDED_BLOCKS` = E2-FAIL + the exp_36 blocks (`EXPLICIT_BLOCKS` stays E2-FAIL);
+  `EXP36_REPLAYS` registry + `exp36_reference` / `exp36_replay_check` / `--exp36-replay-check`; `exp36_publish` /
+  `--exp36-publish --exp36-set A|OFF`. `depth_canon_eval_run.sh`: the chain script in the relevant tree of every no-flash
+  selection; the exp_25-only model-config jq sets exp_36 rows apart. New `yaw_c4_spread_chain.sh {offorbit|A}`.
+- **Version Control** — branch `exp-36-yaw-c4-spread` from H35 `5b065801`; commits in `commits_yaw_c4_spread.md`;
+  H36_I = `461c58e0a70747d163e554ebb123a5869d3a38c2` (the launch code of chains I and II); publication code at `a198d46d`.
+- **Command / Validation** — every cycle RED then GREEN, logs `yaw_c4_spread_<ts>_C<n>_*_{red,green}.log`; baseline
+  suites at H35 (`*_BASELINE_suites_at_H35.log`): 1513 passed / 1 skipped (CUDA) / 0 failed; the full suites at H36_I
+  (`*_SUITES_at_461c58e0_in_the_run_worktree.log`); the DRY_RUNs `*_DRYRUN_chain_I_offorbit_at_461c58e0.log` (28 cells)
+  and `*_DRYRUN_chain_II_A_at_461c58e0.log` (25 cells), each with a python argv-vs-template verification appended; the
+  publish gate smoke `*_publish_gate_smoke.log` (real worktrees, refused at the verdict, nothing written).
+- **Result** — passed. All four REAL archived references verify read-only against the amendment's digests (YAW / P1 /
+  CANON incl. the canon sidecar at d6ca307a in the exp-25 worktree; B-F at H35 in the exp-35 run worktree, its
+  no-flash launcher log); pinned log digests YAW 8cbf6e24, P1 a9e2dff3, CANON a201c970 (flash_attn-not-installed
+  fallback pair), B-F af938eb2 (launcher sentinel). Both DRY_RUNs exit 0, one evaluator tree digest `49daa868…`, every
+  cell through the no-flash launcher, no dump flag, argv = template except `--seed` / `--rotate-deg` / `--eval-name`.
+- **Analysis** — one real defect found and fixed (test side): cycle 5 put the chain into the runner's relevant tree;
+  the shared SPARSE harness clone of the exp_35 runner tests did not check the exp_36 folder out, so `git ls-files`
+  named a file `sha256sum` could not read (TREE DIGEST FAILED for every exp_35 no-flash harness run). Production
+  checkouts are never sparse; the clone now includes the folder. One latent regression prevented (cycle 7): the
+  RPL-S42 B-F replay would have pulled FLAC_AR_BF.json into an exp_25-only relevant tree (exp_35 C3a test,
+  mutation-checked). Deviation (A1 §4 over Codex H5): both chains use `--lanes 0,1`; ALLOW_SHARED_GPU stays 0.
+  Records location (Codex H6): the runner keeps its logs / plans in the exp_25 folder, the chain logs and verdicts are
+  in the exp_36 folder; both kept, the chain log names the runner's files.
+- **Next** — the Planner launches chain I from the DETACHED run worktree `~/codespace/exp-36-run` (HEAD H36_I; its own
+  asset links; created so that branch commits never move a running campaign's HEAD), then chain II there; then the
+  two publications from this worktree with `--base-dir ~/codespace/exp-36-run --pin 461c58e0…` (commands in
+  `yaw_c4_spread_command.md`); a Codex code review of this round before the launch is the Planner's call.
