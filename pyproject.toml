@@ -46,3 +46,4 @@ fem-mkl = [
 
 [tool.setuptools.packages.find]
 where = ["."]
+exclude = ["overlays*"]   # exp_37 (port of exp_35 §11 H5): the no-flash overlay is never packaged
