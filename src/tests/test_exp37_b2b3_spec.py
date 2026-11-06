@@ -81,7 +81,7 @@ def _mutated(world, change):
     (lambda s: s["b3_latency"]["runs"].append(dict(s["b3_latency"]["runs"][0])), "b3_latency"),
     (lambda s: s.pop("b3_synthesis"), "b3_synthesis"),
     (lambda s: s["b3_synthesis"]["cells"].pop(), "b3_synthesis"),
-    (lambda s: s["b3_synthesis"]["cells"][0].update(source="new"), "b3_synthesis"),
+    (lambda s: s["b3_synthesis"]["cells"][0].update(source="reused_exp35"), "b3_synthesis"),
     (lambda s: s["b3_synthesis"].update(leaf_commit="abc"), "b3_synthesis"),
     (lambda s: s.pop("external"), "external"),
     (lambda s: s.update(require_timing_replays=True), "replay"),

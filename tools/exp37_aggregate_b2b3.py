@@ -40,6 +40,87 @@ METRICS = ("median_localization_error_m", "success_0_5m", "success_1_0m", "oracl
            "mean_oracle_error_m", "mean_candidate_count")
 ORBITS = {"0": [0.0], "0_180": [0.0, 180.0], "c4": [0.0, 90.0, 180.0, 270.0]}
 
+# the registered coverage (Codex code review 1, BLOCKING 4): every cell exactly once, n = 3 seeds everywhere
+SPEC_SCHEMA = 2
+SEEDS = (42, 43, 44)
+B2_GRIDS = ("0.50", "0.75")
+TIMING_KINDS = ("nested_1m", "c2f")
+B3_ORBITS = ("0", "0_180", "c4")
+B3_THETAS = (0, 90)
+SYNTHESIS_K = (1, 8)
+INPUT_KEYS = ("pilot_0p50", "pilot_0p75", "audit_0p50", "audit_0p75", "nested_manifest", "selector_0p50",
+              "selector_0p75", "selector_nested")
+
+
+class SpecError(ValueError):
+    """The spec is not the registered coverage (nothing is loaded or written)."""
+
+
+def _coverage(label, keys, want) -> list[str]:
+    missing = sorted(set(want) - set(keys), key=str)
+    extra = sorted({k for k in keys if k not in want or keys.count(k) > 1}, key=str)
+    return [] if not missing and not extra else [f"{label} must be exactly {len(want)} registered cells "
+                                                 f"(missing {missing}, extra or duplicated {extra})"]
+
+
+def _synthesis_reasons(section) -> list[str]:
+    if not isinstance(section, dict):
+        return ["b3_synthesis is missing: fill it from the exp_36 leaf, or mark it pending"]
+    if section.get("status") == "pending":
+        return [] if not section.get("cells") else ["b3_synthesis is pending but lists cells"]
+    if section.get("status") != "complete":
+        return ["b3_synthesis.status must be pending or complete"]
+    bad, cells = [], section.get("cells") or []
+    commit = str(section.get("leaf_commit") or "")
+    if len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit):
+        bad.append("b3_synthesis.leaf_commit must be the 40-hex exp_36 leaf commit")
+    if not section.get("metrics_keys") or not section.get("runbook"):
+        bad.append("b3_synthesis needs its metrics_keys and runbook")
+    want = [(o, t, k) for o in B3_ORBITS for t in B3_THETAS for k in SYNTHESIS_K]
+    bad += _coverage("b3_synthesis.cells", [(c.get("orbit"), c.get("theta"), c.get("k_context")) for c in cells], want)
+    for c in cells:
+        source = "reused_exp35" if c.get("orbit") == "c4" else "new"
+        if c.get("seed") != 42 or c.get("source") != source or len(str(c.get("metrics_sha256") or "")) != 64 \
+                or not c.get("metrics_json"):
+            bad.append(f"b3_synthesis cell {c.get('orbit')} / {c.get('theta')} / K {c.get('k_context')}: seed 42, "
+                       f"source {source}, metrics_json and its sha256 are required")
+    return bad
+
+
+def check_spec(spec: dict) -> None:
+    """The exact registered coverage, before anything is loaded; SpecError lists every deviation."""
+    bad = [] if spec.get("schema_version") == SPEC_SCHEMA else [f"schema_version must be {SPEC_SCHEMA}"]
+    bad += [f"{key} is missing" for key in INPUT_KEYS if not spec.get(key)]
+    replays = bool(spec.get("require_timing_replays"))
+    runs = spec.get("b2_runs") or []
+    bad += _coverage("b2_runs", [(i.get("arm"), i.get("grid"), i.get("seed")) for i in runs],
+                     [(a, g, s) for a in ARMS for g in B2_GRIDS for s in SEEDS])
+    for i in runs:
+        name = f"b2_runs {i.get('arm')} {i.get('grid')} seed {i.get('seed')}"
+        if i.get("seed") == 42 and i.get("timing") is not True:
+            bad.append(f"{name}: the seed 42 run is the registered timing pass")
+        if i.get("timing") is True and not i.get("replay"):
+            bad.append(f"{name}: a timing pass whose accuracy is reported needs its artifact replay")
+        if i.get("timing") is not True and i.get("replay"):
+            bad.append(f"{name}: an accuracy-only run dumped inline and has no replay")
+    timing = spec.get("b2_timing") or []
+    bad += _coverage("b2_timing", [(i.get("arm"), i.get("kind")) for i in timing],
+                     [(a, k) for a in ARMS for k in TIMING_KINDS])
+    b3 = spec.get("b3_runs") or []
+    bad += _coverage("b3_runs", [(i.get("orbit"), i.get("theta"), i.get("seed")) for i in b3],
+                     [(o, t, s) for o in B3_ORBITS for t in B3_THETAS for s in SEEDS if (o, t) != ("c4", 0)])
+    latency = spec.get("b3_latency") or {}
+    bad += _coverage("b3_latency.runs", [r.get("orbit") for r in latency.get("runs") or []], list(B3_ORBITS))
+    bad += [] if latency.get("selection") and latency.get("selector") else ["b3_latency needs its selection and selector"]
+    if replays:
+        bad += [f"{i.get('dir')}: needs a replay (require_timing_replays)" for i in timing + (latency.get("runs") or [])
+                if not i.get("replay")]
+    bad += _synthesis_reasons(spec.get("b3_synthesis"))
+    external = spec.get("external") or {}
+    bad += [] if external.get("accuracy") and external.get("latency_csv") else ["external needs accuracy and latency_csv"]
+    if bad:
+        raise SpecError("; ".join(bad))
+
 
 def _hashed(path) -> dict:
     payload = json.loads(Path(path).read_text())
