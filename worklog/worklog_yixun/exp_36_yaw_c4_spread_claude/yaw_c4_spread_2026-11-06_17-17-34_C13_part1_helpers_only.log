@@ -1,0 +1,4 @@
+cycle 13 GREEN split for the < 200-line rule: part 1 at HEAD 2f6cc928fbb76e30bcc3408e96b4e88aedc4d75b + ONLY the new helpers (_fsync_dir, _write_new, _ident, _lexists_at, _Manifest, _publication_lock, _names, _open_dest, _authenticate; unused until part 2) -- no behaviour change: the publication tests stand exactly as after cycle 12 part a
+FAILED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+FAILED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes - Asserti...
+2 failed, 40 passed, 3 warnings in 7.32s

@@ -2548,6 +2548,140 @@ def _write_json_atomic(path, doc):
     os.replace(tmp, path)
 
 
+def _fsync_dir(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _write_new(path, data, dir_fd=None):
+    """``data`` into a NEW file: O_CREAT | O_EXCL | O_NOFOLLOW (never replacing, never through a symlink), fsynced."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dir_fd)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _ident(path, dir_fd=None):
+    """``(dev, inode, sha256)`` of the regular non-symlink file ``path``, else None."""
+    import stat
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    except OSError:
+        return None
+    with os.fdopen(fd, "rb") as f:
+        st = os.fstat(f.fileno())
+        return (st.st_dev, st.st_ino, _sha256(f.read())) if stat.S_ISREG(st.st_mode) else None
+
+
+def _lexists_at(dfd, name):
+    try:
+        os.stat(name, dir_fd=dfd, follow_symlinks=False)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+class _Manifest:
+    """Review II HIGH 2: created exclusively, then replaced -- through an exclusive no-follow temp -- only while it is
+    still the file this publication wrote or authenticated (inode + bytes); every write fsynced with its directory."""
+
+    def __init__(self, path, txid, ident=None):
+        self.path, self.txid, self.ident, self.n = path, txid, ident, 0
+
+    def write(self, doc):
+        data, parent = (json.dumps(doc, indent=1) + "\n").encode(), os.path.dirname(os.path.abspath(self.path))
+        if self.ident is None:
+            _write_new(self.path, data)
+        else:
+            self.n += 1
+            tmp = f"{self.path}.tmp-{self.txid}-{self.n}"
+            _write_new(tmp, data)
+            if _ident(self.path) != self.ident:
+                os.unlink(tmp)
+                raise ValueError(f"the publication manifest {self.path} changed under the publication; not replaced")
+            os.replace(tmp, self.path)
+        _fsync_dir(parent)
+        self.ident = _ident(self.path)
+
+
+def _publication_lock(root):
+    """Review II HIGH 1: the ONE global exp_36 publication lock -- flock(LOCK_EX | LOCK_NB) on the destination
+    worktree's root directory itself (no lock file): every publisher, any set, any checkout, contends on that inode,
+    which a swap of the destination path does not replace. The returned fd holds the lock until closed."""
+    import fcntl
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _names(path, fd):
+    """``path`` (no symlink on it) still names the directory open as ``fd``."""
+    try:
+        a, b = os.lstat(path), os.fstat(fd)
+    except OSError:
+        return False
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino) and os.path.realpath(path) == os.path.abspath(path)
+
+
+def _open_dest(dest, want):
+    """Review II HIGH 1: ``(fd, reasons)`` -- ``dest`` is exactly ``want`` with no symlink on its path, opened ONCE
+    O_DIRECTORY | O_NOFOLLOW, the path still naming the opened inode; later destination operations go through the fd."""
+    if dest != want or os.path.realpath(dest) != os.path.abspath(dest):
+        return None, [f"the destination {dest!r} is not the plain directory {want} (no symlink on its path)"]
+    try:
+        fd = os.open(dest, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as err:
+        return None, [f"the destination {dest!r} is not the plain directory {want} ({err})"]
+    if not _names(dest, fd):
+        os.close(fd)
+        return None, [f"the destination {dest!r} changed while it was opened"]
+    return fd, []
+
+
+_AUTH = ("check", "set", "pin", "campaign_digest", "exp25_head", "base_dir", "dest", "verdict", "publisher")
+_ENTRY = ("cell", "kind", "source", "source_sha256", "receipt", "receipt_sha256", "dest", "tmp")
+
+
+def _authenticate(out, doc, entries):
+    """Review II HIGH 2, a resume: ``(prior, ident, reasons)`` -- ``out`` is a regular non-symlink JSON manifest of
+    exactly THIS publication (every ``_AUTH`` field and the complete entry set as recomputed, its temps named by its own
+    transaction id), status in_progress | partial, and no writer temp of it is left beside it."""
+    ident = _ident(out)
+    if ident is None:
+        return None, None, [f"resume: no regular (non-symlink) publication manifest at {out}"]
+    try:
+        prior = json.loads(_read("", out))
+    except ValueError:
+        prior = None
+    if not isinstance(prior, dict):
+        return None, None, [f"resume: {out} is not a JSON publication manifest"]
+    bad = [k for k in _AUTH if prior.get(k) != doc[k]]
+    if bad:
+        return None, None, [f"resume: {out} is not this publication's manifest (it differs in {bad})"]
+    txid = prior.get("txid")
+    if not re.fullmatch(r"[0-9a-f]{32}", str(txid)):
+        return None, None, [f"resume: {out} names no valid transaction id ({txid!r})"]
+    want = [dict({k: e[k] for k in _ENTRY[:-1]}, tmp=f"{EXP36_TMP_PREFIX}{txid}-{os.path.basename(e['dest'])}")
+            for e in entries]
+    if [{k: e.get(k) for k in _ENTRY} if isinstance(e, dict) else e for e in prior.get("entries") or []] != want:
+        return None, None, [f"resume: {out} does not hold this publication's complete entry set"]
+    if prior.get("status") not in ("in_progress", "partial"):
+        return None, None, [f"resume: {out} has status {prior.get('status')!r}; only in_progress / partial resume"]
+    parent, base = os.path.split(os.path.abspath(out))
+    temps = sorted(n for n in os.listdir(parent) if n.startswith(base + ".tmp-"))
+    if temps:
+        return None, None, [f"resume: a writer temp of the manifest is left beside it ({temps[:3]})"]
+    return prior, ident, []
+
+
 def _exp36_sources(manifest, *, cells, pin, digest, base_dir, dump_root, dest):
     """``(entries, reasons)``: the planned copies of ``cells``, each verified here at ``pin``, dump-free, receipt 2
     sdpa, under ``digest`` -- metrics JSON + stream sidecar (never the receipt, never a replay)."""
