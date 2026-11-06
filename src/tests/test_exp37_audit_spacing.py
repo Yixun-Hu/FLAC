@@ -55,7 +55,7 @@ def test_the_committed_pilot_is_rebuilt_exactly_and_another_seed_is_refused():
     assert pilot_tool.same_queries_reasons(rebuilt, reference) == []
     other = build_pilot_manifest(context, audit, queries_per_room=4, seed=43)
     reasons = pilot_tool.same_queries_reasons(other, reference)
-    assert reasons and "query" in reasons[0]
+    assert reasons and "other queries" in reasons[0]
 
 
 def test_the_pilot_cli_refuses_to_write_other_queries(monkeypatch, tmp_path):
