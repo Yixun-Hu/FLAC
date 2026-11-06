@@ -201,3 +201,13 @@ def test_the_stage_breakdown_adds_the_selector_and_reports_absolute_peaks():
     assert sum(v["fraction"] for v in out["seconds"].values()) == pytest.approx(1.0)
     assert out["peak_memory"]["dit"] == {"allocated_bytes": 1200, "reserved_bytes": 1300}          # max, not sum
     assert out["peak_memory"]["whole_query"]["allocated_bytes"] == 1250
+
+
+def test_a_run_never_seen_on_its_own_card_is_not_valid(tmp_path):
+    """Fail-closed uuid matching: if the run's own pid never appears on its card (e.g. a uuid format mismatch
+    between torch and nvidia-smi), co-tenants on that card could be missed -- so the timing is not valid."""
+    run = tmp_path / "run"
+    _host(run, "start", "6ac2604a-1111", [])
+    _host(run, "end", "6ac2604a-1111", ["GPU-0a1aaa90-2222, 42, python, 9 MiB"])
+    verdict = lat.host_cotenancy(run)
+    assert verdict["timing_valid"] is False and verdict["own_process_seen_on_card"] is False
