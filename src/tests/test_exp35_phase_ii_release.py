@@ -98,7 +98,8 @@ def test_every_durable_refusal_state_is_releasable(tmp_path, phase):
 
 
 @pytest.mark.parametrize("phase", ["launch_pending", "spawning", "running", "reserving", "reserve_refused",
-                                   "reserve_failed", "released", "release_failed"])
+                                   "reserve_failed", "released", "release_failed", "release_refused",
+                                   "dry_run_pending"])
 def test_a_crash_or_unresolvable_state_is_never_released(tmp_path, phase):
     b = _box(tmp_path)
     before = _put(b, phase=phase)
@@ -144,7 +145,7 @@ def test_every_ambiguous_or_live_evidence_refuses_the_release(tmp_path, case, re
         raw = open(b.res(), "rb").read()
         open(b.res() + ".new", "wb").write(raw)
         os.replace(b.res() + ".new", b.res())
-    before = open(os.path.join(b.orch, "state.json"), "rb").read()
+    before = _state(b)
     try:
         rc, msg = _release(b)
     finally:
@@ -152,8 +153,18 @@ def test_every_ambiguous_or_live_evidence_refuses_the_release(tmp_path, case, re
             holder.kill()
             holder.wait()
     assert rc == 1 and "RELEASE REFUSED (nothing unlinked)" in msg and reason in msg, msg
-    assert open(os.path.join(b.orch, "state.json"), "rb").read() == before
     assert os.path.lexists(b.res()) == (case != "missing")
+    st = _state(b)
+    if case == "kit-lock":                                    # refused before the state could be judged: untouched
+        assert st == before
+        return
+    # Codex P2K-1 HIGH 2: a post-open refusal is durable and terminal, every reason and record identity kept
+    assert st["phase"] == "release_refused" and st["reservations"] == before["reservations"]
+    assert any(reason in x for x in st["failure"]["reasons"]) and st["failure"]["prior_phase"] == before["phase"]
+    assert st["failure"]["prior_failure"] == before["failure"] and st["released"] is None
+    assert [e["what"] for e in st["events"]][-1] == "release_refused"
+    rc, msg = _release(b)
+    assert rc == 1 and "not reserved or" in msg and _state(b) == st              # never retried silently
 
 
 def test_a_reused_pid_is_another_process_and_does_not_block(tmp_path):

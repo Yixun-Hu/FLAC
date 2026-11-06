@@ -1571,7 +1571,8 @@ def release(world, cfg, *, kit_commit, h35, orch):
     """S6: from a durable exit / refusal state only (or a reservation never launched: withdrawn), under the kit lock
     (held by no wrapper, runner or descendant -- they all inherited it); no recorded wrapper / runner alive (complete
     identities), the runner lock unheld, no exp_35 process alive; ALL records authenticated, then each one again right
-    before its unlink and the directory fsynced. 'released', or 'release_failed' (retained). (rc, message)."""
+    before its unlink and the directory fsynced. 'released', or 'release_failed' (retained); any refusal once the
+    state is judged is a terminal 'release_refused' with every reason and the untouched records. (rc, message)."""
     opened, why = open_mode(cfg, kit_commit, h35, orch, RELEASABLE)
     if opened is None:
         return 1, "RELEASE REFUSED (nothing unlinked): " + "; ".join(why)
@@ -1587,8 +1588,13 @@ def release(world, cfg, *, kit_commit, h35, orch):
             why += [f"pid {p}: {w}" for p, w in live_procs(cfg)] + [x for h in st["reservations"] for x in held_reasons(h)]
         except Unreadable as err:
             why = [f"unreadable: {err}"]
-        if why:
-            return 1, "RELEASE REFUSED (nothing unlinked): " + "; ".join(why)
+        if why:                                          # Codex P2K-1 HIGH 2: durable and terminal, nothing retried
+            st.update(phase="release_refused", failure={"reasons": why, "time": iso(world.now()),
+                                                        "prior_phase": st["phase"], "prior_failure": st["failure"]})
+            event(st, world.now(), "release_refused")
+            write_json_atomic(state_path(orch), st)
+            return 1, ("RELEASE REFUSED (nothing unlinked): " + "; ".join(why) + " -- the orchestration is now "
+                       "release_refused (terminal; the Planner's review)")
         done, kept, prior_phase = [], [], st["phase"]
         for h in st["reservations"]:
             r = release_reservation(h)                    # authenticated again right before its unlink
