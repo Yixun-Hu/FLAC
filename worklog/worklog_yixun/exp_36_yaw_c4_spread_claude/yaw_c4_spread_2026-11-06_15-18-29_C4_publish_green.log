@@ -1,0 +1,424 @@
+GREEN, cycle 4 at HEAD ecbaaa63466fffa7d0d170b05cf839b19ec66f58 + the uncommitted publication (exp36_publish, _exp36_sources, the CLI --exp36-publish / --exp36-verdict / --publish-manifest-out / --exp36-publish-resume)
+........................................................................ [ 22%]
+........................................................................ [ 45%]
+........................................................................ [ 68%]
+........................................................................ [ 91%]
+............................                                             [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________________ test_cli_publish_exit_codes __________________________
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) into /tmp/pytest-of-yixunhu/pytest-6534/test_cli_publish_exit_codes0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6534/test_cli_publish_exit_codes0/publication.json
+__________________ test_the_committed_file_is_the_full_render __________________
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+____________________ test_tie_counts_per_cell_and_per_split ____________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+______________ test_a_genuine_audit_lets_full_collection_through _______________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_a_genuine_audit_lets_full0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_a_genuine_audit_lets_full0/results.json (complete)
+_______________ test_an_invalid_audit_is_labelled_under_partial ________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_an_invalid_audit_is_label0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_an_invalid_audit_is_label0/results.json (PARTIAL)
+________________ test_full_collection_writes_both_results_files ________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_full_collection_writes_bo0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_full_collection_writes_bo0/results.json (complete)
+______________ test_missing_cells_refuse_the_table_unless_partial ______________
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_missing_cells_refuse_the_0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_missing_cells_refuse_the_0/results.json (PARTIAL)
+_______________ test_a_block_selection_defines_the_required_set ________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_a_block_selection_defines0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_a_block_selection_defines0/results.json (complete)
+__________ test_the_pairing_result_states_what_the_input_hash_proves ___________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+Running json scandir...
+Found 8 files in 1 subfolders
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_the_pairing_result_states0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_the_pairing_result_states0/results.json (complete)
+_ test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe _
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yixunhu/pytest-6534/test_a_selection_without_a_ver0/results.md and /tmp/pytest-of-yixunhu/pytest-6534/test_a_selection_without_a_ver0/results.json (PARTIAL)
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_the_committed_file_is_the_full_render
+PASSED src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+PASSED src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+PASSED src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+PASSED src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+PASSED src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[T_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[C4+45_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[R_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[D-i_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[D-ii_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[S_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[P1-pin_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[YAW-pin_YAW_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[TRAJ_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_and_stream_of_a_true_cell_verify[T-dup_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cond_autocast]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cond_method]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-weights_source]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-cfg_scale]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-steps]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-n_samples]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-seed]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-eval_name]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-source_sha]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-device]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-batch_size]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-dataset_config]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-rotate_deg]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-T60]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-metrics keys]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-key order0]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-by_scene]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-canonicalize_applied]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-model_config_sha256]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-tie_counts]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[D-i-canonicalize_mismatch]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[D-ii-canonicalize_mismatch]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[P1-pin-key order]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-key order1]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_sha256_loaded]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_bytes_loaded0]
+PASSED src/tests/test_depth_canon_collect.py::test_record_violations_are_named[C4+45-ckpt_bytes_loaded1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[T_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[C4+45_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[R_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[D-i_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[D-ii_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[S_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[P1-pin_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[YAW-pin_YAW_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[TRAJ_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_sidecars_of_a_true_cell_verify[T-dup_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[stream_count]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[input_tuples]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[input_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[offset]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[img_w]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[rotate_mode]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[position]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[context_ids0]
+PASSED src/tests/test_depth_canon_collect.py::test_stream_violations_are_named[context_ids1]
+PASSED src/tests/test_depth_canon_collect.py::test_random_record_and_stream_are_one_stream
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[tie_counts]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[target]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[canonical_depth_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[canon_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[malformed0]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[malformed1]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[stream_count]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[tiebreak]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_violations_are_named[record canonicalize_tie_counts]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[T_CANON_K1-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[T_CANON_K1-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[C4+45_CANON_K8-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[C4+45_CANON_K8-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[R_CANON_K1-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[R_CANON_K1-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[D-i_CANON_K8-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[D-i_CANON_K8-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[D-ii_P1_K1-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[D-ii_P1_K1-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[S_CANON_K8-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[S_CANON_K8-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[P1-pin_P1_K1-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[P1-pin_P1_K1-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[YAW-pin_YAW_K8-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[YAW-pin_YAW_K8-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[TRAJ_CANON_K1-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[TRAJ_CANON_K1-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[T-dup_CANON_K8-full]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_of_a_true_cell_verifies[T-dup_CANON_K8-manifest]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[complete0]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[staging1]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[complete2]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[metrics_sha2563]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[input_hash4]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[source_sha5]
+PASSED src/tests/test_depth_canon_collect.py::test_dump_violations_are_named[ckpt_path6]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[T_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[C4+45_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[R_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[D-i_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[D-ii_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[S_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[P1-pin_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[YAW-pin_YAW_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[TRAJ_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_of_a_true_cell_verifies[T-dup_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over0-ckpt_sha256]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over1-expect_head]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over2-dump]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over3-argv]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over4-ckpt_target]
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_violations_are_named[over5-ckpt_link]
+PASSED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[spawn]
+PASSED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[post]
+PASSED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[malformed]
+PASSED src/tests/test_depth_canon_collect.py::test_a_receipt_whose_tree_digest_moved_is_refused[absent]
+PASSED src/tests/test_depth_canon_collect.py::test_the_skip_predicate_binds_this_campaigns_digest
+PASSED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_moved_tree
+PASSED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_artifacts_and_the_verified_dump
+PASSED src/tests/test_depth_canon_collect.py::test_offline_verification_needs_no_dump_root
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[manifest0]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[marker1]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[manifest_sha2562]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[input_hash3]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[sidecar4]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[artifact_sha2565]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_receipt_fails_offline_verification[dump_evidence6]
+PASSED src/tests/test_depth_canon_collect.py::test_a_committed_artifact_edited_after_the_receipt_fails_offline
+PASSED src/tests/test_depth_canon_collect.py::test_a_dump_changed_after_the_receipt_is_seen_online
+PASSED src/tests/test_depth_canon_collect.py::test_receipt_rc_and_wrong_checkpoint_sha_are_refused
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[T_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[C4+45_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[R_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[D-i_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[D-ii_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[S_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[P1-pin_P1_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[YAW-pin_YAW_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[TRAJ_CANON_K1]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_accepts_every_true_cell_class[T-dup_CANON_K8]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_names_a_missing_artifact[metrics]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_names_a_missing_artifact[stream]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_names_a_missing_artifact[receipt]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_names_a_missing_artifact[canon]
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_refusals
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_without_a_dump
+PASSED src/tests/test_depth_canon_collect.py::test_verify_cell_checks_the_farm_entry_is_the_cache_file
+PASSED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_sha256_measured]
+PASSED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_measured_checkpoint[<lambda>-ckpt_cache]
+PASSED src/tests/test_depth_canon_collect.py::test_the_receipt_binds_the_evaluators_loaded_digest
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[sha]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[bytes]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[zero]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_receipt_is_invalid[absent]
+PASSED src/tests/test_depth_canon_collect.py::test_a_tampered_loaded_digest_in_the_record_is_invalid_even_with_a_rebound_receipt
+PASSED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[other_bytes_loaded]
+PASSED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[size]
+PASSED src/tests/test_depth_canon_collect.py::test_write_receipt_refuses_a_cell_that_loaded_other_bytes[no_size]
+PASSED src/tests/test_depth_canon_collect.py::test_canon_index_from_the_launcher_manifest
+PASSED src/tests/test_depth_canon_collect.py::test_cli_verify_cell
+PASSED src/tests/test_depth_canon_collect.py::test_a_quarantined_staging_dir_is_not_a_leftover
+PASSED src/tests/test_depth_canon_collect.py::test_collect_reports_missing_and_invalid_cells
+PASSED src/tests/test_depth_canon_collect.py::test_pairs_and_tier1
+PASSED src/tests/test_depth_canon_collect.py::test_a_pair_with_a_different_input_hash_is_not_a_pair
+PASSED src/tests/test_depth_canon_collect.py::test_control_key_mapping
+PASSED src/tests/test_depth_canon_collect.py::test_a_registered_probe_of_this_campaign_is_the_control
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[unregistered]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[deviation]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[tampered_sidecar]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[other_checkpoint]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[other_pin]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[dirty_tree]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[n_items]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[seed]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[device]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[no_bf16_stage]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[model_config_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[dataset_config_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[split_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[load_not_ema]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[offsets]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[item_dropped]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[context_count]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[context_empty]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[stream_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_missing]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_nan]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_inconsistent]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_threshold]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[eps_pass_flipped]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[control_inconsistent]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[verdict_inconsistent]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_missing]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_other]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_digest_not_hex]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_missing]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_float]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_bool]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_zero]
+PASSED src/tests/test_depth_canon_collect.py::test_an_unbound_or_inconsistent_probe_is_not_a_control[loaded_length_not_the_receipts]
+PASSED src/tests/test_depth_canon_collect.py::test_a_legitimate_eps_fail_stays_a_scientific_fail
+PASSED src/tests/test_depth_canon_collect.py::test_the_probe_contract_mirrors_the_probe
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_with_the_receipts_length_and_digest_is_the_control
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[no_receipt]
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipts_disagree]
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_length_not_int]
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[receipt_of_another_checkpoint]
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_the_receipts_do_not_hold_is_not_a_control[length_not_the_receipts]
+PASSED src/tests/test_depth_canon_collect.py::test_the_receipts_held_are_those_of_the_verified_canon_endpoint_cells
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_invariant_campaign_passes
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_matched_rule_cap_and_pooled_rule
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_hard_cap
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_alarm_names_the_offending_items
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_duplicate_cell_must_be_exactly_reproducible
+PASSED src/tests/test_depth_canon_collect.py::test_tier2_without_a_control_is_not_computable
+PASSED src/tests/test_depth_canon_collect.py::test_tier3_on_known_numbers
+PASSED src/tests/test_depth_canon_collect.py::test_tier3_fails_on_either_rule
+PASSED src/tests/test_depth_canon_collect.py::test_table_block_mean_and_sample_sd
+PASSED src/tests/test_depth_canon_collect.py::test_traj_grid
+PASSED src/tests/test_depth_canon_collect.py::test_bf_row_is_quoted_with_its_provenance
+PASSED src/tests/test_depth_canon_collect.py::test_tie_counts_per_cell_and_per_split
+PASSED src/tests/test_depth_canon_collect.py::test_a_genuine_audit_lets_full_collection_through
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[drop_train_per_split]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[item_count]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[cardinality]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[input_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[tool_hash]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[survivor]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[coverage_incomplete]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[limit_run]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[tampered_sidecar]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_or_a_disagreeing_cell_refuses_full_collection[cell_disagrees_with_the_audit]
+PASSED src/tests/test_depth_canon_collect.py::test_an_invalid_audit_is_labelled_under_partial
+PASSED src/tests/test_depth_canon_collect.py::test_the_overlap_without_a_validated_audit_names_no_map_count
+PASSED src/tests/test_depth_canon_collect.py::test_the_overlap_derived_from_the_real_validated_audit
+PASSED src/tests/test_depth_canon_collect.py::test_an_overlap_other_than_the_registered_one_is_flagged
+PASSED src/tests/test_depth_canon_collect.py::test_full_collection_writes_both_results_files
+PASSED src/tests/test_depth_canon_collect.py::test_missing_cells_refuse_the_table_unless_partial
+PASSED src/tests/test_depth_canon_collect.py::test_the_exp25_mode_never_collects_an_exp35_block[T,CTL]
+PASSED src/tests/test_depth_canon_collect.py::test_the_exp25_mode_never_collects_an_exp35_block[BF-pin]
+PASSED src/tests/test_depth_canon_collect.py::test_the_exp25_mode_never_collects_an_exp35_block[P1-pin,OFF-CANON]
+PASSED src/tests/test_depth_canon_collect.py::test_cells_of_two_campaign_digests_refuse_full_collection
+PASSED src/tests/test_depth_canon_collect.py::test_a_block_selection_defines_the_required_set
+PASSED src/tests/test_depth_canon_collect.py::test_the_nas_retention_audit
+PASSED src/tests/test_depth_canon_collect.py::test_the_nas_retention_audit_refuses_the_offline_receipt_mode
+PASSED src/tests/test_depth_canon_collect.py::test_repeated_context_ids_are_legal_when_every_cell_agrees
+PASSED src/tests/test_depth_canon_collect.py::test_a_cell_whose_repeated_targets_differ_refuses_full_collection
+PASSED src/tests/test_depth_canon_collect.py::test_the_pairing_result_states_what_the_input_hash_proves
+PASSED src/tests/test_depth_canon_collect.py::test_a_probe_length_other_than_the_receipts_refuses_full_collection
+PASSED src/tests/test_depth_canon_collect.py::test_a_selection_without_a_verified_canon_endpoint_cell_cannot_verify_the_probe
+316 passed, 5 warnings in 37.32s

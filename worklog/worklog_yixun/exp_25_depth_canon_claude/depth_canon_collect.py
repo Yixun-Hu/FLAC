@@ -2437,6 +2437,138 @@ def exp36_replay_check(*, pin, plan_json, manifest, base_dir=REPO, ref_base_dir=
     return ("mismatch" if out else "equal"), dict(verdict, result="mismatch" if out else "equal", reasons=out)
 
 
+# exp_36 (plan r0 §2 item 3, Codex B4 / H4): the publication, a SEPARATE command (never the runner's, never the chain's)
+EXP36_PUBLISH_DEST = os.path.join(EXP25_WORKTREE, "outputs_FLAC", "exp25_depth_canon", "YAW")   # pinned (H4)
+EXP25_WORKTREE_HEAD = "5b7e663b75da1bcaa08e170f1cae5005acfc1afd"
+EXP36_PUBLICATION = os.path.join(EXP36_DIR, "yaw_c4_spread_publication_manifest.json")
+EXP36_TMP_PREFIX = ".exp36-publish-tmp-"
+EXP36_RECOVERY = (f"Every destination is absent or complete: each file is written to a temp file ({EXP36_TMP_PREFIX}"
+                  "<pid>-<name>) in the destination, fsynced, hard-linked to its final name (never replacing one) and "
+                  "re-hashed. After a stop or a crash, re-run the same command with --exp36-publish-resume: it re-checks "
+                  "every gate, accepts a present destination only if it is byte-identical to its source, removes only "
+                  "this tool's own temp files and copies the rest; nothing else is ever replaced or removed.")
+_PRESENT = "present (resume: byte-identical to its source)"
+
+
+def _git_head(path):
+    import subprocess
+    r = subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _write_json_atomic(path, doc):
+    tmp = f"{path}.tmp-{os.getpid()}"
+    with open(tmp, "w") as f:
+        json.dump(doc, f, indent=1)
+    os.replace(tmp, path)
+
+
+def _exp36_sources(manifest, *, pin, digest, base_dir, dump_root, dest):
+    """``(entries, reasons)``: the 48 planned copies of the 24 cells, each verified here at ``pin``, dump-free,
+    receipt 2 sdpa, under ``digest`` -- metrics JSON + stream sidecar (never the receipt, never the replay)."""
+    entries, why = [], []
+    for name in EXP36_CELLS:
+        _, p = _exp36_paths(manifest, name, manifest["farm_root"], dump_root)
+        bad = verify_cell(p.stem, manifest=manifest, farm_root=manifest["farm_root"], dump_root=dump_root, pin=pin,
+                          base_dir=base_dir, dump_check="full", expect_dump=False, check_link=False, expect_digest=digest)
+        why += [f"{name}: {x}" for x in bad]
+        if not bad:
+            receipt = _sha256(_read(base_dir, p.receipt))
+            entries += [{"cell": name, "kind": kind, "source": getattr(p, kind),
+                         "source_sha256": _sha256(_read(base_dir, getattr(p, kind))), "receipt": p.receipt,
+                         "receipt_sha256": receipt, "dest": os.path.join(dest, os.path.basename(getattr(p, kind))),
+                         "dest_sha256": None, "state": "planned"} for kind in ("metrics", "stream")]
+    return entries, why
+
+
+def exp36_publish(*, pin, verdict_path, manifest, out, base_dir=REPO, ref_base_dir=EXP25_WORKTREE, ref_dump_root=None,
+                  dump_root=None, dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD, resume=False,
+                  reference=None, git_head=_git_head):
+    """B4 / H4: ``(status, doc)`` -- "published", "partial" (stopped part-way; ``doc["recovery"]``) or "refused"
+    (nothing written). Every gate runs before any write: this worktree at ``pin``, the exp-25 worktree at
+    ``exp25_head``, ``dest`` its plain YAW farm directory, the verdict ``equal`` at ``pin`` and re-computed identically
+    now, the 24 sources verified under its campaign digest, none of the 48 destinations present (``resume``: present
+    only byte-identical) and no temp file left (``resume``: only this tool's own, removed)."""
+    def refused(why):
+        return "refused", {"status": "refused", "reasons": why}
+    if not re.fullmatch(r"[0-9a-f]{40}", str(pin)) or git_head(base_dir) != pin:
+        return refused([f"this worktree {base_dir} is not at the pin {pin!r} (HEAD {git_head(base_dir)!r})"])
+    if git_head(ref_base_dir) != exp25_head:
+        return refused([f"the exp-25 worktree {ref_base_dir} is at {git_head(ref_base_dir)!r}, not {exp25_head}"])
+    want = os.path.join(ref_base_dir, manifest["farm_root"], "YAW")
+    if dest != want or os.path.islink(dest) or not os.path.isdir(dest) or os.path.realpath(dest) != os.path.abspath(dest):
+        return refused([f"the destination {dest!r} is not the plain directory {want} (no symlink on its path)"])
+    if os.path.lexists(out) and not resume:
+        return refused([f"the publication manifest {out} exists (a stopped publication: --exp36-publish-resume)"])
+    try:
+        raw = _read("", verdict_path)
+        verdict = json.loads(raw)
+    except (OSError, TypeError, ValueError) as err:
+        return refused([f"the verdict {verdict_path!r} is unreadable ({err})"])
+    if not isinstance(verdict, dict) or (verdict.get("result"), verdict.get("pin")) != ("equal", pin):
+        return refused([f"the verdict {verdict_path} is not an equal verdict at {pin}"])
+    status, again = exp36_replay_check(pin=pin, plan_json=verdict.get("plan_json"), manifest=manifest, base_dir=base_dir,
+                                       ref_base_dir=ref_base_dir, ref_dump_root=ref_dump_root, reference=reference)
+    if status != "equal" or again != verdict:
+        return refused([f"the replay check re-run now is {status} and not the recorded verdict"] + again["reasons"][:3])
+    entries, why = _exp36_sources(manifest, pin=pin, digest=verdict["campaign_digest"], base_dir=base_dir,
+                                  dump_root=dump_root or manifest["dump_root"], dest=dest)
+    if why:
+        return refused(why)
+    names = {os.path.basename(e["dest"]) for e in entries}
+    temps = sorted(n for n in os.listdir(dest) if n.startswith(EXP36_TMP_PREFIX))
+    ours = [n for n in temps if re.fullmatch(re.escape(EXP36_TMP_PREFIX) + r"\d+-(.+)", n)
+            and re.fullmatch(re.escape(EXP36_TMP_PREFIX) + r"\d+-(.+)", n).group(1) in names]
+    present = [e for e in entries if os.path.lexists(e["dest"])]
+    if not resume and (temps or present):
+        return refused([f"{len(present)} destination path(s) already present ({[e['dest'] for e in present][:3]}) "
+                        f"and {len(temps)} temp file(s): nothing is published over them"])
+    if set(temps) != set(ours):
+        return refused([f"foreign temp file(s) {sorted(set(temps) - set(ours))} in {dest}"])
+    for e in present:
+        if os.path.islink(e["dest"]) or not os.path.isfile(e["dest"]) or _sha256(_read("", e["dest"])) != e["source_sha256"]:
+            return refused([f"{e['dest']} is present but not byte-identical to its source {e['source']}"])
+        e.update(dest_sha256=e["source_sha256"], state=_PRESENT)
+    for n in ours:
+        os.unlink(os.path.join(dest, n))
+    doc = {"schema_version": 1, "check": "exp36_publish", "status": "in_progress", "pin": pin,
+           "campaign_digest": verdict["campaign_digest"], "exp25_head": exp25_head, "base_dir": base_dir, "dest": dest,
+           "verdict": {"path": verdict_path, "sha256": _sha256(raw)}, "archived_reference": reference or EXP36_REFERENCE,
+           "entries": entries, "recovery": EXP36_RECOVERY, "reasons": []}
+    _write_json_atomic(out, doc)
+    try:
+        for e in (e for e in entries if e["state"] == "planned"):
+            data = _read(base_dir, e["source"])
+            if _sha256(data) != e["source_sha256"]:
+                raise ValueError(f"{e['source']} changed during the publication")
+            tmp = os.path.join(dest, f"{EXP36_TMP_PREFIX}{os.getpid()}-{os.path.basename(e['dest'])}")
+            try:
+                with open(tmp, "xb") as f:
+                    f.write(data)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.link(tmp, e["dest"])          # atomic and never replacing: FileExistsError if it appeared
+            finally:
+                if os.path.lexists(tmp):
+                    os.unlink(tmp)
+            e.update(dest_sha256=_sha256(_read("", e["dest"])))
+            if e["dest_sha256"] != e["source_sha256"]:
+                raise ValueError(f"{e['dest']} hashes to {e['dest_sha256']} after the copy, not its source's")
+            e["state"] = "published"
+    except (OSError, ValueError) as err:
+        doc.update(status="partial", reasons=[f"stopped part-way ({type(err).__name__}: {err}); see recovery"])
+        _write_json_atomic(out, doc)
+        return "partial", doc
+    fd = os.open(dest, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    doc["status"] = "complete"
+    _write_json_atomic(out, doc)
+    return "published", doc
+
+
 def _csv(value):
     return None if value is None else [v for v in value.split(",") if v]
 
@@ -2506,6 +2638,12 @@ def main(argv=None):
                     help="exp_36: the replay vs the archived exp_25 cell (--pin H36, --plan-json the replay run plan; "
                          "the reference: --exp25-base-dir / --exp25-dump-root); exit 0 equal / 1 mismatch / 2 refused")
     ap.add_argument("--verdict-out", default=None, help="--exp36-replay-check: write the verdict JSON (never replaced)")
+    ap.add_argument("--exp36-publish", action="store_true",
+                    help="exp_36: copy the 24 verified cells into the pinned exp-25 YAW farm (--pin H36, --exp36-verdict); "
+                         "exit 0 published / 1 partial (see the manifest's recovery) / 2 refused (nothing written)")
+    ap.add_argument("--exp36-verdict", default=None, help="--exp36-publish: the equal verdict of the replay check")
+    ap.add_argument("--publish-manifest-out", default=EXP36_PUBLICATION, help="--exp36-publish: the publication manifest")
+    ap.add_argument("--exp36-publish-resume", action="store_true", help="--exp36-publish: resume a stopped publication")
     args = ap.parse_args(argv)
     if args.check_backend_log:
         reasons = backend_log_file_reasons(args.check_backend_log, args.backend_target)
@@ -2513,6 +2651,20 @@ def main(argv=None):
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
+    if args.exp36_publish:   # exp_36 (Codex B4 / H4): a separate command, never run by the runner or the chain
+        if args.exp36_replay_check or os.path.abspath(args.exp25_base_dir) != EXP25_WORKTREE:
+            print(f"EXP36 PUBLISH REFUSED: the exp-25 worktree is pinned ({EXP25_WORKTREE}); no --exp36-replay-check")
+            return 2
+        status, doc = exp36_publish(pin=args.pin, verdict_path=args.exp36_verdict, manifest=manifest,
+                                    out=args.publish_manifest_out, base_dir=args.base_dir, ref_base_dir=EXP25_WORKTREE,
+                                    ref_dump_root=args.exp25_dump_root, dump_root=args.dump_root,
+                                    dest=EXP36_PUBLISH_DEST, exp25_head=EXP25_WORKTREE_HEAD,
+                                    resume=args.exp36_publish_resume, git_head=_git_head)
+        head = {"published": f"EXP36 PUBLISHED {len(doc.get('entries', []))} file(s) into {EXP36_PUBLISH_DEST}; "
+                f"manifest {args.publish_manifest_out}", "partial": "EXP36 PUBLICATION PARTIAL (see the manifest's "
+                f"recovery): {args.publish_manifest_out}"}.get(status, "EXP36 PUBLISH REFUSED (nothing written)")
+        print(head + "".join(f"\n  - {x}" for x in doc["reasons"]))
+        return {"published": 0, "partial": 1}.get(status, 2)
     if args.exp36_replay_check:   # exp_36 (Codex B3 / B4): the hard stop before the 24 cells
         if args.verdict_out and os.path.lexists(args.verdict_out):
             print(f"EXP36 REPLAY REFUSED: the verdict file {args.verdict_out} exists (a verdict is never replaced)")
