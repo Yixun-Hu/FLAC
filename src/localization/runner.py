@@ -36,6 +36,7 @@ from src.localization.pilot import canonical_sha256, resolve_pilot_records
 from src.localization.run_provenance import (
     attention_identity,
     no_flash_launch_handoff,
+    weights_footprint,
     write_host_record,
 )
 from src.localization.scoring import (
@@ -547,7 +548,12 @@ def run_localization(
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     module, _config = load_flac_module(model_config_path, checkpoint_path, device)
+    flac_footprint = weights_footprint(device)
     retrieval = load_agree_retrieval(agree_checkpoint_path, device)
+    write_host_record(
+        output_dir, "loaded", device=device, handoff=handoff, run_manifest_sha256=run_sha256,
+        extra={"memory_after_flac_load": flac_footprint, "memory_after_agree_load": weights_footprint(device)},
+    )
 
     if stage_split:
         from src.localization import stage_split as split_module

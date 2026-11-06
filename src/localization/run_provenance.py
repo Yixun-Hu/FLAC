@@ -124,15 +124,25 @@ def host_snapshot(device: str, *, run=subprocess.run) -> dict:
     }
 
 
+def weights_footprint(device: str) -> dict | None:
+    """``memory_allocated`` / ``memory_reserved`` now (after a load: the resident weights) -- a different quantity
+    from the ``max_memory_*`` peaks; None off CUDA."""
+    target = torch.device(device)
+    if target.type != "cuda" or not torch.cuda.is_available():
+        return None
+    return {"memory_allocated_bytes": int(torch.cuda.memory_allocated(target)),
+            "memory_reserved_bytes": int(torch.cuda.memory_reserved(target))}
+
+
 def write_host_record(output_dir: Path | str, label: str, *, device: str, handoff: dict | None,
-                      run_manifest_sha256: str, run=subprocess.run) -> Path:
+                      run_manifest_sha256: str, run=subprocess.run, extra: dict | None = None) -> Path:
     """``<output>/host_records/<label>_<UTC>_pid<pid>.json`` (one file per process and moment; never overwritten)."""
     snapshot = host_snapshot(device, run=run)
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     path = Path(output_dir) / "host_records" / f"{label}_{stamp}_pid{os.getpid()}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"label": label, "run_manifest_sha256": run_manifest_sha256, "no_flash_launch_handoff": handoff,
-               "snapshot": snapshot}
+               "snapshot": snapshot, "extra": extra}
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     os.replace(temporary, path)
