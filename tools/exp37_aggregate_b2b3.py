@@ -94,7 +94,12 @@ def build_b2(spec: dict) -> dict:
             key, value, ok = (arm, "1.00_nested"), agg.mean_latency(core, terms["1.00_nested"][0], indices), \
                 terms["1.00_nested"][1]["timing_valid"]
         elif kind == "c2f":
-            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5)
+            parent = next((i["dir"] for i in spec["b2_runs"] if (i["arm"], i["grid"], int(i["seed"])) == (arm, "0.50", 42)),
+                          None)
+            if parent is None:
+                raise RuntimeError(f"the {arm} c2f pass needs its parent: the {arm} 0.50 seed-42 run")
+            rows = lat.load_c2f_run(run_dir, arm=arm, selection=pilot, audit=audits["0.50"], top_k=5,
+                                    parent_run_dir=parent)
             key, value, ok = (arm, "c2f_k5"), sum(rows[i]["c2f_total"] for i in indices) / len(indices), True
         else:
             raise ValueError(f"unknown timing pass kind {kind!r}")

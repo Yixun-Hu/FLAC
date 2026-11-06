@@ -49,7 +49,8 @@ class World:
                                                      "parent_pilot_sha256": self.pilot["sha256"]})
 
     def _pilot(self, name, count):
-        records = [{"index": i, "query_id": f"q{i}.wav", "room": f"r{i}", "candidate_count": count} for i in (1, 2)]
+        records = [{"index": i, "query_id": f"q{i}.wav", "room": f"r{i}", "candidate_count": count,
+                    "candidate_indices_sha256": f"h{i}"} for i in (1, 2)]
         return _hashed(self.root / name, {"schema_version": 1, "query_count": 2, "records": records})
 
     def selector(self, name, selection, seconds):
@@ -62,7 +63,37 @@ class World:
                                    "context_manifest_sha256": ident.CONTEXT_MANIFEST_SHA256})
         return str(self.root / name)
 
-    def run(self, name, arm, pilot, cands, *, seed=42, core=1.0, extra=None, per_query=None, timing=True, angles=None):
+    @staticmethod
+    def sims(c, seed):
+        truth = np.array([1.0, 1.0, 1.0])
+        return (1.0 - np.linalg.norm(c - truth, axis=1) / 10 + 0.01 * seed * (np.arange(len(c)) % 2)).astype(np.float32)
+
+    def c2f_run(self, name, arm):
+        """A FAITHFUL c2f pass over the parent (seed-42 0.5 m) arrays: the registered rule applied to its scores."""
+        from src.localization.exp37_grid import c2f_indices, query_scores
+        parent_sims = self.sims(HALF, 42)
+        rule = c2f_indices(HALF, query_scores(parent_sims.reshape(-1, 1), 0.1), k=5)
+        union, new = rule["union"], np.setdiff1d(rule["refined"], rule["coarse"])
+        sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
+        parts = {"observed_encoding": 0.05, "context_conditioning": 0.1, "coarse_generation": 0.3, "coarse_scoring": 0.1,
+                 "selection": 0.01, "refined_generation": 0.25, "refined_scoring": 0.08, "union_argmax": 0.01}
+        selector = ("observed_encoding", "coarse_scoring", "selection", "refined_scoring", "union_argmax")
+        winner = int(union[int(np.argmax(query_scores(parent_sims[union].reshape(-1, 1), 0.1)))])
+        per_query = {i: {"candidate_indices_sha256": sha, "parent_candidate_indices_sha256": f"h{i}",
+                         "latency_protocol": {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": 5,
+                                              "chebyshev_radius_m": 0.5, "selector_repeat_count": 3},
+                         "latency_seconds": {**parts, "c2f_total": sum(parts.values()), "core_forward_total": 0.65},
+                         "selector_repeat_seconds": {p: [parts[p]] * 3 for p in selector},
+                         "c2f": {"full_candidate_count": len(HALF), "coarse_count": len(rule["coarse"]),
+                                 "top_indices": rule["top"].tolist(), "refined_count": len(rule["refined"]),
+                                 "new_count": len(new), "union_indices": union.tolist(),
+                                 "generated_count": len(rule["coarse"]) + len(new), "winner_full_index": winner,
+                                 "union_indices_sha256": sha, "top_k": 5, "chebyshev_radius_m": 0.5}} for i in (1, 2)}
+        return self.run(name, arm, self.pilot, HALF[union], per_query=per_query, sims_rows=union,
+                        extra={"candidate_subset": "c2f", "c2f_top_k": 5, "c2f_chebyshev_radius_m": 0.5})
+
+    def run(self, name, arm, pilot, cands, *, seed=42, core=1.0, extra=None, per_query=None, timing=True, angles=None,
+            sims_rows=None):
         audit = self.audits["audit_0p75" if pilot is self.pilot75 else "audit_0p50"]
         expected = ident.registered_identity(arm, selection=pilot, audit=audit, seed=seed, timing=timing, frame_angles=angles)
         identity = {**example_identity(expected, audit), **(extra or {})}
@@ -71,9 +102,10 @@ class World:
         truth = np.array([1.0, 1.0, 1.0])
         for r in pilot["records"]:
             c = cands(r["index"]) if callable(cands) else cands
-            sims = (1.0 - np.linalg.norm(c - truth, axis=1) / 10 + 0.01 * seed * (np.arange(len(c)) % 2)).astype(np.float32)
+            sims = self.sims(HALF, 42)[sims_rows] if sims_rows is not None else self.sims(c, seed)
             win = int(np.argmax(sims.astype(np.float64)))
             result = {"run_manifest_sha256": manifest["sha256"], "query_index": r["index"], "query_id": r["query_id"],
+                      "candidate_indices_sha256": r["candidate_indices_sha256"],
                       "room": r["room"], "candidate_count": len(c), "peak_memory_bytes": 7, "source_global": truth.tolist(),
                       "metrics": {"1": grid.recomputed_k1_metrics(c, sims.reshape(-1, 1), truth.tolist(), 0.1)},
                       "latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8},
@@ -98,12 +130,7 @@ def spec(tmp_path):
                                                               extra={"candidate_subset": "nested_1m"},
                                                               per_query={i: {"candidate_subset": {"indices_sha256": sub_sha}}
                                                                          for i in (1, 2)})} for arm in ("P1", "BF")]
-    c2f_q = {i: {"latency_protocol": {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": 5},
-                 "latency_seconds": {"c2f_total": 0.9, "core_forward_total": 0.7},
-                 "c2f": {"generated_count": 12, "union_indices": list(range(12))}} for i in (1, 2)}
-    timing += [{"arm": arm, "kind": "c2f", "dir": w.run(f"{arm}_c2f", arm, w.pilot, HALF[:12], per_query=c2f_q,
-                                                         extra={"candidate_subset": "c2f", "c2f_top_k": 5,
-                                                                "c2f_chebyshev_radius_m": 0.5})} for arm in ("P1", "BF")]
+    timing += [{"arm": arm, "kind": "c2f", "dir": w.c2f_run(f"{arm}_c2f", arm)} for arm in ("P1", "BF")]
     b3 = [{"orbit": o, "theta": t, "seed": s,
            "dir": w.run(f"b3_{o}_{t}_{s}", "BF", w.pilot, HALF, seed=s, angles=angles, timing=(t == 0),
                         extra={"rotate_deg": float(t)} if t else None)}

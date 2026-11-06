@@ -12,7 +12,9 @@ Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1
 
 from __future__ import annotations
 
+import hashlib
 import json
+import statistics
 from pathlib import Path
 
 import numpy as np
@@ -240,25 +242,88 @@ def stage_breakdown(split: dict, selector: dict, counts: dict) -> dict:
     return {"seconds": seconds, "peak_memory": peaks}
 
 
-def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, top_k: int = 5) -> dict:
-    """``{query index: {c2f_total, core, union_count, generated_count}}`` of one validated c2f sequential pass."""
-    run_dir = Path(run_dir)
-    manifest = _hashed(run_dir / "run_manifest.json")
-    identity = manifest["identity"]
-    want = ident.registered_identity(arm, selection=selection, audit=audit, seed=42, timing=True,
-                                     candidate_subset="c2f", c2f_top_k=top_k)
-    bad = ident.identity_reasons(identity, want, audit)
-    if bad:
-        raise RuntimeError(f"{run_dir}: {bad} (the {arm} c2f k = {top_k} registered protocol)")
+def _arrays(run_dir: Path, query: dict):
+    path = Path(run_dir) / query["arrays_file"]
+    if hashlib.sha256(path.read_bytes()).hexdigest() != query.get("arrays_sha256"):
+        raise RuntimeError(f"{path} does not match its query's arrays_sha256")
+    with np.load(path) as arrays:
+        return arrays["candidates"], arrays["similarities"]
+
+
+def _c2f_reasons(query: dict, full, record: dict, parent_query: dict, cands, sims, top_k: int) -> list[str]:
+    """Every registered property of one c2f record, recomputed from its own arrays and the parent's full grid."""
+    from src.localization import exp37_grid as grid
+    c2f, bad = query["c2f"], []
+    union = np.asarray(c2f["union_indices"])
+    if union.ndim != 1 or not len(union) or np.any(np.diff(union) <= 0) or union[0] < 0 or union[-1] >= len(full):
+        return ["the union indices are not sorted, unique and inside the parent grid"]
+    union_sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
+    if not union_sha == c2f["union_indices_sha256"] == query["candidate_indices_sha256"]:
+        bad.append("the active candidate hash is not the union's")
+    if not query.get("parent_candidate_indices_sha256") == record["candidate_indices_sha256"] == parent_query[
+            "candidate_indices_sha256"]:
+        bad.append("the parent candidate hash is not the full grid's")
+    if not np.array_equal(cands, full[union]) or cands.dtype != full.dtype:
+        bad.append("the stored candidates are not the parent's full[union] rows")
+    scores = np.full(len(full), np.nan)
+    scores[union] = grid.query_scores(sims, 0.1)
+    coarse = grid.nested_subset(full)
+    top = grid.top_k(scores, coarse, top_k) if not np.isnan(scores[coarse]).any() else np.array([], dtype=int)
+    if top.tolist() != c2f["top_indices"]:
+        bad.append("the top-k indices do not follow from the stored coarse scores")
+    near = np.zeros(len(full), dtype=bool)
+    for index in top:
+        near |= np.abs(full.astype(np.float64) - full[index].astype(np.float64)).max(axis=1) <= grid.CHEBYSHEV_RADIUS_M \
+            + grid.TOLERANCE_M
+    refined = np.flatnonzero(near)
+    new = np.setdiff1d(refined, coarse)
+    if not np.array_equal(np.union1d(coarse, refined), union):
+        bad.append("the union is not the coarse set plus the Chebyshev-0.5 m refinement")
+    counts = (c2f["coarse_count"], c2f["refined_count"], c2f["new_count"], c2f["generated_count"], len(union))
+    if counts != (len(coarse), len(refined), len(new), len(coarse) + len(new), int(query["candidate_count"])):
+        bad.append("the coarse / refined / generated / union counts disagree")
+    if int(union[int(np.argmax(scores[union]))]) != c2f["winner_full_index"]:
+        bad.append("the winner is not the union argmax")
+    if grid.recomputed_k1_metrics(cands, sims, query["source_global"], 0.1) != query["metrics"]["1"]:
+        bad.append("the recorded K=1 block is not reproduced")
+    protocol = query["latency_protocol"]
+    if (protocol.get("chebyshev_radius_m"), c2f.get("chebyshev_radius_m"), protocol.get("top_k"), c2f.get("top_k"),
+            protocol.get("selector_repeat_count")) != (0.5, 0.5, top_k, top_k, 3):
+        bad.append("the radius / top_k / selector repeat count are not the registered ones")
+    seconds, repeats = query["latency_seconds"], query["selector_repeat_seconds"]
+    parts = ("observed_encoding", "context_conditioning", "coarse_generation", "coarse_scoring", "selection",
+             "refined_generation", "refined_scoring", "union_argmax")
+    medians_ok = all(len(repeats[p]) == 3 and seconds[p] == statistics.median(repeats[p]) for p in repeats)
+    if not medians_ok or abs(seconds["c2f_total"] - sum(seconds[p] for p in parts)) > 1e-9:
+        bad.append("c2f_total is not the sum of the components with median-of-three selector parts")
+    return bad
+
+
+def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, audit: dict, parent_run_dir: Path, top_k: int = 5) -> dict:
+    """``{query index: {c2f_total, core, union_count, generated_count}}`` of one c2f sequential pass, every record
+    re-verified against its parent (the same arm's seed-42 0.5 m timing run on this selection)."""
+    run_dir, parent_run_dir = Path(run_dir), Path(parent_run_dir)
+    manifest, parent = _hashed(run_dir / "run_manifest.json"), _hashed(parent_run_dir / "run_manifest.json")
+    for label, payload, extra in (("c2f", manifest, {"candidate_subset": "c2f", "c2f_top_k": top_k}),
+                                  ("parent", parent, {})):
+        want = ident.registered_identity(arm, selection=selection, audit=audit, seed=42, timing=True, **extra)
+        bad = ident.identity_reasons(payload["identity"], want, audit)
+        if bad:
+            raise RuntimeError(f"{run_dir if label == 'c2f' else parent_run_dir}: {bad} (the {arm} {label} registered protocol)")
     rows = {}
     for record in selection["records"]:
         index = int(record["index"])
         query = _hashed(run_dir / "queries" / f"query_{index:05d}.json")
-        protocol = query.get("latency_protocol") or {}
+        parent_query = _hashed(parent_run_dir / "queries" / f"query_{index:05d}.json")
         if query.get("run_manifest_sha256") != manifest["sha256"] or query.get("query_id") != record["query_id"] or \
-                protocol.get("name") != "exp37_c2f_sequential_kctx8_kgen1" or protocol.get("top_k") != int(top_k) or \
-                len(query["c2f"]["union_indices"]) != int(query["candidate_count"]):
-            raise RuntimeError(f"{run_dir}: query {index} is not a c2f (k = {top_k}) result of this run / selection")
+                parent_query.get("run_manifest_sha256") != parent["sha256"] or query["latency_protocol"].get(
+                    "name") != "exp37_c2f_sequential_kctx8_kgen1":
+            raise RuntimeError(f"{run_dir}: query {index} is not a c2f result of this run / parent / selection")
+        full, _parent_sims = _arrays(parent_run_dir, parent_query)
+        cands, sims = _arrays(run_dir, query)
+        bad = _c2f_reasons(query, full, record, parent_query, cands, sims, int(top_k))
+        if bad:
+            raise RuntimeError(f"{run_dir}: query {index}: {bad}")
         rows[index] = {"c2f_total": float(query["latency_seconds"]["c2f_total"]),
                        "core": float(query["latency_seconds"]["core_forward_total"]),
                        "union_count": int(query["candidate_count"]), "generated_count": int(query["c2f"]["generated_count"])}

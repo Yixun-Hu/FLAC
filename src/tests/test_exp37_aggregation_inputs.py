@@ -90,18 +90,13 @@ def test_the_orbit_is_checked_and_a_rotated_run_is_never_a_timing_source(tmp_pat
         lat.load_arm_run(turned, arm="BF", selection=pilot, context_count=8, audit=AUDIT)
 
 
-def test_a_c2f_pass_is_validated_and_returns_its_sequential_totals(tmp_path):
+def test_a_c2f_pass_must_be_the_registered_c2f_identity(tmp_path):
+    """The identity gate of load_c2f_run (the record-level re-verification is test_exp37_c2f_loader.py)."""
     pilot = _pilot({1: 30, 2: 40})
-    per_query = {i: {"latency_protocol": {"name": "exp37_c2f_sequential_kctx8_kgen1", "context_count": 8, "top_k": 5},
-                     "latency_seconds": {"c2f_total": 0.5 * i, "core_forward_total": 0.4 * i},
-                     "c2f": {"generated_count": 9 + i, "union_indices": list(range(8 + i))}} for i in (1, 2)}
+    parent = _run(tmp_path, "parent", "BF", pilot)
     run = _run(tmp_path, "c2f", "BF", pilot, identity={"candidate_subset": "c2f", "c2f_top_k": 5,
-                                                         "c2f_chebyshev_radius_m": 0.5}, per_query=per_query,
-               counts={1: 9, 2: 10})
-    rows = lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=5, audit=AUDIT)
-    assert rows[2] == {"c2f_total": 1.0, "core": 0.8, "union_count": 10, "generated_count": 11}
+                                                         "c2f_chebyshev_radius_m": 0.5})
     with pytest.raises(RuntimeError, match="c2f_top_k"):
-        lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=3, audit=AUDIT)
-    head = _run(tmp_path, "head", "BF", pilot)
+        lat.load_c2f_run(run, arm="BF", selection=pilot, top_k=3, audit=AUDIT, parent_run_dir=parent)
     with pytest.raises(RuntimeError, match="candidate_subset"):
-        lat.load_c2f_run(head, arm="BF", selection=pilot, top_k=5, audit=AUDIT)
+        lat.load_c2f_run(parent, arm="BF", selection=pilot, top_k=5, audit=AUDIT, parent_run_dir=parent)
