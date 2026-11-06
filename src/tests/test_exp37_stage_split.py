@@ -33,7 +33,7 @@ class FakeDiT(torch.nn.Module):
         super().__init__()
         self.w = torch.nn.Parameter(torch.tensor(0.5))
 
-    def forward(self, x, t, cond=None):
+    def forward(self, x, t, cond=None, **sampler_kwargs):      # cfg_scale, batch_cfg (cfg 1.0: unused)
         return x * self.w + cond.mean(dim=1).view(-1, 1, 1)
 
 
@@ -106,7 +106,8 @@ def test_the_split_pass_computes_exactly_what_the_headline_computes(inputs, cond
     assert all(v >= 0 for v in split["stage_seconds"].values())
     assert split["stage_sum_seconds"] == pytest.approx(sum(split["stage_seconds"].values()))
     assert set(split["stage_peak_memory"]) == {"observed_encode", "context_conditioning", "candidate_conditioning",
-                                               "dit", "vae_decode", "agree_scoring"}
+                                               "dit", "vae_decode", "agree_scoring", "whole_query"}
+    assert split["stage_peak_memory"]["whole_query"] is None and split["peak_memory_bytes"] == 0      # CPU
 
 
 def test_the_staged_generator_equals_the_engine_generator(inputs):
