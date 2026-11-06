@@ -56,7 +56,7 @@ class _Stubs:
     """Records what the runner hands to the stubbed heavy steps."""
 
     def __init__(self):
-        self.reconstruct, self.host, self.executed = [], [], []
+        self.reconstruct, self.host, self.executed, self.records = [], [], [], []
 
 
 @pytest.fixture
@@ -76,6 +76,8 @@ def stubbed(monkeypatch, tmp_path):
 
     def execute(**kw):
         s.executed.append(kw["selected"]["index"])
+        s.records.append((list(kw["record"]["contexts"]), kw["record"].get("candidate_filter_context_sources_global"),
+                          kw.get("context_count", 8)))
         n = int(kw["selected"]["candidate_count"])
         result = {"schema_version": 1, "run_manifest_sha256": kw["run_sha256"], "query_index": kw["selected"]["index"],
                   "query_id": kw["selected"]["query_id"], "candidate_count": n, "elapsed_seconds": 0.0}
@@ -193,3 +195,47 @@ def test_the_provenance_checks_run_before_the_cuda_check(frozen, tmp_path, stubb
     with pytest.raises(RuntimeError, match="CUDA"):
         _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"))
     assert seen == [Path("m")] and not (tmp_path / "run").exists()
+
+
+def test_k_ctx_one_reaches_the_identity_the_executed_record_and_each_query(frozen, tmp_path, stubbed):
+    context, _audit, _pilot = frozen
+    record = next(r for r in context["records"] if r["index"] == 4467)
+    _run(frozen, tmp_path, query_index=4467, context_count=1, warmup_query_count=1)
+    identity = _identity(tmp_path)
+    assert identity["n_context"] == 1 and identity["context_selection"] == runner.K1_CONTEXT_SELECTION
+    assert stubbed.records == [(record["contexts"][:1], record["context_sources_global"], 1)] * 2   # warm-up + query
+    saved = json.loads((tmp_path / "run" / "queries" / "query_04467.json").read_text())
+    assert saved["context_selection"] == {"indices": [0], "paths": record["contexts"][:1]}
+
+
+def test_k_ctx_eight_keeps_the_bundle_identity_and_query_schema(frozen, tmp_path, stubbed):
+    _run(frozen, tmp_path, query_index=4467)
+    assert _identity(tmp_path)["n_context"] == 8 and "context_selection" not in _identity(tmp_path)
+    assert stubbed.records[0][1] is None and stubbed.records[0][2] == 8
+    saved = json.loads((tmp_path / "run" / "queries" / "query_04467.json").read_text())
+    assert "context_selection" not in saved
+
+
+def test_an_unsupported_context_count_is_refused_before_anything_is_written(frozen, tmp_path, stubbed):
+    with pytest.raises(ValueError, match="context count"):
+        _run(frozen, tmp_path, query_index=4467, context_count=4)
+    assert not (tmp_path / "run").exists()
+
+
+def test_the_cli_passes_the_context_count(monkeypatch):
+    sys.path.insert(0, str(REPO))
+    import localize_FLAC
+
+    seen = {}
+    monkeypatch.setattr(localize_FLAC, "run_localization", lambda **kw: seen.update(kw) or {"ok": True})
+    base = ["localize_FLAC.py", "--model-config", "c.json", "--ckpt-path", "k.ckpt", "--agree-ckpt", "a.pt",
+            "--context-manifest", str(E9 / "context_manifest_exp01_seed42.json"),
+            "--geometry-audit", str(E9 / "geometry_audit.json"), "--pilot-manifest", str(SELECTION_128),
+            "--dataset-root", "AcousticRooms", "--output-dir", str(REPO / "never_created_by_this_test"),
+            "--cond-method", "vanilla"]
+    monkeypatch.setattr(sys, "argv", base)
+    localize_FLAC.main()
+    assert seen["context_count"] == 8
+    monkeypatch.setattr(sys, "argv", base + ["--context-count", "1"])
+    localize_FLAC.main()
+    assert seen["context_count"] == 1
