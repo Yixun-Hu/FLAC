@@ -179,8 +179,9 @@ def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
     assert (p1, k1, k2, p3, k3) == ("PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT", "RUNNER")
     assert e1 == e3 == RUN_ENV.format(0, ch["head"]) and e2 == "env CVD="
     tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]                      # amendment A1: both cards
-    assert pa1 == ["--exp36-dump-preflight", "--only", REPLAY, "--canon-ckpt-manifest", CANON_CKPTS]
-    assert pa3 == ["--exp36-dump-preflight", "--only", ",".join(CELLS24), "--canon-ckpt-manifest", CANON_CKPTS]
+    pin = ["--pin", ch["head"]]                                                           # review III HIGH 1
+    assert pa1 == ["--exp36-dump-preflight", "--only", REPLAY, "--canon-ckpt-manifest", CANON_CKPTS] + pin
+    assert pa3 == ["--exp36-dump-preflight", "--only", ",".join(CELLS24), "--canon-ckpt-manifest", CANON_CKPTS] + pin
     assert a1 == ["--only", REPLAY] + tail                                                # dumps ON (addendum)
     (verdict,) = _verdicts(ch)
     assert verdict.endswith(f"_A_verdict_{REPLAY}.json")
@@ -188,7 +189,7 @@ def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
                   str(ch["dir"] / "plan_1.json"), "--verdict-out", str(ch["dir"] / verdict),
                   "--canon-ckpt-manifest", CANON_CKPTS]
     assert a3 == ["--only", ",".join(CELLS24)] + tail
-    assert f"--exp36-publish --exp36-set A --pin {ch['head']} --exp36-verdict {ch['dir'] / verdict}" in out
+    _publication_pointer(out, ch["dir"] / verdict)
     logs = [p for p in os.listdir(ch["dir"]) if p.endswith("_A_chain.log")]
     assert len(logs) == 1 and "CHAIN COMPLETE" in (ch["dir"] / logs[0]).read_text()
 
@@ -199,15 +200,26 @@ def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clo
     got = calls(ch)
     assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * 4 + ["PREFLIGHT", "RUNNER"]
     tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]
-    assert got[0][2] == ["--exp36-dump-preflight", "--only", ",".join(REPLAYS4), "--canon-ckpt-manifest", CANON_CKPTS]
+    assert got[0][2] == ["--exp36-dump-preflight", "--only", ",".join(REPLAYS4), "--canon-ckpt-manifest", CANON_CKPTS,
+                         "--pin", ch["head"]]
     assert got[1][2] == ["--only", ",".join(REPLAYS4)] + tail                             # dumps ON (addendum)
     assert [a[a.index("--exp36-replay") + 1] for _, _, a in got[2:6]] == REPLAYS4
     assert all(a[a.index("--plan-json") + 1] == str(ch["dir"] / "plan_1.json") for _, _, a in got[2:6])
-    assert got[6][2] == ["--exp36-dump-preflight", "--only", ",".join(OFF24), "--canon-ckpt-manifest", CANON_CKPTS]
+    assert got[6][2] == ["--exp36-dump-preflight", "--only", ",".join(OFF24), "--canon-ckpt-manifest", CANON_CKPTS,
+                         "--pin", ch["head"]]
     assert got[7][2] == ["--only", ",".join(OFF24)] + tail
     assert len(_verdicts(ch)) == 4 and all("_offorbit_verdict_" in v for v in _verdicts(ch))
     yaw = [v for v in _verdicts(ch) if REPLAY in v][0]
-    assert f"--exp36-publish --exp36-set OFF --pin {ch['head']} --exp36-verdict {ch['dir'] / yaw}" in out
+    _publication_pointer(out, ch["dir"] / yaw)
+
+
+def _publication_pointer(out, verdict):
+    """Review III NIT 1: the chain cannot know the later publisher pin, so it prints only a pointer to the reviewed
+    command document (and the verdict that command needs); any printed publication command would have to carry
+    --publisher-pin, --base-dir and the publisher checkout -- an incomplete one fails this test."""
+    for ln in (ln for ln in out.splitlines() if "--exp36-publish" in ln):
+        assert "--publisher-pin" in ln and "--base-dir" in ln and "cd /home/yixunhu/codespace/exp-36-yaw-c4-spread" in ln
+    assert "yaw_c4_spread_command.md" in out and str(verdict) in out
 
 
 @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])

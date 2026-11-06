@@ -1,0 +1,556 @@
+RED, cycle 15 (Codex code review III HIGH 1 + NIT 1: the dump preflight trusts an existing dump only through an authenticated receipt at the launch pin passed by the chain; the chain prints a pointer to the reviewed publication command document) at HEAD d373c18ee3daeee00622213e9516f1c7e578a8ff + the uncommitted tests
+FFFFFFFFFFFFFFFFFFF.FF..............................                     [100%]
+=================================== FAILURES ===================================
+______________________ test_absent_dump_directories_pass _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_absent_dump_directories_p0')
+
+    def test_absent_dump_directories_pass(tmp_path):
+        (tmp_path / "nas").mkdir()
+>       assert preflight(tmp_path) == []
+
+src/tests/test_exp36_dump_preflight.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_absent_dump_directories_p0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_ test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_0')
+name = 'exp36_YAW_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_ test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_1')
+name = 'exp36_CANON_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_1')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_ test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_2')
+name = 'exp35_BF_OFF_S40000_K1_s42_th315'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_2')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_ test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_3')
+name = 'exp25_YAW_C4_S40000_K1_s43_th90'
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_a_foreign_dump_directory_refuses_everything(tmp_path, name):
+        os.makedirs(_paths(_row(name), str(tmp_path / "nas")).dump_dir)
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_foreign_dump_directory_3')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_______________________ test_a_staging_leftover_refuses ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_staging_leftover_refuse0')
+
+    def test_a_staging_leftover_refuses(tmp_path):
+        d = _paths(_row(NAMES[1]), str(tmp_path / "nas")).dump_dir
+        os.makedirs(d + ".staging-4242")
+>       reasons = preflight(tmp_path)
+
+src/tests/test_exp36_dump_preflight.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_staging_leftover_refuse0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+____ test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip0')
+edit = <function <lambda> at 0x7be7dc106dd0>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+___ test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip1')
+edit = <function <lambda> at 0x7be7dc106e60>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip1')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_____ test_an_unauthenticated_receipt_never_claims_an_existing_dump[json] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip2')
+edit = <function <lambda> at 0x7be7dc106ef0>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip2')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+___ test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip3')
+edit = <function <lambda> at 0x7be7dc106f80>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip3')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_____ test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip4')
+edit = <function <lambda> at 0x7be7dc107010>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip4')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_____ test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip5')
+edit = <function <lambda> at 0x7be7dc1070a0>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip5')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+______ test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip6')
+edit = <function <lambda> at 0x7be7dc107130>
+kw = {'pin': 'cccccccccccccccccccccccccccccccccccccccc'}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip6')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'cccccccccccccccccccccccccccccccccccccccc', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+___ test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip7')
+edit = <function <lambda> at 0x7be7dc1071c0>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip7')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+___ test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip8')
+edit = <function <lambda> at 0x7be7dc107250>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip8')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+__ test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip9')
+edit = <function <lambda> at 0x7be7dc1072e0>, kw = {}
+
+    @pytest.mark.parametrize("edit, kw", UNAUTHENTICATED, ids=["symlink", "dangling", "json", "malformed", "cell", "stem",
+                                                              "pin", "farm_root", "dump_root", "dump_false"])
+    def test_an_unauthenticated_receipt_never_claims_an_existing_dump(tmp_path, edit, kw):
+        r, p, receipt = _owned(tmp_path)
+        edit(r, p, receipt)
+>       reasons = preflight(tmp_path, **kw)
+
+src/tests/test_exp36_dump_preflight.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unauthenticated_receip9')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+__________________________ test_a_bad_pin_is_refused ___________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_bad_pin_is_refused0')
+
+    def test_a_bad_pin_is_refused(tmp_path):
+        (tmp_path / "nas").mkdir()
+        for pin in (None, "b" * 39, "B" * 40):
+>           assert preflight(tmp_path, pin=pin)
+
+src/tests/test_exp36_dump_preflight.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_a_bad_pin_is_refused0')
+names = ['exp36_YAW_C4_S40000_K8_s42_th90', 'exp36_CANON_C4_S40000_K8_s42_th90', 'exp35_BF_OFF_S40000_K1_s42_th315', 'exp25_YAW_C4_S40000_K1_s43_th90']
+pin = None, dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+____________ test_an_unknown_cell_or_an_empty_selection_is_refused _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unknown_cell_or_an_emp0')
+
+    def test_an_unknown_cell_or_an_empty_selection_is_refused(tmp_path):
+        (tmp_path / "nas").mkdir()
+>       assert preflight(tmp_path, ["exp36_nope"]) and preflight(tmp_path, [])
+
+src/tests/test_exp36_dump_preflight.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_an_unknown_cell_or_an_emp0')
+names = ['exp36_nope'], pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+dump_root = None
+
+    def preflight(tmp, names=NAMES, pin=PIN, dump_root=None):
+>       return C.exp36_dump_preflight(MANIFEST, names, pin=pin, base_dir=str(tmp), dump_root=dump_root or str(tmp / "nas"),
+                                      canon_index=T.canon_index())
+E       TypeError: exp36_dump_preflight() got an unexpected keyword argument 'pin'
+
+src/tests/test_exp36_dump_preflight.py:38: TypeError
+_____________________________ test_cli_exit_codes ______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_cli_exit_codes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7be7dc34abf0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7be7dc348e50>
+
+    def test_cli_exit_codes(tmp_path, monkeypatch, capsys):
+        cells = tmp_path / "cells.json"
+        cells.write_text(json.dumps(MANIFEST))
+        index = tmp_path / "canon.sha256"
+        index.write_text("".join(f"{sha}  {path}\n" for _, (path, sha) in sorted(T.canon_index().items())))
+        argv = ["--exp36-dump-preflight", "--only", ",".join(NAMES), "--cells", str(cells), "--base-dir", str(tmp_path),
+                "--dump-root", str(tmp_path / "nas"), "--canon-ckpt-manifest", str(index)]
+        (tmp_path / "nas").mkdir()
+>       assert C.main(argv) == 2 and "pin" in capsys.readouterr().out                  # review III: the launch pin
+E       AssertionError: assert (0 == 2)
+E        +  where 0 = <function main at 0x7be7dc2f65f0>(['--exp36-dump-preflight', '--only', 'exp36_YAW_C4_S40000_K8_s42_th90,exp36_CANON_C4_S40000_K8_s42_th90,exp35_BF_OFF_S...40000_K1_s43_th90', '--cells', '/tmp/pytest-of-yixunhu/pytest-6668/test_cli_exit_codes0/cells.json', '--base-dir', ...])
+E        +    where <function main at 0x7be7dc2f65f0> = C.main
+
+src/tests/test_exp36_dump_preflight.py:137: AssertionError
+----------------------------- Captured stdout call -----------------------------
+EXP36 DUMP PREFLIGHT OK: 4 cell(s), no dump collision under /tmp/pytest-of-yixunhu/pytest-6668/test_cli_exit_codes0/nas
+___________ test_chain_ii_runs_the_yaw_replay_its_check_then_the_24 ____________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_chain_ii_runs_the_yaw_rep0/ch'), 'head': '039ceb2a3ee8ca62d81560db7efd537369eee4bb'}
+
+    def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
+        rc, out = chain(clone, ch, env={"ALLOW_SHARED_GPU": "0"})
+        assert rc == 0 and "CHAIN COMPLETE" in out, out
+        (p1, _, pa1), (k1, e1, a1), (k2, e2, a2), (p3, _, pa3), (k3, e3, a3) = calls(ch)
+        assert (p1, k1, k2, p3, k3) == ("PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT", "RUNNER")
+        assert e1 == e3 == RUN_ENV.format(0, ch["head"]) and e2 == "env CVD="
+        tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]                      # amendment A1: both cards
+        pin = ["--pin", ch["head"]]                                                           # review III HIGH 1
+>       assert pa1 == ["--exp36-dump-preflight", "--only", REPLAY, "--canon-ckpt-manifest", CANON_CKPTS] + pin
+E       AssertionError: assert ['--exp36-dum...oints.sha256'] == ['--exp36-dum... '--pin', ...]
+E         
+E         Right contains 2 more items, first extra item: '--pin'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:183: AssertionError
+___ test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6668/test_chain_i_runs_the_4_replay0/ch'), 'head': '039ceb2a3ee8ca62d81560db7efd537369eee4bb'}
+
+    def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clone, ch):
+        rc, out = chain(clone, ch, args=("offorbit",))
+        assert rc == 0 and "CHAIN COMPLETE" in out, out
+        got = calls(ch)
+        assert [k for k, _, _ in got] == ["PREFLIGHT", "RUNNER"] + ["COLLECT"] * 4 + ["PREFLIGHT", "RUNNER"]
+        tail = ["--lanes", "0,1", "--canon-ckpt-manifest", CANON_CKPTS]
+>       assert got[0][2] == ["--exp36-dump-preflight", "--only", ",".join(REPLAYS4), "--canon-ckpt-manifest", CANON_CKPTS,
+                             "--pin", ch["head"]]
+E       AssertionError: assert ['--exp36-dum...oints.sha256'] == ['--exp36-dum... '--pin', ...]
+E         
+E         Right contains 2 more items, first extra item: '--pin'
+E         Use -v to get more diff
+
+src/tests/test_exp36_chain.py:203: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+PASSED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+FAILED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[symlink]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dangling]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[json]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[malformed]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[cell]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[stem]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[pin]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[farm_root]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_root]
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unauthenticated_receipt_never_claims_an_existing_dump[dump_false]
+FAILED src/tests/test_exp36_dump_preflight.py::test_a_bad_pin_is_refused - Ty...
+FAILED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+FAILED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes - Assertio...
+FAILED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+FAILED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+21 failed, 31 passed, 12 deselected, 3 warnings in 27.40s
