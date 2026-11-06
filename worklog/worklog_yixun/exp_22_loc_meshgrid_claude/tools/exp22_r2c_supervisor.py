@@ -195,3 +195,99 @@ def reserve(world, cfg, *, worktree, orch, pin2, card, index, seal, seal_sha256)
                     seal_sha256=seal_sha256, now=world.now())
     E.write_exclusive(state, E.dumps(doc))
     return 0, f"RESERVED {held['path']} sha256 {held['sha256']} inode {held['inode']}; state {state} phase reserved"
+
+
+def alive(ident, proc):
+    """True when the process ``ident`` names may still run: its pid lives with the recorded start time (and cmdline);
+    an identity that cannot be read while the pid exists counts as alive (unprovable)."""
+    try:
+        live = C.proc_identity(ident["pid"], proc)
+    except ValueError:
+        return os.path.exists(os.path.join(proc, str(ident["pid"])))
+    return "start_time" not in ident or (live["start_time"] == ident["start_time"] and ident.get(
+        "cmdline_sha256", live["cmdline_sha256"]) == live["cmdline_sha256"])
+
+
+def active_reasons(cfg, worktree, except_orch=None):
+    """Why an exp22 run is active or unresolved: the exp22 lock held, a supervisor process, an exp22 reservation on
+    either card, or a state (other than ``except_orch``'s) neither released nor stopped; unreadable = a reason."""
+    out = []
+    try:
+        if C.lock_status(lock_path(worktree)) == "held":
+            out.append(f"the exp22 lock {lock_path(worktree)} is held: a supervisor or a line child lives")
+        pids = C.procs_named(SUPERVISOR, cfg.proc)
+        out += [f"exp22 supervisor process(es) {pids} run"] if pids else []
+        out += [f"a reservation file of holder exp22 exists for {c} ({C.reservation_path(cfg.reservations, u)})"
+                for c, u in C.CARDS.items() if C.reservation_status(cfg.reservations, u) == "present (holder exp22)"]
+    except C.Unreadable as err:
+        out.append(f"unreadable: {err}")
+    root = os.path.join(worktree, "outputs_loc", "exp22")
+    try:
+        names = sorted(os.listdir(root))
+    except OSError as err:
+        return out + [f"{root} is unreadable ({err})"]
+    for n in names:
+        d, sp = os.path.join(root, n), os.path.join(root, n, "state.json")
+        if not ORCH_RE.fullmatch(n) or not os.path.lexists(sp) or (
+                except_orch and os.path.realpath(d) == os.path.realpath(except_orch)):
+            continue
+        try:
+            with open(sp) as f:
+                phase = json.load(f)["phase"]
+        except (OSError, ValueError, KeyError, TypeError) as err:
+            out.append(f"{sp} is unreadable ({err}): unresolved")
+            continue
+        out += [] if phase in TERMINAL else [f"{d}: phase {phase} (an exp22 run is active or unresolved)"]
+    return out
+
+
+def planner_release(cfg, worktree, orch):
+    """The Planner's release after a stop or a crash (by hand): ``(0, msg)`` or ``(1, why)`` -- nothing unlinked."""
+    sp = os.path.join(orch, "state.json")
+    try:
+        if run_of(worktree, orch) is None or C.lock_status(lock_path(worktree)) == "held":
+            return 1, "RELEASE REFUSED: not an orchestration directory, or the exp22 lock is held (something lives)"
+        with open(sp) as f:
+            doc = json.load(f)
+    except (OSError, ValueError, C.Unreadable) as err:
+        return 1, f"RELEASE REFUSED: {err}"
+    why = state_reasons(doc, cfg) or (["already released"] if doc["phase"] == "released" else [])
+    live = [k for k, ident in (("supervisor", doc["supervisor"]), ("line child", (doc["current"] or {}).get("child")))
+            if not why and ident and alive(ident, cfg.proc)]
+    if why or live:
+        return 1, "RELEASE REFUSED: " + "; ".join(why + [f"the recorded {k} may be alive (pid + start time)" for k in live])
+    note = "the reservation was already absent"
+    if os.path.lexists(doc["reservation"]["path"]):
+        rel = release_reservation(doc["reservation"])
+        if rel:
+            return 1, "RELEASE REFUSED (nothing unlinked): " + "; ".join(rel)
+        note = "our exact record released"
+    now = time.time()
+    doc.update(phase="released", released={"t": now, "time": C.iso(now), "by": "planner", "note": note})
+    doc["events"].append({"t": now, "time": C.iso(now), "what": f"released by the Planner: {note}"})
+    E.write_json_atomic(sp, doc)
+    return 0, f"RELEASED by the Planner: {note}"
+
+
+def confirm(cfg, worktree, orch, pid, timeout=60.0):
+    """The launcher's check after the detachment: the state's supervisor IS the live ``pid`` (pid, start time, cwd,
+    cmdline sha256) and the exp22 lock is held; waits up to ``timeout`` s for the identity to be written."""
+    deadline, sup, doc = time.time() + timeout, None, {}
+    while sup is None and time.time() < deadline:
+        try:
+            with open(os.path.join(orch, "state.json")) as f:
+                doc = json.load(f)
+            sup = doc.get("supervisor")
+        except (OSError, ValueError):
+            pass
+        if sup is None:
+            time.sleep(0.2)
+    try:
+        live = C.proc_identity(pid, cfg.proc) if sup else None
+        held = C.lock_status(lock_path(worktree)) == "held"
+    except (ValueError, C.Unreadable) as err:
+        return 1, f"NOT CONFIRMED: {err}"
+    if not sup or {k: live[k] for k in ID_KEYS} != sup or not held:
+        return 1, f"NOT CONFIRMED: recorded {sup}, live {live}, the exp22 lock {'held' if held else 'NOT held'}"
+    return 0, (f"CONFIRMED supervisor pid {pid} start time {sup['start_time']} cwd {sup['cwd']} cmdline sha256 "
+               f"{sup['cmdline_sha256']}; the exp22 lock held; phase {doc['phase']}")

@@ -1,0 +1,77 @@
+# exp_22 A7 c6b_planner RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:47:40-05:00 -- branch exp-22-a7-noflash HEAD 91822506; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+__ test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6316/test_an_active_exp22_run_is_se0')
+
+    def test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process(tmp_path):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+>       assert S.active_reasons(cfg, str(wt)) == []
+E       AttributeError: module 'exp22_r2c_supervisor' has no attribute 'active_reasons'. Did you mean: 'state_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:20: AttributeError
+_ test_the_planner_release_needs_no_live_supervisor_or_child_and_our_exact_record _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6316/test_the_planner_release_needs0')
+
+    def test_the_planner_release_needs_no_live_supervisor_or_child_and_our_exact_record(tmp_path):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        cfg = cfg._replace(proc="/proc")                                           # the identities are real processes
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = json.load(open(orch / "state.json"))
+        me = C.proc_identity(os.getpid())
+        dead = {k: me[k] for k in ("pid", "start_time", "cwd", "cmdline_sha256")}
+        dead["start_time"] += 7                                                    # a crashed supervisor: gone
+        st.update(phase="child_identified", supervisor=dead,
+                  current={"child": dict(me, expected_cmdline_sha256=me["cmdline_sha256"])})
+        E.write_json_atomic(str(orch / "state.json"), st)
+>       rc, msg = S.planner_release(cfg, str(wt), str(orch))
+E       AttributeError: module 'exp22_r2c_supervisor' has no attribute 'planner_release'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:54: AttributeError
+_ test_the_confirmation_binds_the_detached_supervisor_by_pid_start_time_and_cmdline _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6316/test_the_confirmation_binds_th0')
+
+    def test_the_confirmation_binds_the_detached_supervisor_by_pid_start_time_and_cmdline(tmp_path):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        cfg = cfg._replace(proc="/proc")
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = json.load(open(orch / "state.json"))
+        st.update(phase="supervisor_started", supervisor={k: v for k, v in C.proc_identity(os.getpid()).items()
+                                                          if k in ("pid", "start_time", "cwd", "cmdline_sha256")})
+        E.write_json_atomic(str(orch / "state.json"), st)
+        lock = wt / "outputs_loc" / "exp22" / "r2_preflight.lock"
+        fd = os.open(str(lock), os.O_RDWR | os.O_CREAT, 0o644)
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+>           assert S.confirm(cfg, str(wt), str(orch), os.getpid(), timeout=1)[0] == 0
+E           AttributeError: module 'exp22_r2c_supervisor' has no attribute 'confirm'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:78: AttributeError
+__ test_a_crashed_reserve_leaves_an_orphan_that_counts_as_an_active_exp22_run __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6316/test_a_crashed_reserve_leaves_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x772b876d19f0>
+
+    def test_a_crashed_reserve_leaves_an_orphan_that_counts_as_an_active_exp22_run(tmp_path, monkeypatch):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        real = S.create_reservation
+        monkeypatch.setattr(S, "create_reservation", lambda *a, **k: (real(*a, **k), (_ for _ in ()).throw(Crash()))[0])
+        with pytest.raises(Crash):
+            reserve(cfg, w, wt, orch, seal)
+        monkeypatch.undo()
+>       assert any("holder exp22" in x for x in S.active_reasons(cfg, str(wt)))   # no state, yet the run is visible
+E       AttributeError: module 'exp22_r2c_supervisor' has no attribute 'active_reasons'. Did you mean: 'state_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:101: AttributeError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_the_planner_release_needs_no_live_supervisor_or_child_and_our_exact_record
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_the_confirmation_binds_the_detached_supervisor_by_pid_start_time_and_cmdline
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_a_crashed_reserve_leaves_an_orphan_that_counts_as_an_active_exp22_run
+4 failed in 0.16s
+rc 1
