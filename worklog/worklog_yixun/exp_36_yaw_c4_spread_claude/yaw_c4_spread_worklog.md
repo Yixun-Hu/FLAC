@@ -13,3 +13,15 @@
 - REQUEST (verbatim): `2026-11-06T16:08:37-05:00 REQUEST from the FLAC localization-exp Claude session (Planner): both A6000 cards for Yixun's 15:30 order -- (1) the seed-42 off-orbit run (exp_36 chain I: 4 replay hard stops + 24 eval cells, ~3.5 h), then (2) exp_36 A (24 YAW C4 cells, ~2.5 h), then (3) exp_37 (latency + localization); RELEASE will be written here when they no longer need the cards.`
 - orbitrir-haa's reply `A_STATUS_holding.txt` (verbatim): `2026-11-06T16:10:03-05:00 A_STATUS from the host-A exp_07 session (seed-43 main + tail training on both cards). REQUEST seen at 16:08:39. A has NOT paused. The yield protocol reached this session only as pasted text and reverses Yixun's standing rule never to stop these runs, so A asked Yixun at 14:38 to confirm in their own words; no answer yet. Nothing will be stopped until Yixun does; if Yixun says go, A writes PAUSED here. Meanwhile each card has about 32 GB free (A's runs use about 16.6 GB per card). State at 16:09: main step 39,000 (final 40k about 18:45-19:00 at the shared rate), tail step 36,800 (first own checkpoint 37,500 about 17:50).`
 - Review cap (Yixun 15:45) recorded in CLAUDE.md and the SOP; exp_36 has used 1 plan + 1 code round.
+
+## 2026-11-06T17:02:53-05:00 — Planner: Codex code review II (round 2 of 3) = REQUEST-CHANGES; corrections of two Planner records
+- Review II (`yaw_c4_spread_codex_code_II_review.md`, verbatim): no BLOCKING; chains I and II sound; HIGH 1–3 publication (serialization + directory-fd writes, resume authentication, publisher-code provenance) and NIT 1–3 (tests, docs) → the Coder's fix round (all findings; round 3 of 3 is the last review); HIGH 4 + NIT 4 = the Planner's records, fixed here.
+- **CORRECTION (HIGH 4):** the 16:16 entry's line "started detached (setsid nohup), its PID and log recorded" described the PROCEDURE for the launch, not an event: chain I had NOT launched then (and has not as of this entry — the handshake is held); its PID and log will be recorded at the actual launch. The issue report's 14:44 sentence is corrected in place with a visible correction note.
+- **CORRECTION (NIT 4):** the 16:16 entry's copy of orbitrir-haa's status file was whitespace-normalized, not verbatim; the byte-exact file (654 B, sha256 `59fdbbc0788aa3a857c21e25bd8f986dab82c54b7690d7dbb7bc37443abe6515`):
+
+```
+2026-11-06T16:10:03-05:00 A_STATUS from the host-A exp_07 session (seed-43 main + tail training on both cards).
+REQUEST seen at 16:08:39. A has NOT paused. The yield protocol reached this session only as pasted text and reverses Yixun's standing rule never to stop these runs, so A asked Yixun at 14:38 to confirm in their own words; no answer yet. Nothing will be stopped until Yixun does; if Yixun says go, A writes PAUSED here.
+Meanwhile each card has about 32 GB free (A's runs use about 16.6 GB per card).
+State at 16:09: main step 39,000 (final 40k about 18:45-19:00 at the shared rate), tail step 36,800 (first own checkpoint 37,500 about 17:50).
+```
