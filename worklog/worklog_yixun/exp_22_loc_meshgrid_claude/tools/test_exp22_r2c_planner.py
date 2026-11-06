@@ -12,9 +12,49 @@ from conftest import C, GPU0, GPU1, HOLDER, PIN2, RUN, FakeWorld, cfg_for, load,
 
 E = load("exp22_r2c_evidence")
 S = load("exp22_r2c_supervisor")
+DEAD = {"pid": 4194000, "start_time": 1, "cwd": "/", "cmdline_sha256": "0" * 64}   # never a live process here
+
+
+def _stop(orch, phase="stopped"):
+    """The state as a stopped (or crashed) supervisor leaves it: a supervisor identity, the reservation kept."""
+    st = json.load(open(orch / "state.json"))
+    st.update(phase=phase, supervisor=DEAD, stop={"reason": "a test stop", "time": "t"} if phase == "stopped" else None)
+    E.write_json_atomic(str(orch / "state.json"), st)
+    return st
+
+
 # --------------------------------------------------------------------------- #
 # no exp22 run active; the Planner's release; the launcher's confirmation
 # --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("phase", ["stopped", "line_complete", "child_identified", "supervisor_started", "reserved"])
+def test_a_stopped_or_crashed_run_stays_active_until_the_planner_releases_it(tmp_path, phase):
+    """Codex A7-C1 HIGH 2 (A7 r3 (e)): only "released" is resolved -- a stopped or crashed state blocks every new run
+    even when its reservation file has disappeared."""
+    cfg, w, wt, orch, seal = setup(tmp_path)
+    assert reserve(cfg, w, wt, orch, seal)[0] == 0
+    if phase != "reserved":
+        _stop(orch, phase)
+    os.unlink(res_file(cfg))
+    assert any(f"phase {phase}" in x for x in S.active_reasons(cfg, str(wt)))
+    assert S.planner_release(cfg, str(wt), str(orch))[0] == 0
+    assert S.active_reasons(cfg, str(wt)) == [] and json.load(open(orch / "state.json"))["phase"] == "released"
+
+
+def test_a_foreign_replacement_waits_for_its_owner_then_the_absent_record_release_closes_the_old_state(tmp_path):
+    cfg, w, wt, orch, seal = setup(tmp_path)
+    assert reserve(cfg, w, wt, orch, seal)[0] == 0
+    _stop(orch)
+    os.unlink(res_file(cfg))
+    foreign = json.dumps({"holder": "exp35", "h35": "x"})
+    open(res_file(cfg), "w").write(foreign)                                   # another holder took the card
+    rc, msg = S.planner_release(cfg, str(wt), str(orch))
+    assert rc == 1 and "nothing unlinked" in msg and open(res_file(cfg)).read() == foreign
+    assert any("phase stopped" in x for x in S.active_reasons(cfg, str(wt)))   # the old state still waits
+    os.unlink(res_file(cfg))                                                   # its owner removes it
+    rc, msg = S.planner_release(cfg, str(wt), str(orch))
+    assert rc == 0 and "already absent" in msg and S.active_reasons(cfg, str(wt)) == []
+
+
 def test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process(tmp_path):
     cfg, w, wt, orch, seal = setup(tmp_path)
     assert S.active_reasons(cfg, str(wt)) == []
@@ -23,11 +63,12 @@ def test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process(tm
     assert any("holder exp22" in x for x in why) and any("reserved" in x for x in why)
     assert S.active_reasons(cfg, str(wt), except_orch=str(orch)) and \
         not any("r2_preflight" in x for x in S.active_reasons(cfg, str(wt), except_orch=str(orch)))
-    st = json.load(open(orch / "state.json"))
-    st["phase"] = "stopped"
-    open(orch / "state.json", "w").write(json.dumps(st))
-    os.unlink(res_file(cfg))
-    assert S.active_reasons(cfg, str(wt)) == []                               # resolved: nothing active
+    _stop(orch)
+    os.unlink(res_file(cfg))                                                   # removed outside the release path
+    assert any("phase stopped" in x for x in S.active_reasons(cfg, str(wt)))  # Codex A7-C1 HIGH 2: NOT resolved
+    rc, msg = S.planner_release(cfg, str(wt), str(orch))
+    assert rc == 0 and "already absent" in msg, msg
+    assert S.active_reasons(cfg, str(wt)) == []                               # only "released" resolves a run
     lock = wt / "outputs_loc" / "exp22" / "r2_preflight.lock"
     p = subprocess.Popen([sys.executable, "-c", HOLDER, str(lock)], stdout=subprocess.PIPE, text=True)
     try:

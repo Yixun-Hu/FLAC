@@ -1,0 +1,66 @@
+# exp_22 A7 c14_high2_released_only RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:43:24-05:00 -- branch exp-22-a7-noflash HEAD 6edefcd7; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py
+F....FF...                                                               [100%]
+=================================== FAILURES ===================================
+_ test_a_stopped_or_crashed_run_stays_active_until_the_planner_releases_it[stopped] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6335/test_a_stopped_or_crashed_run_0')
+phase = 'stopped'
+
+    @pytest.mark.parametrize("phase", ["stopped", "line_complete", "child_identified", "supervisor_started", "reserved"])
+    def test_a_stopped_or_crashed_run_stays_active_until_the_planner_releases_it(tmp_path, phase):
+        """Codex A7-C1 HIGH 2 (A7 r3 (e)): only "released" is resolved -- a stopped or crashed state blocks every new run
+        even when its reservation file has disappeared."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        if phase != "reserved":
+            _stop(orch, phase)
+        os.unlink(res_file(cfg))
+>       assert any(f"phase {phase}" in x for x in S.active_reasons(cfg, str(wt)))
+E       assert False
+E        +  where False = any(<generator object test_a_stopped_or_crashed_run_stays_active_until_the_planner_releases_it.<locals>.<genexpr> at 0x7ba3f1484f20>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:38: AssertionError
+_ test_a_foreign_replacement_waits_for_its_owner_then_the_absent_record_release_closes_the_old_state _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6335/test_a_foreign_replacement_wai0')
+
+    def test_a_foreign_replacement_waits_for_its_owner_then_the_absent_record_release_closes_the_old_state(tmp_path):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        _stop(orch)
+        os.unlink(res_file(cfg))
+        foreign = json.dumps({"holder": "exp35", "h35": "x"})
+        open(res_file(cfg), "w").write(foreign)                                   # another holder took the card
+        rc, msg = S.planner_release(cfg, str(wt), str(orch))
+        assert rc == 1 and "nothing unlinked" in msg and open(res_file(cfg)).read() == foreign
+>       assert any("phase stopped" in x for x in S.active_reasons(cfg, str(wt)))   # the old state still waits
+E       assert False
+E        +  where False = any(<generator object test_a_foreign_replacement_waits_for_its_owner_then_the_absent_record_release_closes_the_old_state.<locals>.<genexpr> at 0x7ba3f1526d50>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:52: AssertionError
+__ test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6335/test_an_active_exp22_run_is_se0')
+
+    def test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process(tmp_path):
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert S.active_reasons(cfg, str(wt)) == []
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        why = S.active_reasons(cfg, str(wt))
+        assert any("holder exp22" in x for x in why) and any("reserved" in x for x in why)
+        assert S.active_reasons(cfg, str(wt), except_orch=str(orch)) and \
+            not any("r2_preflight" in x for x in S.active_reasons(cfg, str(wt), except_orch=str(orch)))
+        _stop(orch)
+        os.unlink(res_file(cfg))                                                   # removed outside the release path
+>       assert any("phase stopped" in x for x in S.active_reasons(cfg, str(wt)))  # Codex A7-C1 HIGH 2: NOT resolved
+E       assert False
+E        +  where False = any(<generator object test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process.<locals>.<genexpr> at 0x7ba3f1526f80>)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:68: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_a_stopped_or_crashed_run_stays_active_until_the_planner_releases_it[stopped]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_a_foreign_replacement_waits_for_its_owner_then_the_absent_record_release_closes_the_old_state
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_active_exp22_run_is_seen_by_its_reservation_state_lock_or_process
+3 failed, 7 passed in 0.19s
+rc 1

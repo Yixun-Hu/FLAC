@@ -14,7 +14,8 @@
         child (pid + start time, never a pid alone) and only our exact record (bytes + inode) is unlinked
 
 The state machine (A7 r3 (e)): reserved -> supervisor_started -> line_pending -> child_identified -> line_complete
-(-> line_pending ...) -> released, or -> stopped (the reservation kept until the Planner releases it); every
+(-> line_pending ...) -> released, or -> stopped (the reservation kept, and every new run blocked, until the Planner's
+release records "released"); every
 transition written atomically and fsynced (file + directory) BEFORE the next action; no crash path releases or adopts.
 A restart refuses while its state exists. Never signals, kills or edits any process.
 
@@ -49,7 +50,7 @@ TOOLS = ("exp22_r2c_common.py", "exp22_r2c_evidence.py", "exp22_r2c_supervisor.p
          "exp22_r2c_preflight.sh", "exp22_r2c_preflight_lines.json")
 LINES_JSON = os.path.join(HERE, "exp22_r2c_preflight_lines.json")
 PHASES = ("reserved", "supervisor_started", "line_pending", "child_identified", "line_complete", "released", "stopped")
-TERMINAL = ("released", "stopped")
+RESOLVED = "released"                     # the ONLY resolved phase (Codex A7-C1 HIGH 2; A7 r3 (e))
 STATE_KEYS = ("schema_version", "campaign", "run", "pin2", "worktree", "card", "reservation", "seal", "lines_sha256",
               "tools_sha256", "supervisor", "phase", "current", "lines", "stop", "released", "events")
 ID_KEYS = ("pid", "start_time", "cwd", "cmdline_sha256")
@@ -213,7 +214,8 @@ def alive(ident, proc):
 
 def active_reasons(cfg, worktree, except_orch=None, holding_lock=False):
     """Why an exp22 run is active or unresolved: the exp22 lock held, a supervisor process, an exp22 reservation on
-    either card, or a state (other than ``except_orch``'s) neither released nor stopped; unreadable = a reason.
+    either card, or a state (other than ``except_orch``'s) not yet "released" -- a stopped or crashed run blocks until
+    the Planner's release records it, even after its reservation file is gone; unreadable = a reason.
     ``holding_lock``: the caller (the launcher's last look) holds the exclusive lock itself, so no other one does."""
     out = []
     try:
@@ -241,7 +243,7 @@ def active_reasons(cfg, worktree, except_orch=None, holding_lock=False):
         except (OSError, ValueError, KeyError, TypeError) as err:
             out.append(f"{sp} is unreadable ({err}): unresolved")
             continue
-        out += [] if phase in TERMINAL else [f"{d}: phase {phase} (an exp22 run is active or unresolved)"]
+        out += [] if phase == RESOLVED else [f"{d}: phase {phase} (an exp22 run is active or unresolved until released)"]
     return out
 
 
