@@ -27,6 +27,10 @@ RED commits hold the tests (and the RED log), GREEN commits the implementation (
 | `461c58e0` | 9 GREEN | **H36_I** (the launch commit of chains I and II): `yaw_c4_spread_chain.sh {offorbit,A}` | +54 / -31 | +3 / -3 | +157 |
 | `d2076042` | 10 RED | `--exp36-set A / OFF`, YAW-verdict gate, base-dir-relative plan | 0 | +49 / -6 | +606 |
 | `a198d46d` | 10 GREEN | publication sets (48 / 12 files, one manifest per set); cross-version verdict guard vs 461c58e0 | +29 / -19 | +14 | +100 |
+| `071a52fa` | records | ledger, notebook entry, command file, H35 baseline suites, run-worktree links, the chain I / II DRY_RUN transcripts, publish gate smoke | 0 | 0 | +3155 |
+| `8f2c290b` | docs | two docstrings brought up to date (no behaviour change) | 0 (docstrings) | 0 | 0 |
+| `2881a3ad` | 11 RED | Codex code review I HIGH 1 follow-ups: parsed CLI OFF (12 files, own manifest), per-set manifest paths, publisher provenance | 0 | +23 | +24 |
+| `0d99eeaf` | 11 GREEN | publication manifest records `publisher` = {repo, HEAD} beside `pin` / `campaign_digest` | +3 / -1 | 0 | +78 |
 
 Every code commit is < 200 changed code lines; one test commit (`65f9fcd4`, 243 test lines) exceeds 200 because it
 removes a duplicated clone fixture (-97) while adding the A1 tests.

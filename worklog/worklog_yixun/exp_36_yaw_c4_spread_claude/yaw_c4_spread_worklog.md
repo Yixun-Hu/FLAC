@@ -39,3 +39,27 @@
   asset links; created so that branch commits never move a running campaign's HEAD), then chain II there; then the
   two publications from this worktree with `--base-dir ~/codespace/exp-36-run --pin 461c58e0…` (commands in
   `yaw_c4_spread_command.md`); a Codex code review of this round before the launch is the Planner's call.
+
+## 2026-11-06T16:25:00-05:00 — Coder r1: Codex code review I HIGH 1 (publication sets) closed in code; verification at the dev head
+- **Goal** — close review I's HIGH 1 before any publication (Chain I unaffected: it never publishes).
+- **Change** — cycle 10 (`d2076042` RED / `a198d46d` GREEN): `--exp36-publish --exp36-set A|OFF` (`EXP36_PUBLISH_SETS`:
+  the 24 YAW-C4S cells / the 6 YAW s42 off-orbit cells; 48 / 12 destination paths), one default manifest per set
+  (`yaw_c4_spread_publication_manifest_{A,OFF}.json`), the YAW replay's verdict only, the replay plan resolved against
+  `--base-dir` (the run worktree's cells published from this checkout, pin 461c58e0, its digest kept as the artifacts'
+  provenance); a cross-version guard: the collector at 461c58e0 and the current one compute the same verdict dict (the
+  publication re-computes and compares it). Cycle 11: the parsed-CLI OFF test (12 files, own manifest), the per-set
+  manifest paths, and `publisher` = {repo, HEAD} recorded beside `pin` / `campaign_digest`.
+- **Command / Validation** — the comparator CLI smoke at H36_I in the run worktree on the chain-I DRY_RUN plan
+  (`*_comparator_cli_smoke_at_461c58e0.log`): all four REAL references pass, each replay absent -> REFUSED rc 2 by
+  design, no file written; the publish gate smoke (real worktrees) refused at the verdict, nothing written.
+- **Next** — the Planner's chain I launch waits on PAUSED (orbitrir-haa holding); chain II and both publications follow.
+
+## 2026-11-06T16:50:00-05:00 — Coder r1: verification complete; branch pushed
+- **Result** — passed. Full depth_canon + exp_35 + exp_36 suites at H36_I `461c58e0` in the run worktree
+  (`*_SUITES_at_461c58e0_in_the_run_worktree.log`): 1645 passed, 1 skipped (needs a CUDA device), 0 failed (39 min).
+  At the dev head `8f2c290b`: the exp_36 + collector + runner suites 635 passed / 0 failed
+  (`*_SUITES_exp36_and_collector_at_8f2c290b_dev_head.log`), the remaining kit suites 242 passed / 0 failed
+  (`*_SUITES_rest_at_8f2c290b_dev_head.log`); cycle 11 (`2881a3ad` / `0d99eeaf`) GREEN 65 passed. H35 baseline for
+  comparison: 1513 passed / 1 skipped / 0 failed. The comparator CLI smoke at H36_I (all four REAL references pass;
+  absent replays refused rc 2) in `*_comparator_cli_smoke_at_461c58e0.log`. Temporary baseline worktree
+  `~/codespace/.exp36-baseline-H35` removed (its three symlinks first; targets intact).

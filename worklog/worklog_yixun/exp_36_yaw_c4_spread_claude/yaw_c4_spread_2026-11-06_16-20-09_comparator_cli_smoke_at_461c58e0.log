@@ -1,0 +1,23 @@
+comparator CLI smoke (read-only, no --verdict-out) in the run worktree at 461c58e0a70747d163e554ebb123a5869d3a38c2 on the chain-I DRY_RUN plan worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_16-03-13_eval_plan.json: every reference must verify, every replay is absent -> REFUSED (exit 2) by design
+EXP36 REPLAY REFUSED
+  - the replay does not verify at 461c58e0a707: missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.json (FileNotFoundError)
+  - the replay does not verify at 461c58e0a707: missing or unreadable stream artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.stream.json (FileNotFoundErr
+  - the replay does not verify at 461c58e0a707: missing or unreadable receipt artifact outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp36_YAW_C4_S40000_K8_s42_th90_rot90.cell.json (FileNotFoundErro
+rc=2 (exp36_YAW_C4_S40000_K8_s42_th90)
+EXP36 REPLAY REFUSED
+  - the replay does not verify at 461c58e0a707: missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.json (FileNotFoundError)
+  - the replay does not verify at 461c58e0a707: missing or unreadable stream artifact outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.stream.json (FileNotFoundError
+  - the replay does not verify at 461c58e0a707: missing or unreadable receipt artifact outputs_FLAC/exp25_depth_canon/P1/epoch=8-step=40000_metrics_1_1.0_exp36_P1_C4_S40000_K8_s42_th90_rot90.cell.json (FileNotFoundError)
+rc=2 (exp36_P1_C4_S40000_K8_s42_th90)
+EXP36 REPLAY REFUSED
+  - the replay does not verify at 461c58e0a707: missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.json (FileNot
+  - the replay does not verify at 461c58e0a707: missing or unreadable stream artifact outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.stream.json (F
+  - the replay does not verify at 461c58e0a707: missing or unreadable receipt artifact outputs_FLAC/exp25_depth_canon/BF/epoch=8-step=40000_metrics_1_1.0_exp36_BF_C4_S40000_K8_s42_th90_fa_invariant_a4_rot90.cell.json (Fi
+rc=2 (exp36_BF_C4_S40000_K8_s42_th90)
+EXP36 REPLAY REFUSED
+  - the replay does not verify at 461c58e0a707: missing or unreadable metrics artifact outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.json (FileNotFoun
+  - the replay does not verify at 461c58e0a707: missing or unreadable stream artifact outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.stream.json (FileN
+  - the replay does not verify at 461c58e0a707: missing or unreadable receipt artifact outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.cell.json (FileNo
+  - the replay does not verify at 461c58e0a707: missing or unreadable canon artifact outputs_FLAC/exp25_depth_canon/CANON/epoch=8-step=40000_metrics_1_1.0_exp36_CANON_C4_S40000_K8_s42_th90_canon_rot90.canon.json (FileNot
+rc=2 (exp36_CANON_C4_S40000_K8_s42_th90)
+git status --short (run worktree, tracked):

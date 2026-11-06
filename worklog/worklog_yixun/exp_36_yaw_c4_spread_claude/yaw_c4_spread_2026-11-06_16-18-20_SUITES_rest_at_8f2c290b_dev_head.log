@@ -1,0 +1,357 @@
+SUITES (the remaining collector-importing / kit suites) at the dev head 8f2c290b2f589c81bf9c419b3b39f33d91fa2e75, started Fri Nov  6 04:18:20 PM EST 2026
+files: src/tests/test_exp35_stream_registry.py src/tests/test_exp35_bf_probe.py src/tests/test_exp35_bf_probe_contract.py src/tests/test_exp35_no_flash_launch.py src/tests/test_exp35_gpu_identity.py src/tests/test_depth_canon_audit_gate.py src/tests/test_depth_canon_arm_config.py src/tests/test_depth_canon_stats.py src/tests/test_gen_model_comparison_depth_canon.py
+........................................................................ [ 29%]
+........................................................................ [ 59%]
+........................................................................ [ 89%]
+..........................                                               [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/jsonmerge/resolver.py:2: DeprecationWarning: jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.
+    from jsonschema.validators import RefResolver, urldefrag, urljoin
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82
+  /home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/wandb/analytics/sentry.py:82: SentryHubDeprecationWarning: `sentry_sdk.Hub` is deprecated and will be removed in a future major release. Please consult our 1.x to 2.x migration guide for details on how to migrate `Hub` usage to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x
+    self.hub = sentry_sdk.Hub(client)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_____________________ test_the_bf_load_never_canonicalizes _____________________
+----------------------------- Captured stdout call -----------------------------
+Using EMA model
+Checkpoint load: 0 missing, 0 stray unexpected, 0 whitelisted wrapper-leftover keys.
+Using EMA model
+______________________ test_bf_main_end_to_end_registered ______________________
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+___________ test_a_bf_deviation_is_a_labelled_diagnostic_or_refused ____________
+------------------------------ Captured log call -------------------------------
+INFO     lightning_fabric.utilities.seed:seed.py:54 Seed set to 42
+________________ test_a_genuine_complete_pass_audit_is_accepted ________________
+---------------------------- Captured stdout setup -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+_________________ test_a_limit_or_subset_run_is_refused[limit] _________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+________________ test_a_limit_or_subset_run_is_refused[subset] _________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+________________ test_an_audit_that_found_a_survivor_is_refused ________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+_____________ test_a_split_json_changed_after_the_audit_is_refused _____________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+_______________ test_the_registered_contract_is_the_real_census ________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 291210 files in 243 subfolders
+Running json scandir...
+Found 6337 files in 17 subfolders
+Running json scandir...
+Found 6217 files in 131 subfolders
+_____________ test_a_depth_map_changed_after_the_audit_is_refused ______________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+_____________________ test_a_missing_depth_map_is_refused ______________________
+----------------------------- Captured stdout call -----------------------------
+Running json scandir...
+Found 4 files in 2 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+Running json scandir...
+Found 2 files in 1 subfolders
+__________________ test_a_round_at_two_pins_publishes_nothing __________________
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yixunhu/pytest-6580/test_a_round_at_two_pins_publi0/maintree/worklog/worklog_yixun/model_comparison.md
+----------------------------- Captured stderr call -----------------------------
+exp_25 rows not publishable:
+  - the exp_25 rows span 2 evaluator pins (['aaaaaaaaaaaa', 'bbbbbbbbbbbb']): nothing publishes across pins
+__________________ test_an_arm_publishes_only_as_a_two_k_pair __________________
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yixunhu/pytest-6580/test_an_arm_publishes_only_as_0/maintree/worklog/worklog_yixun/model_comparison.md
+----------------------------- Captured stderr call -----------------------------
+exp_25 rows not publishable:
+  - P1 vanilla @40k — re-measured at the exp_25 pin (P1-pin): publishes only as a complete, valid K=1 + K=8 pair (K=[8] not ready)
+______________ test_every_pre_exp25_row_renders_byte_identically _______________
+----------------------------- Captured stdout call -----------------------------
+wrote /tmp/pytest-of-yixunhu/pytest-6580/test_every_pre_exp25_row_rende0/base.md
+wrote /tmp/pytest-of-yixunhu/pytest-6580/test_every_pre_exp25_row_rende0/cur.md
+=========================== short test summary info ============================
+PASSED src/tests/test_exp35_stream_registry.py::test_the_registry_holds_every_stream_hash_of_the_verified_cells
+PASSED src/tests/test_exp35_stream_registry.py::test_the_derived_angles_are_what_the_evaluator_would_record
+PASSED src/tests/test_exp35_stream_registry.py::test_cells_that_disagree_across_arms_refuse_the_registry
+PASSED src/tests/test_exp35_stream_registry.py::test_an_unverified_or_missing_source_cell_refuses_the_registry
+PASSED src/tests/test_exp35_stream_registry.py::test_a_wrong_derivation_rule_is_caught_by_the_observed_angles
+PASSED src/tests/test_exp35_stream_registry.py::test_cli_writes_and_checks_the_registry
+PASSED src/tests/test_exp35_bf_probe.py::test_the_bf_offsets_are_the_three_quarter_turns
+PASSED src/tests/test_exp35_bf_probe.py::test_b_is_the_evaluators_own_fixed_rotation_and_a_is_untouched
+PASSED src/tests/test_exp35_bf_probe.py::test_the_bf_stages_condition_through_the_frame_average[fp32-False-None]
+PASSED src/tests/test_exp35_bf_probe.py::test_the_bf_stages_condition_through_the_frame_average[eval-True-dtype1]
+PASSED src/tests/test_exp35_bf_probe.py::test_an_invariant_toy_gives_exactly_zero_at_every_stage
+PASSED src/tests/test_exp35_bf_probe.py::test_the_bf_report_has_no_off_orbit_key_and_no_canonical_tier
+PASSED src/tests/test_exp35_bf_probe.py::test_a_nondeterministic_condition_fails_the_verdict
+PASSED src/tests/test_exp35_bf_probe.py::test_the_bf_load_never_canonicalizes
+PASSED src/tests/test_exp35_bf_probe.py::test_bf_refuses_canonicalization_before_anything_loads
+PASSED src/tests/test_exp35_bf_probe.py::test_the_registered_bf_contract_constants
+PASSED src/tests/test_exp35_bf_probe.py::test_bf_main_end_to_end_registered
+PASSED src/tests/test_exp35_bf_probe.py::test_a_bf_deviation_is_a_labelled_diagnostic_or_refused
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_bf_contract_mirrors_the_probe
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_finalization_writes_the_launch_provenance_and_a_fresh_sidecar
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_finalization_refuses_a_log_without_the_backend_evidence[cell_log]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_finalization_refuses_a_log_without_the_backend_evidence[empty]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_finalization_refuses_a_log_without_the_backend_evidence[flash_missing]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_the_identical_record_writes_nothing
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[another_digest]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[the_log_appended]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[another_log_path]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[another_overlay]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[another_launcher]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_second_finalization_of_any_other_record_is_refused_and_writes_nothing[reserialized_json]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_finalization_refuses_a_tampered_probe_output
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[summary_and_control_forged_together]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_result_item_dropped_consistently]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_determinism_item_dropped_consistently]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_per_id_item_dropped_consistently]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[an_inf_value]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_negative_value]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_non_boolean_mask]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_non_boolean_determinism_mask]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[pooled_forged]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[ids_inconsistent]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[unregistered]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[deviation]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[other_pin]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[dirty]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[other_checkpoint]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[other_loaded_bytes]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[device]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[seed]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[n_items]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[protocols]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[cond_method]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[angles]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[cap]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[model_config]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[dataset]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[canonicalized]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[random_offsets_recorded]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_d64_key]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[a_random_key]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[item_dropped]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[stream_hash]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[control_inconsistent]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[pooled_inconsistent]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[eps_inconsistent]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[eps_with_a_verdict]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[verdict_inconsistent]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_an_unbound_or_inconsistent_bf_probe_is_not_a_control[results_missing_a_stage]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_a_failed_determinism_floor_makes_the_probe_invalid
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[backend]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[overlay]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[launcher]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_sha]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_edited]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[log_gone]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_launch_provenance_is_validated[no_launch]
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_the_campaign_digest_and_the_receipts_bind_the_probe
+PASSED src/tests/test_exp35_bf_probe_contract.py::test_cli_finalize_bf_probe
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_overlay_is_the_registered_four_lines
+PASSED src/tests/test_exp35_no_flash_launch.py::test_overlays_holds_no_package_marker_and_only_the_two_files
+PASSED src/tests/test_exp35_no_flash_launch.py::test_packaging_excludes_the_overlay_tree
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_target_runs_in_this_interpreter_with_its_argv_after_one_sentinel
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_target_sees_what_a_direct_invocation_sees
+PASSED src/tests/test_exp35_no_flash_launch.py::test_preflight_checks_everything_and_runs_nothing
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_exit_code_of_the_target_is_its_own
+PASSED src/tests/test_exp35_no_flash_launch.py::test_bytecode_writing_must_be_disabled_in_the_environment
+PASSED src/tests/test_exp35_no_flash_launch.py::test_an_inherited_pythonpath_is_dropped
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn/__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn/x.txt]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.cpython-310-x86_64-linux-gnu.so]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.pyc]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/flash_attn.cpython-310.pyc]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn.pyc]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/exp35_no_flash_launch.cpython-310.pyc]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn/__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[notes.txt]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__pycache__/x.cpython-310.pyc]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[other/__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_an_edited_overlay_is_refused
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[preimported]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[meta_path]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_with_flash_attention_enabled_is_refused
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_src_package_from_outside_the_repo_is_refused
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/transformer.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/__init__.py]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src]
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_that_fails_to_import_is_refused
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_missing_target_or_no_argument_is_refused
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_real_launcher_preflight_on_this_checkout
+PASSED src/tests/test_exp35_no_flash_launch.py::test_a_fresh_python_child_with_the_runner_environment_hits_the_overlay
+PASSED src/tests/test_exp35_no_flash_launch.py::test_dataloader_fork_and_spawn_workers_run_the_sdpa_path
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_evaluator_and_probe_tree_starts_no_python_child
+PASSED src/tests/test_exp35_no_flash_launch.py::test_the_spawn_scanner_bites
+PASSED src/tests/test_exp35_gpu_identity.py::test_the_identity_is_read_from_proc
+PASSED src/tests/test_exp35_gpu_identity.py::test_the_identity_of_a_real_process
+PASSED src/tests/test_exp35_gpu_identity.py::test_an_entry_that_changes_during_the_sample_is_refused[start_time]
+PASSED src/tests/test_exp35_gpu_identity.py::test_an_entry_that_changes_during_the_sample_is_refused[pid]
+PASSED src/tests/test_exp35_gpu_identity.py::test_the_exact_tuple_passes
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[extra_process]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[trainer_exited]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[replaced_by_table_job]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[pid_reuse_new_start_time]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[pid_reuse_other_cmdline]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[other_cwd]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[other_log]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[other_stderr]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[other_gpu]
+PASSED src/tests/test_exp35_gpu_identity.py::test_any_extra_missing_or_changed_process_is_a_mismatch[duplicate_observation]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[keys]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[schema]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[uuid]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[empty]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[pid_type]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[start_type]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[cmdline_hex]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[field_missing]
+PASSED src/tests/test_exp35_gpu_identity.py::test_a_malformed_tuple_is_refused[duplicate_pid]
+PASSED src/tests/test_exp35_gpu_identity.py::test_cli_snapshot_validate_and_check
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_genuine_complete_pass_audit_is_accepted
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[input_cardinality]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[input_json_hash]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[input_config_hash]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[tool_code_hash]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[tool_script_hash]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[tool_dirty]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[tool_dirty_unknown]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[tool_source_sha]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[add_survivor_listing]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[coverage_incomplete]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[coverage_limit]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[schema_true]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[schema_float]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[gate_exit_bool]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[gate_verdict]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_content_mutation_with_a_recomputed_sidecar_is_refused[harness_tag]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_tampered_sidecar_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_an_unreadable_or_non_json_report_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_limit_or_subset_run_is_refused[limit]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_limit_or_subset_run_is_refused[subset]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_an_audit_that_found_a_survivor_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_split_json_changed_after_the_audit_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_registered_cardinalities_bind_the_census
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_registered_contract_is_the_real_census
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_real_full_audit_passes_the_registered_contract_without_rehash
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_cli
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_gate_runs_as_a_program
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_gate_module_imports_only_the_standard_library
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[drop_train_per_split]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[per_split_count]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_survivor]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_error]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[duplicate_row]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[arbitrary_row_path]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[dropped_row]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_counts]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_tie_class]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_img_w]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_dj]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_sha]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[row_extra_key]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_row_level_mutation_with_a_recomputed_sidecar_is_refused[agreement]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_depth_map_changed_after_the_audit_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_missing_depth_map_is_refused
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_report_audited_in_another_checkout_is_accepted
+PASSED src/tests/test_depth_canon_audit_gate.py::test_harness_mode_accepts_only_a_tagged_report_against_a_harness_contract
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_harness_contract_may_only_name_the_splits[script]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_harness_contract_may_only_name_the_splits[img_w]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_harness_contract_may_only_name_the_splits[code]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_cli_honours_a_harness_contract_only_inside_a_harness
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_rehash_deadline_is_registered_and_not_overridable
+PASSED src/tests/test_depth_canon_audit_gate.py::test_the_hasher_child_is_this_gate_in_worker_mode
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_hung_hasher_fails_closed_at_the_deadline
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_failing_hasher_child_fails_closed[nonzero]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_failing_hasher_child_fails_closed[not_json]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_failing_hasher_child_fails_closed[malformed]
+PASSED src/tests/test_depth_canon_audit_gate.py::test_a_failing_hasher_child_fails_closed[wrong_digests]
+PASSED src/tests/test_depth_canon_arm_config.py::test_the_control_config_is_the_pinned_one
+PASSED src/tests/test_depth_canon_arm_config.py::test_arm_is_the_control_plus_exactly_one_insertion
+PASSED src/tests/test_depth_canon_arm_config.py::test_byte_comparison_would_catch_newline_drift
+PASSED src/tests/test_depth_canon_arm_config.py::test_parsed_arm_is_the_parsed_control_plus_the_block
+PASSED src/tests/test_depth_canon_arm_config.py::test_the_strict_comparator_is_stricter_than_equality
+PASSED src/tests/test_depth_canon_arm_config.py::test_arm_pins_vanilla_ema_and_gradient_checkpointing
+PASSED src/tests/test_depth_canon_arm_config.py::test_canonicalize_width_matches_both_vit_widths
+PASSED src/tests/test_depth_canon_arm_config.py::test_parsers_see_exactly_one_treatment
+PASSED src/tests/test_depth_canon_arm_config.py::test_the_real_factory_accepts_the_arm
+PASSED src/tests/test_depth_canon_stats.py::test_identical_inputs_give_exact_zeros[rel_l2]
+PASSED src/tests/test_depth_canon_stats.py::test_identical_inputs_give_exact_zeros[rel_linf]
+PASSED src/tests/test_depth_canon_stats.py::test_known_values_and_the_reference_is_the_second_argument
+PASSED src/tests/test_depth_canon_stats.py::test_the_zero_vector_floor
+PASSED src/tests/test_depth_canon_stats.py::test_scale_invariance[3.7]
+PASSED src/tests/test_depth_canon_stats.py::test_scale_invariance[0.01]
+PASSED src/tests/test_depth_canon_stats.py::test_scale_invariance[250.0]
+PASSED src/tests/test_depth_canon_stats.py::test_rows_are_independent_items
+PASSED src/tests/test_depth_canon_stats.py::test_cpu_tensors_float32_and_float64_are_accepted
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a0-b0]
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a1-b1]
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a2-b2]
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a3-b3]
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a4-b4]
+PASSED src/tests/test_depth_canon_stats.py::test_malformed_inputs_are_refused[a5-b5]
+PASSED src/tests/test_depth_canon_stats.py::test_paired_summary_is_median_p99_max
+PASSED src/tests/test_depth_canon_stats.py::test_paired_summary_refuses_empty_non_1d_non_finite_and_negative_values[bad0]
+PASSED src/tests/test_depth_canon_stats.py::test_paired_summary_refuses_empty_non_1d_non_finite_and_negative_values[bad1]
+PASSED src/tests/test_depth_canon_stats.py::test_paired_summary_refuses_empty_non_1d_non_finite_and_negative_values[bad2]
+PASSED src/tests/test_depth_canon_stats.py::test_paired_summary_refuses_empty_non_1d_non_finite_and_negative_values[bad3]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_rows_are_registered_for_three_arms_both_k
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_globs_match_the_metrics_file_only
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_complete_valid_cell_validates_and_renders_numbers[CANON]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_complete_valid_cell_validates_and_renders_numbers[P1]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_complete_valid_cell_validates_and_renders_numbers[YAW]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_invalid_partial_or_misfiled_cells_are_excluded
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_round_at_two_pins_publishes_nothing
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_an_arm_publishes_only_as_a_two_k_pair
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_validation_is_offline_from_the_committed_receipt
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_tampered_or_foreign_receipt_blocks_the_row[evidence]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_tampered_or_foreign_receipt_blocks_the_row[artifact]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_a_tampered_or_foreign_receipt_blocks_the_row[second_campaign_digest]
+PASSED src/tests/test_gen_model_comparison_depth_canon.py::test_every_pre_exp25_row_renders_byte_identically
+242 passed, 5 warnings in 87.73s (0:01:27)
+finished Fri Nov  6 04:19:52 PM EST 2026
