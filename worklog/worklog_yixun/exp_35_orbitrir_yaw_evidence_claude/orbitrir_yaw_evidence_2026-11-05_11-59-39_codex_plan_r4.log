@@ -1,0 +1,732 @@
+Thu Nov  5 11:59:39 AM EST 2026
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /home/yixunhu/codespace/FLAC
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 01a1aca6-deaf-7c62-9a6e-41706f3ed782
+--------
+user
+You are the independent PLAN reviewer (OpenAI Codex gpt-5.6-sol, xhigh) for experiment exp_35 "orbitrir_yaw_evidence" (FLAC repo ~/codespace/FLAC, branch localization-exp, HEAD e2166326). Confirm **plan r4** = r3 + the new §13 at the end of worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md, written to answer your plan r3 review (orbitrir_yaw_evidence_codex_plan_r3_review.md, same folder: REVISE with ONE blocker — the GPU-1 FIFO exclusion; NIT 1–3). §13 takes your option 3: the Planner restates the co-tenancy requirement to Yixun's decision 6 (share GPU 1 with his s43 TRAINING; the plan's own "never co-tenants with his table job" wording is withdrawn), tightens the predictor (3.5 s/step, margin 2 × planning duration + 30 min), cites the s44 FIFO completion evidence (verify it read-only: ~/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.{status,jobs,log}), and explicitly accepts and discloses the residual risk, with a stop latch if a new GPU-1 process appears. Only judge whether §13 resolves your r3 blocker and NITs, and whether anything else now BLOCKS the launch of phase (i) once the code implements §11–§13 faithfully. Do not re-open resolved items; put non-blocking improvements under NIT.
+
+STATIC REVIEW ONLY: do NOT install, upgrade or modify any environment or package (no pip, no conda, no uv), do NOT write or modify any file, do NOT run any GPU command, evaluation, runner, collector, probe, pytest or script with side effects, do NOT touch any running process. Read-only probes only.
+
+Output a markdown review. Header line exactly: **Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** plan r4 (exp_35 orbitrir_yaw_evidence: plan r4 at e2166326) — then a Verdict line (APPROVE / REVISE), the status of the r3 blocker and NITs, any remaining BLOCKING finding, and what you verified.
+codex
+I’ll perform a strictly read-only comparison of the r3 review, the new §13, and the cited s44 FIFO artifacts. I’ll limit judgment to the blocker/NIT closure and phase-(i) launch readiness under faithful §11–§13 implementation.
+exec
+/bin/bash -lc "pwd && git branch --show-current && git rev-parse HEAD && rg --files worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs | rg '(plan_orbitrir_yaw_evidence\\.md|orbitrir_yaw_evidence_codex_plan_r3_review\\.md|queue_20261101T233607_741947\\.(status|jobs|log))"'$'"'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+/home/yixunhu/codespace/FLAC
+localization-exp
+e216632660eed0d4d1eb617f6ffb4e4fae6ccbc1
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md
+worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
+
+exec
+/bin/bash -lc "wc -l worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log && sed -n '1,240p' worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+  322 worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
+   62 worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md
+    1 /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status
+    1 /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs
+   27 /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log
+  413 total
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** plan r3 (exp_35 orbitrir_yaw_evidence: plan r3 at 2cf63019)
+
+**Verdict:** REVISE
+
+§12 resolves the supervisor, probe, and child-import findings substantially. One launch blocker remains: the timing predictor reduces risk but does not enforce the frozen requirement that a shared exp_35 cell never overlap the exp_30 evaluation FIFO.
+
+## Per-item status
+
+| r2 finding | Status | Assessment |
+|---|---|---|
+| **B1 — GPU hand-over** | **PARTIAL** | The final runner-side lane check, mechanical `/proc` identity binding, `O_EXCL` reservation acquisition, persisted transfer epoch, ordered GPU-1→GPU-0 transfer, and fail-closed restart states resolve the earlier reservation defects ([plan:299](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:299), [plan:303](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:303), [plan:304](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:304)). The remaining gap is the GPU-1 queue: its launcher does not honor the reservation, and the predictor is not an exclusion mechanism. The plan also needs launch evidence that the earlier s44 FIFO item is durably finished; otherwise it can start another table cell during s43 independently of the s43-end predictor. |
+| **B2 — supervisor persistence** | **RESOLVED** | The schema now binds campaign/code/cells/log state, records all chunk lifecycle states, uses atomic writes, permanently latches failures, re-runs unfinished gates, and refuses ordinary log replacement or shrinkage ([plan:306](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:306)). Remaining durability hardening is a NIT below. |
+| **B3 — probe transaction** | **RESOLVED** | Chunk 5 now has a distinct launcher path, frozen argv, the same admission gates, close-before-hash ordering, non-logged provenance finalization, sidecar regeneration, and validation before `gates_verified` ([plan:308](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:308)). |
+| **H4 — child imports** | **RESOLVED** | §12 contracts the observed absence of Python subprocesses, tests DataLoader `fork` and `spawn`, and exports a controlled overlay-only `PYTHONPATH` with a fresh-interpreter test ([plan:310](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:310)). |
+
+## Ranked findings
+
+### BLOCKING 1 — the end predictor is not queue exclusion
+
+The predictor at [plan:302](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:302) is a sensible safety margin, but it cannot substantiate “the lane never co-tenants with his table job” from [plan:203](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:203):
+
+- `4.208 s/step` is the fastest observed window, not an enforced lower bound on future step time.
+- The listed cell durations are planning estimates, not runtime deadlines.
+- The exp_30 evaluator tests memory before every table cell and has explicitly “No exclusivity” ([queue:5](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh:5), [eval:115](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh:115)). If training ends while exp_35 is still running and enough memory remains, the table cell may start.
+- The same FIFO contains the preceding s44 evaluation. A momentary absence of an s44 compute process between its cells does not prove that FIFO item is complete.
+
+Before shared launch, the plan must therefore do one of the following:
+
+1. Use an interlock honored by the exp_30 evaluator, and verify the earlier s44 FIFO item is durably complete; or
+2. Wait for s43 to finish and hand over to GPU 0 before launching phase (i); or
+3. Obtain an explicit revision of the no-table-co-tenancy requirement accepting this forecast risk.
+
+The arbitrary GPU-0 race already disclosed at [plan:304](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md:304)—an unrelated session starting after the final check—is an acceptable residual risk. Unlike the exp_30 FIFO, it is not a known scheduled launcher that this plan claims to exclude.
+
+### NIT 1 — strengthen state durability
+
+After `rename`, fsync the state directory as well as the temporary file. Persist a content anchor or parsed offset/hash for the training log so copy-truncate-and-regrow between observations cannot evade the inode/size tests.
+
+### NIT 2 — spell out chunk 5’s ledger fields
+
+The generic schema names a runner receipt SHA, but chunk 5 has no runner receipt. Define its corresponding fields explicitly—probe process rc, JSON SHA, sidecar SHA, final log SHA, and `PROBE_CONTRACT_BF` result.
+
+### NIT 3 — freeze the external queue evidence
+
+Record the queue/evaluator/admission-helper SHAs in the launch entry. The cited queue file currently has SHA-256 `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa` and is modified relative to its checkout HEAD; the only diff is the `TRAIN_JOBS` array.
+
+## Launch answers
+
+**(a)** Yes. The GPU-1 FIFO exclusion above remains the sole blocker once §11 and §12 are faithfully implemented. B2, B3, and H4 no longer block phase (i).
+
+**(b)** No—not as a guarantee. `4.208 s/step` plus twice the planning duration is a conservative operational heuristic and makes overlap unlikely, but the queue’s admission rule is memory-only and does not honor the reservation. It is acceptable only as a disclosed, explicitly accepted risk; it does not satisfy the currently frozen “never co-tenants” requirement by itself.
+
+## What I verified
+
+- FLAC is on `localization-exp` at `2cf630199494748a7715be88d5428a707cfd1fe1`; the reviewed plan matches HEAD and has SHA-256 `f59a37c153e74bf542b7fbc2e68a8fc58e660145b566d6a9943fb5e2c331702f`.
+- The cited current queue file says:
+  - `TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')`, so s43 is last ([queue:239](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh:239)).
+  - Training uses GPUs 0 and 1 ([queue:123](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh:123)).
+  - The evaluation FIFO invokes GPU 1 ([queue:66](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh:66)).
+  - Admission is based on free memory and expressly provides no exclusivity ([queue:5](/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh:5)).
+- The queue appends each evaluation only after its training succeeds, but the evaluator performs memory admission before every table cell; after the queue closes, its threshold falls from `T+E` to `E`.
+- I did not inspect the exp-35 implementation worktree. I ran no GPU command, runner, evaluator, collector, probe, pytest, package operation, or process operation and modified no files.
+
+exec
+/bin/bash -lc "rg -n '"'^#{1,6} |§1[123]|FIFO|co-tenant|co-tenan|3'"\\.5|planning duration|stop latch|new GPU-1|s44|queue_20261101T233607_741947|fsync|copy-truncate|probe process rc|queue.*SHA|admission-helper|evaluator' worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md && sed -n '180,340p' worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+1:> **STATUS: PLAN r4 (2026-11-05 11:59:16 EST) = r3 + §13 (Codex plan r3 = REVISE with ONE blocker — the GPU-1 FIFO exclusion — resolved by an explicit, disclosed risk acceptance by the Planner, the third option Codex named; three NITs). r3 header: PLAN r3 (2026-11-05 11:53:19 EST) = r2 + §12 (answering Codex plan r2 = REVISE: atomic GPU ownership, the supervisor state machine, the probe chunk, child imports; still no new decision for Yixun). r2 header: PLAN r2 (2026-11-05 11:45:40 EST) = r1 + §11 (the binding implementation contract answering Codex plan r1 = REVISE; no new decision for Yixun, per Codex). r1 header: PLAN r1 (2026-11-05 11:30:08 EST; Planner edits 2026-11-05 11:34:50 EST: §2b decisions, single-cell chunks) — Yixun's decisions of 2026-11-05 applied; Codex plan r0 findings addressed; awaiting Codex plan re-review r1.** Nothing runs on a GPU before Codex accepts r1, the code rounds pass review and the integrative review passes. Written by an Opus 5.5 planning subagent for the Planner. Evidence: `orbitrir_yaw_evidence_research_notes.md`; r0 review: `orbitrir_yaw_evidence_codex_plan_r0_review.md`.
+3:# plan_orbitrir_yaw_evidence — exp_35 (r1)
+5:## 1. Goal and frozen scope
+14:| (i) GPU 1 co-tenant | **CTL**: P1, θ=0, s42, K1/K8 — evaluator identity, E1 hard stop | 2 |
+31:## 2. Yixun's decisions of 2026-11-05 → where applied
+37:6. **GPU 1 co-tenancy for phase (i) only**, with the unrounded 9.712 / 8.521 guard and one cell per chunk at first. Figure cells go on free cards after s43 ends, after a measured-slowdown report → §7.
+40:## 2b. Planner decisions (2026-11-05, within Yixun's "proceed without asking")
+47:## 3. r0 → r1
+57:| P8 BLOCKING GPU plan | One GPU 1 co-tenant lane. Single-cell chunks THROUGHOUT (Planner decision 4, §2b). Guard thresholds from his log: 500-step ≤ 9.712, running mean ≤ 8.521, 100-step early warning ≤ 9.950. Card reservation; phase (i) only; ETA (§7). | `exp35_training_guard.py` (round 6) |
+61:### 3b. The no-flash overlay (decision 2)
+76:- Every evaluator spawn (`:311`) runs with `PYTHONPATH=<repo>/overlays/no_flash`; any inherited PYTHONPATH is dropped.
+80:### 3c. E1 — CTL hard stop, before any B-F cell
+91:## 4. Pre-registration (frozen before any cell)
+130:## 5. Collector and probe
+165:## 6. Figure (`plot_yaw_curves.py --mode offorbit`, after phase (ii))
+173:**`_raw.csv` columns:** method, K, angle_deg, seed, campaign (exp10_A6 | exp25 | exp35), evaluator_pin (40-hex | `unrecorded`), attention_backend (flash | sdpa), orbit_execution (loop | batched | n/a; A6 45° is batched, inferred from the run date after `1479304`), source_path, source_sha256 (the JSON, or the CSV sha plus row key), then the metrics. The summary CSV holds n, mean and std.
+177:## 7. GPU run, guard, ETA
+203:**When his s43 training ends.** His queue then starts its s43 table job on GPU 1. The remaining phase-(i) chunks move to `--lanes 0` once GPU 0 has no compute process; the lane never co-tenants with his table job. Phase (ii) runs without `ALLOW_SHARED_GPU`, so only on free cards.
+205:**ETA for phase (i), counted from the start of the first cell, co-tenant on GPU 1: ≈ 16.5 h (14–21 h).**
+211:It is re-estimated after chunks 3–4, and is shorter if his training ends first. Each co-tenant hour costs him ≈ 0.5 h of training (≈ 8 h if phase (i) overlaps his training throughout; his own table job cost ≈ 4.9 h). His s43 was at step 20,499 / 40,000 at 11:20 EST Nov 5, running ≈ 4.235 s/step; unshared it ends ≈ Nov 6 10:15 EST.
+215:## 8. Frozen pre-launch checklist (in the launch entry, before the first cell)
+222:- **GPU:** lane GPU 1 by UUID, free memory ≥ 10,240 MiB, the co-tenant pids, the reservation file.
+225:## 9. Per-file implementation
+260:## 10. Residual risks
+261:- **Retrieval thresholds.** Tier 3 thresholds for retrieval (10 % of P1's Δ_C4 ≈ 3.5–6.8 items) are within numerical jitter, so `pass_c4` on R@k may turn on 1–2 item flips. It is reported as registered.
+267:## 11. r1 → r2: Codex plan r1 (REVISE, 2 BLOCKING + 4 HIGH + 1 NIT) → the BINDING implementation contract
+272:- A committed, same-interpreter launcher `overlays/no_flash/exp35_no_flash_launch.py` runs every exp_35 evaluator AND probe process: it (1) sets `sys.dont_write_bytecode = True` and requires `PYTHONDONTWRITEBYTECODE=1` in its environment; (2) REFUSES if any `__pycache__` / `*.pyc` exists under `overlays/no_flash/`, or if a `flash_attn.py` / `flash_attn/` exists at the repo root or anywhere earlier on the path it builds; (3) builds `sys.path` explicitly = [the overlay dir, the repo root, then the interpreter's own entries with every other occurrence of those two removed] and drops any inherited `PYTHONPATH` entries; (4) asserts `importlib.util.find_spec("flash_attn").origin` realpath == the overlay file; (5) imports `src.models.transformer`, asserts its `__file__` realpath is `<repo>/src/models/transformer.py` and `transformer.flash_attn_func is None`; (6) prints ONE launcher sentinel line with the overlay sha256, its own sha256 and the asserted backend `sdpa`; (7) then executes the target (`eval_FLAC.py` or the probe) with `runpy.run_path(<target>, run_name="__main__")` and the original argv. Any failed assertion exits non-zero BEFORE the target runs.
+277:**B2 — identity-bound co-tenancy and an atomic hand-over (replaces §7's "ALLOW_SHARED_GPU=1" as the sole gate).**
+294:## 12. r2 → r3: Codex plan r2 (REVISE, 3 BLOCKING + 1 HIGH) → binding additions to §11
+295:Review: `orbitrir_yaw_evidence_codex_plan_r2_review.md`. Where this section conflicts with §11 or earlier sections, THIS section governs.
+297:**Facts read from Yixun's exp_30 queue (read-only, `~/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh`, 2026-11-05):** `TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')` (:239) — s43 is the LAST training; trainings run on GPUs 0,1 (`CUDA_VISIBLE_DEVICES=0,1`, :123); the evaluation FIFO runs ONLY on GPU 1 (`exp30_attn_eval.sh 1 …`, :66); its admission is by free memory with "No exclusivity" (:5-9) — it does NOT honour our reservation. Hence: after s43 ends, his queue puts nothing on GPU 0, and its s43 table job starts on GPU 1.
+299:**B1 — GPU ownership (replaces §11 B2's hand-over paragraph).**
+302:3. **End-of-training predictor (prevents a shared cell from overlapping his s43 table job on GPU 1):** before each SHARED spawn the supervisor projects the s43 end from his log — remaining steps (40,000 − current) × 4.208 s/step (the FASTEST unshared 500-step window, so the earliest possible end) — and spawns only if that end is later than now + 2 × the cell's planning duration (vanilla K1 17.6 / K8 19.2 min; B-F K1 24 / K8 35 min). Otherwise it spawns nothing shared and waits for the hand-over. Residual risk (disclosed): none from his queue under this rule unless his training ends earlier than its fastest observed rate allows.
+303:4. **Reservation files are created atomically** (`open(O_CREAT|O_EXCL)`, never overwritten; content: holder exp_35, H35, lane GPU UUID, epoch, created time). The supervisor owns exactly one reservation at any time between its first spawn and its release; the state file records the reservation epoch. Hand-over to GPU 0 happens only when the s43 trainer has exited (its identity gone from both GPUs): (a) GPU 0 has zero foreign compute processes on two checks 60 s apart; (b) the GPU 0 file is created with O_EXCL (if it exists — another holder — refuse and wait); (c) the state records the transfer (epoch + 1) atomically; (d) only then is the GPU 1 file removed. A restart that finds neither, both, or a file not matching the state's epoch → refuse (stop latch) and report.
+306:**B2 — the supervisor is a fail-closed state machine (`exp35_supervisor_state.json`, schema v1).** Fields: campaign / H35 / cells sha / supervisor sha; the baseline (time of our first spawn, his step then, his log path + inode + size then); per chunk `planned → in_flight → runner_verified → gates_verified` (with the runner rc, the receipt sha, the gate results); the lane GPU and the reservation epoch; a permanent `stop_latch` {reason, time}. Writes are atomic (temp file + fsync + rename); a corrupt or inconsistent state refuses to run. Restart reconciliation: a chunk with a verified receipt but no `gates_verified` re-runs its gates (E1 / E2 / probe / guard) before anything else; a non-zero runner rc, an absent receipt, a failed verification, a final guard failure or an invalid probe sets the stop latch before any next spawn; a set latch is never cleared by the supervisor (only by the Planner, by hand, after reporting). His log: if its inode changes or its size shrinks → hard stop (no baseline reset).
+308:**B3 — chunk 5 (the probe) transaction.** Chunks 1–4 and 6–33: the runner with ONE manifest cell. Chunk 5: the supervisor invokes the §11 launcher directly on the probe target with the frozen argv, under the same guard, identity, predictor and reservation gates. After the probe process exits and its log is closed, a non-logged finalization step hashes the final log, writes the campaign / backend / overlay / launcher / log provenance into `orbitrir_bf_cond_probe.json`, regenerates its `.sha256`, and runs the collector's `PROBE_CONTRACT_BF` validation; only success marks chunk 5 `gates_verified`.
+310:**H4 — child processes.** (a) The pinned evaluator / probe tree starts no Python child processes (its only subprocesses run `git`); a static test asserts this for `eval_FLAC.py`, the probe and the non-test `src/` modules they import (no `subprocess` / `os.exec*` / `os.spawn*` with a python argv). (b) DataLoader workers: tests force `fork` and `spawn` workers in a toy loader under the launcher and have each worker report `src.models.transformer.__file__` and `flash_attn_func is None`. (c) Defence in depth for any fresh Python child: the runner ALSO exports `PYTHONPATH=<repo>/overlays/no_flash` (only that entry) to the launcher's environment, so a fresh interpreter finds the overlay before site-packages; a test runs a fresh `python -c "import flash_attn"` with that environment from the repo root and asserts the sentinel ImportError.
+313:## 13. r3 → r4: Codex plan r3 (REVISE, 1 BLOCKING + 3 NIT)
+314:Review: `orbitrir_yaw_evidence_codex_plan_r3_review.md` — "The GPU-1 FIFO exclusion above remains the sole blocker once §11 and §12 are faithfully implemented. B2, B3, and H4 no longer block phase (i)." This section governs where it conflicts with §7, §11 or §12.
+316:**B1 — co-tenancy with the s43 table job: the requirement is RESTATED and the residual risk ACCEPTED by the Planner (Codex's option 3).** Yixun's decision 6 is "co-tenancy on GPU 1 for phase (i) only" — sharing GPU 1 with his s43 TRAINING; "the lane never co-tenants with his table job" (§7) was this plan's own stricter wording, not his. Restated: phase (i) shares GPU 1 only with the s43 training by design; a shared cell is STARTED only if the projected earliest end of s43 — (40,000 − current step) × **3.5 s/step** (17 % faster than its fastest observed 500-step window, 4.208) — is later than now + 2 × the cell's planning duration + **30 min**. His queue appends the s43 evaluation only after the training succeeds (`exp30_attn_queue.sh`), and the s44 evaluation FIFO item is durably complete (`logs/queue_20261101T233607_741947.status`: `ACEattn 44 0 …/epoch=8-step=40000.ckpt`; the queue log: `EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00`; no eval process running at 11:58 EST Nov 5) — so the ONLY way his table job can overlap a shared cell is his training reaching 40,000 steps more than 17 % faster than it has ever run, during the margin. That residual risk is disclosed and accepted: it would slow his table job (not his training) for at most the one in-flight cell. If a new process appears on GPU 1 while our cell runs, the supervisor latches a stop after the running cell (no further shared spawn), records it, and reports to Yixun. The launch entry re-verifies the s44 completion evidence and records the sha256 of his queue script `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa` (modified vs its checkout HEAD — only `TRAIN_JOBS` differs, per Codex) and evaluator `94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c`.
+318:**NIT 1 — state durability.** After the atomic rename, fsync the state DIRECTORY as well; persist a content anchor of his log at each observation (the byte offset and the sha256 of the last 4 KiB parsed), so a copy-truncate-and-regrow between observations is detected (anchor mismatch → hard stop).
+320:**NIT 2 — chunk 5's ledger fields:** probe process rc, the probe JSON sha256, its `.sha256` sidecar sha256, the final log sha256, and the `PROBE_CONTRACT_BF` result (in place of the runner rc / receipt sha256 of the other chunks).
+322:**NIT 3 — frozen external evidence:** the launch entry records the sha256 of his queue script, his evaluator and his admission helper (`exp30_attn_queue_state.py`), and the s44 completion lines above.
+- No commit lands in the worktree during a phase; records go to `localization-exp`.
+
+**Launch command.** `EXPECT_HEAD=H35 ALLOW_SHARED_GPU=1 bash worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_eval_run.sh --lanes 1 --only <chunk>`
+
+**Chunk sequence (33 single-cell chunks; Planner decision 4), with the check after each:**
+1. CTL K1 → E1
+2. CTL K8 → E1
+3. BF T s42 K1 → E2
+4. BF T s42 K8 → E2
+5. The probe
+6–33. Twenty-eight single-cell chunks: T s43–46, R, dup, C4+45. They start only if the guard held through chunks 1–4. A violation stops after the running cell (the runner is never signalled), so stop latency is at most one cell.
+
+**Guard.** Read-only, on Yixun's `train_exp30_ACEattn_s43_20261104T061255_741947.log`, through a reviewed parser `exp35_training_guard.py`. s/step comes from the tqdm elapsed field within an epoch; windows align to the epoch's step counter; epoch-boundary validation is excluded. STOP if any of these holds:
+- any completed 500-step window > 9.712;
+- the mean since our first spawn > 8.521;
+- any completed 100-step window > 9.950 (early warning: his own table job's worst 100-step window over s43 steps 0–4,000).
+
+For reference: unshared windows are 4.210–4.280 (100-step) and 4.218–4.244 (500-step); the baseline is 4.23. The guard is polled every ≤ 5 min and between chunks.
+
+**Hard stops** (no further spawn; report to Yixun): E1 mismatch; a guard violation; any receipt or verification failure (including the overlay sentinel); a failed overlay pre-flight; an invalid probe.
+
+**Reservation.** Before the first chunk the Planner writes `/home/yixunhu/codespace/.gpu_reservations/GPU-6ac2604a-e84e-0615-1221-ccbed7c268da.json` (holder exp_35, branch, H35, since) and removes it after the phase. The exp_22 free-card watcher (suspended; built later) must treat a reserved card as busy and never take GPU 1 while the lane runs.
+
+**When his s43 training ends.** His queue then starts its s43 table job on GPU 1. The remaining phase-(i) chunks move to `--lanes 0` once GPU 0 has no compute process; the lane never co-tenants with his table job. Phase (ii) runs without `ALLOW_SHARED_GPU`, so only on free cards.
+
+**ETA for phase (i), counted from the start of the first cell, co-tenant on GPU 1: ≈ 16.5 h (14–21 h).**
+- CTL 17.6 + 19.2 min.
+- B-F: 15 × K1 at ≈ 24 min (20–30) plus 15 × K8 at ≈ 35 min (30–45).
+- Probe ≈ 10 min.
+- Gates and checks over 33 chunks ≈ 70 min (single-cell chunks; ≈ +30 min vs 2-cell chunks).
+
+It is re-estimated after chunks 3–4, and is shorter if his training ends first. Each co-tenant hour costs him ≈ 0.5 h of training (≈ 8 h if phase (i) overlaps his training throughout; his own table job cost ≈ 4.9 h). His s43 was at step 20,499 / 40,000 at 11:20 EST Nov 5, running ≈ 4.235 s/step; unshared it ends ≈ Nov 6 10:15 EST.
+
+**Phase (ii)** (68 cells): ≈ 19 h on one free card, ≈ 9.5 h on two. If E2 fails, +16 cells ≈ 2.2 h on two.
+
+## 8. Frozen pre-launch checklist (in the launch entry, before the first cell)
+- **Code state:** H35, branch, worktree path, clean `git status`. `git diff --stat d6ca307a H35 -- eval_FLAC.py src ':(exclude)src/tests' data/AR` should touch only `src/localization/*`.
+- **Cells:** cells.json sha and 330 rows; `make_cells.py --check`; the exp_25-only render sha `1073ef64…`; the sha of the 100 exp_35 rows; the phase-(i) cell order.
+- **Checkpoints and configs:** P1 `c4c67882…`, BF `5319feb4…`, CANON@40k `52c64b52…` (CANON manifest `1e481447…`, NAS MANIFEST lines); configs BVp1 `733ca52b…`, BF `3e677204…`, CANON `aba94032…`; datasets `48753740…` / `063c66c2…`.
+- **Assets and environment:** VAE `6198ff0d…`, AGREE_fullAR `3a13243d…`, the DINOv3 HF snapshot; overlay `0d0e52ca…` and its pre-flight output; flac python, torch 2.7.0+cu126, flash-attn 2.7.4.post1 (present, shadowed), pip-freeze `8b7a802e…`.
+- **External references:** exp_25 JSON `ec3fcd08…`; the CTL receipts and hashes of §3c; the stream registry sha; the A6 CSVs `0ae554c0…` / `e4602115…` / `441ade8b…` / `b21ffbe7…`; the CANON probe `ac2f8baf…` (reference only).
+- **Contracts and gates:** the B-F probe contract; the stop gates (E1; guard 9.712 / 8.521 / 9.950; receipt failures).
+- **GPU:** lane GPU 1 by UUID, free memory ≥ 10,240 MiB, the co-tenant pids, the reservation file.
+- **His training:** the log path, its epoch/step, and the current 500-step rate.
+
+## 9. Per-file implementation
+TDD in `src/tests/`; commits under 200 code lines; Codex code review per round, then an integrative review.
+
+**Round 1 — backend.**
+- Files: new `overlays/no_flash/flash_attn/__init__.py`. Runner: RELEVANT += `overlays/no_flash` (`:116-117`); `NO_FLASH_SHA256` and the pre-flight after `:138`; PYTHONPATH at `:311`; at `:324-329`, the sentinel check and `--attention-backend sdpa --no-flash-overlay-sha256 <sha>`.
+- Tests (`test_depth_canon_eval_run.py` harness): sentinel present → receipt v2 with sdpa; sentinel absent or `No module named` → FAILED, no receipt; edited overlay → refused or PIN DRIFT; inherited PYTHONPATH dropped.
+
+**Round 2 — generator.**
+- Files: `depth_canon_make_cells.py` gets the BF arm (existing arm schema) and per-arm flags and `cond_method` (`:49-51`, `:89-123`); `exp35_` names; blocks CTL, BF-pin, BF-dup, OFF-P1, OFF-BF, OFF-CANON, CANON-45 (priorities 10–16, orders 230–329; `:39`, `:138-164`); regenerate `depth_canon_cells.json`.
+- Tests: the exp_25-only render equals the `1073ef64…` bytes; 330 rows; counts and order; the BF argv and suffix; names and suffixes injective, including against exp_25; `--check`.
+
+**Round 3 — collector protocol and receipt v2.**
+- Files: `ARM_PROTOCOL`; `record_reasons` (`:123-129`) and `cell_paths` (`:453-461`); `RECEIPT_KEYS` v2 (`:372-379`), `receipt_reasons` (`:393-440`), `build_receipt` (`:624-670`), CLI (`:1420-1431`, `:1448-1477`); the log re-check.
+- Tests: a valid BF record passes and each wrong field is refused; v1 receipts are unchanged; `test_gen_model_comparison_depth_canon.py` stays green.
+
+**Round 4 — probe.**
+- Files: `--arm BF` per §5 (`:46-47`, `:82-115`, `:174-212`, `:225-296`, `:347-446`, CLI).
+- Tests (toy stack): an invariant toy gives C4 relL2 0; no d64 or random for BF; BF refuses canonicalization; any deviation sets registered=false.
+
+**Round 5 — exp35 collect, two commits.**
+- 5a: external reference, the registry and its helper, `--exp35-ctl-check`, `--exp35-e2`.
+- 5b: Tier 2-C4, the Tier 3 BF row, tables (a)/(b)/(c), and rendering into the exp_35 folder. Touches `make_pairs :732-759`, `_index :1066-1074`, `tier2 :1005-1049`, `tier3 :1103-1121`, `table_block :1124-1135`, `render_md :1321-1394`, `main :1547-1574`.
+- Tests: every §5 fail-closed condition; a poisoned CSV leaves Tier 2/3 unchanged; a registry mismatch is refused.
+
+**Round 6 — figure and guard.**
+- Files: `plot_yaw_curves.py --mode offorbit` and `exp35_training_guard.py`.
+- Tests: `test_plot_yaw_offorbit.py` and `test_exp35_training_guard.py`, with fixture logs that include epoch boundaries.
+
+**Validation ladder:**
+1. CPU suites: depth_canon_*, gen_model_comparison, and the new tests.
+2. The exp_25 byte-for-byte collect.
+3. Runner `DRY_RUN=1` at H35: overlay pre-flight, plan of the 32 phase-(i) cells.
+4. Codex integrative review.
+5. Launch per §7.
+
+## 10. Residual risks
+- **Retrieval thresholds.** Tier 3 thresholds for retrieval (10 % of P1's Δ_C4 ≈ 3.5–6.8 items) are within numerical jitter, so `pass_c4` on R@k may turn on 1–2 item flips. It is reported as registered.
+- **E2 at K8** compares against a neuronic cell.
+- **B-F timing.** Co-tenant times for B-F cells have not been measured on this box since August, so the ETA range stays wide until chunks 3–4.
+- **NAS stalls.** The NAS (CIFS) can stall; any item substitution is caught by `--expected-stream-count` and the registry.
+- **exp_22 dependency.** exp_22's backend amendment and its watcher's reservation support belong to an exp_22 round (decision 7), not to exp_35 code. The exp_22 watcher stays suspended until then.
+
+## 11. r1 → r2: Codex plan r1 (REVISE, 2 BLOCKING + 4 HIGH + 1 NIT) → the BINDING implementation contract
+Review: `orbitrir_yaw_evidence_codex_plan_r1_review.md`. Codex: "Yixun does not need to be asked another decision. These fixes implement decisions he already approved." Where this section conflicts with §3b, §5, §6, §7 or §9, THIS section governs.
+
+**B1 — fail-closed import isolation (replaces §3b's "PYTHONPATH set to exactly the overlay" as the mechanism).**
+- The overlay becomes ONE module file `overlays/no_flash/flash_attn.py` (same 4-line content as §3b — its sha256 is recomputed and pinned in the launch entry), with NO `__init__.py` anywhere under `overlays/`.
+- A committed, same-interpreter launcher `overlays/no_flash/exp35_no_flash_launch.py` runs every exp_35 evaluator AND probe process: it (1) sets `sys.dont_write_bytecode = True` and requires `PYTHONDONTWRITEBYTECODE=1` in its environment; (2) REFUSES if any `__pycache__` / `*.pyc` exists under `overlays/no_flash/`, or if a `flash_attn.py` / `flash_attn/` exists at the repo root or anywhere earlier on the path it builds; (3) builds `sys.path` explicitly = [the overlay dir, the repo root, then the interpreter's own entries with every other occurrence of those two removed] and drops any inherited `PYTHONPATH` entries; (4) asserts `importlib.util.find_spec("flash_attn").origin` realpath == the overlay file; (5) imports `src.models.transformer`, asserts its `__file__` realpath is `<repo>/src/models/transformer.py` and `transformer.flash_attn_func is None`; (6) prints ONE launcher sentinel line with the overlay sha256, its own sha256 and the asserted backend `sdpa`; (7) then executes the target (`eval_FLAC.py` or the probe) with `runpy.run_path(<target>, run_name="__main__")` and the original argv. Any failed assertion exits non-zero BEFORE the target runs.
+- The runner spawns `python overlays/no_flash/exp35_no_flash_launch.py eval_FLAC.py <args>` for exp_35 cells (exp_25 cells unchanged); RELEVANT covers both files; their sha256 are runner constants checked at start; the per-cell log check requires the launcher sentinel AND transformer.py's "flash_attn not installed" line, and no "No module named 'flash_attn'"; receipt v2 records `attention_backend: "sdpa"`, the overlay sha256 and the launcher sha256.
+- Packaging: `[tool.setuptools.packages.find]` in `pyproject.toml` gains `exclude = ["overlays*"]` (setuptools' namespace discovery would otherwise ship it as `overlays.no_flash`).
+- Tests: repo-root shadow (`flash_attn.py` and `flash_attn/`) → refused; a `.pyc` under the overlay → refused; wrong spec origin → refused; inherited PYTHONPATH removed; `flash_attn_func` not None → refused; the sentinel pair required per cell.
+
+**B2 — identity-bound co-tenancy and an atomic hand-over (replaces §7's "ALLOW_SHARED_GPU=1" as the sole gate).**
+- Before EVERY spawn, the set of foreign compute processes on the lane's GPU must EQUAL the approved identity tuple, frozen in the launch entry: for GPU 1 (`GPU-6ac2604a-e84e-0615-1221-ccbed7c268da`) exactly Yixun's s43 rank — PID 3028196, its start time (field 22 of `/proc/<pid>/stat`), cwd `/home/yixunhu/codespace/flac-fork-attn`, cmdline sha256, and its log path. Any extra, missing or changed process (PID reuse included) → NO shared spawn → hand-over.
+- Hand-over: only when GPU 0 has ZERO foreign compute processes (checked twice, 60 s apart), the supervisor writes the GPU 0 reservation file, then removes the GPU 1 file, and spawns the next cell on GPU 0 with `ALLOW_SHARED_GPU` UNSET. If GPU 0 is not free, the supervisor waits (no spawn) and reports.
+- A committed supervisor `exp35_supervisor.py` (round 6a) owns the chunk loop: the frozen 33-chunk order; before each chunk the guard (exit 0), the identity check and the reservation; spawns the runner with `--only <one cell>`; polls the guard every ≤ 5 min while the cell runs (a violation means: no further spawn after the running cell; the runner is never signalled); after chunks 1–2 runs `--exp35-ctl-check` (E1 — mismatch = hard stop), after 3–4 `--exp35-e2` (decides the 45° source only), after 5 validates the probe. Persistent state `exp35_supervisor_state.json` (in the exp_35 folder of the RUN worktree, untracked): the baseline (the time and his step at our first spawn, for the running mean), the chunk ledger, the reservation holder. It never signals any process.
+- Tests: trainer exit → hand-over, never another shared spawn; table job replacing the trainer → no shared spawn; an extra PID; PID reuse (same PID, new start time); the reservation transfer (both files never absent together while a cell runs); `ALLOW_SHARED_GPU` unset on GPU 0; guard baseline persistence; log truncation / rotation; epoch boundaries.
+- The exp_22 watcher stays ABSENT (not built) through phase (i); the launch entry confirms it.
+
+**H3 — probe provenance.** The B-F probe runs through the same launcher; `orbitrir_bf_cond_probe.json` records `attention_backend`, the overlay and launcher sha256, the H35 campaign digest, its log path and log sha256; the collector's `PROBE_CONTRACT_BF` validates them.
+
+**H5 — packaging:** B1's `pyproject.toml` exclusion.
+
+**H6 — figure provenance fields:** `source_artifact_path`, `source_artifact_sha256`, `source_row_key`, `orbit_execution_basis` (`recorded` | `inferred from the run date after 1479304`) replace §6's single `source_sha256`.
+
+**N7:** every computation and test reads the P1-pin Δ_C4 (and every exp_25 number) at full precision from the hash-pinned exp_25 JSON; the rounded values in §4 are prose only.
+
+**R8 — the critical path for launching phase (i):** rounds 1–4, 5a AND 5b (the Tier 2-C4 / Tier 3 / tables implementation is frozen and reviewed BEFORE any phase-(i) data is observed; rendering included), and round 6a (the guard + the supervisor + identity + hand-over). Round 6b (the off-orbit figure) follows while phase (i) runs, in a separate worktree (the run worktree never moves during a phase). Validation ladder unchanged (§9) plus: a supervisor dry run that plans the 33 chunks and exercises the identity check read-only against the live GPU state without spawning anything.
+
+## 12. r2 → r3: Codex plan r2 (REVISE, 3 BLOCKING + 1 HIGH) → binding additions to §11
+Review: `orbitrir_yaw_evidence_codex_plan_r2_review.md`. Where this section conflicts with §11 or earlier sections, THIS section governs.
+
+**Facts read from Yixun's exp_30 queue (read-only, `~/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh`, 2026-11-05):** `TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')` (:239) — s43 is the LAST training; trainings run on GPUs 0,1 (`CUDA_VISIBLE_DEVICES=0,1`, :123); the evaluation FIFO runs ONLY on GPU 1 (`exp30_attn_eval.sh 1 …`, :66); its admission is by free memory with "No exclusivity" (:5-9) — it does NOT honour our reservation. Hence: after s43 ends, his queue puts nothing on GPU 0, and its s43 table job starts on GPU 1.
+
+**B1 — GPU ownership (replaces §11 B2's hand-over paragraph).**
+1. The approved identity tuple is enforced TWICE: by the supervisor before each spawn AND by the runner's final pre-exec lane check (the tuple is passed to the runner; any extra / missing / changed foreign process on the lane GPU → the runner refuses that cell, no receipt).
+2. The tuple binds the process mechanically: PID, start time (`/proc/<pid>/stat` field 22), cwd (`/proc/<pid>/cwd`), the cmdline sha256 (`/proc/<pid>/cmdline`), and the log path as `readlink /proc/<pid>/fd/1` (and fd/2) — never an asserted string.
+3. **End-of-training predictor (prevents a shared cell from overlapping his s43 table job on GPU 1):** before each SHARED spawn the supervisor projects the s43 end from his log — remaining steps (40,000 − current) × 4.208 s/step (the FASTEST unshared 500-step window, so the earliest possible end) — and spawns only if that end is later than now + 2 × the cell's planning duration (vanilla K1 17.6 / K8 19.2 min; B-F K1 24 / K8 35 min). Otherwise it spawns nothing shared and waits for the hand-over. Residual risk (disclosed): none from his queue under this rule unless his training ends earlier than its fastest observed rate allows.
+4. **Reservation files are created atomically** (`open(O_CREAT|O_EXCL)`, never overwritten; content: holder exp_35, H35, lane GPU UUID, epoch, created time). The supervisor owns exactly one reservation at any time between its first spawn and its release; the state file records the reservation epoch. Hand-over to GPU 0 happens only when the s43 trainer has exited (its identity gone from both GPUs): (a) GPU 0 has zero foreign compute processes on two checks 60 s apart; (b) the GPU 0 file is created with O_EXCL (if it exists — another holder — refuse and wait); (c) the state records the transfer (epoch + 1) atomically; (d) only then is the GPU 1 file removed. A restart that finds neither, both, or a file not matching the state's epoch → refuse (stop latch) and report.
+5. On GPU 0 the runner runs with `ALLOW_SHARED_GPU` UNSET and its own lane gate refuses any foreign process at pre-exec. Residual risk (disclosed): another session's job could start on GPU 0 after our pre-exec check; our cell would then share the card until it ends — the supervisor detects it before the next spawn and stops.
+
+**B2 — the supervisor is a fail-closed state machine (`exp35_supervisor_state.json`, schema v1).** Fields: campaign / H35 / cells sha / supervisor sha; the baseline (time of our first spawn, his step then, his log path + inode + size then); per chunk `planned → in_flight → runner_verified → gates_verified` (with the runner rc, the receipt sha, the gate results); the lane GPU and the reservation epoch; a permanent `stop_latch` {reason, time}. Writes are atomic (temp file + fsync + rename); a corrupt or inconsistent state refuses to run. Restart reconciliation: a chunk with a verified receipt but no `gates_verified` re-runs its gates (E1 / E2 / probe / guard) before anything else; a non-zero runner rc, an absent receipt, a failed verification, a final guard failure or an invalid probe sets the stop latch before any next spawn; a set latch is never cleared by the supervisor (only by the Planner, by hand, after reporting). His log: if its inode changes or its size shrinks → hard stop (no baseline reset).
+
+**B3 — chunk 5 (the probe) transaction.** Chunks 1–4 and 6–33: the runner with ONE manifest cell. Chunk 5: the supervisor invokes the §11 launcher directly on the probe target with the frozen argv, under the same guard, identity, predictor and reservation gates. After the probe process exits and its log is closed, a non-logged finalization step hashes the final log, writes the campaign / backend / overlay / launcher / log provenance into `orbitrir_bf_cond_probe.json`, regenerates its `.sha256`, and runs the collector's `PROBE_CONTRACT_BF` validation; only success marks chunk 5 `gates_verified`.
+
+**H4 — child processes.** (a) The pinned evaluator / probe tree starts no Python child processes (its only subprocesses run `git`); a static test asserts this for `eval_FLAC.py`, the probe and the non-test `src/` modules they import (no `subprocess` / `os.exec*` / `os.spawn*` with a python argv). (b) DataLoader workers: tests force `fork` and `spawn` workers in a toy loader under the launcher and have each worker report `src.models.transformer.__file__` and `flash_attn_func is None`. (c) Defence in depth for any fresh Python child: the runner ALSO exports `PYTHONPATH=<repo>/overlays/no_flash` (only that entry) to the launcher's environment, so a fresh interpreter finds the overlay before site-packages; a test runs a fresh `python -c "import flash_attn"` with that environment from the repo root and asserts the sentinel ImportError.
+
+
+## 13. r3 → r4: Codex plan r3 (REVISE, 1 BLOCKING + 3 NIT)
+Review: `orbitrir_yaw_evidence_codex_plan_r3_review.md` — "The GPU-1 FIFO exclusion above remains the sole blocker once §11 and §12 are faithfully implemented. B2, B3, and H4 no longer block phase (i)." This section governs where it conflicts with §7, §11 or §12.
+
+**B1 — co-tenancy with the s43 table job: the requirement is RESTATED and the residual risk ACCEPTED by the Planner (Codex's option 3).** Yixun's decision 6 is "co-tenancy on GPU 1 for phase (i) only" — sharing GPU 1 with his s43 TRAINING; "the lane never co-tenants with his table job" (§7) was this plan's own stricter wording, not his. Restated: phase (i) shares GPU 1 only with the s43 training by design; a shared cell is STARTED only if the projected earliest end of s43 — (40,000 − current step) × **3.5 s/step** (17 % faster than its fastest observed 500-step window, 4.208) — is later than now + 2 × the cell's planning duration + **30 min**. His queue appends the s43 evaluation only after the training succeeds (`exp30_attn_queue.sh`), and the s44 evaluation FIFO item is durably complete (`logs/queue_20261101T233607_741947.status`: `ACEattn 44 0 …/epoch=8-step=40000.ckpt`; the queue log: `EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00`; no eval process running at 11:58 EST Nov 5) — so the ONLY way his table job can overlap a shared cell is his training reaching 40,000 steps more than 17 % faster than it has ever run, during the margin. That residual risk is disclosed and accepted: it would slow his table job (not his training) for at most the one in-flight cell. If a new process appears on GPU 1 while our cell runs, the supervisor latches a stop after the running cell (no further shared spawn), records it, and reports to Yixun. The launch entry re-verifies the s44 completion evidence and records the sha256 of his queue script `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa` (modified vs its checkout HEAD — only `TRAIN_JOBS` differs, per Codex) and evaluator `94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c`.
+
+**NIT 1 — state durability.** After the atomic rename, fsync the state DIRECTORY as well; persist a content anchor of his log at each observation (the byte offset and the sha256 of the last 4 KiB parsed), so a copy-truncate-and-regrow between observations is detected (anchor mismatch → hard stop).
+
+**NIT 2 — chunk 5's ledger fields:** probe process rc, the probe JSON sha256, its `.sha256` sidecar sha256, the final log sha256, and the `PROBE_CONTRACT_BF` result (in place of the runner rc / receipt sha256 of the other chunks).
+
+**NIT 3 — frozen external evidence:** the launch entry records the sha256 of his queue script, his evaluator and his admission helper (`exp30_attn_queue_state.py`), and the s44 completion lines above.
+
+codex
+The plan’s governing clause is clear: §13 explicitly supersedes the old “never co-tenants” sentence and converts it to an accepted forecast risk. I’m now checking whether the three persisted FIFO files actually establish completed s44 training/evaluation, and whether the external hashes named by §13 match the current cited files.
+exec
+/bin/bash -lc 'for f in /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log; do echo "$f"; stat -c '"'size=%s mtime=%y inode=%i' \""'$f"; sha256sum "$f"; sed -n '"'1,120p' \""'$f"; done' in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status
+size=107 mtime=2026-11-04 16:01:40.980799980 -0500 inode=120719382
+0a956d9fa7df0b47d936c7f21e3cbd26537db0e0dcd5e918ef9e80f9926dbe85  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.status
+ACEattn	44	0	/home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=8-step=40000.ckpt
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs
+size=105 mtime=2026-11-04 06:12:54.630022454 -0500 inode=120719381
+544f0fb4fe8764a0079390f9365842337f070ffd9842cb8f637c40202f5ed25d  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.jobs
+ACEattn	44	/home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=8-step=40000.ckpt
+/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log
+size=3340 mtime=2026-11-04 16:01:40.979799966 -0500 inode=120719383
+4a00ee7a3ab76aca2b483fb4ecd8c659ce13313820639c72705247fed2db464f  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/queue_20261101T233607_741947.log
+2026-11-01T23:36:07-05:00 START queue fork=2dd8fcbea35ea13a1b7f655745793e68ede173b6 package=f87b50327012c3744eac83c35327b7d5905d38a0 pilot=s42 max_steps=40000
+GPU_BUDGET source=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/smoke_ACEattn_20261101T231618_726135.log peak_MiB=7532.0 margin_MiB=2048 required_free_MiB=9580 train=0,1 eval=1
+READY train GPU budget free_MiB={'0': 48530, '1': 48351} required_free_MiB={'0': 9580, '1': 19160} job_requirement_MiB=9580
+2026-11-01T23:36:07-05:00 START training ACEattn s44 gpus 0,1 fork=2dd8fcbea35ea13a1b7f655745793e68ede173b6 package=f87b50327012c3744eac83c35327b7d5905d38a0
+2026-11-04T06:11:47-05:00 TERM cleanup pgid=741986
+2026-11-04T06:11:47-05:00 END cleanup pgid=741986 verified_no_live_members=1
+2026-11-04T06:11:47-05:00 END training ACEattn s44 exit=0
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=0-step=2500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=1-step=5000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=1-step=7500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=2-step=10000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=2-step=12500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=3-step=15000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=3-step=17500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=4-step=20000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=4-step=22500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=5-step=25000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=6-step=27500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=6-step=30000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=7-step=32500.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=7-step=35000.ckpt: not a final checkpoint
+REJECT checkpoint /home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=8-step=37500.ckpt: not a final checkpoint
+READY train GPU budget free_MiB={'0': 48530, '1': 45108} required_free_MiB={'0': 9580, '1': 19160} job_requirement_MiB=9580
+2026-11-04T06:12:55-05:00 START training ACEattn s43 gpus 0,1 fork=2dd8fcbea35ea13a1b7f655745793e68ede173b6 package=f87b50327012c3744eac83c35327b7d5905d38a0
+EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00
+2026-11-04T16:01:40-05:00 TERM cleanup pgid=3027711
+2026-11-04T16:01:40-05:00 END cleanup pgid=3027711 verified_no_live_members=1
+
+exec
+/bin/bash -lc "sha256sum /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py && git -C /home/yixunhu/codespace/flac-fork-attn status --short -- worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py && git -C /home/yixunhu/codespace/flac-fork-attn diff -- worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh && rg -n 'STATUS_FILE|JOBS_FILE|EVAL_DONE|status|eval|TRAIN_JOBS|wait.*eval|wait_and_check|append|flock|fsync' /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh
+94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh
+8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907  /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py
+ M worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh
+diff --git a/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh b/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh
+index 82ca48c..2b6bfbf 100755
+--- a/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh
++++ b/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh
+@@ -236,7 +236,7 @@ main() {
+     WORKER_PID= TRAIN_PID= ACTIVE_RUN= WORKER_RC=not_started REPORTED=0 QUEUE_PID=$$
+     rm -f "$R/logs/train.pid"
+     declare -gA CHECKPOINTS=() TRAIN_STATE=()
+-    TRAIN_JOBS=('ACEattn 42' 'ACEattn 43' 'ACEattn 44')
++    TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')
+     trap cleanup EXIT
+     trap 'exit 130' INT
+     trap 'echo "$(date -Is) SIGTERM pid=$BASHPID" >> "$QLOG"; exit 143' TERM
+2:# Three full 40k 2 x 32 / SyncBN trainings, with one GPU-1 evaluation FIFO.
+7:# free[1] >= T + E; evaluation requires free[1] >= E + T until training is
+11:# lifetime flock excludes another ACE supervisor/smoke through verified cleanup.
+32:stop_eval_child() {
+34:    # Also retain the evaluator group if its FIFO worker died unexpectedly.
+42:cleanup_eval_worker() {
+53:eval_worker() {
+59:    trap cleanup_eval_worker EXIT
+64:            # every eval_FLAC.py start, including later cells in this matrix.
+66:            EXP30_QUEUE_GPU_STATE=$STATE setsid bash "$R/exp30_attn_eval.sh" 1 "$seed" "$ckpt" >> "$QLOG" 2>&1 &
+80:            # Re-read after closure: the final append can race the EOF read.
+90:    local arm=$1 seed=$2 run selected step last= rc status completed
+94:    status=$(training_state inspect "$arm" "$seed" "$run" 2>> "$QLOG") || return 1
+95:    if [[ $status == SUCCESS ]]; then
+101:    if [[ $status == FAILED ]]; then
+106:    elif [[ $status != NEW ]]; then
+107:        echo "$(date -Is) FAILED training $arm s$seed unknown state=$status" >> "$QLOG"
+125:        --val-dataset-config src/configs/dataset_configs/AR/eval/acousticroom_seeneval.json \
+140:        echo "$(date -Is) FAILED evaluation worker exit=$rc during training $arm s$seed" >> "$QLOG"
+141:        stop_eval_child
+160:    local rc=$1 arm seed key ckpt status detail job
+162:    local -A eval_status=() eval_checkpoint=()
+165:    while IFS=$'\t' read -r arm seed status ckpt; do
+166:        eval_status[$arm:$seed]=$status eval_checkpoint[$arm:$seed]=$ckpt
+168:    for job in "${TRAIN_JOBS[@]}"; do
+177:            status=$?
+178:            [[ $status == 0 && $detail == "$ckpt" ]] || missing+=("checkpoint_${arm}_s${seed}_provenance")
+180:        [[ ${eval_status[$key]:-MISSING} == 0 && ${eval_checkpoint[$key]:-} == "$ckpt" ]] || missing+=("eval_${arm}_s${seed}_exit=${eval_status[$key]:-MISSING}")
+182:        detail=$(bash "$R/exp30_attn_eval.sh" 1 "$seed" "${ckpt:-outputs_FLAC/exp30_${arm}_s${seed}/MISSING.ckpt}" --check-only 2>> "$QLOG")
+183:        status=$?
+185:        [[ $status == 0 ]] || missing+=("${detail:-eval_${arm}_s${seed}_check_failed}")
+218:    stop_eval_child
+229:    flock -n 9 || { echo 'QUEUE_INCOMPLETE another ACE smoke/queue or its worker is still active'; return 2; }
+231:    QLOG=$base.log JOBS=$base.jobs STATUSES=$base.status CLOSED=$base.closed
+232:    EVAL_PIDFILE=$base.eval.pid
+239:    TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')
+249:    # The root supervisor must retain the evaluator lock even if its FIFO
+250:    # worker or evaluator dies. Once acquired, keep it through queue cleanup.
+251:    open_eval_lock_fd 1 || return 2
+253:    eval_worker &
+258:    for job in "${TRAIN_JOBS[@]}"; do
+273:    stop_eval_child
+
+exec
+/bin/bash -lc "nl -ba /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh | sed -n '45,88p;150,222p;225,285p' && rg -n 'EVAL_DONE|status|exit|check-only' /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh | tail -n 40" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+    45	    trap '' INT TERM
+    46	    if [[ -n $child ]]; then
+    47	        stop_child "$child"
+    48	        rm -f "$pidfile"
+    49	        printf '%s\t%s\t%s\t%s\n' "$arm" "$seed" "${rc:-143}" "$ckpt" >> "$STATUSES"
+    50	    fi
+    51	}
+    52	
+    53	eval_worker() {
+    54	    local arm= seed= ckpt= child= rc failed=0 closing=0
+    55	    local pidfile=${EVAL_PIDFILE:-$STATUSES.child.pid}
+    56	    trap - EXIT
+    57	    trap 'exit 130' INT
+    58	    trap 'echo "$(date -Is) SIGTERM pid=$BASHPID" >> "$QLOG"; exit 143' TERM
+    59	    trap cleanup_eval_worker EXIT
+    60	    exec 4< "$JOBS" || exit 2
+    61	    while true; do
+    62	        if IFS=$'\t' read -r arm seed ckpt <&4; then
+    63	            # The unchanged cell recipe uses this queue's admission helper before
+    64	            # every eval_FLAC.py start, including later cells in this matrix.
+    65	            defer_signals
+    66	            EXP30_QUEUE_GPU_STATE=$STATE setsid bash "$R/exp30_attn_eval.sh" 1 "$seed" "$ckpt" >> "$QLOG" 2>&1 &
+    67	            child=$!
+    68	            echo "$child" > "$pidfile" || exit 2
+    69	            restore_signals
+    70	            wait "$child"
+    71	            rc=$?
+    72	            stop_child "$child"
+    73	            child=
+    74	            rm -f "$pidfile"
+    75	            printf '%s\t%s\t%s\t%s\n' "$arm" "$seed" "$rc" "$ckpt" >> "$STATUSES" || exit 2
+    76	            [[ $rc == 0 ]] || failed=1
+    77	        elif [[ $closing == 1 ]]; then
+    78	            exit "$failed"
+    79	        elif [[ -e $CLOSED ]]; then
+    80	            # Re-read after closure: the final append can race the EOF read.
+    81	            closing=1
+    82	        else
+    83	            kill -0 "$QUEUE_PID" 2>/dev/null || exit 2
+    84	            sleep 1
+    85	        fi
+    86	    done
+    87	}
+    88	
+   150	    rc=$?
+   151	    ACTIVE_RUN=
+   152	    if [[ $rc != 0 ]]; then
+   153	        echo "$(date -Is) FAILED training $arm s$seed; durable attempt recorded" >> "$QLOG"
+   154	        return 1
+   155	    fi
+   156	    CHECKPOINTS[$key]=$last TRAIN_STATE[$key]=VALID
+   157	}
+   158	
+   159	queue_audit() {
+   160	    local rc=$1 arm seed key ckpt status detail job
+   161	    local missing=()
+   162	    local -A eval_status=() eval_checkpoint=()
+   163	    [[ $rc == 0 ]] || missing+=("queue_exit=$rc")
+   164	    [[ $WORKER_RC == 0 ]] || missing+=("worker_exit=$WORKER_RC")
+   165	    while IFS=$'\t' read -r arm seed status ckpt; do
+   166	        eval_status[$arm:$seed]=$status eval_checkpoint[$arm:$seed]=$ckpt
+   167	    done < "$STATUSES"
+   168	    for job in "${TRAIN_JOBS[@]}"; do
+   169	        read -r arm seed <<< "$job"
+   170	        key=$arm:$seed
+   171	        ckpt=${CHECKPOINTS[$key]:-}
+   172	        [[ ${TRAIN_STATE[$key]:-MISSING} == VALID ]] || missing+=("training_${arm}_s${seed}=${TRAIN_STATE[$key]:-MISSING}")
+   173	        if [[ -z $ckpt ]]; then
+   174	            missing+=("checkpoint_${arm}_s${seed}")
+   175	        else
+   176	            detail=$(training_state reuse "$arm" "$seed" "outputs_FLAC/exp30_${arm}_s${seed}" 2>> "$QLOG")
+   177	            status=$?
+   178	            [[ $status == 0 && $detail == "$ckpt" ]] || missing+=("checkpoint_${arm}_s${seed}_provenance")
+   179	        fi
+   180	        [[ ${eval_status[$key]:-MISSING} == 0 && ${eval_checkpoint[$key]:-} == "$ckpt" ]] || missing+=("eval_${arm}_s${seed}_exit=${eval_status[$key]:-MISSING}")
+   181	        # Independent read-only receipt audit; never starts GPU work.
+   182	        detail=$(bash "$R/exp30_attn_eval.sh" 1 "$seed" "${ckpt:-outputs_FLAC/exp30_${arm}_s${seed}/MISSING.ckpt}" --check-only 2>> "$QLOG")
+   183	        status=$?
+   184	        echo "$detail" >> "$QLOG"
+   185	        [[ $status == 0 ]] || missing+=("${detail:-eval_${arm}_s${seed}_check_failed}")
+   186	    done
+   187	    REPORTED=1
+   188	    if (( ${#missing[@]} )); then
+   189	        echo "QUEUE_INCOMPLETE $(date -Is) missing=${missing[*]}" | tee -a "$QLOG"
+   190	        return 1
+   191	    fi
+   192	    echo "QUEUE_DONE $(date -Is) trainings=3 cells=120" | tee -a "$QLOG"
+   193	}
+   194	
+   195	cleanup() {
+   196	    local rc=$? train_rc=143
+   197	    trap - EXIT
+   198	    trap '' INT TERM
+   199	    [[ $rc != 130 ]] || train_rc=130
+   200	    if [[ -n $WORKER_PID ]]; then kill -TERM "$WORKER_PID" 2>/dev/null || true; fi
+   201	    if [[ -n $TRAIN_PID ]]; then
+   202	        stop_child "$TRAIN_PID"
+   203	        TRAIN_PID=
+   204	    fi
+   205	    if [[ -n ${ACTIVE_RUN:-} ]]; then
+   206	        # Interruption is a failed attempt even if a child happened to exit 0.
+   207	        echo "$(date -Is) END training $ACTIVE_ARM s$ACTIVE_SEED exit=$train_rc" >> "$QLOG"
+   208	        training_state finish "$ACTIVE_ARM" "$ACTIVE_SEED" "$ACTIVE_RUN" "$train_rc" >> "$QLOG" 2>&1 || true
+   209	        echo "$(date -Is) FAILED training $ACTIVE_ARM s$ACTIVE_SEED; durable attempt recorded" >> "$QLOG"
+   210	        ACTIVE_RUN=
+   211	    fi
+   212	    rm -f "$R/logs/train.pid"
+   213	    if [[ -n $WORKER_PID ]]; then
+   214	        wait "$WORKER_PID"
+   215	        WORKER_RC=$?
+   216	        WORKER_PID=
+   217	    fi
+   218	    stop_eval_child
+   219	    if [[ $REPORTED == 0 ]]; then queue_audit "${rc:-1}"; fi
+   220	}
+   221	
+   222	main() {
+   225	    mkdir -p "$R/logs" || return 2
+   226	    # Shared with the smoke. The supervisor retains this lock until its owned
+   227	    # groups are gone; Lightning ranks need not inherit the descriptor.
+   228	    exec 9> "$R/logs/queue.lock" || return 2
+   229	    flock -n 9 || { echo 'QUEUE_INCOMPLETE another ACE smoke/queue or its worker is still active'; return 2; }
+   230	    local base=$R/logs/queue_$(date +%Y%m%dT%H%M%S)_$$
+   231	    QLOG=$base.log JOBS=$base.jobs STATUSES=$base.status CLOSED=$base.closed
+   232	    EVAL_PIDFILE=$base.eval.pid
+   233	    export EXP30_QUEUE_CLOSED=$CLOSED
+   234	    : > "$JOBS" || return 2
+   235	    : > "$STATUSES" || return 2
+   236	    WORKER_PID= TRAIN_PID= ACTIVE_RUN= WORKER_RC=not_started REPORTED=0 QUEUE_PID=$$
+   237	    rm -f "$R/logs/train.pid"
+   238	    declare -gA CHECKPOINTS=() TRAIN_STATE=()
+   239	    TRAIN_JOBS=('ACEattn 44' 'ACEattn 43')
+   240	    trap cleanup EXIT
+   241	    trap 'exit 130' INT
+   242	    trap 'echo "$(date -Is) SIGTERM pid=$BASHPID" >> "$QLOG"; exit 143' TERM
+   243	    FORK_SHA=$(git rev-parse HEAD) || return 1
+   244	    PACKAGE_SHA=$(git -C "$PACKAGE" rev-parse HEAD) || return 1
+   245	    echo "$(date -Is) START queue fork=$FORK_SHA package=$PACKAGE_SHA pilot=s42 max_steps=40000" >> "$QLOG"
+   246	    EXP30_REQUIRED_FREE_MIB=$("$PY" "$STATE" budget 2>> "$QLOG") || return 1
+   247	    export EXP30_REQUIRED_FREE_MIB
+   248	    # Append-only FIFO follows pair-1; rebuilt from durable disk state each time.
+   249	    # The root supervisor must retain the evaluator lock even if its FIFO
+   250	    # worker or evaluator dies. Once acquired, keep it through queue cleanup.
+   251	    open_eval_lock_fd 1 || return 2
+   252	    defer_signals
+   253	    eval_worker &
+   254	    WORKER_PID=$!
+   255	    restore_signals
+   256	    echo "$WORKER_PID" > "$base.worker.pid" || return 1
+   257	    local job arm seed rc=0
+   258	    for job in "${TRAIN_JOBS[@]}"; do
+   259	        read -r arm seed <<< "$job"
+   260	        if ! train_run "$arm" "$seed"; then rc=1; break; fi
+   261	        if ! kill -0 "$WORKER_PID" 2>/dev/null || ! printf '%s\t%s\t%s\n' "$arm" "$seed" "${CHECKPOINTS[$arm:$seed]}" >> "$JOBS"; then
+   262	            rc=1
+   263	            break
+   264	        fi
+   265	    done
+   266	    touch "$CLOSED" || return 1
+   267	    if [[ -n $WORKER_PID ]]; then
+   268	        if [[ $rc != 0 ]]; then kill -TERM "$WORKER_PID" 2>/dev/null || true; fi
+   269	        wait "$WORKER_PID"
+   270	        WORKER_RC=$?
+   271	        WORKER_PID=
+   272	    fi
+   273	    stop_eval_child
+   274	    queue_audit "$rc"
+   275	}
+   276	
+   277	if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+   278	    main "$@"
+   279	    exit $?
+   280	fi
+2:# Full checkpoint: <gpu> <train-seed> <checkpoint> [--check-only]
+7:ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P) || exit 2
+8:cd "$ROOT" || exit 2
+11:source "$R/exp30_attn_processes.sh" || exit 2
+29:[[ $# == 3 || $# == 4 || $# == 8 ]] || { echo "usage: $0 <gpu> <train-seed> <ckpt> [--check-only | --cell eq ema 1 42]" >&2; exit 2; }
+31:[[ $GPU =~ ^[0-9]+$ && $SEED =~ ^[0-9]+$ ]] || exit 2
+42:    [[ $GPU == 1 ]] || exit 2
+45:    exit 2
+50:    full) [[ $# == 3 ]] || exit 2;;
+51:    --check-only) [[ $# == 4 ]] || exit 2;;
+54:           ( $7 == 1 || $7 == 8 ) && $8 =~ ^4[2-6]$ ]] || exit 2
+56:    *) exit 2;;
+60:if [[ $MODE != --check-only ]]; then
+61:    mkdir -p "$R/logs" || exit 2
+63:    open_eval_lock_fd "$GPU" "$LOCK_PREFIX" || exit 2
+64:    flock -x 8 || exit 2
+66:MANIFEST=$(eval_state manifest "$CKPT" "$SEED" "${CELL[@]}") || exit 2
+68:if [[ $MODE == --check-only ]]; then
+74:        exit 1
+77:    exit 0
+91:    echo "$(date -Is) EVAL_INCOMPLETE interrupted $ARM s$SEED signal=$2 exit=$1" >> "$LOG"
+92:    exit "$1"
+101:        echo "$(date -Is) SKIP $NAME exit=previous metrics_valid=1" >> "$LOG"
+105:        echo "$(date -Is) END $NAME exit=not_started metrics_valid=0 checkpoint_missing=1" >> "$LOG"
+115:    wait_for_eval_slot || exit 1
+123:    if ! echo RUNNING > "$METRICS.exit_status"; then
+143:    echo "$(date -Is) END $NAME exit=$RC metrics_valid=$JSON_OK path=$METRICS" >> "$LOG"
+144:    if ! echo "$RC" > "$METRICS.exit_status"; then RC=1; fi
+149:    exit 1
+154:    echo "EVAL_DONE $ARM s$SEED cells=40 $(date -Is)" | tee -a "$LOG"
+
+exec
+/bin/bash -lc 'git show --stat --oneline --decorate --no-renames e2166326 && git diff --no-ext-diff --unified=3 e2166326''^ e2166326 -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md && git status --short -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md && sha256sum worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md' in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+e2166326 (HEAD -> localization-exp, origin/localization-exp) exp_35 plan r4: Codex plan r3 = REVISE (verbatim review: one blocker, the GPU-1 FIFO exclusion; B2 / B3 / H4 resolved) answered by section 13: the co-tenancy requirement restated to Yixun's decision 6 (share GPU 1 with the s43 training only) with the residual table-job overlap risk explicitly accepted by the Planner and disclosed (a stricter predictor at 3.5 s/step plus a 30-minute margin; the s44 FIFO item durably complete; a stop latch if a new GPU-1 process appears), plus state durability, chunk-5 ledger fields and frozen external evidence
+ .../orbitrir_yaw_evidence_codex_plan_r3_review.md  | 62 ++++++++++++++++++++++
+ .../plan_orbitrir_yaw_evidence.md                  | 14 ++++-
+ 2 files changed, 75 insertions(+), 1 deletion(-)
+diff --git a/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md b/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
+index 9a442b55..8df66df4 100644
+--- a/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
++++ b/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
+@@ -1,4 +1,4 @@
+-> **STATUS: PLAN r3 (2026-11-05 11:53:19 EST) = r2 + §12 (answering Codex plan r2 = REVISE: atomic GPU ownership, the supervisor state machine, the probe chunk, child imports; still no new decision for Yixun). r2 header: PLAN r2 (2026-11-05 11:45:40 EST) = r1 + §11 (the binding implementation contract answering Codex plan r1 = REVISE; no new decision for Yixun, per Codex). r1 header: PLAN r1 (2026-11-05 11:30:08 EST; Planner edits 2026-11-05 11:34:50 EST: §2b decisions, single-cell chunks) — Yixun's decisions of 2026-11-05 applied; Codex plan r0 findings addressed; awaiting Codex plan re-review r1.** Nothing runs on a GPU before Codex accepts r1, the code rounds pass review and the integrative review passes. Written by an Opus 5.5 planning subagent for the Planner. Evidence: `orbitrir_yaw_evidence_research_notes.md`; r0 review: `orbitrir_yaw_evidence_codex_plan_r0_review.md`.
++> **STATUS: PLAN r4 (2026-11-05 11:59:16 EST) = r3 + §13 (Codex plan r3 = REVISE with ONE blocker — the GPU-1 FIFO exclusion — resolved by an explicit, disclosed risk acceptance by the Planner, the third option Codex named; three NITs). r3 header: PLAN r3 (2026-11-05 11:53:19 EST) = r2 + §12 (answering Codex plan r2 = REVISE: atomic GPU ownership, the supervisor state machine, the probe chunk, child imports; still no new decision for Yixun). r2 header: PLAN r2 (2026-11-05 11:45:40 EST) = r1 + §11 (the binding implementation contract answering Codex plan r1 = REVISE; no new decision for Yixun, per Codex). r1 header: PLAN r1 (2026-11-05 11:30:08 EST; Planner edits 2026-11-05 11:34:50 EST: §2b decisions, single-cell chunks) — Yixun's decisions of 2026-11-05 applied; Codex plan r0 findings addressed; awaiting Codex plan re-review r1.** Nothing runs on a GPU before Codex accepts r1, the code rounds pass review and the integrative review passes. Written by an Opus 5.5 planning subagent for the Planner. Evidence: `orbitrir_yaw_evidence_research_notes.md`; r0 review: `orbitrir_yaw_evidence_codex_plan_r0_review.md`.
+ 
+ # plan_orbitrir_yaw_evidence — exp_35 (r1)
+ 
+@@ -308,3 +308,15 @@ Review: `orbitrir_yaw_evidence_codex_plan_r2_review.md`. Where this section conf
+ **B3 — chunk 5 (the probe) transaction.** Chunks 1–4 and 6–33: the runner with ONE manifest cell. Chunk 5: the supervisor invokes the §11 launcher directly on the probe target with the frozen argv, under the same guard, identity, predictor and reservation gates. After the probe process exits and its log is closed, a non-logged finalization step hashes the final log, writes the campaign / backend / overlay / launcher / log provenance into `orbitrir_bf_cond_probe.json`, regenerates its `.sha256`, and runs the collector's `PROBE_CONTRACT_BF` validation; only success marks chunk 5 `gates_verified`.
+ 
+ **H4 — child processes.** (a) The pinned evaluator / probe tree starts no Python child processes (its only subprocesses run `git`); a static test asserts this for `eval_FLAC.py`, the probe and the non-test `src/` modules they import (no `subprocess` / `os.exec*` / `os.spawn*` with a python argv). (b) DataLoader workers: tests force `fork` and `spawn` workers in a toy loader under the launcher and have each worker report `src.models.transformer.__file__` and `flash_attn_func is None`. (c) Defence in depth for any fresh Python child: the runner ALSO exports `PYTHONPATH=<repo>/overlays/no_flash` (only that entry) to the launcher's environment, so a fresh interpreter finds the overlay before site-packages; a test runs a fresh `python -c "import flash_attn"` with that environment from the repo root and asserts the sentinel ImportError.
++
++
++## 13. r3 → r4: Codex plan r3 (REVISE, 1 BLOCKING + 3 NIT)
++Review: `orbitrir_yaw_evidence_codex_plan_r3_review.md` — "The GPU-1 FIFO exclusion above remains the sole blocker once §11 and §12 are faithfully implemented. B2, B3, and H4 no longer block phase (i)." This section governs where it conflicts with §7, §11 or §12.
++
++**B1 — co-tenancy with the s43 table job: the requirement is RESTATED and the residual risk ACCEPTED by the Planner (Codex's option 3).** Yixun's decision 6 is "co-tenancy on GPU 1 for phase (i) only" — sharing GPU 1 with his s43 TRAINING; "the lane never co-tenants with his table job" (§7) was this plan's own stricter wording, not his. Restated: phase (i) shares GPU 1 only with the s43 training by design; a shared cell is STARTED only if the projected earliest end of s43 — (40,000 − current step) × **3.5 s/step** (17 % faster than its fastest observed 500-step window, 4.208) — is later than now + 2 × the cell's planning duration + **30 min**. His queue appends the s43 evaluation only after the training succeeds (`exp30_attn_queue.sh`), and the s44 evaluation FIFO item is durably complete (`logs/queue_20261101T233607_741947.status`: `ACEattn 44 0 …/epoch=8-step=40000.ckpt`; the queue log: `EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00`; no eval process running at 11:58 EST Nov 5) — so the ONLY way his table job can overlap a shared cell is his training reaching 40,000 steps more than 17 % faster than it has ever run, during the margin. That residual risk is disclosed and accepted: it would slow his table job (not his training) for at most the one in-flight cell. If a new process appears on GPU 1 while our cell runs, the supervisor latches a stop after the running cell (no further shared spawn), records it, and reports to Yixun. The launch entry re-verifies the s44 completion evidence and records the sha256 of his queue script `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa` (modified vs its checkout HEAD — only `TRAIN_JOBS` differs, per Codex) and evaluator `94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c`.
++
++**NIT 1 — state durability.** After the atomic rename, fsync the state DIRECTORY as well; persist a content anchor of his log at each observation (the byte offset and the sha256 of the last 4 KiB parsed), so a copy-truncate-and-regrow between observations is detected (anchor mismatch → hard stop).
++
++**NIT 2 — chunk 5's ledger fields:** probe process rc, the probe JSON sha256, its `.sha256` sidecar sha256, the final log sha256, and the `PROBE_CONTRACT_BF` result (in place of the runner rc / receipt sha256 of the other chunks).
++
++**NIT 3 — frozen external evidence:** the launch entry records the sha256 of his queue script, his evaluator and his admission helper (`exp30_attn_queue_state.py`), and the s44 completion lines above.
+d17fea82b86e782fb2fb056be5057b68d10817a35bd6d1db26f5f2035ebe1623  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md
+7f03206e95ed74381a62950f3a50f8eeea23bfce8fefc3c013487246f7ef6e68  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_plan_r3_review.md
+
+exec
+/bin/bash -lc 'git rev-parse e2166326''^ && git show e2166326''^:worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md | sha256sum && git diff --check e2166326''^ e2166326 -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/plan_orbitrir_yaw_evidence.md' in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+2cf630199494748a7715be88d5428a707cfd1fe1
+f59a37c153e74bf542b7fbc2e68a8fc58e660145b566d6a9943fb5e2c331702f  -
+
+codex
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** plan r4 (exp_35 orbitrir_yaw_evidence: plan r4 at e2166326)
+
+**Verdict:** APPROVE
+
+## r3 finding status
+
+| Finding | Status | Assessment |
+|---|---|---|
+| **BLOCKER — GPU-1 FIFO exclusion** | **RESOLVED** | §13 takes option 3 exactly: it withdraws the plan-authored absolute table-job exclusion, restates Yixun’s decision 6 as sharing GPU 1 with s43 training, and explicitly accepts and discloses the residual possibility of one-cell overlap with the subsequent table job. The stricter 3.5 s/step predictor, `2 × planning duration + 30 min` margin, durable s44-completion evidence, and new-process stop latch are appropriate mitigations, not claims of mechanical exclusion. |
+| **NIT 1 — state durability** | **RESOLVED** | §13 requires state-directory `fsync` after rename and a parsed-offset/last-4-KiB content anchor with hard-stop behavior. |
+| **NIT 2 — chunk-5 ledger fields** | **RESOLVED** | §13 explicitly defines probe rc, JSON SHA, sidecar SHA, final-log SHA, and `PROBE_CONTRACT_BF` result. |
+| **NIT 3 — frozen external evidence** | **RESOLVED** | §13 requires the launch entry to record the queue, evaluator, and admission-helper SHAs plus the s44 completion evidence. |
+
+## Remaining BLOCKING finding
+
+**None.** Once the code faithfully implements §11–§13 and passes the already-required reviews and validation ladder, no plan-level issue blocks phase (i).
+
+## NIT
+
+§13’s “ONLY way” wording is slightly too strong: overlap could also result from an unusually long cell exceeding `2 × planning duration + 30 min`, or a stale step observation—not solely training running faster than 3.5 s/step. This is non-blocking because §13 broadly accepts the resulting one-in-flight-cell overlap risk and mandates the stop latch, but the disclosure would be more exact if it named forecast failure generally.
+
+## What I verified
+
+- FLAC is on `localization-exp` at `e216632660eed0d4d1eb617f6ffb4e4fae6ccbc1`.
+- Its parent is the reviewed r3 commit `2cf630199494748a7715be88d5428a707cfd1fe1`; the parent plan SHA-256 is the previously reviewed `f59a37c…`.
+- The plan diff is the r4 status-header update plus the appended §13. Current plan SHA-256 is `d17fea82b86e782fb2fb056be5057b68d10817a35bd6d1db26f5f2035ebe1623`.
+- The cited FIFO evidence is consistent and durable:
+  - `.jobs` enqueues `ACEattn 44` at the final 40,000-step checkpoint.
+  - `.status` records exit `0` for that same checkpoint.
+  - `.log` records `EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00`, followed by verified evaluator-group cleanup.
+  - The queue implementation writes status only after waiting for the evaluator and capturing its exit code.
+- Current external SHAs match §13:
+  - Queue: `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa`
+  - Evaluator: `94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c`
+  - Admission helper: `8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907`
+- The queue’s only checkout diff is the `TRAIN_JOBS` array.
+- I did not independently reproduce the historical “no eval process at 11:58” observation; the persisted completion/cleanup evidence suffices, and §13 requires launch-time re-verification.
+- I ran no GPU/process command, evaluator, runner, collector, probe, test, package operation, or side-effecting script, and modified no files.
+tokens used
+43,440
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** plan r4 (exp_35 orbitrir_yaw_evidence: plan r4 at e2166326)
+
+**Verdict:** APPROVE
+
+## r3 finding status
+
+| Finding | Status | Assessment |
+|---|---|---|
+| **BLOCKER — GPU-1 FIFO exclusion** | **RESOLVED** | §13 takes option 3 exactly: it withdraws the plan-authored absolute table-job exclusion, restates Yixun’s decision 6 as sharing GPU 1 with s43 training, and explicitly accepts and discloses the residual possibility of one-cell overlap with the subsequent table job. The stricter 3.5 s/step predictor, `2 × planning duration + 30 min` margin, durable s44-completion evidence, and new-process stop latch are appropriate mitigations, not claims of mechanical exclusion. |
+| **NIT 1 — state durability** | **RESOLVED** | §13 requires state-directory `fsync` after rename and a parsed-offset/last-4-KiB content anchor with hard-stop behavior. |
+| **NIT 2 — chunk-5 ledger fields** | **RESOLVED** | §13 explicitly defines probe rc, JSON SHA, sidecar SHA, final-log SHA, and `PROBE_CONTRACT_BF` result. |
+| **NIT 3 — frozen external evidence** | **RESOLVED** | §13 requires the launch entry to record the queue, evaluator, and admission-helper SHAs plus the s44 completion evidence. |
+
+## Remaining BLOCKING finding
+
+**None.** Once the code faithfully implements §11–§13 and passes the already-required reviews and validation ladder, no plan-level issue blocks phase (i).
+
+## NIT
+
+§13’s “ONLY way” wording is slightly too strong: overlap could also result from an unusually long cell exceeding `2 × planning duration + 30 min`, or a stale step observation—not solely training running faster than 3.5 s/step. This is non-blocking because §13 broadly accepts the resulting one-in-flight-cell overlap risk and mandates the stop latch, but the disclosure would be more exact if it named forecast failure generally.
+
+## What I verified
+
+- FLAC is on `localization-exp` at `e216632660eed0d4d1eb617f6ffb4e4fae6ccbc1`.
+- Its parent is the reviewed r3 commit `2cf630199494748a7715be88d5428a707cfd1fe1`; the parent plan SHA-256 is the previously reviewed `f59a37c…`.
+- The plan diff is the r4 status-header update plus the appended §13. Current plan SHA-256 is `d17fea82b86e782fb2fb056be5057b68d10817a35bd6d1db26f5f2035ebe1623`.
+- The cited FIFO evidence is consistent and durable:
+  - `.jobs` enqueues `ACEattn 44` at the final 40,000-step checkpoint.
+  - `.status` records exit `0` for that same checkpoint.
+  - `.log` records `EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00`, followed by verified evaluator-group cleanup.
+  - The queue implementation writes status only after waiting for the evaluator and capturing its exit code.
+- Current external SHAs match §13:
+  - Queue: `9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa`
+  - Evaluator: `94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c`
+  - Admission helper: `8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907`
+- The queue’s only checkout diff is the `TRAIN_JOBS` array.
+- I did not independently reproduce the historical “no eval process at 11:58” observation; the persisted completion/cleanup evidence suffices, and §13 requires launch-time re-verification.
+- I ran no GPU/process command, evaluator, runner, collector, probe, test, package operation, or side-effecting script, and modified no files.
+CODEX_RC=0
+Thu Nov  5 12:01:12 PM EST 2026

@@ -1,0 +1,1801 @@
+Thu Nov  5 08:14:56 PM EST 2026
+Reading additional input from stdin...
+OpenAI Codex v0.147.0
+--------
+workdir: /home/yixunhu/codespace/FLAC
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 01a1ae6c-549c-7073-9f23-2f1a82444bb3
+--------
+user
+You are the independent CODE reviewer (OpenAI Codex gpt-5.6-sol, xhigh) for experiment exp_35 "orbitrir_yaw_evidence", review **code INT-L3** = the Planner's launch script revised after your review INT-L2 (verbatim: /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md; L1 RESOLVED, L3 RESOLVED; HIGH 1 the DINOv3 exact-set check ignored hidden entries; NIT 1 the tuple canonical-path predicate permitted lexical traversal (apply the same to the capture log and ladder basenames); NIT 2 freshness not re-checked at the final boundary + sealed_at not validated as decimal; NIT 3 the dry-run transcript not noclobber; plus untested cases). Review ONLY the delta and its tests; everything INT-L2 resolved is out of scope unless the delta breaks it.
+
+STATIC REVIEW ONLY: do NOT install, upgrade or modify any environment or package (no pip, no conda, no uv), do NOT write or modify any file, do NOT run the launch script (in any mode), its test copies, the harness, the supervisor, the runner, pytest or any GPU command, do NOT touch, signal or attach to any process. Read-only probes (git, sed, grep, sha256sum, diff, bash -n) are fine.
+
+IN SCOPE: the script /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh at commit 2143fecc on localization-exp (sha256 7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c); the INT-L2-reviewed version is at 6f6fbd88 (sha256 82155db5…): `git diff 6f6fbd88 2143fecc -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh`. New variables LADDER_DIR (= RUNX) and TS_RE exist so a test copy can redirect the ladder evidence. Test evidence in /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/: harness.sh (sha256 b3310ae8c0380f5e3294fb20b25925a70db02a2af47ccafc6f20f5b4250d6709) builds test copies A.sh, C_dino_a.sh, C_dino_b.sh, D_fake_sup.sh whose ONLY differences from the script are in *.diff beside them (19 / 23 / 23 / 23 lines: MAINX, TUPLE_DIR, LADDER_DIR and the supervisor log redirected to the scratch folder, the detachment replaced by a stub that starts nothing; C_* point DINO at fake hubs whose snapshot links to the real two files plus a hidden file (dino_a) or a hidden snapshot (dino_b); D replaces the dry run's supervisor with fake_sup.py, which refuses); harness_run.txt (sha256 fdd84629ad0dad59538ab4e87fd50733098684291958efe0efe3588b6ffdfc96) = 13 cases, 13 as expected, one seal written (T01 capture ok; T02 stubbed launch ok; T03 stale seal, T04 malformed sealed_at, T05 traversal tuple path, T06 tuple / T07 copy / T08 capture log / T09 ladder transcript tampered → refused at the named check, each restored byte-exactly after its run; T10 the stubbed launch ok again after the restores; T11 a hidden DINOv3 file, T12 a hidden snapshot, T13 a failing dry run → refused); the per-case transcripts T01…T13.txt and the outputs in out/, run/, ladder/.
+
+REVIEW (per item RESOLVED / PARTIAL / NOT RESOLVED with file:line; findings BLOCKING / HIGH / NIT with concrete fixes):
+M1 — HIGH 1: is the DINOv3 set check now exactly as strict as assert_vit_pin (exactly one snapshot entry, exactly the two files, hidden entries and subdirectories counted, both hashes kept)?
+M2 — NIT 1: are the tuple, record copy, capture log and ladder names now canonical (directory equality + strict basename; no '/', no '..'), and could any regex be bypassed?
+M3 — NIT 2 / NIT 3: sealed_at decimal validation; the age re-check at the last look; the noclobber dry-run transcript (both modes, distinct names).
+M4 — the harness: does each negative case refuse at the intended check (not a side failure), are the restores byte-exact, and are the test copies faithful (only the redirects, the stub and the per-case substitutions)?
+M5 — any defect introduced by the delta; verdict: may the Planner now run `EXPECT_SCRIPT_SHA256=7b68c8a0… bash exp35_phase_i_launch.sh capture 5b065801e9d1c1844461ec84cd0558702c714326`, then the exact launch line it prints, for phase (i)?
+
+Output a markdown review. Header line exactly: **Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** code INT-L3 (exp_35: the launch script's INT-L2 fixes; 6f6fbd88 → 2143fecc) — then a Verdict line (SHIP / REQUEST-CHANGES), per-item status M1–M5, findings ranked, and what you verified (with the probes you ran).
+codex
+I’ll conduct this as a read-only static delta review. I’ll first verify the exact commits/hashes and read INT-L2, then inspect the script diff, harness construction, transcripts, and artifact restoration evidence; I will not execute any launch/test code.
+  → Verify repository instructions, commits, hashes, and INT-L2 baseline review
+  • Review only the 6f6fbd88 → 2143fecc script delta against M1–M3 and regressions
+  • Audit harness fidelity, negative-case transcripts, restores, and artifacts for M4
+  • Synthesize ranked findings and M1–M5 ship verdict
+exec
+/bin/bash -lc "pwd && rg --files -g 'AGENTS.md' -g '"'!**/.git/**'"' .. 2>/dev/null | sed -n '1,80p'
+git status --short --branch
+git rev-parse --show-toplevel
+git rev-parse 6f6fbd88"'^{commit}
+git rev-parse 2143fecc''^{commit}
+git branch --contains 2143fecc --format='"'%(refname:short)'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+/home/yixunhu/codespace/FLAC
+## localization-exp...origin/localization-exp
+?? AcousticRooms
+?? HAA
+?? gagrasp.pdf
+?? outputs_loc/
+?? worklog/worklog_yixun/exp_18_loc_invert_claude/paper_assets_neurips_workshop/
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/haa_prepare_2026-08-19.log
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/rcal_eval_released_20260819_191614.log
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/rcal_eval_released_20260819_191800.log
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/rcal_eval_released_20260819_193153.log
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/rcal_eval_repro_20260819_221929.log
+?? worklog/worklog_yixun/exp_19_raf_finetune_claude/rcal_train_20260819_191609.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:22:02_bf_parity.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:24:09_pilot_BF.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:24:09_pilot_P1.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:30:27_BF_R2_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_01:30:27_P1_R2_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_05:33:03_BF_R2_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_05:33:03_P1_R2_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_09:24:57_BF_R2_seed44.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_09:24:57_P1_R2_seed44.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_13:22:21_P1_R2b_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_13:22:21_YAW_R2_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_16:40:36_BF_R2b_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_16:40:36_YAW_R2_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_19:56:19_YAW_R2_seed44.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-22_19:56:19_YAW_R2b_seed42.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_13:17:45_BF_R2b_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_13:17:45_P1_R2b_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_16:39:53_BF_R2b_seed44.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_16:39:53_YAW_R2b_seed43.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_19:50:35_P1_R2b_seed44.log
+?? worklog/worklog_yixun/exp_20_loc_crossarm_claude/loc_crossarm_2026-08-23_19:50:35_YAW_R2b_seed44.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-08-29_01:33:42_r9u_matched_substitution.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_15-39-42_codex_plan_r2_review.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_21-38-02_codex_code_rA.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_21:31:26_r2a_whole_repo_collect.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_22-21-13_codex_code_rAF1.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-02_23-26-40_codex_code_rB.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-03_00-30-15_codex_code_rBF1.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-03_14-49-47_codex_code_rBF2.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-03_17-26-03_codex_code_rBF3.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-03_19-55-05_codex_code_rBF4.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-04_03-58-58_codex_code_rBF5.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-04_09-38-01_codex_code_rBF6.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-04_09-49-19_codex_code_R2full.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_p1_full.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_probe_sweep.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_controls.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v2.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v3.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v4.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v5.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v6.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v7.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_offgrid_v8.log
+?? worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_r1_report_P1.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-04_22-56-49_codex_plan_r0.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_11-35-18_codex_plan_r1.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_11-46-34_codex_plan_r2.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_11-53-49_codex_plan_r3.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_11-59-39_codex_plan_r4.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_12-36-03_codex_code_C1.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_12-58-19_codex_code_C2.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_14-38-34_codex_code_C3a.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_16-02-38_codex_code_C3b.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_16-27-05_codex_code_C3c.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_18-06-34_codex_code_C3d.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_18-12-37_codex_planner_scripts_P1.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_18-47-53_codex_planner_tooling_P2.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_19-22-22_codex_planner_tooling_P3.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_19-44-26_codex_planner_tooling_P4.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_19-45-35_codex_code_C3e.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_19-45-35_codex_code_INT.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-02-53_codex_code_INTL2.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-06-35_codex_planner_tooling_P5.log
+?? worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_2026-11-05_20-14-47_codex_code_INTL3.log
+/home/yixunhu/codespace/FLAC
+6f6fbd888ab82f12fb0b0de50c89faba79a1b29c
+2143fecc5a253c728d0f9ebbc923d0cc84be4bf7
+localization-exp
+
+exec
+/bin/bash -lc 'git rev-parse HEAD
+sha256sum worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md
+for rev in 6f6fbd88 2143fecc; do git show "$rev":worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh | sha256sum; done
+wc -l worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+sed -n '"'1,260p' worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+2143fecc5a253c728d0f9ebbc923d0cc84be4bf7
+7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+401d68a0fd8a7c6f6eabf6ccdea81cd5931f9d48a53e5111eb8b9e2750c4942d  worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md
+82155db541b6c42395bb27fae169defacb2e3c316a1a19645210c167f2ac4bd8  -
+7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c  -
+   81 worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_yaw_evidence_codex_code_INTL2_review.md
+  348 worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+  429 total
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** code INT-L2 (exp_35: the Planner's revised phase-(i) launch script; 8c71e258 → 6f6fbd88)
+
+**Verdict:** REQUEST-CHANGES — L1’s capture/launch binding is resolved, but one HIGH prerequisite defect remains: the purported exact DINOv3 cache-set check ignores hidden entries and is therefore weaker than the repository’s `assert_vit_pin()` contract.
+
+## Per-item status
+
+| Item | Status | Review |
+|---|---|---|
+| **L1** | **RESOLVED** | `exp35_phase_i_launch.sh:114-115,189-268,271-302,325-335`. All pre-tuple CHECKs must pass at `:235`; dry-run failure prevents the record copy and seal at `:249-254`; the outer pipeline waits for the capture log to close, checks its rc/no-failure condition, and only then writes the noclobber seal at `:331-334`. Launch verifies the supplied seal hash, H35, script hash, campaign digest, tuple/copy/log hashes, age and ladder hashes, then reruns mutable/common/live-tuple/dry-run checks and a final live-state check. With the exact capture-emitted seal path/hash frozen in the launch entry, failed, partial, stale, or subsequently modified captures are not launchable. |
+| **L2** | **PARTIAL** | `:43-65,103-112,117-172`. NAS P1/BF lines, exact interpreter/package versions, exp_22 file/process absence, all four A6 CSVs, campaign digest, and four ladder rungs are hard checks. The digest implementation is equivalent to the runner’s exp_35 `tree_digest`: it expands 116 files and recomputes `da82d012…`. DINO hashes are hard-pinned, but the exact-set check is incomplete; see HIGH 1. |
+| **L3** | **RESOLVED** | `:39-40,111-112,152,202,219,227-231,239-248`. Direct audit Python calls use `-B`. The dry-run and real supervisor invocations at `:178,307` do not spell `-B`, but run under `env -i` with `PYTHONDONTWRITEBYTECODE=1`. The supervisor’s `_env` does not strip it, so it reaches runner processes and collector calls; exp_35 evaluator/probe launches also set it explicitly. This changes only bytecode caching, not evaluation semantics. |
+| **L4** | **PARTIAL** | Draft handoff from the tee subshell is correct; the generated seal’s awk parsing and age arithmetic work for genuine seals; `find -newer` covers ordinary worktree writes; the stub is faithful through the last pre-detachment checks. No signal operation or unintended write to the exp_30 checkout/NAS was found, and `flock` prevents two active supervisors. Several hardening NITs remain below. |
+| **L5** | **NOT RESOLVED** | Do not run the production script with `EXPECT_SCRIPT_SHA256=82155db5…` yet. Fix HIGH 1, obtain/review the new script hash, then run a fresh capture and its exact emitted launch line. The external launch entry must also carry the disclosures and E5 registration listed below. |
+
+## Ranked findings
+
+### HIGH 1 — the “exact” DINOv3 cache-set check ignores hidden entries
+
+Evidence: `exp35_phase_i_launch.sh:47-48,142-144`.
+
+The two required files are correctly hashed, but both set comparisons use plain `ls`:
+
+```bash
+ls "$DINO/snapshots"
+ls "$DINO/snapshots/$VIT_REV"
+```
+
+Plain `ls` omits dot-prefixed entries. Therefore an extra hidden snapshot or a hidden file inside the pinned snapshot still yields `CHECK OK`. The repository contract uses `os.listdir()` and `os.walk()` in `assert_arm_configs.py:65-89`, both of which include hidden names.
+
+Concrete fix:
+
+- Replace the set enumeration with an exact hidden-aware check, such as sorted `find -mindepth 1 -maxdepth 1 -printf '%f\n'`, or a small `"$PY" -B` checker matching `os.listdir`/`os.walk`.
+- Retain both existing SHA-256 checks.
+- Add negative test-copy cases for an extra `.snapshot` and an extra hidden file under the pinned snapshot.
+
+### NIT 1 — the tuple “canonical path” predicate permits lexical traversal
+
+Evidence: `exp35_phase_i_launch.sh:285`.
+
+Bash pattern `*` inside `[[ … ]]` can match `/`; I confirmed that a string such as:
+
+```text
+$TUPLE_DIR/exp35_approved_cotenants_../../outside.json
+```
+
+matches the current pattern. A genuine, hash-frozen capture cannot produce this value, so this does not break L1, but the verifier’s “canonical” claim is too broad.
+
+Concrete fix: separately require `dirname "$tuple" == "$TUPLE_DIR"`, validate only the basename against `exp35_approved_cotenants_*.json`, and reject `/`, `..`, symlinks, and non-regular files. Apply equivalent canonical checks to the capture log and ladder basenames.
+
+### NIT 2 — freshness is not rechecked at the final boundary
+
+Evidence: `exp35_phase_i_launch.sh:289-301`.
+
+Age is checked before mutable checks and the dry run. A seal just under three hours old can cross the limit before detachment. Validate `sealed_at` as decimal before arithmetic and repeat the age check in the final-look block.
+
+### NIT 3 — dry-run transcripts are not noclobber files
+
+Evidence: `exp35_phase_i_launch.sh:174-186`.
+
+`> "$log"` can overwrite a pre-existing orphan transcript, contrary to the script’s “NEW files, never overwritten” statement. Create it under `set -o noclobber` before redirecting.
+
+The supplied tests also do not exercise stale seals, tuple/copy/log/ladder tampering, failed dry runs, malformed `sealed_at`, path traversal, or the DINO hidden-entry case. Add those mutation cases when revising.
+
+## Launch-entry requirements
+
+After the revised script is reviewed, the launch entry must record:
+
+- H35, C3e’s SHIP verdict, the newly reviewed launch-script SHA-256, capture/dry-run log hashes, tuple and byte-identical copy hashes, seal path/hash, and campaign digest.
+- All four ladder hashes and Ladder 4’s `1513 passed, 1 skipped, 0 failed` result.
+- The accepted residuals from INT I6 and C3e: shared-memory OOM risk; NAS stalls without in-flight termination; sampled guard/identity blind spots; predictor risk; the GPU-0 post-check race; authentication-to-spawn and compare-to-unlink userspace windows; mid-exit trainer latch; dry-run lock contention; and crash-between-handover-commit-and-GPU-1-release behavior.
+- The future E5 script’s exact path/hash, outside the runner’s `RELEVANT` set. Phase (ii) must separately re-pin its external CANON manifest/checkpoint.
+
+## What I verified
+
+- Confirmed `6f6fbd88` and production script SHA-256 `82155db541b6c42395bb27fae169defacb2e3c316a1a19645210c167f2ac4bd8`; confirmed the prior blob’s `4adeb160…`.
+- Inspected the full `8c71e258..6f6fbd88` Git diff; `git diff --check` and `bash -n` passed for production and test-copy scripts.
+- Independently expanded the runner-equivalent digest set to 116 files and obtained `da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1`.
+- Verified ladder hashes `c3f62847…`, `587ee8f9…`, `321dfc7d…`, and `1fc44f92…`; Ladder 4 ends with `1513 passed, 1 skipped`.
+- Verified the test copy differs only in `MAINX`, `TUPLE_DIR`, supervisor-log destination, and the no-launch stub.
+- Verified supplied evidence hashes and contents: t1 refused before tuple/seal; t2 had 62 CHECK OK and sealed; t3 had 62 CHECK OK and reached `WOULD LAUNCH`; t4 rejected the wrong seal hash.
+- Did not run either launch script, its test copy, pytest, supervisor, runner, or any GPU/process command; made no filesystem or environment changes.
+
+codex
+The repository is exactly at `2143fecc`, and both script blob hashes match the stated baseline/current values (`82155db5…` and `7b68c8a0…`). INT-L2 confirms the review boundary: only the hidden-entry exact-set fix, canonical naming, final freshness/decimal handling, noclobber transcripts, their tests, and delta regressions are in scope.
+exec
+/bin/bash -lc "git diff --check 6f6fbd88 2143fecc -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+bash -n worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+git diff --stat 6f6fbd88 2143fecc -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+git diff --unified=1000 6f6fbd88 2143fecc -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+nl -ba worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh | sed -n '1,390p'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+ .../exp35_phase_i_launch.sh                        | 32 +++++++++++++++-------
+ 1 file changed, 22 insertions(+), 10 deletions(-)
+diff --git a/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh b/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+index 69765714..d88945af 100644
+--- a/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
++++ b/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+@@ -1,336 +1,348 @@
+ #!/usr/bin/env bash
+ # exp_35 phase (i): the Planner's frozen launch entry and the supervisor launch (plan_orbitrir_yaw_evidence.md §7, §8,
+ # §12 B1-B3, §13 B1 / NIT 3; the launch-entry lists of Codex code reviews C3c, C3d, C3e and INT).
+ #
+ #   EXPECT_SCRIPT_SHA256=<reviewed sha> bash exp35_phase_i_launch.sh capture <H35>
+ #       Read-only except for NEW files (never overwritten): the approved co-tenant tuple
+ #       <run worktree>/<exp_35 folder>/exp35_approved_cotenants_<ts>.json, its record copy, the capture log, the
+ #       dry-run transcript and -- ONLY when every CHECK passed -- the capture SEAL (all in the main checkout's exp_35
+ #       folder except the tuple). The seal binds H35, this script's sha256, the tuple and its copy, the capture log,
+ #       the campaign digest, every external pin and the four-rung ladder at H35. Prints the launch line on success only.
+ #   EXPECT_SCRIPT_SHA256=<reviewed sha> bash exp35_phase_i_launch.sh launch <H35> <seal> <seal sha256>
+ #       Refuses unless the seal verifies, is younger than SEAL_MAX_AGE_S, and every input it binds still holds; re-runs
+ #       the preconditions and the supervisor's read-only dry run in the EXACT launch environment; then starts the
+ #       supervisor detached (setsid + nohup, a minimal `env -i` environment, cwd = the run worktree) and records its
+ #       identity and first heartbeat. The supervisor's own flock refuses a second instance.
+ #
+ # Never signals, kills or edits any process; never writes into Yixun's checkout or the NAS; nvidia-smi queries only.
+-# Written by the exp_35 Planner (Claude Opus 5.5 main session); revised after Codex INT (capture-launch binding).
++# Written by the exp_35 Planner (Claude Opus 5.5 main session); revised after Codex INT (capture-launch binding)
++# and INT-L2 (hidden-aware DINOv3 set, canonical names, freshness at the last look, a new dry-run transcript).
+ set -uo pipefail
+ 
+ MODE="${1:-}"; H35="${2:-}"
+ RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+ MAIN=/home/yixunhu/codespace/FLAC
+ REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+ RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+ PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+ SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+ KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+ HIS_LOG="$KIT/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log"
+ QSTATUS="$KIT/logs/queue_20261101T233607_741947.status"; QLOG="$KIT/logs/queue_20261101T233607_741947.log"
+ GPU0=GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e; GPU1=GPU-6ac2604a-e84e-0615-1221-ccbed7c268da
+ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+ RES=/home/yixunhu/codespace/.gpu_reservations
+ STATE="$RUNX/exp35_supervisor_state.json"
+ TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
++LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
++TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+ NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+ DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+ DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
+ LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1
+             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+ SEAL_MAX_AGE_S=10800                                 # a capture older than 3 h is stale: capture again
+ # --- the pins (plan §8, §13 NIT 3; the repo's DINOv3 pin = exp_07 assert_arm_configs.py VIT_REV / VIT_FILES) ------- #
+ PIN_DIGEST=da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1   # the campaign digest at H35 (ladder 3)
+ PINS=(   # name|path (absolute, or relative to the run worktree)|sha256
+   "vae|$RUN/weights/FLAC/VAE.ckpt|6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf"
+   "agree|$RUN/weights/AGREE/AGREE_fullAR.pt|3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+   "dino_config|$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json|9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b"
+   "dino_weights|$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors|4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"
+   "queue|$KIT/exp30_attn_queue.sh|9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa"
+   "evaluator|$KIT/exp30_attn_eval.sh|94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c"
+   "admission|$KIT/exp30_attn_queue_state.py|8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907"
+   "cells|$RUN/$X25/depth_canon_cells.json|440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d"
+   "overlay|$RUN/overlays/no_flash/flash_attn.py|0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"
+   "launcher|$RUN/overlays/no_flash/exp35_no_flash_launch.py|bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
+   "exp25_results|$RUN/$X25/depth_canon_results.json|ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0"
+   "stream_registry|$RUNX/exp35_exp25_stream_registry.json|9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24"
+   "a6_raw|$RUN/analysis/yaw_robustness/generated/yaw_metrics_raw.csv|0ae554c09f45ce89b8957cf75a3d15e44f4173f4f8987497dbbebf16bbfb23da"
+   "a6_summary|$RUN/analysis/yaw_robustness/generated/yaw_metrics_summary.csv|e4602115f9e75479cdb76166b53a2907d11b8d32c64e0d61f1fa2d5342b09034"
+   "a6_c4_raw|$RUN/analysis/yaw_robustness/generated/yaw_c4_metrics_raw.csv|441ade8b4931e69a358d760fb2b4fe29d72a6c40f4c00f5582eda0690a2598de"
+   "a6_c4_summary|$RUN/analysis/yaw_robustness/generated/yaw_c4_metrics_summary.csv|b21ffbe7b264178bd7768bad8ac441c9dbd037217a0198c61c3ea5892cc9bf91"
+ )
+ PIN_PIP=8b7a802e65114c44bbf98206f0ccce6b960d48e5b094941496c3801cea1defb2       # `pip freeze | sha256sum` (plan §8)
+ PIN_VERSIONS="3.10.20 2.7.0+cu126 12.6 2.7.4.post1"                             # python, torch, CUDA, flash-attn
+ NAS_LINES=("c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c  P1/epoch=8-step=40000.ckpt"
+            "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328  BF/epoch=8-step=40000.ckpt")
+ TS="$(date +%Y-%m-%d_%H-%M-%S)"
+ FAIL=0
+ 
+ say() { printf '%s\n' "$*"; }
+ rec() {   # <title> <command...>: the command, its output, its rc (recorded, never judged)
+   say ""; say "### $1"; shift; printf '$'; printf ' %q' "$@"; printf '\n'; "$@" 2>&1; say "(rc $?)"
+ }
+ need() {  # <what> <command...>: a hard check
+   local what="$1"; shift
+   if "$@" >/dev/null 2>&1; then say "CHECK OK: $what"; else say "CHECK FAILED: $what"; FAIL=1; fi
+ }
+ sha() { sha256sum < "$1" 2>/dev/null | cut -c1-64; }
+ eq() { [ "$1" = "$2" ]; }
+ procs_named() {   # PIDs other than this script with an argv element whose basename is exactly $1 (no pgrep: no self-match)
+   local d pid a; local -a argv
+   for d in /proc/[0-9]*; do
+     pid=${d#/proc/}; [ "$pid" = "$$" ] && continue
+     { mapfile -d '' argv < "$d/cmdline"; } 2>/dev/null || continue
+     for a in "${argv[@]}"; do [ "${a##*/}" = "$1" ] && { say "$pid"; break; }; done
+   done
+   return 0
+ }
+ procs_glob() {    # the same, for a basename glob
+   local d pid a; local -a argv
+   for d in /proc/[0-9]*; do
+     pid=${d#/proc/}; [ "$pid" = "$$" ] && continue
+     { mapfile -d '' argv < "$d/cmdline"; } 2>/dev/null || continue
+     for a in "${argv[@]}"; do [[ "${a##*/}" == $1 ]] && { say "$pid"; break; }; done
+   done
+   return 0
+ }
+ apps() { nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader 2>/dev/null | tr -d ' ' | LC_ALL=C sort; }
+ gpu1_pids() { apps | awk -F, -v u="$GPU1" '$2 == u {print $1}' | paste -sd, -; }
+ args_for() {  # <tuple> <sha>: the supervisor's exact arguments
+   SUP_ARGS=(--h35 "$H35" --approved "$1" --approved-sha256 "$2" --state "$STATE" --reservations "$RES"
+             --his-log "$HIS_LOG" --logdir "$RUNX")
+ }
+ campaign_digest() {   # the runner's tree_digest for an exp_35 selection (depth_canon_eval_run.sh:136-150), recomputed
+   ( cd "$RUN" || exit 1
+     mapfile -t cfgs < <(jq -r '.arms[].model_config' "$X25/depth_canon_cells.json") || exit 1
+     git ls-files -z --cached --others --exclude-standard -- eval_FLAC.py src ':(exclude)src/tests' data/AR "${cfgs[@]}" \
+         "$X25/depth_canon_eval_run.sh" "$X25/depth_canon_collect.py" "$X25/depth_canon_make_cells.py" \
+         "$X25/depth_canon_cells.json" "$X25/depth_canon_audit_gate.py" overlays/no_flash "$REL/exp35_gpu_identity.py" \
+       | LC_ALL=C sort -zu | xargs -0r sha256sum -- | sha256sum | cut -c1-64 )
+ }
+ versions() { CUDA_VISIBLE_DEVICES= "$PY" -B -c 'import sys, torch, importlib.metadata as m
+ print(sys.version.split()[0], torch.__version__, torch.version.cuda, m.version("flash-attn"))' 2>/dev/null | tail -n 1; }
+ 
+ script_check() {
+   need "EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (${SELF_SHA})" eq "${EXPECT_SCRIPT_SHA256:-unset}" "$SELF_SHA"
+ }
+ common_checks() {   # the preconditions both modes re-check right before they act
+   local head; head="$(git -C "$RUN" rev-parse HEAD 2>/dev/null)"
+   need "run worktree HEAD ${head} = H35" eq "$head" "$H35"
+   need "branch exp-35-orbitrir-yaw" eq "$(git -C "$RUN" rev-parse --abbrev-ref HEAD 2>/dev/null)" exp-35-orbitrir-yaw
+   need "the tracked tree is clean" eq "$(git -C "$RUN" status --porcelain --untracked-files=no 2>&1)" ""
+   need "the campaign digest recomputes to ${PIN_DIGEST}" eq "$(campaign_digest)" "$PIN_DIGEST"
+   need "the compute apps are exactly his two s43 ranks (${RANK0} on GPU 0, ${TRAINER} on GPU 1)" \
+     eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
+   need "GPU 1 free memory >= 10,240 MiB (§8)" test "$(nvidia-smi --id="$GPU1" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')" -ge 10240
+   need "no exp35 supervisor is running" eq "$(procs_named exp35_supervisor.py)" ""
+   need "no depth_canon_eval_run.sh is running" eq "$(procs_named depth_canon_eval_run.sh)" ""
+   need "no exp_30 evaluation is running (his table job)" eq "$(procs_named exp30_attn_eval.sh)" ""
+   need "no exp_22 watcher runs (*exp22*watch* / *meshgrid*watch* / *free_card*)" \
+     eq "$(procs_glob '*exp22*watch*'; procs_glob '*meshgrid*watch*'; procs_glob '*free_card*')" ""
+   need "no exp_22 watcher script exists in the exp_22 folder" \
+     eq "$(ls "$MAIN/worklog/worklog_yixun/exp_22_loc_meshgrid_claude" 2>/dev/null | grep -i -E 'watch|free_card')" ""
+   need "the supervisor state file and its lock are absent (a new campaign)" test ! -e "$STATE" -a ! -e "$STATE.lock"
+   need "no reservation of GPU 0 or GPU 1 exists" test ! -e "$RES/$GPU0.json" -a ! -e "$RES/$GPU1.json"
+ }
+ mutable_checks() {   # every external / untracked input the run reads, re-hashed (both modes)
+   local e name path want
+   for e in "${PINS[@]}"; do
+     IFS='|' read -r name path want <<<"$e"
+     need "pin ${name}: ${path##*/} ${want:0:8}…" eq "$(sha "$path")" "$want"
+   done
+-  need "the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors" \
+-    eq "$(ls "$DINO/snapshots" 2>/dev/null | paste -sd' ' -) | $(ls "$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32" 2>/dev/null | paste -sd' ' -)" \
++  need "the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)" \
++    eq "$(find "$DINO/snapshots" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -) | $(find "$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32" -mindepth 1 -printf '%P\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -)" \
+        "114c1379950215c8b35dfcd4e90a5c251dde0d32 | config.json model.safetensors"
+   need "AcousticRooms -> the NAS" eq "$(readlink "$RUN/AcousticRooms")" /media/diskstation/yixunhu/FLAC/AcousticRooms
+   need "weights/AGREE -> the main checkout" eq "$(readlink "$RUN/weights/AGREE")" "$MAIN/weights/AGREE"
+   need "weights/FLAC/VAE.ckpt -> the main checkout" eq "$(readlink "$RUN/weights/FLAC/VAE.ckpt")" "$MAIN/weights/FLAC/VAE.ckpt"
+   need "AcousticRooms/depth_map and metadata reachable" test -d "$RUN/AcousticRooms/depth_map" -a -d "$RUN/AcousticRooms/metadata"
+   need "the NAS MANIFEST lists P1 and BF at their pins" bash -c 'grep -qxF -- "$2" "$1" && grep -qxF -- "$3" "$1"' _ "$NAS_MANIFEST" "${NAS_LINES[@]}"
+   need "the dump root exists" test -d "$DUMP_ROOT"
+   need "python / torch / CUDA / flash-attn = ${PIN_VERSIONS}" eq "$(versions)" "$PIN_VERSIONS"
+   need "pip freeze ${PIN_PIP:0:8}… (the plan's environment)" eq "$("$PY" -B -m pip freeze 2>/dev/null | sha256sum | cut -c1-64)" "$PIN_PIP"
+   need "s44 status line (§13 B1)" grep -qx $'ACEattn\t44\t0\t/home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=8-step=40000.ckpt' "$QSTATUS"
+   need "s44 EVAL_DONE line (§13 B1)" grep -qx 'EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00' "$QLOG"
+ }
+ ladder_checks() {   # <draft>: the four-rung ladder at H35 (untracked transcripts in the run worktree), content + sha256
+   local short="${H35:0:8}" k f n
+   local -a pat=("1_exp25_byte_guard" "2_supervisor_live_dry_run" "3_runner_dry_run_phase_i" "4_all_suites_in_worktree")
+   for k in 0 1 2 3; do
+-    n="$(ls "$RUNX"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | wc -l)"
++    n="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | wc -l)"
+     need "exactly one ladder rung $((k + 1)) transcript at ${short}" eq "$n" 1
+-    f="$(ls "$RUNX"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | head -n 1)"
++    f="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | head -n 1)"
+     say "ladder rung $((k + 1)): ${f##*/} sha256 $(sha "$f")"
+     printf 'ladder_%s %s %s\n' "$((k + 1))" "${f##*/}" "$(sha "$f")" >> "$1"
+     case $k in
+       0) need "rung 1: ec3fcd08… and the md identical" bash -c 'grep -q "sha256 of the re-collected JSON: ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0" "$1" && grep -q "md == the committed exp_25 md: identical" "$1"' _ "$f" ;;
+       1) need "rung 2: DRY RUN OK and the worktree unchanged" bash -c 'grep -q "^DRY RUN OK" "$1" && grep -q "IDENTICAL" "$1"' _ "$f" ;;
+       2) need "rung 3: runner rc 0 and the digest ${PIN_DIGEST:0:8}…" bash -c 'grep -q "runner rc 0" "$1" && grep -q "evaluator tree digest $2" "$1"' _ "$f" "$PIN_DIGEST" ;;
+       3) need "rung 4: a pytest summary with passes and no failure or error" bash -c 'l="$(grep -E "^[0-9]+ passed" "$1" | tail -n 1)"; [ -n "$l" ] && ! printf "%s" "$l" | grep -q -E "failed|error"' _ "$f"
+          rec "rung 4 summary" bash -c 'grep -E "^[0-9]+ passed" "$1" | tail -n 1' _ "$f" ;;
+     esac
+   done
+ }
+ dry_run() {   # <tuple> <sha>: the supervisor's read-only dry run in the exact launch environment; no file may change
+   local log="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_${MODE}_supervisor_dry_run.log" mark rc
++  ( set -o noclobber; : > "$log" ) 2>/dev/null || { say "CHECK FAILED: the dry-run transcript ${log} already exists"; FAIL=1; return; }
+   mark="$(mktemp)"; sleep 1
+   args_for "$1" "$2"
+-  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) > "$log" 2>&1; rc=$?
++  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
+   cat "$log"
+   say "dry run rc ${rc}; transcript ${log} sha256 $(sha "$log")"
+   need "the supervisor dry run in the launch environment: rc 0 and DRY RUN OK" \
+     test "$rc" = 0 -a "$(grep -c '^DRY RUN OK' "$log")" = 1
+   need "the dry run wrote nothing under the run worktree (find -newer, .git excluded)" \
+     eq "$(find "$RUN" -path "$RUN/.git" -prune -o -newer "$mark" -print 2>&1 | head -5)" ""
+   need "the dry run created no reservation, state or lock file" test ! -e "$RES/$GPU0.json" -a ! -e "$RES/$GPU1.json" -a ! -e "$STATE" -a ! -e "$STATE.lock"
+   rm -f -- "$mark"
+ }
+ 
+ capture() {   # <draft file>
+   local draft="$1"
+   say "=== exp_35 phase (i) launch capture -- $(date -Is) -- host $(hostname) -- H35 ${H35} ==="
+   say "this script: ${SELF_SHA}  $0"
+   script_check
+   common_checks
+   mutable_checks
+   ladder_checks "$draft"
+   rec "git status of the run worktree (untracked shown)" git -C "$RUN" status --short
+   rec "§8: the evaluator closure since d6ca307a" git -C "$RUN" diff --stat d6ca307a "$H35" -- eval_FLAC.py src ':(exclude)src/tests' data/AR
+   need "§8: only src/localization/* changed since d6ca307a" eq "$(git -C "$RUN" diff --name-only d6ca307a "$H35" -- \
+     eval_FLAC.py src ':(exclude)src/tests' data/AR | grep -v '^src/localization/')" ""
+   local cells_txt; cells_txt="$(mktemp)"
+   ( cd "$RUN" && CUDA_VISIBLE_DEVICES= "$PY" -B - "$X25" > "$cells_txt" 2>/dev/null ) <<'PYEOF'
+ import hashlib, importlib.util, json, sys
+ sys.dont_write_bytecode = True
+ x = sys.argv[1]
+ m = json.load(open(f"{x}/depth_canon_cells.json"))
+ rows = [r for r in m["cells"] if r["order"] >= 230]
+ print("rows", len(m["cells"]), "exp35", len(rows))
+ print("exp35_rows_sha256", hashlib.sha256(("\n".join(json.dumps(r, separators=(",", ":")) for r in rows) + "\n").encode()).hexdigest())
+ s = importlib.util.spec_from_file_location("mk", f"{x}/depth_canon_make_cells.py"); mk = importlib.util.module_from_spec(s); s.loader.exec_module(mk)
+ out = mk.render(mk.build_manifest(exp35=False)); out = out.encode() if isinstance(out, str) else out
+ print("exp25_only_render_sha256", hashlib.sha256(out).hexdigest())
+ PYEOF
+   cat "$cells_txt"
+   need "346 rows / 116 exp_35 rows" grep -qx 'rows 346 exp35 116' "$cells_txt"
+   need "the 116 exp_35 rows 500d6f5e…" grep -qx 'exp35_rows_sha256 500d6f5ed9c70700fdd4c778895fc84e01f7756fbac84ad2471a9346ab9252ea' "$cells_txt"
+   need "the exp_25-only render = d6ca307a's manifest (1073ef64…)" grep -qx "exp25_only_render_sha256 $(git -C "$RUN" show d6ca307a:"$X25"/depth_canon_cells.json | sha256sum | cut -c1-64)" "$cells_txt"
+   rm -f -- "$cells_txt"
+   need "make_cells --check (the committed manifest has not drifted)" bash -c 'cd "$1" && CUDA_VISIBLE_DEVICES= "$2" -B "$3/depth_canon_make_cells.py" --check' _ "$RUN" "$PY" "$X25"
+   rec "versions" versions
+   rec "nvidia-smi" nvidia-smi
+   rec "GPU map / memory" nvidia-smi --query-gpu=index,uuid,memory.used,memory.free,utilization.gpu --format=csv,noheader
+   rec "compute apps" nvidia-smi --query-compute-apps=pid,gpu_uuid,used_memory --format=csv,noheader
+   rec "his s43 ranks" ps -o pid,ppid,lstart,etime,cmd -p "$RANK0,$TRAINER"
+   local p; for p in "$RANK0" "$TRAINER"; do say "pid $p: cwd $(readlink /proc/$p/cwd) fd1 $(readlink /proc/$p/fd/1) fd2 $(readlink /proc/$p/fd/2)"; done
+   rec "his log" stat -c 'inode %i size %s mtime %y' "$HIS_LOG"
+   local step; step="$("$PY" -B "$GUARD" --log "$HIS_LOG" 2>/dev/null | "$PY" -B -c 'import json,sys; print(json.load(sys.stdin)["step"]["global"])' 2>/dev/null)"
+   need "the guard reads his global step (${step:-none})" bash -c '[[ "$1" =~ ^[0-9]+$ ]]' _ "$step"
+   rec "the guard over the last 1,000 steps (his current rate; baseline = step - 1000)" "$PY" -B "$GUARD" --log "$HIS_LOG" --baseline-step "$(( ${step:-1000} - 1000 ))"
+   say "the predictor for chunk 1 (CTL K1, 17.6 min): step ${step:-?}: earliest s43 end in $(( (40000 - ${step:-40000}) * 35 / 10 )) s; needed > $(( 2 * 1056 + 1800 )) s"
+   rec "his queue, evaluator and admission helper (§13 NIT 3)" "$PY" -B "$SUP" --external-shas
+   rec "s44 completion evidence (§13 B1)" grep -n -E $'^ACEattn\t44\t0\t|^EVAL_DONE ACEattn s44 ' "$QSTATUS" "$QLOG"
+   rec "the reservation directory" ls -la "$RES"
+   rec "the reservation schema the supervisor writes and authenticates" grep -n -E '^RES_KEYS|"holder": "exp35"' "$SUP"
+   if [ "$FAIL" != 0 ]; then say "CAPTURE REFUSED before the tuple: at least one CHECK failed (see above)"; return 1; fi
+ 
+   local tuple="$TUPLE_DIR/exp35_approved_cotenants_${TS}.json" copy="$MAINX/exp35_approved_cotenants_${TS}.json" tsha
+   say ""; say "### the approved co-tenant tuple (a new file: ${tuple})"
+   ( set -o noclobber; "$PY" -B "$IDH" --snapshot --gpu-uuid "$GPU1" --pid "$TRAINER" > "$tuple" ) || { say "CHECK FAILED: the tuple snapshot"; FAIL=1; }
+   tsha="$(sha "$tuple")"; cat "$tuple"; say "bytes $(stat -c %s "$tuple" 2>/dev/null); sha256 ${tsha}"
+   need "the tuple validates against its sha256" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
+   need "the tuple is exactly his GPU 1 rank (pid, cwd, fd1 = fd2 = his log)" "$PY" -B -c '
+ import json, sys
+ d = json.load(open(sys.argv[1])); p = d["processes"]
+ ok = (d["gpu_uuid"] == sys.argv[2] and len(p) == 1 and p[0]["pid"] == int(sys.argv[3])
+       and p[0]["cwd"] == "/home/yixunhu/codespace/flac-fork-attn" and p[0]["fd1"] == p[0]["fd2"] == sys.argv[4])
+ sys.exit(0 if ok else 1)' "$tuple" "$GPU1" "$TRAINER" "$HIS_LOG"
+   need "the live GPU 1 set equals the tuple" "$PY" -B "$IDH" --check --approved "$tuple" --approved-sha256 "$tsha" --gpu-uuid "$GPU1" --pids "$(gpu1_pids)"
+   say ""; say "### the supervisor's read-only dry run in the launch environment"
+   dry_run "$tuple" "$tsha"
+   if [ "$FAIL" != 0 ]; then say "CAPTURE REFUSED: at least one CHECK failed (see above); no record copy, no seal"; return 1; fi
+   need "the tuple's record copy (a new file in the main checkout) is byte-identical" bash -c \
+     'set -o noclobber; cat "$1" > "$2" && [ "$(sha256sum < "$2" | cut -c1-64)" = "$3" ]' _ "$tuple" "$copy" "$tsha"
+   [ "$FAIL" = 0 ] || { say "CAPTURE REFUSED: the record copy"; return 1; }
+   { printf 'h35 %s\nscript_sha256 %s\ntuple %s %s\ntuple_copy %s %s\ncampaign_digest %s\n' "$H35" "$SELF_SHA" \
+       "$tuple" "$tsha" "$copy" "$(sha "$copy")" "$PIN_DIGEST"
+     local e name path want; for e in "${PINS[@]}"; do IFS='|' read -r name path want <<<"$e"; printf 'pin_%s %s %s\n' "$name" "$path" "$want"; done
+     printf 'pip_freeze %s\nversions %s\nhis_step %s\n' "$PIN_PIP" "$PIN_VERSIONS" "$step"; } >> "$draft"
+   say "CAPTURE CHECKS OK (the seal is written after this log is closed)"
+   return 0
+ }
+ 
+ seal_write() {   # <draft> <capture log>: the seal, a NEW file, only after a fully passing capture
+   local seal="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_capture_seal.txt"
+   ( set -o noclobber; { cat "$1"; printf 'capture_log %s %s\nsealed_at %s %s\n' "$2" "$(sha "$2")" "$(date +%s)" "$(date -Is)"; } > "$seal" ) \
+     || { say "SEAL REFUSED: ${seal} exists"; return 1; }
+   say "SEAL ${seal} sha256 $(sha "$seal")"
+   say "LAUNCH LINE: EXPECT_SCRIPT_SHA256=${SELF_SHA} bash $0 launch ${H35} ${seal} $(sha "$seal")"
+ }
+ 
+ launch() {
+   local seal="${3:-}" ssha="${4:-}" tuple tsha copy csha clog clsha age suplog pid found
+   say "=== exp_35 phase (i) LAUNCH -- $(date -Is) -- H35 ${H35} -- seal ${seal} ${ssha} ==="
+   say "this script: ${SELF_SHA}  $0"
+   script_check
+   need "the seal is a regular file in the main checkout's exp_35 folder" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && [ "$(dirname "$1")" = "$2" ]' _ "$seal" "$MAINX"
+   need "the seal's sha256 is the given value" eq "$(sha "$seal")" "$ssha"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: the seal"; return 1; }
+   cat "$seal"
+   sv() { awk -v k="$1" '$1 == k {$1 = ""; sub(/^ /, ""); print; exit}' "$seal"; }
+   need "the seal names this H35" eq "$(sv h35)" "$H35"
+   need "the seal names this script" eq "$(sv script_sha256)" "$SELF_SHA"
+   need "the seal names the pinned campaign digest" eq "$(sv campaign_digest)" "$PIN_DIGEST"
+   read -r tuple tsha <<<"$(sv tuple)"; read -r copy csha <<<"$(sv tuple_copy)"; read -r clog clsha <<<"$(sv capture_log)"
+-  need "the tuple is the canonical run-worktree file" bash -c '[[ "$1" == "$2"/exp35_approved_cotenants_*.json ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR"
++  need "the tuple is the canonical run-worktree file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^exp35_approved_cotenants_$3\.json$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR" "$TS_RE"
+   need "the tuple still hashes to the sealed value" eq "$(sha "$tuple")" "$tsha"
+-  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
++  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ -f "$1" ] && [ ! -L "$1" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
++  need "the capture log is the canonical main-checkout file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^orbitrir_yaw_evidence_$3_phase_i_capture\.log$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$clog" "$MAINX" "$TS_RE"
+   need "the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK" bash -c '[ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] && grep -q "^CAPTURE CHECKS OK" "$1" && ! grep -q "^CHECK FAILED" "$1"' _ "$clog" "$clsha"
+-  age=$(( $(date +%s) - $(sv sealed_at | awk '{print $1}') ))
++  local sealed; sealed="$(sv sealed_at | awk '{print $1}')"
++  need "the seal's sealed_at is a decimal epoch (${sealed})" bash -c '[[ "$1" =~ ^[0-9]{10}$ ]]' _ "$sealed"
++  [[ "$sealed" =~ ^[0-9]{10}$ ]] || sealed=0
++  age=$(( $(date +%s) - sealed ))
+   need "the seal is current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   local k name path want; for k in 1 2 3 4; do
+-    read -r name want <<<"$(sv "ladder_$k")"; need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$RUNX/$name")" "$want"; done
++    read -r name want <<<"$(sv "ladder_$k")"
++    need "ladder rung $k: a canonical basename" bash -c '[[ "$1" =~ ^orbitrir_yaw_evidence_$2_LADDER_$3_[a-z0-9_]+_at_$4\.log$ ]]' _ "$name" "$TS_RE" "$k" "${H35:0:8}"
++    need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$LADDER_DIR/$name")" "$want"; done
+   need "the tuple validates" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
+   mutable_checks
+   common_checks
+   need "the live GPU 1 set equals the tuple" "$PY" -B "$IDH" --check --approved "$tuple" --approved-sha256 "$tsha" --gpu-uuid "$GPU1" --pids "$(gpu1_pids)"
+   dry_run "$tuple" "$tsha"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: at least one CHECK failed (see above)"; return 1; }
+   # the last look, immediately before the detachment
+   need "last look: HEAD, apps, state, lock, reservations" bash -c '[ "$(git -C "$1" rev-parse HEAD)" = "$2" ] && [ ! -e "$3" ] && [ ! -e "$3.lock" ] && [ ! -e "$4" ] && [ ! -e "$5" ]' _ "$RUN" "$H35" "$STATE" "$RES/$GPU0.json" "$RES/$GPU1.json"
+   need "last look: the compute apps are his two ranks" eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
++  age=$(( $(date +%s) - sealed ))
++  need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+   suplog="$RUNX/exp35_supervisor_${TS}.log"
+   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   args_for "$tuple" "$tsha"
+   say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+   ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+       >> "$suplog" 2>&1 < /dev/null ) &
+   pid=$!
+   sleep 20
+   found="$(procs_named exp35_supervisor.py)"
+   say "background pid ${pid}; exp35_supervisor.py processes now: ${found:-none}"
+   [ "$found" = "$pid" ] || { say "LAUNCH NOT CONFIRMED: the supervisor is not exactly pid ${pid} (inspect; never signalled here)"; cat "$suplog"; return 1; }
+   say "supervisor pid ${pid}: $(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null)"
+   say "  cwd $(readlink /proc/$pid/cwd 2>/dev/null); start time $(awk '{print $22}' /proc/$pid/stat 2>/dev/null); sid $(ps -o sid= -p "$pid" 2>/dev/null)"
+   say "  environment: $(tr '\0' ' ' < /proc/$pid/environ 2>/dev/null)"
+   say "--- the supervisor log so far (${suplog}) ---"; cat "$suplog"; say "---"
+   if [ -d "/proc/$pid" ] && grep -q 'supervisor started (a new state)' "$suplog" && ! grep -q 'REFUSED\|STOP LATCH' "$suplog" \
+      && [ -f "$STATE" ]; then
+     say "LAUNCHED: supervisor pid ${pid}, log ${suplog}, state ${STATE}"; return 0
+   fi
+   say "LAUNCH NOT CONFIRMED: inspect ${suplog} (the supervisor is never signalled by this script)"; return 1
+ }
+ 
+ SELF_SHA="$(sha "$0")"
+ case "$MODE" in capture|launch) ;; *) say "usage: EXPECT_SCRIPT_SHA256=<sha> $0 capture <H35> | launch <H35> <seal> <seal sha256>"; exit 2 ;; esac
+ [[ "$H35" =~ ^[0-9a-f]{40}$ ]] || { say "H35 must be 40-hex"; exit 2; }
+ OUT="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_${MODE}.log"
+ ( set -o noclobber; : > "$OUT" ) || { say "${OUT} exists"; exit 2; }
+ DRAFT="$(mktemp)"
+ if [ "$MODE" = capture ]; then capture "$DRAFT" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}
+ else launch "$@" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}; fi
+ say "rc ${rc}; log ${OUT} sha256 $(sha "$OUT")"
+ if [ "$MODE" = capture ] && [ "$rc" = 0 ] && ! grep -q '^CHECK FAILED' "$OUT"; then seal_write "$DRAFT" "$OUT" || rc=1; fi
+ rm -f -- "$DRAFT"
+ exit "$rc"
+     1	#!/usr/bin/env bash
+     2	# exp_35 phase (i): the Planner's frozen launch entry and the supervisor launch (plan_orbitrir_yaw_evidence.md §7, §8,
+     3	# §12 B1-B3, §13 B1 / NIT 3; the launch-entry lists of Codex code reviews C3c, C3d, C3e and INT).
+     4	#
+     5	#   EXPECT_SCRIPT_SHA256=<reviewed sha> bash exp35_phase_i_launch.sh capture <H35>
+     6	#       Read-only except for NEW files (never overwritten): the approved co-tenant tuple
+     7	#       <run worktree>/<exp_35 folder>/exp35_approved_cotenants_<ts>.json, its record copy, the capture log, the
+     8	#       dry-run transcript and -- ONLY when every CHECK passed -- the capture SEAL (all in the main checkout's exp_35
+     9	#       folder except the tuple). The seal binds H35, this script's sha256, the tuple and its copy, the capture log,
+    10	#       the campaign digest, every external pin and the four-rung ladder at H35. Prints the launch line on success only.
+    11	#   EXPECT_SCRIPT_SHA256=<reviewed sha> bash exp35_phase_i_launch.sh launch <H35> <seal> <seal sha256>
+    12	#       Refuses unless the seal verifies, is younger than SEAL_MAX_AGE_S, and every input it binds still holds; re-runs
+    13	#       the preconditions and the supervisor's read-only dry run in the EXACT launch environment; then starts the
+    14	#       supervisor detached (setsid + nohup, a minimal `env -i` environment, cwd = the run worktree) and records its
+    15	#       identity and first heartbeat. The supervisor's own flock refuses a second instance.
+    16	#
+    17	# Never signals, kills or edits any process; never writes into Yixun's checkout or the NAS; nvidia-smi queries only.
+    18	# Written by the exp_35 Planner (Claude Opus 5.5 main session); revised after Codex INT (capture-launch binding)
+    19	# and INT-L2 (hidden-aware DINOv3 set, canonical names, freshness at the last look, a new dry-run transcript).
+    20	set -uo pipefail
+    21	
+    22	MODE="${1:-}"; H35="${2:-}"
+    23	RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+    24	MAIN=/home/yixunhu/codespace/FLAC
+    25	REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+    26	RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+    27	PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+    28	SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+    29	KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+    30	HIS_LOG="$KIT/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log"
+    31	QSTATUS="$KIT/logs/queue_20261101T233607_741947.status"; QLOG="$KIT/logs/queue_20261101T233607_741947.log"
+    32	GPU0=GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e; GPU1=GPU-6ac2604a-e84e-0615-1221-ccbed7c268da
+    33	RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+    34	RES=/home/yixunhu/codespace/.gpu_reservations
+    35	STATE="$RUNX/exp35_supervisor_state.json"
+    36	TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+    37	LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+    38	TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+    39	NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+    40	DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+    41	DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
+    42	LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1
+    43	            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+    44	SEAL_MAX_AGE_S=10800                                 # a capture older than 3 h is stale: capture again
+    45	# --- the pins (plan §8, §13 NIT 3; the repo's DINOv3 pin = exp_07 assert_arm_configs.py VIT_REV / VIT_FILES) ------- #
+    46	PIN_DIGEST=da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1   # the campaign digest at H35 (ladder 3)
+    47	PINS=(   # name|path (absolute, or relative to the run worktree)|sha256
+    48	  "vae|$RUN/weights/FLAC/VAE.ckpt|6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf"
+    49	  "agree|$RUN/weights/AGREE/AGREE_fullAR.pt|3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787"
+    50	  "dino_config|$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json|9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b"
+    51	  "dino_weights|$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors|4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"
+    52	  "queue|$KIT/exp30_attn_queue.sh|9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa"
+    53	  "evaluator|$KIT/exp30_attn_eval.sh|94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c"
+    54	  "admission|$KIT/exp30_attn_queue_state.py|8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907"
+    55	  "cells|$RUN/$X25/depth_canon_cells.json|440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d"
+    56	  "overlay|$RUN/overlays/no_flash/flash_attn.py|0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023"
+    57	  "launcher|$RUN/overlays/no_flash/exp35_no_flash_launch.py|bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de"
+    58	  "exp25_results|$RUN/$X25/depth_canon_results.json|ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0"
+    59	  "stream_registry|$RUNX/exp35_exp25_stream_registry.json|9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24"
+    60	  "a6_raw|$RUN/analysis/yaw_robustness/generated/yaw_metrics_raw.csv|0ae554c09f45ce89b8957cf75a3d15e44f4173f4f8987497dbbebf16bbfb23da"
+    61	  "a6_summary|$RUN/analysis/yaw_robustness/generated/yaw_metrics_summary.csv|e4602115f9e75479cdb76166b53a2907d11b8d32c64e0d61f1fa2d5342b09034"
+    62	  "a6_c4_raw|$RUN/analysis/yaw_robustness/generated/yaw_c4_metrics_raw.csv|441ade8b4931e69a358d760fb2b4fe29d72a6c40f4c00f5582eda0690a2598de"
+    63	  "a6_c4_summary|$RUN/analysis/yaw_robustness/generated/yaw_c4_metrics_summary.csv|b21ffbe7b264178bd7768bad8ac441c9dbd037217a0198c61c3ea5892cc9bf91"
+    64	)
+    65	PIN_PIP=8b7a802e65114c44bbf98206f0ccce6b960d48e5b094941496c3801cea1defb2       # `pip freeze | sha256sum` (plan §8)
+    66	PIN_VERSIONS="3.10.20 2.7.0+cu126 12.6 2.7.4.post1"                             # python, torch, CUDA, flash-attn
+    67	NAS_LINES=("c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c  P1/epoch=8-step=40000.ckpt"
+    68	           "5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328  BF/epoch=8-step=40000.ckpt")
+    69	TS="$(date +%Y-%m-%d_%H-%M-%S)"
+    70	FAIL=0
+    71	
+    72	say() { printf '%s\n' "$*"; }
+    73	rec() {   # <title> <command...>: the command, its output, its rc (recorded, never judged)
+    74	  say ""; say "### $1"; shift; printf '$'; printf ' %q' "$@"; printf '\n'; "$@" 2>&1; say "(rc $?)"
+    75	}
+    76	need() {  # <what> <command...>: a hard check
+    77	  local what="$1"; shift
+    78	  if "$@" >/dev/null 2>&1; then say "CHECK OK: $what"; else say "CHECK FAILED: $what"; FAIL=1; fi
+    79	}
+    80	sha() { sha256sum < "$1" 2>/dev/null | cut -c1-64; }
+    81	eq() { [ "$1" = "$2" ]; }
+    82	procs_named() {   # PIDs other than this script with an argv element whose basename is exactly $1 (no pgrep: no self-match)
+    83	  local d pid a; local -a argv
+    84	  for d in /proc/[0-9]*; do
+    85	    pid=${d#/proc/}; [ "$pid" = "$$" ] && continue
+    86	    { mapfile -d '' argv < "$d/cmdline"; } 2>/dev/null || continue
+    87	    for a in "${argv[@]}"; do [ "${a##*/}" = "$1" ] && { say "$pid"; break; }; done
+    88	  done
+    89	  return 0
+    90	}
+    91	procs_glob() {    # the same, for a basename glob
+    92	  local d pid a; local -a argv
+    93	  for d in /proc/[0-9]*; do
+    94	    pid=${d#/proc/}; [ "$pid" = "$$" ] && continue
+    95	    { mapfile -d '' argv < "$d/cmdline"; } 2>/dev/null || continue
+    96	    for a in "${argv[@]}"; do [[ "${a##*/}" == $1 ]] && { say "$pid"; break; }; done
+    97	  done
+    98	  return 0
+    99	}
+   100	apps() { nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader 2>/dev/null | tr -d ' ' | LC_ALL=C sort; }
+   101	gpu1_pids() { apps | awk -F, -v u="$GPU1" '$2 == u {print $1}' | paste -sd, -; }
+   102	args_for() {  # <tuple> <sha>: the supervisor's exact arguments
+   103	  SUP_ARGS=(--h35 "$H35" --approved "$1" --approved-sha256 "$2" --state "$STATE" --reservations "$RES"
+   104	            --his-log "$HIS_LOG" --logdir "$RUNX")
+   105	}
+   106	campaign_digest() {   # the runner's tree_digest for an exp_35 selection (depth_canon_eval_run.sh:136-150), recomputed
+   107	  ( cd "$RUN" || exit 1
+   108	    mapfile -t cfgs < <(jq -r '.arms[].model_config' "$X25/depth_canon_cells.json") || exit 1
+   109	    git ls-files -z --cached --others --exclude-standard -- eval_FLAC.py src ':(exclude)src/tests' data/AR "${cfgs[@]}" \
+   110	        "$X25/depth_canon_eval_run.sh" "$X25/depth_canon_collect.py" "$X25/depth_canon_make_cells.py" \
+   111	        "$X25/depth_canon_cells.json" "$X25/depth_canon_audit_gate.py" overlays/no_flash "$REL/exp35_gpu_identity.py" \
+   112	      | LC_ALL=C sort -zu | xargs -0r sha256sum -- | sha256sum | cut -c1-64 )
+   113	}
+   114	versions() { CUDA_VISIBLE_DEVICES= "$PY" -B -c 'import sys, torch, importlib.metadata as m
+   115	print(sys.version.split()[0], torch.__version__, torch.version.cuda, m.version("flash-attn"))' 2>/dev/null | tail -n 1; }
+   116	
+   117	script_check() {
+   118	  need "EXPECT_SCRIPT_SHA256 is set and equals this script's sha256 (${SELF_SHA})" eq "${EXPECT_SCRIPT_SHA256:-unset}" "$SELF_SHA"
+   119	}
+   120	common_checks() {   # the preconditions both modes re-check right before they act
+   121	  local head; head="$(git -C "$RUN" rev-parse HEAD 2>/dev/null)"
+   122	  need "run worktree HEAD ${head} = H35" eq "$head" "$H35"
+   123	  need "branch exp-35-orbitrir-yaw" eq "$(git -C "$RUN" rev-parse --abbrev-ref HEAD 2>/dev/null)" exp-35-orbitrir-yaw
+   124	  need "the tracked tree is clean" eq "$(git -C "$RUN" status --porcelain --untracked-files=no 2>&1)" ""
+   125	  need "the campaign digest recomputes to ${PIN_DIGEST}" eq "$(campaign_digest)" "$PIN_DIGEST"
+   126	  need "the compute apps are exactly his two s43 ranks (${RANK0} on GPU 0, ${TRAINER} on GPU 1)" \
+   127	    eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
+   128	  need "GPU 1 free memory >= 10,240 MiB (§8)" test "$(nvidia-smi --id="$GPU1" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')" -ge 10240
+   129	  need "no exp35 supervisor is running" eq "$(procs_named exp35_supervisor.py)" ""
+   130	  need "no depth_canon_eval_run.sh is running" eq "$(procs_named depth_canon_eval_run.sh)" ""
+   131	  need "no exp_30 evaluation is running (his table job)" eq "$(procs_named exp30_attn_eval.sh)" ""
+   132	  need "no exp_22 watcher runs (*exp22*watch* / *meshgrid*watch* / *free_card*)" \
+   133	    eq "$(procs_glob '*exp22*watch*'; procs_glob '*meshgrid*watch*'; procs_glob '*free_card*')" ""
+   134	  need "no exp_22 watcher script exists in the exp_22 folder" \
+   135	    eq "$(ls "$MAIN/worklog/worklog_yixun/exp_22_loc_meshgrid_claude" 2>/dev/null | grep -i -E 'watch|free_card')" ""
+   136	  need "the supervisor state file and its lock are absent (a new campaign)" test ! -e "$STATE" -a ! -e "$STATE.lock"
+   137	  need "no reservation of GPU 0 or GPU 1 exists" test ! -e "$RES/$GPU0.json" -a ! -e "$RES/$GPU1.json"
+   138	}
+   139	mutable_checks() {   # every external / untracked input the run reads, re-hashed (both modes)
+   140	  local e name path want
+   141	  for e in "${PINS[@]}"; do
+   142	    IFS='|' read -r name path want <<<"$e"
+   143	    need "pin ${name}: ${path##*/} ${want:0:8}…" eq "$(sha "$path")" "$want"
+   144	  done
+   145	  need "the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)" \
+   146	    eq "$(find "$DINO/snapshots" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -) | $(find "$DINO/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32" -mindepth 1 -printf '%P\n' 2>&1 | LC_ALL=C sort | paste -sd' ' -)" \
+   147	       "114c1379950215c8b35dfcd4e90a5c251dde0d32 | config.json model.safetensors"
+   148	  need "AcousticRooms -> the NAS" eq "$(readlink "$RUN/AcousticRooms")" /media/diskstation/yixunhu/FLAC/AcousticRooms
+   149	  need "weights/AGREE -> the main checkout" eq "$(readlink "$RUN/weights/AGREE")" "$MAIN/weights/AGREE"
+   150	  need "weights/FLAC/VAE.ckpt -> the main checkout" eq "$(readlink "$RUN/weights/FLAC/VAE.ckpt")" "$MAIN/weights/FLAC/VAE.ckpt"
+   151	  need "AcousticRooms/depth_map and metadata reachable" test -d "$RUN/AcousticRooms/depth_map" -a -d "$RUN/AcousticRooms/metadata"
+   152	  need "the NAS MANIFEST lists P1 and BF at their pins" bash -c 'grep -qxF -- "$2" "$1" && grep -qxF -- "$3" "$1"' _ "$NAS_MANIFEST" "${NAS_LINES[@]}"
+   153	  need "the dump root exists" test -d "$DUMP_ROOT"
+   154	  need "python / torch / CUDA / flash-attn = ${PIN_VERSIONS}" eq "$(versions)" "$PIN_VERSIONS"
+   155	  need "pip freeze ${PIN_PIP:0:8}… (the plan's environment)" eq "$("$PY" -B -m pip freeze 2>/dev/null | sha256sum | cut -c1-64)" "$PIN_PIP"
+   156	  need "s44 status line (§13 B1)" grep -qx $'ACEattn\t44\t0\t/home/yixunhu/codespace/flac-fork-attn/outputs_FLAC/exp30_ACEattn_s44/epoch=8-step=40000.ckpt' "$QSTATUS"
+   157	  need "s44 EVAL_DONE line (§13 B1)" grep -qx 'EVAL_DONE ACEattn s44 cells=40 2026-11-04T16:01:40-05:00' "$QLOG"
+   158	}
+   159	ladder_checks() {   # <draft>: the four-rung ladder at H35 (untracked transcripts in the run worktree), content + sha256
+   160	  local short="${H35:0:8}" k f n
+   161	  local -a pat=("1_exp25_byte_guard" "2_supervisor_live_dry_run" "3_runner_dry_run_phase_i" "4_all_suites_in_worktree")
+   162	  for k in 0 1 2 3; do
+   163	    n="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | wc -l)"
+   164	    need "exactly one ladder rung $((k + 1)) transcript at ${short}" eq "$n" 1
+   165	    f="$(ls "$LADDER_DIR"/orbitrir_yaw_evidence_*_LADDER_${pat[$k]}_at_${short}.log 2>/dev/null | head -n 1)"
+   166	    say "ladder rung $((k + 1)): ${f##*/} sha256 $(sha "$f")"
+   167	    printf 'ladder_%s %s %s\n' "$((k + 1))" "${f##*/}" "$(sha "$f")" >> "$1"
+   168	    case $k in
+   169	      0) need "rung 1: ec3fcd08… and the md identical" bash -c 'grep -q "sha256 of the re-collected JSON: ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0" "$1" && grep -q "md == the committed exp_25 md: identical" "$1"' _ "$f" ;;
+   170	      1) need "rung 2: DRY RUN OK and the worktree unchanged" bash -c 'grep -q "^DRY RUN OK" "$1" && grep -q "IDENTICAL" "$1"' _ "$f" ;;
+   171	      2) need "rung 3: runner rc 0 and the digest ${PIN_DIGEST:0:8}…" bash -c 'grep -q "runner rc 0" "$1" && grep -q "evaluator tree digest $2" "$1"' _ "$f" "$PIN_DIGEST" ;;
+   172	      3) need "rung 4: a pytest summary with passes and no failure or error" bash -c 'l="$(grep -E "^[0-9]+ passed" "$1" | tail -n 1)"; [ -n "$l" ] && ! printf "%s" "$l" | grep -q -E "failed|error"' _ "$f"
+   173	         rec "rung 4 summary" bash -c 'grep -E "^[0-9]+ passed" "$1" | tail -n 1' _ "$f" ;;
+   174	    esac
+   175	  done
+   176	}
+   177	dry_run() {   # <tuple> <sha>: the supervisor's read-only dry run in the exact launch environment; no file may change
+   178	  local log="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_${MODE}_supervisor_dry_run.log" mark rc
+   179	  ( set -o noclobber; : > "$log" ) 2>/dev/null || { say "CHECK FAILED: the dry-run transcript ${log} already exists"; FAIL=1; return; }
+   180	  mark="$(mktemp)"; sleep 1
+   181	  args_for "$1" "$2"
+   182	  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
+   183	  cat "$log"
+   184	  say "dry run rc ${rc}; transcript ${log} sha256 $(sha "$log")"
+   185	  need "the supervisor dry run in the launch environment: rc 0 and DRY RUN OK" \
+   186	    test "$rc" = 0 -a "$(grep -c '^DRY RUN OK' "$log")" = 1
+   187	  need "the dry run wrote nothing under the run worktree (find -newer, .git excluded)" \
+   188	    eq "$(find "$RUN" -path "$RUN/.git" -prune -o -newer "$mark" -print 2>&1 | head -5)" ""
+   189	  need "the dry run created no reservation, state or lock file" test ! -e "$RES/$GPU0.json" -a ! -e "$RES/$GPU1.json" -a ! -e "$STATE" -a ! -e "$STATE.lock"
+   190	  rm -f -- "$mark"
+   191	}
+   192	
+   193	capture() {   # <draft file>
+   194	  local draft="$1"
+   195	  say "=== exp_35 phase (i) launch capture -- $(date -Is) -- host $(hostname) -- H35 ${H35} ==="
+   196	  say "this script: ${SELF_SHA}  $0"
+   197	  script_check
+   198	  common_checks
+   199	  mutable_checks
+   200	  ladder_checks "$draft"
+   201	  rec "git status of the run worktree (untracked shown)" git -C "$RUN" status --short
+   202	  rec "§8: the evaluator closure since d6ca307a" git -C "$RUN" diff --stat d6ca307a "$H35" -- eval_FLAC.py src ':(exclude)src/tests' data/AR
+   203	  need "§8: only src/localization/* changed since d6ca307a" eq "$(git -C "$RUN" diff --name-only d6ca307a "$H35" -- \
+   204	    eval_FLAC.py src ':(exclude)src/tests' data/AR | grep -v '^src/localization/')" ""
+   205	  local cells_txt; cells_txt="$(mktemp)"
+   206	  ( cd "$RUN" && CUDA_VISIBLE_DEVICES= "$PY" -B - "$X25" > "$cells_txt" 2>/dev/null ) <<'PYEOF'
+   207	import hashlib, importlib.util, json, sys
+   208	sys.dont_write_bytecode = True
+   209	x = sys.argv[1]
+   210	m = json.load(open(f"{x}/depth_canon_cells.json"))
+   211	rows = [r for r in m["cells"] if r["order"] >= 230]
+   212	print("rows", len(m["cells"]), "exp35", len(rows))
+   213	print("exp35_rows_sha256", hashlib.sha256(("\n".join(json.dumps(r, separators=(",", ":")) for r in rows) + "\n").encode()).hexdigest())
+   214	s = importlib.util.spec_from_file_location("mk", f"{x}/depth_canon_make_cells.py"); mk = importlib.util.module_from_spec(s); s.loader.exec_module(mk)
+   215	out = mk.render(mk.build_manifest(exp35=False)); out = out.encode() if isinstance(out, str) else out
+   216	print("exp25_only_render_sha256", hashlib.sha256(out).hexdigest())
+   217	PYEOF
+   218	  cat "$cells_txt"
+   219	  need "346 rows / 116 exp_35 rows" grep -qx 'rows 346 exp35 116' "$cells_txt"
+   220	  need "the 116 exp_35 rows 500d6f5e…" grep -qx 'exp35_rows_sha256 500d6f5ed9c70700fdd4c778895fc84e01f7756fbac84ad2471a9346ab9252ea' "$cells_txt"
+   221	  need "the exp_25-only render = d6ca307a's manifest (1073ef64…)" grep -qx "exp25_only_render_sha256 $(git -C "$RUN" show d6ca307a:"$X25"/depth_canon_cells.json | sha256sum | cut -c1-64)" "$cells_txt"
+   222	  rm -f -- "$cells_txt"
+   223	  need "make_cells --check (the committed manifest has not drifted)" bash -c 'cd "$1" && CUDA_VISIBLE_DEVICES= "$2" -B "$3/depth_canon_make_cells.py" --check' _ "$RUN" "$PY" "$X25"
+   224	  rec "versions" versions
+   225	  rec "nvidia-smi" nvidia-smi
+   226	  rec "GPU map / memory" nvidia-smi --query-gpu=index,uuid,memory.used,memory.free,utilization.gpu --format=csv,noheader
+   227	  rec "compute apps" nvidia-smi --query-compute-apps=pid,gpu_uuid,used_memory --format=csv,noheader
+   228	  rec "his s43 ranks" ps -o pid,ppid,lstart,etime,cmd -p "$RANK0,$TRAINER"
+   229	  local p; for p in "$RANK0" "$TRAINER"; do say "pid $p: cwd $(readlink /proc/$p/cwd) fd1 $(readlink /proc/$p/fd/1) fd2 $(readlink /proc/$p/fd/2)"; done
+   230	  rec "his log" stat -c 'inode %i size %s mtime %y' "$HIS_LOG"
+   231	  local step; step="$("$PY" -B "$GUARD" --log "$HIS_LOG" 2>/dev/null | "$PY" -B -c 'import json,sys; print(json.load(sys.stdin)["step"]["global"])' 2>/dev/null)"
+   232	  need "the guard reads his global step (${step:-none})" bash -c '[[ "$1" =~ ^[0-9]+$ ]]' _ "$step"
+   233	  rec "the guard over the last 1,000 steps (his current rate; baseline = step - 1000)" "$PY" -B "$GUARD" --log "$HIS_LOG" --baseline-step "$(( ${step:-1000} - 1000 ))"
+   234	  say "the predictor for chunk 1 (CTL K1, 17.6 min): step ${step:-?}: earliest s43 end in $(( (40000 - ${step:-40000}) * 35 / 10 )) s; needed > $(( 2 * 1056 + 1800 )) s"
+   235	  rec "his queue, evaluator and admission helper (§13 NIT 3)" "$PY" -B "$SUP" --external-shas
+   236	  rec "s44 completion evidence (§13 B1)" grep -n -E $'^ACEattn\t44\t0\t|^EVAL_DONE ACEattn s44 ' "$QSTATUS" "$QLOG"
+   237	  rec "the reservation directory" ls -la "$RES"
+   238	  rec "the reservation schema the supervisor writes and authenticates" grep -n -E '^RES_KEYS|"holder": "exp35"' "$SUP"
+   239	  if [ "$FAIL" != 0 ]; then say "CAPTURE REFUSED before the tuple: at least one CHECK failed (see above)"; return 1; fi
+   240	
+   241	  local tuple="$TUPLE_DIR/exp35_approved_cotenants_${TS}.json" copy="$MAINX/exp35_approved_cotenants_${TS}.json" tsha
+   242	  say ""; say "### the approved co-tenant tuple (a new file: ${tuple})"
+   243	  ( set -o noclobber; "$PY" -B "$IDH" --snapshot --gpu-uuid "$GPU1" --pid "$TRAINER" > "$tuple" ) || { say "CHECK FAILED: the tuple snapshot"; FAIL=1; }
+   244	  tsha="$(sha "$tuple")"; cat "$tuple"; say "bytes $(stat -c %s "$tuple" 2>/dev/null); sha256 ${tsha}"
+   245	  need "the tuple validates against its sha256" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
+   246	  need "the tuple is exactly his GPU 1 rank (pid, cwd, fd1 = fd2 = his log)" "$PY" -B -c '
+   247	import json, sys
+   248	d = json.load(open(sys.argv[1])); p = d["processes"]
+   249	ok = (d["gpu_uuid"] == sys.argv[2] and len(p) == 1 and p[0]["pid"] == int(sys.argv[3])
+   250	      and p[0]["cwd"] == "/home/yixunhu/codespace/flac-fork-attn" and p[0]["fd1"] == p[0]["fd2"] == sys.argv[4])
+   251	sys.exit(0 if ok else 1)' "$tuple" "$GPU1" "$TRAINER" "$HIS_LOG"
+   252	  need "the live GPU 1 set equals the tuple" "$PY" -B "$IDH" --check --approved "$tuple" --approved-sha256 "$tsha" --gpu-uuid "$GPU1" --pids "$(gpu1_pids)"
+   253	  say ""; say "### the supervisor's read-only dry run in the launch environment"
+   254	  dry_run "$tuple" "$tsha"
+   255	  if [ "$FAIL" != 0 ]; then say "CAPTURE REFUSED: at least one CHECK failed (see above); no record copy, no seal"; return 1; fi
+   256	  need "the tuple's record copy (a new file in the main checkout) is byte-identical" bash -c \
+   257	    'set -o noclobber; cat "$1" > "$2" && [ "$(sha256sum < "$2" | cut -c1-64)" = "$3" ]' _ "$tuple" "$copy" "$tsha"
+   258	  [ "$FAIL" = 0 ] || { say "CAPTURE REFUSED: the record copy"; return 1; }
+   259	  { printf 'h35 %s\nscript_sha256 %s\ntuple %s %s\ntuple_copy %s %s\ncampaign_digest %s\n' "$H35" "$SELF_SHA" \
+   260	      "$tuple" "$tsha" "$copy" "$(sha "$copy")" "$PIN_DIGEST"
+   261	    local e name path want; for e in "${PINS[@]}"; do IFS='|' read -r name path want <<<"$e"; printf 'pin_%s %s %s\n' "$name" "$path" "$want"; done
+   262	    printf 'pip_freeze %s\nversions %s\nhis_step %s\n' "$PIN_PIP" "$PIN_VERSIONS" "$step"; } >> "$draft"
+   263	  say "CAPTURE CHECKS OK (the seal is written after this log is closed)"
+   264	  return 0
+   265	}
+   266	
+   267	seal_write() {   # <draft> <capture log>: the seal, a NEW file, only after a fully passing capture
+   268	  local seal="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_capture_seal.txt"
+   269	  ( set -o noclobber; { cat "$1"; printf 'capture_log %s %s\nsealed_at %s %s\n' "$2" "$(sha "$2")" "$(date +%s)" "$(date -Is)"; } > "$seal" ) \
+   270	    || { say "SEAL REFUSED: ${seal} exists"; return 1; }
+   271	  say "SEAL ${seal} sha256 $(sha "$seal")"
+   272	  say "LAUNCH LINE: EXPECT_SCRIPT_SHA256=${SELF_SHA} bash $0 launch ${H35} ${seal} $(sha "$seal")"
+   273	}
+   274	
+   275	launch() {
+   276	  local seal="${3:-}" ssha="${4:-}" tuple tsha copy csha clog clsha age suplog pid found
+   277	  say "=== exp_35 phase (i) LAUNCH -- $(date -Is) -- H35 ${H35} -- seal ${seal} ${ssha} ==="
+   278	  say "this script: ${SELF_SHA}  $0"
+   279	  script_check
+   280	  need "the seal is a regular file in the main checkout's exp_35 folder" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && [ "$(dirname "$1")" = "$2" ]' _ "$seal" "$MAINX"
+   281	  need "the seal's sha256 is the given value" eq "$(sha "$seal")" "$ssha"
+   282	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: the seal"; return 1; }
+   283	  cat "$seal"
+   284	  sv() { awk -v k="$1" '$1 == k {$1 = ""; sub(/^ /, ""); print; exit}' "$seal"; }
+   285	  need "the seal names this H35" eq "$(sv h35)" "$H35"
+   286	  need "the seal names this script" eq "$(sv script_sha256)" "$SELF_SHA"
+   287	  need "the seal names the pinned campaign digest" eq "$(sv campaign_digest)" "$PIN_DIGEST"
+   288	  read -r tuple tsha <<<"$(sv tuple)"; read -r copy csha <<<"$(sv tuple_copy)"; read -r clog clsha <<<"$(sv capture_log)"
+   289	  need "the tuple is the canonical run-worktree file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^exp35_approved_cotenants_$3\.json$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR" "$TS_RE"
+   290	  need "the tuple still hashes to the sealed value" eq "$(sha "$tuple")" "$tsha"
+   291	  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ -f "$1" ] && [ ! -L "$1" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
+   292	  need "the capture log is the canonical main-checkout file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^orbitrir_yaw_evidence_$3_phase_i_capture\.log$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$clog" "$MAINX" "$TS_RE"
+   293	  need "the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK" bash -c '[ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] && grep -q "^CAPTURE CHECKS OK" "$1" && ! grep -q "^CHECK FAILED" "$1"' _ "$clog" "$clsha"
+   294	  local sealed; sealed="$(sv sealed_at | awk '{print $1}')"
+   295	  need "the seal's sealed_at is a decimal epoch (${sealed})" bash -c '[[ "$1" =~ ^[0-9]{10}$ ]]' _ "$sealed"
+   296	  [[ "$sealed" =~ ^[0-9]{10}$ ]] || sealed=0
+   297	  age=$(( $(date +%s) - sealed ))
+   298	  need "the seal is current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   299	  local k name path want; for k in 1 2 3 4; do
+   300	    read -r name want <<<"$(sv "ladder_$k")"
+   301	    need "ladder rung $k: a canonical basename" bash -c '[[ "$1" =~ ^orbitrir_yaw_evidence_$2_LADDER_$3_[a-z0-9_]+_at_$4\.log$ ]]' _ "$name" "$TS_RE" "$k" "${H35:0:8}"
+   302	    need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$LADDER_DIR/$name")" "$want"; done
+   303	  need "the tuple validates" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
+   304	  mutable_checks
+   305	  common_checks
+   306	  need "the live GPU 1 set equals the tuple" "$PY" -B "$IDH" --check --approved "$tuple" --approved-sha256 "$tsha" --gpu-uuid "$GPU1" --pids "$(gpu1_pids)"
+   307	  dry_run "$tuple" "$tsha"
+   308	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: at least one CHECK failed (see above)"; return 1; }
+   309	  # the last look, immediately before the detachment
+   310	  need "last look: HEAD, apps, state, lock, reservations" bash -c '[ "$(git -C "$1" rev-parse HEAD)" = "$2" ] && [ ! -e "$3" ] && [ ! -e "$3.lock" ] && [ ! -e "$4" ] && [ ! -e "$5" ]' _ "$RUN" "$H35" "$STATE" "$RES/$GPU0.json" "$RES/$GPU1.json"
+   311	  need "last look: the compute apps are his two ranks" eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
+   312	  age=$(( $(date +%s) - sealed ))
+   313	  need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   314	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+   315	  suplog="$RUNX/exp35_supervisor_${TS}.log"
+   316	  ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   317	  args_for "$tuple" "$tsha"
+   318	  say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+   319	  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+   320	      >> "$suplog" 2>&1 < /dev/null ) &
+   321	  pid=$!
+   322	  sleep 20
+   323	  found="$(procs_named exp35_supervisor.py)"
+   324	  say "background pid ${pid}; exp35_supervisor.py processes now: ${found:-none}"
+   325	  [ "$found" = "$pid" ] || { say "LAUNCH NOT CONFIRMED: the supervisor is not exactly pid ${pid} (inspect; never signalled here)"; cat "$suplog"; return 1; }
+   326	  say "supervisor pid ${pid}: $(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null)"
+   327	  say "  cwd $(readlink /proc/$pid/cwd 2>/dev/null); start time $(awk '{print $22}' /proc/$pid/stat 2>/dev/null); sid $(ps -o sid= -p "$pid" 2>/dev/null)"
+   328	  say "  environment: $(tr '\0' ' ' < /proc/$pid/environ 2>/dev/null)"
+   329	  say "--- the supervisor log so far (${suplog}) ---"; cat "$suplog"; say "---"
+   330	  if [ -d "/proc/$pid" ] && grep -q 'supervisor started (a new state)' "$suplog" && ! grep -q 'REFUSED\|STOP LATCH' "$suplog" \
+   331	     && [ -f "$STATE" ]; then
+   332	    say "LAUNCHED: supervisor pid ${pid}, log ${suplog}, state ${STATE}"; return 0
+   333	  fi
+   334	  say "LAUNCH NOT CONFIRMED: inspect ${suplog} (the supervisor is never signalled by this script)"; return 1
+   335	}
+   336	
+   337	SELF_SHA="$(sha "$0")"
+   338	case "$MODE" in capture|launch) ;; *) say "usage: EXPECT_SCRIPT_SHA256=<sha> $0 capture <H35> | launch <H35> <seal> <seal sha256>"; exit 2 ;; esac
+   339	[[ "$H35" =~ ^[0-9a-f]{40}$ ]] || { say "H35 must be 40-hex"; exit 2; }
+   340	OUT="$MAINX/orbitrir_yaw_evidence_${TS}_phase_i_${MODE}.log"
+   341	( set -o noclobber; : > "$OUT" ) || { say "${OUT} exists"; exit 2; }
+   342	DRAFT="$(mktemp)"
+   343	if [ "$MODE" = capture ]; then capture "$DRAFT" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}
+   344	else launch "$@" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}; fi
+   345	say "rc ${rc}; log ${OUT} sha256 $(sha "$OUT")"
+   346	if [ "$MODE" = capture ] && [ "$rc" = 0 ] && ! grep -q '^CHECK FAILED' "$OUT"; then seal_write "$DRAFT" "$OUT" || rc=1; fi
+   347	rm -f -- "$DRAFT"
+   348	exit "$rc"
+
+exec
+/bin/bash -lc 'TESTROOT=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3
+[ -d "$TESTROOT" ] && printf '"'testroot present\\n'
+find \""'$TESTROOT" -maxdepth 3 -printf '"'%y %P %s bytes\\n' | LC_ALL=C sort
+sha256sum \""'$TESTROOT/harness.sh" "$TESTROOT/harness_run.txt"
+wc -l "$TESTROOT/harness.sh" "$TESTROOT"/*.diff "$TESTROOT"/T*.txt
+sed -n '"'1,420p' \""'$TESTROOT/harness.sh"' in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+testroot present
+d  4096 bytes
+d dino_a 4096 bytes
+d dino_a/snapshots 4096 bytes
+d dino_a/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32 4096 bytes
+d dino_b 4096 bytes
+d dino_b/snapshots 4096 bytes
+d dino_b/snapshots/.hidden_snapshot 4096 bytes
+d dino_b/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32 4096 bytes
+d ladder 4096 bytes
+d out 4096 bytes
+d run 4096 bytes
+f A.sh 28408 bytes
+f A.sh.diff 1431 bytes
+f C_dino_a.sh 28441 bytes
+f C_dino_a.sh.diff 1662 bytes
+f C_dino_b.sh 28441 bytes
+f C_dino_b.sh.diff 1662 bytes
+f D_fake_sup.sh 28526 bytes
+f D_fake_sup.sh.diff 1779 bytes
+f T01_capture_ok.txt 26035 bytes
+f T02_launch_stub_ok.txt 17874 bytes
+f T03_stale_seal.txt 16300 bytes
+f T04_malformed_sealed_at.txt 16300 bytes
+f T05_traversal_tuple.txt 10499 bytes
+f T06_tuple_tampered.txt 10206 bytes
+f T07_copy_tampered.txt 16350 bytes
+f T08_capture_log_tampered.txt 16348 bytes
+f T09_ladder_tampered.txt 16348 bytes
+f T10_launch_after_restore_ok.txt 17876 bytes
+f T11_dino_hidden_file.txt 17019 bytes
+f T12_dino_hidden_snapshot.txt 17020 bytes
+f T13_dry_run_fails.txt 18720 bytes
+f fake_sup.py 77 bytes
+f harness.sh 5623 bytes
+f harness_run.txt 2130 bytes
+f ladder/orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log 1438 bytes
+f ladder/orbitrir_yaw_evidence_2026-11-05_19-23-49_LADDER_2_supervisor_live_dry_run_at_5b065801.log 9082 bytes
+f ladder/orbitrir_yaw_evidence_2026-11-05_19-24-07_LADDER_3_runner_dry_run_phase_i_at_5b065801.log 32196 bytes
+f ladder/orbitrir_yaw_evidence_2026-11-05_19-25-16_LADDER_4_all_suites_in_worktree_at_5b065801.log 2930 bytes
+f out/exp35_approved_cotenants_2026-11-05_20-11-10.json 581 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-10_phase_i_capture.log 24994 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-10_phase_i_capture_seal.txt 4703 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-10_phase_i_capture_supervisor_dry_run.log 6522 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-35_phase_i_launch.log 17614 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-35_phase_i_launch_supervisor_dry_run.log 6522 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-43_phase_i_launch.log 16040 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-43_phase_i_launch_supervisor_dry_run.log 6521 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-50_phase_i_launch.log 16040 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-50_phase_i_launch_supervisor_dry_run.log 6522 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-58_phase_i_launch.log 10239 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-11-58_phase_i_launch_supervisor_dry_run.log 401 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-03_phase_i_launch.log 9946 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-03_phase_i_launch_supervisor_dry_run.log 366 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-08_phase_i_launch.log 16090 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-08_phase_i_launch_supervisor_dry_run.log 6522 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-16_phase_i_launch.log 16088 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-16_phase_i_launch_supervisor_dry_run.log 6520 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-23_phase_i_launch.log 16088 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-23_phase_i_launch_supervisor_dry_run.log 6520 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-31_phase_i_launch.log 17616 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-31_phase_i_launch_supervisor_dry_run.log 6522 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-12-38_phase_i_capture.log 16758 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-13-00_phase_i_capture.log 16759 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-13-21_phase_i_capture.log 18459 bytes
+f out/orbitrir_yaw_evidence_2026-11-05_20-13-21_phase_i_capture_supervisor_dry_run.log 45 bytes
+f out/seal_malformed.txt 4696 bytes
+f out/seal_stale.txt 4703 bytes
+f out/seal_traversal.txt 4691 bytes
+f run/exp35_approved_cotenants_2026-11-05_20-11-10.json 581 bytes
+f run/exp35_approved_cotenants_2026-11-05_20-13-21.json 581 bytes
+b3310ae8c0380f5e3294fb20b25925a70db02a2af47ccafc6f20f5b4250d6709  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh
+fdd84629ad0dad59538ab4e87fd50733098684291958efe0efe3588b6ffdfc96  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness_run.txt
+    78 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh
+    19 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/A.sh.diff
+    23 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_a.sh.diff
+    23 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_b.sh.diff
+    23 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/D_fake_sup.sh.diff
+   328 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T01_capture_ok.txt
+   146 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T02_launch_stub_ok.txt
+   142 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T03_stale_seal.txt
+   142 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T04_malformed_sealed_at.txt
+   103 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T05_traversal_tuple.txt
+   102 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T06_tuple_tampered.txt
+   142 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T07_copy_tampered.txt
+   142 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T08_capture_log_tampered.txt
+   142 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T09_ladder_tampered.txt
+   146 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T10_launch_after_restore_ok.txt
+   258 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T11_dino_hidden_file.txt
+   258 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T12_dino_hidden_snapshot.txt
+   285 /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/T13_dry_run_fails.txt
+  2502 total
+#!/usr/bin/env bash
+# Test harness for exp35_phase_i_launch.sh v3 (Planner; scratch only). Builds test copies that redirect every output to
+# this folder and replace the detachment with a stub that starts NOTHING, then runs positive and negative cases.
+# Writes only under $T; reads the run worktree, the HF cache, his log and nvidia-smi exactly as the script does.
+set -uo pipefail
+S=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a
+T="$S/launch_test_v3"; V3="$S/exp35_phase_i_launch.v3.sh"
+H35=5b065801e9d1c1844461ec84cd0558702c714326
+RX=/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+REALDINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
+SNAP=114c1379950215c8b35dfcd4e90a5c251dde0d32
+mkdir -p "$T/out" "$T/run" "$T/ladder" "$T/dino_a/snapshots/$SNAP" "$T/dino_b/snapshots/$SNAP"
+for f in "$RX"/orbitrir_yaw_evidence_*_LADDER_{1,2,3,4}_*_at_5b065801.log; do cp -n -- "$f" "$T/ladder/"; done
+for d in dino_a dino_b; do for f in config.json model.safetensors; do ln -sfn "$REALDINO/snapshots/$SNAP/$f" "$T/$d/snapshots/$SNAP/$f"; done; done
+: > "$T/dino_a/snapshots/$SNAP/.hidden_file"; mkdir -p "$T/dino_b/snapshots/.hidden_snapshot"
+printf 'import sys\nprint("DRY RUN REFUSED: the harness fake supervisor")\nsys.exit(1)\n' > "$T/fake_sup.py"
+mk() {  # <name> <python edits...>: a test copy of v3
+  "$PY" -B - "$V3" "$T/$1" "$T" "${@:2}" <<'PYEOF'
+import sys, pathlib
+src, dst, T = pathlib.Path(sys.argv[1]).read_text(), pathlib.Path(sys.argv[2]), sys.argv[3]
+s = src
+rep = [('RUNX="$RUN/$REL"; MAINX="$MAIN/$REL";', f'RUNX="$RUN/$REL"; MAINX="{T}/out";'),
+       ('TUPLE_DIR="$RUNX" ', f'TUPLE_DIR="{T}/run" '), ('LADDER_DIR="$RUNX" ', f'LADDER_DIR="{T}/ladder" '),
+       ('suplog="$RUNX/exp35_supervisor_${TS}.log"', f'suplog="{T}/out/exp35_supervisor_${{TS}}.log"'),
+       ("""  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \\
+      >> "$suplog" 2>&1 < /dev/null ) &""", '  say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0')]
+for extra in sys.argv[4:]:
+    if extra == "dino_a":
+        rep.append(('DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m', f'DINO={T}/dino_a'))
+    elif extra == "dino_b":
+        rep.append(('DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m', f'DINO={T}/dino_b'))
+    elif extra == "fake_sup":
+        rep.append(('  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run', f'  ( cd "$RUN" && env -i "${{LAUNCH_ENV[@]}}" "$PY" {T}/fake_sup.py --dry-run'))
+for old, new in rep:
+    if s.count(old) != 1:
+        sys.exit(f"anchor count {s.count(old)}: {old[:60]!r}")
+    s = s.replace(old, new, 1)
+dst.write_text(s)
+PYEOF
+}
+PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+run() {  # <label> <expect: ok|refuse> <copy> <mode args...>
+  local label="$1" expect="$2" copy="$3"; shift 3
+  local sh; sh="$(sha256sum < "$T/$copy" | cut -c1-64)"
+  ( cd "$T" && EXPECT_SCRIPT_SHA256="$sh" timeout 900 bash "$T/$copy" "$@" ) > "$T/$label.txt" 2>&1; local rc=$?
+  local got=refuse; [ "$rc" = 0 ] && got=ok
+  printf '%-34s expect %-6s got %-6s rc %s | %s\n' "$label" "$expect" "$got" "$rc" "$(grep -m1 -E '^CHECK FAILED' "$T/$label.txt" | cut -c1-110)"
+  [ "$got" = "$expect" ]
+}
+mk A.sh; mk C_dino_a.sh dino_a; mk C_dino_b.sh dino_b; mk D_fake_sup.sh fake_sup
+PASS=0; FAILN=0; tally() { if [ "$1" = 0 ]; then PASS=$((PASS + 1)); else FAILN=$((FAILN + 1)); fi; }
+run T01_capture_ok ok A.sh capture "$H35"; tally $?
+SEAL="$(ls "$T"/out/*_capture_seal.txt | head -n 1)"; SSHA="$(sha256sum < "$SEAL" | cut -c1-64)"
+run T02_launch_stub_ok ok A.sh launch "$H35" "$SEAL" "$SSHA"; tally $?
+craft() {  # <name> <sed expression>: a modified seal copy in out/ (its own sha256)
+  sed -e "$2" "$SEAL" > "$T/out/$1"; printf '%s %s\n' "$T/out/$1" "$(sha256sum < "$T/out/$1" | cut -c1-64)"; }
+read -r s3 h3 <<<"$(craft seal_stale.txt "s/^sealed_at [0-9]*/sealed_at $(( $(date +%s) - 4 * 3600 ))/")"
+run T03_stale_seal refuse A.sh launch "$H35" "$s3" "$h3"; tally $?
+read -r s4 h4 <<<"$(craft seal_malformed.txt 's/^sealed_at [0-9]*/sealed_at abc/')"
+run T04_malformed_sealed_at refuse A.sh launch "$H35" "$s4" "$h4"; tally $?
+read -r s5 h5 <<<"$(craft seal_traversal.txt "s#^tuple \([^ ]*\)/\(exp35_approved_cotenants_\)[^ ]*#tuple \1/\2../../x.json#")"
+run T05_traversal_tuple refuse A.sh launch "$H35" "$s5" "$h5"; tally $?
+TUP="$(awk '$1 == "tuple" {print $2}' "$SEAL")"; COPY="$(awk '$1 == "tuple_copy" {print $2}' "$SEAL")"; CLOG="$(awk '$1 == "capture_log" {print $2}' "$SEAL")"
+LAD="$T/ladder/$(awk '$1 == "ladder_2" {print $2}' "$SEAL")"
+tamper() {  # <file> <label> : append a byte, run, restore byte-exactly
+  cp -p -- "$1" "$1.bak"; printf ' ' >> "$1"
+  run "$2" refuse A.sh launch "$H35" "$SEAL" "$SSHA"; local r=$?
+  mv -f -- "$1.bak" "$1"; return $r; }
+tamper "$TUP" T06_tuple_tampered; tally $?
+tamper "$COPY" T07_copy_tampered; tally $?
+tamper "$CLOG" T08_capture_log_tampered; tally $?
+tamper "$LAD" T09_ladder_tampered; tally $?
+run T10_launch_after_restore_ok ok A.sh launch "$H35" "$SEAL" "$SSHA"; tally $?
+run T11_dino_hidden_file refuse C_dino_a.sh capture "$H35"; tally $?
+run T12_dino_hidden_snapshot refuse C_dino_b.sh capture "$H35"; tally $?
+run T13_dry_run_fails refuse D_fake_sup.sh capture "$H35"; tally $?
+echo "TOTAL: ${PASS} as expected, ${FAILN} not"
+ls "$T/out"/*_capture_seal.txt | wc -l | sed 's/^/seals written (only T01 may write one): /'
+
+exec
+/bin/bash -lc 'TESTROOT=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3
+SCRATCH=${TESTROOT%/launch_test_v3}
+PROD=/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+sha256sum "$SCRATCH/exp35_phase_i_launch.v3.sh" "$PROD" "$TESTROOT"/A.sh "$TESTROOT"/C_dino_a.sh "$TESTROOT"/C_dino_b.sh "$TESTROOT"/D_fake_sup.sh
+cmp -s "$SCRATCH/exp35_phase_i_launch.v3.sh" "$PROD"; printf '"'V3_vs_prod_cmp_rc=%s\\n' \""'$?"
+for f in A.sh C_dino_a.sh C_dino_b.sh D_fake_sup.sh; do
+  bash -n "$TESTROOT/$f"; printf '"'bash_n_%s_rc=%s\\n' \""'$f" "$?"
+  printf '"'\\n### %s actual diff\\n' \""'$f"
+  diff -u "$PROD" "$TESTROOT/$f" || true
+  printf '"'\\n### %s supplied diff\\n' \""'$f"
+  sed -n '"'1,120p' \""'$TESTROOT/$f.diff"
+done' in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/exp35_phase_i_launch.v3.sh
+7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c  /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+612200c8c00fd96382b33bf7c5c7be3f0d83b2d6bd9b0a759a83e5cfcceef519  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/A.sh
+f800942e9fd968bfbd8ffe7810cb4caaf4c22c48171405f4ec7376a75ea276ad  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_a.sh
+af9efaeeff916c58a661b5d4c11e424a931ef48a93392efdd69f7ba76407a9f7  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_b.sh
+cce49646518f78fe67a0328975a8ee31f9aac0300d4430c3a29e266e9b233997  /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/D_fake_sup.sh
+V3_vs_prod_cmp_rc=0
+bash_n_A.sh_rc=0
+
+### A.sh actual diff
+--- /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh	2026-11-05 20:14:18.285055996 -0500
++++ /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/A.sh	2026-11-05 20:11:10.275536988 -0500
+@@ -23,7 +23,7 @@
+ RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+ MAIN=/home/yixunhu/codespace/FLAC
+ REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+-RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
++RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+ PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+ SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+ KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+@@ -33,8 +33,8 @@
+ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+ RES=/home/yixunhu/codespace/.gpu_reservations
+ STATE="$RUNX/exp35_supervisor_state.json"
+-TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+-LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
++TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
++LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+ TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+ NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+ DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+@@ -312,12 +312,11 @@
+   age=$(( $(date +%s) - sealed ))
+   need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+-  suplog="$RUNX/exp35_supervisor_${TS}.log"
++  suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   args_for "$tuple" "$tsha"
+   say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+-  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+-      >> "$suplog" 2>&1 < /dev/null ) &
++  say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+   pid=$!
+   sleep 20
+   found="$(procs_named exp35_supervisor.py)"
+
+### A.sh supplied diff
+26c26
+< RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+---
+> RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+36,37c36,37
+< TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+< LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+---
+> TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
+> LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+315c315
+<   suplog="$RUNX/exp35_supervisor_${TS}.log"
+---
+>   suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+319,320c319
+<   ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+<       >> "$suplog" 2>&1 < /dev/null ) &
+---
+>   say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+bash_n_C_dino_a.sh_rc=0
+
+### C_dino_a.sh actual diff
+--- /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh	2026-11-05 20:14:18.285055996 -0500
++++ /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_a.sh	2026-11-05 20:11:10.302229078 -0500
+@@ -23,7 +23,7 @@
+ RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+ MAIN=/home/yixunhu/codespace/FLAC
+ REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+-RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
++RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+ PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+ SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+ KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+@@ -33,12 +33,12 @@
+ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+ RES=/home/yixunhu/codespace/.gpu_reservations
+ STATE="$RUNX/exp35_supervisor_state.json"
+-TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+-LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
++TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
++LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+ TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+ NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+ DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+-DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
++DINO=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a
+ LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1
+             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+ SEAL_MAX_AGE_S=10800                                 # a capture older than 3 h is stale: capture again
+@@ -312,12 +312,11 @@
+   age=$(( $(date +%s) - sealed ))
+   need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+-  suplog="$RUNX/exp35_supervisor_${TS}.log"
++  suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   args_for "$tuple" "$tsha"
+   say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+-  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+-      >> "$suplog" 2>&1 < /dev/null ) &
++  say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+   pid=$!
+   sleep 20
+   found="$(procs_named exp35_supervisor.py)"
+
+### C_dino_a.sh supplied diff
+26c26
+< RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+---
+> RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+36,37c36,37
+< TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+< LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+---
+> TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
+> LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+41c41
+< DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
+---
+> DINO=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a
+315c315
+<   suplog="$RUNX/exp35_supervisor_${TS}.log"
+---
+>   suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+319,320c319
+<   ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+<       >> "$suplog" 2>&1 < /dev/null ) &
+---
+>   say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+bash_n_C_dino_b.sh_rc=0
+
+### C_dino_b.sh actual diff
+--- /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh	2026-11-05 20:14:18.285055996 -0500
++++ /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/C_dino_b.sh	2026-11-05 20:11:10.328513464 -0500
+@@ -23,7 +23,7 @@
+ RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+ MAIN=/home/yixunhu/codespace/FLAC
+ REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+-RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
++RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+ PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+ SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+ KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+@@ -33,12 +33,12 @@
+ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+ RES=/home/yixunhu/codespace/.gpu_reservations
+ STATE="$RUNX/exp35_supervisor_state.json"
+-TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+-LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
++TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
++LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+ TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+ NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+ DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+-DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
++DINO=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b
+ LAUNCH_ENV=(HOME=/home/yixunhu USER=yixunhu LOGNAME=yixunhu SHELL=/bin/bash LANG=en_US.UTF-8 PYTHONDONTWRITEBYTECODE=1
+             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+ SEAL_MAX_AGE_S=10800                                 # a capture older than 3 h is stale: capture again
+@@ -312,12 +312,11 @@
+   age=$(( $(date +%s) - sealed ))
+   need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+-  suplog="$RUNX/exp35_supervisor_${TS}.log"
++  suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   args_for "$tuple" "$tsha"
+   say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+-  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+-      >> "$suplog" 2>&1 < /dev/null ) &
++  say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+   pid=$!
+   sleep 20
+   found="$(procs_named exp35_supervisor.py)"
+
+### C_dino_b.sh supplied diff
+26c26
+< RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+---
+> RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+36,37c36,37
+< TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+< LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+---
+> TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
+> LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+41c41
+< DINO=/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m
+---
+> DINO=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b
+315c315
+<   suplog="$RUNX/exp35_supervisor_${TS}.log"
+---
+>   suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+319,320c319
+<   ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+<       >> "$suplog" 2>&1 < /dev/null ) &
+---
+>   say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+bash_n_D_fake_sup.sh_rc=0
+
+### D_fake_sup.sh actual diff
+--- /home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh	2026-11-05 20:14:18.285055996 -0500
++++ /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/D_fake_sup.sh	2026-11-05 20:11:10.352324389 -0500
+@@ -23,7 +23,7 @@
+ RUN=/home/yixunhu/codespace/exp-35-orbitrir-yaw
+ MAIN=/home/yixunhu/codespace/FLAC
+ REL=worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude
+-RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
++RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+ PY=/home/yixunhu/miniconda3/envs/flac/bin/python
+ SUP="$RUNX/exp35_supervisor.py"; IDH="$RUNX/exp35_gpu_identity.py"; GUARD="$RUNX/exp35_training_guard.py"
+ KIT=/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn
+@@ -33,8 +33,8 @@
+ RANK0=3027719; TRAINER=3028196                       # his s43 ranks (GPU 0, GPU 1); the tuple approves TRAINER only
+ RES=/home/yixunhu/codespace/.gpu_reservations
+ STATE="$RUNX/exp35_supervisor_state.json"
+-TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+-LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
++TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
++LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+ TS_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'
+ NAS_MANIFEST=/media/diskstation/yixunhu/FLAC/checkpoints/ar_40k_endpoints/MANIFEST.sha256
+ DUMP_ROOT=/media/diskstation/yixunhu/FLAC/exp25_pred_waveforms
+@@ -179,7 +179,7 @@
+   ( set -o noclobber; : > "$log" ) 2>/dev/null || { say "CHECK FAILED: the dry-run transcript ${log} already exists"; FAIL=1; return; }
+   mark="$(mktemp)"; sleep 1
+   args_for "$1" "$2"
+-  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
++  ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/fake_sup.py --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
+   cat "$log"
+   say "dry run rc ${rc}; transcript ${log} sha256 $(sha "$log")"
+   need "the supervisor dry run in the launch environment: rc 0 and DRY RUN OK" \
+@@ -312,12 +312,11 @@
+   age=$(( $(date +%s) - sealed ))
+   need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+-  suplog="$RUNX/exp35_supervisor_${TS}.log"
++  suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+   ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   args_for "$tuple" "$tsha"
+   say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+-  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+-      >> "$suplog" 2>&1 < /dev/null ) &
++  say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+   pid=$!
+   sleep 20
+   found="$(procs_named exp35_supervisor.py)"
+
+### D_fake_sup.sh supplied diff
+26c26
+< RUNX="$RUN/$REL"; MAINX="$MAIN/$REL"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+---
+> RUNX="$RUN/$REL"; MAINX="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out"; X25=worklog/worklog_yixun/exp_25_depth_canon_claude
+36,37c36,37
+< TUPLE_DIR="$RUNX"                                     # the canonical home of the approved tuple
+< LADDER_DIR="$RUNX"                                    # the four-rung ladder transcripts at H35 (untracked)
+---
+> TUPLE_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run"                                     # the canonical home of the approved tuple
+> LADDER_DIR="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder"                                    # the four-rung ladder transcripts at H35 (untracked)
+182c182
+<   ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" "$SUP" --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
+---
+>   ( cd "$RUN" && env -i "${LAUNCH_ENV[@]}" "$PY" /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/fake_sup.py --dry-run "${SUP_ARGS[@]}" ) >> "$log" 2>&1; rc=$?
+315c315
+<   suplog="$RUNX/exp35_supervisor_${TS}.log"
+---
+>   suplog="/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_supervisor_${TS}.log"
+319,320c319
+<   ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+<       >> "$suplog" 2>&1 < /dev/null ) &
+---
+>   say "TEST STUB: WOULD LAUNCH NOW (nothing started)"; rm -f -- "$suplog"; return 0
+
+exec
+/bin/bash -lc 'TESTROOT=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3
+PROD=/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+for f in A.sh C_dino_a.sh C_dino_b.sh D_fake_sup.sh; do
+  cmp -s <(diff "$PROD" "$TESTROOT/$f" || true) "$TESTROOT/$f.diff"
+  printf '"'%s supplied_diff_matches_actual_rc=%s\\n' \""'$f" "$?"
+done
+printf '"'\\nHarness summary:\\n'
+sed -n '1,220p' \""'$TESTROOT/harness_run.txt"
+printf '"'\\nTranscript key lines:\\n'
+for f in \""'$TESTROOT"/T*.txt; do
+  printf '"'\\n### %s\\n' \""'${f##*/}"
+  rg -n '"'CHECK FAILED|CAPTURE REFUSED|LAUNCH REFUSED|TEST STUB|CAPTURE CHECKS OK|"'^SEAL |''^LAUNCH LINE|dry run rc|DINOv3|canonical|sealed_at|still current|the seal is current|tuple still hashes|record copy|capture log still hashes|ladder rung 2 transcript unchanged'"' \""'$f" | sed -n '"'1,100p'
+done" in /home/yixunhu/codespace/FLAC
+ succeeded in 19ms:
+33:CHECK FAILED: the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)
+257:CAPTURE REFUSED before the tuple: at least one CHECK failed (see above)
+
+### T13_dry_run_fails.txt
+33:CHECK OK: the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)
+280:dry run rc 1; transcript /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/orbitrir_yaw_evidence_2026-11-05_20-13-21_phase_i_capture_supervisor_dry_run.log sha256 913cf7744d9f3e1c32e4bae882ecb8b4bddde8a993a4781cc811ba105521730d
+281:CHECK FAILED: the supervisor dry run in the launch environment: rc 0 and DRY RUN OK
+284:CAPTURE REFUSED: at least one CHECK failed (see above); no record copy, no seal
+
+exec
+/bin/bash -lc "git diff --unified=6 6f6fbd88 2143fecc -- worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh
+printf '\\nRelevant current source:\\n'
+nl -ba worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh | sed -n '32,52p;137,191p;267,322p'
+printf '\\nReference assert_vit_pin candidates:\\n'
+rg -n --hidden 'def assert_vit_pin|assert_vit_pin|VIT_FILES|VIT_REV' /home/yixunhu/codespace/FLAC /home/yixunhu/codespace/exp-35-orbitrir-yaw 2>/dev/null | sed -n '1,120p'" in /home/yixunhu/codespace/FLAC
+ succeeded in 4963ms:
+s.py:65:def assert_vit_pin(hub_cache=None):
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:73:    if snaps != [VIT_REV]:
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:75:            f"DINOv3 cache snapshots {snaps} != pinned [{VIT_REV!r}] — refuse to launch")
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:76:    snap = os.path.join(snap_dir, VIT_REV)
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:78:    if files != sorted(VIT_FILES):
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:79:        raise RuntimeError(f"DINOv3 snapshot files {files} != the pinned {sorted(VIT_FILES)} — refuse to launch")
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:80:    for name, want in sorted(VIT_FILES.items()):
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:90:    print(f"ViT pin OK: cache {cache}, single snapshot {VIT_REV[:12]}…, every file pinned "
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:91:          f"({', '.join(f'{n} {s[:12]}…' for n, s in sorted(VIT_FILES.items()))}; launch with HF_HUB_OFFLINE=1)")
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py:114:assert_vit_pin()
+/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_07_fa_scratch_claude/fa_scratch_worklog.md:43:  - *H2 (reviewer's single-most-important):* pin made **fail-closed** — `assert_arm_configs.py::assert_vit_pin()` hard-fails unless the HF cache holds exactly rev `114c1379…` with sha256 `4610ad75…`; launch manifest adds `HF_HUB_OFFLINE=1`. v3 asserts run green (`fa_scratch_2026-07-11_00:11:31_arm_asserts_v3.log`).
+
+exec
+/bin/bash -lc "nl -ba worklog/worklog_yixun/exp_07_fa_scratch_claude/assert_arm_configs.py | sed -n '50,98p'
+printf '\\nCurrent launch section 275-320:\\n'
+nl -ba worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh | sed -n '275,320p'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+    50	# its init weights are lineage-relevant. This gate refuses to proceed unless the
+    51	# HF cache holds EXACTLY the pinned snapshot — combined with HF_HUB_OFFLINE=1
+    52	# at launch, the run can never silently pick up a different revision.
+    53	# Fail-closed by construction: explicit raises (survive `python -O`, unlike
+    54	# assert) and the cache dir resolved via huggingface_hub itself (honors
+    55	# HF_HOME/HF_HUB_CACHE exactly like the transformers loader does).
+    56	VIT_REV = "114c1379950215c8b35dfcd4e90a5c251dde0d32"
+    57	VIT_SHA256 = "4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d"
+    58	# exp_25 rB-F1 A2 (Codex rA H5): EVERY file AutoModel.from_pretrained consumes from the snapshot is
+    59	# pinned -- config.json too (a compatible edit, e.g. dropout or layer_norm_eps, would keep the weights
+    60	# loadable and change the run); any other file in the snapshot refuses.
+    61	VIT_FILES = {"config.json": "9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b",
+    62	             "model.safetensors": VIT_SHA256}
+    63	
+    64	
+    65	def assert_vit_pin(hub_cache=None):
+    66	    from huggingface_hub.constants import HF_HUB_CACHE  # env-resolved cache root
+    67	    cache = hub_cache or HF_HUB_CACHE
+    68	    hub = os.path.join(cache, "models--facebook--dinov3-vits16-pretrain-lvd1689m")
+    69	    snap_dir = os.path.join(hub, "snapshots")
+    70	    if not os.path.isdir(snap_dir):
+    71	        raise RuntimeError(f"DINOv3 cache missing at {snap_dir} — refuse to launch")
+    72	    snaps = sorted(os.listdir(snap_dir))
+    73	    if snaps != [VIT_REV]:
+    74	        raise RuntimeError(
+    75	            f"DINOv3 cache snapshots {snaps} != pinned [{VIT_REV!r}] — refuse to launch")
+    76	    snap = os.path.join(snap_dir, VIT_REV)
+    77	    files = sorted(os.path.relpath(os.path.join(d, f), snap) for d, _, fs in os.walk(snap) for f in fs)
+    78	    if files != sorted(VIT_FILES):
+    79	        raise RuntimeError(f"DINOv3 snapshot files {files} != the pinned {sorted(VIT_FILES)} — refuse to launch")
+    80	    for name, want in sorted(VIT_FILES.items()):
+    81	        path = os.path.join(snap, name)
+    82	        if not os.path.isfile(path):
+    83	            raise RuntimeError(f"DINOv3 {name} is not a readable regular file (dangling link?) — refuse to launch")
+    84	        h = hashlib.sha256()
+    85	        with open(path, "rb") as f:
+    86	            for chunk in iter(lambda: f.read(1 << 20), b""):
+    87	                h.update(chunk)
+    88	        if h.hexdigest() != want:
+    89	            raise RuntimeError(f"DINOv3 {name} sha256 {h.hexdigest()} != pinned {want}")
+    90	    print(f"ViT pin OK: cache {cache}, single snapshot {VIT_REV[:12]}…, every file pinned "
+    91	          f"({', '.join(f'{n} {s[:12]}…' for n, s in sorted(VIT_FILES.items()))}; launch with HF_HUB_OFFLINE=1)")
+    92	
+    93	
+    94	def build(name):
+    95	    # identical RNG state before each build -> init weights must match across arms
+    96	    torch.manual_seed(SEED)
+    97	    np.random.seed(SEED)
+    98	    random.seed(SEED)
+
+Current launch section 275-320:
+   275	launch() {
+   276	  local seal="${3:-}" ssha="${4:-}" tuple tsha copy csha clog clsha age suplog pid found
+   277	  say "=== exp_35 phase (i) LAUNCH -- $(date -Is) -- H35 ${H35} -- seal ${seal} ${ssha} ==="
+   278	  say "this script: ${SELF_SHA}  $0"
+   279	  script_check
+   280	  need "the seal is a regular file in the main checkout's exp_35 folder" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && [ "$(dirname "$1")" = "$2" ]' _ "$seal" "$MAINX"
+   281	  need "the seal's sha256 is the given value" eq "$(sha "$seal")" "$ssha"
+   282	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: the seal"; return 1; }
+   283	  cat "$seal"
+   284	  sv() { awk -v k="$1" '$1 == k {$1 = ""; sub(/^ /, ""); print; exit}' "$seal"; }
+   285	  need "the seal names this H35" eq "$(sv h35)" "$H35"
+   286	  need "the seal names this script" eq "$(sv script_sha256)" "$SELF_SHA"
+   287	  need "the seal names the pinned campaign digest" eq "$(sv campaign_digest)" "$PIN_DIGEST"
+   288	  read -r tuple tsha <<<"$(sv tuple)"; read -r copy csha <<<"$(sv tuple_copy)"; read -r clog clsha <<<"$(sv capture_log)"
+   289	  need "the tuple is the canonical run-worktree file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^exp35_approved_cotenants_$3\.json$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$tuple" "$TUPLE_DIR" "$TS_RE"
+   290	  need "the tuple still hashes to the sealed value" eq "$(sha "$tuple")" "$tsha"
+   291	  need "the record copy is the main-checkout file of the same name, byte-identical" bash -c '[ "$1" = "$2/${3##*/}" ] && [ -f "$1" ] && [ ! -L "$1" ] && [ "$(sha256sum < "$1" | cut -c1-64)" = "$4" ] && [ "$4" = "$5" ]' _ "$copy" "$MAINX" "$tuple" "$csha" "$tsha"
+   292	  need "the capture log is the canonical main-checkout file" bash -c '[ "${1%/*}" = "$2" ] && [[ "${1##*/}" =~ ^orbitrir_yaw_evidence_$3_phase_i_capture\.log$ ]] && [ -f "$1" ] && [ ! -L "$1" ]' _ "$clog" "$MAINX" "$TS_RE"
+   293	  need "the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK" bash -c '[ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] && grep -q "^CAPTURE CHECKS OK" "$1" && ! grep -q "^CHECK FAILED" "$1"' _ "$clog" "$clsha"
+   294	  local sealed; sealed="$(sv sealed_at | awk '{print $1}')"
+   295	  need "the seal's sealed_at is a decimal epoch (${sealed})" bash -c '[[ "$1" =~ ^[0-9]{10}$ ]]' _ "$sealed"
+   296	  [[ "$sealed" =~ ^[0-9]{10}$ ]] || sealed=0
+   297	  age=$(( $(date +%s) - sealed ))
+   298	  need "the seal is current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   299	  local k name path want; for k in 1 2 3 4; do
+   300	    read -r name want <<<"$(sv "ladder_$k")"
+   301	    need "ladder rung $k: a canonical basename" bash -c '[[ "$1" =~ ^orbitrir_yaw_evidence_$2_LADDER_$3_[a-z0-9_]+_at_$4\.log$ ]]' _ "$name" "$TS_RE" "$k" "${H35:0:8}"
+   302	    need "ladder rung $k transcript unchanged since the capture" eq "$(sha "$LADDER_DIR/$name")" "$want"; done
+   303	  need "the tuple validates" "$PY" -B "$IDH" --validate "$tuple" --approved-sha256 "$tsha"
+   304	  mutable_checks
+   305	  common_checks
+   306	  need "the live GPU 1 set equals the tuple" "$PY" -B "$IDH" --check --approved "$tuple" --approved-sha256 "$tsha" --gpu-uuid "$GPU1" --pids "$(gpu1_pids)"
+   307	  dry_run "$tuple" "$tsha"
+   308	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED: at least one CHECK failed (see above)"; return 1; }
+   309	  # the last look, immediately before the detachment
+   310	  need "last look: HEAD, apps, state, lock, reservations" bash -c '[ "$(git -C "$1" rev-parse HEAD)" = "$2" ] && [ ! -e "$3" ] && [ ! -e "$3.lock" ] && [ ! -e "$4" ] && [ ! -e "$5" ]' _ "$RUN" "$H35" "$STATE" "$RES/$GPU0.json" "$RES/$GPU1.json"
+   311	  need "last look: the compute apps are his two ranks" eq "$(apps)" "$(printf '%s\n' "${RANK0},${GPU0}" "${TRAINER},${GPU1}" | LC_ALL=C sort)"
+   312	  age=$(( $(date +%s) - sealed ))
+   313	  need "last look: the seal is still current (${age} s old <= ${SEAL_MAX_AGE_S} s)" test "$sealed" -gt 0 -a "$age" -ge 0 -a "$age" -le "$SEAL_MAX_AGE_S"
+   314	  [ "$FAIL" = 0 ] || { say "LAUNCH REFUSED at the last look"; return 1; }
+   315	  suplog="$RUNX/exp35_supervisor_${TS}.log"
+   316	  ( set -o noclobber; : > "$suplog" ) || { say "LAUNCH REFUSED: ${suplog} exists"; return 1; }
+   317	  args_for "$tuple" "$tsha"
+   318	  say "starting: cd ${RUN} && env -i ${LAUNCH_ENV[*]} setsid nohup ${PY} ${SUP} ${SUP_ARGS[*]} >> ${suplog} 2>&1 < /dev/null &"
+   319	  ( cd "$RUN" && exec env -i "${LAUNCH_ENV[@]}" /usr/bin/setsid /usr/bin/nohup "$PY" "$SUP" "${SUP_ARGS[@]}" \
+   320	      >> "$suplog" 2>&1 < /dev/null ) &
+
+exec
+/bin/bash -lc "for v in 0000000008 0999999999 0123456789 1793927495; do
+  bash -c 'sealed="'$1; [[ "$sealed" =~ ''^[0-9]{10}$ ]]; printf "regex=%s " "$?"; age=$(( 2000000000 - sealed )); printf "age=%s after'"\\n\" \""'$age"'"' _ \""'$v" >/dev/null 2>&1
+  printf '"'sealed=%s snippet_rc=%s\\n' \""'$v" "$?"
+done
+bash --version | sed -n '"'1p'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+sealed=0000000008 snippet_rc=1
+sealed=0999999999 snippet_rc=1
+sealed=0123456789 snippet_rc=1
+sealed=1793927495 snippet_rc=0
+GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)
+
+codex
+The delta’s core mechanics look sound so far: hidden-aware recursive `find` now counts dot entries and subdirectories while the two DINO hashes remain pinned; path checks split exact directory from anchored basenames; and capture/launch dry-run logs use distinct mode-qualified names with fail-closed precreation. I’m now closing the harness audit, especially first-failure causality and byte-exact restoration.
+exec
+/bin/bash -lc 'TESTROOT=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3
+SEAL=$(find "$TESTROOT/out" -maxdepth 1 -type f -name '"'*_capture_seal.txt' -print)
+printf 'seal_count=%s\\n' \""'$(printf '"'%s\\n' \""'$SEAL" | sed '"'/"'^$/d'"' | wc -l)\"
+printf '\\nSeal:\\n'; sed -n '1,100p' \""'$SEAL"
+printf '"'\\nCurrent artifact hashes versus seal:\\n'
+awk '"'$1=="tuple" || $1=="tuple_copy" || $1=="capture_log" {print $1, $2, $3} $1 ~ /''^ladder_[1-4]$/ {print $1, $2, $3}'"' \""'$SEAL" |
+while read -r kind path want; do
+  case "$kind" in ladder_*) path="$TESTROOT/ladder/$path";; esac
+  got=$(sha256sum < "$path" | cut -c1-64)
+  if [ "$got" = "$want" ]; then match=yes; else match=no; fi
+  printf '"'%s match=%s want=%s got=%s path=%s\\n' \""'$kind" "$match" "$want" "$got" "$path"
+done
+printf '"'\\nFirst/all failures and accidental stub reach:\\n'
+for f in \""'$TESTROOT"/T{03..09}_*.txt "$TESTROOT"/T{11..13}_*.txt; do
+  printf '"'\\n%s\\n' \""'${f##*/}"
+  rg -n '"'"'^CHECK FAILED|TEST STUB: WOULD LAUNCH|''^SEAL |''^LAUNCH LINE'"' \""'$f" || true
+done
+printf '"'\\nFake hubs and supervisor:\\n'
+find \""'$TESTROOT/dino_a" "$TESTROOT/dino_b" -mindepth 1 -printf '"'%p -> %l (%y)\\n' | LC_ALL=C sort
+nl -ba \""'$TESTROOT/fake_sup.py"
+printf '"'\\nBackup residue:\\n'
+find \""'$TESTROOT" -name '"'*.bak' -o -name '*~' -print" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+seal_count=1
+
+Seal:
+ladder_1 orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log c3f62847a6a5836f0679a55590ef14dbba0175d57e445f3967ce9a4816b6edf7
+ladder_2 orbitrir_yaw_evidence_2026-11-05_19-23-49_LADDER_2_supervisor_live_dry_run_at_5b065801.log 587ee8f9da178849edad169c096a914f07f91774f815538654ef59c56111819b
+ladder_3 orbitrir_yaw_evidence_2026-11-05_19-24-07_LADDER_3_runner_dry_run_phase_i_at_5b065801.log 321dfc7daaf9bdd7753d0ba8371bfe116ad6bece844693fd30d18f7d0308a523
+ladder_4 orbitrir_yaw_evidence_2026-11-05_19-25-16_LADDER_4_all_suites_in_worktree_at_5b065801.log 1fc44f927f222fdde22487296d4288df1cfecab3a466e115ff29603de45ed0b4
+h35 5b065801e9d1c1844461ec84cd0558702c714326
+script_sha256 612200c8c00fd96382b33bf7c5c7be3f0d83b2d6bd9b0a759a83e5cfcceef519
+tuple /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run/exp35_approved_cotenants_2026-11-05_20-11-10.json 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+tuple_copy /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_approved_cotenants_2026-11-05_20-11-10.json 238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e
+campaign_digest da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1
+pin_vae /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/FLAC/VAE.ckpt 6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf
+pin_agree /home/yixunhu/codespace/exp-35-orbitrir-yaw/weights/AGREE/AGREE_fullAR.pt 3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787
+pin_dino_config /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json 9481247be9f95a134a5599402b4bfc838eecdf9a7fffbf4debd1c70ec213898b
+pin_dino_weights /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors 4610ad75edef83e75afdebf162d148dc628045ea6cbb83d67d4708c709c4f91d
+pin_queue /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue.sh 9394ca903931de7778f9665e36b355d9cfab1d61e693703a29e02d43c505caaa
+pin_evaluator /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_eval.sh 94fcc9e17da578049f0c4a3a05798d00f7d312426300b1f20786367b7b863d6c
+pin_admission /home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/exp30_attn_queue_state.py 8572bb0305bcd1f1f245a9d2b31ca9760ba7ed036bccf5bf612d2b2208b33907
+pin_cells /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cells.json 440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d
+pin_overlay /home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/flash_attn.py 0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023
+pin_launcher /home/yixunhu/codespace/exp-35-orbitrir-yaw/overlays/no_flash/exp35_no_flash_launch.py bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de
+pin_exp25_results /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_results.json ec3fcd08e3d210524b50246d9bfdf084e72835432a5d06450085e0cad12eb6e0
+pin_stream_registry /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_exp25_stream_registry.json 9ec31f32a9d89cf9ffa90938d7f1198658af2eafa3b53675605d9fb925365a24
+pin_a6_raw /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_metrics_raw.csv 0ae554c09f45ce89b8957cf75a3d15e44f4173f4f8987497dbbebf16bbfb23da
+pin_a6_summary /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_metrics_summary.csv e4602115f9e75479cdb76166b53a2907d11b8d32c64e0d61f1fa2d5342b09034
+pin_a6_c4_raw /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_c4_metrics_raw.csv 441ade8b4931e69a358d760fb2b4fe29d72a6c40f4c00f5582eda0690a2598de
+pin_a6_c4_summary /home/yixunhu/codespace/exp-35-orbitrir-yaw/analysis/yaw_robustness/generated/yaw_c4_metrics_summary.csv b21ffbe7b264178bd7768bad8ac441c9dbd037217a0198c61c3ea5892cc9bf91
+pip_freeze 8b7a802e65114c44bbf98206f0ccce6b960d48e5b094941496c3801cea1defb2
+versions 3.10.20 2.7.0+cu126 12.6 2.7.4.post1
+his_step 27814
+capture_log /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/orbitrir_yaw_evidence_2026-11-05_20-11-10_phase_i_capture.log f4cc2cfb2591e712669f99e953429dec5dc154a8938cda07f40ae2617fde21ff
+sealed_at 1793927495 2026-11-05T20:11:35-05:00
+
+Current artifact hashes versus seal:
+ladder_1 match=yes want=c3f62847a6a5836f0679a55590ef14dbba0175d57e445f3967ce9a4816b6edf7 got=c3f62847a6a5836f0679a55590ef14dbba0175d57e445f3967ce9a4816b6edf7 path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder/orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log
+ladder_2 match=yes want=587ee8f9da178849edad169c096a914f07f91774f815538654ef59c56111819b got=587ee8f9da178849edad169c096a914f07f91774f815538654ef59c56111819b path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder/orbitrir_yaw_evidence_2026-11-05_19-23-49_LADDER_2_supervisor_live_dry_run_at_5b065801.log
+ladder_3 match=yes want=321dfc7daaf9bdd7753d0ba8371bfe116ad6bece844693fd30d18f7d0308a523 got=321dfc7daaf9bdd7753d0ba8371bfe116ad6bece844693fd30d18f7d0308a523 path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder/orbitrir_yaw_evidence_2026-11-05_19-24-07_LADDER_3_runner_dry_run_phase_i_at_5b065801.log
+ladder_4 match=yes want=1fc44f927f222fdde22487296d4288df1cfecab3a466e115ff29603de45ed0b4 got=1fc44f927f222fdde22487296d4288df1cfecab3a466e115ff29603de45ed0b4 path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/ladder/orbitrir_yaw_evidence_2026-11-05_19-25-16_LADDER_4_all_suites_in_worktree_at_5b065801.log
+tuple match=yes want=238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e got=238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/run/exp35_approved_cotenants_2026-11-05_20-11-10.json
+tuple_copy match=yes want=238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e got=238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/exp35_approved_cotenants_2026-11-05_20-11-10.json
+capture_log match=yes want=f4cc2cfb2591e712669f99e953429dec5dc154a8938cda07f40ae2617fde21ff got=f4cc2cfb2591e712669f99e953429dec5dc154a8938cda07f40ae2617fde21ff path=/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/out/orbitrir_yaw_evidence_2026-11-05_20-11-10_phase_i_capture.log
+
+First/all failures and accidental stub reach:
+
+T03_stale_seal.txt
+45:CHECK FAILED: the seal is current (14400 s old <= 10800 s)
+
+T04_malformed_sealed_at.txt
+44:CHECK FAILED: the seal's sealed_at is a decimal epoch (abc)
+45:CHECK FAILED: the seal is current (1793927510 s old <= 10800 s)
+
+T05_traversal_tuple.txt
+39:CHECK FAILED: the tuple is the canonical run-worktree file
+41:CHECK FAILED: the tuple still hashes to the sealed value
+42:CHECK FAILED: the record copy is the main-checkout file of the same name, byte-identical
+55:CHECK FAILED: the tuple validates
+96:CHECK FAILED: the live GPU 1 set equals the tuple
+99:CHECK FAILED: the supervisor dry run in the launch environment: rc 0 and DRY RUN OK
+
+T06_tuple_tampered.txt
+40:CHECK FAILED: the tuple still hashes to the sealed value
+54:CHECK FAILED: the tuple validates
+95:CHECK FAILED: the live GPU 1 set equals the tuple
+98:CHECK FAILED: the supervisor dry run in the launch environment: rc 0 and DRY RUN OK
+
+T07_copy_tampered.txt
+41:CHECK FAILED: the record copy is the main-checkout file of the same name, byte-identical
+
+T08_capture_log_tampered.txt
+43:CHECK FAILED: the capture log still hashes to the sealed value and shows CAPTURE CHECKS OK
+
+T09_ladder_tampered.txt
+49:CHECK FAILED: ladder rung 2 transcript unchanged since the capture
+
+T11_dino_hidden_file.txt
+33:CHECK FAILED: the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)
+
+T12_dino_hidden_snapshot.txt
+33:CHECK FAILED: the DINOv3 cache holds exactly snapshot 114c1379… with exactly config.json + model.safetensors (hidden entries counted)
+
+T13_dry_run_fails.txt
+281:CHECK FAILED: the supervisor dry run in the launch environment: rc 0 and DRY RUN OK
+
+Fake hubs and supervisor:
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a/snapshots ->  (d)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32 ->  (d)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/.hidden_file ->  (f)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json -> /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json (l)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_a/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors -> /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors (l)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b/snapshots ->  (d)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b/snapshots/.hidden_snapshot ->  (d)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32 ->  (d)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json -> /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/config.json (l)
+/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/dino_b/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors -> /home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m/snapshots/114c1379950215c8b35dfcd4e90a5c251dde0d32/model.safetensors (l)
+     1	import sys
+     2	print("DRY RUN REFUSED: the harness fake supervisor")
+     3	sys.exit(1)
+
+Backup residue:
+
+exec
+/bin/bash -lc "bash -c 'r=\""'^exp35_approved_cotenants_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}'"\\\\.json"'$"; for s in "exp35_approved_cotenants_2026-11-05_20-11-10.json" $'"'\"'\"'exp35_approved_cotenants_2026-11-05_20-11-10.json\\n'\"'\"' \"exp35_approved_cotenants_2026-11-05_20-11-10.json/../x\" \"exp35_approved_cotenants_2026-11-05_20-11-10..json\"; do [[ \""'$s" =~ $r ]]; printf "%q => %s'"\\n\" \""'$s" "$?"; done'"'
+bash -c 'r=\""'^orbitrir_yaw_evidence_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}_LADDER_1_[a-z0-9_]+_at_5b065801'"\\\\.log"'$"; for s in orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log "../orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_x_at_5b065801.log" "orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_.._at_5b065801.log"; do [[ "$s" =~ $r ]]; printf "%q => %s'"\\n\" \""'$s" "$?"; done'"'" in /home/yixunhu/codespace/FLAC
+ succeeded in 0ms:
+exp35_approved_cotenants_2026-11-05_20-11-10.json => 0
+$'exp35_approved_cotenants_2026-11-05_20-11-10.json\n' => 1
+exp35_approved_cotenants_2026-11-05_20-11-10.json/../x => 1
+exp35_approved_cotenants_2026-11-05_20-11-10..json => 1
+orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_exp25_byte_guard_at_5b065801.log => 0
+../orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_x_at_5b065801.log => 1
+orbitrir_yaw_evidence_2026-11-05_19-07-35_LADDER_1_.._at_5b065801.log => 1
+
+Completed the read-only delta and evidence audit. The production blob, test-source blob, supplied diffs, transcripts, and restored artifacts are internally consistent; no launch-blocking delta defect was found.
+  ✓ Verify repository instructions, commits, hashes, and INT-L2 baseline review
+  ✓ Review only the 6f6fbd88 → 2143fecc script delta against M1–M3 and regressions
+  ✓ Audit harness fidelity, negative-case transcripts, restores, and artifacts for M4
+  ✓ Synthesize ranked findings and M1–M5 ship verdict
+codex
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** code INT-L3 (exp_35: the launch script's INT-L2 fixes; 6f6fbd88 → 2143fecc)
+
+**Verdict:** SHIP — the INT-L2 findings are resolved. The Planner may run the stated capture command and, after it succeeds, the exact launch line it prints.
+
+## Per-item status
+
+| Item | Status | Review |
+|---|---|---|
+| **M1** | **RESOLVED** | [exp35_phase_i_launch.sh:47](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:47), [exp35_phase_i_launch.sh:145](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:145). The top-level `find` counts every snapshot entry, including hidden entries and directories. The recursive snapshot `find` counts both files and subdirectories, including hidden ones. The comparison requires exactly the pinned revision and exactly `config.json model.safetensors`. Both SHA-256 pins remain in `PINS`. This satisfies—and for empty subdirectories is stricter than—the referenced `assert_vit_pin()` set check. T11 and T12 fail specifically at this check. |
+| **M2** | **RESOLVED** | [exp35_phase_i_launch.sh:38](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:38), [exp35_phase_i_launch.sh:289](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:289). Tuple and capture-log paths require exact lexical directory equality plus anchored timestamped basenames. The record copy must be the exact main-checkout path derived from the already-canonical tuple basename and must be a regular, non-symlink file. Ladder records accept only anchored basenames tied to timestamp, rung number, and H35 prefix. None of the basename character sets permits `/` or `..`; newline, traversal, doubled suffix, and directory-prefix variants do not match. |
+| **M3** | **RESOLVED** | [exp35_phase_i_launch.sh:178](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:178), [exp35_phase_i_launch.sh:294](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:294), [exp35_phase_i_launch.sh:312](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:312). `sealed_at` must be exactly ten decimal digits before arithmetic; malformed input is coerced to zero and refuses. Age is recalculated in the final-look block. Dry-run transcripts are precreated under `noclobber`, then appended, and `${MODE}` gives capture and launch distinct names. |
+| **M4** | **RESOLVED** | [harness.sh:10](/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh:10), [harness.sh:45](/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh:45). All 13 recorded cases have the expected result, and every negative case’s first failure is its intended check. T04 and T05/T06 have consequential downstream failures after the intended first failure, but no negative reaches the launch stub. T10 passes after all four restores. Current tuple, copy, capture-log, and all four ladder hashes exactly match the seal, confirming byte-exact restoration. The source used to build the copies is byte-identical to production, and each supplied `.diff` exactly matches its corresponding copy. |
+| **M5** | **RESOLVED** | No defect was introduced by the delta. Production `LADDER_DIR="$RUNX"` preserves behavior; the new variable only enables faithful test redirection. The revised script is suitable for phase-(i) capture and launch, subject to its live checks passing at execution time. |
+
+## Ranked findings
+
+No BLOCKING, HIGH, or NIT findings.
+
+## What I verified
+
+- Confirmed `HEAD` is `2143fecc5a253c728d0f9ebbc923d0cc84be4bf7` on `localization-exp`.
+- Confirmed baseline/current script SHA-256 values `82155db541b6…` and `7b68c8a0faeb…`.
+- Inspected the complete `6f6fbd88..2143fecc` delta; `git diff --check` passed.
+- `bash -n` passed for production and all four test copies.
+- Confirmed the harness and run-evidence hashes are exactly `b3310ae8…` and `fdd84629…`.
+- Confirmed the frozen harness source is byte-identical to production and all four supplied diff files exactly describe their copies.
+- Inspected T01–T13, the fake DINO hubs, fake supervisor, seal, artifacts, and output inventory: 13 expected outcomes, one seal, no backup residue, and no negative launch-stub reach.
+- Did not run the launch script, test copies, harness, supervisor, runner, pytest, or any GPU/process command; made no filesystem or environment changes.
+
+Approved command:
+
+```bash
+EXPECT_SCRIPT_SHA256=7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c bash exp35_phase_i_launch.sh capture 5b065801e9d1c1844461ec84cd0558702c714326
+```
+
+If capture succeeds, run its exact emitted `LAUNCH LINE`.
+tokens used
+85,293
+**Reviewer:** OpenAI Codex (gpt-5.6-sol, xhigh, codex exec, read-only sandbox) · **Date:** 2026-11-05 · **Round:** code INT-L3 (exp_35: the launch script's INT-L2 fixes; 6f6fbd88 → 2143fecc)
+
+**Verdict:** SHIP — the INT-L2 findings are resolved. The Planner may run the stated capture command and, after it succeeds, the exact launch line it prints.
+
+## Per-item status
+
+| Item | Status | Review |
+|---|---|---|
+| **M1** | **RESOLVED** | [exp35_phase_i_launch.sh:47](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:47), [exp35_phase_i_launch.sh:145](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:145). The top-level `find` counts every snapshot entry, including hidden entries and directories. The recursive snapshot `find` counts both files and subdirectories, including hidden ones. The comparison requires exactly the pinned revision and exactly `config.json model.safetensors`. Both SHA-256 pins remain in `PINS`. This satisfies—and for empty subdirectories is stricter than—the referenced `assert_vit_pin()` set check. T11 and T12 fail specifically at this check. |
+| **M2** | **RESOLVED** | [exp35_phase_i_launch.sh:38](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:38), [exp35_phase_i_launch.sh:289](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:289). Tuple and capture-log paths require exact lexical directory equality plus anchored timestamped basenames. The record copy must be the exact main-checkout path derived from the already-canonical tuple basename and must be a regular, non-symlink file. Ladder records accept only anchored basenames tied to timestamp, rung number, and H35 prefix. None of the basename character sets permits `/` or `..`; newline, traversal, doubled suffix, and directory-prefix variants do not match. |
+| **M3** | **RESOLVED** | [exp35_phase_i_launch.sh:178](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:178), [exp35_phase_i_launch.sh:294](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:294), [exp35_phase_i_launch.sh:312](/home/yixunhu/codespace/FLAC/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_i_launch.sh:312). `sealed_at` must be exactly ten decimal digits before arithmetic; malformed input is coerced to zero and refuses. Age is recalculated in the final-look block. Dry-run transcripts are precreated under `noclobber`, then appended, and `${MODE}` gives capture and launch distinct names. |
+| **M4** | **RESOLVED** | [harness.sh:10](/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh:10), [harness.sh:45](/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/r3a/launch_test_v3/harness.sh:45). All 13 recorded cases have the expected result, and every negative case’s first failure is its intended check. T04 and T05/T06 have consequential downstream failures after the intended first failure, but no negative reaches the launch stub. T10 passes after all four restores. Current tuple, copy, capture-log, and all four ladder hashes exactly match the seal, confirming byte-exact restoration. The source used to build the copies is byte-identical to production, and each supplied `.diff` exactly matches its corresponding copy. |
+| **M5** | **RESOLVED** | No defect was introduced by the delta. Production `LADDER_DIR="$RUNX"` preserves behavior; the new variable only enables faithful test redirection. The revised script is suitable for phase-(i) capture and launch, subject to its live checks passing at execution time. |
+
+## Ranked findings
+
+No BLOCKING, HIGH, or NIT findings.
+
+## What I verified
+
+- Confirmed `HEAD` is `2143fecc5a253c728d0f9ebbc923d0cc84be4bf7` on `localization-exp`.
+- Confirmed baseline/current script SHA-256 values `82155db541b6…` and `7b68c8a0faeb…`.
+- Inspected the complete `6f6fbd88..2143fecc` delta; `git diff --check` passed.
+- `bash -n` passed for production and all four test copies.
+- Confirmed the harness and run-evidence hashes are exactly `b3310ae8…` and `fdd84629…`.
+- Confirmed the frozen harness source is byte-identical to production and all four supplied diff files exactly describe their copies.
+- Inspected T01–T13, the fake DINO hubs, fake supervisor, seal, artifacts, and output inventory: 13 expected outcomes, one seal, no backup residue, and no negative launch-stub reach.
+- Did not run the launch script, test copies, harness, supervisor, runner, pytest, or any GPU/process command; made no filesystem or environment changes.
+
+Approved command:
+
+```bash
+EXPECT_SCRIPT_SHA256=7b68c8a0faebbdef883d5748cbbfff6d7276ae589d98b78412e243bc903b227c bash exp35_phase_i_launch.sh capture 5b065801e9d1c1844461ec84cd0558702c714326
+```
+
+If capture succeeds, run its exact emitted `LAUNCH LINE`.
+CODEX_RC=0
+Thu Nov  5 08:18:36 PM EST 2026

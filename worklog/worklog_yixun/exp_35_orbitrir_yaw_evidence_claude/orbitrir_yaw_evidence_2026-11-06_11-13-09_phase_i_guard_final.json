@@ -1,0 +1,56 @@
+{
+ "status": "OK",
+ "exit": 0,
+ "reasons": [],
+ "baseline": 27941,
+ "thresholds": {
+  "w500": 9.712,
+  "w100": 9.95,
+  "mean": 8.521
+ },
+ "step": {
+  "epoch": 8,
+  "n": 580,
+  "total": 4550,
+  "global": 36980
+ },
+ "finished": false,
+ "windows": {
+  "500": {
+   "judged": 18,
+   "limit": 9.712,
+   "worst": {
+    "epoch": 7,
+    "start": 2000,
+    "s_per_step": 6.058
+   }
+  },
+  "100": {
+   "judged": 89,
+   "limit": 9.95,
+   "worst": {
+    "epoch": 6,
+    "start": 2700,
+    "s_per_step": 6.7
+   }
+  }
+ },
+ "mean_since_baseline": {
+  "s_per_step": 5.886381236862484,
+  "steps": 9039,
+  "limit": 8.521
+ },
+ "anchor": {
+  "inode": 120725156,
+  "device": 66306,
+  "size": 20671605,
+  "offset": 20671366,
+  "tail_sha256": "668750b144109ce8c2f18c36fb8cb929aa3a89dba638d5a7fd04c92fcc52f4b1"
+ },
+ "log": {
+  "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log",
+  "inode": 120725156,
+  "size": 20671605,
+  "mtime": 1793981587.267926
+ }
+}

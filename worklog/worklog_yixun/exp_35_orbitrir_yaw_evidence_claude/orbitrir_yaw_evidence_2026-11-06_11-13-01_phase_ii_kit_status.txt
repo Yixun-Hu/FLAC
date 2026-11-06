@@ -1,0 +1,11 @@
+exp_35 phase (ii) status at 2026-11-06T11:13:01-05:00 (read-only)
+kit: the reviewed commit 7743ef4faadfc545dcce8dc5f7b58364babf1719, clean
+cells: 68 selected, names sha256 6a88112f9cceeb9de3a8056e621b68bdc7c5d1d484aebb2e05a4624c8406d427; OK
+phase (i): state sha256 7b6cfc8cc8f2108e1a26d8fd3e7e7bccabb39988c5317925becb3dc0d9bca705; complete
+run worktree: at H35, clean, digest OK
+his files: his s43 training has not ended (its last training line: '2026-11-04T06:12:55-05:00 START training ACEattn s43 gpus 0,1 fork=2dd8fcbea35ea13a1b7f655745793e68ede173b6 package=f87b50327012c3744eac83c35327b7d5905d38a0')
+locks: supervisor lock unheld; runner lock unheld; kit lock absent
+GPU 0 GPU-0a1aaa90-3043-0321-2b0c-c35b9036624e: compute pids [3027719]; reservation absent
+GPU 1 GPU-6ac2604a-e84e-0615-1221-ccbed7c268da: compute pids [3028196]; reservation absent
+exp_35 processes: none
+orchestrations: none

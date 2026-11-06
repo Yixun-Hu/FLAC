@@ -1,0 +1,20 @@
+exp35_cell_times.py e31ef6892d0dfe0152ee47eaa17a556e65dd9aa55c9d92fe0b0452278969ba8c; 2026-11-06T05:35:38-05:00; snapshot 12f0aa546ecd731a730660872bf2cdd9ac90b2370df07fae25d530ab52ff5e29
+campaign               arm    K   block co-tenant           n  median     max
+2026-10-29_11-18-16    CANON  K1  dup   shared              1    16.0    16.0
+2026-10-29_11-18-16    CANON  K1  eval  shared             18    18.5    19.1
+2026-10-29_11-18-16    CANON  K8  dup   shared              1    20.4    20.4
+2026-10-29_11-18-16    CANON  K8  eval  shared             20    19.4    20.7
+2026-10-29_11-18-16    P1     K1  eval  shared             15    17.6    18.6
+2026-10-29_11-18-16    P1     K8  eval  shared             15    19.2    20.1
+2026-10-29_11-18-16    YAW    K1  eval  alone               4    11.9    12.8
+2026-10-29_11-18-16    YAW    K1  eval  shared             15    17.5    18.0
+2026-10-29_11-18-16    YAW    K8  eval  alone               5    12.6    20.5
+2026-10-29_11-18-16    YAW    K8  eval  shared             14    18.4    22.8
+2026-10-30_03-41-59    CANON  K1  TRAJ  alone              35    13.5    13.8
+2026-10-30_03-41-59    CANON  K1  TRAJ  shared             25    18.5    18.8
+2026-10-30_03-41-59    CANON  K8  TRAJ  alone              34    14.8    16.0
+2026-10-30_03-41-59    CANON  K8  TRAJ  shared             26    20.0    20.3
+exp35 phase (i)        BF     K1  eval  shared (his s43)    5    25.2    25.2
+exp35 phase (i)        BF     K8  eval  shared (his s43)    5    30.3    30.3
+exp35 phase (i)        P1     K1  eval  shared (his s43)    1    20.2    20.2
+exp35 phase (i)        P1     K8  eval  shared (his s43)    1    25.2    25.2

@@ -1,0 +1,23 @@
+=== exp_25 depth_canon eval campaign -- 2026-11-06_00-55-47 -- HEAD 5b065801e9d1c1844461ec84cd0558702c714326 -- dry_run=0 -- harness=false ===
+evaluator pin OK: 5b065801e9d1c1844461ec84cd0558702c714326; evaluator tree digest da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1
+no-flash overlay + launcher OK: 0d0e52ca693e / bbd2847d3a50 (1 exp_35 cell(s))
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+cells manifest OK
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+plan: 1 cell(s) -> worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_00-55-47_eval_plan.json
+plan: 1 cell(s); dump root /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms; farm outputs_FLAC/exp25_depth_canon; lanes 1
+configs OK: every model / dataset config of the selection matches its manifest pin
+approved tuple OK: /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_approved_cotenants_2026-11-05_20-19-20.json
+BACKEND OK worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_00-55-47_no_flash_preflight.log
+no-flash pre-flight OK: 1 exp_35 cell(s) spawn through overlays/no_flash/exp35_no_flash_launch.py (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_00-55-47_no_flash_preflight.log)
+dump root OK: /media/diskstation/yixunhu/FLAC/exp25_pred_waveforms is cifs //10.249.7.28/shared_data, write probe created + removed
+checkpoint cache space: 0 checkpoint(s) to stage = 0 B + 2147483648 B margin = 2147483648 B needed; 707312590848 B available on outputs_FLAC/exp25_depth_canon/.ckpt_cache
+checkpoint OK: cached outputs_FLAC/exp25_depth_canon/.ckpt_cache/5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328.ckpt re-verified (0444, 723922667 bytes, 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+CELL exp35_BF_T_S40000_K1_s46 | BF-pin | BF |  run
+  GPU 1: shared with pid 3028196 (/home/yixunhu/miniconda3/envs/flac/bin/python, 8248 MiB, cwd /home/yixunhu/codespace/flac-fork-attn) (ALLOW_SHARED_GPU=1) [identity tuple OK: 3028196]
+  checkpoint re-verified before the spawn: outputs_FLAC/exp25_depth_canon/.ckpt_cache/5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328.ckpt (0444, 723922667 bytes, 5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328)
+  RUN exp35_BF_T_S40000_K1_s46 on GPU 1 (log worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_00-55-47_eval_exp35_BF_T_S40000_K1_s46.log)
+  DONE exp35_BF_T_S40000_K1_s46 on GPU 1: complete and verified
+=== summary: selected 1 | skipped (complete and verified) 0 | ran ok 1 | failed 0 | not run 0 ===
+completion: 1/1 selected cell(s) complete and verified (manifest: 346 cells)
+CAMPAIGN SELECTION COMPLETE

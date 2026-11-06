@@ -1,0 +1,34 @@
+exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA
+flash_attn not installed, disabling Flash Attention
+EXP35_NO_FLASH_LAUNCHER attention_backend=sdpa overlay_sha256=0d0e52ca693e236a2e0a44cd61f61539fdf995cff5132d1f621181a0f3e7c023 launcher_sha256=bbd2847d3a50685420750d066195c8656a1509b4e905883886c0568d244043de target=worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_cond_probe.py
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+Seed set to 42
+Using EMA model
+Loading ViT model from facebook/dinov3-vits16-pretrain-lvd1689m...
+21.60M/21.60M parameters are trainable
+Checkpoint load: 0 missing, 0 stray unexpected, 3 whitelisted wrapper-leftover keys.
+Running json scandir...
+Found 6337 files in 17 subfolders
+## B-F composition probe -- verdict PASS {'pass': True, 'masks': True, 'determinism': True}
+
+eps_cond (fp32 conditioning, max relL2 over the quarter turns / ids / items; reported, no verdict): 3.639e-01 (at {'key': 'd256', 'id': 'context_poses', 'position': 7})
+
+| protocol | offset | cond p99 | cond max | velocity p99 | latent p99 | waveform p50 | waveform p99 | waveform max |
+|---|---|---|---|---|---|---|---|---|
+| fp32 | d128 | 3.445e-02 | 9.310e-02 | 9.109e-04 | 1.443e-03 | 0.000e+00 | 1.978e-03 | 3.799e-03 |
+| fp32 | d256 | 3.445e-02 | 9.310e-02 | 9.101e-04 | 1.443e-03 | 0.000e+00 | 1.902e-03 | 3.799e-03 |
+| fp32 | d384 | 7.639e-02 | 9.310e-02 | 1.699e-03 | 2.683e-03 | 2.372e-05 | 2.556e-03 | 3.707e-03 |
+| eval | d128 | 3.557e-02 | 9.406e-02 | 1.389e-03 | 2.113e-03 | 1.801e-03 | 5.276e-03 | 6.469e-03 |
+| eval | d256 | 3.560e-02 | 9.406e-02 | 1.453e-03 | 2.236e-03 | 1.555e-03 | 5.710e-03 | 5.718e-03 |
+| eval | d384 | 7.724e-02 | 9.406e-02 | 1.768e-03 | 2.791e-03 | 1.417e-03 | 4.747e-03 | 5.128e-03 |
+control p99 (fp32, waveform relL2): d128 1.978e-03, d256 1.902e-03, d384 2.556e-03, pooled 3.715e-03
+control p99 (eval, waveform relL2): d128 5.276e-03, d256 5.710e-03, d384 4.747e-03, pooled 5.707e-03
+determinism floor (fp32, A twice): max waveform relL2 0.000e+00
+determinism floor (eval, A twice): max waveform relL2 0.000e+00
+wrote /home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_bf_cond_probe.json (+ .sha256)

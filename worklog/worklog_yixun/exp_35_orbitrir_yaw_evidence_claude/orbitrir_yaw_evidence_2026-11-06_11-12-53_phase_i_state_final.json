@@ -1,0 +1,1018 @@
+{
+ "schema_version": 1,
+ "campaign": "exp35",
+ "h35": "5b065801e9d1c1844461ec84cd0558702c714326",
+ "cells_sha256": "440eb1befb3445e0b26b01b8e8fa12cb2c37fed76c900864e7efbed5e9e7037d",
+ "supervisor_sha256": "0b5d94a81b96ed0fe921a12ba24c81d45e317559ba7b8d4bfcb94b2c9014cc0f",
+ "approved_sha256": "238d890d44253b602e7b510435483e7be3362ad1d5a9511cc1fc5c722a9a605e",
+ "baseline": {
+  "time": 1793928024.4945357,
+  "step": 27941,
+  "log": {
+   "path": "/home/yixunhu/codespace/flac-fork-attn/worklog/worklog_yixun/exp_30_attn/logs/train_exp30_ACEattn_s43_20261104T061255_741947.log",
+   "inode": 120725156,
+   "size": 15573830
+  }
+ },
+ "his_log_anchor": {
+  "inode": 120725156,
+  "device": 66306,
+  "size": 20667285,
+  "offset": 20667046,
+  "tail_sha256": "eabca84d5630763e4662e8f8585b4d0349c6dd1cf84084a683594ade39008a70"
+ },
+ "lane": null,
+ "reservation": null,
+ "chunks": [
+  {
+   "n": 1,
+   "kind": "cell",
+   "cell": "exp35_P1_T_S40000_K1_s42",
+   "gate": "E1",
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T20:20:24-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-20-24_chunk01_exp35_P1_T_S40000_K1_s42.log",
+   "ended": "2026-11-05T20:40:34-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "7145da0fc90899e4b2226a00d2bdfbd6fe6c512fc7cc3974be5529ae6deb15f2",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "e1": {
+    "rc": 0,
+    "verdict": "equal",
+    "out": "CTL K1 EQUAL\n/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.\n"
+   },
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793929253.7206972,
+    "time": "2026-11-05T20:40:53-05:00",
+    "step": 28161,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 15693176,
+     "offset": 15692933,
+     "tail_sha256": "9e6c8d9d5184dcb0ee9093eefe5983a3b23574ebeefe0b4015e69ec67f80edf3"
+    }
+   }
+  },
+  {
+   "n": 2,
+   "kind": "cell",
+   "cell": "exp35_P1_T_S40000_K8_s42",
+   "gate": "E1",
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T20:40:55-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_20-40-55_chunk02_exp35_P1_T_S40000_K8_s42.log",
+   "ended": "2026-11-05T21:06:08-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "5e94b0b0af207de1de920076069df11446547336fa4507ad3cb0b62b7171aaa2",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "e1": {
+    "rc": 0,
+    "verdict": "equal",
+    "out": "CTL K8 EQUAL\n/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.\n"
+   },
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793930787.8580918,
+    "time": "2026-11-05T21:06:27-05:00",
+    "step": 28439,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 15848402,
+     "offset": 15848156,
+     "tail_sha256": "600d3cd2e1973686bed3d4465eaeab8dfd610ac6bcee901cb5344196fd2560c7"
+    }
+   }
+  },
+  {
+   "n": 3,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s42",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T21:06:30-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_21-06-30_chunk03_exp35_BF_T_S40000_K1_s42.log",
+   "ended": "2026-11-05T21:31:42-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "fa529324216c88832466a31d1b86fb4e4c8409aa037f45debdde1bc30befebef",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793932312.5067315,
+    "time": "2026-11-05T21:31:52-05:00",
+    "step": 28715,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16003163,
+     "offset": 16002918,
+     "tail_sha256": "c2b80260bd61d6f42d423125b5dea1d779602f25de4ccaec017031de1521f5a3"
+    }
+   }
+  },
+  {
+   "n": 4,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s42",
+   "gate": "E2",
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T21:31:54-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_21-31-54_chunk04_exp35_BF_T_S40000_K8_s42.log",
+   "ended": "2026-11-05T22:02:09-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "79817d0b100005ed91172e80ea09ea3c1d250aeb549e0f0ef29bdaea16f141ad",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "e2": {
+    "rc": 0,
+    "verdict": "PASS",
+    "out": "E2 PASS (|new - A6 CSV| <= T60 0.001, C50 0.0005, EDT 0.005, FD 0.0005, RIR_to_GT_RIR_R@1 0.2, RIR_to_GT_RIR_R@5 0.2, RIR_to_GT_RIR_R@10 0.2 (all 14))\n  K1 T60: new 9.4861 A6 9.4859 |diff| 0.0002 <= 0.001: True\n  K1 C50: new 1.0547 A6 1.0547 |diff| 0 <= 0.0005: True\n  K1 EDT: new 41.236 A6 41.2371 |diff| 0.0011 <= 0.005: True\n  K1 FD: new 0.3284 A6 0.3284 |diff| 0 <= 0.0005: True\n  K1 RIR_to_GT_RIR_R@1: new 5.1917 A6 5.2391 |diff| 0.0474 <= 0.2: True\n  K1 RIR_to_GT_RIR_R@5: new 15.6857 A6 15.7014 |diff| 0.0157 <= 0.2: True\n  K1 RIR_to_GT_RIR_R@10: new 23.6547 A6 23.7494 |diff| 0.0947 <= 0.2: True\n  K8 T60: new 8.1899 A6 8.189 |diff| 0.0009 <= 0.001: True\n  K8 C50: new 0.9804 A6 0.9805 |diff| 0.0001 <= 0.0005: True\n  K8 EDT: new 38.8107 A6 38.8102 |diff| 0.0005 <= 0.005: True\n  K8 FD: new 0.3333 A6 0.3332 |diff| 0.0001 <= 0.0005: True\n  K8 RIR_to_GT_RIR_R@1: new 5.3338 A6 5.3495 |diff| 0.0157 <= 0.2: True\n  K8 RIR_to_GT_RIR_R@5: new 16.4747 A6 16.3484 |diff| 0.1263 <= 0.2: True\n  K8 RIR_to_GT_RIR_R@10: new 24.3333 A6 24.2386 |diff| 0.0947 <= 0.2: True\n/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.\n"
+   },
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793934150.9455657,
+    "time": "2026-11-05T22:02:30-05:00",
+    "step": 29008,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16167464,
+     "offset": 16167217,
+     "tail_sha256": "c851da65e8710cb9d8a47669a2bdd9ecc6183436d3a7990b722d8817c1c5b049"
+    }
+   }
+  },
+  {
+   "n": 5,
+   "kind": "probe",
+   "cell": null,
+   "gate": "PROBE",
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T22:02:33-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_bf_cond_probe_2026-11-05_22-02-33.log",
+   "ended": "2026-11-05T22:07:35-05:00",
+   "probe_rc": 0,
+   "probe_contract": {
+    "rc": 0,
+    "out": "BF PROBE VALID worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/orbitrir_bf_cond_probe.json\n/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.\n"
+   },
+   "probe_json_sha256": "89de7cdc9dbe863c6d650bfea19417fe816269c706ef4f3c2060349cfc357aeb",
+   "sidecar_sha256": "ecb38bbfe6eae9b8840f48932d39429fe37d72356808d6e2fab4867584317c9e",
+   "log_sha256": "9fa942da9db41e4c1c52f2e07437947bfb6d61a4560c1903e7f17d67a275d230",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793934463.2260106,
+    "time": "2026-11-05T22:07:43-05:00",
+    "step": 29069,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16197706,
+     "offset": 16197459,
+     "tail_sha256": "c5dde337eacdc184aa7d6f863202aaf8c7e1f3c34b32b245778c22b09120a6a4"
+    }
+   }
+  },
+  {
+   "n": 6,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s43",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T22:07:45-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_22-07-45_chunk06_exp35_BF_T_S40000_K1_s43.log",
+   "ended": "2026-11-05T22:32:58-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "748ce56238e6c3aa8602427a0cb1e8b83a5d098b2328caa54f64117cc27a3933",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793935992.2916687,
+    "time": "2026-11-05T22:33:12-05:00",
+    "step": 29345,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16354533,
+     "offset": 16354283,
+     "tail_sha256": "3a53ff19efbaf729575ac037981762ab9ad4c3dd266efcf55156440c68736e06"
+    }
+   }
+  },
+  {
+   "n": 7,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s43",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T22:33:14-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_22-33-14_chunk07_exp35_BF_T_S40000_K8_s43.log",
+   "ended": "2026-11-05T23:03:29-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "4443f4fb5a67257988c357a833eed4ad372bc48cce8154a9a7eeb113eb657441",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793937825.5147119,
+    "time": "2026-11-05T23:03:45-05:00",
+    "step": 29638,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16520719,
+     "offset": 16520468,
+     "tail_sha256": "12d6f091b8d9c21aa5c90088d75fb2ad10aba48ef024bcc8afbf9b7bcca556ee"
+    }
+   }
+  },
+  {
+   "n": 8,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s44",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T23:03:47-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_23-03-47_chunk08_exp35_BF_T_S40000_K1_s44.log",
+   "ended": "2026-11-05T23:29:00-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "08c82d002896f84492a22c3d1803b18f22f9713b105159e974ed127b26953fa3",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793939352.387491,
+    "time": "2026-11-05T23:29:12-05:00",
+    "step": 29914,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16678857,
+     "offset": 16678607,
+     "tail_sha256": "549f37d7a720b6b2e43d1185a6d795869bdc9b450d090904a3d78623713a1f21"
+    }
+   }
+  },
+  {
+   "n": 9,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s44",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T23:29:14-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_23-29-14_chunk09_exp35_BF_T_S40000_K8_s44.log",
+   "ended": "2026-11-05T23:59:30-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "d5b4ec22ecbf0a805ab2258b0b8468a8f7541619e2ad73efcccfa2ea21394f69",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793941180.3457572,
+    "time": "2026-11-05T23:59:40-05:00",
+    "step": 30205,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16844890,
+     "offset": 16844638,
+     "tail_sha256": "884a34340dfd5693bb9116b9033e391bf0b1c8be9544c352a152c7c7373f8db8"
+    }
+   }
+  },
+  {
+   "n": 10,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-05T23:59:42-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-05_23-59-42_chunk10_exp35_BF_T_S40000_K1_s45.log",
+   "ended": "2026-11-06T00:24:56-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "b507264ba8df3fa42fe152fe8fb56a7bdf1d5e357a9b3c66b7fff93e67ad1dfe",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793942711.193064,
+    "time": "2026-11-06T00:25:11-05:00",
+    "step": 30481,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 16997235,
+     "offset": 16996983,
+     "tail_sha256": "7ba1f3d6aa3d217108f6a1c6130037414ed57fa9eaac7dfdf0751dd4f3056ae5"
+    }
+   }
+  },
+  {
+   "n": 11,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T00:25:13-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_00-25-13_chunk11_exp35_BF_T_S40000_K8_s45.log",
+   "ended": "2026-11-06T00:55:29-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "7baa6839c292f5a96baff174f27d546a4e68a04ff181132e9aa9922d2204eafc",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793944545.4016354,
+    "time": "2026-11-06T00:55:45-05:00",
+    "step": 30773,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17164958,
+     "offset": 17164704,
+     "tail_sha256": "1164355a8bf8eb2657a0c826e7f8965b39877438527208c3ea5952a3857c19d3"
+    }
+   }
+  },
+  {
+   "n": 12,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s46",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T00:55:47-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_00-55-47_chunk12_exp35_BF_T_S40000_K1_s46.log",
+   "ended": "2026-11-06T01:21:01-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "12daf189dcd8e941dbea511e8d21d16f3f2bf17611bef55d94e503ab743871c3",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793946071.6294034,
+    "time": "2026-11-06T01:21:11-05:00",
+    "step": 31049,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17324940,
+     "offset": 17324684,
+     "tail_sha256": "4cc3596728596882dbf924bfddd737c7d475db5eba5cc0cd5ce3f5982417a94e"
+    }
+   }
+  },
+  {
+   "n": 13,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s46",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T01:21:14-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_01-21-14_chunk13_exp35_BF_T_S40000_K8_s46.log",
+   "ended": "2026-11-06T01:51:30-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "379798500944eefe5846fd52346fda4cf1121b2d98401afa8ca6757af0936c2d",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793947900.538087,
+    "time": "2026-11-06T01:51:40-05:00",
+    "step": 31341,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17493499,
+     "offset": 17493245,
+     "tail_sha256": "f1842e136b9e94a38d202518a81b0eae35da52f7d5f5f9304372434f1c8034fd"
+    }
+   }
+  },
+  {
+   "n": 14,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K1_s42",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T01:51:43-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_01-51-43_chunk14_exp35_BF_R_S40000_K1_s42.log",
+   "ended": "2026-11-06T02:16:56-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "0270ce4e763d92d4fd2958a9ae9265d5443ba660240703203ccce980a15c44f8",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793949429.91372,
+    "time": "2026-11-06T02:17:09-05:00",
+    "step": 31618,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17654452,
+     "offset": 17654196,
+     "tail_sha256": "1712f9fbf86062bafeb263bb8fe20e50bd9c73c8195c87bca9f4e4a5b807733e"
+    }
+   }
+  },
+  {
+   "n": 15,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K8_s42",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T02:17:12-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_02-17-12_chunk15_exp35_BF_R_S40000_K8_s42.log",
+   "ended": "2026-11-06T02:47:29-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "0f936bd04fc0e9b87f978f2088ec4e6a0ba485d60bea29eee266eb6869067a59",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793951265.2512996,
+    "time": "2026-11-06T02:47:45-05:00",
+    "step": 31882,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17811212,
+     "offset": 17810978,
+     "tail_sha256": "d9c9cb51c38f5f3c91860b328a39454445ff1862b9ef2966b54641f7d048cd1b"
+    }
+   }
+  },
+  {
+   "n": 16,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K1_s43",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T02:47:47-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_02-47-47_chunk16_exp35_BF_R_S40000_K1_s43.log",
+   "ended": "2026-11-06T03:13:02-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "2c2c054d4f66875cc0deef1148d790224dcd5f2ac93d3aeb2eb3103d8d933fe2",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793952797.7497227,
+    "time": "2026-11-06T03:13:17-05:00",
+    "step": 32160,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 17962317,
+     "offset": 17962080,
+     "tail_sha256": "87a51afd942beaee3df09df3f4a075b299bd2c84bc90699b311c0e3ac5e6f4ff"
+    }
+   }
+  },
+  {
+   "n": 17,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K8_s43",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T03:13:20-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_03-13-20_chunk17_exp35_BF_R_S40000_K8_s43.log",
+   "ended": "2026-11-06T03:43:37-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "0a2e53393ddb5ed998560ae9048212e9291cf1aa6af4b32b3b5e6920f85d3213",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793954627.47262,
+    "time": "2026-11-06T03:43:47-05:00",
+    "step": 32451,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18120210,
+     "offset": 18119971,
+     "tail_sha256": "b4f79f0f7d15d9578d062d241f07d6a54b8cfdeab134ee4674d177fc29944eb6"
+    }
+   }
+  },
+  {
+   "n": 18,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K1_s44",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T03:43:50-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_03-43-50_chunk18_exp35_BF_R_S40000_K1_s44.log",
+   "ended": "2026-11-06T04:09:04-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "82fab058b0abeebba7b50482b521cc58643d33f49655fac4b4118fb5deca843f",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793956154.9132092,
+    "time": "2026-11-06T04:09:14-05:00",
+    "step": 32726,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18272637,
+     "offset": 18272396,
+     "tail_sha256": "9d2c60d672a12e7114e86601005c6a0ffaa4327c021a178a3f308c831623cda3"
+    }
+   }
+  },
+  {
+   "n": 19,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K8_s44",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T04:09:17-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_04-09-17_chunk19_exp35_BF_R_S40000_K8_s44.log",
+   "ended": "2026-11-06T04:39:34-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "ee958503c77814c3f407680ab826f17d9974c8b71c84c47ea7b8d466e65837c2",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793957986.4822984,
+    "time": "2026-11-06T04:39:46-05:00",
+    "step": 33017,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18433595,
+     "offset": 18433351,
+     "tail_sha256": "e9a33a3403e715dfaec3e5ff50f03622b922c279ef5d4771ee5025504b5a35cc"
+    }
+   }
+  },
+  {
+   "n": 20,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K1_s45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T04:39:49-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_04-39-49_chunk20_exp35_BF_R_S40000_K1_s45.log",
+   "ended": "2026-11-06T05:05:03-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "4af1ba7441634b577da193b76507ef0bb6fca58e65d95391aa8ba0eee9576a02",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793959515.5481951,
+    "time": "2026-11-06T05:05:15-05:00",
+    "step": 33294,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18582072,
+     "offset": 18581826,
+     "tail_sha256": "b50487a7f49fbdbd3408285f896027c23c3d8582350997ada8bb430b16c75c4c"
+    }
+   }
+  },
+  {
+   "n": 21,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K8_s45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T05:05:18-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_05-05-18_chunk21_exp35_BF_R_S40000_K8_s45.log",
+   "ended": "2026-11-06T05:35:35-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "e3ca9cfa2645bb65bf2e1d37b4ff0fdd85fcc2163a6741b9305930081286b067",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793961350.774013,
+    "time": "2026-11-06T05:35:50-05:00",
+    "step": 33586,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18745307,
+     "offset": 18745061,
+     "tail_sha256": "79eb199c898f154f51a660f0b6158ba8aec681ff26081ae832897684199ae192"
+    }
+   }
+  },
+  {
+   "n": 22,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K1_s46",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T05:35:53-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_05-35-53_chunk22_exp35_BF_R_S40000_K1_s46.log",
+   "ended": "2026-11-06T06:01:08-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "1d0fd251392f9e294196b7f7b09f7607e5de86c1775bfd27be48ef6a50883556",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793962882.034026,
+    "time": "2026-11-06T06:01:22-05:00",
+    "step": 33864,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 18902196,
+     "offset": 18901948,
+     "tail_sha256": "522e317c24fd610983111e69651e0e5c2d165d8ef3d318e12fa7b63751eed2f4"
+    }
+   }
+  },
+  {
+   "n": 23,
+   "kind": "cell",
+   "cell": "exp35_BF_R_S40000_K8_s46",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T06:01:24-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_06-01-24_chunk23_exp35_BF_R_S40000_K8_s46.log",
+   "ended": "2026-11-06T06:31:42-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "960f8cc78b36fe384a3e9668af0bb431d7ead9fd8f06cd70a70b5067db60c9e3",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793964715.3961015,
+    "time": "2026-11-06T06:31:55-05:00",
+    "step": 34156,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19066641,
+     "offset": 19066393,
+     "tail_sha256": "cd8c0834d9ff3abaf2c2efa1af3876aa83d9669d3f6c698ff4cb6b8589ad18c4"
+    }
+   }
+  },
+  {
+   "n": 24,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K1_s42_dup",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T06:31:58-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_06-31-58_chunk24_exp35_BF_T_S40000_K1_s42_dup.log",
+   "ended": "2026-11-06T06:57:13-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "44517a72335d70baa5b4ceb6a323a6b67740ba48931fc39ee26bbf2677818b43",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793966244.4101267,
+    "time": "2026-11-06T06:57:24-05:00",
+    "step": 34432,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19224133,
+     "offset": 19223883,
+     "tail_sha256": "c2219b028cc9a92606bc8d844bea7fb42a7558960668d3e94a01dd1f8f01b19d"
+    }
+   }
+  },
+  {
+   "n": 25,
+   "kind": "cell",
+   "cell": "exp35_BF_T_S40000_K8_s42_dup",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T06:57:27-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_06-57-27_chunk25_exp35_BF_T_S40000_K8_s42_dup.log",
+   "ended": "2026-11-06T07:27:44-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "22f74722fdb7f2fc62ba47f2481a8818df0bbcea65f46b7094b1e611254d621f",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793968081.7642045,
+    "time": "2026-11-06T07:28:01-05:00",
+    "step": 34725,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19390583,
+     "offset": 19390331,
+     "tail_sha256": "b3aba697b6afc9c845cb6ae43d1abdf2793760a188b252af1bc401a5b43a7a19"
+    }
+   }
+  },
+  {
+   "n": 26,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K1_s42_th90",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T07:28:04-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_07-28-04_chunk26_exp35_BF_C4_S40000_K1_s42_th90.log",
+   "ended": "2026-11-06T07:53:20-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "983f9d5f9842a1256ad697663725b174fd4ae1405d56e097b6c4e4cd90e6c6da",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793969623.7872243,
+    "time": "2026-11-06T07:53:43-05:00",
+    "step": 35002,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19550172,
+     "offset": 19549920,
+     "tail_sha256": "1716e7a4dd4a6fd05b581da5cee7028bf8531e507bf94c5253d4525d6789b190"
+    }
+   }
+  },
+  {
+   "n": 27,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K8_s42_th90",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T07:53:46-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_07-53-46_chunk27_exp35_BF_C4_S40000_K8_s42_th90.log",
+   "ended": "2026-11-06T08:24:04-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "431ceba60189490e85d53d942f43025c493a863cddec928ec7555d34ed5b16fd",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793971457.3932016,
+    "time": "2026-11-06T08:24:17-05:00",
+    "step": 35295,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19711941,
+     "offset": 19711687,
+     "tail_sha256": "88a2151373ea6b2ad9f3d8d5b08443473a307840ac458353c92f0c15b79e93b3"
+    }
+   }
+  },
+  {
+   "n": 28,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K1_s42_th180",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T08:24:20-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_08-24-20_chunk28_exp35_BF_C4_S40000_K1_s42_th180.log",
+   "ended": "2026-11-06T08:49:35-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "273f1845ca64ac7ecf7c8d010800e5cfde0169697cf4da532f73da51d369c61b",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793972985.8261807,
+    "time": "2026-11-06T08:49:45-05:00",
+    "step": 35571,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 19871835,
+     "offset": 19871579,
+     "tail_sha256": "2fe4dc4316325662456c640f96500fd8b9f092e97907848fe597597bb5494fec"
+    }
+   }
+  },
+  {
+   "n": 29,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K8_s42_th180",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T08:49:48-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_08-49-48_chunk29_exp35_BF_C4_S40000_K8_s42_th180.log",
+   "ended": "2026-11-06T09:20:07-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "5c5c4598b3036de12a2ed831320b69f5bf9145262ffb23d614301bc06f114d92",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793974820.3042855,
+    "time": "2026-11-06T09:20:20-05:00",
+    "step": 35863,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 20040649,
+     "offset": 20040395,
+     "tail_sha256": "0ac9f5086ce6a35e78d31a1880663d0447df415e6ad294cea887ca964c3efbb8"
+    }
+   }
+  },
+  {
+   "n": 30,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K1_s42_th270",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T09:20:23-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_09-20-23_chunk30_exp35_BF_C4_S40000_K1_s42_th270.log",
+   "ended": "2026-11-06T09:45:38-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "73cca3f4b0e52b118534be384bf64b0a31917ef90ea1f8a63b40c5fa8c4dc094",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793976352.7036667,
+    "time": "2026-11-06T09:45:52-05:00",
+    "step": 36142,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 20202508,
+     "offset": 20202252,
+     "tail_sha256": "e6c8e8f91bfa815a8155fcd96144c04dafb6a4866b6057d839c115743de772c9"
+    }
+   }
+  },
+  {
+   "n": 31,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K8_s42_th270",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T09:45:55-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_09-45-55_chunk31_exp35_BF_C4_S40000_K8_s42_th270.log",
+   "ended": "2026-11-06T10:16:14-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "9e91b14e9c7c50fee03afbb406701b2b6ab753b3ec3046d497bc600dc17d6bd7",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793978185.731407,
+    "time": "2026-11-06T10:16:25-05:00",
+    "step": 36401,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 20364443,
+     "offset": 20364210,
+     "tail_sha256": "cee7794909288a90bd930ee0662b3fe38c4292815c5f590787ae274180bc7d94"
+    }
+   }
+  },
+  {
+   "n": 32,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K1_s42_th45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T10:16:28-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_10-16-28_chunk32_exp35_BF_C4_S40000_K1_s42_th45.log",
+   "ended": "2026-11-06T10:41:44-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "cfd4d81c7bf487eb9d6ca9c43e45967368b549673ba3d45c9730e047b93e0fe0",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793979715.4445562,
+    "time": "2026-11-06T10:41:55-05:00",
+    "step": 36678,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 20508552,
+     "offset": 20508315,
+     "tail_sha256": "0c0a8ecb2729eafc387f22bd70fe0f7c74d39d7ed23af72c14be299bb52a29ea"
+    }
+   }
+  },
+  {
+   "n": 33,
+   "kind": "cell",
+   "cell": "exp35_BF_C4_S40000_K8_s42_th45",
+   "gate": null,
+   "state": "gates_verified",
+   "lane": "GPU-6ac2604a-e84e-0615-1221-ccbed7c268da",
+   "shared": true,
+   "started": "2026-11-06T10:41:58-05:00",
+   "log": "/home/yixunhu/codespace/exp-35-orbitrir-yaw/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_supervisor_2026-11-06_10-41-58_chunk33_exp35_BF_C4_S40000_K8_s42_th45.log",
+   "ended": "2026-11-06T11:12:17-05:00",
+   "runner_rc": 0,
+   "receipt_sha256": "e6a11d7b8be060fc2c6dc45dd4355488bb6c159721feb81d8d2f36c407ac1806",
+   "campaign_digest": "da82d0121413b792e2f42b94026b884d371d995c17e2dcc111c7edd58f8650c1",
+   "final_guard": {
+    "status": "OK",
+    "exit": 0,
+    "t": 1793981553.6722891,
+    "time": "2026-11-06T11:12:33-05:00",
+    "step": 36971,
+    "anchor": {
+     "inode": 120725156,
+     "device": 66306,
+     "size": 20667285,
+     "offset": 20667046,
+     "tail_sha256": "eabca84d5630763e4662e8f8585b4d0349c6dd1cf84084a683594ade39008a70"
+    }
+   }
+  }
+ ],
+ "stop_latch": null,
+ "events": [
+  {
+   "t": 1793928022.1942909,
+   "time": "2026-11-05T20:20:22-05:00",
+   "what": "supervisor started (a new state)"
+  },
+  {
+   "t": 1793981553.6762145,
+   "time": "2026-11-06T11:12:33-05:00",
+   "what": "phase (i) complete; the reservation released"
+  }
+ ]
+}
