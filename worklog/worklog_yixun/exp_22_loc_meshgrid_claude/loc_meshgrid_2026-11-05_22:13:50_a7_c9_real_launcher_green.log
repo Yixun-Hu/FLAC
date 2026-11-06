@@ -1,0 +1,5 @@
+# exp_22 A7 c9_real_launcher GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:13:50-05:00 -- branch exp-22-a7-noflash HEAD 5b5921af; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_real_launcher.py
+.                                                                        [100%]
+1 passed in 14.73s
+rc 0
