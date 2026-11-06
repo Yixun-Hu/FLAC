@@ -239,3 +239,49 @@ def test_the_cli_passes_the_context_count(monkeypatch):
     monkeypatch.setattr(sys, "argv", base + ["--context-count", "1"])
     localize_FLAC.main()
     assert seen["context_count"] == 1
+
+
+def test_the_stage_split_pass_has_its_own_identity_and_executor(frozen, tmp_path, stubbed, monkeypatch):
+    from src.localization import stage_split
+
+    split_executor = runner.execute_query                       # the fixture's recording stub
+    monkeypatch.setattr(stage_split, "execute_query_stage_split", split_executor)
+
+    def headline_must_not_run(**kw):
+        raise AssertionError("the uninstrumented headline executor ran in a stage-split pass")
+    monkeypatch.setattr(runner, "execute_query", headline_must_not_run)
+    _run(frozen, tmp_path, query_index=4467, stage_split=True, measure_core_forward=True, synchronize_timing=True,
+         warmup_query_count=1)
+    assert _identity(tmp_path)["stage_split"] is True and stubbed.executed == [4467, 4467]
+
+
+def test_the_stage_split_pass_needs_the_bundle_timing_flags(frozen, tmp_path, stubbed):
+    for flags in ({"measure_core_forward": False, "synchronize_timing": True},
+                  {"measure_core_forward": True, "synchronize_timing": False}):
+        with pytest.raises(ValueError, match="stage split"):
+            _run(frozen, tmp_path, query_index=4467, stage_split=True, **flags)
+    assert not (tmp_path / "run").exists()
+
+
+def test_a_headline_run_records_no_stage_split_key(frozen, tmp_path, stubbed):
+    _run(frozen, tmp_path, query_index=4467, measure_core_forward=True, synchronize_timing=True)
+    assert "stage_split" not in _identity(tmp_path)
+
+
+def test_the_cli_passes_the_stage_split_flag(monkeypatch):
+    sys.path.insert(0, str(REPO))
+    import localize_FLAC
+
+    seen = {}
+    monkeypatch.setattr(localize_FLAC, "run_localization", lambda **kw: seen.update(kw) or {"ok": True})
+    base = ["localize_FLAC.py", "--model-config", "c.json", "--ckpt-path", "k.ckpt", "--agree-ckpt", "a.pt",
+            "--context-manifest", str(E9 / "context_manifest_exp01_seed42.json"),
+            "--geometry-audit", str(E9 / "geometry_audit.json"), "--pilot-manifest", str(SELECTION_128),
+            "--dataset-root", "AcousticRooms", "--output-dir", str(REPO / "never_created_by_this_test"),
+            "--cond-method", "vanilla"]
+    monkeypatch.setattr(sys, "argv", base)
+    localize_FLAC.main()
+    assert seen["stage_split"] is False
+    monkeypatch.setattr(sys, "argv", base + ["--stage-split"])
+    localize_FLAC.main()
+    assert seen["stage_split"] is True
