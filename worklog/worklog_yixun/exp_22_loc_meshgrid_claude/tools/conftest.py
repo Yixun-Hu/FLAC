@@ -130,3 +130,27 @@ def sandbox_tools(root, common=None, shells=None):
             f.write(text)
         shutil.copymode(src, os.path.join(dest, name))
     return dest
+
+
+# the reservation fixtures shared by the reserve / planner tests (the supervisor loaded lazily)
+RUN, PIN2 = "20261106T130501", "a" * 40
+
+
+def setup(tmp_path, apps=""):
+    cfg = cfg_for(tmp_path)
+    w = tmp_path / "W"
+    orch = w / "outputs_loc" / "exp22" / f"r2_preflight_{RUN}"
+    orch.mkdir(parents=True)
+    seal = orch / "seal.txt"
+    seal.write_text(f"pin2 {PIN2}\nrun {RUN}\ncard GPU0 {GPU0} 0\n")
+    return cfg, FakeWorld(apps=apps), w, orch, seal
+
+
+def reserve(cfg, world, w, orch, seal, card="GPU0", index=0):
+    sup, ev = load("exp22_r2c_supervisor"), load("exp22_r2c_evidence")
+    return sup.reserve(world, cfg, worktree=str(w), orch=str(orch), pin2=PIN2, card=card, index=index,
+                       seal=str(seal), seal_sha256=ev.sha256_bytes(seal.read_bytes()))
+
+
+def res_file(cfg, uuid=GPU0):
+    return os.path.join(cfg.reservations, f"{uuid}.json")

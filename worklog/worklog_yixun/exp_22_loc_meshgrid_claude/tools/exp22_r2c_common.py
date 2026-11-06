@@ -284,9 +284,10 @@ def table_job_status(queue_log, proc=PROC):
     return not out, out
 
 
-def observe(world, cfg, card, held=None):
+def observe(world, cfg, card, held=None, ours=()):
     """One observation of ``card`` ('GPU0' / 'GPU1') under the card rule; ``held`` -- the supervisor's own record
-    (path / sha256 / dev / inode) -- turns 'no reservation file' into 'the file IS our record'."""
+    (path / sha256 / dev / inode) -- turns 'no reservation file' into 'the file IS our record'; ``ours`` -- the
+    running line's own process tree -- is not a foreign compute process."""
     if card not in CARDS:
         raise ValueError(f"unknown card {card!r} (GPU0 or GPU1)")
     uuid, t, map_raw = CARDS[card], world.now(), world.nvsmi("map")
@@ -298,7 +299,7 @@ def observe(world, cfg, card, held=None):
         raise Unreadable(f"the GPU map {m} is not this box's two registered cards")
     apps_raw = world.nvsmi("apps")
     try:
-        pids = sorted(p for p, u in compute_apps(apps_raw) if u == uuid)
+        pids = sorted(p for p, u in compute_apps(apps_raw) if u == uuid and p not in ours)
     except ValueError as err:
         raise Unreadable(f"the compute table: {err}") from err
     reasons = [f"compute process(es) {pids} on {card} ({uuid})"] if pids else []
