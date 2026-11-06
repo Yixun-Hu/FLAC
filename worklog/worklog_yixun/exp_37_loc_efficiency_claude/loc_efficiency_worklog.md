@@ -60,3 +60,33 @@ Append-only, one entry per action (SOP template). The Planner's notebook for exp
   stack (ast / bytes), so B-b's split pass and B-c's variants must live outside those definitions; (6) the G0 comparator
   refuses P1 / B-F without a YAW PASS verdict from the same launcher bytes, and writes each verdict once.
 - **Next** — round B-b (K_ctx 1, arbitrary-manifest AGREE selector, 3-arm summarizer, instrumented split pass + comparison).
+
+## 2026-11-06T17:20:00-05:00 — ROUND B-b CLOSED by the Coder (pushed for the Planner's review; GPU commands NOT run)
+
+- **Goal** — brief r1 item 7, round B-b: K_ctx 1; the arbitrary-manifest AGREE selector; the 3-arm summarizer; the
+  separate instrumented split pass + its comparison with the headline (plan §10 BLOCKING 1).
+- **Change** — new: `src/localization/{stage_split.py, exp37_latency.py}`, `tools/{exp37_selector_latency.py,
+  exp37_summarize_latency.py}`, tests `test_exp37_{context_count, selector_latency, latency_summary,
+  summarize_latency_cli, stage_split}.py`; edited: `runner.py` (`context_count_view`, `execute_query(context_count)`,
+  the split executor, the `loaded` host record), `run_provenance.py` (`weights_footprint`, host-record `extra`),
+  `localize_FLAC.py` (`--context-count {8,1}`, `--stage-split`).
+- **Version Control** — 19 commits `2c05f6ee..e9dd12ae` (table in `commits_loc_efficiency.md`), RED before GREEN.
+- **Command / Validation** — full CPU suite **448 passed, 2 skipped, 2 failed** (the 2 pre-existing FEM failures; +47 tests).
+  Real-data checks on CPU: K_ctx = 1 keeps the 27 frozen candidates of query 4467 (audit hash re-checked) and loads one
+  context; the bundle's repeat_001 + selector vector reproduce `expected/summary_final.json` EXACTLY through the new
+  library (P1 / B-F / YAW rows); the split pass equals the headline's computation on a CPU fake model (vanilla + FA);
+  launcher CPU dry run with `--context-count 1 --stage-split` stops at the CUDA requirement; the selector CLI runs end
+  to end on CPU on the real AGREE checkpoint (1-query manifest, scratchpad output only).
+- **Result** — passed (CPU). Runbook `exp37_runbook_bb.md`: selector (≈ 6 min) → K1 headline (≈ 58 min) → K8 split
+  (≈ 60 min) → K1 split (≈ 58 min, optional) → summary. B1 total ≈ 3–4 h with the separate split passes.
+- **Analysis / design decisions (flag for the Planner)** — (1) the split-publication rule is implemented strictly as
+  written (every query AND the aggregate within 2 %); single-repeat jitter on sub-second queries may withhold every
+  split — the aggregate-only verdict and the per-query distribution are reported beside it for the Planner's decision;
+  (2) co-tenancy is fail-closed: another pid on the run's card, an unidentified card, no host record, or the run's own
+  pid never seen on its card (a uuid-format mismatch between torch and nvidia-smi could otherwise hide co-tenants) all
+  make the timing not publishable; the selector vector's own snapshot is judged the same way (the bundle's selector has
+  none, so a summary on it exits 3); CPU co-tenants are listed from `ps` (lifetime-average pcpu; a coarse record);
+  (3) the headline loader refuses split runs and vice versa; (4) memory: whole-query peak (bundle-compatible), the
+  selector's own peak, their maximum, and the loaded-weight footprint are separate fields; split segments are absolute
+  peaks, never added.
+- **Next** — round B-c.

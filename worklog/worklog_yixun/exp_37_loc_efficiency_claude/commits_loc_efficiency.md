@@ -25,3 +25,28 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `2f44450e` | RED | 15 | provenance checks before the CUDA requirement |
 | `58258d7e` | GREEN | 4 | the reorder (+ the real-data CPU pre-flight log) |
 | `030243f6` | records | 0 | `exp37_runbook_ba.md` |
+| `3137db8c` | records | 0 | B-a commits table + round note (B-a pushed here) |
+
+## Round B-b (Coder, Claude Opus 5.5 max effort)
+
+| SHA | kind | code lines | what |
+|---|---|---:|---|
+| `2c05f6ee` | RED | 136 | K_ctx = 1 tests (view, guard, real-data candidate equality, wiring, CLI) |
+| `a0538d29` | GREEN | 47 | `runner.context_count_view` + `execute_query(context_count)` + identity / per-query provenance + `--context-count` |
+| `55a3e5bc` | RED | 96 | arbitrary-manifest AGREE selector tests |
+| `d1132190` | GREEN | 132 | `tools/exp37_selector_latency.py` (the bundle's `benchmark_agree_query` reused unchanged) |
+| `aed64f20` | RED | 144 | latency-summary library tests (the bundle's expected summary as an exact oracle) |
+| `6f4a7e60` | GREEN | 139 | `src/localization/exp37_latency.py` |
+| `3e06f26c` | RED | 193 | stage-split pass tests (CPU equivalence with the headline, vanilla + FA) + wiring |
+| `7c0477e2` | GREEN 1/2 | 207 | `src/localization/stage_split.py` (one cohesive module; test-fake fixes in the same commit) |
+| `7efed85e` | GREEN 2/2 | 17 | runner / CLI `--stage-split` |
+| `df918ab9` | RED | 22 | loaded-weight footprint record tests |
+| `a850191b` | GREEN | 20 | `weights_footprint()`, host-record `extra`, the `loaded` record |
+| `bc729402` | RED | 59 | split-vs-headline comparison + breakdown tests |
+| `eed7de10` | GREEN | 59 | `split_comparison`, `stage_breakdown`, headline / split loader modes |
+| `3ed2f2f0` | RED | 124 | summarizer CLI tests |
+| `ab108dc1` | GREEN | 159 | `tools/exp37_summarize_latency.py` (+ two test-fake fixes) |
+| `e4a1fe68` | RED | 10 | fail-closed uuid matching test |
+| `6975b986` | GREEN | 8 | the run's own pid must be seen on its own card |
+| `43a946c9` | RED | 17 | selector-vector co-tenancy tests |
+| `e9dd12ae` | GREEN | 67 | `selector_cotenancy`, summary / markdown / exit code |
