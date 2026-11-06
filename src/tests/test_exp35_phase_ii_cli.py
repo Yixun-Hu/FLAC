@@ -123,6 +123,19 @@ def test_the_kit_never_signals_kills_or_attaches():
     assert not re.search(r"\b(kill|pkill|killall|timeout|trap)\b", sh)
 
 
+KILLING = {"run", "call", "check_call", "check_output", "communicate", "wait"}   # a timeout here kills the child
+
+
+def test_no_production_call_can_kill_a_child_through_a_timeout():
+    """Codex P2K-1 BLOCKING 1: subprocess.run(..., timeout=) / communicate(timeout=) / wait(timeout=) kill (or
+    abandon to a kill) the child on expiry -- never in the kit. A non-killing observation deadline (a monotonic
+    clock compared in a loop) stays allowed."""
+    bad = [ast.unparse(c) for c in ast.walk(ast.parse(SRC[SB.KIT_PY])) if isinstance(c, ast.Call)
+           and isinstance(c.func, ast.Attribute) and c.func.attr in KILLING
+           and (any(k.arg == "timeout" for k in c.keywords) or (c.func.attr in ("communicate", "wait") and c.args))]
+    assert bad == []
+
+
 def test_every_git_call_is_a_read():
     tree = ast.parse(SRC[SB.KIT_PY])
     used = {c.args[1].value for c in ast.walk(tree) if isinstance(c, ast.Call) and getattr(c.func, "id", None) == "git"

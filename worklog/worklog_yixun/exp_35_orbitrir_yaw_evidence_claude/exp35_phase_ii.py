@@ -264,8 +264,9 @@ def relevant(m):
 
 
 def git(repo, *args, raw=False):
-    """A read-only git query (no optional locks: a status never rewrites the index); ValueError when it fails."""
-    r = subprocess.run(["git", "--no-optional-locks", "-C", repo, *args], capture_output=True, timeout=600)
+    """A read-only git query (no optional locks: a status never rewrites the index), waited for without a timeout (a
+    timeout would kill it); ValueError when it fails."""
+    r = subprocess.run(["git", "--no-optional-locks", "-C", repo, *args], capture_output=True)
     if r.returncode != 0:
         raise ValueError(f"git {' '.join(args[:2])} in {repo} failed (rc {r.returncode}): "
                          f"{r.stderr.decode(errors='replace').strip()[:200]}")
@@ -410,7 +411,7 @@ class World:
             raise ValueError(f"unknown nvidia-smi query {query!r}")
         argv = [self.nvidia_smi, self.QUERIES[query], "--format=csv,noheader"]
         try:
-            r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+            r = subprocess.run(argv, capture_output=True, text=True)     # no timeout: a timeout would kill it
         except (OSError, subprocess.SubprocessError) as err:
             raise Unreadable(f"nvidia-smi {argv[1]}: {err}") from err
         if r.returncode != 0:
