@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -512,6 +513,9 @@ def run_localization(
     require_attention_backend: str | None = None,
     context_count: int = 8,
     stage_split: bool = False,
+    frame_angles: tuple | None = None,
+    candidate_subset: str | None = None,
+    c2f_top_k: int = 5,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -532,6 +536,17 @@ def run_localization(
         raise ValueError("core-forward latency requires exactly one RIR per candidate")
     if stage_split and not (measure_core_forward and synchronize_timing):
         raise ValueError("the stage split pass needs --measure-core-forward and --synchronize-latency")
+    angles = DEFAULT_FRAME_ANGLES if frame_angles is None else tuple(float(a) for a in frame_angles)
+    if frame_angles is not None and (cond_method != "fa_invariant" or angles not in FRAME_ANGLE_SETS):
+        raise ValueError("--frame-avg-angles must be a registered fa_invariant orbit: {0}, {0, 180} or C4")
+    if candidate_subset not in (None, "nested_1m", "c2f"):
+        raise ValueError(f"unknown candidate subset {candidate_subset!r}")
+    if candidate_subset and not measure_core_forward:
+        raise ValueError("the nested / c2f passes are timing passes: --measure-core-forward is required")
+    if candidate_subset and stage_split:
+        raise ValueError("a candidate subset pass is never a stage split pass")
+    if candidate_subset and (Path(output_dir) / "run_manifest.json").exists():
+        raise RuntimeError("a nested / c2f pass is never resumed: use a fresh output directory")
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
     if geometry_audit.get("sha256") != canonical_sha256(audit_content):
         raise RuntimeError("geometry audit SHA-256 mismatch")
@@ -555,9 +570,7 @@ def run_localization(
         "pilot_manifest_sha256": pilot_manifest["sha256"],
         "query_indices": [int(item[0]["index"]) for item in joined],
         "conditioning_method": cond_method,
-        "frame_average_angles": (
-            list(DEFAULT_FRAME_ANGLES) if cond_method == "fa_invariant" else None
-        ),
+        "frame_average_angles": list(angles) if cond_method == "fa_invariant" else None,
         "n_context": int(context_count),
         "score_sample_counts": list(score_sample_counts),
         "tau": float(tau),
@@ -575,6 +588,10 @@ def run_localization(
         identity["context_selection"] = K1_CONTEXT_SELECTION
     if stage_split:
         identity["stage_split"] = True
+    if candidate_subset:
+        identity["candidate_subset"] = candidate_subset
+    if candidate_subset == "c2f":
+        identity.update(c2f_top_k=int(c2f_top_k), c2f_chebyshev_radius_m=0.5)
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
     write_host_record(
@@ -592,12 +609,19 @@ def run_localization(
         extra={"memory_after_flac_load": flac_footprint, "memory_after_agree_load": weights_footprint(device)},
     )
 
+    subset_fn = None
     if stage_split:
         from src.localization import stage_split as split_module
 
         executor = split_module.execute_query_stage_split
+    elif candidate_subset == "c2f":
+        from src.localization import exp37_c2f
+
+        executor = functools.partial(exp37_c2f.execute_query_c2f, top_k_count=int(c2f_top_k))
     else:
         executor = execute_query
+        if candidate_subset == "nested_1m":
+            from src.localization.exp37_grid import nested_subset as subset_fn
     room_bases: dict[str, np.ndarray] = {}
     if warmup_query_count > len(joined):
         raise ValueError("warmup_query_count exceeds the selected query count")
@@ -626,6 +650,8 @@ def run_localization(
             synchronize_timing=synchronize_timing,
             measure_core_forward=measure_core_forward,
             context_count=context_count,
+            frame_angles=angles,
+            candidate_subset=subset_fn,
         )
     if warmup_query_count:
         print(f"completed {warmup_query_count} in-process warm-up queries", flush=True)
@@ -669,6 +695,8 @@ def run_localization(
             synchronize_timing=synchronize_timing,
             measure_core_forward=measure_core_forward,
             context_count=context_count,
+            frame_angles=angles,
+            candidate_subset=subset_fn,
         )
         if context_count != 8:
             result["context_selection"] = {"indices": list(range(context_count)), "paths": list(record["contexts"])}
