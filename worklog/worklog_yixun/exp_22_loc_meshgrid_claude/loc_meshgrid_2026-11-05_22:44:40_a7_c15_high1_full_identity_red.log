@@ -1,0 +1,197 @@
+# exp_22 A7 c15_high1_full_identity RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:44:40-05:00 -- branch exp-22-a7-noflash HEAD c5dd0b36; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py -k identity or identified or alive or cmdline or captured
+..FFFFFFF.F                                                              [100%]
+=================================== FAILURES ===================================
+______ test_an_incomplete_identity_is_no_identity[supervisor-start_time] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is0')
+who = 'supervisor', drop = 'start_time'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+            del target[drop]
+        E.write_json_atomic(str(orch / "state.json"), st)
+>       assert S.state_reasons(st, cfg)
+E       AssertionError: assert []
+E        +  where [] = <function state_reasons at 0x719d5bcb7a30>({'schema_version': 1, 'campaign': 'exp22_r2c_preflight', 'run': '20261106T130501', 'pin2': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}, Config(reservations='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is0/reservations', exp35_lock='/tm...s0/queue.log', proc='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is0/proc', nvidia_smi='nvidia-smi'))
+E        +    where <function state_reasons at 0x719d5bcb7a30> = S.state_reasons
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:161: AssertionError
+__________ test_an_incomplete_identity_is_no_identity[supervisor-cwd] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is1')
+who = 'supervisor', drop = 'cwd'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+            del target[drop]
+        E.write_json_atomic(str(orch / "state.json"), st)
+>       assert S.state_reasons(st, cfg)
+E       AssertionError: assert []
+E        +  where [] = <function state_reasons at 0x719d5bcb7a30>({'schema_version': 1, 'campaign': 'exp22_r2c_preflight', 'run': '20261106T130501', 'pin2': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}, Config(reservations='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is1/reservations', exp35_lock='/tm...s1/queue.log', proc='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is1/proc', nvidia_smi='nvidia-smi'))
+E        +    where <function state_reasons at 0x719d5bcb7a30> = S.state_reasons
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:161: AssertionError
+_________ test_an_incomplete_identity_is_no_identity[child-start_time] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is2')
+who = 'child', drop = 'start_time'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+>           del target[drop]
+E           KeyError: 'start_time'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:159: KeyError
+_______ test_an_incomplete_identity_is_no_identity[child-cmdline_sha256] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is3')
+who = 'child', drop = 'cmdline_sha256'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+            del target[drop]
+        E.write_json_atomic(str(orch / "state.json"), st)
+>       assert S.state_reasons(st, cfg)
+E       AssertionError: assert []
+E        +  where [] = <function state_reasons at 0x719d5bcb7a30>({'schema_version': 1, 'campaign': 'exp22_r2c_preflight', 'run': '20261106T130501', 'pin2': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}, Config(reservations='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is3/reservations', exp35_lock='/tm...s3/queue.log', proc='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is3/proc', nvidia_smi='nvidia-smi'))
+E        +    where <function state_reasons at 0x719d5bcb7a30> = S.state_reasons
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:161: AssertionError
+__________ test_an_incomplete_identity_is_no_identity[child-expected] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is4')
+who = 'child', drop = 'expected'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+            del target[drop]
+        E.write_json_atomic(str(orch / "state.json"), st)
+>       assert S.state_reasons(st, cfg)
+E       AssertionError: assert []
+E        +  where [] = <function state_reasons at 0x719d5bcb7a30>({'schema_version': 1, 'campaign': 'exp22_r2c_preflight', 'run': '20261106T130501', 'pin2': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ...}, Config(reservations='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is4/reservations', exp35_lock='/tm...s4/queue.log', proc='/tmp/pytest-of-yixunhu/pytest-6337/test_an_incomplete_identity_is4/proc', nvidia_smi='nvidia-smi'))
+E        +    where <function state_reasons at 0x719d5bcb7a30> = S.state_reasons
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:161: AssertionError
+________ test_alive_needs_the_complete_identity_and_never_the_pid_alone ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6337/test_alive_needs_the_complete_0')
+
+    def test_alive_needs_the_complete_identity_and_never_the_pid_alone(tmp_path):
+        me = {k: v for k, v in C.proc_identity(os.getpid()).items() if k in S.ID_KEYS}
+        assert S.alive(me, "/proc") is True
+        for k, v in (("start_time", me["start_time"] + 1), ("cwd", "/elsewhere"), ("cmdline_sha256", "0" * 64)):
+>           assert S.alive(dict(me, **{k: v}), "/proc") is False                  # the same pid, another process
+E           AssertionError: assert True is False
+E            +  where True = <function alive at 0x719d5bb2c310>({'pid': 864219, 'start_time': 782445367, 'cwd': '/elsewhere', 'cmdline_sha256': '6fb422c7af860d24d04a3571095fcb81f1323ffc7dbd4aebcefda987ef751360'}, '/proc')
+E            +    where <function alive at 0x719d5bb2c310> = S.alive
+E            +    and   {'pid': 864219, 'start_time': 782445367, 'cwd': '/elsewhere', 'cmdline_sha256': '6fb422c7af860d24d04a3571095fcb81f1323ffc7dbd4aebcefda987ef751360'} = dict({'pid': 864219, 'start_time': 782445367, 'cwd': '/home/yixunhu/codespace/exp-22-a7-noflash', 'cmdline_sha256': '6fb422c7af860d24d04a3571095fcb81f1323ffc7dbd4aebcefda987ef751360'}, **{'cwd': '/elsewhere'})
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:170: AssertionError
+_ test_a_child_that_ends_before_its_identity_is_captured_is_a_fail_closed_stop _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6337/test_a_child_that_ends_before_0/W', pin2='605723df2b72b01b26502b01e958...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x719d5bab4c40>
+
+    def test_a_child_that_ends_before_its_identity_is_captured_is_a_fail_closed_stop(box, monkeypatch):
+        seen = _phases(monkeypatch)
+        sup = S.Supervisor(ReapingWorld(), box.cfg, box.orch, box.fd, worktree=box.w, child_poll_s=0.05)
+>       assert sup.run() == 3
+E       assert 0 == 3
+E        +  where 0 = run()
+E        +    where run = <exp22_r2c_supervisor.Supervisor object at 0x719d5bab40d0>.run
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:416: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 864219}
+[2027-01-15T03:00:00-05:00] RELEASED: T -> the gates -> the BF probe -> A5 complete; our exact record released 
+_ test_a_child_that_never_shows_its_command_is_waited_for_never_identified_and_stops _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6337/test_a_child_that_never_shows_0/W', pin2='25766576ada6e2730e034a6a6402...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x719d5bc99cf0>
+
+    def test_a_child_that_never_shows_its_command_is_waited_for_never_identified_and_stops(box, monkeypatch):
+        _fake_cmdline(monkeypatch, empty_reads=None)
+        seen = _phases(monkeypatch)
+>       assert box.sup().run() == 3
+E       AssertionError: assert 0 == 3
+E        +  where 0 = run()
+E        +    where run = <exp22_r2c_supervisor.Supervisor object at 0x719d5bc9a4a0>.run
+E        +      where <exp22_r2c_supervisor.Supervisor object at 0x719d5bc9a4a0> = <function box.<locals>.<lambda> at 0x719d5bbf3c70>()
+E        +        where <function box.<locals>.<lambda> at 0x719d5bbf3c70> = namespace(w='/tmp/pytest-of-yixunhu/pytest-6337/test_a_child_that_never_shows_0/W', pin2='25766576ada6e2730e034a6a6402...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}]).sup
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:448: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 864219}
+[2027-01-15T03:00:00-05:00] RELEASED: T -> the gates -> the BF probe -> A5 complete; our exact record released 
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[supervisor-start_time]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[supervisor-cwd]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[child-start_time]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[child-cmdline_sha256]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[child-expected]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_alive_needs_the_complete_identity_and_never_the_pid_alone
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_child_that_ends_before_its_identity_is_captured_is_a_fail_closed_stop
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_child_that_never_shows_its_command_is_waited_for_never_identified_and_stops
+8 failed, 3 passed, 41 deselected in 5.07s
+rc 1

@@ -114,9 +114,13 @@ def release_reservation(held):
     return []
 
 
-def _ident_ok(ident):
-    return isinstance(ident, dict) and type(ident.get("pid")) is int and ident["pid"] > 0 and (
-        "start_time" not in ident or type(ident["start_time"]) is int)
+def _ident_ok(ident, child=False):
+    """A COMPLETE identity (Codex A7-C1 HIGH 1): pid, start time, cwd and cmdline sha256 -- a line child's equal to its
+    expected (spawned) cmdline; never a pid alone."""
+    ok = (isinstance(ident, dict) and all(k in ident for k in ID_KEYS) and type(ident["pid"]) is int and ident["pid"] > 0
+          and type(ident["start_time"]) is int and isinstance(ident["cwd"], str) and ident["cwd"] != ""
+          and isinstance(ident["cmdline_sha256"], str) and HEX64.fullmatch(ident["cmdline_sha256"]) is not None)
+    return ok and (not child or ident.get("expected_cmdline_sha256") == ident["cmdline_sha256"])
 
 
 def state_reasons(doc, cfg):
@@ -135,7 +139,7 @@ def state_reasons(doc, cfg):
          and type(held["dev"]) is int and type(held["inode"]) is int),
         ("phase", doc["phase"] in PHASES), ("lines / events", isinstance(doc["lines"], list) and isinstance(doc["events"], list)),
         ("supervisor", (sup is None) == (doc["phase"] == "reserved") and (sup is None or _ident_ok(sup))),
-        ("current", cur is None or (isinstance(cur, dict) and ("child" not in cur or _ident_ok(cur["child"]))))) if not ok]
+        ("current", cur is None or (isinstance(cur, dict) and ("child" not in cur or _ident_ok(cur["child"], True))))) if not ok]
     return [f"the state's {k} is malformed or inconsistent" for k in out]
 
 
@@ -202,14 +206,16 @@ def reserve(world, cfg, *, worktree, orch, pin2, card, index, seal, seal_sha256)
 
 
 def alive(ident, proc):
-    """True when the process ``ident`` names may still run: its pid lives with the recorded start time (and cmdline);
-    an identity that cannot be read while the pid exists counts as alive (unprovable)."""
+    """True iff the process ``ident`` names still runs with its COMPLETE recorded identity (pid, start time, cwd, cmdline
+    sha256) -- never by its pid alone (Codex A7-C1 HIGH 1); an incomplete record is no identity (``ValueError``). (A
+    line child that outlives its supervisor also keeps the exp22 lock held, which the release refuses on first.)"""
+    if not _ident_ok(ident):
+        raise ValueError(f"an incomplete identity {ident!r:.120} identifies no process")
     try:
         live = C.proc_identity(ident["pid"], proc)
     except ValueError:
-        return os.path.exists(os.path.join(proc, str(ident["pid"])))
-    return "start_time" not in ident or (live["start_time"] == ident["start_time"] and ident.get(
-        "cmdline_sha256", live["cmdline_sha256"]) == live["cmdline_sha256"])
+        return False
+    return all(live[k] == ident[k] for k in ID_KEYS)
 
 
 def active_reasons(cfg, worktree, except_orch=None, holding_lock=False):
@@ -446,7 +452,14 @@ class Supervisor:
             return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
         finally:
             os.close(fd)
-        cur["child"] = self.identify(proc, ln)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
         self.st["phase"] = "child_identified"
         self.save()
         self.watch(proc)
@@ -465,23 +478,24 @@ class Supervisor:
         return self.stop(f"line {ln['n']} {ln['name']}: " + "; ".join(refusals)) if refusals else None
 
     def identify(self, proc, ln):
-        """The child's /proc identity right after the spawn (pid, start time, cwd, cmdline sha256, fd 1 / 2). The kernel
-        closes the spawn's close-on-exec error pipe (Popen returns) BEFORE it maps the new argv, so an empty or other
-        cmdline is re-read for up to 5 s until it is the spawned command or the child has ended."""
-        expect, deadline = E.sha256_bytes(b"".join(a.encode() + b"\0" for a in ln["argv"])), time.monotonic() + 5.0
+        """``(identity, None)`` once /proc shows the spawned command -- pid, start time, cwd, cmdline sha256 equal to the
+        expected one, fd 1 / 2 -- read while the child lives; the kernel closes the spawn's close-on-exec error pipe
+        (Popen returns) BEFORE it maps the new argv, so the identity is re-read for up to 5 s. ``(None, why)`` when the
+        child ends first or never shows its command (Codex A7-C1 HIGH 1: never a partial identity)."""
+        expect, deadline, last = E.sha256_bytes(b"".join(a.encode() + b"\0" for a in ln["argv"])), time.monotonic() + 5.0, ""
         while True:
             try:
                 ident = C.proc_identity(proc.pid, self.cfg.proc)
+                if ident["cmdline_sha256"] == expect:
+                    return dict(ident, expected_cmdline_sha256=expect), None
+                last = "its /proc cmdline is not the spawned command"
             except ValueError as err:
-                ident = {"pid": proc.pid, "unreadable": str(err)}
-            done = proc.poll() is not None
-            if ident.get("cmdline_sha256") == expect or done or time.monotonic() > deadline:
-                break
+                last = str(err)
+            if proc.poll() is not None:
+                return None, f"the child {proc.pid} ended (rc {proc.returncode}) before its identity was captured ({last})"
+            if time.monotonic() > deadline:
+                return None, f"the child {proc.pid} did not show its command in /proc within 5 s ({last}): unidentified"
             time.sleep(0.01)
-        ident.update(expected_cmdline_sha256=expect, exited_before_identification=done)
-        if ident.get("cmdline_sha256") != expect and not ident["exited_before_identification"]:
-            self.latch = f"the child {proc.pid} runs but its /proc identity is not the spawned command"
-        return ident
 
     def watch(self, proc):
         """Wait for the child, NEVER signalling it: a heartbeat and the card re-checked every ``poll`` s."""

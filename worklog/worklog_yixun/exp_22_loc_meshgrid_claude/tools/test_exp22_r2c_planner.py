@@ -18,7 +18,7 @@ DEAD = {"pid": 4194000, "start_time": 1, "cwd": "/", "cmdline_sha256": "0" * 64}
 def _stop(orch, phase="stopped"):
     """The state as a stopped (or crashed) supervisor leaves it: a supervisor identity, the reservation kept."""
     st = json.load(open(orch / "state.json"))
-    st.update(phase=phase, supervisor=DEAD, stop={"reason": "a test stop", "time": "t"} if phase == "stopped" else None)
+    st.update(phase=phase, supervisor=dict(DEAD), stop={"reason": "a test stop", "time": "t"} if phase == "stopped" else None)
     E.write_json_atomic(str(orch / "state.json"), st)
     return st
 
@@ -140,3 +140,34 @@ def test_a_crashed_reserve_leaves_an_orphan_that_counts_as_an_active_exp22_run(t
         reserve(cfg, w, wt, orch, seal)
     monkeypatch.undo()
     assert any("holder exp22" in x for x in S.active_reasons(cfg, str(wt)))   # no state, yet the run is visible
+
+
+@pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                       ("child", "cmdline_sha256"), ("child", "expected")])
+def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+    """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+    sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+    cfg, w, wt, orch, seal = setup(tmp_path)
+    assert reserve(cfg, w, wt, orch, seal)[0] == 0
+    st = _stop(orch, "child_identified")
+    child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+    st["current"] = {"child": child}
+    target = st["supervisor"] if who == "supervisor" else child
+    if drop == "expected":
+        child["expected_cmdline_sha256"] = "1" * 64
+    else:
+        del target[drop]
+    E.write_json_atomic(str(orch / "state.json"), st)
+    assert S.state_reasons(st, cfg)
+    rc, msg = S.planner_release(cfg, str(wt), str(orch))
+    assert rc == 1 and "malformed" in msg and os.path.exists(res_file(cfg))
+
+
+def test_alive_needs_the_complete_identity_and_never_the_pid_alone(tmp_path):
+    me = {k: v for k, v in C.proc_identity(os.getpid()).items() if k in S.ID_KEYS}
+    assert S.alive(me, "/proc") is True
+    for k, v in (("start_time", me["start_time"] + 1), ("cwd", "/elsewhere"), ("cmdline_sha256", "0" * 64)):
+        assert S.alive(dict(me, **{k: v}), "/proc") is False                  # the same pid, another process
+    assert S.alive(dict(DEAD), "/proc") is False
+    with pytest.raises(ValueError):
+        S.alive({"pid": os.getpid()}, "/proc")                                # a pid alone identifies nothing

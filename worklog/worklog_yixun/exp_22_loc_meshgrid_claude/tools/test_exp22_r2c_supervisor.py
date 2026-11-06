@@ -396,3 +396,57 @@ def test_the_pinned_launchers_own_refusal_propagates_as_a_refused_line(box):
     assert doc["exit_code"] == 86 and "exit code 86" in doc["refusals"] and doc["sentinel"] is None
     assert any("NO-FLASH LAUNCH REFUSED" in r for r in doc["refusals"]) and not os.path.exists(box.path(box.lines[0]["junit"]))
     assert "NO-FLASH LAUNCH REFUSED" in open(box.path(box.lines[0]["log"])).read() and os.path.exists(box.res)
+
+
+# --------------------------------------------------------------------------- #
+# Codex A7-C1 HIGH 1: "child_identified" only with the complete identity; never a pid alone
+# --------------------------------------------------------------------------- #
+class ReapingWorld(LineWorld):
+    """A deterministic immediate-exit child: spawned for real, then waited for (reaped) before the supervisor sees it."""
+
+    def spawn(self, argv, env, cwd, log_fd, lock_fd):
+        p = super().spawn(argv, env, cwd, log_fd, lock_fd)
+        p.wait()
+        return p
+
+
+def test_a_child_that_ends_before_its_identity_is_captured_is_a_fail_closed_stop(box, monkeypatch):
+    seen = _phases(monkeypatch)
+    sup = S.Supervisor(ReapingWorld(), box.cfg, box.orch, box.fd, worktree=box.w, child_poll_s=0.05)
+    assert sup.run() == 3
+    st = box.state()
+    assert st["phase"] == "stopped" and "before its identity was captured" in st["stop"]["reason"]
+    assert "child" not in st["current"] and st["current"]["unidentified"]["pid"] > 0 and st["current"]["rc"] == 0
+    assert "child_identified" not in [p for p, _, _ in seen] and st["lines"] == []
+    assert not os.path.exists(box.path(box.lines[0]["record"])) and os.path.exists(box.res)   # kept, nothing judged
+
+
+def _fake_cmdline(monkeypatch, empty_reads):
+    """The first ``empty_reads`` /proc reads of any child show an empty cmdline (the kernel race; None = always)."""
+    real, count = C.proc_identity, {"n": 0}
+
+    def proc_identity(pid, proc="/proc"):
+        ident = real(pid, proc)
+        if int(pid) != os.getpid() and (empty_reads is None or count["n"] < empty_reads):
+            count["n"] += 1
+            ident = dict(ident, cmdline_sha256=E.sha256_bytes(b""))
+        return ident
+    monkeypatch.setattr(C, "proc_identity", proc_identity)
+    return count
+
+
+def test_a_transiently_empty_cmdline_is_re_read_until_the_child_shows_its_command(box, monkeypatch):
+    count = _fake_cmdline(monkeypatch, empty_reads=3)
+    assert box.sup().run() == 0 and count["n"] == 3
+    t = json.load(open(box.path(box.lines[0]["record"])))
+    assert set(S.ID_KEYS) <= set(t["child"]) and t["child"]["cmdline_sha256"] == t["child"]["expected_cmdline_sha256"]
+
+
+def test_a_child_that_never_shows_its_command_is_waited_for_never_identified_and_stops(box, monkeypatch):
+    _fake_cmdline(monkeypatch, empty_reads=None)
+    seen = _phases(monkeypatch)
+    assert box.sup().run() == 3
+    st = box.state()
+    assert "child_identified" not in [p for p, _, _ in seen] and "child" not in st["current"]
+    assert "before its identity was captured" in st["stop"]["reason"] and st["current"]["rc"] == 0   # it ran to its end
+    assert "passed" in open(box.path(box.lines[0]["log"])).read() and os.path.exists(box.res)
