@@ -50,3 +50,43 @@ Changed code lines exclude worklog records (the bash asset script `exp37_assets.
 | `6975b986` | GREEN | 8 | the run's own pid must be seen on its own card |
 | `43a946c9` | RED | 17 | selector-vector co-tenancy tests |
 | `e9dd12ae` | GREEN | 67 | `selector_cotenancy`, summary / markdown / exit code |
+| `18255957` | records | 0 | B-b runbook + commits table + round note (B-b pushed here) |
+
+## Round B-c (Coder, Claude Opus 5.5 max effort)
+
+| SHA | kind | code lines | what |
+|---|---|---:|---|
+| `23ae1bab` | RED | 100 | nested 1.0 m / c2f offline readout tests (real exp_09 scores) |
+| `e292b82a` | GREEN | 109 | `src/localization/exp37_grid.py` |
+| `08a47b28` | refactor | 127 | CPU fakes moved to `src/tests/exp37_fakes.py` (tests only) |
+| `b60a8ad4` | RED | 134 | headline plumbing deltas (`frame_angles`, `candidate_subset`) + the guard's registered-delta normalizer |
+| `94543a01` | GREEN | 74 | `execute_query(frame_angles, candidate_subset)`, `_cache_branch(*, frame_angles)`, split pass accepts angles |
+| `bd9674cc` | RED | 79 | c2f sequential pass tests |
+| `64a919c5` | GREEN | 133 | `src/localization/exp37_c2f.py` (+ a test-fake fix) |
+| `2d4d21f9` | RED | 83 | runner / CLI `--frame-avg-angles`, `--candidate-subset`, `--c2f-top-k` |
+| `fb47fadb` | GREEN | 40 | the wiring |
+| `a388757f` | RED | 60 | nested subset manifest tests |
+| `68f872bd` | GREEN | 91 | `tools/exp37_build_subset_manifest.py` |
+| `81cec444` | artifact | 0 | nested-1.0 m manifest (6,610 pairs) + log |
+| `192d81b4` | RED | 65 | parameterized audit + pilot rebuild tests |
+| `06814386` | RED (fix) | 2 | refusal exit code 3 (the RED case had passed for the wrong reason) |
+| `b9fc76b3` | GREEN | 53 | audit `--grid-spacing` / `--pin-z-branch`; pilot `--require-same-queries-as` (committed with one failing test needle) |
+| `8bb120e1` | test fix | 2 | the needle; the code was right |
+| `84ce3fa7` | RED | 110 | B3 rotation contract tests |
+| `76fe1be7` | GREEN | 102 | `src/localization/exp37_rotation.py` |
+| `ba15e34e` | RED | 45 | runner / CLI `--rotate-deg` |
+| `4e4b97a1` | GREEN | 17 | the wiring |
+| `54c573d4` | RED | 29 | audit comparator tests |
+| `cceb7a2e` | GREEN | 61 | `tools/exp37_compare_audits.py` |
+| `f5c9a5d2` | artifact | 0 | the 0.75 m audit + pilot; the 0.5 m reproduction log (0 differences) |
+| `a7732283` | RED | 107 | aggregation-input tests |
+| `f1c20d58` | GREEN | 82 | full-only readout, orbit / subset / rotation checks in `load_arm_run`, `load_c2f_run` |
+| `2069dcbf` | RED | 67 | aggregation helper tests |
+| `e79fc9c7` | GREEN | 84 | `src/localization/exp37_aggregate.py` |
+| `09820f28` | RED | 167 | aggregation CLI tests (synthetic world) |
+| `41484c87` | GREEN 1/2 | 166 | `tools/exp37_aggregate_b2b3.py` data assembly |
+| `5aa7ddc6` | GREEN 2/2 | 147 | markdown + Pareto figure + CLI |
+| `358e9bfa` | records | 0 | CPU pre-flight log (nested / c2f / 0.75 m / rotated) |
+| `4d0ec371` | records | 0 | `exp37_runbook_bc.md` |
+| `8bac953d` | RED | 10 | per-seed timing validity |
+| `31a2ad23` | GREEN | 9 | the fix |
