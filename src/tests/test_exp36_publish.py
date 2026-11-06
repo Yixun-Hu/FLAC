@@ -286,23 +286,30 @@ def test_a_relative_plan_path_resolves_against_the_base_dir(world, tmp_path, mon
     assert status == "equal" and v["plan_json"] == rel, v["reasons"]
 
 
-def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world, tmp_path, monkeypatch):
-    """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. Chain I
-    records it with the collector at H36_I 461c58e0, run in the run checkout with the runner's RELATIVE plan path; the
-    publication re-computes it with this collector from another cwd, the same relative string resolved against
-    --base-dir (review II NIT 2: both conditions in one test)."""
+LAUNCH = os.path.join(T.REPO, "worklog", "worklog_yixun", "exp_36_yaw_c4_spread_claude", "yaw_c4_spread_launch_commit.txt")
+
+
+def test_the_final_collector_reproduces_a_verdict_of_the_launch_collector(world, tmp_path, monkeypatch):
+    """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. The
+    chains record it with the collector at the LAUNCH commit (H36_I2, recorded in yaw_c4_spread_launch_commit.txt after
+    it is committed), run in the run checkout with the runner's RELATIVE plan path; the publication re-computes it with
+    this collector from another cwd, the same relative string resolved against --base-dir (review II NIT 2: both
+    conditions in one test)."""
     import subprocess
     import types
+    if not os.path.isfile(LAUNCH):
+        pytest.skip("no launch commit recorded yet: H36_I2 is recorded in a records commit after it")
+    launch = open(LAUNCH).read().split()[0]
     path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
-    src = subprocess.run(["git", "-C", T.REPO, "show", f"461c58e0:{os.path.relpath(path, T.REPO)}"], check=True,
+    src = subprocess.run(["git", "-C", T.REPO, "show", f"{launch}:{os.path.relpath(path, T.REPO)}"], check=True,
                          capture_output=True, text=True).stdout
-    old = types.ModuleType("depth_canon_collect_at_461c58e0")
+    old = types.ModuleType(f"depth_canon_collect_at_{launch[:8]}")
     old.__file__ = path
-    exec(compile(src, f"{path}@461c58e0", "exec"), old.__dict__)
+    exec(compile(src, f"{path}@{launch[:8]}", "exec"), old.__dict__)
     rel = os.path.relpath(world["plan"], world["new"])
     kw = dict(pin=H36, plan_json=rel, manifest=MANIFEST, base_dir=str(world["new"]), ref_base_dir=str(world["ref"]),
               ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"], canon_index=T.canon_index())
-    monkeypatch.chdir(world["new"])                                   # chain I: the comparator runs in the run checkout
+    monkeypatch.chdir(world["new"])                                   # the chains: the comparator in the run checkout
     recorded = json.loads(json.dumps(old.exp36_replay_check(**kw)[1]))
     monkeypatch.chdir(tmp_path)                                       # the publication: another cwd, same string
     status, again = C.exp36_replay_check(**kw)

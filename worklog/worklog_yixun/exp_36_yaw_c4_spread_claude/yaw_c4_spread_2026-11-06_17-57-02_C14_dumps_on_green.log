@@ -1,0 +1,280 @@
+GREEN, cycle 14 at HEAD 62a0841b8553c53a8deaa9755f56eea8221bbbbf + the uncommitted dumps-on changes (the registry's dump pins, the reference dump-evidence check, the replay WITH its dump + the CTL-style checks, exp36_dump_preflight + its CLI, the publication's sources with dumps, the chain without --no-dump-blocks + its preflights)
+.........F......F....................................................... [ 46%]
+.....F.................................................................. [ 92%]
+...........                                                              [100%]
+=================================== FAILURES ===================================
+__________________ test_the_replay_equal_to_the_archived_cell __________________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6642/test_the_replay_equal_to_the_a0/exp25'), 'new': PosixPath('/tmp/...599240a344474497', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_replay_equal_to_the_archived_cell(world):
+        status, v = check(world)
+        assert status == "equal" and v["result"] == "equal" and v["reasons"] == [], v["reasons"]
+        assert (v["pin"], v["campaign_digest"], v["plan_sha256"]) == (H36, T.DIGEST, _sha(world["plan"]))
+        ref, new = v["reference"], v["replay"]
+>       assert (ref["cell"], ref["pin"], ref["dump"], new["cell"], new["pin"], new["dump"]) == (
+            TEMPLATE, EXP25_PIN, True, REPLAY, H36, False)
+E       AssertionError: assert ('exp25_YAW_C...bbbbbb', True) == ('exp25_YAW_C...bbbbb', False)
+E         
+E         At index 5 diff: True != False
+E         Use -v to get more diff
+
+src/tests/test_exp36_replay_check.py:103: AssertionError
+_____________ test_the_raw_stream_sidecar_must_be_the_archived_one _____________
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6642/test_the_raw_stream_sidecar_mu0/exp25'), 'new': PosixPath('/tmp/...a78b28505c893f2b', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+
+    def test_the_raw_stream_sidecar_must_be_the_archived_one(world):
+        """With a dump a re-serialized stream cannot verify (the dump manifest binds the stream's bytes), so the raw
+        comparison is exercised through the pin: any other archived stream digest is a mismatch."""
+        world["pins"]["stream_sha256"] = "0" * 64
+        status, v = check(world)
+>       assert status == "mismatch" and any("stream sidecar sha256" in x for x in v["reasons"]), v["reasons"]
+E       AssertionError: ['the archived reference stream outputs_FLAC/exp25_depth_canon/YAW/epoch=8-step=40000_metrics_1_1.0_exp25_YAW_C4_S4000...2435065e1aea70aff331c43f86816d8eb2f7, not the pinned 0000000000000000000000000000000000000000000000000000000000000000']
+E       assert ('refused' == 'mismatch'
+E         
+E         - mismatch
+E         + refused)
+
+src/tests/test_exp36_replay_check.py:173: AssertionError
+____ test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector ____
+
+world = {'ref': PosixPath('/tmp/pytest-of-yixunhu/pytest-6642/test_the_final_collector_repro0/exp25'), 'new': PosixPath('/tmp/...1a49ddc2f5b2a3df', 'log_sha256': '226d8ad0420aae36ec930a04fbfd501852710dafaae5b2b46230c26e64c3bd09', ...}, 'n': 1, ...}
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6642/test_the_final_collector_repro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73b8b6507340>
+
+    def test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector(world, tmp_path, monkeypatch):
+        """The publication re-computes the replay verdict and requires PARSED-DICT equality with the recorded one. Chain I
+        records it with the collector at H36_I 461c58e0, run in the run checkout with the runner's RELATIVE plan path; the
+        publication re-computes it with this collector from another cwd, the same relative string resolved against
+        --base-dir (review II NIT 2: both conditions in one test)."""
+        import subprocess
+        import types
+        path = os.path.join(T.EXPDIR, "depth_canon_collect.py")
+        src = subprocess.run(["git", "-C", T.REPO, "show", f"461c58e0:{os.path.relpath(path, T.REPO)}"], check=True,
+                             capture_output=True, text=True).stdout
+        old = types.ModuleType("depth_canon_collect_at_461c58e0")
+        old.__file__ = path
+        exec(compile(src, f"{path}@461c58e0", "exec"), old.__dict__)
+        rel = os.path.relpath(world["plan"], world["new"])
+        kw = dict(pin=H36, plan_json=rel, manifest=MANIFEST, base_dir=str(world["new"]), ref_base_dir=str(world["ref"]),
+                  ref_dump_root=str(world["ref"] / "dumps"), reference=world["pins"], canon_index=T.canon_index())
+        monkeypatch.chdir(world["new"])                                   # chain I: the comparator runs in the run checkout
+        recorded = json.loads(json.dumps(old.exp36_replay_check(**kw)[1]))
+        monkeypatch.chdir(tmp_path)                                       # the publication: another cwd, same string
+        status, again = C.exp36_replay_check(**kw)
+>       assert recorded["result"] == status == "equal" and recorded["plan_json"] == rel and again == recorded
+E       AssertionError: assert ('refused' == 'equal'
+E         
+E         - equal
+E         + refused)
+
+/home/yixunhu/codespace/exp-36-yaw-c4-spread/src/tests/test_exp36_publish.py:309: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______ test_the_parsed_cli_routes_each_set_to_its_own_default_manifest ________
+----------------------------- Captured stderr call -----------------------------
+usage: __main__.py [-h] [--verify-cell STEM] [--pin PIN] [--cells CELLS]
+                   [--farm-root FARM_ROOT] [--dump-root DUMP_ROOT]
+                   [--base-dir BASE_DIR]
+                   [--canon-ckpt-manifest CANON_CKPT_MANIFEST]
+                   [--dump-check {full,manifest,receipt}] [--no-dump]
+                   [--no-link-check] [--plan OUT] [--blocks BLOCKS]
+                   [--only ONLY] [--limit LIMIT]
+                   [--no-dump-blocks NO_DUMP_BLOCKS] [--write-receipt CELL]
+                   [--plan-json PLAN_JSON] [--lane LANE] [--log LOG] [--rc RC]
+                   [--ckpt-sha CKPT_SHA] [--ckpt-bytes CKPT_BYTES]
+                   [--campaign-digest CAMPAIGN_DIGEST]
+                   [--spawn-digest SPAWN_DIGEST] [--post-digest POST_DIGEST]
+                   [--collect] [--nas-retention-audit] [--partial]
+                   [--probe-json PROBE_JSON] [--tie-audit-json TIE_AUDIT_JSON]
+                   [--out-md OUT_MD] [--out-json OUT_JSON] [--verify-after]
+                   [--check-backend-log LOG] [--finalize-bf-probe JSON]
+                   [--probe-log PROBE_LOG] [--exp35-ctl-check K] [--exp35-e2]
+                   [--a6-csv A6_CSV] [--exp35] [--exp35-out EXP35_OUT]
+                   [--exp25-base-dir EXP25_BASE_DIR]
+                   [--exp25-dump-root EXP25_DUMP_ROOT]
+                   [--bf-probe-json BF_PROBE_JSON] [--count-no-flash]
+                   [--backend-target BACKEND_TARGET]
+                   [--attention-backend ATTENTION_BACKEND]
+                   [--no-flash-overlay-sha256 NO_FLASH_OVERLAY_SHA256]
+                   [--no-flash-launcher-sha256 NO_FLASH_LAUNCHER_SHA256]
+                   [--exp36-replay-check] [--verdict-out VERDICT_OUT]
+                   [--exp36-replay EXP36_REPLAY]
+                   [--exp36-ref-dir EXP36_REF_DIR] [--exp36-dump-preflight]
+                   [--exp36-publish] [--exp36-verdict EXP36_VERDICT]
+                   [--exp36-set {A,OFF}] [--publisher-pin PUBLISHER_PIN]
+                   [--exp36-publish-resume]
+__main__.py: error: unrecognized arguments: --publish-manifest-out x.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_dump_preflight.py::test_absent_dump_directories_pass
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_foreign_dump_directory_refuses_everything[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_staging_leftover_refuses
+PASSED src/tests/test_exp36_dump_preflight.py::test_a_dump_of_this_checkouts_own_cell_is_left_to_the_runner
+PASSED src/tests/test_exp36_dump_preflight.py::test_an_unknown_cell_or_an_empty_selection_is_refused
+PASSED src/tests/test_exp36_dump_preflight.py::test_cli_exit_codes
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[waveforms]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_the_dump_checks_are_ctl_style
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r13]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r14]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_without_a_dump_or_with_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+PASSED src/tests/test_exp36_a1_replays.py::test_the_raw_canon_sidecar_must_be_the_archived_one
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_must_reproduce_its_references_waveforms[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+PASSED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+PASSED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_clean_closure_at_the_pin_is_recorded
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[collector]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[dependency]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[untracked]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[deleted]
+PASSED src/tests/test_exp36_publish_publisher.py::test_dirty_closure_bytes_are_refused[cells]
+PASSED src/tests/test_exp36_publish_publisher.py::test_test_files_and_files_outside_the_closure_do_not_count
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_wrong_or_short_pin_or_a_missing_head_is_refused
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_closure_names_this_collector_and_its_cells_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_a_refused_publisher_refuses_the_publication_before_any_write
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_requires_the_publisher_pin_and_the_collectors_own_cells
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_parsed_cli_routes_each_set_to_its_own_default_manifest
+PASSED src/tests/test_exp36_publish_publisher.py::test_the_cli_help_names_both_sets
+PASSED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_held_lock_refuses_before_anything_and_the_lock_spans_every_write
+PASSED src/tests/test_exp36_publish_concurrency.py::test_two_concurrent_same_set_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_concurrent_a_and_off_publications
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_destination_path_swap_cannot_redirect_the_owner
+PASSED src/tests/test_exp36_publish_concurrency.py::test_temps_are_named_by_the_transaction_and_a_resume_removes_only_those
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[none]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[json]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[file]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[symlink]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[other_set]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[verdict]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[entries]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[source]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[complete]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[txid]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_a_resume_authenticates_the_prior_manifest[writer_temp]
+PASSED src/tests/test_exp36_publish_concurrency.py::test_the_initial_manifest_is_created_exclusively
+PASSED src/tests/test_exp36_publish_concurrency.py::test_an_update_never_replaces_a_manifest_it_did_not_write
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2_and_their_dumps
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+PASSED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[1-kinds0-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-A]
+PASSED src/tests/test_exp36_chain.py::test_a_dump_collision_stops_the_chain_before_its_runner_step[2-None-offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+PASSED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the production run exited 4-kinds7]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+PASSED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A]
+PASSED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+PASSED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+PASSED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused
+FAILED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+FAILED src/tests/test_exp36_replay_check.py::test_the_raw_stream_sidecar_must_be_the_archived_one
+FAILED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector
+3 failed, 152 passed, 3 warnings in 253.85s (0:04:13)
+
+attempt 2 after three test-side fixes: (1) the equal-verdict test now expects the replay's dump flag True; (2) the raw-stream test re-serializes the replay's stream BEFORE its dump binds it (the replay verifies; the raw sidecar differs -> mismatch); (3) the cross-version guard now compares against the LAUNCH collector recorded in yaw_c4_spread_launch_commit.txt (H36_I2, recorded after its commit; skipped until then) -- 461c58e0's plan check (dump-free replays) is superseded by the addendum
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+PASSED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+SKIPPED [1] src/tests/test_exp36_publish.py:301: no launch commit recorded yet: H36_I2 is recorded in a records commit after it
+154 passed, 1 skipped, 3 warnings in 252.89s (0:04:12)

@@ -10,8 +10,10 @@
 #            exp25_YAW_C4_S40000_K{1,8}_s{43..46}_th{90,180,270} cells. A YAW replay already complete and verified at
 #            this HEAD under this relevant tree is SKIPPED by the runner (its result consumed) and re-checked; else it
 #            is run again first.
-#   Every cell dump-free (--no-dump-blocks), no-flash, on --lanes 0,1 (A1 §4: both cards). Anything but an equal
-#   check is a HARD STOP: nothing further runs, nothing is retried. Publication (--exp36-publish --exp36-set OFF|A)
+#   Every cell DUMPS its scored waveforms like its template (the Planner's addendum: announcement 08; each row's own
+#   dump field, the manifest's dump root) after --exp36-dump-preflight found no target dump directory this checkout did
+#   not publish; no-flash, on --lanes 0,1 (A1 §4: both cards). Anything but an equal check is a HARD STOP: nothing
+#   further runs, nothing is retried. Publication (--exp36-publish --exp36-set OFF|A)
 #   is a SEPARATE command: this chain never publishes; P1 / B-F / CANON outputs stay in this worktree's farm.
 #
 # Usage:  EXPECT_HEAD=<H36, the 40-hex commit of this worktree> bash yaw_c4_spread_chain.sh {offorbit|A}
@@ -56,17 +58,17 @@ die() { echo "$*"; exit 2; }
 MODE="$1"; REPLAYS=(); CELLS=""
 case "$MODE" in
   offorbit)
-    REPLAYS=("exp36_YAW_${C4}" "exp36_P1_${C4}" "exp36_BF_${C4}" "exp36_CANON_${C4}"); RPL_NODUMP="YAW-C4S,RPL-S42"
+    REPLAYS=("exp36_YAW_${C4}" "exp36_P1_${C4}" "exp36_BF_${C4}" "exp36_CANON_${C4}")
     for a in P1 BF CANON; do for k in 1 8; do for d in 135 225; do
       CELLS+="${CELLS:+,}exp35_${a}_OFF_S40000_K${k}_s42_th${d}"; done; done; done
     for a in P1 BF CANON; do for k in 1 8; do CELLS+=",exp35_${a}_OFF_S40000_K${k}_s42_th315"; done; done
     for k in 1 8; do for d in 135 225 315; do CELLS+=",exp25_YAW_C4_S40000_K${k}_s42_th${d}"; done; done
-    CELLS_NODUMP="OFF-P1,OFF-BF,OFF-CANON,OFF-S42"; SET="OFF" ;;
+    SET="OFF" ;;
   A)
-    REPLAYS=("exp36_YAW_${C4}"); RPL_NODUMP="YAW-C4S"
+    REPLAYS=("exp36_YAW_${C4}")
     for k in 1 8; do for s in 43 44 45 46; do for d in 90 180 270; do
       CELLS+="${CELLS:+,}exp25_YAW_C4_S40000_K${k}_s${s}_th${d}"; done; done; done
-    CELLS_NODUMP="YAW-C4S"; SET="A" ;;
+    SET="A" ;;
   *) die "unknown mode '${MODE}' (offorbit | A) - abort" ;;
 esac
 case "$DRY_RUN" in 0|1) ;; *) die "DRY_RUN must be 0 or 1 (got '${DRY_RUN}') - abort" ;; esac
@@ -101,6 +103,13 @@ got="$(sha256sum -- "$CANON_CKPTS" 2>/dev/null | awk '{print $1}')"
 TMPD="$(mktemp -d)" || die "mktemp failed - abort"
 trap 'rm -rf -- "$TMPD"' EXIT
 
+preflight() {   # <cells csv> <what>: no target dump directory of these cells that this checkout did not publish
+  echo "+ ${PY} ${COLLECT} --exp36-dump-preflight --only $1 --canon-ckpt-manifest ${CANON_CKPTS}"
+  CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 "$PY" "$COLLECT" --exp36-dump-preflight --only "$1" \
+    --canon-ckpt-manifest "$CANON_CKPTS" \
+    || { echo "HARD STOP: DUMP PREFLIGHT REFUSED for $2 (a target dump directory collides); nothing runs"; exit 2; }
+}
+
 runner() {   # <capture> <runner args...>: the runner with the chain's fixed environment; its exit status in RC
   local out="$1"; shift
   echo "+ ALLOW_SHARED_GPU=0 DRY_RUN=${DRY_RUN} EXPECT_HEAD=${EXPECT_HEAD} bash ${RUNNER} $*"
@@ -110,8 +119,9 @@ runner() {   # <capture> <runner args...>: the runner with the chain's fixed env
 }
 
 RPL_CSV="$(IFS=,; echo "${REPLAYS[*]}")"
-echo "--- step 1/3: the replay(s) ${RPL_CSV} on GPUs ${LANES}, dumps off ---"
-runner "$TMPD/step1" --only "$RPL_CSV" --no-dump-blocks "$RPL_NODUMP"
+echo "--- step 1/3: the replay(s) ${RPL_CSV} on GPUs ${LANES}, with their dumps ---"
+preflight "$RPL_CSV" "the replay(s)"
+runner "$TMPD/step1" --only "$RPL_CSV"
 [ "$RC" -eq 0 ] || { echo "HARD STOP: the replay run exited ${RC}; no replay check, no production cell"; exit 3; }
 mapfile -t PLANS < <(sed -n 's/^plan: [0-9][0-9]* cell(s) -> \(.*\)$/\1/p' "$TMPD/step1")
 { [ "${#PLANS[@]}" -eq 1 ] && [[ "${PLANS[0]}" =~ $PLAN_RE ]] && [ -f "${PLANS[0]}" ]; } \
@@ -141,8 +151,9 @@ for r in "${REPLAYS[@]}"; do
   [ "$r" = "exp36_YAW_${C4}" ] && YAW_VERDICT="$VERDICT"
 done
 
-echo "--- step 3/3: the production cells (${MODE}) on GPUs ${LANES}, dumps off ---"
-runner "$TMPD/step3" --only "$CELLS" --no-dump-blocks "$CELLS_NODUMP"
+echo "--- step 3/3: the production cells (${MODE}) on GPUs ${LANES}, with their dumps ---"
+preflight "$CELLS" "the production cells"
+runner "$TMPD/step3" --only "$CELLS"
 [ "$RC" -eq 0 ] || { echo "the production run exited ${RC}: not complete -- re-run this chain to resume"; exit 6; }
 if [ "$DRY_RUN" = 1 ]; then echo "=== DRY_RUN complete: nothing evaluated, no replay check, nothing published ==="; exit 0; fi
 echo "=== CHAIN COMPLETE (${MODE}): every replay EQUAL, the production cells complete and verified. Publication of the YAW"

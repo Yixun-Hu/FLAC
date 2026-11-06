@@ -2319,9 +2319,12 @@ EXP36_DIR = os.path.join(REPO, "worklog", "worklog_yixun", "exp_36_yaw_c4_spread
 EXP35_WORKTREE = os.path.expanduser("~/codespace/exp-35-orbitrir-yaw")   # A1: read-only, the phase-(i) B-F cell
 H35_PIN = "5b065801e9d1c1844461ec84cd0558702c714326"
 _C4, _STREAM = "C4_S40000_K8_s42_th90", "e671270fc3cd61f5a47dd68f6f41707db68d6e62b4f2750ae52e9e7f9b7085a8"
-EXP36_REPLAYS = {   # replay -> its archived reference: worktree, pin, raw digests (read 2026-11-06), backend proof
+EXP36_REPLAYS = {   # replay -> its archived reference: worktree, pin, raw digests (read 2026-11-06), backend proof, and
+    # (the Planner's addendum) its receipt's dump evidence: the dump manifest's and the waveforms' sha256
     EXP36_REPLAY: {"reference": f"exp25_YAW_{_C4}", "worktree": EXP25_WORKTREE, "pin": EXP25_PIN, "backend": "fallback",
                    "metrics_sha256": "fc8cb212a9a5b852d1ad3bc31e01ff17c1b0b93b79141d92d0c016751eb11130",
+                   "dump_manifest_sha256": "6a702f0007654f5b4a23e463207e4d494889d34a1b63263821213c21d43d2002",
+                   "waveform_sha256": "1485ef84c6753959effa202b7cfe3b1fd364c1d66d995c864a1d22ac4b33d6ee",
                    "stream_sha256": _STREAM, "canon_sha256": None,
                    "receipt_sha256": "ee7d624a0c5a5df589fa7e47690aca85e2d6297007a466ad69820bf3c7bf9177",
                    "log_sha256": "8cbf6e24703c9957f9fdd6c9295af8c96063e19694fcf356f1ea0aeb6a0e8ea9",
@@ -2329,12 +2332,16 @@ EXP36_REPLAYS = {   # replay -> its archived reference: worktree, pin, raw diges
     f"exp36_P1_{_C4}": {"reference": f"exp25_P1_{_C4}", "worktree": EXP25_WORKTREE, "pin": EXP25_PIN,
                         "backend": "fallback", "stream_sha256": _STREAM, "canon_sha256": None,
                         "metrics_sha256": "88bb41c190da815e8212a2c8a45b559e9eda7df9f8384a04727f7bf83956c74d",
+                   "dump_manifest_sha256": "99de989732a26dbd8b3047e45651129f2b824b5c72a19bc7cb505a02f251a92b",
+                   "waveform_sha256": "34dfa66d5c67dc1e945420e8f6aa1aac11ae2f4cb0e43b4fb33e3f660f3eb9b4",
                         "receipt_sha256": "eb5a588c3b2a3ad6262c8b1edd4b504100ed9b4997803b6c721f2488baa61929",
                         "log_sha256": "a9e2dff3a8b93c2235738f64f8dc4e47dd198c3336ddea1cd6e83b825e3b0893",
                         "loaded": ["c4c678826cddda37fa4977926aadee530afd037b3abb110918b52a342ce9845c", 723927531]},
     f"exp36_BF_{_C4}": {"reference": f"exp35_BF_{_C4}", "worktree": EXP35_WORKTREE, "pin": H35_PIN,
                         "backend": "launcher", "stream_sha256": _STREAM, "canon_sha256": None,
                         "metrics_sha256": "ef2840c746b871268bddf8ae36609d1ee33186074a9afb01612c5db97606d82f",
+                   "dump_manifest_sha256": "975cb72125977b6724cda82501bff4b356accb80278db7f8341c69566630fd5c",
+                   "waveform_sha256": "d9f46debf8ebf7739a7a1dc4267e1a1ad5a280716b77c9dd8af61f311c39dac6",
                         "receipt_sha256": "431ceba60189490e85d53d942f43025c493a863cddec928ec7555d34ed5b16fd",
                         "log_sha256": "af938eb25007efa472455d679b63a794702df4e61dcf0321623cbc22f25ef4bd",
                         "loaded": ["5319feb4af874624859e87105ddd8ab06d4b449769d1e054f712b2b1c0542328", 723922667]},
@@ -2342,6 +2349,8 @@ EXP36_REPLAYS = {   # replay -> its archived reference: worktree, pin, raw diges
                            "backend": "fallback", "stream_sha256": _STREAM,
                            "canon_sha256": "5e3d6c4f1904038dd0b8eeec49db8c18474a6df992ec5bd3994ebb33f1536700",
                            "metrics_sha256": "51025f3b36075efb3966f757f17cdf43f4348046a55d28b58a1f0b726cbea8aa",
+                   "dump_manifest_sha256": "ca864c12d0ca9058c95f5e129777f3ac12f152d3c526acdf5bcb869d409c311a",
+                   "waveform_sha256": "441330a0b8f5159d8cd5c07baf1a8112bb6a296b00e98e703ca7409e0c293180",
                            "receipt_sha256": "3fc4ed172ac0e8b7efefe15cb035f55de08f76c2591b9f8498d8b5cb4c6a87ac",
                            "log_sha256": "a201c970a65bd06a439bfb99615516528d98072000a06b7255bb6685e868269a",
                            "loaded": ["52c64b525c8a34f1721b73abd5c4aad67295ea2f729426e9330104b6d1441ace", 723922667]}}
@@ -2417,10 +2426,37 @@ def exp36_reference(manifest, *, replay=EXP36_REPLAY, ref_base_dir=None, ref_dum
     why = _backend_proof(pins["backend"], raw.decode(errors="replace"))
     if why:
         return files, why
+    ev = json.loads(_read(base, p.receipt)).get("dump_evidence") or {}
+    files["dump"] = {"manifest_sha256": ev.get("manifest_sha256"), "waveform_sha256": (ev.get("manifest") or {}).get("sha256")}
+    if files["dump"] != {"manifest_sha256": pins["dump_manifest_sha256"], "waveform_sha256": pins["waveform_sha256"]}:
+        return files, [f"the archived reference's dump evidence {files['dump']} is not the pinned dump"]
     why = verify_cell(p.stem, manifest=manifest, farm_root=manifest["farm_root"], dump_root=ref_dump_root or
                       manifest["dump_root"], pin=pins["pin"], canon_index=canon_index, base_dir=base,
                       dump_check="receipt", expect_dump=True, check_link=False)
     return files, [f"the archived reference does not verify at {pins['pin'][:12]}: {x}" for x in why]
+
+
+def exp36_dump_preflight(manifest, names, *, base_dir=REPO, dump_root=None, canon_index=None):
+    """The Planner's addendum (every exp_36 cell dumps): reasons any of ``names`` would dump onto a directory this
+    checkout did not publish -- its dump directory or a ``.staging-`` sibling exists under ``dump_root`` while
+    ``base_dir``'s farm holds no receipt for the cell ([] = clear). A dump WITH this checkout's receipt (a resumed chain)
+    is left to the runner's reviewed predicate: SKIP if complete and verified, else QUARANTINE."""
+    rows = {c["cell"]: c for c in manifest["cells"]}
+    if not names or any(n not in rows for n in names):
+        return [f"unknown or empty selection {names!r}"]
+    root, out = dump_root or manifest["dump_root"], []
+    for name in names:
+        row = rows[name]
+        try:
+            target, _ = expected_checkpoint(row, manifest, canon_index)
+        except KeyError as err:
+            return [str(err).strip("'\"")]
+        p = cell_paths(row, os.path.join(manifest["farm_root"], row["arm"], os.path.basename(target)), root)
+        if (os.path.lexists(p.dump_dir) or staging_leftovers(p.dump_dir)) and not os.path.lexists(
+                os.path.join(base_dir, p.receipt)):
+            out.append(f"{name}: its dump directory {p.dump_dir} (or a .staging- sibling) exists and this checkout "
+                       "holds no receipt for it -- it collides")
+    return out
 
 
 def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_dir=REPO, ref_base_dir=None,
@@ -2437,7 +2473,8 @@ def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_di
                "plan_json": plan_json, "plan_sha256": None, "reference": None, "replay": None,
                "loaded": pins.get("loaded"),
                "compared": ["metrics", "by_scene", "every other record key but source_sha / eval_name, key order",
-                            "raw stream (and canon) sidecar sha256", "loaded checkpoint sha256 + bytes (records, receipts)"],
+                            "raw stream (and canon) sidecar sha256", "loaded checkpoint sha256 + bytes (records, receipts)",
+                            "the dump: waveform sha256, COMPLETE marker, n / dtype / shape, input_hash (exp_35 CTL style)"],
                "reasons": []}
     if replay not in EXP36_REPLAYS or not re.fullmatch(r"[0-9a-f]{40}", str(pin)):
         return "refused", dict(verdict, reasons=[f"replay {replay!r} / pin {pin!r}: not a registered replay at a full "
@@ -2448,11 +2485,11 @@ def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_di
         digest, entries = plan["campaign_digest"], plan["cells"]
         ok = (eval_FLAC._is_sha256_hex(digest) and plan["farm_root"] == manifest["farm_root"]
               and isinstance(plan["dump_root"], str) and replay in [e["cell"] for e in entries]
-              and all(e["cell"] in EXP36_REPLAYS and e["dump"] is False and e.get("no_flash") is True for e in entries))
+              and all(e["cell"] in EXP36_REPLAYS and e["dump"] is True and e.get("no_flash") is True for e in entries))
     except (OSError, TypeError, ValueError, KeyError) as err:
         ok, digest = False, f"unreadable ({type(err).__name__}: {err})"
     if not ok:
-        return "refused", dict(verdict, reasons=[f"the replay run plan {plan_json!r} is not a plan of dump-free no-flash "
+        return "refused", dict(verdict, reasons=[f"the replay run plan {plan_json!r} is not a plan of dumping no-flash "
                                                  f"registered replays holding {replay} under one campaign digest "
                                                  f"({digest!r:.80})"])
     verdict.update(campaign_digest=digest, plan_sha256=_sha256(raw))
@@ -2463,14 +2500,17 @@ def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_di
     row, p = _exp36_paths(manifest, replay, plan["farm_root"], plan["dump_root"], canon_index)
     why += [f"the replay does not verify at {pin[:12]}: {x}" for x in verify_cell(
         p.stem, manifest=manifest, farm_root=plan["farm_root"], dump_root=plan["dump_root"], pin=pin, base_dir=base_dir,
-        canon_index=canon_index, dump_check="full", expect_dump=False, check_link=False, expect_digest=digest)]
+        canon_index=canon_index, dump_check="full", expect_dump=True, check_link=False, expect_digest=digest)]
     if why:
         return "refused", dict(verdict, reasons=why)
     new = {k: _read(base_dir, rel) for k, rel in _artifacts(row, p)}
     receipt = json.loads(new["receipt"])
     nfiles = {k: {"path": rel, "sha256": _sha256(new[k])} for k, rel in _artifacts(row, p)}
     nfiles["log"] = {"path": receipt["log"], "sha256": _sha256(_read(base_dir, receipt["log"]))}
-    verdict["replay"] = {"cell": replay, "base_dir": base_dir, "pin": pin, "dump": False,
+    nev = receipt.get("dump_evidence") or {}
+    nfiles["dump"] = {"dir": p.dump_dir, "manifest_sha256": nev.get("manifest_sha256"),
+                      "waveform_sha256": (nev.get("manifest") or {}).get("sha256")}
+    verdict["replay"] = {"cell": replay, "base_dir": base_dir, "pin": pin, "dump": True,
                          "receipt_schema": receipt["schema_version"], "files": nfiles,
                          **{k: receipt[k] for k in RECEIPT_V2_KEYS}}
     ref_base = verdict["reference"]["base_dir"]
@@ -2489,6 +2529,12 @@ def exp36_replay_check(*, replay=EXP36_REPLAY, pin, plan_json, manifest, base_di
     for label, doc in (("replay record", rec), ("replay receipt", receipt), ("archived record", ref),
                        ("archived receipt", ref_receipt)):
         _eq(out, f"{label} loaded checkpoint (sha256, bytes)", [doc.get(k) for k in LOAD_KEYS], list(pins["loaded"]))
+    nm, rm = nev.get("manifest") or {}, (ref_receipt.get("dump_evidence") or {}).get("manifest") or {}
+    _eq(out, "dump waveform sha256", nm.get("sha256"), pins["waveform_sha256"])           # the exp_35 CTL checks
+    _eq(out, "dump COMPLETE marker", nev.get("marker"), f"{pins['waveform_sha256']}\n")
+    _eq(out, "dump n / dtype / shape", [nm.get(k) for k in ("n", "dtype", "shape")], [rm.get(k) for k in ("n", "dtype",
+                                                                                                         "shape")])
+    _eq(out, "dump input_hash", nm.get("input_hash"), rm.get("input_hash"))
     return ("mismatch" if out else "equal"), dict(verdict, result="mismatch" if out else "equal", reasons=out)
 
 
@@ -2678,13 +2724,14 @@ def _authenticate(out, doc, entries):
 
 
 def _exp36_sources(manifest, *, cells, pin, digest, base_dir, dump_root, dest):
-    """``(entries, reasons)``: the planned copies of ``cells``, each verified here at ``pin``, dump-free, receipt 2
-    sdpa, under ``digest`` -- metrics JSON + stream sidecar (never the receipt, never a replay)."""
+    """``(entries, reasons)``: the planned copies of ``cells``, each verified here at ``pin`` WITH its dump (offline:
+    its receipt's evidence), receipt 2 sdpa, under ``digest`` -- metrics JSON + stream sidecar (never the receipt, never
+    a replay, never a dump)."""
     entries, why = [], []
     for name in cells:
         _, p = _exp36_paths(manifest, name, manifest["farm_root"], dump_root)
         bad = verify_cell(p.stem, manifest=manifest, farm_root=manifest["farm_root"], dump_root=dump_root, pin=pin,
-                          base_dir=base_dir, dump_check="full", expect_dump=False, check_link=False, expect_digest=digest)
+                          base_dir=base_dir, dump_check="receipt", expect_dump=True, check_link=False, expect_digest=digest)
         why += [f"{name}: {x}" for x in bad]
         if not bad:
             receipt = _sha256(_read(base_dir, p.receipt))
@@ -2884,6 +2931,8 @@ def main(argv=None):
     ap.add_argument("--verdict-out", default=None, help="--exp36-replay-check: write the verdict JSON (never replaced)")
     ap.add_argument("--exp36-replay", default=EXP36_REPLAY, help="--exp36-replay-check: the replay (EXP36_REPLAYS)")
     ap.add_argument("--exp36-ref-dir", default=None, help="--exp36-replay-check: the reference worktree (default: pinned)")
+    ap.add_argument("--exp36-dump-preflight", action="store_true",
+                    help="exp_36: exit 0 iff no --only cell would dump onto a directory this checkout did not publish")
     ap.add_argument("--exp36-publish", action="store_true",
                     help="exp_36: copy the selected set's verified cells (--exp36-set A: 24 cells, 48 files; OFF: 6 cells, "
                          "12 files) into the pinned exp-25 YAW farm (--pin H36_I, --exp36-verdict, --publisher-pin); exit 0 "
@@ -2902,6 +2951,20 @@ def main(argv=None):
               + "".join(f"\n  - {x}" for x in reasons))
         return 0 if not reasons else 1
     manifest = load_cells(args.cells)
+    if args.exp36_dump_preflight:   # exp_36, the Planner's addendum: every cell dumps; no collision allowed
+        try:
+            sel = _csv(args.only) or []
+            index = (load_canon_index(args.canon_ckpt_manifest or find_canon_manifest(),
+                                      manifest["arms"]["CANON"]["ckpt"]["run_ns"])
+                     if any(c["cell"] in sel and c["arm"] == "CANON" for c in manifest["cells"]) else None)
+            why = exp36_dump_preflight(manifest, sel, base_dir=args.base_dir, dump_root=args.dump_root,
+                                       canon_index=index)
+        except (OSError, ValueError, KeyError) as err:
+            why = [f"the preflight could not run ({type(err).__name__}: {err})"]
+        root = args.dump_root or manifest["dump_root"]
+        print(f"EXP36 DUMP PREFLIGHT OK: {len(sel)} cell(s), no dump collision under {root}" if not why else
+              "EXP36 DUMP PREFLIGHT REFUSED" + "".join(f"\n  - {x}" for x in why))
+        return 0 if not why else 2
     if args.exp36_publish:   # exp_36 (Codex B4 / H4): a separate command, never run by the runner or the chain
         if (args.exp36_replay_check or os.path.abspath(args.exp25_base_dir) != EXP25_WORKTREE or not args.exp36_set
                 or not args.publisher_pin or os.path.abspath(args.cells) != CELLS_JSON):

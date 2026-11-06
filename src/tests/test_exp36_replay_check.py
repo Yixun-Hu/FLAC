@@ -101,7 +101,7 @@ def test_the_replay_equal_to_the_archived_cell(world):
     assert (v["pin"], v["campaign_digest"], v["plan_sha256"]) == (H36, T.DIGEST, _sha(world["plan"]))
     ref, new = v["reference"], v["replay"]
     assert (ref["cell"], ref["pin"], ref["dump"], new["cell"], new["pin"], new["dump"]) == (
-        TEMPLATE, EXP25_PIN, True, REPLAY, H36, False)
+        TEMPLATE, EXP25_PIN, True, REPLAY, H36, True)
     for kind in ("metrics", "stream", "receipt"):
         assert ref["files"][kind] == {"path": _rel(_row(TEMPLATE), kind), "sha256": world["pins"][f"{kind}_sha256"]}
         assert new["files"][kind] == {"path": _rel(_row(REPLAY), kind),
@@ -165,10 +165,17 @@ def test_the_loaded_checkpoint_must_be_the_pinned_one(world):
     assert status == "mismatch" and sum("loaded checkpoint" in x for x in v["reasons"]) == 4, v["reasons"]
 
 
-def test_the_raw_stream_sidecar_must_be_the_archived_one(world):
-    """With a dump a re-serialized stream cannot verify (the dump manifest binds the stream's bytes), so the raw
-    comparison is exercised through the pin: any other archived stream digest is a mismatch."""
-    world["pins"]["stream_sha256"] = "0" * 64
+def test_the_raw_stream_sidecar_must_be_the_archived_one(world, monkeypatch):
+    """A replay whose stream sidecar is the same JSON in other bytes -- written so, BEFORE its dump binds it, so the
+    replay itself verifies -- is a mismatch: the raw sidecar must be the archived one byte for byte."""
+    real = T.json.dump
+
+    def dump(obj, f, **kw):
+        return real(obj, f, **(dict(kw, indent=1) if getattr(f, "name", "").endswith(".stream.json") else kw))
+
+    monkeypatch.setattr(T.json, "dump", dump)
+    replay(world)
+    monkeypatch.setattr(T.json, "dump", real)
     status, v = check(world)
     assert status == "mismatch" and any("stream sidecar sha256" in x for x in v["reasons"]), v["reasons"]
 
