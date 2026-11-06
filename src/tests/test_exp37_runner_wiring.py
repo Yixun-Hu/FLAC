@@ -155,7 +155,7 @@ def test_a_required_backend_refuses_before_anything_is_written(frozen, tmp_path,
     monkeypatch.setattr(transformer, "flash_attn_func", None)
     monkeypatch.delenv(run_provenance.LAUNCH_ENV, raising=False)
     with pytest.raises(RuntimeError, match="hand-off"):
-        _run(frozen, tmp_path, query_index=4467, require_attention_backend="sdpa")
+        _run(frozen, tmp_path, query_index=4467, require_attention_backend="sdpa", measure_core_forward=True, synchronize_timing=True)
     assert not (tmp_path / "run").exists() and stubbed.executed == []
 
 
@@ -164,7 +164,7 @@ def test_a_mesh_mismatch_refuses_before_anything_is_written(frozen, tmp_path, st
         raise RuntimeError("room X: SHA-256 differs")
     monkeypatch.setattr(runner, "resolve_mesh_root", refuse)
     with pytest.raises(RuntimeError, match="SHA-256"):
-        _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"))
+        _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"), measure_core_forward=True, synchronize_timing=True)
     assert not (tmp_path / "run").exists() and stubbed.executed == []
 
 
@@ -194,11 +194,11 @@ def test_the_provenance_checks_run_before_the_cuda_check(frozen, tmp_path, stubb
     monkeypatch.setattr(transformer, "flash_attn_func", None)
     monkeypatch.delenv(run_provenance.LAUNCH_ENV, raising=False)
     with pytest.raises(RuntimeError, match="hand-off"):
-        _run(frozen, tmp_path, query_index=4467, require_attention_backend="sdpa")
+        _run(frozen, tmp_path, query_index=4467, require_attention_backend="sdpa", measure_core_forward=True, synchronize_timing=True)
     seen = []
     monkeypatch.setattr(runner, "resolve_mesh_root", lambda audit, root: seen.append(root) or {"rooms": {}})
     with pytest.raises(RuntimeError, match="CUDA"):
-        _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"))
+        _run(frozen, tmp_path, query_index=4467, mesh_root=Path("m"), measure_core_forward=True, synchronize_timing=True)
     assert seen == [Path("m")] and not (tmp_path / "run").exists()
 
 
@@ -302,7 +302,7 @@ def _recording_executor(monkeypatch, target, attribute):
 
 def test_frame_angles_reach_the_identity_and_the_executor(frozen, tmp_path, stubbed, monkeypatch):
     calls = _recording_executor(monkeypatch, runner, "execute_query")
-    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0, 180.0))
+    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0, 180.0), measure_core_forward=True, synchronize_timing=True)
     assert _identity(tmp_path)["frame_average_angles"] == [0.0, 180.0] and calls[0]["frame_angles"] == (0.0, 180.0)
 
 
@@ -372,10 +372,19 @@ def test_the_cli_passes_the_b3_and_subset_flags(monkeypatch):
 
 
 def test_a_rotated_run_uses_the_rotation_executor_and_records_the_angle(frozen, tmp_path, stubbed, monkeypatch):
-    from src.localization import exp37_rotation
-    calls = _recording_executor(monkeypatch, exp37_rotation, "execute_query_rotated")
+    from src.localization import exp37_rotation, exp37_waveforms
+    calls, stub = [], runner.execute_query
+
+    def rotated(**kw):                                   # the fixture stub, plus the inline dump it must write
+        calls.append(kw)
+        n = int(kw["selected"]["candidate_count"])
+        kw["dump"].write(int(kw["record"]["index"]), np.zeros((n, 1, 10240), np.float32), np.arange(n))
+        return stub(**kw)
+    monkeypatch.setattr(exp37_rotation, "execute_query_rotated", rotated)
+    monkeypatch.setattr(exp37_waveforms, "DUMP_ROOT", tmp_path / "waves")
     monkeypatch.setattr(runner, "execute_query", lambda **kw: (_ for _ in ()).throw(AssertionError("headline ran")))
-    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0,), rotate_deg=90.0)
+    _run(frozen, tmp_path, query_index=4467, cond_method="fa_invariant", frame_angles=(0.0,), rotate_deg=90.0,
+         dump_waveforms=tmp_path / "waves" / "run")
     identity = _identity(tmp_path)
     assert identity["rotate_deg"] == 90.0 and identity["frame_average_angles"] == [0.0]
     assert calls[0]["rotate_deg"] == 90.0 and calls[0]["frame_angles"] == (0.0,)

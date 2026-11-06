@@ -33,6 +33,7 @@ def dumps(tmp_path, monkeypatch, stubbed):
         return result, np.zeros((n, 3), np.float32), np.zeros((n, 1), np.float32)
     monkeypatch.setattr(exp37_artifacts, "execute_query_artifacts", artifact_stub)
     monkeypatch.setattr(exp37_rotation, "execute_query_rotated", artifact_stub)
+    monkeypatch.setattr(runner, "weights_footprint", lambda device: {"memory_allocated_bytes": 10})   # several runs
     return root, calls
 
 
@@ -87,7 +88,7 @@ def test_a_replay_reproduces_a_timing_run_and_binds_to_it(frozen, tmp_path, dump
     assert json.loads((root / "run" / "dump_manifest.json").read_text())["replay_of"]["run_manifest_sha256"] == original["sha256"]
 
 
-def test_a_replay_of_another_configuration_or_a_timed_replay_is_refused(frozen, tmp_path, dumps):
+def test_a_replay_of_another_configuration_or_a_timed_replay_is_refused(frozen, tmp_path, dumps, monkeypatch):
     root, _ = dumps
     timing = _dir(tmp_path, "timing")
     _run(frozen, timing, query_index=4467, measure_core_forward=True, synchronize_timing=True)
@@ -101,8 +102,10 @@ def test_a_replay_of_another_configuration_or_a_timed_replay_is_refused(frozen, 
         _run(frozen, _dir(tmp_path, "r3"), query_index=4467, replay_of=timing / "run")
     inline = _dir(tmp_path, "inline")
     _run(frozen, inline, query_index=4467, dump_waveforms=root / "run")
+    monkeypatch.setattr(exp37_waveforms, "DUMP_ROOT", tmp_path / "waves2")    # a fresh <root>/run for r4
     with pytest.raises(RuntimeError, match="not a timing pass"):              # replays are of timing passes only
-        _run(frozen, _dir(tmp_path, "r4"), query_index=4467, dump_waveforms=root / "other", replay_of=inline / "run")
+        _run(frozen, _dir(tmp_path, "r4"), query_index=4467, dump_waveforms=tmp_path / "waves2" / "run",
+             replay_of=inline / "run")
     assert not any((tmp_path / name / "run").exists() for name in ("r1", "r2", "r3", "r4"))
 
 

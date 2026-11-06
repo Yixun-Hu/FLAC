@@ -517,6 +517,8 @@ def run_localization(
     candidate_subset: str | None = None,
     c2f_top_k: int = 5,
     rotate_deg: float = 0.0,
+    dump_waveforms: Path | None = None,
+    replay_of: Path | None = None,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -542,8 +544,8 @@ def run_localization(
         raise ValueError("--frame-avg-angles must be a registered fa_invariant orbit: {0}, {0, 180} or C4")
     if candidate_subset not in (None, "nested_1m", "c2f"):
         raise ValueError(f"unknown candidate subset {candidate_subset!r}")
-    if candidate_subset and not measure_core_forward:
-        raise ValueError("the nested / c2f passes are timing passes: --measure-core-forward is required")
+    if candidate_subset and not (measure_core_forward or replay_of is not None):
+        raise ValueError("the nested / c2f passes are timing passes (or their replays): --measure-core-forward is required")
     if candidate_subset and stage_split:
         raise ValueError("a candidate subset pass is never a stage split pass")
     if rotate_deg:
@@ -556,6 +558,13 @@ def run_localization(
             raise ValueError("rotated runs use the full frozen candidate set (no --candidate-subset)")
     if candidate_subset and (Path(output_dir) / "run_manifest.json").exists():
         raise RuntimeError("a nested / c2f pass is never resumed: use a fresh output directory")
+    if dump_waveforms is not None or replay_of is not None or require_attention_backend or mesh_root is not None \
+            or rotate_deg or context_count != 8 or frame_angles is not None or candidate_subset or stage_split:
+        from src.localization import exp37_artifacts, exp37_waveforms    # exp_37 announcement-08 waveform rules
+
+        exp37_artifacts.check_dump_request(
+            output_dir, dump_waveforms, replay_of, root=exp37_waveforms.DUMP_ROOT, exp37=True,
+            timed=bool(measure_core_forward or synchronize_timing or stage_split or warmup_query_count))
     audit_content = {key: value for key, value in geometry_audit.items() if key != "sha256"}
     if geometry_audit.get("sha256") != canonical_sha256(audit_content):
         raise RuntimeError("geometry audit SHA-256 mismatch")
@@ -603,8 +612,15 @@ def run_localization(
         identity.update(c2f_top_k=int(c2f_top_k), c2f_chebyshev_radius_m=0.5)
     if rotate_deg:
         identity["rotate_deg"] = float(rotate_deg)
+    replayed = exp37_artifacts.load_replay_source(replay_of, identity) if replay_of is not None else None
+    if replayed is not None:
+        identity["replay_of"] = {"run_manifest_sha256": replayed["sha256"], "run_dir": str(replay_of)}
+    if dump_waveforms is not None:
+        identity["waveform_dump"] = {"mode": "replay" if replayed else "inline", "dir": str(dump_waveforms)}
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
+    dump = (exp37_waveforms.WaveformDump(dump_waveforms, run_stem=Path(output_dir).name,
+                                         root=exp37_waveforms.DUMP_ROOT) if dump_waveforms is not None else None)
     write_host_record(
         output_dir, "start", device=device, handoff=handoff, run_manifest_sha256=run_sha256
     )
@@ -621,6 +637,9 @@ def run_localization(
     )
 
     subset_fn = None
+
+    def per_query(selected):
+        return {}
     if stage_split:
         from src.localization import stage_split as split_module
 
@@ -628,7 +647,17 @@ def run_localization(
     elif rotate_deg:
         from src.localization import exp37_rotation
 
-        executor = functools.partial(exp37_rotation.execute_query_rotated, rotate_deg=float(rotate_deg))
+        executor = functools.partial(exp37_rotation.execute_query_rotated, rotate_deg=float(rotate_deg), dump=dump)
+    elif dump is not None:                     # untimed: an inline accuracy dump, or the replay of a timing pass
+        executor = functools.partial(exp37_artifacts.execute_query_artifacts, dump=dump)
+        if candidate_subset == "nested_1m":
+            from src.localization.exp37_grid import nested_subset as subset_fn
+
+        def per_query(selected):
+            if replayed is None:
+                return {"reference": None, "plan": None}
+            expected, plan = exp37_artifacts.replay_inputs(replay_of, replayed, int(selected["index"]))
+            return {"reference": lambda index, expected=expected: expected, "plan": plan}
     elif candidate_subset == "c2f":
         from src.localization import exp37_c2f
 
@@ -712,6 +741,7 @@ def run_localization(
             context_count=context_count,
             frame_angles=angles,
             candidate_subset=subset_fn,
+            **per_query(selected),
         )
         if context_count != 8:
             result["context_selection"] = {"indices": list(range(context_count)), "paths": list(record["contexts"])}
@@ -727,6 +757,9 @@ def run_localization(
             f"candidates={len(candidates)} seconds={result['elapsed_seconds']:.1f}",
             flush=True,
         )
+    if dump is not None:
+        dump.finish(run_manifest_sha256=run_sha256, identity=identity, mode=identity["waveform_dump"]["mode"],
+                    query_indices=identity["query_indices"], replay_of=identity.get("replay_of"))
     write_host_record(
         output_dir, "end", device=device, handoff=handoff, run_manifest_sha256=run_sha256
     )

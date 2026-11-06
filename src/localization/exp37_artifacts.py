@@ -12,7 +12,9 @@ Written by the exp_37 Coder (Claude Opus 5.5, max effort), fix round 1.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -24,7 +26,73 @@ from src.localization.engine import (
     load_frozen_query,
 )
 from src.localization.exp37_grid import nested_subset
+from src.localization.pilot import canonical_sha256
 from src.localization.runner import _build_query_result, _cache_branch, _repeat_branch, validate_frame_angles
+
+REPLAY_EXEMPT = ("synchronize_timing", "warmup_query_count", "measure_core_forward", "stage_split")
+_MISSING = object()
+
+
+def check_dump_request(output_dir, dump_waveforms, replay_of, *, timed: bool, exp37: bool, root) -> None:
+    """The waveform refusals of a run request, before anything is written."""
+    if replay_of is not None and timed:
+        raise ValueError("an artifact replay is untimed: no --measure-core-forward / --synchronize-latency / "
+                         "--stage-split / warm-up")
+    if dump_waveforms is not None and timed:
+        raise ValueError("timing passes never dump waveforms: replay them untimed with --replay-of")
+    if replay_of is not None and dump_waveforms is None:
+        raise ValueError("an artifact replay dumps its waveforms: --dump-waveforms is required")
+    if exp37 and not timed and dump_waveforms is None:
+        raise ValueError("an accuracy-only exp_37 run must dump its scored waveforms: --dump-waveforms <root>/<run stem>")
+    if dump_waveforms is None:
+        return
+    if (Path(output_dir) / "run_manifest.json").exists():
+        raise RuntimeError(f"a waveform-dump run is never resumed: {output_dir}/run_manifest.json exists")
+    dump_dir = Path(dump_waveforms)
+    if dump_dir.parent.resolve() != Path(root).resolve() or dump_dir.name != Path(output_dir).name:
+        raise ValueError(f"--dump-waveforms must be {root}/<run stem>: a directory named after the output directory "
+                         f"({Path(output_dir).name!r}) directly under the registered root")
+    if dump_dir.exists():
+        raise RuntimeError(f"{dump_dir} exists (waveform dumps are write-once)")
+
+
+def _verified(path: Path) -> dict:
+    payload = json.loads(Path(path).read_text())
+    if payload.get("sha256") != canonical_sha256({k: v for k, v in payload.items() if k != "sha256"}):
+        raise RuntimeError(f"replay: {path} fails its own sha256")
+    return payload
+
+
+def load_replay_source(run_dir, identity: dict) -> dict:
+    """The hashed manifest of the timing run a replay reproduces: a COMPLETE timing pass whose identity equals the
+    replay's outside the timing flags; RuntimeError otherwise (before the replay writes anything)."""
+    run_dir = Path(run_dir)
+    manifest = _verified(run_dir / "run_manifest.json")
+    original = manifest["identity"]
+    if not (original.get("measure_core_forward") and original.get("synchronize_timing")):
+        raise RuntimeError(f"replay: {run_dir} is not a timing pass (an accuracy-only run dumps inline)")
+    keys = (set(original) | set(identity)) - set(REPLAY_EXEMPT)
+    differ = sorted(k for k in keys if original.get(k, _MISSING) != identity.get(k, _MISSING))
+    if differ:
+        raise RuntimeError(f"replay: the identity differs from the timing run's in {differ}")
+    for index in identity["query_indices"]:
+        path = run_dir / "queries" / f"query_{int(index):05d}.json"
+        if not path.is_file() or _verified(path).get("run_manifest_sha256") != manifest["sha256"]:
+            raise RuntimeError(f"replay: the timing run is incomplete or foreign at query {index}")
+    return manifest
+
+
+def replay_inputs(run_dir, manifest: dict, index: int):
+    """(reference similarities, c2f batch plan or None) of one query of the replayed timing run, hash-verified."""
+    run_dir = Path(run_dir)
+    query = _verified(run_dir / "queries" / f"query_{int(index):05d}.json")
+    arrays = run_dir / query["arrays_file"]
+    if query.get("run_manifest_sha256") != manifest["sha256"] or \
+            hashlib.sha256(arrays.read_bytes()).hexdigest() != query.get("arrays_sha256"):
+        raise RuntimeError(f"replay: query {index} of {run_dir} is not that run's or its arrays changed")
+    with np.load(arrays) as stored:
+        similarities = np.array(stored["similarities"])
+    return similarities, (c2f_replay_plan(query["c2f"]) if "c2f" in query else None)
 
 
 def c2f_replay_plan(c2f: dict):

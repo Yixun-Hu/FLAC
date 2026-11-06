@@ -46,6 +46,8 @@ def main() -> None:
     parser.add_argument("--candidate-subset", choices=("nested_1m", "c2f"))  # B2 timing passes
     parser.add_argument("--c2f-top-k", type=int, default=5)
     parser.add_argument("--rotate-deg", type=float, default=0.0)   # B3: theta (accuracy-only when != 0)
+    parser.add_argument("--dump-waveforms", type=Path)   # announcement 08: <root>/<run stem>, write-once
+    parser.add_argument("--replay-of", type=Path)        # the untimed artifact replay of a timing pass
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -84,6 +86,8 @@ def main() -> None:
         candidate_subset=args.candidate_subset,
         c2f_top_k=args.c2f_top_k,
         rotate_deg=args.rotate_deg,
+        dump_waveforms=args.dump_waveforms,
+        replay_of=args.replay_of,
     )
     print(json.dumps(result, indent=2))
 
