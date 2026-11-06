@@ -90,27 +90,45 @@ def _norm_uuid(value) -> str:
     return text[4:] if text.startswith("gpu-") else text
 
 
+def _snapshot_verdict(snapshot: dict, name: str, gpu: list, cpu: list) -> tuple[bool, bool]:
+    """Collect one snapshot's GPU / CPU co-tenants; return (card identified, own pid seen on the card)."""
+    pid, card = int(snapshot["pid"]), _norm_uuid((snapshot.get("cuda_device") or {}).get("uuid"))
+    apps = snapshot.get("gpu_compute_apps", {})
+    own_seen = False
+    for line in apps.get("lines", []):
+        fields = [f.strip() for f in line.split(",")]
+        if _norm_uuid(fields[0]) == card and int(fields[1]) != pid:
+            gpu.append(f"{name}: {line}")
+        own_seen |= _norm_uuid(fields[0]) == card and int(fields[1]) == pid
+    for line in snapshot.get("top_cpu_processes", {}).get("lines", []):
+        fields = line.split()
+        if int(fields[0]) != pid and float(fields[3]) >= CPU_COTENANT_PCPU and line not in cpu:
+            cpu.append(line)
+    return bool(card) and "lines" in apps, own_seen
+
+
 def host_cotenancy(run_dir: Path) -> dict:
-    """GPU co-tenants (another pid on the run's card -> invalid; no record or an unidentified card -> invalid) and
-    CPU co-tenants (other processes at >= 10 %CPU in the top lists -- recorded for the Planner's judgement)."""
+    """GPU co-tenants (another pid on the run's card -> invalid; no record, an unidentified card, or the run never
+    seen on its own card -- a uuid-matching failure that could hide co-tenants -> invalid) and CPU co-tenants
+    (other processes at >= 10 %CPU in the ``ps`` top lists -- ps pcpu is a lifetime average, so this is a coarse
+    record for the Planner's judgement, not a verdict)."""
     records = sorted((Path(run_dir) / "host_records").glob("*.json"))
     gpu, cpu, unknown, own_seen = [], [], not records, False
     for path in records:
-        snapshot = json.loads(path.read_text())["snapshot"]
-        pid, card = int(snapshot["pid"]), _norm_uuid((snapshot.get("cuda_device") or {}).get("uuid"))
-        unknown |= not card or "lines" not in snapshot["gpu_compute_apps"]
-        for line in snapshot["gpu_compute_apps"].get("lines", []):
-            fields = [f.strip() for f in line.split(",")]
-            if _norm_uuid(fields[0]) == card and int(fields[1]) != pid:
-                gpu.append(f"{path.name}: {line}")
-            own_seen |= _norm_uuid(fields[0]) == card and int(fields[1]) == pid
-        for line in snapshot.get("top_cpu_processes", {}).get("lines", []):
-            fields = line.split()
-            if int(fields[0]) != pid and float(fields[3]) >= CPU_COTENANT_PCPU and line not in cpu:
-                cpu.append(line)
-    # fail-closed uuid matching: the run itself must be seen on its own card (else co-tenants could be missed)
+        identified, seen = _snapshot_verdict(json.loads(path.read_text())["snapshot"], path.name, gpu, cpu)
+        unknown |= not identified
+        own_seen |= seen
     return {"timing_valid": not gpu and not unknown and own_seen, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
             "host_record_count": len(records), "unidentified_card": unknown, "own_process_seen_on_card": own_seen}
+
+
+def selector_cotenancy(payload: dict) -> dict:
+    """The selector vector's own end-of-run snapshot, judged like a run (no snapshot -> not timing-valid)."""
+    gpu, cpu = [], []
+    snapshot = payload.get("host")
+    identified, own_seen = _snapshot_verdict(snapshot, "selector", gpu, cpu) if snapshot else (False, False)
+    return {"timing_valid": identified and own_seen and not gpu, "gpu_cotenants": gpu, "cpu_cotenants": cpu,
+            "unidentified_card": not identified, "own_process_seen_on_card": own_seen}
 
 
 def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False) -> dict:

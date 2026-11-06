@@ -82,8 +82,10 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
             row["stage_split"] = entry
         rows.append(row)
     selector_payload = json.loads(Path(selector_path).read_text())
+    selector_host = lat.selector_cotenancy(selector_payload)
     body = {"schema_version": 1, "record_type": "exp37_latency_summary", "selection_sha256": selection["sha256"],
             "selector_file": str(selector_path), "selector_sha256": selector_payload.get("sha256"),
+            "selector_host": selector_host, "selector_timing_valid": selector_host["timing_valid"],
             "query_count": len(counts), "candidate_evaluations": sum(counts.values()),
             "formulas": "L_q = core_forward_total_q + selector median scoring_total_q; s/query over queries; "
                         "ms/candidate = 1000 sum L / sum |C| and query median / P90 of 1000 L_q / |C_q| (bundle)",
@@ -94,6 +96,8 @@ def build_summary(selection: dict, selector_path: Path, runs: list, splits: list
 def render_markdown(summary: dict) -> str:
     lines = [f"# exp_37 latency summary ({summary['query_count']} queries, {summary['candidate_evaluations']:,} "
              "candidates; K_gen 1, batch 64, SDPA)", "",
+             "AGREE selector vector: " + ("valid (exclusive card)" if summary["selector_timing_valid"] else
+                                          "NOT PUBLISHABLE (co-tenant, unknown card or no host snapshot)"), "",
              "| Arm | K_ctx | Mean [s/query] | Median | P90 | ms/cand (dataset) | Query median | Query P90 | "
              "Query peak [MiB] | Combined peak [MiB] | Timing |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     for row in summary["rows"]:
@@ -146,7 +150,8 @@ def main() -> int:
         temporary.write_text(text)
         os.replace(temporary, path)
     print(render_markdown(summary))
-    return 0 if all(row["timing_valid"] for row in summary["rows"]) else 3
+    valid = summary["selector_timing_valid"] and all(row["timing_valid"] for row in summary["rows"])
+    return 0 if valid else 3
 
 
 if __name__ == "__main__":

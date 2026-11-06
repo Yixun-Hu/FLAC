@@ -34,7 +34,9 @@ def world(tmp_path):
     sel_path = _write_hashed(tmp_path / "selection.json", {k: v for k, v in selection.items() if k != "sha256"})
     rows = [{**r, "agree": {"median_seconds": {"scoring_total_seconds": 0.5}}, "peak_memory_allocated_bytes": 3000,
              "query_index": r["index"]} for r in records]
-    selector = _write_hashed(tmp_path / "selector.json", {"record_type": "exp37_agree_selector_latency",
+    host = {"pid": 43, "cuda_device": {"uuid": "6ac2604a-1111"}, "top_cpu_processes": {"lines": []},
+            "gpu_compute_apps": {"lines": ["GPU-6ac2604a-1111, 43, python, 1 MiB"]}}
+    selector = _write_hashed(tmp_path / "selector.json", {"record_type": "exp37_agree_selector_latency", "host": host,
                                                            "repeat_count": 3, "candidate_batch_size": 64, "queries": rows})
 
     def run(name, arm, k=8, scale=1.0, split=False, cotenant=False):
@@ -124,7 +126,11 @@ def test_the_cli_writes_json_and_markdown_and_exits_3_on_a_co_tenant(world, tmp_
     assert done.returncode == 3 and json.loads(out_json.read_text())["rows"][0]["timing_valid"] is False
 
 
-def test_the_summary_records_the_selector_validity(world):
+def test_the_summary_records_the_selector_validity(world, tmp_path):
     selection, _sel_path, selector, run = world
-    out = summ.build_summary(selection, selector, runs=[("P1", 8, run("p1", "P1"))])
+    p1 = run("p1", "P1")
+    assert summ.build_summary(selection, selector, runs=[("P1", 8, p1)])["selector_timing_valid"] is True
+    body = {k: v for k, v in json.loads(selector.read_text()).items() if k not in ("sha256", "host")}
+    bare = _write_hashed(tmp_path / "bare_selector.json", body)
+    out = summ.build_summary(selection, bare, runs=[("P1", 8, p1)])
     assert out["selector_host"]["timing_valid"] is False and out["selector_timing_valid"] is False   # no snapshot
