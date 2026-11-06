@@ -92,11 +92,11 @@ def test_cell_paths_follow_the_arm_protocol():
         p = C.cell_paths(r, f"farm/{r['arm']}/{base}.ckpt", "/dumps")
         want = eval_FLAC.build_output_paths(
             f"farm/{r['arm']}/{base}.ckpt", 1, 1.0, r["cell"], cond_method=C.arm_protocol(r["arm"])["cond_method"],
-            rotate_deg=float(r["rotate_deg"] or 0), n_angles=4, rotate_mode=r["rotate_mode"],
+            rotate_deg=float(r["rotate_deg"] or 0), n_angles=len(T.protocol(r)[1] or [0] * 4), rotate_mode=r["rotate_mode"],
             rotate_seed=r["rotate_seed"], are_lambda=None, canonicalize=r["canonicalize"],
             canon_mismatch=r["canon_mismatch"])["metrics"]
         assert p.metrics == want and p.stem == f"{base}_metrics_{r['metrics_suffix']}", r["cell"]
-        assert ("_fa_invariant_a4" in p.stem) is (r["arm"] == "BF")
+        assert (f"_fa_invariant_a{len(T.protocol(r)[1] or ())}" in p.stem) is (r["arm"] == "BF")   # exp_37: a1 / a2 too
 
 
 def test_a_row_whose_name_and_block_name_different_campaigns_is_refused():
@@ -172,8 +172,8 @@ def test_the_e2_fail_block_is_selected_only_by_name(capsys):
     --only / --limit through to this function (--count-no-flash, --plan)."""
     m = C.load_cells(C.CELLS_JSON)
     e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
-    exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS]    # exp_36 (Codex H1): by name only too
-    rest = [c["cell"] for c in m["cells"] if c["block"] not in ("E2-FAIL",) + C.EXP36_BLOCKS]
+    exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS + C.EXP37_BLOCKS]   # exp_36 / 37: by name
+    rest = [c["cell"] for c in m["cells"] if c["block"] not in ("E2-FAIL",) + C.EXP36_BLOCKS + C.EXP37_BLOCKS]
     assert len(e2f) == 16 and len(rest) == 330 and m["cells"][330:346] == [c for c in m["cells"] if c["cell"] in e2f]
     assert [c["cell"] for c in C.select_cells(m)] == rest
     assert [c["cell"] for c in C.select_cells(m, limit=len(m["cells"]))] == rest

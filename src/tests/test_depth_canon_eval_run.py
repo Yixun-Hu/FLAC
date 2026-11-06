@@ -30,8 +30,9 @@ COUNTS = {"T": 10, "T-dup": 2, "C4+45": 8, "R": 10, "D-i": 2, "D-ii": 2, "S": 10
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §1): 100 rows appended after the 230 exp_25 rows; the
 # exp_25 assertions below are scoped to the exp_25 blocks, test_exp35_make_cells.py pins the rest
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
-N_ROWS = 386   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows; exp_36: + 25 YAW-C4S + 3 RPL-S42 + 12 OFF-S42
-EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")
+N_ROWS = 395   # exp_35 plan §14 A1: + the 16 E2-FAIL contingency rows; exp_36: + 25 YAW-C4S + 3 RPL-S42 + 12 OFF-S42;
+EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")                       # exp_37 B3: + 1 RPL-37 + 8 BF-ORB
+EXP37_BLOCKS = ("RPL-37", "BF-ORB")
 SEEDS = (42, 43, 44, 45, 46)
 # plan §5 common set (+ --batch-size 64 and --device cuda written out: never defaulted)
 COMMON = {"--cond-method": "vanilla", "--cond-autocast": "bf16", "--cfg-scale": "1.0",
@@ -74,8 +75,13 @@ def _exp25(manifest):
 
 
 def _method(c):
-    """eval_FLAC's method token: B-F rows are fa_invariant over the four C4 angles (exp_35)."""
+    """eval_FLAC's method token: B-F rows are fa_invariant (exp_35) over the row's orbit (C4; exp_37 B3: {0}, {0,180})."""
     return "fa_invariant" if c["arm"] == "BF" else "vanilla"
+
+
+def _orbit(c):
+    a = c["eval_args"]
+    return a[a.index("--frame-avg-angles") + 1].split(",") if "--frame-avg-angles" in a else ["0", "90", "180", "270"]
 
 
 def _sha(path):
@@ -125,7 +131,7 @@ def test_render_is_one_cell_per_line(manifest):
 def test_block_counts_and_priority_order(manifest):
     cells = manifest["cells"]
     assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
-    assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
+    assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS
     assert [c["order"] for c in cells] == list(range(N_ROWS))
     assert [c["order"] for c in _exp25(manifest)] == list(range(230))       # the exp_25 rows come first
     assert [c["priority"] for c in cells] == sorted(c["priority"] for c in cells)
@@ -138,7 +144,8 @@ def test_eval_names_and_metrics_stems_are_injective(manifest):
     names = [c["cell"] for c in cells]
     assert len(set(names)) == N_ROWS
     assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells
-               if c["block"] not in EXP36_BLOCKS)                 # exp_36: 24 exp25_ aliases + one exp36_ replay
+               if c["block"] not in EXP36_BLOCKS + EXP37_BLOCKS)  # exp_36: 24 exp25_ aliases + one exp36_ replay
+    assert all(c["cell"].startswith("exp37_") for c in cells if c["block"] in EXP37_BLOCKS)
     assert collections.Counter(c["cell"][:6] for c in cells if c["block"] in EXP36_BLOCKS) == {
         "exp25_": 24 + 6, "exp36_": 1 + 3, "exp35_": 6}                   # amendment A1: replays, th315, YAW off-orbit
     assert all("exp14_" not in n and "exp11_" not in n for n in names)
@@ -148,7 +155,7 @@ def test_eval_names_and_metrics_stems_are_injective(manifest):
             else "epoch=8-step=40000"
         paths = eval_FLAC.build_output_paths(
             f"/farm/{c['arm']}/{base}.ckpt", 1, 1.0, c["cell"], cond_method=_method(c),
-            rotate_deg=float(c["rotate_deg"] or 0), n_angles=4, rotate_mode=c["rotate_mode"],
+            rotate_deg=float(c["rotate_deg"] or 0), n_angles=len(_orbit(c)), rotate_mode=c["rotate_mode"],
             rotate_seed=c["rotate_seed"], are_lambda=None, canonicalize=c["canonicalize"],
             canon_mismatch=c["canon_mismatch"])
         name = os.path.basename(paths["metrics"])
@@ -163,7 +170,7 @@ def test_canon_tokens_follow_the_protocol(manifest):
         want = ("_canon" if c["canonicalize"] else "") + ("_canonmis" if c["canon_mismatch"] else "")
         rot = ("_rotrand%d" % c["seed"] if c["rotate_mode"] == "random"
                else ("" if c["rotate_deg"] == 0 else f"_rot{c['rotate_deg']}"))
-        method = "_fa_invariant_a4" if c["arm"] == "BF" else ""
+        method = f"_fa_invariant_a{len(_orbit(c))}" if c["arm"] == "BF" else ""
         assert c["metrics_suffix"] == f"1_1.0_{c['cell']}{method}{want}{rot}", c["cell"]
 
 
@@ -180,8 +187,10 @@ def test_common_flags_on_every_row(manifest):
         assert f["--dataset-config"] == DATASET[(c["split"], c["K"])] == c["dataset_config"]
         assert f["--expected-stream-count"] == str(c["expected_stream_count"])
         assert "--ckpt-path" not in f and "--dump-scored-waveforms" not in f   # runtime
-        if c["arm"] == "BF":                          # exp_35: announcements 05/06, written out
-            assert (f["--frame-avg-angles"], f["--frame-avg-max-fwd-samples"]) == ("0,90,180,270", "64")
+        if c["arm"] == "BF":                          # exp_35: announcements 05/06, written out; exp_37 B3: {0}, {0,180}
+            assert (f["--frame-avg-angles"], f["--frame-avg-max-fwd-samples"]) in (("0,90,180,270", "64"), ("0", "64"),
+                                                                                  ("0,180", "64")), c["cell"]
+            assert f["--frame-avg-angles"] == "0,90,180,270" or c["block"] == "BF-ORB", c["cell"]
         else:
             assert "--frame-avg-angles" not in f and "--frame-avg-max-fwd-samples" not in f  # plan §5: inert
         assert "--are-lambda" not in f
@@ -311,7 +320,7 @@ def test_selection_by_blocks_only_and_limit(manifest):
     a1_off = C.select_cells(manifest, blocks=[b for b in BLOCKS if b != "YAW-pin"])
     assert len(a1_off) == 192 and all(c["block"] != "YAW-pin" for c in a1_off)
     assert [c["cell"] for c in C.select_cells(manifest)] == [c["cell"] for c in manifest["cells"]   # exp_35 §14 A1.3:
-                                                            if c["block"] not in ("E2-FAIL",) + EXP36_BLOCKS]   # by name
+                                                            if c["block"] not in ("E2-FAIL",) + EXP36_BLOCKS + EXP37_BLOCKS]
     names = ["exp25_YAW_S_S40000_K8_s46", "exp25_CANON_T_S40000_K1_s42"]
     assert [c["cell"] for c in C.select_cells(manifest, only=names)] == names[::-1]  # manifest order
     assert len(C.select_cells(manifest, blocks=["TRAJ"], limit=7)) == 7

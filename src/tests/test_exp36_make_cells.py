@@ -51,7 +51,8 @@ def _at(commit):
 
 @pytest.fixture(scope="module")
 def full():
-    return MC.build_manifest()
+    """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+    return MC.build_manifest(exp37=False)
 
 
 @pytest.fixture(scope="module")
@@ -82,10 +83,12 @@ def test_the_exp25_only_render_is_unchanged():
         MC.build_manifest(exp35=False, exp36=True)
 
 
-def test_the_committed_file_is_the_full_render(full):
-    with open(os.path.join(REPO, EXPREL, "depth_canon_cells.json")) as f:
-        assert f.read() == MC.render(full)
-    assert MC.main(["--check"]) == 0 and len(full["cells"]) == 386            # + amendment A1's 15 rows
+def test_the_exp36_render_is_the_manifest_committed_at_the_launch_commits(full):
+    """exp_37 B3: the committed file now holds 395 rows; the exp_36 render (H36_I2 d92aef10 = H36_I3 6be49f46, the
+    launch commit since review III) stays exact."""
+    text = MC.render(full)
+    assert _sha(text) == "79b95d2b68fe0ecfc9bf767259de6faccba9f8b42f329169ca69a765ba2a5454" and len(full["cells"]) == 386
+    assert text == _at("d92aef106de09496715b26ecc42f924ead104090") == _at("6be49f46ec31e899f1bee01f72c6a5827e701c6c")
 
 
 # ---- the YAW-C4S block: 25 rows appended after the H35 rows (NIT 1: the replay belongs to the count) ---- #
@@ -95,6 +98,7 @@ def test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows(full, h35
     assert [c["order"] for c in rows] == list(range(346, 371))
     assert {c["block"] for c in rows} == {"YAW-C4S"} and {c["priority"] for c in rows} == {18}
     assert full["blocks"] == h35["blocks"] + ["YAW-C4S", "RPL-S42", "OFF-S42"] and full["blocks"].index("YAW-C4S") == 18
+    assert MC.build_manifest()["blocks"][:21] == full["blocks"]                  # exp_37 appends after them
     assert full["block_counts"] == dict(h35["block_counts"], **{"YAW-C4S": 25, "RPL-S42": 3, "OFF-S42": 12})
     assert full["plan"] == h35["plan"] + ("; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)"
                                           " + amendment A1 (the seed-42 off-orbit run)")

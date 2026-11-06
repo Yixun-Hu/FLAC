@@ -108,9 +108,13 @@ def build_canon(r, stream):
 
 
 def protocol(r):
-    """``(cond_method, recorded frame_avg_angles)`` of the row's arm as evaluate_model records them
-    (exp_35: B-F is evaluated ``--cond-method fa_invariant`` over the four C4 angles)."""
-    return ("fa_invariant", [0.0, 90.0, 180.0, 270.0]) if r["arm"] == "BF" else ("vanilla", None)
+    """``(cond_method, recorded frame_avg_angles)`` of the row as evaluate_model records them (exp_35: B-F is evaluated
+    ``--cond-method fa_invariant``; the orbit is the row's own ``--frame-avg-angles`` -- C4, or exp_37 B3's {0} /
+    {0, 180})."""
+    if r["arm"] != "BF":
+        return "vanilla", None
+    a = r["eval_args"]
+    return "fa_invariant", [float(x) for x in a[a.index("--frame-avg-angles") + 1].split(",")]
 
 
 def default_metrics(r):
@@ -133,7 +137,8 @@ def write_cell(tmp, r, *, pin=PIN, n=N, metrics=None, by_scene=None, farm=FARM, 
     method, angles = protocol(r)
     paths = eval_FLAC.build_output_paths(
         link, 1, 1.0, r["cell"], cond_method=method, rotate_deg=float(r["rotate_deg"] or 0),
-        n_angles=4, rotate_mode=r["rotate_mode"], rotate_seed=r["rotate_seed"], are_lambda=None,
+        n_angles=len(angles) if angles else 4, rotate_mode=r["rotate_mode"], rotate_seed=r["rotate_seed"],
+        are_lambda=None,
         canonicalize=r["canonicalize"], canon_mismatch=r["canon_mismatch"])
     metrics_rel = paths["metrics"]
     at = lambda p: os.path.join(str(tmp), p)  # noqa: E731

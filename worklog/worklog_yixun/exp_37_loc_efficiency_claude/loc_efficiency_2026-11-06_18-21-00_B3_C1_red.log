@@ -1,0 +1,1055 @@
+RED, exp_37 B3 cycle 1 (blocks RPL-37 + BF-ORB; the collector's per-row B-F orbit; exp_37 names / no-flash / default exclusion; the exp37 replay registered; the chain mode b3) at HEAD d92aef106de09496715b26ecc42f924ead104090 + the uncommitted tests
+FFFFFFFFFFFFFFFFF..EEEEEE.EEEEEE........................................ [ 76%]
+............FFFF......                                                   [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_the_exp36_render_is_the_manifest_committed_at_h36_i2 __
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_replay_is_first_and_differs_from_its_template_only_by_name _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46 _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+___________ ERROR at setup of test_names_and_suffixes_stay_injective ___________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_____________ ERROR at setup of test_the_a1_blocks_follow_yaw_c4s ______________
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+__ ERROR at setup of test_each_replay_is_its_reference_row_under_another_name __
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+_ ERROR at setup of test_the_th315_rows_are_their_th225_siblings_at_315_degrees _
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+_ ERROR at setup of test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles _
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+___________ ERROR at setup of test_the_24_off_orbit_production_cells ___________
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+____ ERROR at setup of test_names_and_suffixes_stay_injective_over_386_rows ____
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+=================================== FAILURES ===================================
+___________ test_the_exp36_render_stays_exact_and_exp37_needs_exp36 ____________
+
+    def test_the_exp36_render_stays_exact_and_exp37_needs_exp36():
+>       text = MC.render(MC.build_manifest(exp37=False))
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp37_b3.py:42: TypeError
+______________ test_the_two_exp37_blocks_follow_the_exp36_blocks _______________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_two_exp37_blocks_follow_the_exp36_blocks(full):
+>       assert len(full["cells"]) == 395 and full["blocks"][-2:] == ["RPL-37", "BF-ORB"] and MC.EXP37_BLOCKS == (
+            "RPL-37", "BF-ORB")
+E       AssertionError: assert (386 == 395)
+E        +  where 386 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_exp37_b3.py:49: AssertionError
+___________ test_the_replay_is_the_bf_pin_c4_cell_under_another_name ___________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_replay_is_the_bf_pin_c4_cell_under_another_name(full):
+        by = _by_name(full)
+>       new, ref = by[REPLAY], by["exp35_BF_C4_S40000_K8_s42_th90"]
+E       KeyError: 'exp37_BF_C4_S40000_K8_s42_th90'
+
+src/tests/test_exp37_b3.py:61: KeyError
+_________ test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit _________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit(full):
+        by = _by_name(full)
+        for name in ORB:
+>           c = by[name]
+E           KeyError: 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+src/tests/test_exp37_b3.py:71: KeyError
+____________ test_the_collector_takes_a_bf_rows_orbit_from_its_argv ____________
+
+    def test_the_collector_takes_a_bf_rows_orbit_from_its_argv():
+>       assert C.EXP37_BLOCKS == ("RPL-37", "BF-ORB")
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP37_BLOCKS'. Did you mean: 'EXP35_BLOCKS'?
+
+src/tests/test_exp37_b3.py:88: AttributeError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K1_s42_th0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_an_orbit_cell_written_by_0')
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:83: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_an_orbit_cell_written_by_1')
+name = 'exp37_BF_ORB1_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K8_s42_th90'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:83: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB2_S40000_K8_s42_th0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_an_orbit_cell_written_by_2')
+name = 'exp37_BF_ORB2_S40000_K8_s42_th0'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB2_S40000_K8_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:83: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_an_orbit_cell_written_by_3')
+name = 'exp37_BF_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:103: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_C4_S40000_K8_s42_th90'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:83: ValueError
+___________ test_the_replay_is_registered_against_the_exp35_bf_cell ____________
+
+    def test_the_replay_is_registered_against_the_exp35_bf_cell():
+>       e, bf = C.EXP36_REPLAYS[REPLAY], C.EXP36_REPLAYS["exp36_BF_C4_S40000_K8_s42_th90"]
+E       KeyError: 'exp37_BF_C4_S40000_K8_s42_th90'
+
+src/tests/test_exp37_b3.py:115: KeyError
+___________________ test_exp37_names_belong_to_their_blocks ____________________
+
+    def test_exp37_names_belong_to_their_blocks():
+>       assert C.exp36_name_reasons(dict(_row(ORB[0]), block="BF-pin"))                   # an exp37_ name elsewhere
+
+src/tests/test_exp37_b3.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:83: ValueError
+________ test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells ________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_chain_b3_runs_its_replay_0/ch'), 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+
+    def test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells(clone, ch):
+        rc, out = chain(clone, ch, args=("b3",))
+>       assert rc == 0 and "CHAIN COMPLETE (b3)" in out and "--exp36-publish" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp37_b3_chain.py:23: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env0-4-kinds0] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_chain_b3_stops_before_the0/ch'), 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+env = {'STUB_CHECK_RC': '1'}, rc_want = 4
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 4)
+
+src/tests/test_exp37_b3_chain.py:42: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env1-5-kinds1] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_chain_b3_stops_before_the1/ch'), 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+env = {'STUB_CHECK_RC': '2'}, rc_want = 5
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp37_b3_chain.py:42: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env2-2-kinds2] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_chain_b3_stops_before_the2/ch'), 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+env = {'STUB_PREFLIGHT_RC_2': '2'}, rc_want = 2
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT', 'PREFLIGHT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert [] == ['PREFLIGHT',..., 'PREFLIGHT']
+E         
+E         Right contains 4 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp37_b3_chain.py:43: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env3-3-kinds3] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_chain_b3_stops_before_the3/ch'), 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+env = {'STUB_RUNNER_RC_1': '2'}, rc_want = 3, kinds = ['PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 3)
+
+src/tests/test_exp37_b3_chain.py:42: AssertionError
+__ test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6659/test_the_runner_dry_run_plans_0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'ac517223074b7f8aed33528a84c628fb02db7157'}
+
+    def test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps(clone, harness):
+        rc, out = R.drive(clone, harness, "--only", ",".join([REPLAY] + ORB), "--lanes", "0,1", env={"DRY_RUN": "1"})
+>       assert rc == 0 and "(9 exp_35 cell(s))" in out and out.count("spawned through overlays/no_flash/") == 9, out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-11-06_18-21-08 -- HEAD ac517223074b7f8aed33528a84c628fb02db7157 -- dry_run=1 -- harness=true ===
+E         SELECTION REFUSED: the exp_35 cells of the selection cannot be counted (SELECTION REFUSED: unknown, duplicate or empty cell selection ['exp37_BF_C4_S40000_K8_s42_th90', 'exp37_BF_ORB1_S40000_K1_s42_th0', 'exp37_BF_ORB1_S40000_K1_s42_th90', 'exp37_BF_ORB1_S40000_K8_s42_th0', 'exp37_BF_ORB1_S40000_K8_s42_th90', 'exp37_BF_ORB2_S40000_K1_s42_th0', 'exp37_BF_ORB2_S40000_K1_s42_th90', 'exp37_BF_ORB2_S40000_K8_s42_th0', 'exp37_BF_ORB2_S40000_K8_s42_th90']) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp37_b3_chain.py:48: AssertionError
+_______________ test_the_e2_fail_block_is_selected_only_by_name ________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f059a728400>
+
+    def test_the_e2_fail_block_is_selected_only_by_name(capsys):
+        """plan §14 A1.3: the 16 E2-FAIL rows are left out of every default selection (no --blocks and no --only,
+        with or without --limit); naming the block or its cells selects them -- the runner passes its --blocks /
+        --only / --limit through to this function (--count-no-flash, --plan)."""
+        m = C.load_cells(C.CELLS_JSON)
+        e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
+>       exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS + C.EXP37_BLOCKS]   # exp_36 / 37: by name
+
+src/tests/test_exp35_collect.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7f059a7288b0>
+
+>   exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS + C.EXP37_BLOCKS]   # exp_36 / 37: by name
+E   AttributeError: module 'depth_canon_collect' has no attribute 'EXP37_BLOCKS'. Did you mean: 'EXP35_BLOCKS'?
+
+src/tests/test_exp35_collect.py:175: AttributeError
+_______________________ test_render_is_one_cell_per_line _______________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_render_is_one_cell_per_line(manifest):
+        lines = MC.render(manifest).splitlines()
+        cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
+>       assert len(cell_lines) == len(manifest["cells"]) == N_ROWS and len(_exp25(manifest)) == 230
+E       AssertionError: assert (386 == 395)
+E        +  where 386 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_depth_canon_eval_run.py:125: AssertionError
+_____________________ test_block_counts_and_priority_order _____________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_block_counts_and_priority_order(manifest):
+        cells = manifest["cells"]
+        assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
+>       assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS
+E       AssertionError: assert ('T', 'T-dup'..., 'D-ii', ...) == ('T', 'T-dup'..., 'D-ii', ...)
+E         
+E         Right contains 2 more items, first extra item: 'RPL-37'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_eval_run.py:134: AssertionError
+_______________ test_eval_names_and_metrics_stems_are_injective ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_eval_names_and_metrics_stems_are_injective(manifest):
+        cells = manifest["cells"]
+        names = [c["cell"] for c in cells]
+>       assert len(set(names)) == N_ROWS
+E       AssertionError: assert 386 == 395
+E        +  where 386 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+E        +    where {'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...} = set(['exp25_CANON_T_S40000_K1_s42', 'exp25_CANON_T_S40000_K1_s43', 'exp25_CANON_T_S40000_K1_s44', 'exp25_CANON_T_S40000_K1_s45', 'exp25_CANON_T_S40000_K1_s46', 'exp25_CANON_T_S40000_K8_s42', ...])
+
+src/tests/test_depth_canon_eval_run.py:145: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______________ test_cli_count_no_flash_refuses_a_bad_selection ________________
+----------------------------- Captured stdout call -----------------------------
+SELECTION REFUSED: unknown, duplicate or empty block selection ['T', 'nope']
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_the_a1_names_are_registered_in_their_blocks_only
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135]
+PASSED src/tests/test_exp35_collect.py::test_the_arm_protocol_table
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CTL_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-P1_OFF_K8_s46_225]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-CANON_OFF_K1_s42_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CANON-45_OFF_K8_s43_45]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles1]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles2]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[orbit_execution4]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap5]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_autocast7]
+PASSED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+PASSED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+PASSED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+PASSED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells
+PASSED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args0-0]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args1-30]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args2-1]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args3-100]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args4-3]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash_refuses_a_bad_selection
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+PASSED src/tests/test_depth_canon_eval_run.py::test_canon_tokens_follow_the_protocol
+PASSED src/tests/test_depth_canon_eval_run.py::test_common_flags_on_every_row
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[removed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_committed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_uncommitted]
+ERROR src/tests/test_exp36_make_cells.py::test_the_exp36_render_is_the_manifest_committed_at_h36_i2
+ERROR src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+ERROR src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+ERROR src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+ERROR src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+ERROR src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_a1_blocks_follow_yaw_c4s
+ERROR src/tests/test_exp36_a1_make_cells.py::test_each_replay_is_its_reference_row_under_another_name
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_th315_rows_are_their_th225_siblings_at_315_degrees
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_24_off_orbit_production_cells
+ERROR src/tests/test_exp36_a1_make_cells.py::test_names_and_suffixes_stay_injective_over_386_rows
+FAILED src/tests/test_exp37_b3.py::test_the_exp36_render_stays_exact_and_exp37_needs_exp36
+FAILED src/tests/test_exp37_b3.py::test_the_two_exp37_blocks_follow_the_exp36_blocks
+FAILED src/tests/test_exp37_b3.py::test_the_replay_is_the_bf_pin_c4_cell_under_another_name
+FAILED src/tests/test_exp37_b3.py::test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit
+FAILED src/tests/test_exp37_b3.py::test_the_collector_takes_a_bf_rows_orbit_from_its_argv
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K1_s42_th0]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K8_s42_th90]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB2_S40000_K8_s42_th0]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp37_b3.py::test_the_replay_is_registered_against_the_exp35_bf_cell
+FAILED src/tests/test_exp37_b3.py::test_exp37_names_belong_to_their_blocks - ...
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env0-4-kinds0]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env1-5-kinds1]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env2-2-kinds2]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env3-3-kinds3]
+FAILED src/tests/test_exp37_b3_chain.py::test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps
+FAILED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+FAILED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+FAILED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+21 failed, 61 passed, 3 warnings, 12 errors in 77.45s (0:01:17)
+
+=== Fri Nov  6 07:13:00 PM EST 2026: the B3 leaf REBASED from d92aef10 (H36_I2) onto 74093f23 (the final exp_36 head: H36_I3 6be49f46 + review III HIGH 3 20200cb4 + records), before any push; the RED commit's tests updated for the new base: the b3 chain's dump preflights carry the inherited --pin EXPECT_HEAD (review III HIGH 1), the exp_36 render is pinned at H36_I2 = H36_I3. Re-run at the rebased RED commit (HEAD ccf2412938619f537aa01c460441cdfa68aa6ece + these test edits):
+FFFFFFFFFFFFFFFFF..EEEEEE.EEEEEE........................................ [ 76%]
+............FFFF......                                                   [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_the_exp36_render_is_the_manifest_committed_at_the_launch_commits _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_replay_is_first_and_differs_from_its_template_only_by_name _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46 _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_ ERROR at setup of test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name _
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+___________ ERROR at setup of test_names_and_suffixes_stay_injective ___________
+
+    @pytest.fixture(scope="module")
+    def full():
+        """The exp_36 manifest (386 rows, as at H36_I2 = H36_I3): exp_37 B3 appends its rows after it (test_exp37_b3.py)."""
+>       return MC.build_manifest(exp37=False)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_make_cells.py:55: TypeError
+_____________ ERROR at setup of test_the_a1_blocks_follow_yaw_c4s ______________
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+__ ERROR at setup of test_each_replay_is_its_reference_row_under_another_name __
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+_ ERROR at setup of test_the_th315_rows_are_their_th225_siblings_at_315_degrees _
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+_ ERROR at setup of test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles _
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+___________ ERROR at setup of test_the_24_off_orbit_production_cells ___________
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+____ ERROR at setup of test_names_and_suffixes_stay_injective_over_386_rows ____
+
+    @pytest.fixture(scope="module")
+    def full():
+>       return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp36_a1_make_cells.py:34: TypeError
+=================================== FAILURES ===================================
+___________ test_the_exp36_render_stays_exact_and_exp37_needs_exp36 ____________
+
+    def test_the_exp36_render_stays_exact_and_exp37_needs_exp36():
+>       text = MC.render(MC.build_manifest(exp37=False))
+E       TypeError: build_manifest() got an unexpected keyword argument 'exp37'
+
+src/tests/test_exp37_b3.py:43: TypeError
+______________ test_the_two_exp37_blocks_follow_the_exp36_blocks _______________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_two_exp37_blocks_follow_the_exp36_blocks(full):
+>       assert len(full["cells"]) == 395 and full["blocks"][-2:] == ["RPL-37", "BF-ORB"] and MC.EXP37_BLOCKS == (
+            "RPL-37", "BF-ORB")
+E       AssertionError: assert (386 == 395)
+E        +  where 386 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_exp37_b3.py:51: AssertionError
+___________ test_the_replay_is_the_bf_pin_c4_cell_under_another_name ___________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_replay_is_the_bf_pin_c4_cell_under_another_name(full):
+        by = _by_name(full)
+>       new, ref = by[REPLAY], by["exp35_BF_C4_S40000_K8_s42_th90"]
+E       KeyError: 'exp37_BF_C4_S40000_K8_s42_th90'
+
+src/tests/test_exp37_b3.py:63: KeyError
+_________ test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit _________
+
+full = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit(full):
+        by = _by_name(full)
+        for name in ORB:
+>           c = by[name]
+E           KeyError: 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+src/tests/test_exp37_b3.py:73: KeyError
+____________ test_the_collector_takes_a_bf_rows_orbit_from_its_argv ____________
+
+    def test_the_collector_takes_a_bf_rows_orbit_from_its_argv():
+>       assert C.EXP37_BLOCKS == ("RPL-37", "BF-ORB")
+E       AttributeError: module 'depth_canon_collect' has no attribute 'EXP37_BLOCKS'. Did you mean: 'EXP35_BLOCKS'?
+
+src/tests/test_exp37_b3.py:90: AttributeError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K1_s42_th0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_an_orbit_cell_written_by_0')
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:85: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_an_orbit_cell_written_by_1')
+name = 'exp37_BF_ORB1_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K8_s42_th90'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:85: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB2_S40000_K8_s42_th0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_an_orbit_cell_written_by_2')
+name = 'exp37_BF_ORB2_S40000_K8_s42_th0'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB2_S40000_K8_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:85: ValueError
+_ test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_C4_S40000_K8_s42_th90] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_an_orbit_cell_written_by_3')
+name = 'exp37_BF_C4_S40000_K8_s42_th90'
+
+    @pytest.mark.parametrize("name", [ORB[0], ORB[3], ORB[6], REPLAY])
+    def test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump(tmp_path, name):
+>       r = _row(name)
+
+src/tests/test_exp37_b3.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_C4_S40000_K8_s42_th90'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:85: ValueError
+___________ test_the_replay_is_registered_against_the_exp35_bf_cell ____________
+
+    def test_the_replay_is_registered_against_the_exp35_bf_cell():
+>       e, bf = C.EXP36_REPLAYS[REPLAY], C.EXP36_REPLAYS["exp36_BF_C4_S40000_K8_s42_th90"]
+E       KeyError: 'exp37_BF_C4_S40000_K8_s42_th90'
+
+src/tests/test_exp37_b3.py:117: KeyError
+___________________ test_exp37_names_belong_to_their_blocks ____________________
+
+    def test_exp37_names_belong_to_their_blocks():
+>       assert C.exp36_name_reasons(dict(_row(ORB[0]), block="BF-pin"))                   # an exp37_ name elsewhere
+
+src/tests/test_exp37_b3.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'exp37_BF_ORB1_S40000_K1_s42_th0'
+
+    def _row(name):
+>       (r,) = [c for c in MANIFEST["cells"] if c["cell"] == name]
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+src/tests/test_exp37_b3.py:85: ValueError
+________ test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells ________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_chain_b3_runs_its_replay_0/ch'), 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+
+    def test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells(clone, ch):
+        rc, out = chain(clone, ch, args=("b3",))
+>       assert rc == 0 and "CHAIN COMPLETE (b3)" in out and "--exp36-publish" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp37_b3_chain.py:24: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env0-4-kinds0] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_chain_b3_stops_before_the0/ch'), 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+env = {'STUB_CHECK_RC': '1'}, rc_want = 4
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 4)
+
+src/tests/test_exp37_b3_chain.py:44: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env1-5-kinds1] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_chain_b3_stops_before_the1/ch'), 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+env = {'STUB_CHECK_RC': '2'}, rc_want = 5
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp37_b3_chain.py:44: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env2-2-kinds2] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_chain_b3_stops_before_the2/ch'), 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+env = {'STUB_PREFLIGHT_RC_2': '2'}, rc_want = 2
+kinds = ['PREFLIGHT', 'RUNNER', 'COLLECT', 'PREFLIGHT']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+        assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+>       assert [k for k, _, _ in calls(ch)] == kinds
+E       AssertionError: assert [] == ['PREFLIGHT',..., 'PREFLIGHT']
+E         
+E         Right contains 4 more items, first extra item: 'PREFLIGHT'
+E         Use -v to get more diff
+
+src/tests/test_exp37_b3_chain.py:45: AssertionError
+___ test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env3-3-kinds3] ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_chain_b3_stops_before_the3/ch'), 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+env = {'STUB_RUNNER_RC_1': '2'}, rc_want = 3, kinds = ['PREFLIGHT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, ["PREFLIGHT", "RUNNER", "COLLECT"]),
+        ({"STUB_PREFLIGHT_RC_2": "2"}, 2, ["PREFLIGHT", "RUNNER", "COLLECT", "PREFLIGHT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, ["PREFLIGHT", "RUNNER"])])
+    def test_chain_b3_stops_before_the_orbit_cells_on_any_failure(clone, ch, env, rc_want, kinds):
+        rc, out = chain(clone, ch, env=env, args=("b3",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: unknown mode 'b3' (offorbit | A) - abort
+E         
+E       assert (2 == 3)
+
+src/tests/test_exp37_b3_chain.py:44: AssertionError
+__ test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/evalrun0/repo')
+harness = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6730/test_the_runner_dry_run_plans_0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': 'ac9662358e2715b8066f21960a06703c54046a88'}
+
+    def test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps(clone, harness):
+        rc, out = R.drive(clone, harness, "--only", ",".join([REPLAY] + ORB), "--lanes", "0,1", env={"DRY_RUN": "1"})
+>       assert rc == 0 and "(9 exp_35 cell(s))" in out and out.count("spawned through overlays/no_flash/") == 9, out
+E       AssertionError: === exp_25 depth_canon eval campaign -- 2026-11-06_19-13-08 -- HEAD ac9662358e2715b8066f21960a06703c54046a88 -- dry_run=1 -- harness=true ===
+E         SELECTION REFUSED: the exp_35 cells of the selection cannot be counted (SELECTION REFUSED: unknown, duplicate or empty cell selection ['exp37_BF_C4_S40000_K8_s42_th90', 'exp37_BF_ORB1_S40000_K1_s42_th0', 'exp37_BF_ORB1_S40000_K1_s42_th90', 'exp37_BF_ORB1_S40000_K8_s42_th0', 'exp37_BF_ORB1_S40000_K8_s42_th90', 'exp37_BF_ORB2_S40000_K1_s42_th0', 'exp37_BF_ORB2_S40000_K1_s42_th90', 'exp37_BF_ORB2_S40000_K8_s42_th0', 'exp37_BF_ORB2_S40000_K8_s42_th90']) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp37_b3_chain.py:50: AssertionError
+_______________ test_the_e2_fail_block_is_selected_only_by_name ________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7250b54876d0>
+
+    def test_the_e2_fail_block_is_selected_only_by_name(capsys):
+        """plan §14 A1.3: the 16 E2-FAIL rows are left out of every default selection (no --blocks and no --only,
+        with or without --limit); naming the block or its cells selects them -- the runner passes its --blocks /
+        --only / --limit through to this function (--count-no-flash, --plan)."""
+        m = C.load_cells(C.CELLS_JSON)
+        e2f = [c["cell"] for c in m["cells"] if c["block"] == "E2-FAIL"]
+>       exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS + C.EXP37_BLOCKS]   # exp_36 / 37: by name
+
+src/tests/test_exp35_collect.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x7250b5485ab0>
+
+>   exp36 = [c["cell"] for c in m["cells"] if c["block"] in C.EXP36_BLOCKS + C.EXP37_BLOCKS]   # exp_36 / 37: by name
+E   AttributeError: module 'depth_canon_collect' has no attribute 'EXP37_BLOCKS'. Did you mean: 'EXP35_BLOCKS'?
+
+src/tests/test_exp35_collect.py:175: AttributeError
+_______________________ test_render_is_one_cell_per_line _______________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_render_is_one_cell_per_line(manifest):
+        lines = MC.render(manifest).splitlines()
+        cell_lines = [ln for ln in lines if ln.startswith('  {"cell":')]
+>       assert len(cell_lines) == len(manifest["cells"]) == N_ROWS and len(_exp25(manifest)) == 230
+E       AssertionError: assert (386 == 395)
+E        +  where 386 = len([{'cell': 'exp25_CANON_T_S40000_K1_s42', 'order': 0, 'priority': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000...ty': 0, 'block': 'T', ...}, {'cell': 'exp25_CANON_T_S40000_K8_s42', 'order': 5, 'priority': 0, 'block': 'T', ...}, ...])
+
+src/tests/test_depth_canon_eval_run.py:125: AssertionError
+_____________________ test_block_counts_and_priority_order _____________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_block_counts_and_priority_order(manifest):
+        cells = manifest["cells"]
+        assert collections.Counter(c["block"] for c in _exp25(manifest)) == COUNTS
+>       assert tuple(manifest["blocks"]) == BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS + EXP37_BLOCKS
+E       AssertionError: assert ('T', 'T-dup'..., 'D-ii', ...) == ('T', 'T-dup'..., 'D-ii', ...)
+E         
+E         Right contains 2 more items, first extra item: 'RPL-37'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_eval_run.py:134: AssertionError
+_______________ test_eval_names_and_metrics_stems_are_injective ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_eval_names_and_metrics_stems_are_injective(manifest):
+        cells = manifest["cells"]
+        names = [c["cell"] for c in cells]
+>       assert len(set(names)) == N_ROWS
+E       AssertionError: assert 386 == 395
+E        +  where 386 = len({'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...})
+E        +    where {'exp25_CANON_C4_S40000_K1_s42_th180', 'exp25_CANON_C4_S40000_K1_s42_th270', 'exp25_CANON_C4_S40000_K1_s42_th45', 'exp25_CANON_C4_S40000_K1_s42_th90', 'exp25_CANON_C4_S40000_K8_s42_th180', 'exp25_CANON_C4_S40000_K8_s42_th270', ...} = set(['exp25_CANON_T_S40000_K1_s42', 'exp25_CANON_T_S40000_K1_s43', 'exp25_CANON_T_S40000_K1_s44', 'exp25_CANON_T_S40000_K1_s45', 'exp25_CANON_T_S40000_K1_s46', 'exp25_CANON_T_S40000_K8_s42', ...])
+
+src/tests/test_depth_canon_eval_run.py:145: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______________ test_cli_count_no_flash_refuses_a_bad_selection ________________
+----------------------------- Captured stdout call -----------------------------
+SELECTION REFUSED: unknown, duplicate or empty block selection ['T', 'nope']
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_the_a1_names_are_registered_in_their_blocks_only
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135]
+PASSED src/tests/test_exp35_collect.py::test_the_arm_protocol_table
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CTL_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-P1_OFF_K8_s46_225]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-CANON_OFF_K1_s42_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CANON-45_OFF_K8_s43_45]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles1]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles2]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[orbit_execution4]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap5]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_autocast7]
+PASSED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+PASSED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+PASSED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+PASSED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells
+PASSED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args0-0]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args1-30]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args2-1]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args3-100]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args4-3]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash_refuses_a_bad_selection
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+PASSED src/tests/test_depth_canon_eval_run.py::test_canon_tokens_follow_the_protocol
+PASSED src/tests/test_depth_canon_eval_run.py::test_common_flags_on_every_row
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[removed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_committed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_uncommitted]
+ERROR src/tests/test_exp36_make_cells.py::test_the_exp36_render_is_the_manifest_committed_at_the_launch_commits
+ERROR src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+ERROR src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+ERROR src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+ERROR src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+ERROR src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_a1_blocks_follow_yaw_c4s
+ERROR src/tests/test_exp36_a1_make_cells.py::test_each_replay_is_its_reference_row_under_another_name
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_th315_rows_are_their_th225_siblings_at_315_degrees
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles
+ERROR src/tests/test_exp36_a1_make_cells.py::test_the_24_off_orbit_production_cells
+ERROR src/tests/test_exp36_a1_make_cells.py::test_names_and_suffixes_stay_injective_over_386_rows
+FAILED src/tests/test_exp37_b3.py::test_the_exp36_render_stays_exact_and_exp37_needs_exp36
+FAILED src/tests/test_exp37_b3.py::test_the_two_exp37_blocks_follow_the_exp36_blocks
+FAILED src/tests/test_exp37_b3.py::test_the_replay_is_the_bf_pin_c4_cell_under_another_name
+FAILED src/tests/test_exp37_b3.py::test_the_orbit_rows_are_the_bf_pin_template_with_their_orbit
+FAILED src/tests/test_exp37_b3.py::test_the_collector_takes_a_bf_rows_orbit_from_its_argv
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K1_s42_th0]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB1_S40000_K8_s42_th90]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_ORB2_S40000_K8_s42_th0]
+FAILED src/tests/test_exp37_b3.py::test_an_orbit_cell_written_by_the_evaluator_verifies_with_its_dump[exp37_BF_C4_S40000_K8_s42_th90]
+FAILED src/tests/test_exp37_b3.py::test_the_replay_is_registered_against_the_exp35_bf_cell
+FAILED src/tests/test_exp37_b3.py::test_exp37_names_belong_to_their_blocks - ...
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_runs_its_replay_its_check_then_the_8_orbit_cells
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env0-4-kinds0]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env1-5-kinds1]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env2-2-kinds2]
+FAILED src/tests/test_exp37_b3_chain.py::test_chain_b3_stops_before_the_orbit_cells_on_any_failure[env3-3-kinds3]
+FAILED src/tests/test_exp37_b3_chain.py::test_the_runner_dry_run_plans_the_replay_and_the_8_orbit_cells_with_dumps
+FAILED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+FAILED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+FAILED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+21 failed, 61 passed, 3 warnings, 12 errors in 80.68s (0:01:20)

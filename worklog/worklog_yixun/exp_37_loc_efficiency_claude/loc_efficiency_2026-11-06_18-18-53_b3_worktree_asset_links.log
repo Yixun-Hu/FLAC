@@ -1,0 +1,10 @@
+Fri Nov  6 06:18:53 PM EST 2026
+exp_37 B3 synthesis leaf: worktree /home/yixunhu/codespace/exp-37-b3-synthesis, branch exp-37-b3-synthesis, cut from the exp_36 code head H36_I2 d92aef106de09496715b26ecc42f924ead104090
+AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms (resolves: /media/diskstation/yixunhu/FLAC/AcousticRooms)
+weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE (resolves: /home/yixunhu/codespace/FLAC/weights/AGREE)
+weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt (resolves: /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt)
+6198ff0d781fa05f546d19a0137a830c3f265437193c3581d8043713e7271baf  weights/FLAC/VAE.ckpt
+3a13243d6c6a11082697592c2c5db84790d37859451df2963eb51d655b23c787  weights/AGREE/AGREE_fullAR.pt
+?? AcousticRooms
+?? worklog/worklog_yixun/exp_37_loc_efficiency_claude/
+Fri Nov  6 06:18:55 PM EST 2026

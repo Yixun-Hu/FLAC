@@ -31,7 +31,7 @@ BOOK = ("cell", "order", "priority", "block", "metrics_suffix", "eval_args")
 
 @pytest.fixture(scope="module")
 def full():
-    return MC.build_manifest()
+    return MC.build_manifest(exp37=False)                 # the exp_36 manifest (exp_37 B3 appends after it)
 
 
 def _rows(m, block):
@@ -47,6 +47,7 @@ def test_the_a1_blocks_follow_yaw_c4s(full):
     assert [c["cell"] for c in _rows(full, "RPL-S42")] == list(REPLAYS)
     assert [c["cell"] for c in _rows(full, "OFF-S42")] == TH315 + YAWOFF
     assert "amendment A1" in full["plan"] and MC.EXP36_BLOCKS == ("YAW-C4S", "RPL-S42", "OFF-S42")
+    assert MC.EXP37_BLOCKS == ("RPL-37", "BF-ORB")
 
 
 def test_each_replay_is_its_reference_row_under_another_name(full):

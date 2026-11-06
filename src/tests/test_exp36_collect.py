@@ -22,6 +22,7 @@ import test_depth_canon_collect as T
 C, MANIFEST, PIN = T.C, T.MANIFEST, T.PIN
 EXP35 = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
 EXP36 = ("YAW-C4S", "RPL-S42", "OFF-S42")   # + amendment A1's two blocks
+EXP37 = ("RPL-37", "BF-ORB")                 # exp_37 B3 (no-flash too)
 REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"
 CELLS24 = [f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 44, 45, 46) for d in (90, 180, 270)]
 YAW_C4S = [REPLAY] + CELLS24
@@ -39,7 +40,7 @@ def _stem(r):
 def test_the_no_flash_decision_is_separate_from_the_exp35_identity():
     assert C.EXP35_BLOCKS == EXP35 and C.EXP36_BLOCKS == EXP36 and C.EXPLICIT_BLOCKS == ("E2-FAIL",)
     for r in MANIFEST["cells"]:
-        assert C.uses_no_flash(r) is (r["block"] in EXP35 + EXP36), r["cell"]
+        assert C.uses_no_flash(r) is (r["block"] in EXP35 + EXP36 + EXP37), r["cell"]
         assert C.is_exp35(r) is (r["block"] in EXP35), r["cell"]
     assert [c["cell"] for c in MANIFEST["cells"] if c["block"] == "YAW-C4S"] == YAW_C4S
 
@@ -59,7 +60,7 @@ def test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free():
 
 def test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag():
     kw = dict(farm_root="farm", dump_root="/d", canon_index=T.canon_index(), no_dump_blocks=[])
-    for e in C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if c["block"] not in EXP36], **kw):
+    for e in C.plan_cells(MANIFEST, [c for c in MANIFEST["cells"] if c["block"] not in EXP36 + EXP37], **kw):
         assert ("no_flash" in e) is (_row(e["cell"])["block"] in EXP35), e["cell"]
 
 
