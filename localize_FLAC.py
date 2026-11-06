@@ -36,6 +36,10 @@ def main() -> None:
     parser.add_argument("--synchronize-latency", action="store_true")
     parser.add_argument("--warmup-query-count", type=int, default=0)
     parser.add_argument("--measure-core-forward", action="store_true")
+    # exp_37 (plan_loc_efficiency.md §3, §10): G0 one-query mode, the mesh-root remap, the no-flash requirement.
+    parser.add_argument("--query-index", type=int)
+    parser.add_argument("--mesh-root", type=Path)
+    parser.add_argument("--require-attention-backend", choices=("sdpa",))
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -65,6 +69,9 @@ def main() -> None:
         synchronize_timing=args.synchronize_latency,
         warmup_query_count=args.warmup_query_count,
         measure_core_forward=args.measure_core_forward,
+        query_index=args.query_index,
+        mesh_root=args.mesh_root,
+        require_attention_backend=args.require_attention_backend,
     )
     print(json.dumps(result, indent=2))
 

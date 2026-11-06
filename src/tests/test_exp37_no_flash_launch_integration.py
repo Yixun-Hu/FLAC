@@ -225,3 +225,27 @@ def test_the_spawn_scanner_bites(tmp_path):
                    "subprocess.run(argv)\n")
     got = _spawn_violations(str(bad))
     assert len(got) == 5 and not any(":3:" in g or ":8:" in g for g in got), got
+
+
+def _spawner_references(path):
+    """Every ``subprocess.X`` / ``os.X`` spawner attribute in ``path``, called or merely referenced."""
+    found = set()
+    for node in ast.walk(ast.parse(open(path).read(), path)):
+        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id in ("subprocess", "os") and node.attr in SPAWNERS[node.value.id]):
+            found.add(f"{node.value.id}.{node.attr}")
+    return found
+
+
+def test_the_only_spawner_reference_is_the_host_record_with_literal_tool_argv():
+    """The scanner above sees direct calls only; the host record calls ``subprocess.run`` through an injectable
+    default. Pin that this is the closure's ONLY spawner reference and that its argv lists are literal tools."""
+    closure = _import_closure([os.path.join(REPO, "localize_FLAC.py")])
+    refs = {(os.path.relpath(p, REPO), ref) for p in closure for ref in _spawner_references(p)}
+    assert refs == {("src/localization/run_provenance.py", "subprocess.run")}
+    tree = ast.parse(open(os.path.join(REPO, "src", "localization", "run_provenance.py")).read())
+    argvs = [node.args[1] for node in ast.walk(tree) if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Name) and node.func.id == "_command"]
+    assert len(argvs) == 2 and all(isinstance(a, ast.List) and all(isinstance(e, ast.Constant) for e in a.elts)
+                                   for a in argvs)
+    assert sorted(a.elts[0].value for a in argvs) == ["nvidia-smi", "ps"]

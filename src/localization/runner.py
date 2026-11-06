@@ -31,7 +31,13 @@ from src.localization.engine import (
     load_frozen_query,
     reconstruct_room_base_candidates,
 )
+from src.localization.mesh_remap import resolve_mesh_root
 from src.localization.pilot import canonical_sha256, resolve_pilot_records
+from src.localization.run_provenance import (
+    attention_identity,
+    no_flash_launch_handoff,
+    write_host_record,
+)
 from src.localization.scoring import (
     deterministic_random_candidate,
     localization_metrics,
@@ -42,6 +48,7 @@ from src.localization.scoring import (
 
 RUN_SCHEMA_VERSION = 1
 QUERY_SCHEMA_VERSION = 1
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def file_sha256(path: Path | str) -> str:
@@ -400,6 +407,24 @@ def execute_query(
     return result, candidates, similarities.numpy()
 
 
+def select_queries(
+    joined: list, *, query_limit: int | None = None, query_index: int | None = None
+) -> list:
+    """The pilot prefix (``query_limit``), exactly one pilot query (``query_index``, exp_37 G0), or all."""
+    if query_limit is not None and query_index is not None:
+        raise ValueError("query_limit and query_index are mutually exclusive")
+    if query_index is not None:
+        chosen = [item for item in joined if int(item[0]["index"]) == int(query_index)]
+        if len(chosen) != 1:
+            raise ValueError(f"query index {query_index} is not in the pilot manifest exactly once")
+        return chosen
+    if query_limit is not None:
+        if query_limit <= 0 or query_limit > len(joined):
+            raise ValueError("query_limit is outside the pilot range")
+        return joined[:query_limit]
+    return joined
+
+
 def run_localization(
     *,
     model_config_path: Path,
@@ -420,6 +445,9 @@ def run_localization(
     synchronize_timing: bool = False,
     warmup_query_count: int = 0,
     measure_core_forward: bool = False,
+    query_index: int | None = None,
+    mesh_root: Path | None = None,
+    require_attention_backend: str | None = None,
 ) -> dict:
     if candidate_batch_size <= 0:
         raise ValueError("candidate_batch_size must be positive")
@@ -442,10 +470,13 @@ def run_localization(
     if not torch.cuda.is_available() or torch.device(device).type != "cuda":
         raise RuntimeError("formal localization requires an available CUDA device")
     joined = resolve_pilot_records(pilot_manifest, context_manifest, geometry_audit)
-    if query_limit is not None:
-        if query_limit <= 0 or query_limit > len(joined):
-            raise ValueError("query_limit is outside the pilot range")
-        joined = joined[:query_limit]
+    joined = select_queries(joined, query_limit=query_limit, query_index=query_index)
+    # exp_37 provenance, verified before anything is written: the attention backend actually selected (and,
+    # when SDPA is required, the no-flash launcher's in-process hand-off), the --mesh-root map (audit untouched).
+    attention = attention_identity(REPO_ROOT, require_attention_backend)
+    handoff = no_flash_launch_handoff(REPO_ROOT) if require_attention_backend else None
+    mesh_remap = resolve_mesh_root(geometry_audit, mesh_root) if mesh_root is not None else None
+    mesh_paths = {room: row["mesh_path"] for room, row in (mesh_remap or {"rooms": {}})["rooms"].items()}
 
     identity = {
         "model_config_sha256": file_sha256(model_config_path),
@@ -468,9 +499,15 @@ def run_localization(
         "warmup_query_count": int(warmup_query_count),
         "measure_core_forward": bool(measure_core_forward),
         "sampler": {"type": "rectified_flow_discrete_euler", "steps": 1, "cfg_scale": 1.0},
+        **attention,
     }
+    if mesh_remap is not None:
+        identity["mesh_root_override"] = mesh_remap
     run_manifest = initialize_run(output_dir, identity)
     run_sha256 = run_manifest["sha256"]
+    write_host_record(
+        output_dir, "start", device=device, handoff=handoff, run_manifest_sha256=run_sha256
+    )
 
     torch.set_float32_matmul_precision("medium")
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -484,7 +521,9 @@ def run_localization(
     for selected, record, _geometry in joined[:warmup_query_count]:
         room = selected["room"]
         if room not in room_bases:
-            room_bases[room] = reconstruct_room_base_candidates(room, geometry_audit)
+            room_bases[room] = reconstruct_room_base_candidates(
+                room, geometry_audit, mesh_path=mesh_paths.get(room)
+            )
         execute_query(
             module=module,
             retrieval=retrieval,
@@ -522,7 +561,9 @@ def run_localization(
             continue
         room = selected["room"]
         if room not in room_bases:
-            room_bases[room] = reconstruct_room_base_candidates(room, geometry_audit)
+            room_bases[room] = reconstruct_room_base_candidates(
+                room, geometry_audit, mesh_path=mesh_paths.get(room)
+            )
         torch.cuda.reset_peak_memory_stats(device)
         result, candidates, similarities = execute_query(
             module=module,
@@ -554,6 +595,9 @@ def run_localization(
             f"candidates={len(candidates)} seconds={result['elapsed_seconds']:.1f}",
             flush=True,
         )
+    write_host_record(
+        output_dir, "end", device=device, handoff=handoff, run_manifest_sha256=run_sha256
+    )
     return {
         "run_manifest_sha256": run_sha256,
         "completed_queries": completed,
