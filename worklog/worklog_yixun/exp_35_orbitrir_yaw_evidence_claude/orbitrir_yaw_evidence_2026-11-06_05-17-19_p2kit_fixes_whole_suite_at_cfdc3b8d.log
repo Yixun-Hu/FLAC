@@ -1,0 +1,6 @@
+p2kit: the whole kit suite at HEAD cfdc3b8df4df732eb44c46f15fe41605909f37c5 on a clean tree (Codex P2K-1 fixes 1-6 on top of 581a1773) -- 2026-11-06T05:17:19-05:00
+kit files: 6618dff9a13823935955d89777ffcbac3eaeef41180ac0995247d9b8cf70f092 exp35_phase_ii.sh; c340836ee44dee728ab9803242fdb481647dd5158486d21256c934ee5066dea1 exp35_phase_ii.py
+........................................................................ [ 93%]
+..........................................                               [100%]
+618 passed in 43.18s
+pytest rc 0
