@@ -1,0 +1,70 @@
+HEAD 8bb120e14f951f8ee1937b5e8fdd60e50fd97f5b
+cmd: nice -n 19 env OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES= python tools/audit_localization_geometry.py --context-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json --mesh-root AcousticRooms/room_mesh_obj_format --output-json <scratchpad>/audit_0p50_repro.json --output-md <scratchpad>/audit_0p50_repro.md --fast-cost-audit
+{
+  "sha256": "f1d8a14958314f4a9f37c459896cf3e244dd465c3b3775af7c49e64d48e70bc9",
+  "geometry_gate": "PASS",
+  "z_branch": "z_band",
+  "raw_candidate_query_pairs": 25312262,
+  "base_candidate_query_pairs": 15773315,
+  "full_candidate_query_pairs": 15731665,
+  "z_candidate_query_pairs": 8891826,
+  "chosen_candidate_query_pairs": 8891826,
+  "full_receiver_candidate_pairs": 1625827,
+  "z_receiver_candidate_pairs": 966728,
+  "chosen_receiver_candidate_pairs": 966728,
+  "context_branch_queries": 5337,
+  "context_vit_forwards": 42696,
+  "chosen_oracle": {
+    "count": 5337,
+    "finite_count": 5337,
+    "mean": 0.21162535784684477,
+    "median": 0.2408318915758458,
+    "max": 0.41231056256176596,
+    "over_0_5m": 0
+  }
+}
+	Command being timed: "nice -n 19 env OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python tools/audit_localization_geometry.py --context-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json --mesh-root AcousticRooms/room_mesh_obj_format --output-json /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp37/audit_0p50_repro.json --output-md /tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp37/audit_0p50_repro.md --fast-cost-audit"
+	User time (seconds): 24.49
+	System time (seconds): 1.47
+	Percent of CPU this job got: 116%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:22.31
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 953200
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 169259
+	Voluntary context switches: 10403
+	Involuntary context switches: 1138
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 6880
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+EXIT 0
+
+=== 2026-11-06T17:06:19-05:00 comparison at HEAD cceb7a2ee0ee100274d1c4462f2716e85b8af427: committed exp_09 audit vs this reproduction (tools/exp37_compare_audits.py)
+{
+  "reference": "worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/geometry_audit.json",
+  "candidate": "/tmp/claude-1007/-home-yixunhu-codespace-FLAC/1630c6fe-5d3e-42b4-94ec-1b6d3bcb0e4e/scratchpad/exp37/audit_0p50_repro.json",
+  "ignored": {
+    "top": [
+      "mesh_root",
+      "context_manifest",
+      "sha256"
+    ],
+    "room": [
+      "mesh_path"
+    ]
+  },
+  "difference_count": 0,
+  "differences": []
+}
+COMPARE EXIT 0
+reproduction json sha256 5d151c2805ac65a674346fd657bf146481514bad92fed5cca5d67a7bb7acb24d (scratchpad; not committed: identical content to the committed audit except host paths)
+reproduction: geometry_gate PASS z_branch z_band mesh_root /media/diskstation/yixunhu/FLAC/AcousticRooms/room_mesh_obj_format grid [0.5, 0.5, 0.5]

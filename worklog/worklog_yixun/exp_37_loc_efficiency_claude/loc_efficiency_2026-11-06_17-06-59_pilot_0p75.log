@@ -1,0 +1,11 @@
+HEAD cceb7a2ee0ee100274d1c4462f2716e85b8af427
+cmd: python tools/build_localization_pilot.py --context-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json --geometry-audit worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.json --output worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/pilot_manifest_0p75_seed42_4_per_room.json --queries-per-room 4 --seed 42 --require-same-queries-as worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/pilot_manifest_seed42_4_per_room.json
+{
+  "sha256": "07a71e3cb5e91c91a2227e1333df0077164b85c2022da0adc009e766ad558b52",
+  "rooms": 16,
+  "queries": 64,
+  "candidate_query_pairs": 11537
+}
+EXIT 0
+same 64 query indices / ids, same order: True
+0.75 m pairs 11537 vs 0.5 m 46301 ; min/max per query 4 1717

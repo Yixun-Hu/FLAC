@@ -1,0 +1,27 @@
+HEAD cceb7a2ee0ee100274d1c4462f2716e85b8af427
+cmd: nice -n 19 env OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES= python tools/audit_localization_geometry.py --context-manifest worklog/worklog_yixun/exp_09_localization_grid_preflight_claude/context_manifest_exp01_seed42.json --mesh-root AcousticRooms/room_mesh_obj_format --output-json worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.json --output-md worklog/worklog_yixun/exp_37_loc_efficiency_claude/audit_0p75/geometry_audit_0p75.md --fast-cost-audit --grid-spacing 0.75 --pin-z-branch z_band
+{
+  "sha256": "5c58e39c50e2f3a8ae17011c0ab100a50a3dc8389b39ed2e98773723265661c2",
+  "geometry_gate": "PASS",
+  "z_branch": "z_band",
+  "raw_candidate_query_pairs": 7328427,
+  "base_candidate_query_pairs": 4586398,
+  "full_candidate_query_pairs": 4572558,
+  "z_candidate_query_pairs": 2079434,
+  "chosen_candidate_query_pairs": 2079434,
+  "full_receiver_candidate_pairs": 471716,
+  "z_receiver_candidate_pairs": 248896,
+  "chosen_receiver_candidate_pairs": 248896,
+  "context_branch_queries": 5337,
+  "context_vit_forwards": 42696,
+  "chosen_oracle": {
+    "count": 5337,
+    "finite_count": 5337,
+    "mean": 0.34162290535412226,
+    "median": 0.3535533905932738,
+    "max": 1.107700320483839,
+    "over_0_5m": 449
+  }
+}
+wall 13.09 s, max RSS 953980 kB
+EXIT 0
