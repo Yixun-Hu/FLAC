@@ -83,7 +83,7 @@ def is_exp35(row):
 
 
 def uses_no_flash(row):
-    """A row spawned through the no-flash launcher (exp_36, Codex plan review B1): every exp_35 block and YAW-C4S.
+    """A row spawned through the no-flash launcher (exp_36, Codex plan review B1): every exp_35 and exp_36 block.
     It drives the plan's ``no_flash``, receipt schema 2, the backend-log check, ``build_receipt`` and
     ``--count-no-flash``; ``is_exp35`` stays the exp_35 identity (names, collection)."""
     return row["block"] in EXP35_BLOCKS + EXP36_BLOCKS
@@ -2542,9 +2542,10 @@ def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, base_dir=REPO, 
                   resume=False, reference=None, git_head=_git_head):
     """B4 / H4: ``(status, doc)`` -- "published", "partial" (stopped part-way; ``doc["recovery"]``) or "refused"
     (nothing written). Every gate runs before any write: this worktree at ``pin``, the exp-25 worktree at
-    ``exp25_head``, ``dest`` its plain YAW farm directory, the verdict ``equal`` at ``pin`` and re-computed identically
-    now, the 24 sources verified under its campaign digest, none of the 48 destinations present (``resume``: present
-    only byte-identical) and no temp file left (``resume``: only this tool's own, removed)."""
+    ``exp25_head``, ``dest`` its plain YAW farm directory, the YAW replay's verdict ``equal`` at ``pin`` and re-computed
+    identically now, the set's cells (A: 24, OFF: 6) verified under its campaign digest, none of their destinations
+    (metrics + stream) present (``resume``: present only byte-identical) and no temp file left (``resume``: only this
+    tool's own, removed)."""
     def refused(why):
         return "refused", {"status": "refused", "set": cell_set, "reasons": why}
     cells = EXP36_PUBLISH_SETS[cell_set]
