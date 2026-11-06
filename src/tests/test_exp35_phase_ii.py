@@ -36,7 +36,7 @@ PRODUCTION = {
     "QUEUE_LOG": "logs/queue_20261101T233607_741947.log",
     "NVIDIA_SMI": "/usr/bin/nvidia-smi", "PROC": "/proc", "SCAN_PROC": "/proc",
     "PY": "/home/yixunhu/miniconda3/envs/flac/bin/python",
-    "GAP_S": 60, "CONFIRM_S": 60, "IDENTIFY_S": 5.0, "DRY_TIMEOUT_S": 1800, "DRY_MAX_AGE_S": 10800}
+    "GAP_S": 60, "CONFIRM_S": 60, "IDENTIFY_S": 5.0, "DRY_MAX_AGE_S": 10800}
 
 
 def block_values(path):

@@ -13,6 +13,7 @@ Part 3a: the preconditions every mutating mode re-checks -- the kit's self-pin, 
 H35 with its campaign digest, Yixun's pinned files and the end of his s43 training -- and the evidence record.
 Part 3b: the orchestration directory, its durable state machine, the kit lock and the reserve transaction.
 Part 4a: the exact runner command and the exact parser of its DRY_RUN transcript.
+Part 4b: the dry-run transaction (from 'reserved' only; the runner is never given a timeout: the kit never kills).
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -50,7 +51,7 @@ NVIDIA_SMI = "/usr/bin/nvidia-smi"
 PROC = "/proc"
 SCAN_PROC = "/proc"
 PY = "/home/yixunhu/miniconda3/envs/flac/bin/python"
-GAP_S, CONFIRM_S, IDENTIFY_S, DRY_TIMEOUT_S, DRY_MAX_AGE_S = 60, 60, 5.0, 1800, 10800
+GAP_S, CONFIRM_S, IDENTIFY_S, DRY_MAX_AGE_S = 60, 60, 5.0, 10800
 # --- END REGISTERED CONFIG ---
 
 BRANCH = "exp-35-orbitrir-yaw"
@@ -80,13 +81,13 @@ FINAL_EVENT = "phase (i) complete; the reservation released"                 # e
 KIT_FILES = ("exp35_phase_ii.sh", "exp35_phase_ii.py")
 HEX64 = re.compile(r"[0-9a-f]{64}")
 Config = collections.namedtuple("Config", "run h35 digest reservations exp30_pins queue_log nvidia_smi proc scan_proc "
-                                "py gap_s confirm_s identify_s dry_timeout_s dry_max_age_s kit_dir helper")
+                                "py gap_s confirm_s identify_s dry_max_age_s kit_dir helper")
 
 
 def registered_config():
     return Config(RUN, H35, CAMPAIGN_DIGEST, RESERVATIONS, {f"{EXP30}/{k}": v for k, v in EXP30_PINS.items()},
                   f"{EXP30}/{QUEUE_LOG}", NVIDIA_SMI, PROC, SCAN_PROC, PY, GAP_S, CONFIRM_S, IDENTIFY_S,
-                  DRY_TIMEOUT_S, DRY_MAX_AGE_S, HERE, os.path.abspath(__file__))
+                  DRY_MAX_AGE_S, HERE, os.path.abspath(__file__))
 
 
 def sha256_bytes(raw):
@@ -864,11 +865,13 @@ def orchestrations(cfg):
     return out
 
 
-def prior(cfg):
-    """(reasons, run ids): every earlier orchestration must be resolved; those that reached launch_pending are the
+def prior(cfg, exclude=None):
+    """(reasons, run ids): every OTHER orchestration must be resolved; those that reached launch_pending are the
     prior runs the report must name (S5: no relaunch without a review and a report)."""
     why, runs = [], []
     for d, st in orchestrations(cfg):
+        if exclude is not None and os.path.realpath(d) == os.path.realpath(exclude):
+            continue
         if not isinstance(st, dict) or st["phase"] not in RESOLVED:
             why.append(f"the orchestration {d} is unresolved ({st if not isinstance(st, dict) else st['phase']})")
         if isinstance(st, dict) and st["launch"] is not None:
@@ -962,10 +965,11 @@ def _reserve(world, cfg, kit, lanes, report, report_sha256):
 # part 4a: the exact runner command and the exact parser of its DRY_RUN transcript (§15 item 7; S4, S6)
 # --------------------------------------------------------------------------- #
 TS_RE = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}"
-BENIGN = ("/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: "   # the
-          "pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The "  # pinned
-          "pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin "  # env's
-          "to Setuptools<81.")                                                                       # one warning
+# the pinned flac env's one warning line (printed by the runner's own collector calls; the real H35 transcript has two)
+BENIGN = ("/home/yixunhu/miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40: "
+          "pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The "
+          "pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin "
+          "to Setuptools<81.")
 PREFLIGHT = ("exp35 no-flash overlay: flash_attn disabled, attention backend = torch SDPA\n"
              "flash_attn not installed, disabling Flash Attention\n"
              "EXP35_NO_FLASH_LAUNCHER attention_backend=sdpa "
@@ -1057,3 +1061,101 @@ def parse_dry_run(text, *, cfg, m, rows, lanes):
     out += [] if len(ids) == len(argv) == len(rows) else [f"{len(ids)} cell ids, {len(argv)} argv, not {len(rows)}"]
     return out, {"ts": min(ts) if len(ts) == 1 else None, "ids": ids, "argv": argv, "benign_lines": benign,
                  "lines": len(lines)}
+
+
+# --------------------------------------------------------------------------- #
+# part 4b: the dry-run transaction (§15 item 7; S6 "record the dry-run environment, cwd, argv, outer / internal log
+# hashes, rc, exact planned set, and all 68 argv records")
+# --------------------------------------------------------------------------- #
+def open_mode(cfg, kit_commit, h35, orch, phases):
+    """dry-run / launch / release: the self-pin, the H35 argument, an orchestration of THIS run worktree, the kit lock,
+    its state in ``phases`` and reserved with this very kit commit. ((lock fd, state), []) or (None, reasons)."""
+    why = kit_evidence(cfg, kit_commit)[0] + (
+        [] if h35 == cfg.h35 else [f"the given H35 {h35} is not the registered {cfg.h35}"])
+    base = os.path.realpath(os.path.join(cfg.run, X35))
+    why += [] if os.path.dirname(os.path.realpath(orch)) == base else [f"{orch} is not an orchestration of {base}"]
+    lock = None if why else kit_lock(cfg)
+    if lock is None:
+        return None, why or [f"the kit lock {KIT_LOCK} is held (a kit mode, our wrapper or a runner child lives)"]
+    try:
+        st = load_state(orch)
+        why = ([] if st["phase"] in phases else [f"the state is {st['phase']}, not {' or '.join(phases)}"]) + (
+            [] if st["kit"]["commit"] == kit_commit else [
+                f"the orchestration was reserved with the kit {st['kit']['commit']}"])
+    except ValueError as err:
+        why = [str(err)]
+    if why:
+        os.close(lock)
+        return None, why
+    return (lock, st), []
+
+
+def recheck(world, cfg, st, orch):
+    """Every precondition again, the evidence unchanged since the reservation, the held records ours: (reasons, obs)."""
+    lanes = tuple(x["index"] for x in st["lanes"])
+    why, runs = prior(cfg, exclude=orch)
+    bad, ev = evidence(cfg, lanes=lanes, report=st["evidence"]["report"]["path"],
+                       report_sha256=st["evidence"]["report"]["sha256"], prior_runs=runs)
+    o = observe(world, cfg, lanes, held=st["reservations"])
+    return why + bad + ([] if ev == st["evidence"] else ["the evidence changed since the reservation"]) + o["reasons"], o
+
+
+def dry_run(world, cfg, *, kit_commit, h35, orch):
+    """§15 item 7: from 'reserved' only -- the recheck, the EXACT runner command under DRY_RUN=1, its transcript parsed
+    exactly and its own artifacts checked; then 'dry_run_passed', or 'dry_run_failed' (retained). (rc, message)."""
+    opened, why = open_mode(cfg, kit_commit, h35, orch, ("reserved",))
+    if opened is None:
+        return 1, "DRY RUN REFUSED (nothing changed): " + "; ".join(why)
+    lock, st = opened
+    try:
+        argv, env, cwd = runner_command(cfg, tuple(x["index"] for x in st["lanes"]), dry=True)
+        rec = {"argv": argv, "env": env, "cwd": cwd, "started": world.now()}
+        try:
+            why, rec["before"] = recheck(world, cfg, st, orch)
+            if not why:
+                p = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+                raw = p.communicate()[0]                                         # no timeout: never killed
+                path = os.path.join(orch, "dry_run_runner.log")
+                rec.update(rc=p.returncode, ended=world.now(), outer_log={
+                    "path": path, "sha256": write_exclusive(path, raw).sha256, "bytes": len(raw)})
+                why = [f"the dry run exited rc {p.returncode}"] if p.returncode else []
+                why += artifacts(cfg, raw, st, rec)
+                more, rec["after"] = recheck(world, cfg, st, orch)
+                why += more
+        except Unreadable as err:
+            why = [f"unreadable: {err}"]
+        st.update(phase="dry_run_failed" if why else "dry_run_passed", dry_run=dict(rec, reasons=why),
+                  failure={"reasons": why, "time": iso(world.now())} if why else None)
+        event(st, world.now(), st["phase"], reasons=why[:5])
+        write_json_atomic(state_path(orch), st)
+    finally:
+        os.close(lock)
+    if why:
+        return 1, "DRY RUN FAILED (retained; release, then reserve anew): " + "; ".join(why)
+    return 0, (f"DRY RUN PASSED: {rec['n_ids']} cells, {len(rec['argv_records'])} argv, the runner's log, plan and "
+               "pre-flight exact")
+
+
+def artifacts(cfg, raw, st, rec):
+    """The transcript parsed exactly; the runner's own log = it, byte for byte; its plan JSON = the re-derived plan;
+    its pre-flight log = the pinned three lines. Fills ``rec`` (paths + sha256, the planned set, the 68 argv)."""
+    cells = snapshot(os.path.join(cfg.run, CELLS))
+    _, m, rows = selection(cells.raw if cells else b"")
+    if m is None:
+        return ["the cells manifest is unreadable"]
+    lanes = tuple(x["index"] for x in st["lanes"])
+    why, info = parse_dry_run(raw.decode(errors="replace"), cfg=cfg, m=m, rows=rows, lanes=lanes)
+    rec.update(ts=info["ts"], n_ids=len(info["ids"]), ids_sha256=names_sha256(info["ids"]), argv_records=info["argv"],
+               benign_lines=info["benign_lines"])
+    want = {"internal_log": raw, "plan": expected_plan(m, rows, run=os.path.realpath(cfg.run), digest=cfg.digest),
+            "preflight": PREFLIGHT.encode()}
+    for key, name in (("internal_log", "eval_run.log"), ("plan", "eval_plan.json"),
+                      ("preflight", "no_flash_preflight.log")):
+        path = os.path.join(cfg.run, X25, f"depth_canon_{info['ts']}_{name}")
+        s = snapshot(path) if info["ts"] else None
+        rec[key] = {"path": path if info["ts"] else None, "sha256": s.sha256 if s else None}
+        ok = s is not None and (_json(s.raw) if key == "plan" else s.raw) == want[key]
+        why += [] if ok else [f"the runner's {key.replace('_', ' ')} {path if info['ts'] else '(no timestamp)'} is not "
+                              "the exact expected bytes"]
+    return why

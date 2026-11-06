@@ -161,7 +161,7 @@ def cfg_for(tmp_path, **over):
                    reservations=os.path.join(root, "reservations"), exp30_pins=pins, queue_log=log,
                    nvidia_smi=os.path.join(root, "bin", "nvidia-smi"), proc="/proc",
                    scan_proc=os.path.join(root, "proc"), py=sys.executable, gap_s=60, confirm_s=10, identify_s=5.0,
-                   dry_timeout_s=120, dry_max_age_s=10800, kit_dir=os.path.dirname(KIT_PY), helper=KIT_PY)
+                   dry_max_age_s=10800, kit_dir=os.path.dirname(KIT_PY), helper=KIT_PY)
     cfg = cfg._replace(**over)
     assert all(str(v).startswith(root) for v in (cfg.run, cfg.reservations, cfg.queue_log, cfg.scan_proc,
                                                    cfg.nvidia_smi, *cfg.exp30_pins)), "a sandbox path escaped tmp_path"
