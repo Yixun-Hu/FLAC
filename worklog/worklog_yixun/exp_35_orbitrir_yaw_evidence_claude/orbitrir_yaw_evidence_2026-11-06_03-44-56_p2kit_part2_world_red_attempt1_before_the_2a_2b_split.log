@@ -1,0 +1,51 @@
+p2kit part 2 (nvidia-smi tables, lock probes, process scans, identities, O_EXCL records, the card observation) RED at 0e9050b39fe0f4a9ea8fa9be9f724148455ae076 -- 2026-11-06T03:44:56-05:00 -- the part-2 functions do not exist yet
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_gpu_map_and_the_compute_table_parse
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0, GPU-x\n0, GPU-y\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0, GPU-x\n1, GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[zero, GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_gpu_map_is_refused[0 GPU-x\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[4242\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[x, GPU-a\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_compute_table_is_refused[1, 2, 3\n]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_world_queries_nvidia_smi_and_every_failure_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_lock_probe_never_creates_and_sees_a_holder
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_unreadable_lock_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_scan_finds_every_exp35_process_and_nothing_else
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_unreadable_cmdline_or_cwd_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_table_job_rule_for_gpu1
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_live_identity_is_complete_and_matches_only_its_own_process
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_identity_of_this_very_process_reads_through_the_real_proc
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_reservation_is_an_exact_o_excl_record
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_record_that_is_not_ours_is_never_unlinked[bytes]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_record_that_is_not_ours_is_never_unlinked[inode]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_record_that_is_not_ours_is_never_unlinked[symlink]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_record_that_is_not_ours_is_never_unlinked[missing]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_our_exact_record_is_released_and_the_directory_synced
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_reservation_status_of_any_file[None-absent]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_reservation_status_of_any_file[{"holder": "exp22", "run": "x"}-present (holder exp22)]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_reservation_status_of_any_file[{-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_reservation_status_of_any_file[[1]-present (malformed)]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_the_reservation_status_of_any_file[dangling-present (a dangling link, or removed while it was read)]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_unreadable_reservation_directory_is_unreadable
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_free_gpu0_lane_is_observed_free
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[busy-compute process]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[reserved-exp22-reservation file exists]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[reserved-malformed-reservation]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[exp35-other-card-exp35 reservation]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[malformed-other-card-unexplained]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[swapped-map-registered]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[third-card-registered]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[unknown-uuid-unknown]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[supervisor-proc-exp35_supervisor.py]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[runner-proc-depth_canon_eval_run.sh]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_every_occupied_or_inconsistent_observation_is_refused[gpu1-table-job-EVAL_DONE]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_an_exp22_record_on_the_other_card_is_no_obstacle
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_gpu1_lane_needs_the_table_job_terminally_complete
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_held_supervisor_or_runner_lock_refuses[supervisor]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_held_supervisor_or_runner_lock_refuses[runner]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_with_held_records_the_lane_file_must_be_our_exact_record
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_table_is_unreadable[map]
+FAILED src/tests/test_exp35_phase_ii_world.py::test_a_malformed_table_is_unreadable[apps]
+48 failed in 3.20s
+pytest rc 1

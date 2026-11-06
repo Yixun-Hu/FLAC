@@ -7,6 +7,7 @@ Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
 """
 import copy
 import functools
+import hashlib
 import importlib.util
 import json
 import os
@@ -81,3 +82,87 @@ def completed_state(**over):
                 c["campaign_digest"] = digest
     doc.update(over)
     return doc
+
+
+# --------------------------------------------------------------------------- #
+# part 2: the sandbox world -- a fake clock + nvidia-smi answers, a fake /proc tree, sandbox paths
+# --------------------------------------------------------------------------- #
+MAP = f"0, {GPU0}\n1, {GPU1}\n"
+EVAL_DONE_S43 = "EVAL_DONE ACEattn s43 cells=40 2026-11-06T22:00:00-05:00\n"
+END_S43 = "2026-11-06T14:31:02-05:00 END training ACEattn s43 exit=0\n"
+HOLDER = r'''
+import fcntl, os, sys, time
+fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o644)
+fcntl.flock(fd, fcntl.LOCK_EX)
+print("locked", flush=True)
+time.sleep(float(sys.argv[2]) if len(sys.argv) > 2 else 60)
+'''
+
+
+class FakeWorld:
+    """nvidia-smi answers from a dict (a callable answer may raise); a fake clock whose sleep advances it."""
+
+    def __init__(self, gpu_map=MAP, apps="", t=1_800_000_000.0):
+        self.answers = {"map": gpu_map, "apps": apps}
+        self.t, self.slept, self.queries = t, [], []
+
+    def now(self):
+        return self.t
+
+    def sleep(self, s):
+        self.slept.append(s)
+        self.t += max(0.0, s)
+
+    def nvsmi(self, query):
+        self.queries.append(query)
+        a = self.answers[query]
+        return a() if callable(a) else a
+
+
+def fake_proc(root, pid, argv, ppid=1, start=1000, cwd="/somewhere"):
+    """One /proc/<pid> entry: cmdline, stat (field 22 = ``start``), cwd and fd/1, fd/2 links."""
+    d = os.path.join(str(root), str(pid))
+    os.makedirs(os.path.join(d, "fd"))
+    with open(os.path.join(d, "cmdline"), "wb") as f:
+        f.write(b"".join(a.encode() + b"\0" for a in argv))
+    fields = ["S", str(ppid)] + ["0"] * 17 + [str(start)] + ["0"] * 10
+    with open(os.path.join(d, "stat"), "w") as f:
+        f.write(f"{pid} ({os.path.basename(argv[0])}) " + " ".join(fields) + "\n")
+    os.symlink(cwd, os.path.join(d, "cwd"))
+    os.symlink("/dev/null", os.path.join(d, "fd", "1"))
+    os.symlink("/dev/null", os.path.join(d, "fd", "2"))
+    return d
+
+
+def exp30_files(root):
+    """Stand-ins for Yixun's queue script, evaluator and admission helper, and his queue log (s43 ended)."""
+    d = os.path.join(str(root), "exp30")
+    os.makedirs(os.path.join(d, "logs"), exist_ok=True)
+    pins = {}
+    for name in ("exp30_attn_queue.sh", "exp30_attn_eval.sh", "exp30_attn_queue_state.py"):
+        with open(os.path.join(d, name), "w") as f:
+            f.write(f"# stand-in {name}\n")
+        with open(os.path.join(d, name), "rb") as f:
+            pins[os.path.join(d, name)] = hashlib.sha256(f.read()).hexdigest()
+    log = os.path.join(d, "logs", "queue.log")
+    with open(log, "w") as f:
+        f.write("2026-11-04T06:12:55-05:00 START training ACEattn s43 gpus 0,1\n" + END_S43)
+    return pins, log
+
+
+def cfg_for(tmp_path, **over):
+    """A Config naming only sandbox paths (the production block is never used by a test)."""
+    K = load_kit()
+    root = str(tmp_path)
+    for d in ("run", "reservations", "proc", "bin"):
+        os.makedirs(os.path.join(root, d), exist_ok=True)
+    pins, log = exp30_files(root)
+    cfg = K.Config(run=os.path.join(root, "run"), h35="a" * 40, digest="d" * 64,
+                   reservations=os.path.join(root, "reservations"), exp30_pins=pins, queue_log=log,
+                   nvidia_smi=os.path.join(root, "bin", "nvidia-smi"), proc="/proc",
+                   scan_proc=os.path.join(root, "proc"), py=sys.executable, gap_s=60, confirm_s=10, identify_s=5.0,
+                   dry_timeout_s=120, dry_max_age_s=10800, kit_dir=os.path.dirname(KIT_PY), helper=KIT_PY)
+    cfg = cfg._replace(**over)
+    assert all(str(v).startswith(root) for v in (cfg.run, cfg.reservations, cfg.queue_log, cfg.scan_proc,
+                                                   cfg.nvidia_smi, *cfg.exp30_pins)), "a sandbox path escaped tmp_path"
+    return cfg

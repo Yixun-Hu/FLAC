@@ -7,6 +7,7 @@ it once more, detached, as the wrapper that runs the H35 runner and durably reco
 Part 1a: the registered pins, the durable writers and the pure checks -- the 68-cell selection of the cells manifest
 at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived row by row, the lane list.
 Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
+Part 2a: the read-only world (nvidia-smi, lock probes, process scans, his table-job rule, /proc identities).
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -16,6 +17,7 @@ Written by the exp_35 phase-(ii) kit Coder (Claude Opus 5.5, max effort).
 """
 import collections
 import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -24,6 +26,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -370,3 +373,203 @@ def report_reasons(fields, *, h35, lanes, state_sha256, prior_runs):
         ("prior-runs", ",".join(sorted(prior_runs)) or "none")) if fields.get(k) != want]
     return out + ([f"the report's second-lane-decision {dec!r} does not fit {len(lanes)} lane(s): a second lane needs "
                    "a recorded decision, one lane exactly 'none'"] if (dec == "none") == two else [])
+
+
+# --------------------------------------------------------------------------- #
+# part 2a: the read-only world -- nvidia-smi, locks, processes, his table job, identities
+# --------------------------------------------------------------------------- #
+class Unreadable(ValueError):
+    """An input of a check could not be read: never taken as free, absent or gone."""
+
+
+class World:
+    """The real world: wall time, sleep and nvidia-smi (every failure is Unreadable)."""
+    QUERIES = {"map": "--query-gpu=index,uuid", "apps": "--query-compute-apps=pid,gpu_uuid"}
+
+    def __init__(self, nvidia_smi):
+        self.nvidia_smi = nvidia_smi
+
+    def now(self):
+        return time.time()
+
+    def sleep(self, s):
+        time.sleep(max(0.0, s))
+
+    def nvsmi(self, query):
+        if query not in self.QUERIES:
+            raise ValueError(f"unknown nvidia-smi query {query!r}")
+        argv = [self.nvidia_smi, self.QUERIES[query], "--format=csv,noheader"]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.SubprocessError) as err:
+            raise Unreadable(f"nvidia-smi {argv[1]}: {err}") from err
+        if r.returncode != 0:
+            raise Unreadable(f"nvidia-smi {argv[1]}: rc {r.returncode}: {r.stderr.strip()[:200]}")
+        return r.stdout
+
+
+ROW = re.compile(r"\s*(\d+),\s*(GPU-[0-9A-Za-z-]+)\s*")
+
+
+def gpu_map(text):
+    """``{index: uuid}`` from ``nvidia-smi --query-gpu=index,uuid``; ValueError when malformed, duplicate or empty."""
+    out = {}
+    for line in [ln for ln in text.splitlines() if ln.strip()]:
+        m = ROW.fullmatch(line)
+        if not m or int(m[1]) in out or m[2] in out.values():
+            raise ValueError(f"malformed or duplicate nvidia-smi index,uuid row {line!r}")
+        out[int(m[1])] = m[2]
+    if not out:
+        raise ValueError("nvidia-smi lists no GPU")
+    return out
+
+
+def compute_apps(text):
+    """``[(pid, uuid)]`` from ``nvidia-smi --query-compute-apps=pid,gpu_uuid``; ValueError when a row is malformed."""
+    out = []
+    for line in [ln for ln in text.splitlines() if ln.strip()]:
+        m = ROW.fullmatch(line)
+        if not m:
+            raise ValueError(f"malformed nvidia-smi compute-app row {line!r}")
+        out.append((int(m[1]), m[2]))
+    return out
+
+
+def lock_status(path):
+    """'absent' | 'unheld' | 'held': opened O_RDONLY (never created), LOCK_SH | LOCK_NB, closed at once (no lock
+    outlives the probe); Unreadable on any other error."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return "absent"
+    except OSError as err:
+        raise Unreadable(f"the lock {path} is unreadable ({err})") from err
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return "unheld"
+    except BlockingIOError:
+        return "held"
+    except OSError as err:
+        raise Unreadable(f"the lock {path} cannot be probed ({err})") from err
+    finally:
+        os.close(fd)
+
+
+WATCHED = ("exp35_supervisor.py", "depth_canon_eval_run.sh")                        # alive anywhere: refused
+IN_RUN = ("exp35_no_flash_launch.py", "eval_FLAC.py", "depth_canon_cond_probe.py")  # alive in the run worktree
+
+
+def _cmdlines(proc):
+    """(pid, argv) of every process but this one; a vanished entry is skipped, an unreadable one is Unreadable."""
+    try:
+        names = os.listdir(proc)
+    except OSError as err:
+        raise Unreadable(f"{proc} is unreadable ({err})") from err
+    for n in names:
+        if not n.isdigit() or int(n) == os.getpid():
+            continue
+        try:
+            with open(os.path.join(proc, n, "cmdline"), "rb") as f:
+                raw = f.read()
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        except OSError as err:
+            raise Unreadable(f"{proc}/{n}/cmdline is unreadable ({err})") from err
+        yield int(n), [a.decode(errors="replace") for a in raw.split(b"\0") if a]
+
+
+def _in_run(proc, pid, run):
+    try:
+        cwd = os.path.realpath(os.readlink(os.path.join(proc, str(pid), "cwd")))
+    except FileNotFoundError:
+        return False
+    except OSError as err:
+        raise Unreadable(f"the cwd of process {pid} is unreadable ({err})") from err
+    root = os.path.realpath(run)
+    return cwd == root or cwd.startswith(root + os.sep)
+
+
+def live_procs(cfg):
+    """[(pid, why)]: every process that may belong to an exp_35 run -- a supervisor or a runner anywhere, a phase-(ii)
+    wrapper, an evaluator or probe in the run worktree (S6: no live phase-(i) identity; release: nothing of ours)."""
+    out = []
+    for pid, argv in _cmdlines(cfg.scan_proc):
+        base = [os.path.basename(a) for a in argv]
+        hit = next((b for b in base if b in WATCHED), None)
+        if hit is None and "exp35_phase_ii.py" in base and "wrap" in argv:
+            hit = "a phase-(ii) wrapper (exp35_phase_ii.py wrap)"
+        if hit is None and any(b in IN_RUN for b in base) and _in_run(cfg.scan_proc, pid, cfg.run):
+            hit = next(b for b in base if b in IN_RUN) + " in the run worktree"
+        if hit:
+            out.append((pid, f"{hit} runs"))
+    return sorted(out)
+
+
+EVAL_DONE, TABLE_JOB = "EVAL_DONE ACEattn s43 ", "exp30_attn_eval.sh"
+
+
+def table_job_reasons(cfg):
+    """GPU 1 is a lane only once his s43 table job is terminally complete (exp_22's card rule (d)): his queue log
+    carries an ``EVAL_DONE ACEattn s43 `` line and no exp30_attn_eval.sh process runs."""
+    try:
+        with open(cfg.queue_log, "rb") as f:
+            lines = f.read().decode(errors="replace").splitlines()
+    except OSError as err:
+        raise Unreadable(f"his queue log {cfg.queue_log} is unreadable ({err})") from err
+    out = [] if any(ln.startswith(EVAL_DONE) for ln in lines) else [
+        f"his queue log has no {EVAL_DONE!r} line: his s43 table job is not terminally complete (GPU 1)"]
+    running = sorted(p for p, argv in _cmdlines(cfg.scan_proc) if TABLE_JOB in (os.path.basename(a) for a in argv))
+    return out + ([f"{TABLE_JOB} runs (pids {running}): his table job"] if running else [])
+
+
+ID_KEYS = ("pid", "start_time", "cwd", "cmdline_sha256")
+
+
+def _stat_identity(text):
+    """(pid, start time): fields 1 and 22 of /proc/<pid>/stat (counted after the LAST ')' of the comm)."""
+    return int(text.split(" ", 1)[0]), int(text[text.rindex(")") + 2:].split()[19])
+
+
+def proc_identity(pid, proc):
+    """The identity of a LIVE process -- pid, start time, cwd, cmdline sha256, fd 1 / 2 -- read through ONE directory
+    fd of /proc/<pid> between two stat reads that must agree; ValueError when gone, unreadable or reused."""
+    pid = int(pid)
+    try:
+        fd = os.open(os.path.join(proc, str(pid)), os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as err:
+        raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
+    opener = lambda path, flags: os.open(path, flags, dir_fd=fd)  # noqa: E731
+    try:
+        with open("stat", opener=opener) as f:
+            first = _stat_identity(f.read())
+        with open("cmdline", "rb", opener=opener) as f:
+            cmdline = f.read()
+        links = [os.readlink(p, dir_fd=fd) for p in ("cwd", "fd/1", "fd/2")]
+        with open("stat", opener=opener) as f:
+            second = _stat_identity(f.read())
+    except (OSError, ValueError, IndexError) as err:
+        raise ValueError(f"process {pid}: its /proc identity is unreadable ({type(err).__name__}: {err})") from err
+    finally:
+        os.close(fd)
+    if not first == second == (pid, first[1]):
+        raise ValueError(f"process {pid}: its /proc entry changed during the sample ({first} -> {second}): PID reuse")
+    return {"pid": pid, "start_time": first[1], "cwd": links[0], "cmdline_sha256": sha256_bytes(cmdline),
+            "fd1": links[1], "fd2": links[2]}
+
+
+def identity_status(ident, proc):
+    """'alive' (its pid runs with its recorded start time), 'gone', or 'reused' (the pid names another process) --
+    never by a pid alone; ValueError for an incomplete record, Unreadable for an unreadable live entry."""
+    if not (isinstance(ident, dict) and all(k in ident for k in ID_KEYS) and type(ident["pid"]) is int
+            and ident["pid"] > 0 and type(ident["start_time"]) is int):
+        raise ValueError(f"an incomplete identity {ident!r:.120} identifies no process")
+    path = os.path.join(proc, str(ident["pid"]))
+    if not os.path.lexists(path):
+        return "gone"
+    try:
+        live = proc_identity(ident["pid"], proc)
+    except ValueError as err:
+        if not os.path.lexists(path):
+            return "gone"
+        raise Unreadable(str(err)) from err
+    return "alive" if live["start_time"] == ident["start_time"] else "reused"
