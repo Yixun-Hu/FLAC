@@ -11,6 +11,9 @@ renders the exp_25 manifest byte for byte as committed at the exp_25 pin (the re
 exp_36 (plan_yaw_c4_spread.md r0 §2 item 1; its Codex plan review B2) appends block YAW-C4S, 25 rows (orders 346-370):
 first the replay ``exp36_YAW_C4_S40000_K8_s42_th90``, then ``exp25_YAW_C4_S40000_K{1,8}_s{43..46}_th{90,180,270}`` --
 the YAW-pin C4 rows at seeds 43-46 under explicit names. ``build_manifest(exp36=False)`` renders the H35 manifest.
+Amendment A1 (Yixun 2026-11-06, the seed-42 off-orbit run) appends RPL-S42 (orders 371-373: the P1 / B-F / CANON
+replays of their C4 K8 s42 th90 rows) and OFF-S42 (orders 374-385: the th315 rows of OFF-P1 / OFF-BF / OFF-CANON at s42
+and the YAW-pin C4 s42 rows at 135 / 225 / 315 deg), every row named explicitly.
 
 Deterministic, no I/O beyond reading nothing at all: ``build_manifest()`` is a pure
 function of the constants below and eval_FLAC's own ``build_output_paths`` (which names
@@ -47,7 +50,7 @@ OUT = os.path.join(REPO, EXPREL, "depth_canon_cells.json")
 SCHEMA_VERSION = 1
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
-EXP36_BLOCKS = ("YAW-C4S",)   # exp_36: the Yaw-Aug C4 spread (+ its replay), every row explicitly named
+EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")   # exp_36 (+ amendment A1): every row explicitly named
 BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
 EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 under another name
 SEEDS = (42, 43, 44, 45, 46)
@@ -197,8 +200,22 @@ def _exp36_block():
                                              for k in KS for s in SEEDS[1:] for d in C4_ANGLES]
 
 
+def _a1_blocks():
+    """Amendment A1: RPL-S42 = each C4 K8 s42 th90 row of P1 (P1-pin), B-F (BF-pin), CANON (C4+45) under an exp36_
+    name; OFF-S42 = the OFF rows' s42 th225 argv at 315 deg (exp35_ names), then the YAW-pin C4 s42 row at 135 / 225 /
+    315 deg (exp25_ names) -- one row each, K1 before K8."""
+    E, U, c4 = ENDPOINT, "unseen", f"C4_S{ENDPOINT}_K8_s42_th90"
+    rpl = [_row("RPL-S42", "C4", arm, E, U, 8, 42, ("fixed", 90), arm == "CANON", cell=f"exp36_{arm}_{c4}")
+           for arm in ("P1", "BF", "CANON")]
+    off = [_row("OFF-S42", "OFF", arm, E, U, k, 42, ("fixed", 315), arm == "CANON", cell=f"exp35_{arm}_OFF_S{E}_K{k}_s42_th315")
+           for arm in ("P1", "BF", "CANON") for k in KS]
+    off += [_row("OFF-S42", "C4", "YAW", E, U, k, 42, ("fixed", d), cell=f"exp25_YAW_C4_S{E}_K{k}_s42_th{d}")
+            for k in KS for d in (135, 225, 315)]
+    return {"RPL-S42": rpl, "OFF-S42": off}
+
+
 def build_manifest(exp35=True, exp36=None):
-    """The 371-row manifest; ``exp36=False``: the H35 manifest (exp_25 + exp_35, 346 rows) exactly as committed at H35;
+    """The 386-row manifest; ``exp36=False``: the H35 manifest (exp_25 + exp_35, 346 rows) exactly as committed at H35;
     ``exp35=False``: the exp_25 manifest exactly as committed at its pin (exp36 follows exp35 unless given)."""
     exp36 = exp35 if exp36 is None else exp36
     if exp36 and not exp35:
@@ -220,7 +237,7 @@ def build_manifest(exp35=True, exp36=None):
     }
     names = EXP25_BLOCKS + (EXP35_BLOCKS if exp35 else ()) + (EXP36_BLOCKS if exp36 else ())
     blocks.update(_exp35_blocks() if exp35 else {})
-    blocks.update({"YAW-C4S": _exp36_block()} if exp36 else {})
+    blocks.update(dict({"YAW-C4S": _exp36_block()}, **_a1_blocks()) if exp36 else {})
     cells = []
     for priority, block in enumerate(names):
         for row in blocks[block]:
@@ -228,7 +245,8 @@ def build_manifest(exp35=True, exp36=None):
     head = {"schema_version": SCHEMA_VERSION, "generator": f"{EXPREL}/depth_canon_make_cells.py",
             "plan": "plan_depth_canon.md v9 §5" + (
                 "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1" if exp35 else "") + (
-                "; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)" if exp36 else ""),
+                "; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)"
+                " + amendment A1 (the seed-42 off-orbit run)" if exp36 else ""),
             "blocks": list(names), "block_counts": {b: len(blocks[b]) for b in names}, "common_flags": COMMON_FLAGS}
     head.update({"arm_cond_flags": ARM_COND_FLAGS} if exp35 else {})
     return {**head, "img_w": IMG_W, "seeds": list(SEEDS), "dump_root": DUMP_ROOT, "farm_root": FARM_ROOT,

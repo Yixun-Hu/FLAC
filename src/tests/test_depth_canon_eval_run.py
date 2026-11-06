@@ -139,7 +139,8 @@ def test_eval_names_and_metrics_stems_are_injective(manifest):
     assert len(set(names)) == N_ROWS
     assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells
                if c["block"] not in EXP36_BLOCKS)                 # exp_36: 24 exp25_ aliases + one exp36_ replay
-    assert sorted(c["cell"][:6] for c in cells if c["block"] in EXP36_BLOCKS) == ["exp25_"] * 24 + ["exp36_"]
+    assert collections.Counter(c["cell"][:6] for c in cells if c["block"] in EXP36_BLOCKS) == {
+        "exp25_": 24 + 6, "exp36_": 1 + 3, "exp35_": 6}                   # amendment A1: replays, th315, YAW off-orbit
     assert all("exp14_" not in n and "exp11_" not in n for n in names)
     stems, suffixes = set(), set()
     for c in cells:

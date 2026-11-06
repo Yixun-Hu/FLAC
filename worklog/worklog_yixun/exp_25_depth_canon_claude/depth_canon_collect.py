@@ -45,7 +45,7 @@ EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-p
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45",   # plan_orbitrir r2 §1
                 "E2-FAIL")                                                                  # + §14 A1
 EXPLICIT_BLOCKS = ("E2-FAIL",)   # §14 A1.3: selected only when named (the block or its cells), never by default
-EXP36_BLOCKS = ("YAW-C4S",)      # exp_36 (plan_yaw_c4_spread.md r0; Codex plan review B1, H1): the Yaw-Aug C4 spread
+EXP36_BLOCKS = ("YAW-C4S", "RPL-S42", "OFF-S42")   # exp_36 (plan r0; Codex B1, H1) + amendment A1 (off-orbit s42)
 DEFAULT_EXCLUDED_BLOCKS = EXPLICIT_BLOCKS + EXP36_BLOCKS   # Codex H1: never in a default selection (E2 semantics apart)
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §3 P2): ONE per-arm evaluation protocol, vanilla by default and
 # frame-averaged for B-F; it drives record validation, the artifact paths, the probe binding and rendering
@@ -92,17 +92,22 @@ def uses_no_flash(row):
 EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 (YAW-pin) under another name
 EXP36_CELLS = tuple(f"exp25_YAW_C4_S40000_K{k}_s{s}_th{d}" for k in (1, 8) for s in (43, 44, 45, 46)
                     for d in (90, 180, 270))   # the 24 aliases: the YAW-pin C4 rows at seeds 43-46
+EXP36_YAW_OFF = tuple(f"exp25_YAW_C4_S40000_K{k}_s42_th{d}" for k in (1, 8) for d in (135, 225, 315))   # A1
+EXP36_NAMES = {   # Codex B1 + amendment A1: exactly these names, each in its own block
+    "YAW-C4S": (EXP36_REPLAY,) + EXP36_CELLS,
+    "RPL-S42": tuple(f"exp36_{a}_C4_S40000_K8_s42_th90" for a in ("P1", "BF", "CANON")),
+    "OFF-S42": tuple(f"exp35_{a}_OFF_S40000_K{k}_s42_th315" for a in ("P1", "BF", "CANON") for k in (1, 8))
+    + EXP36_YAW_OFF}
 
 
 def exp36_name_reasons(row):
-    """Codex B1: a YAW-C4S row is exactly one of the 24 aliases or the replay; those names (and every
-    ``exp36_`` name) belong to YAW-C4S only."""
-    name, ours = row["cell"], row["block"] in EXP36_BLOCKS
-    registered = name in EXP36_CELLS or name == EXP36_REPLAY
-    if ours and not registered:
-        return [f"{name!r} is not one of the 25 registered exp_36 names of block YAW-C4S"]
-    if not ours and (registered or name.startswith("exp36_")):
-        return [f"{name!r} is an exp_36 name in block {row['block']!r} (exp_36 names belong to YAW-C4S only)"]
+    """Codex B1 / A1: an exp_36 row carries exactly one of its block's registered names; those names (and every
+    ``exp36_`` name) belong to that block only."""
+    name, block = row["cell"], row["block"]
+    if block in EXP36_BLOCKS and name not in EXP36_NAMES[block]:
+        return [f"{name!r} is not one of the registered exp_36 names of block {block}"]
+    if block not in EXP36_BLOCKS and (name.startswith("exp36_") or any(name in v for v in EXP36_NAMES.values())):
+        return [f"{name!r} is an exp_36 name in block {block!r} (exp_36 names belong to their exp_36 block only)"]
     return []
 
 
@@ -624,10 +629,10 @@ def verify_cell(stem, *, manifest, farm_root, dump_root, pin, canon_index=None, 
     if len(rows) != 1 or not ckpt_name:
         return [f"{stem!r} names no registered cell of the manifest ({len(rows)} suffix matches)"]
     row = rows[0]
-    if is_exp35(row) != row["cell"].startswith("exp35_"):
-        return [f"{row['cell']!r}: the name and the block {row['block']!r} name different campaigns"]
     if exp36_name_reasons(row):
         return exp36_name_reasons(row)
+    if row["block"] not in EXP36_BLOCKS and is_exp35(row) != row["cell"].startswith("exp35_"):   # A1: exp35_ OFF-S42
+        return [f"{row['cell']!r}: the name and the block {row['block']!r} name different campaigns"]
     try:
         target, sha = expected_checkpoint(row, manifest, canon_index)
     except KeyError as err:

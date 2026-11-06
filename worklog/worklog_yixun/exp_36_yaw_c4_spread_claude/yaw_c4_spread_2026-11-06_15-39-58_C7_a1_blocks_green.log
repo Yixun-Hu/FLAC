@@ -1,0 +1,139 @@
+GREEN, cycle 7 at HEAD 65f9fcd49ee93b9f784852d8c8b2ef9e01534217 + the uncommitted generator (RPL-S42, OFF-S42), the regenerated manifest (386 rows, sha256 79b95d2b68fe0ecfc9bf767259de6faccba9f8b42f329169ca69a765ba2a5454), the collector's EXP36_NAMES validator (ahead of the exp_35 name/block check) and the runner's exp_25-only jq (exp_36 blocks apart)
+........................................................................ [ 79%]
+........F..........                                                      [100%]
+=================================== FAILURES ===================================
+_______________ test_eval_names_and_metrics_stems_are_injective ________________
+
+manifest = {'schema_version': 1, 'generator': 'worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_make_cells.py', 'plan'...view (B2) + amendment A1 (the seed-42 off-orbit run)', 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}
+
+    def test_eval_names_and_metrics_stems_are_injective(manifest):
+        cells = manifest["cells"]
+        names = [c["cell"] for c in cells]
+        assert len(set(names)) == N_ROWS
+        assert all(c["cell"].startswith("exp25_" if c["block"] in BLOCKS else "exp35_") for c in cells
+                   if c["block"] not in EXP36_BLOCKS)                 # exp_36: 24 exp25_ aliases + one exp36_ replay
+>       assert sorted(c["cell"][:6] for c in cells if c["block"] in EXP36_BLOCKS) == ["exp25_"] * 24 + ["exp36_"]
+E       AssertionError: assert ['exp25_', 'e...'exp25_', ...] == ['exp25_', 'e...'exp25_', ...]
+E         
+E         At index 24 diff: 'exp25_' != 'exp36_'
+E         Left contains 15 more items, first extra item: 'exp25_'
+E         Use -v to get more diff
+
+src/tests/test_depth_canon_eval_run.py:142: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+__________________ test_the_committed_file_is_the_full_render __________________
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+_______________ test_cli_count_no_flash_refuses_a_bad_selection ________________
+----------------------------- Captured stdout call -----------------------------
+SELECTION REFUSED: unknown, duplicate or empty block selection ['T', 'nope']
+_____________ test_committed_manifest_equals_the_generator_output ______________
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_a1_make_cells.py::test_the_a1_blocks_follow_yaw_c4s
+PASSED src/tests/test_exp36_a1_make_cells.py::test_each_replay_is_its_reference_row_under_another_name
+PASSED src/tests/test_exp36_a1_make_cells.py::test_the_th315_rows_are_their_th225_siblings_at_315_degrees
+PASSED src/tests/test_exp36_a1_make_cells.py::test_the_yaw_off_rows_are_the_yaw_pin_c4_s42_row_at_other_angles
+PASSED src/tests/test_exp36_a1_make_cells.py::test_the_24_off_orbit_production_cells
+PASSED src/tests/test_exp36_a1_make_cells.py::test_names_and_suffixes_stay_injective_over_386_rows
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_the_committed_file_is_the_full_render
+PASSED src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+PASSED src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+PASSED src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+PASSED src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+PASSED src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_exp36_collect.py::test_the_no_flash_decision_is_separate_from_the_exp35_identity
+PASSED src/tests/test_exp36_collect.py::test_plan_entries_of_the_yaw_c4s_cells_are_no_flash_and_dump_free
+PASSED src/tests/test_exp36_collect.py::test_exp25_and_exp35_plan_entries_keep_their_no_flash_flag
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args0-25]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args1-1]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args2-24]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args3-100]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args4-0]
+PASSED src/tests/test_exp36_collect.py::test_cli_count_no_flash_counts_the_yaw_c4s_cells[args5-27]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp36_YAW_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K1_s43_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_yaw_c4s_cell_verifies_with_receipt_2_and_its_backend_log[exp25_YAW_C4_S40000_K8_s46_th270]
+PASSED src/tests/test_exp36_collect.py::test_a_schema1_receipt_is_refused_for_a_yaw_c4s_cell
+PASSED src/tests/test_exp36_collect.py::test_the_25_yaw_c4s_names_are_admitted_and_only_there
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K1_s43_th270-exp25_YAW_C4_S40000_K1_s43_th91-registered exp_36]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_C4_S40000_K8_s42_th90-exp36_YAW_C4_S40000_K8_s42_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_verify_cell_refuses_a_misnamed_row[exp25_YAW_T_S40000_K1_s43-exp25_YAW_C4_S40000_K1_s43_th90-exp_36 name]
+PASSED src/tests/test_exp36_collect.py::test_the_a1_names_are_registered_in_their_blocks_only
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_CANON_OFF_S40000_K8_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp35_BF_OFF_S40000_K1_s42_th315]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp36_CANON_C4_S40000_K8_s42_th90]
+PASSED src/tests/test_exp36_collect.py::test_a_dump_free_a1_cell_verifies_as_an_exp36_row[exp25_YAW_C4_S40000_K1_s42_th135]
+PASSED src/tests/test_exp35_collect.py::test_the_arm_protocol_table
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CTL_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-P1_OFF_K8_s46_225]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-CANON_OFF_K1_s42_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CANON-45_OFF_K8_s43_45]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles1]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles2]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[orbit_execution4]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap5]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_autocast7]
+PASSED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+PASSED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+PASSED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+PASSED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells
+PASSED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args0-0]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args1-30]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args2-1]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args3-100]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args4-3]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash_refuses_a_bad_selection
+PASSED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+PASSED src/tests/test_exp35_make_cells.py::test_the_exp25_only_render_is_the_committed_exp25_manifest
+PASSED src/tests/test_exp35_make_cells.py::test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows
+PASSED src/tests/test_exp35_make_cells.py::test_the_h35_render_is_the_manifest_committed_at_h35
+PASSED src/tests/test_exp35_make_cells.py::test_exp35_names_are_registered_and_injective
+PASSED src/tests/test_exp35_make_cells.py::test_exp35_rows_per_block
+PASSED src/tests/test_exp35_make_cells.py::test_bf_rows_carry_the_registered_frame_average_protocol
+PASSED src/tests/test_exp35_make_cells.py::test_vanilla_exp35_rows_carry_the_exp25_flags
+PASSED src/tests/test_exp35_make_cells.py::test_the_bf_arm_is_the_endpoint_checkpoint
+PASSED src/tests/test_exp35_make_cells.py::test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup
+PASSED src/tests/test_exp35_make_cells.py::test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46
+PASSED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+PASSED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+PASSED src/tests/test_depth_canon_eval_run.py::test_committed_manifest_equals_the_generator_output
+PASSED src/tests/test_depth_canon_eval_run.py::test_canon_tokens_follow_the_protocol
+PASSED src/tests/test_depth_canon_eval_run.py::test_common_flags_on_every_row
+PASSED src/tests/test_depth_canon_eval_run.py::test_dataset_configs_and_expected_counts
+PASSED src/tests/test_depth_canon_eval_run.py::test_canon_protocol_expectations
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[removed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_committed]
+PASSED src/tests/test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config[edited_uncommitted]
+PASSED src/tests/test_exp35_eval_run.py::test_every_exp35_selection_shares_one_relevant_tree
+FAILED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+1 failed, 90 passed, 3 warnings in 114.17s (0:01:54)
+
+attempt 2 after one test fix (test_eval_names_and_metrics_stems_are_injective counted only YAW-C4S name prefixes; now the three exp_36 blocks: exp25_ 30, exp36_ 4, exp35_ 6):
+PASSED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+1 passed, 3 warnings in 4.72s
+
+mutation check: the runner's exp_25-only jq reverted (exp_36 rows not set apart) -> test_exp35_eval_run.py::test_an_exp25_only_selection_ignores_the_bf_config: 1 failed, 2 passed (the edited_uncommitted case: the RPL-S42 B-F replay row pulled FLAC_AR_BF.json into an exp_25-only relevant tree); restored, diff verified
