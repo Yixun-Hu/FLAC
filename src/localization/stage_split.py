@@ -29,7 +29,8 @@ from src.localization.engine import (
     candidate_metadata, candidate_seed, deterministic_noise, encode_audio_features, filter_frozen_query_candidates,
     load_frozen_query, merge_cached_conditioning, prepare_generated_audio,
 )
-from src.localization.runner import _build_query_result, _cache_branch, _repeat_branch
+from src.data.yaw_rotation import DEFAULT_FRAME_ANGLES
+from src.localization.runner import _build_query_result, _cache_branch, _repeat_branch, validate_frame_angles
 
 STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
 
@@ -112,10 +113,14 @@ def generate_rir_batch_staged(module, source_branch, context_branch, seeds, dyna
 @torch.inference_mode()
 def execute_query_stage_split(*, module, retrieval, selected, record, audit, room_base, dataset_root, device,
                               cond_method, candidate_batch_size, sample_seed, tau, run_sha256, score_sample_counts=(1,),
-                              synchronize_timing=False, measure_core_forward=False, context_count=8):
+                              synchronize_timing=False, measure_core_forward=False, context_count=8,
+                              frame_angles=DEFAULT_FRAME_ANGLES, candidate_subset=None):
     """The headline ``execute_query`` (``--measure-core-forward``) with the stage marks and memory segments."""
     if not measure_core_forward or tuple(score_sample_counts) != (1,):
         raise ValueError("the stage split needs measure_core_forward and K_gen = 1")
+    if candidate_subset is not None:
+        raise ValueError("the stage split runs on full candidate sets only")
+    validate_frame_angles(cond_method, frame_angles)
     cuda = torch.device(device).type == "cuda"
     device_type = torch.device(device).type
     clock, memory = (EventClock() if cuda else HostClock()), PeakMemory(device, enabled=cuda)
@@ -140,7 +145,7 @@ def execute_query_stage_split(*, module, retrieval, selected, record, audit, roo
     context_mark = clock.mark()
     with torch.amp.autocast(device_type):
         context = _cache_branch(module, [metadata], FA_CONTEXT_CONDITIONING_IDS if cond_method == "fa_invariant"
-                                else CONTEXT_CONDITIONING_IDS, device, cond_method)
+                                else CONTEXT_CONDITIONING_IDS, device, cond_method, frame_angles=frame_angles)
     context_done = clock.mark()
     if cuda:
         torch.cuda.synchronize(device)
@@ -159,8 +164,10 @@ def execute_query_stage_split(*, module, retrieval, selected, record, audit, roo
         batch_mark, marks = clock.mark(), {}
         candidate_items = candidate_metadata(metadata, candidates[batch_start:batch_stop], record["receiver_global"])
         with torch.amp.autocast(device_type):
-            source = _cache_branch(module, candidate_items, SOURCE_CONDITIONING_IDS, device, cond_method)
-            dynamic = (_cache_branch(module, candidate_items, FA_DYNAMIC_CONDITIONING_IDS, device, cond_method)
+            source = _cache_branch(module, candidate_items, SOURCE_CONDITIONING_IDS, device, cond_method,
+                                   frame_angles=frame_angles)
+            dynamic = (_cache_branch(module, candidate_items, FA_DYNAMIC_CONDITIONING_IDS, device, cond_method,
+                                     frame_angles=frame_angles)
                        if cond_method == "fa_invariant" else None)
         repeated_source = _repeat_branch(source, 1)
         repeated_dynamic = _repeat_branch(dynamic, 1) if dynamic else None

@@ -55,11 +55,19 @@ def test_frame_angles_are_refused_for_vanilla_and_must_start_at_zero(inputs):
 
 
 @pytest.mark.parametrize("cond_method", ["vanilla", "fa_invariant"])
-def test_the_nested_subset_keeps_full_grid_common_random_numbers(inputs, cond_method):
+def test_the_nested_subset_keeps_full_grid_common_random_numbers(inputs, cond_method, monkeypatch):
+    """The seeds are keyed by the FULL 0.5 m index (exact); the similarities then agree up to batch-composition
+    rounding (BLAS blocking differs with the batch -- ULP level here; the same effect as the bundle's 61/64 Vanilla
+    rerun), which is why the 1.0 m ACCURACY of record is the offline readout of the 0.5 m run's scores."""
+    seeds = []
+    real_seed = runner.candidate_seed
+    monkeypatch.setattr(runner, "candidate_seed", lambda *a: seeds.append(int(a[2])) or real_seed(*a))
     full, full_c, full_s = _run(inputs, cond_method=cond_method)
+    full_seeds, seeds[:] = list(seeds), []
     sub, sub_c, sub_s = _run(inputs, cond_method=cond_method, candidate_subset=nested_subset)
     index = nested_subset(GRID)
-    assert np.array_equal(sub_c, full_c[index]) and np.array_equal(sub_s, full_s[index])
+    assert full_seeds == list(range(len(GRID))) and seeds == index.tolist()
+    assert np.array_equal(sub_c, full_c[index]) and np.allclose(sub_s, full_s[index], rtol=0.0, atol=1e-6)
     assert sub["candidate_count"] == len(index) and full["candidate_count"] == len(GRID)
     assert sub["candidate_subset"] == {"name": "nested_subset", "full_candidate_count": len(GRID),
                                        "indices_sha256": hashlib.sha256(index.astype("<u4").tobytes()).hexdigest()}

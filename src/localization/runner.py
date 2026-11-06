@@ -133,14 +133,16 @@ def initialize_run(output_dir: Path, identity: dict) -> dict:
     return expected
 
 
-def _cache_branch(module, metadata, ids, device: str, cond_method: str):
+def _cache_branch(
+    module, metadata, ids, device: str, cond_method: str, *, frame_angles=DEFAULT_FRAME_ANGLES
+):
     if cond_method == "fa_invariant":
         return cache_invariant_conditioning_branch(
             module.diffusion.conditioner,
             metadata,
             ids,
             device,
-            DEFAULT_FRAME_ANGLES,
+            frame_angles,
         )
     return cache_conditioning_branch(
         module.diffusion.conditioner,
@@ -148,6 +150,18 @@ def _cache_branch(module, metadata, ids, device: str, cond_method: str):
         ids,
         device,
     )
+
+
+FRAME_ANGLE_SETS = ((0.0,), (0.0, 180.0), tuple(DEFAULT_FRAME_ANGLES))
+
+
+def validate_frame_angles(cond_method: str, frame_angles) -> None:
+    """exp_37 B3: an orbit applies to fa_invariant only and starts at the 0-degree identity."""
+    angles = tuple(float(angle) for angle in frame_angles)
+    if cond_method != "fa_invariant" and angles != tuple(DEFAULT_FRAME_ANGLES):
+        raise ValueError("frame-average angles apply to the fa_invariant conditioning only")
+    if not angles or angles[0] != 0.0:
+        raise ValueError("frame-average angles must start with the 0-degree identity")
 
 
 def _repeat_branch(branch: dict, repeats: int) -> dict:
@@ -292,9 +306,16 @@ def execute_query(
     synchronize_timing: bool = False,
     measure_core_forward: bool = False,
     context_count: int = 8,
+    frame_angles: tuple = DEFAULT_FRAME_ANGLES,
+    candidate_subset=None,
 ) -> tuple[dict, np.ndarray, np.ndarray]:
-    """Run and score all candidates for one frozen target query."""
+    """Run and score all candidates for one frozen target query.
 
+    exp_37 plumbing (registered in test_exp37_headline_timer_guard.py): ``frame_angles`` (fa_invariant orbit, default
+    the bundle's C4) and ``candidate_subset`` (a callable returning FULL 0.5 m indices; the seeds keep them).
+    """
+
+    validate_frame_angles(cond_method, frame_angles)
     device_type = torch.device(device).type
     if synchronize_timing and device_type == "cuda":
         torch.cuda.synchronize(device)
@@ -305,6 +326,13 @@ def execute_query(
         raise RuntimeError("pilot and reconstructed candidate counts differ")
     if len(record["contexts"]) != context_count:
         raise RuntimeError(f"formal pilot requires N_ctx={context_count}")
+    candidate_indices = range(len(candidates))
+    if candidate_subset is not None:
+        full_count, chosen = len(candidates), np.asarray(candidate_subset(candidates))
+        if (chosen.ndim != 1 or not len(chosen) or not np.issubdtype(chosen.dtype, np.integer)
+                or np.any(np.diff(chosen) <= 0) or chosen[0] < 0 or chosen[-1] >= full_count):
+            raise ValueError("candidate_subset must return sorted, unique, in-range full 0.5 m indices")
+        candidates, candidate_indices = candidates[chosen], [int(index) for index in chosen]
 
     observed_gpu = observed.unsqueeze(0).to(device=device, dtype=torch.float32)
     observation_features = encode_audio_features(retrieval, observed_gpu)
@@ -321,6 +349,7 @@ def execute_query(
             else CONTEXT_CONDITIONING_IDS,
             device,
             cond_method,
+            frame_angles=frame_angles,
         )
     if measure_core_forward and device_type == "cuda":
         torch.cuda.synchronize(device)
@@ -348,6 +377,7 @@ def execute_query(
                 SOURCE_CONDITIONING_IDS,
                 device,
                 cond_method,
+                frame_angles=frame_angles,
             )
             dynamic = (
                 _cache_branch(
@@ -356,6 +386,7 @@ def execute_query(
                     FA_DYNAMIC_CONDITIONING_IDS,
                     device,
                     cond_method,
+                    frame_angles=frame_angles,
                 )
                 if cond_method == "fa_invariant"
                 else None
@@ -364,7 +395,7 @@ def execute_query(
         repeated_dynamic = _repeat_branch(dynamic, maximum_samples) if dynamic else None
         seeds = [
             candidate_seed(sample_seed, int(record["index"]), candidate_index, sample_index)
-            for candidate_index in range(batch_start, batch_stop)
+            for candidate_index in candidate_indices[batch_start:batch_stop]
             for sample_index in range(maximum_samples)
         ]
         if measure_core_forward:
@@ -413,6 +444,12 @@ def execute_query(
         random_seed=sample_seed,
         score_sample_counts=score_sample_counts,
     )
+    if candidate_subset is not None:
+        result["candidate_subset"] = {
+            "name": candidate_subset.__name__,
+            "full_candidate_count": full_count,
+            "indices_sha256": hashlib.sha256(chosen.astype("<u4").tobytes()).hexdigest(),
+        }
     if measure_core_forward:
         result["latency_protocol"] = {
             "name": f"fem_core_aligned_kctx{context_count}_kgen1",
