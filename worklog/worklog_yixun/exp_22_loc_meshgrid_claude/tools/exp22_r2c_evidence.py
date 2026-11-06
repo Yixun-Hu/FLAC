@@ -13,6 +13,9 @@
   the quiet-form terminal summary, a whole line matching SUMMARY_RE. ``-o xfail_strict=true`` turns an XPASS of a
   marker WITHOUT an explicit ``strict=`` into a FAILED report; an explicit ``strict=False`` XPASS stays an XPASS
   (a JUnit pass under pytest 9.1.1) and is refused by layer (3).
+* The pre-flight line list (``exp22_r2c_preflight_lines.json``, A7 r2 (iii)): validated strictly -- the registered
+  fifteen lines in order, the wrapped ones through the launcher, every gate's own mode flag, the out-dirs only the
+  fresh @GATES@ / @PROBE@, no shard / merge / report / crossarm / resume token -- and expanded for one run id and card.
 * Writers: an O_EXCL record (never overwritten; file and directory fsynced) and the atomic state write (temp,
   fsync, rename, directory fsync).
 
@@ -44,6 +47,37 @@ REFUSED_LINE = "NO-FLASH LAUNCH REFUSED"
 SUMMARY_RE = re.compile(r"11 passed(?:, [1-9][0-9]* warnings?)? in [0-9]+\.[0-9]{2}s(?: \([^()\r\n]+\))?")   # r5
 HEADER_RE = re.compile(r"=+ short test summary info =+")
 OUTCOME_RE = re.compile(r"(?:PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS) ")
+
+
+T_NODE_IDS = tuple(f"src/tests/test_{f}.py::test_{t}" for f, t in (
+    ("eval_localization", "integration_generation_is_reproducible_for_a_fixed_noise_key"),
+    ("eval_localization", "integration_parity_one_query_matches_the_eval_flac_path"),
+    ("eval_localization", "integration_real_mk_batch_split_is_bitwise_irrelevant"),
+    ("eval_localization", "integration_real_mk_parity_is_exact_without_conditioning_autocast"),
+    ("eval_localization", "run_query_matches_a_candidate_major_replay_with_full_conditioning[4]"),
+    ("eval_localization", "run_query_matches_a_candidate_major_replay_with_full_conditioning[64]"),
+    ("eval_localization", "run_query_mk_replay_is_stable_across_the_batch_split"),
+    ("loc_meshgrid_queries", "our_call_graph_matches_an_eval_flac_faithful_reference"),
+    ("loc_meshgrid_queries", "real_bounded_slice_materializes_through_the_released_loader"),
+    ("loc_meshgrid_queries", "release_stack_resolves_and_records_the_agree_checkpoint"),
+    ("loc_meshgrid_queries", "skipping_the_metric_stack_changes_the_draw")))
+T_FLAGS = ("-x", "-q", "--color=no", "-o", "xfail_strict=true", "-rA", "-p", "no:cacheprovider", "--junitxml",
+           "@ORCH@/T_junit.xml")
+GATE_OUT = {"GV": ("--cache-parity-check", "vanilla_cache_parity"), "G1": ("--fa-split-parity-check", "fa_split_parity"),
+            "G2": ("--cache-parity-check", "fa_cache_parity"), "G3": ("--fa-production-parity-check", "fa_production_parity"),
+            "G3D": ("--fa-production-drift-measurement", "fa_production_drift"),
+            "G0": ("--replay-check", "vanilla_replay_regression")}
+GATE_FLAGS = {flag for flag, _ in GATE_OUT.values()}
+KIND = dict({"T": "pytest", "P": "probe", "A": "arith"}, **{g: "gate" for g in GATE_OUT},
+            **{f"V_{g}": "reverify" for g in GATE_OUT})
+LINE_NAMES = ("T",) + tuple(x for g in GATE_OUT for x in (g, f"V_{g}")) + ("P", "A")
+WRAPPED = ("pytest", "gate", "probe")
+SHARD_TOKENS = {"--emit-launch-record", "--launch-record", "--merge-shards", "--merge-out", "--rooms", "--resume", "-m"}
+PROBE_OUT = "@PROBE@/diagnostics_BF_bathrooms14.json"
+PLACEHOLDERS = ("@PY@", "@L@", "@PYTEST_MAIN@", "@ORCH@", "@GATES@", "@PROBE@")
+BASE_ENV = {"HOME": "/home/yixunhu", "USER": "yixunhu", "LOGNAME": "yixunhu", "LANG": "en_US.UTF-8",
+            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+RUN_RE = re.compile(r"[0-9]{8}T[0-9]{6}")
 
 
 def sha256_bytes(raw):
@@ -130,6 +164,79 @@ def pytest_summary_reasons(text, node_ids):
         out.append(f"the short summary's {len(passed)} PASSED lines are not exactly the {len(node_ids)} registered ids")
     return out, {"pytest_summary": summary, "passed_lines": passed,
                  "passed_lines_sha256": sha256_bytes(("\n".join(passed) + "\n").encode())}
+
+
+def _line_reasons(ln, prev):
+    name, kind, argv = ln["name"], ln["kind"], ln["argv"]
+    out = [f"{name}: kind {kind!r}, not {KIND[name]!r}"] if kind != KIND[name] else []
+    keys = ("n", "name", "kind", "argv", "outputs", "inputs") + (("junit",) if name == "T" else ())
+    if sorted(ln) != sorted(keys) or not all(isinstance(a, str) for a in argv + ln["outputs"] + ln["inputs"]):
+        return out + [f"{name}: keys {sorted(ln)} / non-string entries"]
+    out += [f"{name}: {a!r} is a shard / merge / report / crossarm / resume token" for a in argv
+            if a in SHARD_TOKENS or "meshgrid_report" in a or "meshgrid_crossarm" in a]
+    out += [f"{name}: unknown placeholder in {a!r}" for a in argv + ln["outputs"] + ln["inputs"]
+            if set(re.findall(r"@[A-Z_0-9]+@", a)) - set(PLACEHOLDERS)]
+    dirs = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--out-dir"]
+    want_dir = {"gate": ["@GATES@"], "probe": ["@PROBE@"]}.get(kind, [])
+    if dirs != want_dir or argv.count("--out-dir") != len(want_dir):
+        out.append(f"{name}: --out-dir {dirs}, not {want_dir}")
+    modes = [a for a in argv if a in GATE_FLAGS or a == "--probe"]
+    if kind in WRAPPED and argv[:2] != ["@PY@", "@L@"]:
+        out.append(f"{name}: not run through the launcher")
+    if kind == "pytest" and (tuple(argv[2:13]) != ("@PYTEST_MAIN@",) + T_FLAGS or tuple(argv[13:]) != T_NODE_IDS
+                             or ln["junit"] != "@ORCH@/T_junit.xml" or ln["outputs"] or ln["inputs"]):
+        out.append("T: not the registered pytest line on the eleven ids")
+    if kind == "gate" and (argv[2] != "localize_meshgrid.py" or modes != [GATE_OUT[name][0]]
+                           or ln["outputs"] != [f"@GATES@/{GATE_OUT[name][1]}.json"] or ln["inputs"]):
+        out.append(f"{name}: not the registered {GATE_OUT[name][0]} gate")
+    if kind == "probe" and (argv[2] != "localize_meshgrid.py" or modes != ["--probe"]
+                            or argv[argv.index("--probe") + 1] != "1" or ln["outputs"] != [PROBE_OUT] or ln["inputs"]):
+        out.append("P: not the registered one-card probe")
+    if kind == "reverify" and (argv[:2] != ["@PY@", "-c"] or len(argv) != 4 or "reverify_gate_evidence" not in argv[2]
+                               or argv[3:] != prev["outputs"] or ln["inputs"] != prev["outputs"] or ln["outputs"]):
+        out.append(f"{name}: not the re-verification of {prev['name']}'s evidence")
+    if kind == "arith" and (argv[:2] != ["@PY@", "-c"] or len(argv) != 3 or f"'{PROBE_OUT}'" not in argv[2]
+                            or "1.5 * h * 0.5145" not in argv[2] or ln["inputs"] != [PROBE_OUT] or ln["outputs"]):
+        out.append("A: not the registered one-card A5 arithmetic")
+    return out
+
+
+def lines_reasons(doc):
+    """[] iff ``doc`` is the registered pre-flight list: no shard, merge, report or crossarm line is reachable."""
+    if not (isinstance(doc, dict) and doc.get("schema_version") == 1 and isinstance(doc.get("lines"), list)
+            and all(isinstance(ln, dict) and isinstance(ln.get("argv"), list) for ln in doc["lines"])):
+        return ["not a schema-1 line list"]
+    if [(ln.get("n"), ln.get("name")) for ln in doc["lines"]] != list(enumerate(LINE_NAMES, 1)):
+        return [f"the lines are not the registered {len(LINE_NAMES)} in order"]
+    return [x for i, ln in enumerate(doc["lines"]) for x in _line_reasons(ln, doc["lines"][i - 1])]
+
+
+def expand_lines(doc, *, run, index, worktree, py, pytest_main):
+    """The concrete lines of run ``run`` on the card of index ``index`` (paths relative to the worktree)."""
+    why = lines_reasons(doc)
+    if why or not (isinstance(run, str) and RUN_RE.fullmatch(run)) or type(index) is not int:
+        raise ValueError(f"refused: {why or f'run id {run!r} / index {index!r}'}")
+    orch = f"outputs_loc/exp22/r2_preflight_{run}"
+    subs = {"@PY@": py, "@L@": LAUNCHER, "@PYTEST_MAIN@": pytest_main, "@ORCH@": orch,
+            "@GATES@": f"outputs_loc/exp22/r2_gates_{run}", "@PROBE@": f"outputs_loc/exp22/r2_probe_BF_{run}"}
+
+    def sub(text):
+        for k, v in subs.items():
+            text = text.replace(k, v)
+        return text
+    out = []
+    for ln in doc["lines"]:
+        wrapped, argv, tag = ln["kind"] in WRAPPED, [sub(a) for a in ln["argv"]], f"{ln['n']:02d}_{ln['name']}"
+        env = (dict(BASE_ENV, CUDA_VISIBLE_DEVICES=str(index), HF_HUB_OFFLINE="1", PYTHONDONTWRITEBYTECODE="1",
+                    PYTHONPATH=os.path.join(worktree, "overlays", "no_flash")) if wrapped
+               else dict(BASE_ENV, CUDA_VISIBLE_DEVICES="", PYTHONDONTWRITEBYTECODE="1"))
+        out.append({"n": ln["n"], "name": ln["name"], "kind": ln["kind"], "wrapped": wrapped,
+                    "target": argv[2] if wrapped else None, "argv": argv, "env": env,
+                    "log": f"{orch}/line_{tag}.log", "record": f"{orch}/dispatch_{tag}.json",
+                    "outputs": [sub(p) for p in ln["outputs"]], "inputs": [sub(p) for p in ln["inputs"]],
+                    "junit": sub(ln["junit"]) if "junit" in ln else None,
+                    "node_ids": list(T_NODE_IDS) if ln["kind"] == "pytest" else None})
+    return out
 
 
 def fsync_dir(d):

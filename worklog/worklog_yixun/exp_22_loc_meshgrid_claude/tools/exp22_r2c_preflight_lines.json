@@ -1,0 +1,438 @@
+{
+ "schema_version": 1,
+ "what": "exp_22 R2-C pre-flight lines (plan_loc_meshgrid_r2_bf_yaw.md \u00a79 A7 r2 (iii), r3 (c) (f), r4, r5): T -> GV -> V -> G1 -> V -> G2 -> V -> G3 -> V -> G3D -> V -> G0 -> V -> P -> A; every argument as in the governing entry except the fresh out-dirs (@GATES@ / @PROBE@), the launcher wrapping (@PY@ @L@) and T's JUnit flag; no shard, merge, report or crossarm line",
+ "governing_entry": "2026-11-03T17:17:46-05:00 -- rB-F3: THE AUTHORITATIVE GPU COMMAND LIST for R2-C",
+ "placeholders": {
+  "@PY@": "the flac interpreter",
+  "@L@": "overlays/no_flash/exp35_no_flash_launch.py",
+  "@PYTEST_MAIN@": "pytest's own __main__.py in the flac env",
+  "@ORCH@": "outputs_loc/exp22/r2_preflight_<RUN>",
+  "@GATES@": "outputs_loc/exp22/r2_gates_<RUN>",
+  "@PROBE@": "outputs_loc/exp22/r2_probe_BF_<RUN>"
+ },
+ "lines": [
+  {
+   "n": 1,
+   "name": "T",
+   "kind": "pytest",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "@PYTEST_MAIN@",
+    "-x",
+    "-q",
+    "--color=no",
+    "-o",
+    "xfail_strict=true",
+    "-rA",
+    "-p",
+    "no:cacheprovider",
+    "--junitxml",
+    "@ORCH@/T_junit.xml",
+    "src/tests/test_eval_localization.py::test_integration_generation_is_reproducible_for_a_fixed_noise_key",
+    "src/tests/test_eval_localization.py::test_integration_parity_one_query_matches_the_eval_flac_path",
+    "src/tests/test_eval_localization.py::test_integration_real_mk_batch_split_is_bitwise_irrelevant",
+    "src/tests/test_eval_localization.py::test_integration_real_mk_parity_is_exact_without_conditioning_autocast",
+    "src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[4]",
+    "src/tests/test_eval_localization.py::test_run_query_matches_a_candidate_major_replay_with_full_conditioning[64]",
+    "src/tests/test_eval_localization.py::test_run_query_mk_replay_is_stable_across_the_batch_split",
+    "src/tests/test_loc_meshgrid_queries.py::test_our_call_graph_matches_an_eval_flac_faithful_reference",
+    "src/tests/test_loc_meshgrid_queries.py::test_real_bounded_slice_materializes_through_the_released_loader",
+    "src/tests/test_loc_meshgrid_queries.py::test_release_stack_resolves_and_records_the_agree_checkpoint",
+    "src/tests/test_loc_meshgrid_queries.py::test_skipping_the_metric_stack_changes_the_draw"
+   ],
+   "outputs": [],
+   "inputs": [],
+   "junit": "@ORCH@/T_junit.xml"
+  },
+  {
+   "n": 2,
+   "name": "GV",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--cache-parity-check",
+    "--expect-arm",
+    "YAW",
+    "--ckpt-path",
+    "weights/exp20/YAW_40k.ckpt",
+    "--cond-method",
+    "vanilla",
+    "--frame-avg-angles",
+    "0",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "default",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/vanilla_cache_parity.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 3,
+   "name": "V_GV",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/vanilla_cache_parity.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/vanilla_cache_parity.json"
+   ]
+  },
+  {
+   "n": 4,
+   "name": "G1",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--fa-split-parity-check",
+    "--ckpt-path",
+    "weights/exp20/BF_40k.ckpt",
+    "--cond-method",
+    "fa_invariant",
+    "--frame-avg-angles",
+    "0",
+    "90",
+    "180",
+    "270",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "off",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/fa_split_parity.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 5,
+   "name": "V_G1",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/fa_split_parity.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/fa_split_parity.json"
+   ]
+  },
+  {
+   "n": 6,
+   "name": "G2",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--cache-parity-check",
+    "--ckpt-path",
+    "weights/exp20/BF_40k.ckpt",
+    "--cond-method",
+    "fa_invariant",
+    "--frame-avg-angles",
+    "0",
+    "90",
+    "180",
+    "270",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "default",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/fa_cache_parity.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 7,
+   "name": "V_G2",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/fa_cache_parity.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/fa_cache_parity.json"
+   ]
+  },
+  {
+   "n": 8,
+   "name": "G3",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--fa-production-parity-check",
+    "--ckpt-path",
+    "weights/exp20/BF_40k.ckpt",
+    "--cond-method",
+    "fa_invariant",
+    "--frame-avg-angles",
+    "0",
+    "90",
+    "180",
+    "270",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "off",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/fa_production_parity.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 9,
+   "name": "V_G3",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/fa_production_parity.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/fa_production_parity.json"
+   ]
+  },
+  {
+   "n": 10,
+   "name": "G3D",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--fa-production-drift-measurement",
+    "--ckpt-path",
+    "weights/exp20/BF_40k.ckpt",
+    "--cond-method",
+    "fa_invariant",
+    "--frame-avg-angles",
+    "0",
+    "90",
+    "180",
+    "270",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "default",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/fa_production_drift.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 11,
+   "name": "V_G3D",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/fa_production_drift.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/fa_production_drift.json"
+   ]
+  },
+  {
+   "n": 12,
+   "name": "G0",
+   "kind": "gate",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--replay-check",
+    "--replay-against",
+    "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+    "--ckpt-path",
+    "weights/exp20/P1_40k.ckpt",
+    "--cond-method",
+    "vanilla",
+    "--frame-avg-angles",
+    "0",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "default",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--dataset-root",
+    "AcousticRooms",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@GATES@"
+   ],
+   "outputs": [
+    "@GATES@/vanilla_replay_regression.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 13,
+   "name": "V_G0",
+   "kind": "reverify",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json, sys; from src.localization import meshgrid_fa_parity as fp; r = fp.reverify_gate_evidence(json.load(open(sys.argv[1]))); print('RE-VERIFIED' if not r else chr(10).join(r)); sys.exit(1 if r else 0)",
+    "@GATES@/vanilla_replay_regression.json"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@GATES@/vanilla_replay_regression.json"
+   ]
+  },
+  {
+   "n": 14,
+   "name": "P",
+   "kind": "probe",
+   "argv": [
+    "@PY@",
+    "@L@",
+    "localize_meshgrid.py",
+    "--probe",
+    "1",
+    "--probe-room",
+    "Bathrooms/Bathrooms_idx_14",
+    "--probe-stem",
+    "BF_bathrooms14",
+    "--ckpt-path",
+    "weights/exp20/BF_40k.ckpt",
+    "--cond-method",
+    "fa_invariant",
+    "--frame-avg-angles",
+    "0",
+    "90",
+    "180",
+    "270",
+    "--rotate-deg",
+    "0",
+    "--cond-autocast",
+    "default",
+    "--batch-rows",
+    "256",
+    "--source-chunk",
+    "16",
+    "--context-manifest",
+    "outputs_loc/exp22/d1_context_manifest.json",
+    "--audit-report",
+    "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+    "--device",
+    "cuda:0",
+    "--out-dir",
+    "@PROBE@"
+   ],
+   "outputs": [
+    "@PROBE@/diagnostics_BF_bathrooms14.json"
+   ],
+   "inputs": []
+  },
+  {
+   "n": 15,
+   "name": "A",
+   "kind": "arith",
+   "argv": [
+    "@PY@",
+    "-c",
+    "import json; h = json.load(open('@PROBE@/diagnostics_BF_bathrooms14.json'))['projection']['projected_gpu_hours']['total']; m = 1.5 * h * 0.5145; print(f'A5 one-card probe: makespan_proj = 1.5 x {h:.1f} GPU-h x 0.5145 = {m:.1f} h vs the 150 h cap -> ' + ('WITHIN THE CAP' if m <= 150 else 'ABOVE THE CAP: STOP AND ASK YIXUN, NO SHARD STARTS')); raise SystemExit(0 if m <= 150 else 1)"
+   ],
+   "outputs": [],
+   "inputs": [
+    "@PROBE@/diagnostics_BF_bathrooms14.json"
+   ]
+  }
+ ]
+}
