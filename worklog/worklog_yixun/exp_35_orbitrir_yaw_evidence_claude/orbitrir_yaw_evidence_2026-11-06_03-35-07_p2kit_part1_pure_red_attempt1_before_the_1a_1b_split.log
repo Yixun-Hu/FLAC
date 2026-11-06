@@ -1,0 +1,20 @@
+p2kit part 1 (pure parts) RED at 9bd8e4683a5ead64256bc2d605cdd6781b4c5b54 -- 2026-11-06T03:35:07-05:00 -- the helper exp35_phase_ii.py does not exist yet
+
+==================================== ERRORS ====================================
+______________ ERROR collecting src/tests/test_exp35_phase_ii.py _______________
+src/tests/test_exp35_phase_ii.py:20: in <module>
+    K = SB.load_kit()
+src/tests/exp35_phase_ii_sandbox.py:34: in load_kit
+    spec.loader.exec_module(mod)
+<frozen importlib._bootstrap_external>:879: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1016: in get_code
+    ???
+<frozen importlib._bootstrap_external>:1073: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-35-phase-ii-kit/worklog/worklog_yixun/exp_35_orbitrir_yaw_evidence_claude/exp35_phase_ii.py'
+=========================== short test summary info ============================
+ERROR src/tests/test_exp35_phase_ii.py - FileNotFoundError: [Errno 2] No such...
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.24s
+pytest rc 2
