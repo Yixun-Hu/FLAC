@@ -2593,7 +2593,9 @@ def exp36_publish(*, cell_set, pin, verdict_path, manifest, out, base_dir=REPO, 
         os.unlink(os.path.join(dest, n))
     doc = {"schema_version": 1, "check": "exp36_publish", "set": cell_set, "status": "in_progress", "pin": pin,
            "campaign_digest": verdict["campaign_digest"], "exp25_head": exp25_head, "base_dir": base_dir, "dest": dest,
-           "verdict": {"path": verdict_path, "sha256": _sha256(raw)}, "archived_reference": dict(EXP36_REPLAYS[EXP36_REPLAY], **(reference or {})),
+           "verdict": {"path": verdict_path, "sha256": _sha256(raw)},
+           "archived_reference": dict(EXP36_REPLAYS[EXP36_REPLAY], **(reference or {})),
+           "publisher": {"repo": REPO, "head": git_head(REPO)},   # review I HIGH 1: the copying code, beside the pin
            "entries": entries, "recovery": EXP36_RECOVERY, "reasons": []}
     _write_json_atomic(out, doc)
     try:

@@ -1,0 +1,81 @@
+GREEN, cycle 11 at HEAD 2881a3ad70ccf0a401b027316a7ef4cb713ef8fc + the uncommitted publisher field
+.................................................................        [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________________ test_cli_publish_exit_codes __________________________
+----------------------------- Captured stdout call -----------------------------
+EXP36 PUBLISHED 48 file(s) (set A) into /tmp/pytest-of-yixunhu/pytest-6600/test_cli_publish_exit_codes0/exp25/outputs_FLAC/exp25_depth_canon/YAW; manifest /tmp/pytest-of-yixunhu/pytest-6600/test_cli_publish_exit_codes0/publication.json
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_publish_provenance.py::test_cli_publishes_the_off_set_into_its_own_manifest
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_default_manifest_paths_differ_per_set
+PASSED src/tests/test_exp36_publish_provenance.py::test_the_manifest_keeps_the_artifact_pin_apart_from_the_publishing_head
+PASSED src/tests/test_exp36_publish.py::test_the_48_files_are_published_and_recorded
+PASSED src/tests/test_exp36_publish.py::test_any_present_destination_refuses_everything
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g0]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g1]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g2]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g3]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g4]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g5]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g6]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g7]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g8]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g9]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g10]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g11]
+PASSED src/tests/test_exp36_publish.py::test_every_gate_refuses_before_any_write[g12]
+PASSED src/tests/test_exp36_publish.py::test_a_symlinked_destination_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_stop_part_way_is_partial_and_resume_completes_it
+PASSED src/tests/test_exp36_publish.py::test_resume_refuses_a_foreign_destination_or_temp_file
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_needs_a_set
+PASSED src/tests/test_exp36_publish.py::test_cli_publish_exit_codes
+PASSED src/tests/test_exp36_publish.py::test_cli_a_crashed_publication_exits_3_never_0
+PASSED src/tests/test_exp36_publish.py::test_the_off_set_publishes_its_12_files_only
+PASSED src/tests/test_exp36_publish.py::test_each_set_needs_its_own_cells_and_the_yaw_verdict
+PASSED src/tests/test_exp36_publish.py::test_a_verdict_of_another_replay_is_refused
+PASSED src/tests/test_exp36_publish.py::test_a_relative_plan_path_resolves_against_the_base_dir
+PASSED src/tests/test_exp36_publish.py::test_the_final_collector_reproduces_a_verdict_of_the_chain_i_collector
+PASSED src/tests/test_exp36_replay_check.py::test_the_replay_equal_to_the_archived_cell
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[T60]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[C50_int]
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_replay_is_a_mismatch[by_scene]
+PASSED src/tests/test_exp36_replay_check.py::test_equality_is_type_strict
+PASSED src/tests/test_exp36_replay_check.py::test_the_loaded_checkpoint_must_be_the_pinned_one
+PASSED src/tests/test_exp36_replay_check.py::test_a_different_stream_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r0]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r1]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r2]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r3]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r4]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r5]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r6]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r7]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r8]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r9]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r10]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r11]
+PASSED src/tests/test_exp36_replay_check.py::test_an_undecidable_comparison_is_refused[r12]
+PASSED src/tests/test_exp36_replay_check.py::test_a_replay_run_with_a_dump_or_a_schema1_receipt_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_a_bad_pin_is_refused
+PASSED src/tests/test_exp36_replay_check.py::test_cli_exit_codes_and_the_verdict_file
+PASSED src/tests/test_exp36_replay_check.py::test_the_real_archived_reference_verifies_against_the_pinned_digests
+PASSED src/tests/test_exp36_replay_check.py::test_cli_a_crashed_check_is_refused_never_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_registry_holds_the_four_replays_with_the_amendment_digests
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_each_replay_equal_to_its_reference[CANON]
+PASSED src/tests/test_exp36_a1_replays.py::test_a_plan_of_the_four_replays_serves_each_check
+PASSED src/tests/test_exp36_a1_replays.py::test_a_different_canon_sidecar_is_a_mismatch
+PASSED src/tests/test_exp36_a1_replays.py::test_the_backend_proof_of_each_reference_kind
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[YAW]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[P1]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[BF]
+PASSED src/tests/test_exp36_a1_replays.py::test_the_real_archived_references_verify[CANON]
+65 passed, 3 warnings in 8.18s
