@@ -1,0 +1,62 @@
+p2kit part 1b (report evidence, phase-(i) contract, relevant-tree digest) RED at f5dd1b3c771b4e93622399e451810907189a429c -- 2026-11-06T03:41:25-05:00 -- the 1b functions do not exist yet
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+_ test_every_incomplete_or_failed_phase_i_is_refused[supervisor-supervisor_sha256] _
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+________ test_every_incomplete_or_failed_phase_i_is_refused[keys-keys] _________
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+______ test_every_incomplete_or_failed_phase_i_is_refused[digest-digest] _______
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+___ test_every_incomplete_or_failed_phase_i_is_refused[order-33-chunk order] ___
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+__ test_every_incomplete_or_failed_phase_i_is_refused[schema-schema_version] ___
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+____ test_every_incomplete_or_failed_phase_i_is_refused[campaign-campaign] _____
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+_______ test_every_incomplete_or_failed_phase_i_is_refused[rc-runner_rc] _______
+    def test_every_incomplete_or_failed_phase_i_is_refused(name, reason):
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_report_fields_parse
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_malformed_report_is_refused[<lambda>-prior-runs]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_malformed_report_is_refused[<lambda>-lanes]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_malformed_report_is_refused[<lambda>-colour]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_malformed_report_is_refused[<lambda>-eta0]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_malformed_report_is_refused[<lambda>-eta1]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_report_that_is_not_utf8_is_refused
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_report_binds_h35_the_state_the_lanes_and_the_prior_runs
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields0-kw0-h35]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields1-kw1-phase-i-state-sha256]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields2-kw2-phase-i-state-sha256]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields3-kw3-lanes]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields4-kw4-lanes]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields5-kw5-second lane]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields6-kw6-second lane]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields7-kw7-prior-runs]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_wrong_report_binding_is_refused[fields8-kw8-prior-runs]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_chunk_order_is_the_h35_supervisors
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_real_mid_campaign_snapshot_is_refused_as_incomplete
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_completed_phase_i_passes
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[planned-chunk 33]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[latch-stop latch]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[e2-E2]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[e1-E1]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[probe-probe]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[reservation-reservation]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[lane-lane]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[no-final-final]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[final-not-last-final]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[h35-h35]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[cells-cells_sha256]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[supervisor-supervisor_sha256]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[keys-keys]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[digest-digest]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[order-33-chunk order]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[schema-schema_version]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[campaign-campaign]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_every_incomplete_or_failed_phase_i_is_refused[rc-runner_rc]
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_chunk_adopted_at_a_supervisor_restart_passes_as_the_supervisor_admits_it
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_phase_i_state_that_is_not_a_dict_is_refused
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_relevant_pathspec_is_the_runners_for_an_exp35_selection
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_digest_of_the_h35_relevant_tree_is_the_campaign_digest
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_the_digest_is_the_runners_bash_formula_with_untracked_and_ignored_files
+FAILED src/tests/test_exp35_phase_ii_checks.py::test_a_path_the_runners_sha256sum_would_escape_is_refused
+44 failed in 3.04s
+pytest rc 1

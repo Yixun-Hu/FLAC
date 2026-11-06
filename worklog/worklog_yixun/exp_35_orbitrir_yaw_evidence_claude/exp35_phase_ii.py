@@ -6,6 +6,7 @@ it once more, detached, as the wrapper that runs the H35 runner and durably reco
 
 Part 1a: the registered pins, the durable writers and the pure checks -- the 68-cell selection of the cells manifest
 at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived row by row, the lane list.
+Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -20,6 +21,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
 import tempfile
 
@@ -239,3 +241,132 @@ def parse_lanes(text):
 
 def lanes_text(lanes):
     return ",".join(str(i) for i in lanes)
+
+
+def relevant(m):
+    """depth_canon_eval_run.sh's RELEVANT for an exp_35 selection (every arm's model config, the overlay, the identity)."""
+    return ["eval_FLAC.py", "src", ":(exclude)src/tests", "data/AR", *[a["model_config"] for a in m["arms"].values()],
+            RUNNER, f"{X25}/depth_canon_collect.py", f"{X25}/depth_canon_make_cells.py", CELLS,
+            f"{X25}/depth_canon_audit_gate.py", "overlays/no_flash", f"{X35}/exp35_gpu_identity.py"]
+
+
+def git(repo, *args, raw=False):
+    """A read-only git query (no optional locks: a status never rewrites the index); ValueError when it fails."""
+    r = subprocess.run(["git", "--no-optional-locks", "-C", repo, *args], capture_output=True, timeout=600)
+    if r.returncode != 0:
+        raise ValueError(f"git {' '.join(args[:2])} in {repo} failed (rc {r.returncode}): "
+                         f"{r.stderr.decode(errors='replace').strip()[:200]}")
+    return r.stdout if raw else r.stdout.decode()
+
+
+def tree_digest(repo, paths):
+    """The runner's tree_digest: the sha256 of the sorted ``sha256sum`` lines of every tracked + untracked (unignored)
+    file under ``paths``. A name the runner's sha256sum would escape (a backslash, a newline) is refused."""
+    out = git(repo, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *paths, raw=True)
+    names = sorted({n for n in out.split(b"\0") if n})
+    if not names or any(b"\\" in n or b"\n" in n for n in names):
+        raise ValueError(f"the relevant tree of {repo} is empty or holds a name the runner's sha256sum escapes")
+    lines = []
+    for n in names:
+        s = snapshot(os.path.join(repo, os.fsdecode(n)))
+        if s is None:
+            raise ValueError(f"the relevant file {os.fsdecode(n)} is not a readable regular file")
+        lines.append(f"{s.sha256}  {os.fsdecode(n)}")
+    return sha256_bytes(("\n".join(lines) + "\n").encode())
+
+
+def tree_dirty(repo, paths):
+    """The runner's tree_dirty: '' iff every file under ``paths`` is committed and clean (untracked files count)."""
+    return git(repo, "status", "--porcelain", "--untracked-files=all", "--", *paths)
+
+
+def phase_i_chunks():
+    """exp35_supervisor.py chunk_plan() at H35 as (n, kind, cell, gate): the frozen 33-chunk order."""
+    t = lambda k, s, x="": ("cell", f"exp35_BF_T_S40000_K{k}_s{s}{x}", None)  # noqa: E731
+    out = [("cell", "exp35_P1_T_S40000_K1_s42", "E1"), ("cell", "exp35_P1_T_S40000_K8_s42", "E1"), t(1, 42),
+           ("cell", "exp35_BF_T_S40000_K8_s42", "E2"), ("probe", None, "PROBE")]
+    out += [t(k, s) for s in (43, 44, 45, 46) for k in (1, 8)]
+    out += [("cell", f"exp35_BF_R_S40000_K{k}_s{s}", None) for s in (42, 43, 44, 45, 46) for k in (1, 8)]
+    out += [t(k, 42, "_dup") for k in (1, 8)]
+    out += [("cell", f"exp35_BF_C4_S40000_K{k}_s42_th{d}", None) for d in (90, 180, 270, 45) for k in (1, 8)]
+    return tuple((i + 1, *c) for i, c in enumerate(out))
+
+
+PHASE_I_CHUNKS = phase_i_chunks()
+PHASE_I_KEYS = ("schema_version", "campaign", "h35", "cells_sha256", "supervisor_sha256", "approved_sha256", "baseline",
+                "his_log_anchor", "lane", "reservation", "chunks", "stop_latch", "events")
+GATES = {"E1": ("e1", "equal"), "E2": ("e2", "PASS")}
+
+
+def phase_i_reasons(doc, *, h35, digest, supervisor_sha256):
+    """§15 item 4: [] iff ``doc`` is the supervisor's state of a COMPLETE phase (i) -- schema v1 at H35, the 33 frozen
+    chunks gates_verified with rc 0 (or adopted at a restart), E1 equal, E2 PASS, the probe contract rc 0, ONE
+    campaign digest, no stop latch, no lane and no reservation, the final release event last."""
+    if not isinstance(doc, dict) or list(doc) != list(PHASE_I_KEYS):
+        return [f"the phase-(i) state's keys are not the supervisor's schema-v1 keys {list(PHASE_I_KEYS)}"]
+    out = [f"phase (i) {k} {doc[k]!r} != {v!r}" for k, v in (
+        ("schema_version", 1), ("campaign", "exp35"), ("h35", h35), ("cells_sha256", CELLS_SHA256),
+        ("supervisor_sha256", supervisor_sha256)) if doc[k] != v]
+    ch = doc["chunks"]
+    if not (isinstance(ch, list) and all(isinstance(c, dict) for c in ch)
+            and [tuple(c.get(k) for k in ("n", "kind", "cell", "gate")) for c in ch] == list(PHASE_I_CHUNKS)):
+        return out + ["the phase-(i) chunks are not the frozen 33-chunk order"]
+    for c in ch:
+        n, rc_key = c["n"], "probe_rc" if c["kind"] == "probe" else "runner_rc"
+        if c.get("state") != "gates_verified":
+            out.append(f"chunk {n} is {c.get('state')}, not gates_verified")
+            continue
+        rc, adopted = c.get(rc_key), c.get("adopted_at_restart") is True
+        if not ((type(rc) is int and rc == 0) or (adopted and rc is None)):
+            out.append(f"chunk {n}: {rc_key} {rc!r} (not 0, nor a chunk adopted at a restart)")
+        if c["gate"] in GATES:
+            key, want = GATES[c["gate"]]
+            r = c.get(key) if isinstance(c.get(key), dict) else {}
+            if not (r.get("rc") == 0 and r.get("verdict") == want):
+                out.append(f"chunk {n}: {c['gate']} is {r.get('verdict')!r} (rc {r.get('rc')!r}), not {want}")
+        if c["gate"] == "PROBE" and not (isinstance(c.get("probe_contract"), dict) and c["probe_contract"].get("rc") == 0):
+            out.append(f"chunk {n}: the probe contract is {c.get('probe_contract')!r:.80}, not rc 0")
+    digests = sorted({str(c.get("campaign_digest")) for c in ch if c["kind"] == "cell"})
+    out += [] if digests == [digest] else [f"the cell chunks carry campaign digests {digests}, not exactly [{digest}]"]
+    out += [why for why, bad in (
+        (f"the stop latch is set: {doc['stop_latch']!r:.120}", doc["stop_latch"] is not None),
+        (f"the phase-(i) lane is still set: {doc['lane']!r}", doc["lane"] is not None),
+        (f"the phase-(i) reservation is still held: {doc['reservation']!r:.160}", doc["reservation"] is not None)) if bad]
+    ev = doc["events"]
+    last = ev[-1].get("what") if isinstance(ev, list) and ev and isinstance(ev[-1], dict) else None
+    return out + ([] if last == FINAL_EVENT else [
+        f"the last phase-(i) event is {last!r}, not the final release event {FINAL_EVENT!r}"])
+
+
+REPORT_KEYS = ("h35", "phase-i-state-sha256", "lanes", "second-lane-decision", "eta", "prior-runs")
+REPORT_LINE = re.compile(r"exp35-phase-ii ([a-z0-9-]+) (\S.*)")
+
+
+def report_fields(raw):
+    """(fields, reasons) of the Planner's committed phase-(i) report: each line holding ``exp35-phase-ii`` must be one
+    unindented ``exp35-phase-ii <key> <value>`` field; the six REPORT_KEYS exactly once each, nothing else."""
+    try:
+        lines = raw.decode("utf-8").splitlines()
+    except UnicodeDecodeError as err:
+        return {}, [f"the report is not UTF-8 ({err})"]
+    fields, out = {}, []
+    for ln in lines:
+        if "exp35-phase-ii" not in ln:
+            continue
+        m = REPORT_LINE.fullmatch(ln)
+        if m is None or m[1] not in REPORT_KEYS or m[1] in fields:
+            out.append(f"a malformed, unknown or repeated report line {ln!r}")
+            continue
+        fields[m[1]] = m[2]
+    return fields, out + [f"the report carries no exp35-phase-ii {k} line" for k in REPORT_KEYS if k not in fields]
+
+
+def report_reasons(fields, *, h35, lanes, state_sha256, prior_runs):
+    """The report binds this launch: H35, the final phase-(i) state, the frozen lane list (a second lane only with a
+    recorded decision), and every earlier launched orchestration (a relaunch only after a report naming it)."""
+    dec, two = fields.get("second-lane-decision"), len(lanes) > 1
+    out = [f"the report's {k} is {fields.get(k)!r}, not {want!r}" for k, want in (
+        ("h35", h35), ("phase-i-state-sha256", state_sha256), ("lanes", lanes_text(lanes)),
+        ("prior-runs", ",".join(sorted(prior_runs)) or "none")) if fields.get(k) != want]
+    return out + ([f"the report's second-lane-decision {dec!r} does not fit {len(lanes)} lane(s): a second lane needs "
+                   "a recorded decision, one lane exactly 'none'"] if (dec == "none") == two else [])
