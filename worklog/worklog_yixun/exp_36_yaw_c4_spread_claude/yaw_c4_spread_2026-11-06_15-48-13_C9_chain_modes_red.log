@@ -1,0 +1,730 @@
+RED, cycle 9 (amendment A1 §4: the chain's two modes -- offorbit = chain I: the 4 replays -> 4 checks (all exactly 0) -> the 24 off-orbit cells; A = chain II: the YAW replay -> its check -> the 24 YAW-C4S cells; both on --lanes 0,1 with the pinned CANON checkpoint manifest) at HEAD 3f62b3c7edbd4c14579b97ae9d7ee5bf685cabb2 + the uncommitted tests
+.....FFFFFFFFFFFFFFFFFFFFFFFFFF..FFFFFF                                  [100%]
+=================================== FAILURES ===================================
+___________ test_chain_ii_runs_the_yaw_replay_its_check_then_the_24 ____________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_ii_runs_the_yaw_rep0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+
+    def test_chain_ii_runs_the_yaw_replay_its_check_then_the_24(clone, ch):
+        rc, out = chain(clone, ch, env={"ALLOW_SHARED_GPU": "0"})
+>       assert rc == 0 and "CHAIN COMPLETE" in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp36_chain.py:172: AssertionError
+___ test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells ___
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_i_runs_the_4_replay0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+
+    def test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells(clone, ch):
+        rc, out = chain(clone, ch, args=("offorbit",))
+>       assert rc == 0 and "CHAIN COMPLETE" in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp36_chain.py:189: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[1-4] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_i_stops_at_the_firs0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+n = 1, rc_want = 4
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 4)
+
+src/tests/test_exp36_chain.py:205: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[2-4] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_i_stops_at_the_firs1/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+n = 2, rc_want = 4
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 4)
+
+src/tests/test_exp36_chain.py:205: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[3-5] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_i_stops_at_the_firs2/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+n = 3, rc_want = 5
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:205: AssertionError
+______________ test_chain_i_stops_at_the_first_failed_check[4-5] _______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_chain_i_stops_at_the_firs3/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+n = 4, rc_want = 5
+
+    @pytest.mark.parametrize("n, rc_want", [(1, 4), (2, 4), (3, 5), (4, 5)])
+    def test_chain_i_stops_at_the_first_failed_check(clone, ch, n, rc_want):
+        rc, out = chain(clone, ch, env={f"STUB_CHECK_RC_{n}": "1" if rc_want == 4 else "2"}, args=("offorbit",))
+>       assert rc == rc_want and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:205: AssertionError
+_________________ test_the_chain_takes_exactly_one_mode[args0] _________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+args = ()
+
+    @pytest.mark.parametrize("args", [(), ("B",), ("A", "offorbit"), ("--dry-run",)])
+    def test_the_chain_takes_exactly_one_mode(clone, ch, args):
+        rc, out = chain(clone, ch, args=args)
+>       assert rc == 2 and "mode" in out and not calls(ch), out
+E       AssertionError: === exp_36 yaw_c4_spread chain -- 2026-11-06_15-52-16 -- HEAD 68ae49dfa14c80bc72c9108f42394bf6af61a463 -- dry_run=0 -- harness=true ===
+E         --- step 1/3: the replay exp36_YAW_C4_S40000_K8_s42_th90 on GPU 1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=68ae49dfa14c80bc72c9108f42394bf6af61a463 bash /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/stub_runner.sh --only exp36_YAW_C4_S40000_K8_s42_th90 --no-dump-blocks YAW-C4S --lanes 1
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-01 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/plan_1.json
+E         replay run plan /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/plan_1.json (sha256 ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356); runner records: worklog/worklog_yixun/exp_25_depth_canon_claude/depth_canon_2026-11-06_20-00-01_{eval_run.log,no_flash_preflight.log,eval_exp36_YAW_C4_S40000_K8_s42_th90.log}
+E         --- step 2/3: the replay check (the hard stop) ---
+E         EXP36 REPLAY EQUAL
+E         replay check EQUAL: verdict /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/yaw_c4_spread_2026-11-06_15-52-16_replay_verdict.json (sha256 808b02c7487cb61da4ac593e8bde3583764a84aacf07d1de14509ce5291fc7e5)
+E         --- step 3/3: the 24 cells on GPU 1, dumps off ---
+E         + ALLOW_SHARED_GPU=0 DRY_RUN=0 EXPECT_HEAD=68ae49dfa14c80bc72c9108f42394bf6af61a463 bash /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/stub_runner.sh --only exp25_YAW_C4_S40000_K1_s43_th90,exp25_YAW_C4_S40000_K1_s43_th180,exp25_YAW_C4_S40000_K1_s43_th270,exp25_YAW_C4_S40000_K1_s44_th90,exp25_YAW_C4_S40000_K1_s44_th180,exp25_YAW_C4_S40000_K1_s44_th270,exp25_YAW_C4_S40000_K1_s45_th90,exp25_YAW_C4_S40000_K1_s45_th180,exp25_YAW_C4_S40000_K1_s45_th270,exp25_YAW_C4_S40000_K1_s46_th90,exp25_YAW_C4_S40000_K1_s46_th180,exp25_YAW_C4_S40000_K1_s46_th270,exp25_YAW_C4_S40000_K8_s43_th90,exp25_YAW_C4_S40000_K8_s43_th180,exp25_YAW_C4_S40000_K8_s43_th270,exp25_YAW_C4_S40000_K8_s44_th90,exp25_YAW_C4_S40000_K8_s44_th180,exp25_YAW_C4_S40000_K8_s44_th270,exp25_YAW_C4_S40000_K8_s45_th90,exp25_YAW_C4_S40000_K8_s45_th180,exp25_YAW_C4_S40000_K8_s45_th270,exp25_YAW_C4_S40000_K8_s46_th90,exp25_YAW_C4_S40000_K8_s46_th180,exp25_YAW_C4_S40000_K8_s46_th270 --no-dump-blocks YAW-C4S --lanes 1
+E         === exp_25 depth_canon eval campaign -- 2026-11-06_20-00-02 -- HEAD x -- dry_run=0 -- harness=false ===
+E         plan: 1 cell(s) -> /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/plan_2.json
+E         === CHAIN COMPLETE: the replay EQUAL, the 24 cells complete and verified. Publication is a SEPARATE command:
+E             CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 /home/yixunhu/miniconda3/envs/flac/bin/python /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/stub_collect.py --exp36-publish --pin 68ae49dfa14c80bc72c9108f42394bf6af61a463 --exp36-verdict /tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o0/ch/yaw_c4_spread_2026-11-06_15-52-16_replay_verdict.json
+E         
+E       assert (0 == 2)
+
+src/tests/test_exp36_chain.py:212: AssertionError
+_________________ test_the_chain_takes_exactly_one_mode[args1] _________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o1/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+args = ('B',)
+
+    @pytest.mark.parametrize("args", [(), ("B",), ("A", "offorbit"), ("--dry-run",)])
+    def test_the_chain_takes_exactly_one_mode(clone, ch, args):
+        rc, out = chain(clone, ch, args=args)
+>       assert rc == 2 and "mode" in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'mode' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:212: AssertionError
+_________________ test_the_chain_takes_exactly_one_mode[args2] _________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o2/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+args = ('A', 'offorbit')
+
+    @pytest.mark.parametrize("args", [(), ("B",), ("A", "offorbit"), ("--dry-run",)])
+    def test_the_chain_takes_exactly_one_mode(clone, ch, args):
+        rc, out = chain(clone, ch, args=args)
+>       assert rc == 2 and "mode" in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'mode' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:212: AssertionError
+_________________ test_the_chain_takes_exactly_one_mode[args3] _________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_takes_exactly_o3/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+args = ('--dry-run',)
+
+    @pytest.mark.parametrize("args", [(), ("B",), ("A", "offorbit"), ("--dry-run",)])
+    def test_the_chain_takes_exactly_one_mode(clone, ch, args):
+        rc, out = chain(clone, ch, args=args)
+>       assert rc == 2 and "mode" in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'mode' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:212: AssertionError
+_____________ test_a_changed_canon_checkpoint_manifest_is_refused ______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_a_changed_canon_checkpoin0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+
+    def test_a_changed_canon_checkpoint_manifest_is_refused(clone, ch):
+        path = clone / CANON_CKPTS
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original + b"\n")
+            rc, out = chain(clone, ch, args=("offorbit",))
+>           assert rc == 2 and "CANON checkpoint manifest" in out and not calls(ch), out
+E           AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E             
+E           assert (2 == 2 and 'CANON checkpoint manifest' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:221: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_CHECK_RC': '1'}, rc_want = 4, needle = 'REPLAY MISMATCH'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 4)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_1/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_CHECK_RC': '2'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_2/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_CHECK_RC': '3'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_3/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_RUNNER_RC_1': '2'}, rc_want = 3, needle = 'the replay run exited 2'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 3)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_4/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_RUNNER_RC_1': '1'}, rc_want = 3, needle = 'the replay run exited 1'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 3)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_5/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_NO_PLAN': '1'}, rc_want = 3, needle = 'no single plan'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 3)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_6/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_RUNNER_RC_2': '1'}, rc_want = 6
+needle = 're-run this chain to resume', kinds = ['RUNNER', 'COLLECT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 6)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_7/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_RUNNER_RC_2': '4'}, rc_want = 6
+needle = 'the 24-cell run exited 4', kinds = ['RUNNER', 'COLLECT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 6)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_8/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_VERDICT': 'none'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_9/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_VERDICT': 'mismatch'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_10/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_CHECK_RC': '1', 'STUB_VERDICT': 'none'}, rc_want = 5
+needle = 'REPLAY CHECK REFUSED', kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11] _
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_every_other_outcome_is_a_11/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'STUB_CHECK_RC': '1', 'STUB_VERDICT': 'equal'}, rc_want = 5
+needle = 'REPLAY CHECK REFUSED', kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),            # rc 0 without a verdict
+        ({"STUB_VERDICT": "mismatch"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),        # rc 0, not equal
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "none"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),   # a crash
+        ({"STUB_CHECK_RC": "1", "STUB_VERDICT": "equal"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 5)
+
+src/tests/test_exp36_chain.py:244: AssertionError
+_______ test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A] _______
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_dry_run_plans_both_runner0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+mode = 'A'
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone, ch, mode):
+        rc, out = chain(clone, ch, env={"DRY_RUN": "1"}, args=(mode,))
+>       assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp36_chain.py:251: AssertionError
+___ test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit] ____
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_dry_run_plans_both_runner1/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+mode = 'offorbit'
+
+    @pytest.mark.parametrize("mode", ["A", "offorbit"])
+    def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone, ch, mode):
+        rc, out = chain(clone, ch, env={"DRY_RUN": "1"}, args=(mode,))
+>       assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 0)
+
+src/tests/test_exp36_chain.py:251: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN] __________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_gates_refuse_be0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'EXPECT_HEAD': '0000000000000000000000000000000000000000'}
+needle = 'HEAD PIN'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone, ch, env, needle):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'HEAD PIN' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:262: AssertionError
+______ test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU] ______
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_gates_refuse_be3/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'ALLOW_SHARED_GPU': '1'}, needle = 'ALLOW_SHARED_GPU'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone, ch, env, needle):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'ALLOW_SHARED_GPU' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:262: AssertionError
+_________ test_the_chain_gates_refuse_before_any_step[env4-co-tenant] __________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_gates_refuse_be4/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'EXP35_APPROVED_COTENANTS': '/tmp/x'}, needle = 'co-tenant'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone, ch, env, needle):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'co-tenant' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:262: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env5-HARNESS] ___________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_gates_refuse_be5/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'EXP36_CHAIN_HARNESS': '/var/tmp'}, needle = 'HARNESS'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone, ch, env, needle):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'HARNESS' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:262: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env6-HARNESS] ___________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_the_chain_gates_refuse_be6/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+env = {'EXP36_CHAIN_RUNNER': '/bin/true'}, needle = 'HARNESS'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone, ch, env, needle):
+        rc, out = chain(clone, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'HARNESS' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:262: AssertionError
+_____________ test_outside_the_harness_a_test_variable_is_refused ______________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_outside_the_harness_a_tes0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+
+    def test_outside_the_harness_a_test_variable_is_refused(clone, ch):
+        e = {"EXP36_CHAIN_HARNESS": "", "DEPTH_CANON_EVAL_HARNESS": str(ch["dir"])}
+        rc, out = chain(clone, ch, env=e)
+>       assert rc == 2 and "test-harness variable" in out and not calls(ch), out
+E       AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E         
+E       assert (2 == 2 and 'test-harness variable' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:268: AssertionError
+_____________________ test_an_uncommitted_chain_is_refused _____________________
+
+clone = PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/evalrun0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6553/test_an_uncommitted_chain_is_r0/ch'), 'head': '68ae49dfa14c80bc72c9108f42394bf6af61a463'}
+
+    def test_an_uncommitted_chain_is_refused(clone, ch):
+        path = clone / CHAIN_REL
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original + b"\n# drift\n")
+            rc, out = chain(clone, ch)
+>           assert rc == 2 and "not committed" in out and not calls(ch), out
+E           AssertionError: this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort
+E             
+E           assert (2 == 2 and 'not committed' in 'this chain takes no argument (EXPECT_HEAD / DRY_RUN come from the environment) - abort\n')
+
+src/tests/test_exp36_chain.py:277: AssertionError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_of_chain_i_plans_the_4_replays_and_the_24_off_orbit_cells
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_the_4_replays_on_both_lanes_with_receipt_2
+PASSED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+PASSED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+FAILED src/tests/test_exp36_chain.py::test_chain_ii_runs_the_yaw_replay_its_check_then_the_24
+FAILED src/tests/test_exp36_chain.py::test_chain_i_runs_the_4_replays_all_4_checks_then_the_24_off_orbit_cells
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[1-4]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[2-4]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[3-5]
+FAILED src/tests/test_exp36_chain.py::test_chain_i_stops_at_the_first_failed_check[4-5]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args0]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args1]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args2]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_takes_exactly_one_mode[args3]
+FAILED src/tests/test_exp36_chain.py::test_a_changed_canon_checkpoint_manifest_is_refused
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env8-5-REPLAY CHECK REFUSED-kinds8]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env9-5-REPLAY CHECK REFUSED-kinds9]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env10-5-REPLAY CHECK REFUSED-kinds10]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env11-5-REPLAY CHECK REFUSED-kinds11]
+FAILED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[A]
+FAILED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check[offorbit]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+FAILED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+FAILED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused - ...
+32 failed, 7 passed, 3 warnings in 243.62s (0:04:03)
