@@ -142,3 +142,62 @@ def test_an_arm_run_is_validated_against_its_protocol(tmp_path):
     with pytest.raises(RuntimeError, match="latency_protocol"):
         lat.load_arm_run(_arm_run(tmp_path, "proto", "P1", selection, query_over={"latency_protocol": {}}),
                          arm="P1", selection=selection, context_count=8)
+
+
+def _rows(cores, stage_sums=None):
+    return {i: {"core": c, "stage_sum": (stage_sums or {}).get(i, c)} for i, c in cores.items()}
+
+
+def test_the_split_is_publishable_only_within_two_percent_per_query_and_in_aggregate():
+    head = _rows({1: 1.0, 2: 10.0})
+    ok = lat.split_comparison(head, _rows({1: 1.015, 2: 10.1}))
+    assert ok["split_publishable"] is True and ok["aggregate_relative_difference"] == pytest.approx(0.115 / 11)
+    one_query_out = lat.split_comparison(head, _rows({1: 1.03, 2: 10.0}))
+    assert one_query_out["aggregate_rule_pass"] is True and one_query_out["strict_rule_pass"] is False
+    assert one_query_out["split_publishable"] is False and one_query_out["per_query_within_fraction"] == 0.5
+    aggregate_out = lat.split_comparison(head, _rows({1: 1.0, 2: 10.3}))
+    assert aggregate_out["aggregate_rule_pass"] is False and aggregate_out["split_publishable"] is False
+    internal = lat.split_comparison(head, _rows({1: 1.0, 2: 10.0}, stage_sums={2: 9.9}))
+    assert internal["internal_stage_sum_vs_core_max_abs"] == pytest.approx(0.01)
+    with pytest.raises(RuntimeError, match="coverage"):
+        lat.split_comparison(head, _rows({1: 1.0}))
+
+
+def _split_query_over(n):
+    return {"latency_protocol": {"name": "fem_core_aligned_kctx8_kgen1", "context_count": 8, "stage_split": True},
+            "stage_seconds": {"context_conditioning": 0.1, "candidate_conditioning": n / 400, "dit": n / 400,
+                              "vae_decode": n / 200},
+            "stage_sum_seconds": 0.1 + n / 100,
+            "stage_peak_memory": {"dit": {"allocated_bytes": 900, "reserved_bytes": 1000},
+                                  "whole_query": {"allocated_bytes": 950, "reserved_bytes": 1000}}}
+
+
+def test_headline_and_split_runs_are_never_confused(tmp_path):
+    selection = _selection({1: 10})
+    split_dir = _arm_run(tmp_path, "split", "P1", selection, over={"stage_split": True},
+                         query_over=_split_query_over(10))
+    rows = lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8, stage_split=True)
+    assert rows[1]["stage_seconds"]["vae_decode"] == pytest.approx(0.05) and rows[1]["stage_sum"] == pytest.approx(0.2)
+    with pytest.raises(RuntimeError, match="stage_split"):
+        lat.load_arm_run(split_dir, arm="P1", selection=selection, context_count=8)          # not a headline
+    head_dir = _arm_run(tmp_path, "head", "P1", selection)
+    with pytest.raises(RuntimeError, match="stage_split"):
+        lat.load_arm_run(head_dir, arm="P1", selection=selection, context_count=8, stage_split=True)
+
+
+def test_the_stage_breakdown_adds_the_selector_and_reports_absolute_peaks():
+    split = {1: {"stage_seconds": {"context_conditioning": 0.1, "candidate_conditioning": 0.2, "dit": 0.3,
+                                   "vae_decode": 0.4},
+                 "stage_peak_memory": {"dit": {"allocated_bytes": 900, "reserved_bytes": 1000},
+                                       "whole_query": {"allocated_bytes": 950, "reserved_bytes": 1100}}},
+             2: {"stage_seconds": {"context_conditioning": 0.1, "candidate_conditioning": 0.6, "dit": 0.7,
+                                   "vae_decode": 0.8},
+                 "stage_peak_memory": {"dit": {"allocated_bytes": 1200, "reserved_bytes": 1300},
+                                       "whole_query": {"allocated_bytes": 1250, "reserved_bytes": 1300}}}}
+    out = lat.stage_breakdown(split, {1: 0.5, 2: 0.5}, {1: 10, 2: 30})
+    assert out["seconds"]["dit"]["summed_seconds"] == pytest.approx(1.0)
+    assert out["seconds"]["agree_selector"]["summed_seconds"] == pytest.approx(1.0)
+    assert out["seconds"]["vae_decode"]["ms_per_candidate_dataset_wide"] == pytest.approx(1000 * 1.2 / 40)
+    assert sum(v["fraction"] for v in out["seconds"].values()) == pytest.approx(1.0)
+    assert out["peak_memory"]["dit"] == {"allocated_bytes": 1200, "reserved_bytes": 1300}          # max, not sum
+    assert out["peak_memory"]["whole_query"]["allocated_bytes"] == 1250
