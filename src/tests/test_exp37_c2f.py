@@ -16,10 +16,11 @@ from src.localization.exp37_grid import c2f_indices, query_scores, subset_readou
 
 
 class SeparatedRetrieval:
-    """Features that vary strongly with the candidate (no common offset), so ranks are far from ULP ties."""
+    """Features that vary with the candidate (one sample per latent position of the fake decoder, whose output is
+    piecewise constant over 1024 samples), so ranks are far from ULP ties."""
 
     def compute_audio_features(self, waveforms):
-        return torch.nn.functional.normalize(waveforms[:, 0, :16] * torch.linspace(1.0, 3.0, 16), dim=1)
+        return torch.nn.functional.normalize(waveforms[:, 0, ::1024] * torch.linspace(1.0, 3.0, 10), dim=1)
 
 
 @pytest.fixture
