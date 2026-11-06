@@ -45,6 +45,8 @@ EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-p
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45",   # plan_orbitrir r2 §1
                 "E2-FAIL")                                                                  # + §14 A1
 EXPLICIT_BLOCKS = ("E2-FAIL",)   # §14 A1.3: selected only when named (the block or its cells), never by default
+EXP36_BLOCKS = ("YAW-C4S",)      # exp_36 (plan_yaw_c4_spread.md r0; Codex plan review B1, H1): the Yaw-Aug C4 spread
+DEFAULT_EXCLUDED_BLOCKS = EXPLICIT_BLOCKS + EXP36_BLOCKS   # Codex H1: never in a default selection (E2 semantics apart)
 # exp_35 (plan_orbitrir_yaw_evidence.md r2 §3 P2): ONE per-arm evaluation protocol, vanilla by default and
 # frame-averaged for B-F; it drives record validation, the artifact paths, the probe binding and rendering
 VANILLA_PROTOCOL = {"cond_method": "vanilla", "frame_avg_angles": None, "orbit_execution": "n/a",
@@ -680,7 +682,7 @@ def select_cells(manifest, blocks=None, only=None, limit=None):
         raise ValueError(f"--limit must be a positive int, got {limit!r}")
     rows = [c for c in manifest["cells"] if (blocks is None or c["block"] in blocks)
             and (only is None or c["cell"] in only)
-            and (blocks is not None or only is not None or c["block"] not in EXPLICIT_BLOCKS)]
+            and (blocks is not None or only is not None or c["block"] not in DEFAULT_EXCLUDED_BLOCKS)]
     return rows[:limit] if limit else rows
 
 

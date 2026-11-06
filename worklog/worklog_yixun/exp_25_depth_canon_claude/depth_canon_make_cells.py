@@ -8,6 +8,10 @@ the same 26-field row schema: CTL, BF-pin, BF-dup, OFF-P1, OFF-BF, OFF-CANON, CA
 contingency block (run only when named), with the B-F arm's frame-averaged evaluation flags (``ARM_COND_FLAGS``). ``build_manifest(exp35=False)``
 renders the exp_25 manifest byte for byte as committed at the exp_25 pin (the regression guard).
 
+exp_36 (plan_yaw_c4_spread.md r0 §2 item 1; its Codex plan review B2) appends block YAW-C4S, 25 rows (orders 346-370):
+first the replay ``exp36_YAW_C4_S40000_K8_s42_th90``, then ``exp25_YAW_C4_S40000_K{1,8}_s{43..46}_th{90,180,270}`` --
+the YAW-pin C4 rows at seeds 43-46 under explicit names. ``build_manifest(exp36=False)`` renders the H35 manifest.
+
 Deterministic, no I/O beyond reading nothing at all: ``build_manifest()`` is a pure
 function of the constants below and eval_FLAC's own ``build_output_paths`` (which names
 each cell's metrics stem, hence its dump directory). ``--write`` (re)writes
@@ -43,7 +47,9 @@ OUT = os.path.join(REPO, EXPREL, "depth_canon_cells.json")
 SCHEMA_VERSION = 1
 EXP25_BLOCKS = ("T", "T-dup", "C4+45", "R", "D-i", "D-ii", "S", "P1-pin", "YAW-pin", "TRAJ")
 EXP35_BLOCKS = ("CTL", "BF-pin", "BF-dup", "OFF-P1", "OFF-BF", "OFF-CANON", "CANON-45", "E2-FAIL")
-BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS
+EXP36_BLOCKS = ("YAW-C4S",)   # exp_36: the Yaw-Aug C4 spread (+ its replay), every row explicitly named
+BLOCKS = EXP25_BLOCKS + EXP35_BLOCKS + EXP36_BLOCKS
+EXP36_REPLAY = "exp36_YAW_C4_S40000_K8_s42_th90"   # = exp25_YAW_C4_S40000_K8_s42_th90 under another name
 SEEDS = (42, 43, 44, 45, 46)
 KS = (1, 8)
 C4_ANGLES = (90, 180, 270)
@@ -106,8 +112,9 @@ ARMS = {  # model configs == each checkpoint's EMBEDDED model_config (verified 2
 EXP25_ARMS = ("CANON", "P1", "YAW")
 
 
-def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=False, dup=False):
-    """One cell. ``rot`` = ``("fixed", deg)`` or ``("random", None)`` (rotate seed = eval seed)."""
+def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=False, dup=False, cell=None):
+    """One cell. ``rot`` = ``("fixed", deg)`` or ``("random", None)`` (rotate seed = eval seed). ``cell``: the
+    explicit name a YAW-C4S row needs (exp_36, Codex B2) and no other row takes."""
     import eval_FLAC
     mode, deg = rot
     tag = {"T-dup": "T", "C4+45": "C4", "D-i": "Di", "D-ii": "Dii", "CTL": "T", "BF-dup": "T"}.get(block, block)
@@ -117,6 +124,9 @@ def _row(block, sub, arm, step, split, k, seed, rot, canonicalize=False, allow=F
     if tag in ("C4", "TRAJ", "OFF"):
         name += f"_th{deg}"
     name += "_dup" if dup else ""
+    if (cell is None) == (block in EXP36_BLOCKS):
+        raise ValueError(f"block {block!r} with cell name {cell!r}: exactly the exp_36 rows are named explicitly")
+    name = cell or name
     trained = ARMS[arm]["trained_canon"]
     in_play = trained or canonicalize or allow
     mismatch = bool(in_play and trained != canonicalize)
@@ -177,8 +187,22 @@ def _exp35_blocks():
     }
 
 
-def build_manifest(exp35=True):
-    """The 346-row manifest; ``exp35=False``: the exp_25 manifest exactly as committed at its pin."""
+def _exp36_block():
+    """exp_36 (plan_yaw_c4_spread.md r0 §2 item 1; Codex B2, NIT 2): the replay FIRST (the YAW-pin C4 K8 s42 th90 row
+    under the name ``EXP36_REPLAY``), then the YAW-pin C4 rows at seeds 43-46 (K, then seed, then angle) under the
+    exp_25 names the paper's figure script reads -- 25 rows."""
+    E, U = ENDPOINT, "unseen"
+    row = lambda k, s, d, cell: _row("YAW-C4S", "C4", "YAW", E, U, k, s, ("fixed", d), cell=cell)  # noqa: E731
+    return [row(8, 42, 90, EXP36_REPLAY)] + [row(k, s, d, f"exp25_YAW_C4_S{E}_K{k}_s{s}_th{d}")
+                                             for k in KS for s in SEEDS[1:] for d in C4_ANGLES]
+
+
+def build_manifest(exp35=True, exp36=None):
+    """The 371-row manifest; ``exp36=False``: the H35 manifest (exp_25 + exp_35, 346 rows) exactly as committed at H35;
+    ``exp35=False``: the exp_25 manifest exactly as committed at its pin (exp36 follows exp35 unless given)."""
+    exp36 = exp35 if exp36 is None else exp36
+    if exp36 and not exp35:
+        raise ValueError("the exp_36 rows (orders 346-370) follow the exp_35 rows: exp36=True needs exp35=True")
     E, U = ENDPOINT, "unseen"
     blocks = {
         "T": [_row("T", "T", "CANON", E, U, k, s, ("fixed", 0), True) for k in KS for s in SEEDS],
@@ -194,15 +218,17 @@ def build_manifest(exp35=True):
         "TRAJ": [_row("TRAJ", "TRAJ", "CANON", step, U, k, 42, ("fixed", d), True)
                  for step in range(CADENCE, ENDPOINT, CADENCE) for k in KS for d in (0,) + C4_ANGLES],
     }
-    names = EXP25_BLOCKS + (EXP35_BLOCKS if exp35 else ())
+    names = EXP25_BLOCKS + (EXP35_BLOCKS if exp35 else ()) + (EXP36_BLOCKS if exp36 else ())
     blocks.update(_exp35_blocks() if exp35 else {})
+    blocks.update({"YAW-C4S": _exp36_block()} if exp36 else {})
     cells = []
     for priority, block in enumerate(names):
         for row in blocks[block]:
             cells.append({"cell": row.pop("cell"), "order": len(cells), "priority": priority, **row})
     head = {"schema_version": SCHEMA_VERSION, "generator": f"{EXPREL}/depth_canon_make_cells.py",
             "plan": "plan_depth_canon.md v9 §5" + (
-                "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1" if exp35 else ""),
+                "; exp_35 rows: plan_orbitrir_yaw_evidence.md r2 §1, §11, §14 A1" if exp35 else "") + (
+                "; exp_36 rows: plan_yaw_c4_spread.md r0 §2 + its Codex plan review (B2)" if exp36 else ""),
             "blocks": list(names), "block_counts": {b: len(blocks[b]) for b in names}, "common_flags": COMMON_FLAGS}
     head.update({"arm_cond_flags": ARM_COND_FLAGS} if exp35 else {})
     return {**head, "img_w": IMG_W, "seeds": list(SEEDS), "dump_root": DUMP_ROOT, "farm_root": FARM_ROOT,

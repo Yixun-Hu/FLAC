@@ -1,0 +1,82 @@
+GREEN, cycle 1 at HEAD 42d94afcb2bac8e98c56d9258229017331233559 + the uncommitted generator / collector selection change and the regenerated manifest (sha256 47e2ae7b32deec11b176290a8d4e2c42ea7cf187fe73c7e79d1e13191ab942ce)
+..........................................................               [100%]
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+__________________ test_the_committed_file_is_the_full_render __________________
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+_______________ test_cli_count_no_flash_refuses_a_bad_selection ________________
+----------------------------- Captured stdout call -----------------------------
+SELECTION REFUSED: unknown, duplicate or empty block selection ['T', 'nope']
+_____________ test_committed_manifest_equals_the_generator_output ______________
+----------------------------- Captured stdout call -----------------------------
+cells manifest OK
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_make_cells.py::test_the_h35_render_is_the_committed_h35_manifest
+PASSED src/tests/test_exp36_make_cells.py::test_the_exp25_only_render_is_unchanged
+PASSED src/tests/test_exp36_make_cells.py::test_the_committed_file_is_the_full_render
+PASSED src/tests/test_exp36_make_cells.py::test_the_full_manifest_appends_the_25_yaw_c4s_rows_to_the_h35_rows
+PASSED src/tests/test_exp36_make_cells.py::test_the_replay_is_first_and_differs_from_its_template_only_by_name
+PASSED src/tests/test_exp36_make_cells.py::test_the_24_cells_are_the_yaw_pin_c4_rows_at_seeds_43_to_46
+PASSED src/tests/test_exp36_make_cells.py::test_the_argv_differs_from_the_seed42_template_only_in_seed_angle_and_name
+PASSED src/tests/test_exp36_make_cells.py::test_names_and_suffixes_stay_injective
+PASSED src/tests/test_exp36_make_cells.py::test_only_a_yaw_c4s_row_takes_an_explicit_name
+PASSED src/tests/test_exp35_make_cells.py::test_the_exp25_only_render_is_the_committed_exp25_manifest
+PASSED src/tests/test_exp35_make_cells.py::test_the_full_manifest_appends_116_exp35_rows_to_the_exp25_rows
+PASSED src/tests/test_exp35_make_cells.py::test_the_h35_render_is_the_manifest_committed_at_h35
+PASSED src/tests/test_exp35_make_cells.py::test_exp35_names_are_registered_and_injective
+PASSED src/tests/test_exp35_make_cells.py::test_exp35_rows_per_block
+PASSED src/tests/test_exp35_make_cells.py::test_bf_rows_carry_the_registered_frame_average_protocol
+PASSED src/tests/test_exp35_make_cells.py::test_vanilla_exp35_rows_carry_the_exp25_flags
+PASSED src/tests/test_exp35_make_cells.py::test_the_bf_arm_is_the_endpoint_checkpoint
+PASSED src/tests/test_exp35_make_cells.py::test_phase_i_is_the_32_cells_of_ctl_bf_pin_and_bf_dup
+PASSED src/tests/test_exp35_make_cells.py::test_the_e2_fail_rows_are_the_matching_45_degree_rows_at_seeds_43_to_46
+PASSED src/tests/test_exp35_collect.py::test_the_arm_protocol_table
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_R_K8_s44_None]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K1_s42_90]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-pin_C4_K8_s42_45]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[BF-dup_T_K8_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-BF_OFF_K1_s43_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CTL_T_K1_s42_0]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-P1_OFF_K8_s46_225]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[OFF-CANON_OFF_K1_s42_135]
+PASSED src/tests/test_exp35_collect.py::test_a_true_exp35_record_passes[CANON-45_OFF_K8_s43_45]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_method0]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles1]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles2]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_angles3]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[orbit_execution4]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap5]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[frame_avg_fwd_cap6]
+PASSED src/tests/test_exp35_collect.py::test_a_bf_record_off_its_protocol_is_refused[cond_autocast7]
+PASSED src/tests/test_exp35_collect.py::test_a_vanilla_record_is_refused_for_a_bf_cell_and_vice_versa
+PASSED src/tests/test_exp35_collect.py::test_cell_paths_follow_the_arm_protocol
+PASSED src/tests/test_exp35_collect.py::test_a_row_whose_name_and_block_name_different_campaigns_is_refused
+PASSED src/tests/test_exp35_collect.py::test_plan_entries_of_exp35_cells
+PASSED src/tests/test_exp35_collect.py::test_exp25_plan_entries_are_byte_identical_to_the_pre_exp35_collector
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args0-0]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args1-30]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args2-1]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args3-100]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash[args4-3]
+PASSED src/tests/test_exp35_collect.py::test_cli_count_no_flash_refuses_a_bad_selection
+PASSED src/tests/test_exp35_collect.py::test_the_e2_fail_block_is_selected_only_by_name
+PASSED src/tests/test_depth_canon_eval_run.py::test_render_is_one_cell_per_line
+PASSED src/tests/test_depth_canon_eval_run.py::test_block_counts_and_priority_order
+PASSED src/tests/test_depth_canon_eval_run.py::test_eval_names_and_metrics_stems_are_injective
+PASSED src/tests/test_depth_canon_eval_run.py::test_selection_by_blocks_only_and_limit
+PASSED src/tests/test_depth_canon_eval_run.py::test_committed_manifest_equals_the_generator_output
+PASSED src/tests/test_depth_canon_eval_run.py::test_canon_tokens_follow_the_protocol
+PASSED src/tests/test_depth_canon_eval_run.py::test_common_flags_on_every_row
+PASSED src/tests/test_depth_canon_eval_run.py::test_dataset_configs_and_expected_counts
+58 passed, 3 warnings in 7.57s
+
+mutation check (the select_cells default exclusion reverted to EXPLICIT_BLOCKS, then restored): test_exp35_collect::test_the_e2_fail_block_is_selected_only_by_name and test_depth_canon_eval_run::test_selection_by_blocks_only_and_limit FAILED (2 failed) -- both exercise Codex H1
