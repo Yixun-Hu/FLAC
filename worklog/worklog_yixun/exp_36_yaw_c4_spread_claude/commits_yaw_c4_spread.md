@@ -37,6 +37,9 @@ RED commits hold the tests (and the RED log), GREEN commits the implementation (
 | `2f6cc928` | 13 RED | review II HIGH 1 + HIGH 2: global lock, concurrent same-set / A-OFF / path swap, txid temps, exclusive + authenticated manifest, resume refusals | 0 | +168 | +363 |
 | `8628dbc2` | 13 GREEN 1/2 | the publication helpers only (lock, once-opened destination, exclusive no-follow writes, identities, `_Manifest`, `_authenticate`); not wired (split for the < 200 rule) | +99 | 0 | +4 |
 | `3d2246d0` | 13 GREEN 2/2 | `exp36_publish` wired to them (the last code commit of the fix round) | +104 / -89 | 0 | +140 |
+| `b1f6194b` | records | the review-II fix-round suites (760 passed) + gate smoke, ledger, notebook, command file | 0 | 0 | data only |
+| `62a0841b` | 14 RED | the Planner's addendum (dumps ON): dump preflight, the replay with its dump + CTL-style dump checks, sources with dumps, the chain's runner args (273 test lines: every replay / publication world now dumps) | 0 | +196 / -77 | +2346 |
+| `d92aef10` | 14 GREEN | **H36_I2** = the new launch commit of chains I and II: the chain without `--no-dump-blocks` + `--exp36-dump-preflight` before each runner step; the references' dump pins; the replay verified WITH its dump + CTL-style checks; sources verified with dumps | +78 / -15 | +17 / -8 | +267 |
 
 Every code commit is < 200 changed code lines; one test commit (`65f9fcd4`, 243 test lines) exceeds 200 because it
 removes a duplicated clone fixture (-97) while adding the A1 tests.

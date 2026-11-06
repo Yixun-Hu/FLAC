@@ -1,0 +1,10 @@
+Fri Nov  6 06:07:56 PM EST 2026
+the Planner's addendum (3): the detached run worktree /home/yixunhu/codespace/exp-36-run moves from H36_I 461c58e0 to the new launch commit H36_I2 d92aef106de09496715b26ecc42f924ead104090; no process had its cwd there (scan of /proc/*/cwd: none; lsof +D: none)
+before: HEAD 461c58e0a70747d163e554ebb123a5869d3a38c2
+after: HEAD d92aef106de09496715b26ecc42f924ead104090
+tracked changes: 0
+asset links:
+lrwxrwxrwx 1 yixunhu yixunhu 45 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/AcousticRooms -> /media/diskstation/yixunhu/FLAC/AcousticRooms
+lrwxrwxrwx 1 yixunhu yixunhu 42 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/weights/AGREE -> /home/yixunhu/codespace/FLAC/weights/AGREE
+lrwxrwxrwx 1 yixunhu yixunhu 50 Nov  6 16:03 /home/yixunhu/codespace/exp-36-run/weights/FLAC/VAE.ckpt -> /home/yixunhu/codespace/FLAC/weights/FLAC/VAE.ckpt
+Fri Nov  6 06:07:56 PM EST 2026

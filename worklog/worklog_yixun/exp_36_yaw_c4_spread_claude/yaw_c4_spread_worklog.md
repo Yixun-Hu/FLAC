@@ -93,3 +93,26 @@
   pass, refused at the verdict, a wrong / missing publisher pin refused, nothing written. The full post-fix suites:
   `*_SUITES_exp36_collector_runner_at_3d2246d0.log`.
 - **Next** — Codex code review III (the last) of `5ee1d6fe..` before either publication.
+
+## 2026-11-06T18:20:00-05:00 — Coder r1: the Planner's addendum (every exp_36 cell dumps) -> the new launch commit H36_I2
+- **Goal** — Yixun's announcement 08 + A1 ("exactly the flags of its existing cells"; the templates all dumped): drop the
+  plan's "dumps off" for every chain-I / chain-II cell, in the same revision as the review-II fixes.
+- **Change** (cycle 14: `62a0841b` RED / `d92aef10` GREEN) -- the chain: no `--no-dump-blocks` (each row's own
+  `dump: true`, the manifest's NAS dump root) and `--exp36-dump-preflight` before each runner step (refuses a target dump
+  directory or `.staging-` sibling without this checkout's receipt; a resumed chain's own dumps are left to the runner's
+  reviewed predicate). The comparator: replay plans must plan the replays WITH dumps; the replay verified with its dump
+  (`dump_check full`); the exp_35 CTL-style dump checks (waveform sha256 + COMPLETE marker vs the reference's pinned
+  waveform digest, n / dtype / shape, input_hash vs the reference dump manifest); `EXP36_REPLAYS` pins each reference
+  receipt's dump evidence (YAW 6a702f00 / 1485ef84, P1 99de9897 / 34dfa66d, B-F 975cb721 / d9f46deb, CANON ca864c12 /
+  441330a0). The publication: sources verified with their dumps (receipt evidence, offline); dumps are never copied.
+- **Between H36_I `461c58e0` and H36_I2 `d92aef10`** -- changed: `yaw_c4_spread_chain.sh` (dumps on + preflight),
+  `depth_canon_collect.py` (cycle 10 publication sets + the base-dir-relative plan read; cycles 12-13 publication
+  hardening; cycle 14 the comparator's dump checks, `exp36_dump_preflight`, the publication's dump-ful sources), tests.
+  Unchanged byte for byte: `depth_canon_eval_run.sh`, `depth_canon_make_cells.py`, `depth_canon_cells.json` (every
+  exp_36 row already says `dump: true`), `overlays/no_flash/*`, `eval_FLAC.py`, `src/`.
+- **Result** — the run worktree moved to H36_I2 (`*_run_worktree_moved_to_H36_I2.log`; no process there); both DRY_RUNs
+  exit 0 (28 / 25 cells, every argv = its template's + `--ckpt-path` + `--dump-scored-waveforms <NAS root>`, all through
+  the no-flash launcher, the dump preflights OK against the real NAS, no quarantine, one tree digest `b4795f8b...`);
+  tests GREEN (154 passed / 1 skipped until the launch commit was recorded); the full suites at H36_I2:
+  `*_SUITES_at_H36_I2_d92aef10_in_the_run_worktree.log`. Note: the 12 H35 OFF rows' dump names are exp_35's; if exp_35
+  phase (ii) (superseded) were ever run into the same dump root, its runner would quarantine (rename) these dumps.
