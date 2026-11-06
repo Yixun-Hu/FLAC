@@ -11,6 +11,7 @@ Part 2a: the read-only world (nvidia-smi, lock probes, process scans, his table-
 Part 2b: the O_EXCL reservation records with their exact authentication, and the one card observation every mode makes.
 Part 3a: the preconditions every mutating mode re-checks -- the kit's self-pin, the report evidence, the run worktree at
 H35 with its campaign digest, Yixun's pinned files and the end of his s43 training -- and the evidence record.
+Part 3b: the orchestration directory, its durable state machine, the kit lock and the reserve transaction.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -821,3 +822,136 @@ def evidence(cfg, *, lanes, report, report_sha256, prior_runs):
                  "supervisor_sha256": sup.sha256 if sup else None, "report": rep,
                  "lanes": [{"index": i, "uuid": CARDS[i]} for i in lanes], "eta": fields.get("eta"),
                  "second_lane_decision": fields.get("second-lane-decision"), "prior_runs": sorted(prior_runs)}
+
+
+# --------------------------------------------------------------------------- #
+# part 3b: the orchestration, its durable state machine, the kit lock and the reserve transaction
+# --------------------------------------------------------------------------- #
+ORCH_PREFIX, RUN_RE = "exp35_phase_ii_", re.compile(r"[0-9]{8}T[0-9]{6}")
+STATE_KEYS = ("schema_version", "campaign", "run", "kit", "evidence", "lanes", "reservations", "phase", "observations",
+              "dry_run", "launch", "wrapper", "runner", "exit", "failure", "released", "events")
+RESOLVED = ("released", "reserve_refused")                          # nothing of ours is held in these phases
+
+
+def state_path(orch):
+    return os.path.join(orch, "state.json")
+
+
+def load_state(orch):
+    """The state of an orchestration directory; ValueError when unreadable or not this kit's schema-v1 own-run state."""
+    try:
+        with open(state_path(orch), "rb") as f:
+            doc = json.loads(f.read())
+    except (OSError, ValueError) as err:
+        raise ValueError(f"the state of {orch} is unreadable ({err})") from err
+    if not (isinstance(doc, dict) and list(doc) == list(STATE_KEYS) and doc["schema_version"] == 1
+            and doc["campaign"] == "exp35_phase_ii" and os.path.basename(orch) == f"{ORCH_PREFIX}{doc['run']}"):
+        raise ValueError(f"the state of {orch} is not this kit's schema-v1 state of its own run")
+    return doc
+
+
+def orchestrations(cfg):
+    """[(directory, state or why it is unreadable)] of every phase-(ii) orchestration in the run worktree."""
+    base = os.path.join(cfg.run, X35)
+    out = []
+    for n in sorted(os.listdir(base)):
+        if n.startswith(ORCH_PREFIX):
+            try:
+                out.append((os.path.join(base, n), load_state(os.path.join(base, n))))
+            except ValueError as err:
+                out.append((os.path.join(base, n), str(err)))
+    return out
+
+
+def prior(cfg):
+    """(reasons, run ids): every earlier orchestration must be resolved; those that reached launch_pending are the
+    prior runs the report must name (S5: no relaunch without a review and a report)."""
+    why, runs = [], []
+    for d, st in orchestrations(cfg):
+        if not isinstance(st, dict) or st["phase"] not in RESOLVED:
+            why.append(f"the orchestration {d} is unresolved ({st if not isinstance(st, dict) else st['phase']})")
+        if isinstance(st, dict) and st["launch"] is not None:
+            runs.append(st["run"])
+    return why, runs
+
+
+def event(st, now, what, **kw):
+    st["events"].append(dict({"t": now, "time": iso(now), "what": what}, **kw))
+
+
+def kit_lock(cfg):
+    """The kit's single-instance lock (LOCK_EX | LOCK_NB): its fd, or None while another process holds it -- a kit
+    mode, our detached wrapper, or a runner / evaluator descendant that inherited it."""
+    fd = os.open(os.path.join(cfg.run, KIT_LOCK), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        return None
+    return fd
+
+
+def reserve(world, cfg, *, kit_commit, h35, lanes, report, report_sha256):
+    """§15 item 6 + S6: every precondition at TWO observations ``gap_s`` apart, then a fresh orchestration with its
+    state 'reserving' (O_EXCL), each lane's O_EXCL record (all or nothing), the observation again AFTER the
+    acquisition, then 'reserved'; else 'reserve_refused' (only our exact records released) or 'reserve_failed' (a
+    record no longer ours: retained). (rc, message)."""
+    why, kit = kit_evidence(cfg, kit_commit)
+    why += [] if h35 == cfg.h35 else [f"the given H35 {h35} is not the registered {cfg.h35}"]
+    if why:
+        return 1, "RESERVE REFUSED (nothing reserved): " + "; ".join(why)
+    lock = kit_lock(cfg)
+    if lock is None:
+        return 1, f"RESERVE REFUSED (nothing reserved): the kit lock {KIT_LOCK} is held (a kit mode or a run lives)"
+    try:
+        return _reserve(world, cfg, kit, lanes, report, report_sha256)
+    finally:
+        os.close(lock)
+
+
+def _reserve(world, cfg, kit, lanes, report, report_sha256):
+    try:
+        why, runs = prior(cfg)
+        bad, ev = evidence(cfg, lanes=lanes, report=report, report_sha256=report_sha256, prior_runs=runs)
+        obs = [observe(world, cfg, lanes)]
+        why += bad + obs[0]["reasons"]
+        if not why:
+            world.sleep(cfg.gap_s)
+            obs.append(observe(world, cfg, lanes))
+            why += obs[1]["reasons"] + ([] if obs[1]["map"] == obs[0]["map"] else ["the GPU map changed between the "
+                                                                                 "two observations"])
+    except Unreadable as err:
+        why = [f"unreadable: {err}"]
+    if why:
+        return 1, "RESERVE REFUSED (nothing reserved): " + "; ".join(why)
+    run = time.strftime("%Y%m%dT%H%M%S", time.localtime(world.now()))
+    orch = os.path.join(cfg.run, X35, ORCH_PREFIX + run)
+    st = dict(zip(STATE_KEYS, (1, "exp35_phase_ii", run, kit, ev, ev["lanes"], [], "reserving", obs) + (None,) * 7 + ([],)))
+    event(st, world.now(), "reserving: the preconditions held at both observations; the O_EXCL records next")
+    os.mkdir(orch)
+    write_exclusive(state_path(orch), dumps(st))
+    held = []
+    try:
+        for i in lanes:
+            held.append(create_reservation(cfg, i, h35=cfg.h35, run=run, now=world.now()))
+        st["observations"].append(observe(world, cfg, lanes, held=held))
+        why = st["observations"][-1]["reasons"]
+    except FileExistsError:
+        why = ["another holder created a lane's reservation at the O_EXCL (a lost race; its file is untouched)"]
+    except Unreadable as err:
+        why = [f"unreadable: {err}"]
+    if not why:
+        st.update(phase="reserved", reservations=held)
+        event(st, world.now(), "reserved", records=[h["path"] for h in held])
+        write_json_atomic(state_path(orch), st)
+        return 0, f"RESERVED {orch}: " + "; ".join(f"GPU {h['index']} {h['path']} sha256 {h['sha256']} inode "
+                                                   f"{h['inode']}" for h in held) + "; state reserved"
+    kept = [dict(h, unreleased=r) for h in held for r in [release_reservation(h)] if r]
+    st.update(phase="reserve_failed" if kept else "reserve_refused", reservations=kept,
+              failure={"reasons": why, "time": iso(world.now())},
+              released={"by": "reserve", "records": [h["path"] for h in held if h["path"] not in
+                                                     [k["path"] for k in kept]], "time": iso(world.now())})
+    event(st, world.now(), st["phase"], reasons=why)
+    write_json_atomic(state_path(orch), st)
+    return 1, (f"RESERVE REFUSED after the acquisition ({st['phase']}; our own records released, "
+               f"{len(kept)} retained): " + "; ".join(why))
