@@ -1,0 +1,465 @@
+RED, cycle 5 (the fail-closed chain yaw_c4_spread_chain.sh + the runner's binding of it; Codex B4 / H5 / H6) at HEAD 06eeaffa16687b81662349551c0608456fee7245 + the uncommitted tests (no chain script, runner unchanged)
+..FFFFFFFFFFFFFFFFFFFF                                                   [100%]
+=================================== FAILURES ===================================
+____ test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection _____
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+harness36 = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_script_is_in_th0/h'), 'manifest': {'schema_versio..., 'blocks': ['T', 'T-dup', 'C4+45', 'R', 'D-i', 'D-ii', ...], ...}, 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+
+    def test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection(clone36, harness36):
+        path = clone36 / CHAIN_REL
+>       original = path.read_bytes()
+
+src/tests/test_exp36_chain.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1126: in read_bytes
+    with self.open(mode='rb') as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh'
+
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+_________________ test_the_chain_runs_replay_check_then_the_24 _________________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_runs_replay_che0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+
+    def test_the_chain_runs_replay_check_then_the_24(clone36, ch):
+        rc, out = chain(clone36, ch, env={"ALLOW_SHARED_GPU": "0"})
+>       assert rc == 0 and "CHAIN COMPLETE" in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 0)
+
+src/tests/test_exp36_chain.py:180: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_CHECK_RC': '1'}, rc_want = 4, needle = 'REPLAY MISMATCH'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 4)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_1/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_CHECK_RC': '2'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 5)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_2/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_CHECK_RC': '3'}, rc_want = 5, needle = 'REPLAY CHECK REFUSED'
+kinds = ['RUNNER', 'COLLECT']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 5)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_3/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_RUNNER_RC_1': '2'}, rc_want = 3, needle = 'the replay run exited 2'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 3)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_4/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_RUNNER_RC_1': '1'}, rc_want = 3, needle = 'the replay run exited 1'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 3)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_5/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_NO_PLAN': '1'}, rc_want = 3, needle = 'no single plan'
+kinds = ['RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 3)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_6/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_RUNNER_RC_2': '1'}, rc_want = 6
+needle = 're-run this chain to resume', kinds = ['RUNNER', 'COLLECT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 6)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+_ test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7] _
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_every_other_outcome_is_a_7/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'STUB_RUNNER_RC_2': '4'}, rc_want = 6
+needle = 'the 24-cell run exited 4', kinds = ['RUNNER', 'COLLECT', 'RUNNER']
+
+    @pytest.mark.parametrize("env, rc_want, needle, kinds", [
+        ({"STUB_CHECK_RC": "1"}, 4, "REPLAY MISMATCH", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "2"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_CHECK_RC": "3"}, 5, "REPLAY CHECK REFUSED", ["RUNNER", "COLLECT"]),
+        ({"STUB_RUNNER_RC_1": "2"}, 3, "the replay run exited 2", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_1": "1"}, 3, "the replay run exited 1", ["RUNNER"]),
+        ({"STUB_NO_PLAN": "1"}, 3, "no single plan", ["RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "1"}, 6, "re-run this chain to resume", ["RUNNER", "COLLECT", "RUNNER"]),
+        ({"STUB_RUNNER_RC_2": "4"}, 6, "the 24-cell run exited 4", ["RUNNER", "COLLECT", "RUNNER"]),
+    ])
+    def test_every_other_outcome_is_a_hard_stop_before_the_24(clone36, ch, env, rc_want, needle, kinds):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == rc_want and needle in out and "CHAIN COMPLETE" not in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 6)
+
+src/tests/test_exp36_chain.py:206: AssertionError
+________ test_dry_run_plans_both_runner_steps_and_never_runs_the_check _________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_dry_run_plans_both_runner0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+
+    def test_dry_run_plans_both_runner_steps_and_never_runs_the_check(clone36, ch):
+        rc, out = chain(clone36, ch, env={"DRY_RUN": "1"})
+>       assert rc == 0 and "DRY_RUN complete" in out and "step 2/3 (DRY_RUN: not run)" in out, out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 0)
+
+src/tests/test_exp36_chain.py:212: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN] __________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'EXPECT_HEAD': '0000000000000000000000000000000000000000'}
+needle = 'HEAD PIN'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+________ test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD] _________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be1/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'EXPECT_HEAD': ''}, needle = 'EXPECT_HEAD'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN] ___________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be2/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'DRY_RUN': '2'}, needle = 'DRY_RUN'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+______ test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU] ______
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be3/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'ALLOW_SHARED_GPU': '1'}, needle = 'ALLOW_SHARED_GPU'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+_________ test_the_chain_gates_refuse_before_any_step[env4-co-tenant] __________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be4/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'EXP35_APPROVED_COTENANTS': '/tmp/x'}, needle = 'co-tenant'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env5-HARNESS] ___________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be5/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'EXP36_CHAIN_HARNESS': '/var/tmp'}, needle = 'HARNESS'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+__________ test_the_chain_gates_refuse_before_any_step[env6-HARNESS] ___________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_the_chain_gates_refuse_be6/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+env = {'EXP36_CHAIN_RUNNER': '/bin/true'}, needle = 'HARNESS'
+
+    @pytest.mark.parametrize("env, needle", [
+        ({"EXPECT_HEAD": "0" * 40}, "HEAD PIN"), ({"EXPECT_HEAD": ""}, "EXPECT_HEAD"), ({"DRY_RUN": "2"}, "DRY_RUN"),
+        ({"ALLOW_SHARED_GPU": "1"}, "ALLOW_SHARED_GPU"), ({"EXP35_APPROVED_COTENANTS": "/tmp/x"}, "co-tenant"),
+        ({"EXP36_CHAIN_HARNESS": "/var/tmp"}, "HARNESS"), ({"EXP36_CHAIN_RUNNER": "/bin/true"}, "HARNESS")])
+    def test_the_chain_gates_refuse_before_any_step(clone36, ch, env, needle):
+        rc, out = chain(clone36, ch, env=env)
+>       assert rc == 2 and needle in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:223: AssertionError
+_____________ test_outside_the_harness_a_test_variable_is_refused ______________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_outside_the_harness_a_tes0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+
+    def test_outside_the_harness_a_test_variable_is_refused(clone36, ch):
+        e = {"EXP36_CHAIN_HARNESS": "", "DEPTH_CANON_EVAL_HARNESS": str(ch["dir"])}
+        rc, out = chain(clone36, ch, env=e)
+>       assert rc == 2 and "test-harness variable" in out and not calls(ch), out
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh: No such file or directory
+E         
+E       assert (127 == 2)
+
+src/tests/test_exp36_chain.py:229: AssertionError
+_____________________ test_an_uncommitted_chain_is_refused _____________________
+
+clone36 = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo')
+ch = {'dir': PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/test_an_uncommitted_chain_is_r0/ch'), 'head': '4e7ab982d852d28697d965ce75d805b41598fc0f'}
+
+    def test_an_uncommitted_chain_is_refused(clone36, ch):
+        path = clone36 / CHAIN_REL
+>       original = path.read_bytes()
+
+src/tests/test_exp36_chain.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1126: in read_bytes
+    with self.open(mode='rb') as f:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return self._accessor.open(self, mode, buffering, encoding, errors,
+                                   newline)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6535/exp36run0/repo/worklog/worklog_yixun/exp_36_yaw_c4_spread_claude/yaw_c4_spread_chain.sh'
+
+../../miniconda3/envs/flac/lib/python3.10/pathlib.py:1119: FileNotFoundError
+=============================== warnings summary ===============================
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/lightning_fabric/__init__.py:40
+
+../../miniconda3/envs/flac/lib/python3.10/site-packages/pytorch_lightning/__init__.py:37
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED src/tests/test_exp36_chain.py::test_the_runner_dry_run_spawns_the_replay_through_the_no_flash_launcher
+PASSED src/tests/test_exp36_chain.py::test_the_runner_runs_yaw_c4s_cells_on_lane_1_without_dumps_and_receipt_2
+FAILED src/tests/test_exp36_chain.py::test_the_chain_script_is_in_the_relevant_tree_of_a_no_flash_selection
+FAILED src/tests/test_exp36_chain.py::test_the_chain_runs_replay_check_then_the_24
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env0-4-REPLAY MISMATCH-kinds0]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env1-5-REPLAY CHECK REFUSED-kinds1]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env2-5-REPLAY CHECK REFUSED-kinds2]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env3-3-the replay run exited 2-kinds3]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env4-3-the replay run exited 1-kinds4]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env5-3-no single plan-kinds5]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env6-6-re-run this chain to resume-kinds6]
+FAILED src/tests/test_exp36_chain.py::test_every_other_outcome_is_a_hard_stop_before_the_24[env7-6-the 24-cell run exited 4-kinds7]
+FAILED src/tests/test_exp36_chain.py::test_dry_run_plans_both_runner_steps_and_never_runs_the_check
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env0-HEAD PIN]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env1-EXPECT_HEAD]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env2-DRY_RUN]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env3-ALLOW_SHARED_GPU]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env4-co-tenant]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env5-HARNESS]
+FAILED src/tests/test_exp36_chain.py::test_the_chain_gates_refuse_before_any_step[env6-HARNESS]
+FAILED src/tests/test_exp36_chain.py::test_outside_the_harness_a_test_variable_is_refused
+FAILED src/tests/test_exp36_chain.py::test_an_uncommitted_chain_is_refused - ...
+20 failed, 2 passed, 3 warnings in 116.16s (0:01:56)
