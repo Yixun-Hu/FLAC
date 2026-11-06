@@ -176,7 +176,8 @@ def run_monitor(args) -> int:
     target = read_process(args.proc, args.target_pid)
     writer.write({"kind": "start", "target_pid": args.target_pid, "target_start": target and target["start"],
                   "monitor_pid": os.getpid(), "card_uuid": args.card_uuid, "interval_seconds": args.interval,
-                  "exp36_roots": list(EXP36_ROOTS), "clk_tck": os.sysconf("SC_CLK_TCK"), "cpu_count": os.cpu_count(),
+                  "exp36_roots": list(EXP36_ROOTS), "proc": args.proc, "clk_tck": os.sysconf("SC_CLK_TCK"),
+                  "cpu_count": os.cpu_count(),
                   "hostname": socket.gethostname(), "t_monotonic": time.monotonic(), "t_utc": utc_now()})
     sampler.cpu_sample()                                                   # the CPU baseline
     samples = 0
