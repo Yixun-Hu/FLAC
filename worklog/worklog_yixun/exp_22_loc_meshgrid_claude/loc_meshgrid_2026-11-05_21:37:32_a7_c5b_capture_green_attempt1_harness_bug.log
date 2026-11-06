@@ -1,0 +1,38 @@
+# exp_22 A7 c5b_capture GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:37:32-05:00 -- branch exp-22-a7-noflash HEAD f1d196d6; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/
+...........................F............................................ [ 45%]
+........................................................................ [ 90%]
+...............                                                          [100%]
+=================================== FAILURES ===================================
+__________________ test_an_unreadable_input_ends_the_capture ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6309/test_an_unreadable_input_ends_4')
+
+    def test_an_unreadable_input_ends_the_capture(tmp_path):
+>       rc, why, rec = capture(tmp_path, Stalling(unreadable_at=4))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: in capture
+    rc, info = E.capture_polls(world, cfg, card, str(rec))
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_evidence.py:320: in capture_polls
+    o = C.observe(world, cfg, card)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_common.py:299: in observe
+    apps_raw = world.nvsmi("apps")
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:44: in nvsmi
+    return a() if callable(a) else a
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_exp22_r2c_capture.Stalling object at 0x7d7cdc0a4970>
+
+    def _apps(self):
+        self.n += 1
+        if self.n == self.bad:
+>           raise C.Unreadable("nvidia-smi --query-compute-apps=pid,gpu_uuid: rc 15")
+E           _a7_exp22_r2c_common.Unreadable: nvidia-smi --query-compute-apps=pid,gpu_uuid: rc 15
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:30: Unreadable
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_an_unreadable_input_ends_the_capture
+1 failed, 158 passed in 16.30s
+rc 1

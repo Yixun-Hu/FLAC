@@ -16,17 +16,23 @@
 * The pre-flight line list (``exp22_r2c_preflight_lines.json``, A7 r2 (iii)): validated strictly -- the registered
   fifteen lines in order, the wrapped ones through the launcher, every gate's own mode flag, the out-dirs only the
   fresh @GATES@ / @PROBE@, no shard / merge / report / crossarm / resume token -- and expanded for one run id and card.
+* The launcher's sealed admission evidence (A7 r3 (b)): WINDOW_POLLS polls of the chosen card POLL_S s apart, each
+  appended to an O_EXCL capture record (the poll's time, the raw nvidia-smi tables and their sha256), and the
+  verifier the seal and the launch apply (the count, the cadence, every poll free, every table re-parsed, one index).
 * Writers: an O_EXCL record (never overwritten; file and directory fsynced) and the atomic state write (temp,
   fsync, rename, directory fsync).
 
 Written by the exp_22 A7 Coder (Claude Opus 5.5, max effort).
 """
+import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 sys.dont_write_bytecode = True
@@ -78,6 +84,16 @@ PLACEHOLDERS = ("@PY@", "@L@", "@PYTEST_MAIN@", "@ORCH@", "@GATES@", "@PROBE@")
 BASE_ENV = {"HOME": "/home/yixunhu", "USER": "yixunhu", "LOGNAME": "yixunhu", "LANG": "en_US.UTF-8",
             "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
 RUN_RE = re.compile(r"[0-9]{8}T[0-9]{6}")
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def common():
+    """The shared observation module beside this file (one copy per process)."""
+    if "exp22_r2c_common" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("exp22_r2c_common", os.path.join(HERE, "exp22_r2c_common.py"))
+        sys.modules["exp22_r2c_common"] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules["exp22_r2c_common"])
+    return sys.modules["exp22_r2c_common"]
 
 
 def sha256_bytes(raw):
@@ -281,3 +297,118 @@ def write_json_atomic(path, doc):
             os.unlink(tmp)
         raise
     fsync_dir(d)
+
+
+def _append_row(fd, row):
+    os.write(fd, (json.dumps(row) + "\n").encode())
+    os.fsync(fd)
+
+
+def capture_polls(world, cfg, card, record):
+    """A7 r3 (b): WINDOW_POLLS polls of ``card`` POLL_S s apart (from the first), each appended -- one JSON line,
+    fsynced -- to the O_EXCL record ``record``; ``(0, info)`` only when every poll was on time (<= POLL_SLACK_S
+    late) and free; else ``(1, why)`` at the first poll that was not (kept in the record)."""
+    C = common()
+    fd = os.open(record, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_APPEND, 0o644)
+    try:
+        fsync_dir(os.path.dirname(os.path.abspath(record)))
+        t0 = world.now()
+        for k in range(C.WINDOW_POLLS):
+            due = t0 + k * C.POLL_S
+            world.sleep(due - world.now())
+            try:
+                o = C.observe(world, cfg, card)
+            except C.Unreadable as err:
+                _append_row(fd, {"k": k, "due": due, "unreadable": str(err)})
+                return 1, f"poll {k}: unreadable: {err}"
+            _append_row(fd, dict({"k": k, "due": due}, **o))
+            if o["t"] - due > C.POLL_SLACK_S:
+                return 1, f"poll {k} ran {o['t'] - due:.1f} s late (> {C.POLL_SLACK_S} s): the cadence is not attested"
+            if not o["free"]:
+                return 1, f"poll {k}: {card} is busy: {'; '.join(o['reasons'])}"
+        return 0, {"card": card, "first": t0, "last": o["t"], "polls": C.WINDOW_POLLS}
+    finally:
+        os.close(fd)
+
+
+def _row_reasons(r, k, card, t0, C):
+    uuid, rules = C.CARDS[card], ("exp35 lock absent", "exp35 lock unheld") if card == "GPU0" else (
+        "his s43 table job terminally complete",)
+    if not isinstance(r, dict) or r.get("k") != k or "unreadable" in r or not isinstance(t0, (int, float)):
+        return [f"poll {k}: malformed or unreadable"]
+    out = [] if isinstance(r.get("due"), (int, float)) and abs(r["due"] - (t0 + k * C.POLL_S)) < 1e-6 else [
+        f"poll {k}: due {r.get('due')!r} is off the {C.POLL_S} s cadence"]
+    lag = r.get("t") - r["due"] if isinstance(r.get("t"), (int, float)) and not out else None
+    out += [] if lag is not None and 0 <= lag <= C.POLL_SLACK_S else [f"poll {k}: observed {lag} s after its due time"]
+    if (r.get("card"), r.get("uuid"), r.get("free"), r.get("reasons"), r.get("reservation"), r.get("pids_on_card")) != (
+            card, uuid, True, [], "absent", []) or r.get("rule") not in rules:
+        out.append(f"poll {k}: not a free observation of {card} under its rule")
+    try:
+        if (C.sha256_bytes(r["apps_raw"].encode()) != r.get("apps_sha256")
+                or any(u == uuid for _, u in C.compute_apps(r["apps_raw"]))):
+            out.append(f"poll {k}: the compute table lists {card} or does not hash to its sha256")
+        m = C.gpu_map(r["gpu_map_raw"])
+        if sorted(m.values()) != sorted(C.CARDS.values()) or m.get(r.get("index")) != uuid:
+            out.append(f"poll {k}: the GPU map does not put {uuid} at index {r.get('index')!r}")
+    except (AttributeError, KeyError, TypeError, ValueError) as err:
+        out.append(f"poll {k}: unparsable tables ({err})")
+    return out
+
+
+def capture_reasons(raw, card):
+    """``([], info)`` iff ``raw`` -- the capture record's bytes -- attests WINDOW_POLLS on-time free polls of ``card``
+    at one index; else ``(reasons, None)``."""
+    C = common()
+    try:
+        rows = [json.loads(ln) for ln in raw.decode().splitlines()]
+    except (UnicodeDecodeError, ValueError) as err:
+        return [f"the capture record is not JSON lines ({err})"], None
+    if card not in C.CARDS or len(rows) != C.WINDOW_POLLS:
+        return [f"{len(rows)} polls of {card!r}, not {C.WINDOW_POLLS} of a registered card"], None
+    t0 = rows[0].get("due") if isinstance(rows[0], dict) else None
+    out = [x for k, r in enumerate(rows) for x in _row_reasons(r, k, card, t0, C)]
+    if out or len({r["index"] for r in rows}) != 1:
+        return out or ["the card's index changed between polls"], None
+    return [], {"card": card, "uuid": C.CARDS[card], "index": rows[0]["index"], "first": rows[0]["t"],
+                "last": rows[-1]["t"], "polls": len(rows)}
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="exp_22 R2-C capture polls / capture check")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for name in ("capture-polls", "check-capture"):
+        p = sub.add_parser(name)
+        p.add_argument("--card", required=True, choices=("GPU0", "GPU1"))
+        p.add_argument("--record", required=True)
+    sub.choices["check-capture"].add_argument("--sha256", required=True)
+    sub.choices["check-capture"].add_argument("--fresh", action="store_true", help="refuse a last poll > FRESH_S old")
+    args = ap.parse_args(argv)
+    C = common()
+    if args.cmd == "capture-polls":
+        try:
+            rc, info = capture_polls(C.World(C.NVIDIA_SMI), C.registered_config(), args.card, args.record)
+        except FileExistsError:
+            print(f"CAPTURE POLLS REFUSED: the capture record {args.record} exists (never overwritten)")
+            return 1
+        print(f"CAPTURE POLLS OK card {info['card']} first {info['first']!r} last {info['last']!r} polls {info['polls']}"
+              if rc == 0 else f"CAPTURE POLLS REFUSED: {info}")
+        return rc
+    try:
+        with open(args.record, "rb") as f:
+            raw = f.read()
+    except OSError as err:
+        print(f"CAPTURE REFUSED: the capture record is unreadable ({err})")
+        return 1
+    why, info = capture_reasons(raw, args.card) if sha256_bytes(raw) == args.sha256 else (
+        [f"the capture record hashes to {sha256_bytes(raw)}, not the sealed sha256 {args.sha256}"], None)
+    age = time.time() - info["last"] if info else None
+    if info and args.fresh and not 0 <= age <= C.FRESH_S:
+        why = [f"the last poll is {age:.1f} s old: stale (> {C.FRESH_S} s); capture again"]
+    print("CAPTURE REFUSED: " + "; ".join(why) if why else
+          f"CAPTURE OK card {info['card']} uuid {info['uuid']} index {info['index']} first {info['first']!r} "
+          f"last {info['last']!r} polls {info['polls']} age {age:.1f}")
+    return 1 if why else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

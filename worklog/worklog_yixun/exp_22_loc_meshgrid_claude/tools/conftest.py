@@ -12,11 +12,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load(name):
-    """The tool module ``name`` (a file beside this conftest), imported fresh under a private name."""
-    spec = importlib.util.spec_from_file_location(f"_a7_{name}", os.path.join(HERE, name + ".py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """The tool module ``name`` (a file beside this conftest) under its canonical name -- ONE copy per process, as
+    the tools load each other (``exp22_r2c_evidence.common()``), so their exception classes are shared."""
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, os.path.join(HERE, name + ".py"))
+        sys.modules[name] = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sys.modules[name])
+    return sys.modules[name]
 
 
 C = load("exp22_r2c_common")

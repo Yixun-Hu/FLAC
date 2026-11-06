@@ -1,0 +1,882 @@
+# exp_22 A7 c5b_capture RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:37:31-05:00 -- branch exp-22-a7-noflash HEAD f1d196d6; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py
+FFFFFFFFFFFFFFFFFFFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+_____________ test_31_free_polls_make_a_record_the_verifier_admits _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_31_free_polls_make_a_reco0')
+
+    def test_31_free_polls_make_a_record_the_verifier_admits(tmp_path):
+>       rc, info, rec = capture(tmp_path, Stalling(apps_at=lambda t: f"9, {GPU1}\n"))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_31_free_polls_make_a_reco0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08adf550>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+____________________ test_gpu1_is_captured_on_its_own_rule _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_gpu1_is_captured_on_its_o0')
+
+    def test_gpu1_is_captured_on_its_own_rule(tmp_path):
+>       rc, info, rec = capture(tmp_path, Stalling(apps_at=lambda t: f"9, {GPU0}\n"), card="GPU1")
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_gpu1_is_captured_on_its_o0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08dd7100>
+card = 'GPU1'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+__________ test_a_busy_poll_ends_the_capture_and_the_record_shows_it ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_busy_poll_ends_the_capt0')
+
+    def test_a_busy_poll_ends_the_capture_and_the_record_shows_it(tmp_path):
+>       rc, why, rec = capture(tmp_path, Stalling(apps_at=lambda t: f"5, {GPU0}\n" if t >= T0 + 17 * 60 else ""))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_busy_poll_ends_the_capt0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c0bbc3d60>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+______________________ test_a_late_poll_ends_the_capture _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_late_poll_ends_the_capt0')
+
+    def test_a_late_poll_ends_the_capture(tmp_path):
+>       rc, why, rec = capture(tmp_path, Stalling(stall={9: 90}))             # the 9th apps query (poll 8) stalls 90 s
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_late_poll_ends_the_capt0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08b564d0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+__________________ test_an_unreadable_input_ends_the_capture ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_an_unreadable_input_ends_0')
+
+    def test_an_unreadable_input_ends_the_capture(tmp_path):
+>       rc, why, rec = capture(tmp_path, Stalling(unreadable_at=4))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_an_unreadable_input_ends_0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08dfb8e0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+_________________ test_the_capture_record_is_never_overwritten _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_the_capture_record_is_nev0')
+
+    def test_the_capture_record_is_never_overwritten(tmp_path):
+        (tmp_path / "capture_polls.jsonl").write_text("prior\n")
+        with pytest.raises(FileExistsError):
+>           capture(tmp_path, Stalling())
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_the_capture_record_is_nev0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d931f0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+__________________ test_a_tampered_record_is_refused[dropped] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu0')
+tamper = <function <lambda> at 0x717c08d969e0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu0')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08b6f910>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________ test_a_tampered_record_is_refused[extra] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu1')
+tamper = <function <lambda> at 0x717c08d96a70>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu1')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08adff10>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+_________________ test_a_tampered_record_is_refused[reordered] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu2')
+tamper = <function <lambda> at 0x717c08d96b00>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu2')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08dd5420>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+________________ test_a_tampered_record_is_refused[card-listed] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu3')
+tamper = <function <lambda> at 0x717c08d96b90>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu3')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c0bbc3a00>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+_______________ test_a_tampered_record_is_refused[unbound-table] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu4')
+tamper = <function <lambda> at 0x717c08d96c20>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu4')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d983a0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+________________ test_a_tampered_record_is_refused[off-cadence] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu5')
+tamper = <function <lambda> at 0x717c08d96cb0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu5')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08df8490>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________ test_a_tampered_record_is_refused[late] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu6')
+tamper = <function <lambda> at 0x717c08d96d40>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu6')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d9a9e0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________ test_a_tampered_record_is_refused[busy] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu7')
+tamper = <function <lambda> at 0x717c08d96dd0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu7')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08df82b0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+__________________ test_a_tampered_record_is_refused[reasons] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu8')
+tamper = <function <lambda> at 0x717c08d96e60>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu8')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d937f0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+_________________ test_a_tampered_record_is_refused[lock-held] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu9')
+tamper = <function <lambda> at 0x717c08d96ef0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu9')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08df9ed0>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________ test_a_tampered_record_is_refused[index] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu10')
+tamper = <function <lambda> at 0x717c08d96f80>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu10')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d91e40>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+____________________ test_a_tampered_record_is_refused[map] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu11')
+tamper = <function <lambda> at 0x717c08d97010>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu11')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d9f370>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+_________________ test_a_tampered_record_is_refused[reserved] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu12')
+tamper = <function <lambda> at 0x717c08d970a0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu12')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d91a50>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________ test_a_tampered_record_is_refused[uuid] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu13')
+tamper = <function <lambda> at 0x717c08d97130>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu13')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08d9fe80>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+________________ test_a_tampered_record_is_refused[unreadable] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu14')
+tamper = <function <lambda> at 0x717c08d971c0>
+
+    @pytest.mark.parametrize("tamper", [
+        lambda rs: rs.pop(10),
+        lambda rs: rs.append(dict(rs[-1], k=31, due=rs[-1]["due"] + 60, t=rs[-1]["t"] + 60)),
+        lambda rs: rs.reverse(),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU0}\n", apps_sha256=hashlib.sha256(f"77, {GPU0}\n".encode()).hexdigest()),
+        lambda rs: rs[5].update(apps_raw=f"77, {GPU1}\n"),                     # the sha256 no longer binds it
+        lambda rs: rs[6].update(due=rs[6]["due"] + 30, t=rs[6]["t"] + 30),
+        lambda rs: rs[7].update(t=rs[7]["due"] + 16),
+        lambda rs: rs[8].update(free=False),
+        lambda rs: rs[9].update(reasons=["x"]),
+        lambda rs: rs[11].update(rule="exp35 lock HELD"),
+        lambda rs: rs[12].update(index=1),
+        lambda rs: rs[13].update(gpu_map_raw=f"0, {GPU1}\n1, {GPU0}\n"),
+        lambda rs: rs[14].update(reservation="present (holder exp35)"),
+        lambda rs: rs[15].update(uuid=GPU1),
+        lambda rs: rs[16].update(unreadable="x"),
+    ], ids=["dropped", "extra", "reordered", "card-listed", "unbound-table", "off-cadence", "late", "busy", "reasons",
+            "lock-held", "index", "map", "reserved", "uuid", "unreadable"])
+    def test_a_tampered_record_is_refused(tmp_path, tamper):
+>       rows = _rows(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:86: in _rows
+    rc, info, rec = capture(tmp_path, Stalling())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_a_tampered_record_is_refu14')
+world = <test_exp22_r2c_capture.Stalling object at 0x717c08ac1210>
+card = 'GPU0'
+
+    def capture(tmp_path, world, card="GPU0"):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        rec = tmp_path / "capture_polls.jsonl"
+>       rc, info = E.capture_polls(world, cfg, card, str(rec))
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_polls'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:40: AttributeError
+___________________________ test_non_json_is_refused ___________________________
+
+    def test_non_json_is_refused():
+>       assert E.capture_reasons(b"\xff\xfe", "GPU0")[0] and E.capture_reasons(b"{not json\n", "GPU0")[0]
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'capture_reasons'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:121: AttributeError
+___ test_the_cli_captures_and_checks_with_the_sha256_and_the_freshness_bound ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_the_cli_captures_and_chec0')
+
+    def test_the_cli_captures_and_checks_with_the_sha256_and_the_freshness_bound(tmp_path):
+        ev = _sandbox(tmp_path)
+        rec = tmp_path / "capture_polls.jsonl"
+        p = _cli(ev, "capture-polls", "--card", "GPU0", "--record", str(rec))
+>       assert p.returncode == 0 and p.stdout.startswith("CAPTURE POLLS OK"), p.stdout + p.stderr
+E       AssertionError: 
+E       assert (0 == 0 and False)
+E        +  where 0 = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', '-B', '/tmp/pytest-of-yixunhu/pytest-6308/test...ytest-of-yixunhu/pytest-6308/test_the_cli_captures_and_chec0/capture_polls.jsonl'], returncode=0, stdout='', stderr='').returncode
+E        +  and   False = <built-in method startswith of str object at 0x717c0c908030>('CAPTURE POLLS OK')
+E        +    where <built-in method startswith of str object at 0x717c0c908030> = ''.startswith
+E        +      where '' = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', '-B', '/tmp/pytest-of-yixunhu/pytest-6308/test...ytest-of-yixunhu/pytest-6308/test_the_cli_captures_and_chec0/capture_polls.jsonl'], returncode=0, stdout='', stderr='').stdout
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:151: AssertionError
+_______________________ test_the_cli_refuses_a_busy_card _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6308/test_the_cli_refuses_a_busy_ca0')
+
+    def test_the_cli_refuses_a_busy_card(tmp_path):
+        ev = _sandbox(tmp_path, apps=f"5, {GPU0}\n")
+        p = _cli(ev, "capture-polls", "--card", "GPU0", "--record", str(tmp_path / "c.jsonl"))
+>       assert p.returncode == 1 and p.stdout.startswith("CAPTURE POLLS REFUSED")
+E       AssertionError: assert (0 == 1)
+E        +  where 0 = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', '-B', '/tmp/pytest-of-yixunhu/pytest-6308/test...rd', '/tmp/pytest-of-yixunhu/pytest-6308/test_the_cli_refuses_a_busy_ca0/c.jsonl'], returncode=0, stdout='', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py:171: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_31_free_polls_make_a_record_the_verifier_admits
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_gpu1_is_captured_on_its_own_rule
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_busy_poll_ends_the_capture_and_the_record_shows_it
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_late_poll_ends_the_capture
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_an_unreadable_input_ends_the_capture
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_the_capture_record_is_never_overwritten
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[dropped]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[extra]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[reordered]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[card-listed]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[unbound-table]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[off-cadence]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[late]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[busy]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[reasons]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[lock-held]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[index]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[map]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[reserved]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[uuid]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_a_tampered_record_is_refused[unreadable]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_non_json_is_refused
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_the_cli_captures_and_checks_with_the_sha256_and_the_freshness_bound
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_capture.py::test_the_cli_refuses_a_busy_card
+24 failed in 0.49s
+rc 1
