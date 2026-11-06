@@ -385,13 +385,6 @@ class Supervisor:
                 return rc
         return self.finish()
 
-    def _read(self, rel):
-        try:
-            with open(self.path(rel), "rb") as f:
-                return f.read()
-        except (OSError, TypeError):
-            return b""
-
     def checks(self):
         """HEAD = PIN2 on a clean tracked tree, the four pins, the tools, every earlier log / output / record intact."""
         out = []
@@ -406,13 +399,39 @@ class Supervisor:
             out.append(f"git: {err}")
         out += [f"{rel} does not hash to its pin" for rel, sha in E.PIN_FILES.items() if _sha_file(self.path(rel)) != sha]
         out += [] if tools_sha256() == self.st["tools_sha256"] else ["the tools changed since the reservation"]
-        return out + [f"{rel} changed since its line {done['name']}" for done in self.st["lines"]
-                      for rel, sha in done["files"].items() if _sha_file(self.path(rel)) != sha]
+        for done in self.st["lines"]:                # each recorded file IS its validated snapshot (Codex A7-C1 B1)
+            for rel, want in done["files"].items():
+                s = E.snapshot(self.path(rel))
+                if s is None or E.identity(s) != want:
+                    out.append(f"{rel} changed since its line {done['name']} (its bytes or its device / inode)")
+        return out
 
-    def input_reasons(self, ln):
-        made = {rel: sha for done in self.st["lines"] for rel, sha in done["files"].items()}
-        return [f"the input {rel} is not its line's recorded output" for rel in ln["inputs"]
-                if rel not in made or _sha_file(self.path(rel)) != made[rel]]
+    def input_reasons(self, ln, snaps=None):
+        """Each input IS its producing line's recorded output (bytes + device / inode): read now, or the snapshot."""
+        made, out = {rel: want for done in self.st["lines"] for rel, want in done["files"].items()}, []
+        for rel in ln["inputs"]:
+            s = snaps.get(rel) if snaps is not None else E.snapshot(self.path(rel))
+            if rel not in made or s is None or E.identity(s) != made[rel]:
+                out.append(f"the input {rel} is not its line's recorded output")
+        return out
+
+    def snapshots(self, ln):
+        """ONE no-follow read of each file the line is judged by: its log, T's JUnit file, its outputs and inputs."""
+        out = {}
+        for rel in [ln["log"]] + ([ln["junit"]] if ln["junit"] else []) + ln["outputs"] + ln["inputs"]:
+            s = E.snapshot(self.path(rel))
+            if s is not None:
+                out[rel] = s
+        return out
+
+    def unchanged(self, snaps):
+        """Right before the record: every judged file still IS its validated snapshot, else the line is refused."""
+        out = []
+        for rel, s in snaps.items():
+            now = E.snapshot(self.path(rel))
+            if now is None or E.identity(now) != E.identity(s):
+                out.append(f"{rel} changed after it was validated (the record keeps the validated bytes; refused)")
+        return out
 
     def card(self):
         """Our card under the card rule with our held record; a process already gone may linger in the compute table
@@ -466,13 +485,14 @@ class Supervisor:
         cur.update(rc=proc.returncode, ended=self.w.now())
         self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
         self.save()
-        refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
-        sha = self.record(ln, cur, refusals)
-        files = {rel: _sha_file(self.path(rel)) for rel in [ln["log"], ln["record"]] + ln["outputs"]
-                 + ([ln["junit"]] if ln["junit"] else [])}
+        snaps = self.snapshots(ln)                    # read ONCE; validated, recorded and later authenticated as such
+        refusals = self.evidence(ln, proc.returncode, snaps) + ([self.latch] if self.latch else [])
+        refusals += self.unchanged(snaps)
+        rec = self.record(ln, cur, refusals, snaps)
+        files = {rel: E.identity(s) for rel, s in snaps.items() if rel not in ln["inputs"]}
+        files[ln["record"]] = E.identity(rec)
         self.st["lines"].append({"n": ln["n"], "name": ln["name"], "rc": proc.returncode, "admitted": not refusals,
-                                 "record": ln["record"], "record_sha256": sha,
-                                 "files": {k: v for k, v in files.items() if v is not None}})
+                                 "record": ln["record"], "record_sha256": rec.sha256, "files": files})
         self.st["current"] = None
         self.save()
         return self.stop(f"line {ln['n']} {ln['name']}: " + "; ".join(refusals)) if refusals else None
@@ -523,18 +543,20 @@ class Supervisor:
         return ([f"foreign compute process(es) {foreign} on the card"] if foreign else []) + o["rule_reasons"] + (
             [] if o["index"] == self.st["card"]["index"] else ["the card's index changed"])
 
-    def evidence(self, ln, rc):
-        """The line's admission (A7 r2 (iv), r3 (a) (c), r4, r5): its exit, the backend rule, T's three layers, the
-        outputs, the inputs bound to their lines' records, V's RE-VERIFIED and A's WITHIN THE CAP."""
-        text = self._read(ln["log"]).decode(errors="replace")
-        out = ([] if rc == 0 else [f"exit code {rc}"]) + (E.backend_log_reasons(text, ln["target"]) if ln["wrapped"] else [])
+    def evidence(self, ln, rc, snaps):
+        """The line's admission (A7 r2 (iv), r3 (a) (c), r4, r5) ON ITS SNAPSHOTS: its exit, the backend rule, T's three
+        layers, the outputs, the inputs bound to their lines' records, V's RE-VERIFIED and A's WITHIN THE CAP."""
+        log = snaps.get(ln["log"])
+        text = log.raw.decode(errors="replace") if log else ""
+        out = ([] if rc == 0 else [f"exit code {rc}"]) + ([] if log else [f"the log {ln['log']} is missing or no regular file"])
+        out += E.backend_log_reasons(text, ln["target"]) if ln["wrapped"] else []
         if ln["kind"] == "pytest":
-            junit = self._read(ln["junit"])
-            out += E.junit_reasons(junit, ln["node_ids"]) if junit else ["the JUnit file is missing"]
+            junit = snaps.get(ln["junit"])
+            out += E.junit_reasons(junit.raw, ln["node_ids"]) if junit else ["the JUnit file is missing or no regular file"]
             why, self.t_info = E.pytest_summary_reasons(text, ln["node_ids"])
             out += why
-        out += [f"the output {rel} is missing or not a regular file" for rel in ln["outputs"]
-                if not os.path.isfile(self.path(rel)) or os.path.islink(self.path(rel))] + self.input_reasons(ln)
+        out += [f"the output {rel} is missing or not a regular file" for rel in ln["outputs"] if rel not in snaps]
+        out += self.input_reasons(ln, snaps)
         lines = text.splitlines()
         if ln["kind"] == "reverify" and lines.count("RE-VERIFIED") != 1:
             out.append("the re-verification did not print RE-VERIFIED exactly once")
@@ -543,25 +565,27 @@ class Supervisor:
             out.append("the A5 arithmetic did not print WITHIN THE CAP (above the cap: STOP AND ASK YIXUN)")
         return out
 
-    def record(self, ln, cur, refusals):
-        """The O_EXCL backend-dispatch record of the line (A7 r2 (iv), r3 (g), r4) in the orchestration directory."""
-        raw = self._read(ln["log"])
+    def record(self, ln, cur, refusals, snaps):
+        """The O_EXCL backend-dispatch record of the line (A7 r2 (iv), r3 (g), r4) in the orchestration directory: every
+        hash is the hash of the snapshot that was validated (never a later read); returns the record's own Snap."""
+        raw = snaps[ln["log"]].raw if ln["log"] in snaps else b""
         sent = [x for x in raw.decode(errors="replace").splitlines() if x.startswith(E.SENTINEL + " ")]
         t, info = ln["kind"] == "pytest", self.t_info or {}
+        sha = lambda rel: snaps[rel].sha256 if rel in snaps else None  # noqa: E731
         doc = {"schema_version": 1, "kind": "exp22_r2c_dispatch_record", "run": self.st["run"], "n": ln["n"],
                "name": ln["name"], "pin2": self.st["pin2"], "cwd": self.wt, "argv": ln["argv"], "env": ln["env"],
                "card": self.st["card"], "wrapped": ln["wrapped"], "target": ln["target"], "started": cur["started"],
                "started_iso": C.iso(cur["started"]), "ended": cur["ended"], "ended_iso": C.iso(cur["ended"]),
                "exit_code": cur["rc"], "sentinel": sent[0] if len(sent) == 1 else None,
-               "log": {"path": ln["log"], "sha256": E.sha256_bytes(raw), "bytes": len(raw)},
-               "output_paths": [{"path": r, "sha256": _sha_file(self.path(r))} for r in ln["outputs"]],
-               "input_paths": [{"path": r, "sha256": _sha_file(self.path(r))} for r in ln["inputs"]],
+               "log": {"path": ln["log"], "sha256": sha(ln["log"]), "bytes": len(raw)},
+               "output_paths": [{"path": r, "sha256": sha(r)} for r in ln["outputs"]],
+               "input_paths": [{"path": r, "sha256": sha(r)} for r in ln["inputs"]],
                "selected_node_ids": ln["node_ids"], "pytest_summary": info.get("pytest_summary") if t else None,
                "pytest_passed_lines_sha256": info.get("passed_lines_sha256") if t else None,
-               "junit_xml": {"path": ln["junit"], "sha256": _sha_file(self.path(ln["junit"]))} if t else None,
+               "junit_xml": {"path": ln["junit"], "sha256": sha(ln["junit"])} if t else None,
                "launcher_sha256": E.LAUNCHER_SHA256, "overlay_sha256": E.OVERLAY_SHA256, "child": cur["child"],
                "reservation": self.st["reservation"], "admitted": not refusals, "refusals": refusals}
-        return E.write_exclusive(self.path(ln["record"]), E.dumps(doc))
+        return E.write_exclusive_snap(self.path(ln["record"]), E.dumps(doc))
 
     def finish(self):
         why = self.checks()

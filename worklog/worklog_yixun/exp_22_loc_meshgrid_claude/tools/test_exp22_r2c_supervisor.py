@@ -16,53 +16,13 @@ import types
 
 import pytest
 
-from conftest import C, GPU0, MAP, FakeWorld, cfg_for, load, sandbox_repo
+from conftest import C, GPU0, MAP, NAMES, RUN, LineWorld, cfg_for, load, phases as _phases, sandbox_repo
 
 E = load("exp22_r2c_evidence")
 S = load("exp22_r2c_supervisor")
-RUN = "20261106T130501"
-NAMES = ["T", "GV", "V_GV", "G1", "V_G1", "G2", "V_G2", "G3", "V_G3", "G3D", "V_G3D", "G0", "V_G0", "P", "A"]
-
 
 class Crash(BaseException):
     """A simulated kill (not an Exception: nothing under test may swallow it)."""
-
-
-class LineWorld(FakeWorld):
-    def spawn(self, argv, env, cwd, log_fd, lock_fd):
-        return S.spawn_line(argv, env, cwd, log_fd, lock_fd)
-
-
-def _reserve(w, pin2, cfg, world):
-    orch = os.path.join(w, "outputs_loc", "exp22", f"r2_preflight_{RUN}")
-    os.mkdir(orch)
-    seal = os.path.join(orch, "seal.txt")
-    with open(seal, "w") as f:
-        f.write(f"pin2 {pin2}\nrun {RUN}\ncard GPU0 {GPU0} 0\n")
-    rc, msg = S.reserve(world, cfg, worktree=w, orch=orch, pin2=pin2, card="GPU0", index=0, seal=seal,
-                        seal_sha256=E.sha256_bytes(open(seal, "rb").read()))
-    assert rc == 0, msg
-    return orch
-
-
-@pytest.fixture
-def box(tmp_path):
-    w, pin2 = sandbox_repo(tmp_path)
-    cfg = cfg_for(tmp_path)._replace(proc="/proc")
-    world = LineWorld()
-    orch = _reserve(w, pin2, cfg, world)
-    fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
-    fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
-    b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
-    b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
-    b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
-    b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
-    b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
-    b.path = lambda rel: os.path.join(w, rel)
-    b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
-                             pytest_main=C.PYTEST_MAIN)
-    yield b
-    os.close(fd)
 
 
 def _sha(path):
@@ -104,17 +64,6 @@ def test_the_fifteen_registered_lines_run_and_the_exact_record_is_released(box):
                                                                      "fa_production_drift", "vanilla_replay_regression"))
     assert os.listdir(probe) == ["diagnostics_BF_bathrooms14.json"]           # only the drivers' scientific outputs
     assert json.load(open(os.path.join(box.orch, "heartbeat.json")))["phase"] == "released"
-
-
-def _phases(monkeypatch):
-    seen, real = [], S.E.write_json_atomic
-
-    def spy(path, doc):
-        if path.endswith("state.json"):
-            seen.append((doc["phase"], (doc["current"] or {}).get("name"), (doc["current"] or {}).get("rc")))
-        return real(path, doc)
-    monkeypatch.setattr(S.E, "write_json_atomic", spy)
-    return seen
 
 
 def test_every_transition_is_saved_in_order(box, monkeypatch):
@@ -249,8 +198,8 @@ def test_a_crash_at_any_transition_leaves_everything_for_the_planner(box, monkey
         obj, name = targets[point]
         monkeypatch.setattr(obj, name, lambda *a, **k: (_ for _ in ()).throw(Crash()))
     elif point == "record":
-        real = S.E.write_exclusive
-        monkeypatch.setattr(S.E, "write_exclusive", lambda *a, **k: (real(*a, **k), (_ for _ in ()).throw(Crash()))[0])
+        real = S.E.write_exclusive_snap                                   # the dispatch-record writer (BLOCKING 1)
+        monkeypatch.setattr(S.E, "write_exclusive_snap", lambda *a, **k: (real(*a, **k), (_ for _ in ()).throw(Crash()))[0])
     else:
         real = S.release_reservation
         monkeypatch.setattr(S, "release_reservation", (lambda h: (_ for _ in ()).throw(Crash())) if point == "release"

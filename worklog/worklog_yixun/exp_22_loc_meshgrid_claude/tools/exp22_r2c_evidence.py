@@ -25,11 +25,13 @@
 Written by the exp_22 A7 Coder (Claude Opus 5.5, max effort).
 """
 import argparse
+import collections
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -263,19 +265,57 @@ def fsync_dir(d):
         os.close(fd)
 
 
-def write_exclusive(path, raw):
+Snap = collections.namedtuple("Snap", "raw sha256 dev inode")
+
+
+def snapshot(path):
+    """ONE read of the regular file at ``path`` through a no-follow, non-blocking descriptor: its bytes, their sha256,
+    its (device, inode); None when it is absent, a symlink, not a regular file or unreadable. What a line is judged
+    by, recorded with and later authenticated against is this one snapshot (Codex A7-C1 BLOCKING 1)."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except (OSError, TypeError):
+        return None
+    try:
+        st, chunks = os.fstat(fd), []
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        while True:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+    raw = b"".join(chunks)
+    return Snap(raw, sha256_bytes(raw), st.st_dev, st.st_ino)
+
+
+def identity(snap):
+    return {"sha256": snap.sha256, "dev": snap.dev, "inode": snap.inode}
+
+
+def write_exclusive_snap(path, raw):
     """O_CREAT | O_EXCL (a symlink or any existing name refuses): never overwritten; the file and its directory
-    fsynced; returns the sha256 of the bytes written."""
+    fsynced; returns the Snap of exactly the bytes written and the descriptor's (device, inode)."""
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     try:
         view = memoryview(raw)
         while view:
             view = view[os.write(fd, view):]
         os.fsync(fd)
+        st = os.fstat(fd)
     finally:
         os.close(fd)
     fsync_dir(os.path.dirname(os.path.abspath(path)))
-    return sha256_bytes(raw)
+    return Snap(raw, sha256_bytes(raw), st.st_dev, st.st_ino)
+
+
+def write_exclusive(path, raw):
+    """``write_exclusive_snap`` returning the sha256 of the bytes written."""
+    return write_exclusive_snap(path, raw).sha256
 
 
 def dumps(doc):

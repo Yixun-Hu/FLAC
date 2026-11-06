@@ -1,12 +1,17 @@
 """exp_22 A7 tools tests (CPU only): the tools are imported by path, never written as bytecode, and every
 test uses tmp_path fakes -- never the live reservation directory, the live exp_35 lock or a GPU."""
 import ast
+import fcntl
 import importlib.util
+import json
 import os
 import shlex
 import shutil
 import subprocess
 import sys
+import types
+
+import pytest
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -250,3 +255,60 @@ def sandbox_repo(root, common=None, shells=None):
     _git(w, "add", "-A", ".")
     _git(w, "commit", "-q", "-m", "sandbox PIN2")
     return w, _git(w, "rev-parse", "HEAD")
+
+
+# --------------------------------------------------------------------------- #
+# the supervisor's sandbox box (shared by the supervisor and snapshot tests)
+# --------------------------------------------------------------------------- #
+E, S = load("exp22_r2c_evidence"), load("exp22_r2c_supervisor")
+NAMES = ["T", "GV", "V_GV", "G1", "V_G1", "G2", "V_G2", "G3", "V_G3", "G3D", "V_G3D", "G0", "V_G0", "P", "A"]
+
+
+
+
+class LineWorld(FakeWorld):
+    def spawn(self, argv, env, cwd, log_fd, lock_fd):
+        return S.spawn_line(argv, env, cwd, log_fd, lock_fd)
+
+
+def reserve_box(w, pin2, cfg, world):
+    orch = os.path.join(w, "outputs_loc", "exp22", f"r2_preflight_{RUN}")
+    os.mkdir(orch)
+    seal = os.path.join(orch, "seal.txt")
+    with open(seal, "w") as f:
+        f.write(f"pin2 {pin2}\nrun {RUN}\ncard GPU0 {GPU0} 0\n")
+    rc, msg = S.reserve(world, cfg, worktree=w, orch=orch, pin2=pin2, card="GPU0", index=0, seal=seal,
+                        seal_sha256=E.sha256_bytes(open(seal, "rb").read()))
+    assert rc == 0, msg
+    return orch
+
+
+@pytest.fixture
+def box(tmp_path):
+    w, pin2 = sandbox_repo(tmp_path)
+    cfg = cfg_for(tmp_path)._replace(proc="/proc")
+    world = LineWorld()
+    orch = reserve_box(w, pin2, cfg, world)
+    fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+    b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+    b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+    b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+    b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+    b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+    b.path = lambda rel: os.path.join(w, rel)
+    b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                             pytest_main=C.PYTEST_MAIN)
+    yield b
+    os.close(fd)
+
+
+def phases(monkeypatch):
+    seen, real = [], S.E.write_json_atomic
+
+    def spy(path, doc):
+        if path.endswith("state.json"):
+            seen.append((doc["phase"], (doc["current"] or {}).get("name"), (doc["current"] or {}).get("rc")))
+        return real(path, doc)
+    monkeypatch.setattr(S.E, "write_json_atomic", spy)
+    return seen

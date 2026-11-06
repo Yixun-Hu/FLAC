@@ -1,0 +1,438 @@
+# exp_22 A7 c16_blocking1_snapshots RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:50:13-05:00 -- branch exp-22-a7-noflash HEAD ccbcd253; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider /home/yixunhu/codespace/exp-22-a7-noflash/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py
+FFFFFFFFF.F                                                              [100%]
+=================================== FAILURES ===================================
+___________ test_a_snapshot_is_one_no_follow_read_of_a_regular_file ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6340/test_a_snapshot_is_one_no_foll0')
+
+    def test_a_snapshot_is_one_no_follow_read_of_a_regular_file(tmp_path):
+        p = tmp_path / "x.json"
+        p.write_bytes(b'{"a": 1}\n')
+>       s = E.snapshot(str(p))
+E       AttributeError: module 'exp22_r2c_evidence' has no attribute 'snapshot'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:24: AttributeError
+_________ test_the_exclusive_writer_returns_the_written_bytes_identity _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6340/test_the_exclusive_writer_retu0')
+
+    def test_the_exclusive_writer_returns_the_written_bytes_identity(tmp_path):
+>       s = E.write_exclusive_snap(str(tmp_path / "r.json"), b"record\n")
+E       AttributeError: module 'exp22_r2c_evidence' has no attribute 'write_exclusive_snap'. Did you mean: 'write_exclusive'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:40: AttributeError
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-log-append] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_0/W', pin2='0c2f49f734f5eb455d505ee5c0f0...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe177f318d0>
+name = 'GV', which = 'log', how = 'append'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe177f30ca0>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-log-replace] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_1/W', pin2='3737ef67e5e562d3750e0c12c79c...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe1780a7460>
+name = 'GV', which = 'log', how = 'replace'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe1780a7070>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[T-junit-append] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_2/W', pin2='70f8935e88c0881b4e1668dd3303...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe1780c7910>
+name = 'T', which = 'junit', how = 'append'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe1780c4040>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[T-log-append] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_3/W', pin2='30788df2feb87a692ea8e66b8ef0...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe178098640>
+name = 'T', which = 'log', how = 'append'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe17809b040>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-output-append] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_4/W', pin2='004e9c59bad67ea4faf6967fd6af...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe178095600>
+name = 'GV', which = 'output', how = 'append'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe178094790>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_a_file_changed_after_its_validation_never_yields_an_admitted_record[G3-output-replace] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_5/W', pin2='76c4eec5479dbbda3a4d931bbd3a...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe1780a9120>
+name = 'G3', which = 'output', how = 'replace'
+
+    @pytest.mark.parametrize("name, which, how", [("GV", "log", "append"), ("GV", "log", "replace"),
+                                                  ("T", "junit", "append"), ("T", "log", "append"),
+                                                  ("GV", "output", "append"), ("G3", "output", "replace")])
+    def test_a_file_changed_after_its_validation_never_yields_an_admitted_record(box, monkeypatch, name, which, how):
+        ln, kept = _mutate_after_evidence(monkeypatch, box, name, which, how)
+>       assert box.sup().run() == 3
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:383: in run
+    rc = self.line(ln)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <exp22_r2c_supervisor.Supervisor object at 0x7fe1780aa320>
+ln = {'n': 1, 'name': 'T', 'kind': 'pytest', 'wrapped': True, ...}
+
+    def line(self, ln):
+        why = self.preline(ln)
+        if why:
+            return self.stop(f"before line {ln['n']} {ln['name']}: " + "; ".join(why))
+        cur = {k: ln[k] for k in ("n", "name", "kind", "argv", "env", "log", "record", "outputs", "inputs", "junit")}
+        cur.update(cwd=self.wt, card=self.st["card"], reservation=self.st["reservation"], started=self.w.now())
+        self.st.update(current=cur, phase="line_pending")
+        self.save()
+        self.t_info = None
+        fd = os.open(self.path(ln["log"]), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            proc = self.w.spawn(ln["argv"], ln["env"], self.wt, fd, self.lock_fd)
+        except OSError as err:
+            return self.stop(f"line {ln['n']} {ln['name']} could not be spawned: {err}")
+        finally:
+            os.close(fd)
+        ident, why = self.identify(proc, ln)
+        if why:                                  # never an identified child without its complete identity: fail closed
+            cur["unidentified"] = {"pid": proc.pid, "reason": why}
+            self.save()                          # still line_pending; the child (if it still runs) is never signalled
+            self.watch(proc)
+            cur.update(rc=proc.returncode, ended=self.w.now())
+            return self.stop(f"line {ln['n']} {ln['name']}: {why} -- fail-closed, nothing judged")
+        cur["child"] = ident
+        self.st["phase"] = "child_identified"
+        self.save()
+        self.watch(proc)
+        cur.update(rc=proc.returncode, ended=self.w.now())
+        self.st["phase"] = "line_complete"                      # the exit recorded BEFORE any judgement or stop
+        self.save()
+>       refusals = self.evidence(ln, proc.returncode) + ([self.latch] if self.latch else [])
+E       TypeError: _mutate_after_evidence.<locals>.evidence() missing 1 required positional argument: 'snaps'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:469: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+_ test_the_dispatch_record_and_the_state_hash_the_validated_snapshot_not_a_later_read _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_the_dispatch_record_and_t0/W', pin2='392e7b1ee52e5da13159dec594b1...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe177f30eb0>
+
+    def test_the_dispatch_record_and_the_state_hash_the_validated_snapshot_not_a_later_read(box, monkeypatch):
+        """No second read establishes an expected hash: the record and the state's baseline come from the snapshots."""
+        rc = box.sup().run()
+        st = box.state()
+        assert rc == 0, st["stop"]
+        for ln, done in zip(box.lines, st["lines"]):
+            doc = json.load(open(box.path(ln["record"])))
+>           assert done["files"][ln["log"]]["sha256"] == doc["log"]["sha256"]
+E           TypeError: string indices must be integers
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:92: TypeError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+[2027-01-15T03:00:00-05:00] RELEASED: T -> the gates -> the BF probe -> A5 complete; our exact record released 
+_ test_a_file_changed_after_its_record_stops_the_next_line_and_the_release[replace] _
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_7/W', pin2='2dda1869de6f059e10ac8db3bef7...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe17afc35e0>
+change = 'replace'
+
+    @pytest.mark.parametrize("change", ["append", "replace"])
+    def test_a_file_changed_after_its_record_stops_the_next_line_and_the_release(box, monkeypatch, change):
+        """Before every later line and before the final release the paths are authenticated against the recorded
+        snapshots (bytes AND device / inode): a change after the record stops the pre-flight; nothing is released."""
+        real = S.Supervisor.finish
+        gv = box.lines[1]
+    
+        def finish(self):
+            path = box.path(gv["outputs"][0])
+            raw = open(path, "rb").read()
+            if change == "append":
+                open(path, "ab").write(b" ")
+            else:
+                open(path + ".new", "wb").write(raw)
+                os.replace(path + ".new", path)
+            return real(self)
+        monkeypatch.setattr(S.Supervisor, "finish", finish)
+>       assert box.sup().run() == 3
+E       AssertionError: assert 0 == 3
+E        +  where 0 = run()
+E        +    where run = <exp22_r2c_supervisor.Supervisor object at 0x7fe17afc0880>.run
+E        +      where <exp22_r2c_supervisor.Supervisor object at 0x7fe17afc0880> = <function box.<locals>.<lambda> at 0x7fe177e33c70>()
+E        +        where <function box.<locals>.<lambda> at 0x7fe177e33c70> = namespace(w='/tmp/pytest-of-yixunhu/pytest-6340/test_a_file_changed_after_its_7/W', pin2='2dda1869de6f059e10ac8db3bef7...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}]).sup
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py:116: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 869866}
+[2027-01-15T03:00:00-05:00] RELEASED: T -> the gates -> the BF probe -> A5 complete; our exact record released 
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_snapshot_is_one_no_follow_read_of_a_regular_file
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_the_exclusive_writer_returns_the_written_bytes_identity
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-log-append]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-log-replace]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[T-junit-append]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[T-log-append]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[GV-output-append]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_validation_never_yields_an_admitted_record[G3-output-replace]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_the_dispatch_record_and_the_state_hash_the_validated_snapshot_not_a_later_read
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py::test_a_file_changed_after_its_record_stops_the_next_line_and_the_release[replace]
+10 failed, 1 passed in 10.21s
+rc 1
