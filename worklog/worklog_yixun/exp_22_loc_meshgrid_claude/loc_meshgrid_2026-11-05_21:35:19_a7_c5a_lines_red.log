@@ -1,0 +1,747 @@
+# exp_22 A7 c5a_lines RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:35:19-05:00 -- branch exp-22-a7-noflash HEAD a4180bb0; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py
+F.........FFFFFFFFFFFFFFFFFFFFFFFFF                                      [100%]
+=================================== FAILURES ===================================
+_________ test_the_committed_list_is_valid_and_in_the_registered_order _________
+
+    def test_the_committed_list_is_valid_and_in_the_registered_order():
+        d = doc()
+>       assert E.lines_reasons(d) == []
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:49: AttributeError
+__________________ test_t_is_the_plan_line_on_the_triage_ids ___________________
+
+    def test_t_is_the_plan_line_on_the_triage_ids():
+        with open(os.path.join(X, "loc_meshgrid_2026-11-04_12:08:44_r2_merge_cpu_failures_triage.log"), "rb") as f:
+            raw = f.read()
+        assert hashlib.sha256(raw).hexdigest().startswith("08c362ed")
+        failed = sorted(set(re.findall(r"^FAILED (\S+)$", raw.decode().split("## (b)")[0], re.M)))
+        with open(os.path.join(X, "plan_loc_meshgrid_r2_bf_yaw.md")) as f:
+            plan = f.read()
+        r2 = plan[plan.index("- **A7 r2 ("):plan.index("- **A7 r3 (")]
+        plan_ids = re.findall(r"`(src/tests/test_[a-z_]+\.py::[^`]+)`", r2)
+        t = line("T")
+        assert t["argv"][:13] == ["@PY@", "@L@", "@PYTEST_MAIN@", "-x", "-q", "--color=no", "-o", "xfail_strict=true",
+                                  "-rA", "-p", "no:cacheprovider", "--junitxml", "@ORCH@/T_junit.xml"]
+>       assert t["argv"][13:] == plan_ids == list(E.T_NODE_IDS) and sorted(plan_ids) == failed and len(failed) == 11
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'T_NODE_IDS'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:104: AttributeError
+_________________________ test_the_expansion_is_exact __________________________
+
+    def test_the_expansion_is_exact():
+>       lines = E.expand_lines(doc(), run="20261106T130501", index=1, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:110: AttributeError
+_____________________ test_a_malformed_run_id_is_refused[] _____________________
+
+bad_run = ''
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+________________ test_a_malformed_run_id_is_refused[2026-11-06] ________________
+
+bad_run = '2026-11-06'
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+______________ test_a_malformed_run_id_is_refused[20261106T1305] _______________
+
+bad_run = '20261106T1305'
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+___________________ test_a_malformed_run_id_is_refused[../x] ___________________
+
+bad_run = '../x'
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+____________ test_a_malformed_run_id_is_refused[20261106T130501/..] ____________
+
+bad_run = '20261106T130501/..'
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+___________________ test_a_malformed_run_id_is_refused[None] ___________________
+
+bad_run = None
+
+    @pytest.mark.parametrize("bad_run", ["", "2026-11-06", "20261106T1305", "../x", "20261106T130501/..", None])
+    def test_a_malformed_run_id_is_refused(bad_run):
+        with pytest.raises(ValueError):
+>           E.expand_lines(doc(), run=bad_run, index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E           AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:134: AttributeError
+_____ test_no_shard_merge_report_or_crossarm_line_is_reachable[shard-line] _____
+
+mutate = <function <lambda> at 0x7e21f5290dc0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5290dc0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+___ test_no_shard_merge_report_or_crossarm_line_is_reachable[launch-record] ____
+
+mutate = <function <lambda> at 0x7e21f5292710>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292710>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[rooms] ________
+
+mutate = <function <lambda> at 0x7e21f52927a0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f52927a0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[report] _______
+
+mutate = <function <lambda> at 0x7e21f5292830>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292830>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+______ test_no_shard_merge_report_or_crossarm_line_is_reachable[crossarm] ______
+
+mutate = <function <lambda> at 0x7e21f52928c0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f52928c0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+____ test_no_shard_merge_report_or_crossarm_line_is_reachable[scored-pass] _____
+
+mutate = <function <lambda> at 0x7e21f5292950>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292950>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+______ test_no_shard_merge_report_or_crossarm_line_is_reachable[out-dir] _______
+
+mutate = <function <lambda> at 0x7e21f52929e0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f52929e0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[merge] ________
+
+mutate = <function <lambda> at 0x7e21f5292a70>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292a70>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[resume] _______
+
+mutate = <function <lambda> at 0x7e21f5292b00>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292b00>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+______ test_no_shard_merge_report_or_crossarm_line_is_reachable[ten-ids] _______
+
+mutate = <function <lambda> at 0x7e21f5292b90>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292b90>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+______ test_no_shard_merge_report_or_crossarm_line_is_reachable[deselect] ______
+
+mutate = <function <lambda> at 0x7e21f5292c20>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292c20>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[order] ________
+
+mutate = <function <lambda> at 0x7e21f5292cb0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292cb0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+____ test_no_shard_merge_report_or_crossarm_line_is_reachable[wrong-input] _____
+
+mutate = <function <lambda> at 0x7e21f5292d40>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292d40>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+____ test_no_shard_merge_report_or_crossarm_line_is_reachable[wrong-output] ____
+
+mutate = <function <lambda> at 0x7e21f5292dd0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292dd0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_ test_no_shard_merge_report_or_crossarm_line_is_reachable[unknown-placeholder] _
+
+mutate = <function <lambda> at 0x7e21f5292e60>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292e60>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+_______ test_no_shard_merge_report_or_crossarm_line_is_reachable[schema] _______
+
+mutate = <function <lambda> at 0x7e21f5292ef0>
+
+    @pytest.mark.parametrize("mutate", [
+        lambda d: d["lines"].append(dict(d["lines"][1], n=16, name="YAW_cafe", argv=SHARD)),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"][:3] + ["--launch-record", "r.json"] + d["lines"][1]["argv"][3:]),
+        lambda d: d["lines"][13].update(argv=d["lines"][13]["argv"] + ["--rooms", "Cafe/Cafe_idx_1"]),
+        lambda d: d["lines"][14].update(argv=["@PY@", "-m", "src.localization.meshgrid_report", "--run-dir", "x"]),
+        lambda d: d["lines"][12].update(argv=["@PY@", "-c", "import src.localization.meshgrid_crossarm", "@GATES@/x.json"]),
+        lambda d: d["lines"][3].update(argv=[a for a in d["lines"][3]["argv"] if a != "--fa-split-parity-check"]),  # a pass
+        lambda d: d["lines"][5].update(argv=[("@ORCH@" if a == "@GATES@" else a) for a in d["lines"][5]["argv"]]),
+        lambda d: d["lines"][7].update(argv=d["lines"][7]["argv"] + ["--merge-shards", "a", "b"]),
+        lambda d: d["lines"][9].update(argv=d["lines"][9]["argv"] + ["--resume"]),
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"][:-1]),                     # ten ids
+        lambda d: d["lines"][0].update(argv=d["lines"][0]["argv"] + ["-k", "x"]),
+        lambda d: d["lines"].reverse(),
+        lambda d: d["lines"][2].update(argv=d["lines"][2]["argv"][:3] + ["@GATES@/fa_split_parity.json"]),
+        lambda d: d["lines"][13].update(outputs=["@PROBE@/other.json"]),
+        lambda d: d["lines"][1].update(argv=d["lines"][1]["argv"] + ["@SECRET@"]),
+        lambda d: d.update(schema_version=2),
+    ], ids=["shard-line", "launch-record", "rooms", "report", "crossarm", "scored-pass", "out-dir", "merge", "resume",
+            "ten-ids", "deselect", "order", "wrong-input", "wrong-output", "unknown-placeholder", "schema"])
+    def test_no_shard_merge_report_or_crossarm_line_is_reachable(mutate):
+>       assert _mutated(mutate)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fn = <function <lambda> at 0x7e21f5292ef0>
+
+    def _mutated(fn):
+        d = copy.deepcopy(doc())
+        fn(d)
+>       return E.lines_reasons(d)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'lines_reasons'. Did you mean: 'junit_reasons'?
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:140: AttributeError
+________________ test_no_registered_argv_carries_a_shard_token _________________
+
+    def test_no_registered_argv_carries_a_shard_token():
+>       lines = E.expand_lines(doc(), run="20261106T130501", index=0, worktree="/w", py=PY, pytest_main=PYTEST_MAIN)
+E       AttributeError: module '_a7_exp22_r2c_evidence' has no attribute 'expand_lines'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py:170: AttributeError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_the_committed_list_is_valid_and_in_the_registered_order
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_t_is_the_plan_line_on_the_triage_ids
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_the_expansion_is_exact
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[2026-11-06]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[20261106T1305]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[../x]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[20261106T130501/..]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_a_malformed_run_id_is_refused[None]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[shard-line]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[launch-record]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[rooms]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[report]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[crossarm]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[scored-pass]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[out-dir]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[merge]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[resume]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[ten-ids]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[deselect]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[order]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[wrong-input]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[wrong-output]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[unknown-placeholder]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_shard_merge_report_or_crossarm_line_is_reachable[schema]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_lines.py::test_no_registered_argv_carries_a_shard_token
+26 failed, 9 passed in 0.40s
+rc 1

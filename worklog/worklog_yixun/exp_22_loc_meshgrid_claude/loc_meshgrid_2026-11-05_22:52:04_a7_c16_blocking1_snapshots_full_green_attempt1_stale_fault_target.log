@@ -1,0 +1,40 @@
+# exp_22 A7 c16_blocking1_snapshots_full GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:52:04-05:00 -- branch exp-22-a7-noflash HEAD ccbcd253; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 72%]
+......................................................................F. [ 96%]
+..........                                                               [100%]
+=================================== FAILURES ===================================
+___ test_a_crash_at_any_transition_leaves_everything_for_the_planner[record] ___
+
+box = namespace(w='/tmp/pytest-of-yixunhu/pytest-6342/test_a_crash_at_any_transition4/W', pin2='346f8ba4319b269da4fce8618753...: ['outputs_loc/exp22/r2_probe_BF_20261106T130501/diagnostics_BF_bathrooms14.json'], 'junit': None, 'node_ids': None}])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x798ca34cd300>
+point = 'record'
+
+    @pytest.mark.parametrize("point", ["spawn", "identify", "watch", "evidence", "record", "release", "after-unlink"])
+    def test_a_crash_at_any_transition_leaves_everything_for_the_planner(box, monkeypatch, point):
+        """A7 r3 (e): no crash path releases or adopts; the restart refuses; a surviving child runs to its end."""
+        targets = {"spawn": (box.world, "spawn"), "identify": (S.Supervisor, "identify"), "watch": (S.Supervisor, "watch"),
+                   "evidence": (S.Supervisor, "evidence")}
+        if point in targets:
+            obj, name = targets[point]
+            monkeypatch.setattr(obj, name, lambda *a, **k: (_ for _ in ()).throw(Crash()))
+        elif point == "record":
+            real = S.E.write_exclusive
+            monkeypatch.setattr(S.E, "write_exclusive", lambda *a, **k: (real(*a, **k), (_ for _ in ()).throw(Crash()))[0])
+        else:
+            real = S.release_reservation
+            monkeypatch.setattr(S, "release_reservation", (lambda h: (_ for _ in ()).throw(Crash())) if point == "release"
+                                else (lambda h: (real(h), (_ for _ in ()).throw(Crash()))[0]))
+>       with pytest.raises(Crash):
+E       Failed: DID NOT RAISE Crash
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:207: Failed
+----------------------------- Captured stdout call -----------------------------
+[2027-01-15T03:00:00-05:00] supervisor started {"pid": 871509}
+[2027-01-15T03:00:00-05:00] RELEASED: T -> the gates -> the BF probe -> A5 complete; our exact record released 
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[record]
+1 failed, 297 passed in 196.73s (0:03:16)
+rc 1

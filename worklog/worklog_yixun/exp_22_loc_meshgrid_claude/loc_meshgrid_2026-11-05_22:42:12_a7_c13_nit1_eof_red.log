@@ -1,0 +1,43 @@
+# exp_22 A7 c13_nit1_eof RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:42:12-05:00 -- branch exp-22-a7-noflash HEAD 9206da2f; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py
+.......F..F.........                                                     [100%]
+=================================== FAILURES ===================================
+__ test_one_final_newline_and_no_trailing_whitespace[exp22_r2c_supervisor.py] __
+
+name = 'exp22_r2c_supervisor.py'
+
+    @pytest.mark.parametrize("name", SOURCES)
+    def test_one_final_newline_and_no_trailing_whitespace(name):
+        with open(os.path.join(HERE, name), "rb") as f:
+            raw = f.read()
+>       assert raw.endswith(b"\n") and not raw.endswith(b"\n\n"), f"{name}: not exactly one final newline"
+E       AssertionError: exp22_r2c_supervisor.py: not exactly one final newline
+E       assert (True and not True)
+E        +  where True = <built-in method endswith of bytes object at 0x5c275a7dc0f0>(b'\n')
+E        +    where <built-in method endswith of bytes object at 0x5c275a7dc0f0> = b'#!/usr/bin/env python3\n"""exp_22 R2-C pre-flight: the reservation, the durable state and the detached supervisor (p...2 run is active")\n    print(msg, flush=True)\n    return rc\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n\n'.endswith
+E        +  and   True = <built-in method endswith of bytes object at 0x5c275a7dc0f0>(b'\n\n')
+E        +    where <built-in method endswith of bytes object at 0x5c275a7dc0f0> = b'#!/usr/bin/env python3\n"""exp_22 R2-C pre-flight: the reservation, the durable state and the detached supervisor (p...2 run is active")\n    print(msg, flush=True)\n    return rc\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n\n'.endswith
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py:20: AssertionError
+_ test_one_final_newline_and_no_trailing_whitespace[test_exp22_r2c_card_rule.py] _
+
+name = 'test_exp22_r2c_card_rule.py'
+
+    @pytest.mark.parametrize("name", SOURCES)
+    def test_one_final_newline_and_no_trailing_whitespace(name):
+        with open(os.path.join(HERE, name), "rb") as f:
+            raw = f.read()
+>       assert raw.endswith(b"\n") and not raw.endswith(b"\n\n"), f"{name}: not exactly one final newline"
+E       AssertionError: test_exp22_r2c_card_rule.py: not exactly one final newline
+E       assert (True and not True)
+E        +  where True = <built-in method endswith of bytes object at 0x5c275a89c6f0>(b'\n')
+E        +    where <built-in method endswith of bytes object at 0x5c275a89c6f0> = b'"""exp_22 A7 (plan \xc2\xa79 A7 r2 (v)(1), r3 (h)): /proc (processes by name, identity, descendants), Yixun\'s table...fused(tmp_path):\n    with pytest.raises(ValueError):\n        C.observe(FakeWorld(), cfg_for(tmp_path), "GPU2")\n\n\n'.endswith
+E        +  and   True = <built-in method endswith of bytes object at 0x5c275a89c6f0>(b'\n\n')
+E        +    where <built-in method endswith of bytes object at 0x5c275a89c6f0> = b'"""exp_22 A7 (plan \xc2\xa79 A7 r2 (v)(1), r3 (h)): /proc (processes by name, identity, descendants), Yixun\'s table...fused(tmp_path):\n    with pytest.raises(ValueError):\n        C.observe(FakeWorld(), cfg_for(tmp_path), "GPU2")\n\n\n'.endswith
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py::test_one_final_newline_and_no_trailing_whitespace[exp22_r2c_supervisor.py]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py::test_one_final_newline_and_no_trailing_whitespace[test_exp22_r2c_card_rule.py]
+2 failed, 18 passed in 0.10s
+rc 1

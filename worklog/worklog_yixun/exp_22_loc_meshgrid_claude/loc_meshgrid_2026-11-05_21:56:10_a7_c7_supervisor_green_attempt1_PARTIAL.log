@@ -1,0 +1,29 @@
+# exp_22 A7 c7 GREEN attempt 1 -- PARTIAL RECORD (Coder, Claude Opus 5.5 subagent): the full log of this run (21:56:10 EST) was deleted by mistake before it was kept; below is the last 30 lines the background task captured. The run (16 failed, 16 passed) exposed a REAL race in identify(): Popen returns when exec closes the close-on-exec error pipe, BEFORE the kernel maps the new argv, so /proc/<pid>/cmdline read empty (sha256 e3b0c442...) and the supervisor latched 'the child runs but its /proc identity is not the spawned command'; fixed by a bounded re-read (<= 5 s) in identify().
+                break
+            time.sleep(0.05)
+>       child = st["current"]["child"]
+E       TypeError: 'NoneType' object is not subscriptable
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:370: TypeError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_fifteen_registered_lines_run_and_the_exact_record_is_released
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_every_transition_is_saved_in_order
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_stop_at_the_first_failure_with_the_nonzero_exit_recorded_first
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[reverify]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[a5-above-cap]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_foreign_process_during_a_running_line_stops_further_lines_and_never_touches_the_child
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[replaced-reservation-GV-V_GV]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[dirty-tree-GV-G1]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[clobber-GV-G1]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[earlier-output-V_GV-G2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[watch]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[release]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[after-unlink]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_restart_refuses_after_a_complete_run
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_cli_runs_the_lines_to_the_release
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_killed_supervisor_leaves_a_surviving_child_that_keeps_the_lock_and_the_reservation
+16 failed, 16 passed in 207.42s (0:03:27)
+rc 1
+LOG /home/yixunhu/codespace/exp-22-a7-noflash/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/loc_meshgrid_2026-11-05_21:56:10_a7_c7_supervisor_green.log
+
+[exited with code 0]

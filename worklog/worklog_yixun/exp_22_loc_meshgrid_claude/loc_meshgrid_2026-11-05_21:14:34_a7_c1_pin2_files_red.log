@@ -1,0 +1,28 @@
+# exp_22 A7 c1 RED (Coder, Claude Opus 5.5): only src/tests/test_exp35_no_flash_launch.py copied from H35 5b065801 (sha256 d61a3c02...); overlay, launcher and pyproject exclusion not yet present; CPU only
+$ CUDA_VISIBLE_DEVICES= PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider src/tests/test_exp35_no_flash_launch.py
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_repo_root_shadow_is_refused[flash_attn.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/flash_attn.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[__pycache__/exp35_no_flash_launch.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[flash_attn/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_anything_besides_the_two_files_under_the_overlay_is_refused[notes.txt]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[__pycache__/x.cpython-310.pyc]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_package_marker_or_bytecode_anywhere_under_overlays_is_refused[other/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_an_edited_overlay_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[preimported]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_wrong_spec_origin_is_refused[meta_path]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_with_flash_attention_enabled_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_src_package_from_outside_the_repo_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/transformer.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models/__init__.py]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src/models]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_symlink_out_of_the_checkout_is_refused[src]
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_transformer_that_fails_to_import_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_missing_target_or_no_argument_is_refused
+FAILED src/tests/test_exp35_no_flash_launch.py::test_the_real_launcher_preflight_on_this_checkout
+FAILED src/tests/test_exp35_no_flash_launch.py::test_a_fresh_python_child_with_the_runner_environment_hits_the_overlay
+FAILED src/tests/test_exp35_no_flash_launch.py::test_dataloader_fork_and_spawn_workers_run_the_sdpa_path
+37 failed, 2 passed in 7.16s
+rc 1

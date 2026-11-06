@@ -1,0 +1,5 @@
+# exp_22 A7 final2_exp35_launcher_tests GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T23:03:08-05:00 -- branch exp-22-a7-noflash HEAD 22a98afd; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider src/tests/test_exp35_no_flash_launch.py
+.......................................                                  [100%]
+39 passed in 23.19s
+rc 0

@@ -1,0 +1,1172 @@
+# exp_22 A7 c8_launcher RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:08:39-05:00 -- branch exp-22-a7-noflash HEAD 02d94b44; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py
+FFFFFFFFFFFFFFFFFFFFFFFFFFFF                                             [100%]
+=================================== FAILURES ===================================
+_____________ test_capture_seal_launch_run_detached_to_the_release _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_capture_seal_launch_run_d0')
+
+    def test_capture_seal_launch_run_detached_to_the_release(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_capture_seal_launch_run_d0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_capture_seal_launch_run_d0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_bad_arguments_are_refused[args0-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused0')
+args = [], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_bad_arguments_are_refused[args1-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused1')
+args = ['capture', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'GPU0'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused1')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused1/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_bad_arguments_are_refused[args2-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused2')
+args = ['capture', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'GPU2'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused2')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused2/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_bad_arguments_are_refused[args3-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused3')
+args = ['launch', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'seal'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused3')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused3/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_bad_arguments_are_refused[args4-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused4')
+args = ['nonsense', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused4')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_bad_arguments_are_refused4/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+_________ test_the_capture_refuses_without_the_reviewed_script_sha256 __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_witho0')
+
+    def test_the_capture_refuses_without_the_reviewed_script_sha256(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_witho0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_witho0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+____________ test_the_capture_refuses_and_seals_nothing[busy-card] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s0')
+breakage = 'busy-card'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+_______________ test_the_capture_refuses_and_seals_nothing[head] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s1')
+breakage = 'head'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s1')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s1/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______________ test_the_capture_refuses_and_seals_nothing[dirty] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s2')
+breakage = 'dirty'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s2')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s2/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______________ test_the_capture_refuses_and_seals_nothing[asset] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s3')
+breakage = 'asset'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s3')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s3/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________ test_the_capture_refuses_and_seals_nothing[active-exp22] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s4')
+breakage = 'active-exp22'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s4')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s4/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+_______________ test_the_capture_refuses_and_seals_nothing[pin] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s5')
+breakage = 'pin'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s5')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s5/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+__________ test_the_capture_refuses_and_seals_nothing[gpu1-table-job] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s6')
+breakage = 'gpu1-table-job'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s6')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_capture_refuses_and_s6/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______ test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_card_that_turns_busy_du0')
+
+    def test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed(tmp_path):
+>       lab = make_lab(tmp_path, poll_s=0.5)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_card_that_turns_busy_du0')
+poll_s = 0.5, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_a_card_that_turns_busy_du0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________________ test_the_launch_refuses_a_stale_capture ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_a_stal0')
+
+    def test_the_launch_refuses_a_stale_capture(tmp_path):
+>       lab = make_lab(tmp_path, fresh_s=2)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_a_stal0')
+poll_s = 0.05, fresh_s = 2, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_a_stal0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+____________ test_the_launch_refuses_and_reserves_nothing[seal-sha] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re0')
+tamper = 'seal-sha'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+_____________ test_the_launch_refuses_and_reserves_nothing[record] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re1')
+tamper = 'record'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re1')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re1/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+__________ test_the_launch_refuses_and_reserves_nothing[capture-log] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re2')
+tamper = 'capture-log'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re2')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re2/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______________ test_the_launch_refuses_and_reserves_nothing[tool] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re3')
+tamper = 'tool'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re3')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re3/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______ test_the_launch_refuses_and_reserves_nothing[foreign-reservation] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re4')
+tamper = 'foreign-reservation'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re4')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re4/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________ test_the_launch_refuses_and_reserves_nothing[lock-held] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re5')
+tamper = 'lock-held'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re5')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re5/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+___________ test_the_launch_refuses_and_reserves_nothing[wrong-pin2] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re6')
+tamper = 'wrong-pin2'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re6')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re6/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+__________ test_the_launch_refuses_and_reserves_nothing[wrong-script] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re7')
+tamper = 'wrong-script'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re7')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_the_launch_refuses_and_re7/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+__ test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_supervisor_dying_at_its0')
+
+    def test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays(tmp_path):
+        wrapper = tmp_path / "py_wrapper.sh"
+        wrapper.write_text(f"#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = run ] && exit 7; done\nexec {sys.executable} \"$@\"\n")
+        wrapper.chmod(0o755)
+>       lab = make_lab(tmp_path, py=str(wrapper))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:218: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_supervisor_dying_at_its0')
+poll_s = 0.05, fresh_s = 600
+py = '/tmp/pytest-of-yixunhu/pytest-6322/test_a_supervisor_dying_at_its0/py_wrapper.sh'
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_a_supervisor_dying_at_its0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+______ test_a_launch_after_a_launcher_killed_past_its_reservation_refuses ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_launch_after_a_launcher0')
+
+    def test_a_launch_after_a_launcher_killed_past_its_reservation_refuses(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6322/test_a_launch_after_a_launcher0')
+poll_s = 0.05, fresh_s = 600, py = None
+
+    def make_lab(tmp_path, poll_s=0.05, fresh_s=600, py=None):
+        cfg = cfg_for(tmp_path)
+        with open(cfg.queue_log, "a") as f:
+            f.write(DONE)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w = tmp_path / "W"
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=poll_s, WINDOW_POLLS=4, POLL_SLACK_S=5, FRESH_S=fresh_s, PY=sys.executable,
+            PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05), shells={
+            "exp22_r2c_preflight.sh": dict(PY=py or sys.executable, PYTEST_MAIN=C.PYTEST_MAIN,
+                                           OUTPUTS_TARGET=str(w / "outputs_loc"), WEIGHTS_TARGET=str(w / "weights"),
+                                           ROOMS_TARGET=str(w / "AcousticRooms"), CONFIRM_TIMEOUT_S=30),
+            "exp22_free_card_detect.sh": dict(PY=sys.executable)})
+        for d in ("outputs_loc/exp22/g1_audit", "outputs_loc/exp22/i1_P1_CRN_br256_20260825_194053_merged",
+                  "weights/exp20", "AcousticRooms/metadata"):
+            os.makedirs(os.path.join(w, d), exist_ok=True)
+        for f in ("outputs_loc/exp22/d1_context_manifest.json", "outputs_loc/exp22/g1_audit/geometry_audit_report.json",
+                  "weights/exp20/YAW_40k.ckpt", "weights/exp20/BF_40k.ckpt", "weights/exp20/P1_40k.ckpt"):
+            open(os.path.join(w, f), "w").write("{}")
+        script = os.path.join(w, "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools", "exp22_r2c_preflight.sh")
+>       sha = E.sha256_bytes(open(script, "rb").read())
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-yixunhu/pytest-6322/test_a_launch_after_a_launcher0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:51: FileNotFoundError
+________ test_the_shell_config_and_literals_agree_with_the_python_ones _________
+
+    def test_the_shell_config_and_literals_agree_with_the_python_ones():
+>       text = open(SCRIPT).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-22-a7-noflash/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:246: FileNotFoundError
+_________________ test_the_launcher_never_signals_any_process __________________
+
+    def test_the_launcher_never_signals_any_process():
+>       code = [ln.split("#", 1)[0] for ln in open(SCRIPT).read().splitlines()]
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-22-a7-noflash/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_preflight.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:262: FileNotFoundError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_capture_seal_launch_run_detached_to_the_release
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args0-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args1-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args2-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args3-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args4-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_without_the_reviewed_script_sha256
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[busy-card]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[head]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[dirty]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[asset]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[active-exp22]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[pin]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[gpu1-table-job]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_a_stale_capture
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[seal-sha]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[record]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[capture-log]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[tool]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[foreign-reservation]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[lock-held]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-pin2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-script]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_launch_after_a_launcher_killed_past_its_reservation_refuses
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_shell_config_and_literals_agree_with_the_python_ones
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launcher_never_signals_any_process
+28 failed in 1.34s
+rc 1

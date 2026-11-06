@@ -1,0 +1,56 @@
+# exp_22 A7 c9_real_launcher GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:13:09-05:00 -- branch exp-22-a7-noflash HEAD 5b5921af; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_real_launcher.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_the_pinned_launcher_on_this_checkout_pair_sentinel_target_and_argv_identity _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6326/test_the_pinned_launcher_on_th0')
+
+    def test_the_pinned_launcher_on_this_checkout_pair_sentinel_target_and_argv_identity(tmp_path):
+        lines = E.expand_lines(json.load(open(S.LINES_JSON)), run="20261106T130501", index=0, worktree=REPO, py=C.PY,
+                               pytest_main=C.PYTEST_MAIN)
+        sets = []
+        for ln in lines:
+            if ln["target"] == "localize_meshgrid.py":
+                args, i = ln["argv"][3:], ln["argv"].index("--out-dir") - 3
+                gov = args[:i + 1] + ["outputs_loc/exp22/r2_probe_BF" if ln["kind"] == "probe" else "outputs_loc/exp22/r2_gates"]
+                sets.append((args, gov + args[i + 2:]))
+        assert len(sets) == 7
+        target, argsets = tmp_path / "a7_target.py", tmp_path / "argsets.json"
+        target.write_text(TARGET)
+        argsets.write_text(json.dumps(sets))
+        gv = lines[1]
+        env = dict(gv["env"], CUDA_VISIBLE_DEVICES="", A7_ARGSETS=str(argsets))     # the wrapped env, CPU only
+        reports, logs = {}, {}
+        for how in ("launcher", "direct"):
+            report, log = tmp_path / f"{how}.json", tmp_path / f"{how}.log"
+            argv = ([C.PY, E.LAUNCHER, str(target)] if how == "launcher" else [C.PY, str(target)]) + sets[0][0]
+            e = dict(env, A7_REPORT=str(report)) if how == "launcher" else dict(
+                {k: v for k, v in env.items() if k != "PYTHONPATH"}, A7_REPORT=str(report), PYTHONPATH=REPO)
+            with open(log, "wb") as f:
+                p = subprocess.run(argv, cwd=REPO, env=e, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT,
+                                   timeout=900)
+            logs[how] = log.read_text()
+            assert p.returncode == 0, logs[how][-3000:]
+            reports[how] = json.loads(report.read_text())
+        text, lines_ = logs["launcher"], logs["launcher"].splitlines()
+        assert E.backend_log_reasons(text, str(target)) == [], E.backend_log_reasons(text, str(target))
+        ov, fb = lines_.index(E.OVERLAY_LINE), lines_.index(E.FALLBACK_LINE)
+        sent, mark = lines_.index(E.sentinel_line(str(target))), lines_.index(MARK)
+        assert fb == ov + 1 < sent < mark                                     # pair -> dynamic sentinel -> target output
+        assert E.backend_log_reasons(text, "localize_meshgrid.py")              # the sentinel names THIS target only
+        via, direct = reports["launcher"], reports["direct"]
+        assert via["name"] == "__main__" and via["cwd"] == REPO and via["flash_none"] is True
+        assert via["argv"] == [str(target)] + sets[0][0] and via["argv"][1:] == direct["argv"][1:]
+>       assert via["sets"] == direct["sets"]                                    # runpy changes nothing the driver sees
+E       AssertionError: assert [{'stripped':...', ...}}, ...] == [{'stripped':...', ...}}, ...]
+E         
+E         At index 0 diff: {'stripped': ['--cache-parity-check', '--expect-arm', 'YAW', '--ckpt-path', 'weights/exp20/YAW_40k.ckpt', '--cond-method', 'vanilla', '--frame-avg-angles', '0', '--rotate-deg', '0', '--cond-autocast', 'default', '--batch-rows', '256', '--source-chunk', '16', '--context-manifest', 'outputs_loc/exp22/d1_context_manifest.json', '--audit-report', 'outputs_loc/exp22/g1_audit/geometry_audit_report.json', '--device', 'cuda:0', '--out-dir', 'outputs_loc/exp22/r2_gates_20261106T130501'], 'differs': ['out_dir'], 'parsed': {'ckpt_path': 'weights/exp20/YAW_40k.ckpt...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_real_launcher.py:70: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_real_launcher.py::test_the_pinned_launcher_on_this_checkout_pair_sentinel_target_and_argv_identity
+1 failed in 14.91s
+rc 1

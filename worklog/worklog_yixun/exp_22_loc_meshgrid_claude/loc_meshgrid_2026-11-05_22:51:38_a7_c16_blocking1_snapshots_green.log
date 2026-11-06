@@ -1,0 +1,5 @@
+# exp_22 A7 c16_blocking1_snapshots GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:51:38-05:00 -- branch exp-22-a7-noflash HEAD ccbcd253; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_snapshots.py
+...........                                                              [100%]
+11 passed in 10.39s
+rc 0

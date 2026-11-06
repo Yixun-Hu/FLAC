@@ -1,0 +1,59 @@
+# exp_22 A7 c15_high1_full_identity GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:45:27-05:00 -- branch exp-22-a7-noflash HEAD c5dd0b36; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_reserve.py worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_hygiene.py
+............F..F........................................................ [ 76%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+_________ test_an_incomplete_identity_is_no_identity[child-start_time] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6338/test_an_incomplete_identity_is2')
+who = 'child', drop = 'start_time'
+
+    @pytest.mark.parametrize("who, drop", [("supervisor", "start_time"), ("supervisor", "cwd"), ("child", "start_time"),
+                                           ("child", "cmdline_sha256"), ("child", "expected")])
+    def test_an_incomplete_identity_is_no_identity(tmp_path, who, drop):
+        """Codex A7-C1 HIGH 1: the state accepts a supervisor / line child only with pid, start time, cwd and cmdline
+        sha256 (the child's equal to its expected cmdline); anything less is a malformed state, never released."""
+        cfg, w, wt, orch, seal = setup(tmp_path)
+        assert reserve(cfg, w, wt, orch, seal)[0] == 0
+        st = _stop(orch, "child_identified")
+        child = dict(DEAD, expected_cmdline_sha256=DEAD["cmdline_sha256"])
+        st["current"] = {"child": child}
+        target = st["supervisor"] if who == "supervisor" else child
+        if drop == "expected":
+            child["expected_cmdline_sha256"] = "1" * 64
+        else:
+>           del target[drop]
+E           KeyError: 'start_time'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:159: KeyError
+________ test_alive_needs_the_complete_identity_and_never_the_pid_alone ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6338/test_alive_needs_the_complete_0')
+
+    def test_alive_needs_the_complete_identity_and_never_the_pid_alone(tmp_path):
+        me = {k: v for k, v in C.proc_identity(os.getpid()).items() if k in S.ID_KEYS}
+        assert S.alive(me, "/proc") is True
+        for k, v in (("start_time", me["start_time"] + 1), ("cwd", "/elsewhere"), ("cmdline_sha256", "0" * 64)):
+            assert S.alive(dict(me, **{k: v}), "/proc") is False                  # the same pid, another process
+>       assert S.alive(dict(DEAD), "/proc") is False
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ident = {'pid': 4194000, 'cmdline_sha256': '0000000000000000000000000000000000000000000000000000000000000000'}
+proc = '/proc'
+
+    def alive(ident, proc):
+        """True iff the process ``ident`` names still runs with its COMPLETE recorded identity (pid, start time, cwd, cmdline
+        sha256) -- never by its pid alone (Codex A7-C1 HIGH 1); an incomplete record is no identity (``ValueError``). (A
+        line child that outlives its supervisor also keeps the exp22 lock held, which the release refuses on first.)"""
+        if not _ident_ok(ident):
+>           raise ValueError(f"an incomplete identity {ident!r:.120} identifies no process")
+E           ValueError: an incomplete identity {'pid': 4194000, 'cmdline_sha256': '0000000000000000000000000000000000000000000000000000000000000000'} identifies no process
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_r2c_supervisor.py:213: ValueError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_an_incomplete_identity_is_no_identity[child-start_time]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_planner.py::test_alive_needs_the_complete_identity_and_never_the_pid_alone
+2 failed, 92 passed in 103.00s (0:01:43)
+rc 1

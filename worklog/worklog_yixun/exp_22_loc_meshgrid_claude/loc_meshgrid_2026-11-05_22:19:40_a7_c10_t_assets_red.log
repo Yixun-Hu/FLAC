@@ -1,0 +1,1121 @@
+# exp_22 A7 c10_t_assets RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:19:40-05:00 -- branch exp-22-a7-noflash HEAD 4c35ee77; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.                                         [100%]
+=================================== FAILURES ===================================
+_____________ test_capture_seal_launch_run_detached_to_the_release _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_capture_seal_launch_run_d0')
+
+    def test_capture_seal_launch_run_detached_to_the_release(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_capture_seal_launch_run_d0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_bad_arguments_are_refused[args0-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused0')
+args = [], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_bad_arguments_are_refused[args1-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused1')
+args = ['capture', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'GPU0'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused1/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_bad_arguments_are_refused[args2-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused2')
+args = ['capture', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'GPU2'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused2/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_bad_arguments_are_refused[args3-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused3')
+args = ['launch', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'seal'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused3/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_bad_arguments_are_refused[args4-2] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused4')
+args = ['nonsense', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'], rc = 2
+
+    @pytest.mark.parametrize("args, rc", [([], 2), (["capture", "x" * 40, "GPU0"], 2), (["capture", "a" * 40, "GPU2"], 2),
+                                          (["launch", "a" * 40, "seal"], 2), (["nonsense", "a" * 40], 2)])
+    def test_bad_arguments_are_refused(tmp_path, args, rc):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_bad_arguments_are_refused4/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+_________ test_the_capture_refuses_without_the_reviewed_script_sha256 __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_witho0')
+
+    def test_the_capture_refuses_without_the_reviewed_script_sha256(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_witho0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+____________ test_the_capture_refuses_and_seals_nothing[busy-card] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s0')
+breakage = 'busy-card'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+_______________ test_the_capture_refuses_and_seals_nothing[head] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s1')
+breakage = 'head'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s1/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______________ test_the_capture_refuses_and_seals_nothing[dirty] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s2')
+breakage = 'dirty'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s2/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______________ test_the_capture_refuses_and_seals_nothing[asset] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s3')
+breakage = 'asset'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s3/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________ test_the_capture_refuses_and_seals_nothing[active-exp22] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s4')
+breakage = 'active-exp22'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s4/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+_______________ test_the_capture_refuses_and_seals_nothing[pin] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s5')
+breakage = 'pin'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s5/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+__________ test_the_capture_refuses_and_seals_nothing[gpu1-table-job] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s6')
+breakage = 'gpu1-table-job'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s6/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________ test_the_capture_refuses_and_seals_nothing[t-checkpoint] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s7')
+breakage = 't-checkpoint'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s7/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+_____________ test_the_capture_refuses_and_seals_nothing[t-agree] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s8')
+breakage = 't-agree'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s8/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________ test_the_capture_refuses_and_seals_nothing[t-depth-map] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s9')
+breakage = 't-depth-map'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s9/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+__________ test_the_capture_refuses_and_seals_nothing[t-dinov3-cache] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s10')
+breakage = 't-dinov3-cache'
+
+    @pytest.mark.parametrize("breakage", ["busy-card", "head", "dirty", "asset", "active-exp22", "pin", "gpu1-table-job",
+                                          "t-checkpoint", "t-agree", "t-depth-map", "t-dinov3-cache"])
+    def test_the_capture_refuses_and_seals_nothing(tmp_path, breakage):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3...W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_capture_refuses_and_s10/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______ test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_a_card_that_turns_busy_du0')
+
+    def test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed(tmp_path):
+>       lab = make_lab(tmp_path, poll_s=0.5)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_a_card_that_turns_busy_du0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________________ test_the_launch_refuses_a_stale_capture ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_a_stal0')
+
+    def test_the_launch_refuses_a_stale_capture(tmp_path):
+>       lab = make_lab(tmp_path, fresh_s=2)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_a_stal0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+____________ test_the_launch_refuses_and_reserves_nothing[seal-sha] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re0')
+tamper = 'seal-sha'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+_____________ test_the_launch_refuses_and_reserves_nothing[record] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re1')
+tamper = 'record'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re1/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+__________ test_the_launch_refuses_and_reserves_nothing[capture-log] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re2')
+tamper = 'capture-log'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re2/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______________ test_the_launch_refuses_and_reserves_nothing[tool] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re3')
+tamper = 'tool'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re3/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______ test_the_launch_refuses_and_reserves_nothing[foreign-reservation] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re4')
+tamper = 'foreign-reservation'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re4/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________ test_the_launch_refuses_and_reserves_nothing[lock-held] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re5')
+tamper = 'lock-held'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re5/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+___________ test_the_launch_refuses_and_reserves_nothing[wrong-pin2] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re6')
+tamper = 'wrong-pin2'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re6/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+__________ test_the_launch_refuses_and_reserves_nothing[wrong-script] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re7')
+tamper = 'wrong-script'
+
+    @pytest.mark.parametrize("tamper", ["seal-sha", "record", "capture-log", "tool", "foreign-reservation", "lock-held",
+                                        "wrong-pin2", "wrong-script"])
+    def test_the_launch_refuses_and_reserves_nothing(tmp_path, tamper):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_the_launch_refuses_and_re7/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+__ test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays __
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_a_supervisor_dying_at_its0')
+
+    def test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays(tmp_path):
+        wrapper = tmp_path / "py_wrapper.sh"
+        wrapper.write_text(f"#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = run ] && exit 7; done\nexec {sys.executable} \"$@\"\n")
+        wrapper.chmod(0o755)
+>       lab = make_lab(tmp_path, py=str(wrapper))
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/tmp/pytest-of-yixunhu/pytest-6330/test_a_supervisor_dying_at_its0/py_wrapper.sh', 'PYTEST_MAIN': '/home/yixun.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_a_supervisor_dying_at_its0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+______ test_a_launch_after_a_launcher_killed_past_its_reservation_refuses ______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6330/test_a_launch_after_a_launcher0')
+
+    def test_a_launch_after_a_launcher_killed_past_its_reservation_refuses(tmp_path):
+>       lab = make_lab(tmp_path)
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:246: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:36: in make_lab
+    w, pin2 = sandbox_repo(tmp_path, common=dict(
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:247: in sandbox_repo
+    sandbox_tools(w, common=common, shells=shells)
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:129: in sandbox_tools
+    text = replace_block(text, values, name.endswith(".sh"))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '#!/usr/bin/env bash\n# exp_22 R2-C: the Planner-run pre-flight launcher (plan_loc_meshgrid_r2_bf_yaw.md §9 A7 r2 (v)(..." "$4" 2>&1 | tee -a "$OUT"; rc=${PIPESTATUS[0]}\nsay "rc ${rc}; launch log ${OUT} sha256 $(sha "$OUT")"\nexit "$rc"\n'
+values = {'PY': '/home/yixunhu/miniconda3/envs/flac/bin/python', 'PYTEST_MAIN': '/home/yixunhu/miniconda3/envs/flac/lib/python3.../W/outputs_loc', 'WEIGHTS_TARGET': '/tmp/pytest-of-yixunhu/pytest-6330/test_a_launch_after_a_launcher0/W/weights', ...}
+shell = True
+
+    def replace_block(text, values, shell):
+        """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+        names = block_names(text, shell)
+>       assert sorted(values) == names, (sorted(values), names)
+E       AssertionError: (['CONFIRM_TIMEOUT_S', 'DINO_CACHE', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', ...], ['CONFIRM_TIMEOUT_S', 'OUTPUTS_TARGET', 'PY', 'PYTEST_MAIN', 'ROOMS_TARGET', 'WEIGHTS_TARGET'])
+E       assert ['CONFIRM_TIM..._TARGET', ...] == ['CONFIRM_TIM...IGHTS_TARGET']
+E         
+E         At index 1 diff: 'DINO_CACHE' != 'OUTPUTS_TARGET'
+E         Left contains one more item: 'WEIGHTS_TARGET'
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/conftest.py:109: AssertionError
+________ test_the_shell_config_and_literals_agree_with_the_python_ones _________
+
+    def test_the_shell_config_and_literals_agree_with_the_python_ones():
+        text = open(SCRIPT).read()
+        block = text[text.index("# --- BEGIN REGISTERED CONFIG"):text.index("# --- END REGISTERED CONFIG ---")]
+        vals = dict(ln.split("=", 1) for ln in block.splitlines()[1:] if ln and not ln.startswith("#"))
+>       assert vals == {"PY": C.PY, "PYTEST_MAIN": C.PYTEST_MAIN, "OUTPUTS_TARGET": "/home/yixunhu/codespace/FLAC/outputs_loc",
+                        "WEIGHTS_TARGET": "/home/yixunhu/codespace/FLAC/weights",
+                        "ROOMS_TARGET": "/media/diskstation/yixunhu/FLAC/AcousticRooms", "CONFIRM_TIMEOUT_S": "60",
+                        "DINO_CACHE": "/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m"}
+E       AssertionError: assert {'PY': '/home...weights', ...} == {'PY': '/home...weights', ...}
+E         
+E         Omitting 6 identical items, use -vv to show
+E         Right contains 1 more item:
+E         {'DINO_CACHE': '/home/yixunhu/.cache/huggingface/hub/models--facebook--dinov3-vits16-pretrain-lvd1689m'}
+E         Use -v to get more diff
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:263: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_capture_seal_launch_run_detached_to_the_release
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args0-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args1-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args2-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args3-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_bad_arguments_are_refused[args4-2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_without_the_reviewed_script_sha256
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[busy-card]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[head]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[dirty]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[asset]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[active-exp22]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[pin]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[gpu1-table-job]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-checkpoint]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-agree]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-depth-map]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_capture_refuses_and_seals_nothing[t-dinov3-cache]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_card_that_turns_busy_during_the_sealed_polls_is_not_sealed
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_a_stale_capture
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[seal-sha]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[record]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[capture-log]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[tool]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[foreign-reservation]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[lock-held]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-pin2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_launch_refuses_and_reserves_nothing[wrong-script]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_supervisor_dying_at_its_start_is_not_confirmed_and_everything_stays
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_a_launch_after_a_launcher_killed_past_its_reservation_refuses
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_the_shell_config_and_literals_agree_with_the_python_ones
+31 failed, 1 passed in 1.00s
+rc 1

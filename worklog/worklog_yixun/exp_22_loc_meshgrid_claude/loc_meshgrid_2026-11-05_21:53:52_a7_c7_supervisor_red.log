@@ -1,0 +1,765 @@
+# exp_22 A7 c7_supervisor RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:53:52-05:00 -- branch exp-22-a7-noflash HEAD 8a667a75; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE                                         [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_the_fifteen_registered_lines_run_and_the_exact_record_is_released _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_the_fifteen_registered_li0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+__________ ERROR at setup of test_every_transition_is_saved_in_order ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_every_transition_is_saved0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_stop_at_the_first_failure_with_the_nonzero_exit_recorded_first _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_stop_at_the_first_failure0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[missing-module] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[second-sentinel] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_1')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[t-skip] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_2')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[t-fail] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_3')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[reverify] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_4')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[no-output] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_5')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[a5-above-cap] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_refused_line_stops_the_6')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_foreign_process_during_a_running_line_stops_further_lines_and_never_touches_the_child _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_foreign_process_during_0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[replaced-reservation-GV-V_GV] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[lock-held-GV-V_GV] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st1')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[head-moved-GV-G1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st2')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[dirty-tree-GV-G1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st3')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[clobber-GV-G1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st4')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_change_between_lines_stops_before_the_next_one[earlier-output-V_GV-G2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_change_between_lines_st5')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+____________ ERROR at setup of test_nothing_is_clobbered[gates-dir] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_nothing_is_clobbered_gate0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+____________ ERROR at setup of test_nothing_is_clobbered[first-log] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_nothing_is_clobbered_firs0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+______________ ERROR at setup of test_nothing_is_clobbered[junit] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_nothing_is_clobbered_juni0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[spawn] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[identify] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition1')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[watch] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition2')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[evidence] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition3')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[record] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition4')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[release] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition5')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_ ERROR at setup of test_a_crash_at_any_transition_leaves_everything_for_the_planner[after-unlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_crash_at_any_transition6')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+________ ERROR at setup of test_a_restart_refuses_after_a_complete_run _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_restart_refuses_after_a0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+___ ERROR at setup of test_the_supervisor_refuses_without_the_inherited_lock ___
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_the_supervisor_refuses_wi0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_________ ERROR at setup of test_the_heartbeat_beats_while_a_line_runs _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_the_heartbeat_beats_while0')
+
+    @pytest.fixture
+    def box(tmp_path):
+        w, pin2 = sandbox_repo(tmp_path)
+        cfg = cfg_for(tmp_path)._replace(proc="/proc")
+        world = LineWorld()
+        orch = _reserve(w, pin2, cfg, world)
+        fd = os.open(S.lock_path(w), os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)                              # as the launcher holds it for the supervisor
+        b = types.SimpleNamespace(w=w, pin2=pin2, cfg=cfg, orch=orch, world=world, fd=fd)
+        b.sup = lambda **kw: S.Supervisor(world, cfg, orch, fd, worktree=w, child_poll_s=0.05, relist=(2, 0.05), **kw)
+        b.state = lambda: json.load(open(os.path.join(orch, "state.json")))
+        b.control = lambda d: open(os.path.join(w, "a7_control.json"), "w").write(json.dumps(d))
+        b.res = os.path.join(cfg.reservations, f"{GPU0}.json")
+        b.path = lambda rel: os.path.join(w, rel)
+>       b.lines = E.expand_lines(json.load(open(S.LINES_JSON)), run=RUN, index=0, worktree=w, py=C.PY,
+                                 pytest_main=C.PYTEST_MAIN)
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PY'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:62: AttributeError
+_________ ERROR at setup of test_the_cli_runs_the_lines_to_the_release _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_the_cli_runs_the_lines_to0')
+
+    @pytest.fixture
+    def cli(tmp_path):
+        cfg = cfg_for(tmp_path)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=60, WINDOW_POLLS=31, POLL_SLACK_S=15, FRESH_S=600, PY=sys.executable,
+>           PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05))
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PYTEST_MAIN'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:323: AttributeError
+_ ERROR at setup of test_a_killed_supervisor_leaves_a_surviving_child_that_keeps_the_lock_and_the_reservation _
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6318/test_a_killed_supervisor_leave0')
+
+    @pytest.fixture
+    def cli(tmp_path):
+        cfg = cfg_for(tmp_path)
+        nv = tmp_path / "nvidia-smi"
+        (tmp_path / "apps.txt").write_text("")
+        nv.write_text(f"#!/bin/sh\ncase \"$1\" in --query-gpu=*) printf '%s' '{MAP}';; *) cat {tmp_path / 'apps.txt'};; esac\n")
+        nv.chmod(0o755)
+        w, pin2 = sandbox_repo(tmp_path, common=dict(
+            RESERVATIONS=cfg.reservations, EXP35_LOCK=cfg.exp35_lock, QUEUE_LOG=cfg.queue_log, PROC="/proc",
+            NVIDIA_SMI=str(nv), POLL_S=60, WINDOW_POLLS=31, POLL_SLACK_S=15, FRESH_S=600, PY=sys.executable,
+>           PYTEST_MAIN=C.PYTEST_MAIN, CHILD_POLL_S=0.05))
+E       AttributeError: module 'exp22_r2c_common' has no attribute 'PYTEST_MAIN'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py:323: AttributeError
+=========================== short test summary info ============================
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_fifteen_registered_lines_run_and_the_exact_record_is_released
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_every_transition_is_saved_in_order
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_stop_at_the_first_failure_with_the_nonzero_exit_recorded_first
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[missing-module]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[second-sentinel]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[t-skip]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[t-fail]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[reverify]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[no-output]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_refused_line_stops_the_preflight_and_keeps_the_reservation[a5-above-cap]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_foreign_process_during_a_running_line_stops_further_lines_and_never_touches_the_child
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[replaced-reservation-GV-V_GV]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[lock-held-GV-V_GV]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[head-moved-GV-G1]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[dirty-tree-GV-G1]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[clobber-GV-G1]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_change_between_lines_stops_before_the_next_one[earlier-output-V_GV-G2]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_nothing_is_clobbered[gates-dir]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_nothing_is_clobbered[first-log]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_nothing_is_clobbered[junit]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[spawn]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[identify]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[watch]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[evidence]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[record]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[release]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_crash_at_any_transition_leaves_everything_for_the_planner[after-unlink]
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_restart_refuses_after_a_complete_run
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_supervisor_refuses_without_the_inherited_lock
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_heartbeat_beats_while_a_line_runs
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_the_cli_runs_the_lines_to_the_release
+ERROR worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_supervisor.py::test_a_killed_supervisor_leaves_a_surviving_child_that_keeps_the_lock_and_the_reservation
+32 errors in 1.46s
+rc 1

@@ -1,0 +1,45 @@
+# exp_22 A7 c8_launcher GREEN (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T22:10:21-05:00 -- branch exp-22-a7-noflash HEAD 02d94b44; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py
+F...........................                                             [100%]
+=================================== FAILURES ===================================
+_____________ test_capture_seal_launch_run_detached_to_the_release _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6324/test_capture_seal_launch_run_d0')
+
+    def test_capture_seal_launch_run_detached_to_the_release(tmp_path):
+        lab = make_lab(tmp_path)
+        seal, ssha, out = captured(lab)
+        orch = os.path.dirname(seal)
+        assert sorted(os.listdir(orch)) == ["capture.log", "capture_polls.jsonl", "seal.txt"]
+        text = open(seal).read()
+        for key in ("pin2 " + lab.pin2, "run " + orch.rsplit("_", 1)[1], f"card GPU0 {GPU0} 0", "capture_record ",
+                    "first_poll ", "last_poll ", "capture_log ", "sealed_at ", f"script_sha256 {lab.sha}"):
+            assert key in text, key
+        assert text.count("\ntool ") == 6 and text.count("\npin ") == 4
+        log = open(os.path.join(orch, "capture.log")).read()
+        assert "CAPTURE CHECKS OK" in log and "CHECK FAILED" not in log and log.count("CHECK OK") > 20
+        lab.control({"vanilla_cache_parity": {"sleep": 3}})                 # keep the supervisor alive for a look
+        p = lab.run("launch", lab.pin2, seal, ssha)
+        assert p.returncode == 0 and "LAUNCHED: supervisor pid" in p.stdout, p.stdout[-4000:]
+        pid = int(re.search(r"LAUNCHED: supervisor pid (\d+)", p.stdout)[1])
+        env = sorted(x for x in open(f"/proc/{pid}/environ", "rb").read().decode().split("\0") if x)
+        stat = open(f"/proc/{pid}/stat").read()
+        assert env == sorted(LAUNCH_ENV)                                       # env -i: exactly the launch environment
+        assert int(stat[stat.rindex(")") + 2:].split()[3]) == pid             # setsid: its own session
+        assert os.readlink(f"/proc/{pid}/fd/0") == "/dev/null" and os.readlink(f"/proc/{pid}/cwd") == lab.w
+        assert C.lock_status(S.lock_path(lab.w)) == "held"                     # the inherited single-instance lock
+        st = wait_terminal(orch)
+        assert st["phase"] == "released" and len(st["lines"]) == 15 and all(x["admitted"] for x in st["lines"])
+        assert st["supervisor"]["pid"] == pid and not os.path.lexists(lab.res())
+>       assert C.lock_status(S.lock_path(lab.w)) == "unheld"
+E       AssertionError: assert 'held' == 'unheld'
+E         
+E         - unheld
+E         ? --
+E         + held
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py:111: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_r2c_preflight_sh.py::test_capture_seal_launch_run_detached_to_the_release
+1 failed, 27 passed in 51.49s
+rc 1
