@@ -1,0 +1,350 @@
+# exp_22 A7 c3_detector RED (Coder, Claude Opus 5.5 subagent) -- 2026-11-05T21:26:18-05:00 -- branch exp-22-a7-noflash HEAD 4290bcf0; CPU only (CUDA_VISIBLE_DEVICES=), no bytecode, no cache
+$ python -m pytest -q --color=no -p no:cacheprovider worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py
+FFFFFFFFFFFFFFFFFFFFFFF                                                  [100%]
+=================================== FAILURES ===================================
+____ test_a_card_free_for_31_polls_is_a_candidate_after_exactly_30_minutes _____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_a_card_free_for_31_polls_0')
+
+    def test_a_card_free_for_31_polls_is_a_candidate_after_exactly_30_minutes(tmp_path):
+        w = Scripted(apps_at=lambda t: f"9, {GPU1}\n")                    # GPU 1 busy, GPU 0 idle
+>       rc, line = C.detect(w, free_cfg(tmp_path), 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:42: AttributeError
+____________________ test_one_busy_poll_restarts_the_window ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_one_busy_poll_restarts_th0')
+
+    def test_one_busy_poll_restarts_the_window(tmp_path):
+        w = Scripted(apps_at=lambda t: f"7, {GPU0}\n" if T0 + 600 <= t < T0 + 660 else f"9, {GPU1}\n")
+>       rc, line = C.detect(w, free_cfg(tmp_path), 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:51: AttributeError
+___________ test_gpu0_is_preferred_when_both_cards_qualify_together ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_gpu0_is_preferred_when_bo0')
+
+    def test_gpu0_is_preferred_when_both_cards_qualify_together(tmp_path):
+>       rc, line = C.detect(Scripted(), free_cfg(tmp_path), 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:56: AttributeError
+__________ test_gpu1_alone_qualifies_while_the_exp35_lock_holds_gpu0 ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_gpu1_alone_qualifies_whil0')
+
+    def test_gpu1_alone_qualifies_while_the_exp35_lock_holds_gpu0(tmp_path):
+        from conftest import HOLDER
+        cfg = free_cfg(tmp_path)
+        p = subprocess.Popen([sys.executable, "-c", HOLDER, cfg.exp35_lock], stdout=subprocess.PIPE, text=True)
+        try:
+            assert p.stdout.readline().strip() == "locked"
+>           rc, line = C.detect(Scripted(), cfg, 7200)
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:66: AttributeError
+____________ test_gpu1_never_qualifies_before_the_table_job_is_done ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_gpu1_never_qualifies_befo0')
+
+    def test_gpu1_never_qualifies_before_the_table_job_is_done(tmp_path):
+        w = Scripted(apps_at=lambda t: f"9, {GPU0}\n")
+>       rc, line = C.detect(w, free_cfg(tmp_path, gpu1_done=False), 3600)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:75: AttributeError
+_________ test_the_runtime_is_bounded_and_no_poll_lies_past_the_bound __________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_runtime_is_bounded_an0')
+
+    def test_the_runtime_is_bounded_and_no_poll_lies_past_the_bound(tmp_path):
+        w = Scripted(apps_at=lambda t: f"1, {GPU0}\n2, {GPU1}\n")
+>       rc, line = C.detect(w, free_cfg(tmp_path), 600)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:81: AttributeError
+________ test_a_late_poll_resets_every_window_without_a_catch_up_burst _________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_a_late_poll_resets_every_0')
+
+    def test_a_late_poll_resets_every_window_without_a_catch_up_burst(tmp_path):
+        w = Scripted(late={10: 900})                                         # the 10th apps query stalls 15 min
+>       rc, line = C.detect(w, free_cfg(tmp_path), 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:87: AttributeError
+_________________ test_a_two_hour_re_arm_starts_a_fresh_window _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_a_two_hour_re_arm_starts_0')
+
+    def test_a_two_hour_re_arm_starts_a_fresh_window(tmp_path):
+        """A7 r3 (d): re-armed at most every two hours; the detector keeps no memory, so the window restarts."""
+        cfg = free_cfg(tmp_path)
+        busy_until = T0 + 6900
+        w = Scripted(apps_at=lambda t: f"5, {GPU0}\n5, {GPU1}\n" if t < busy_until else "")
+>       rc, line = C.detect(w, cfg, 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:99: AttributeError
+_______ test_an_unreadable_input_ends_the_detector_with_one_event[nvsmi] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_an_unreadable_input_ends_0')
+breakage = 'nvsmi'
+
+    @pytest.mark.parametrize("breakage", ["nvsmi", "lock", "queue", "reservation"])
+    def test_an_unreadable_input_ends_the_detector_with_one_event(tmp_path, breakage):
+        cfg = free_cfg(tmp_path)
+        w = Scripted()
+        if breakage == "nvsmi":
+            w.answers["map"] = lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-gpu=index,uuid: rc 6"))
+        elif breakage == "lock":
+            open(cfg.exp35_lock, "w").close()
+            os.chmod(cfg.exp35_lock, 0)
+        elif breakage == "queue":
+            os.unlink(cfg.queue_log)
+        else:
+            path = os.path.join(cfg.reservations, f"{GPU1}.json")
+            open(path, "w").write("{}")
+            os.chmod(path, 0)
+        try:
+>           rc, line = C.detect(w, cfg, 7200)
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:122: AttributeError
+_______ test_an_unreadable_input_ends_the_detector_with_one_event[lock] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_an_unreadable_input_ends_1')
+breakage = 'lock'
+
+    @pytest.mark.parametrize("breakage", ["nvsmi", "lock", "queue", "reservation"])
+    def test_an_unreadable_input_ends_the_detector_with_one_event(tmp_path, breakage):
+        cfg = free_cfg(tmp_path)
+        w = Scripted()
+        if breakage == "nvsmi":
+            w.answers["map"] = lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-gpu=index,uuid: rc 6"))
+        elif breakage == "lock":
+            open(cfg.exp35_lock, "w").close()
+            os.chmod(cfg.exp35_lock, 0)
+        elif breakage == "queue":
+            os.unlink(cfg.queue_log)
+        else:
+            path = os.path.join(cfg.reservations, f"{GPU1}.json")
+            open(path, "w").write("{}")
+            os.chmod(path, 0)
+        try:
+>           rc, line = C.detect(w, cfg, 7200)
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:122: AttributeError
+_______ test_an_unreadable_input_ends_the_detector_with_one_event[queue] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_an_unreadable_input_ends_2')
+breakage = 'queue'
+
+    @pytest.mark.parametrize("breakage", ["nvsmi", "lock", "queue", "reservation"])
+    def test_an_unreadable_input_ends_the_detector_with_one_event(tmp_path, breakage):
+        cfg = free_cfg(tmp_path)
+        w = Scripted()
+        if breakage == "nvsmi":
+            w.answers["map"] = lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-gpu=index,uuid: rc 6"))
+        elif breakage == "lock":
+            open(cfg.exp35_lock, "w").close()
+            os.chmod(cfg.exp35_lock, 0)
+        elif breakage == "queue":
+            os.unlink(cfg.queue_log)
+        else:
+            path = os.path.join(cfg.reservations, f"{GPU1}.json")
+            open(path, "w").write("{}")
+            os.chmod(path, 0)
+        try:
+>           rc, line = C.detect(w, cfg, 7200)
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:122: AttributeError
+____ test_an_unreadable_input_ends_the_detector_with_one_event[reservation] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_an_unreadable_input_ends_3')
+breakage = 'reservation'
+
+    @pytest.mark.parametrize("breakage", ["nvsmi", "lock", "queue", "reservation"])
+    def test_an_unreadable_input_ends_the_detector_with_one_event(tmp_path, breakage):
+        cfg = free_cfg(tmp_path)
+        w = Scripted()
+        if breakage == "nvsmi":
+            w.answers["map"] = lambda: (_ for _ in ()).throw(C.Unreadable("nvidia-smi --query-gpu=index,uuid: rc 6"))
+        elif breakage == "lock":
+            open(cfg.exp35_lock, "w").close()
+            os.chmod(cfg.exp35_lock, 0)
+        elif breakage == "queue":
+            os.unlink(cfg.queue_log)
+        else:
+            path = os.path.join(cfg.reservations, f"{GPU1}.json")
+            open(path, "w").write("{}")
+            os.chmod(path, 0)
+        try:
+>           rc, line = C.detect(w, cfg, 7200)
+E           AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:122: AttributeError
+_______________________ test_the_detector_writes_nothing _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_detector_writes_nothi0')
+
+    def test_the_detector_writes_nothing(tmp_path):
+        cfg = free_cfg(tmp_path)
+        open(cfg.exp35_lock, "w").close()
+        before = _tree(tmp_path)
+>       C.detect(Scripted(), cfg, 7200)
+E       AttributeError: module '_a7_exp22_r2c_common' has no attribute 'detect'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:144: AttributeError
+________________ test_the_wrapper_prints_exactly_one_event_line ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_prints_exactl0')
+
+    def test_the_wrapper_prints_exactly_one_event_line(tmp_path):
+        p = _run(_wrapper(tmp_path, apps=f"9, {GPU1}\n"), "60")
+>       assert p.returncode == 0, p.stderr
+E       AssertionError: bash: /tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_prints_exactl0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory
+E         
+E       assert 127 == 0
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_prints_exactl0/W/worklog/worklog_y...actl0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:173: AssertionError
+________________ test_the_wrapper_times_out_with_one_event_line ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_times_out_wit0')
+
+    def test_the_wrapper_times_out_with_one_event_line(tmp_path):
+        p = _run(_wrapper(tmp_path, apps=f"1, {GPU0}\n2, {GPU1}\n"), "1")
+>       assert p.returncode == 3 and p.stdout.count("\n") == 1 and p.stdout.startswith("EVENT TIMEOUT")
+E       AssertionError: assert (127 == 3)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_times_out_wit0/W/worklog/worklog_y..._wit0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:179: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args0] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad0')
+args = []
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad0/W/worklog/worklog_y..._bad0/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args1] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad1')
+args = ['0']
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad1/W/worklog/worklog_y..._bad1/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args2] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad2')
+args = ['7201']
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad2/W/worklog/worklog_y..._bad2/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args3] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad3')
+args = ['abc']
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad3/W/worklog/worklog_y..._bad3/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args4] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad4')
+args = ['60', 'x']
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad4/W/worklog/worklog_y..._bad4/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+_________________ test_the_wrapper_refuses_a_bad_bound[args5] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad5')
+args = ['-5']
+
+    @pytest.mark.parametrize("args", [[], ["0"], ["7201"], ["abc"], ["60", "x"], ["-5"]])
+    def test_the_wrapper_refuses_a_bad_bound(tmp_path, args):
+        p = _run(_wrapper(tmp_path), *args)
+>       assert p.returncode == 2 and p.stdout.startswith("EVENT ARGUMENT ERROR") and p.stdout.count("\n") == 1
+E       AssertionError: assert (127 == 2)
+E        +  where 127 = CompletedProcess(args=['bash', '/tmp/pytest-of-yixunhu/pytest-6304/test_the_wrapper_refuses_a_bad5/W/worklog/worklog_y..._bad5/W/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh: No such file or directory\n').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:185: AssertionError
+____ test_the_registered_wrapper_runs_the_flac_interpreter_on_the_detector _____
+
+    def test_the_registered_wrapper_runs_the_flac_interpreter_on_the_detector():
+>       text = open(os.path.join(os.path.dirname(C.__file__), "exp22_free_card_detect.sh")).read()
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/yixunhu/codespace/exp-22-a7-noflash/worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/exp22_free_card_detect.sh'
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:189: FileNotFoundError
+_______________ test_the_cli_observe_prints_one_json_observation _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-yixunhu/pytest-6304/test_the_cli_observe_prints_on0')
+
+    def test_the_cli_observe_prints_one_json_observation(tmp_path):
+        w = _wrapper(tmp_path, apps=f"9, {GPU0}\n")
+        common = os.path.join(os.path.dirname(w), "exp22_r2c_common.py")
+        p = subprocess.run([sys.executable, "-B", common, "observe", "--card", "GPU0"], capture_output=True, text=True)
+>       assert p.returncode == 1 and json.loads(p.stdout)["pids_on_card"] == [9]
+E       AssertionError: assert (0 == 1)
+E        +  where 0 = CompletedProcess(args=['/home/yixunhu/miniconda3/envs/flac/bin/python', '-B', '/tmp/pytest-of-yixunhu/pytest-6304/test...xp_22_loc_meshgrid_claude/tools/exp22_r2c_common.py', 'observe', '--card', 'GPU0'], returncode=0, stdout='', stderr='').returncode
+
+worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py:199: AssertionError
+=========================== short test summary info ============================
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_a_card_free_for_31_polls_is_a_candidate_after_exactly_30_minutes
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_one_busy_poll_restarts_the_window
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_gpu0_is_preferred_when_both_cards_qualify_together
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_gpu1_alone_qualifies_while_the_exp35_lock_holds_gpu0
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_gpu1_never_qualifies_before_the_table_job_is_done
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_runtime_is_bounded_and_no_poll_lies_past_the_bound
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_a_late_poll_resets_every_window_without_a_catch_up_burst
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_a_two_hour_re_arm_starts_a_fresh_window
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_an_unreadable_input_ends_the_detector_with_one_event[nvsmi]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_an_unreadable_input_ends_the_detector_with_one_event[lock]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_an_unreadable_input_ends_the_detector_with_one_event[queue]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_an_unreadable_input_ends_the_detector_with_one_event[reservation]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_detector_writes_nothing
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_prints_exactly_one_event_line
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_times_out_with_one_event_line
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args0]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args1]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args2]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args3]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args4]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_wrapper_refuses_a_bad_bound[args5]
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_registered_wrapper_runs_the_flac_interpreter_on_the_detector
+FAILED worklog/worklog_yixun/exp_22_loc_meshgrid_claude/tools/test_exp22_free_card_detect.py::test_the_cli_observe_prints_one_json_observation
+23 failed in 0.37s
+rc 1

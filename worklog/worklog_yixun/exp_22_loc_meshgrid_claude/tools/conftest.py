@@ -1,7 +1,10 @@
 """exp_22 A7 tools tests (CPU only): the tools are imported by path, never written as bytecode, and every
 test uses tmp_path fakes -- never the live reservation directory, the live exp_35 lock or a GPU."""
+import ast
 import importlib.util
 import os
+import shlex
+import shutil
 import sys
 
 sys.dont_write_bytecode = True
@@ -34,7 +37,7 @@ class FakeWorld:
 
     def sleep(self, s):
         self.slept.append(s)
-        self.t += s
+        self.t += max(0.0, s)
 
     def nvsmi(self, query):
         a = self.answers[query]
@@ -74,3 +77,54 @@ fcntl.flock(fd, fcntl.LOCK_EX)
 print("locked", flush=True)
 time.sleep(60)
 '''
+
+
+BEGIN, END = "# --- BEGIN REGISTERED CONFIG", "# --- END REGISTERED CONFIG ---"
+TOOLS = ("exp22_r2c_common.py", "exp22_r2c_evidence.py", "exp22_r2c_supervisor.py", "exp22_free_card_detect.sh",
+         "exp22_r2c_preflight.sh", "exp22_r2c_preflight_lines.json")
+
+
+def _block(text):
+    i = text.index(BEGIN)
+    j = text.index(END, i) + len(END)
+    return i, j
+
+
+def block_names(text, shell):
+    """The names the registered-config block of ``text`` assigns."""
+    i, j = _block(text)
+    body = text[i:j]
+    if shell:
+        return sorted({ln.split("=", 1)[0] for ln in body.splitlines()[1:-1] if ln and not ln.startswith("#")})
+    return sorted({t.id for node in ast.parse(body).body for t in
+                   (node.targets[0].elts if isinstance(node.targets[0], ast.Tuple) else node.targets)})
+
+
+def replace_block(text, values, shell):
+    """``text`` with ONLY its registered-config block replaced by ``values`` -- which must cover exactly its names."""
+    names = block_names(text, shell)
+    assert sorted(values) == names, (sorted(values), names)
+    i, j = _block(text)
+    first = text[i:text.index("\n", i)]
+    body = "".join(f"{k}={shlex.quote(str(v))}\n" if shell else f"{k} = {v!r}\n" for k, v in values.items())
+    return text[:i] + first + "\n" + body + END + text[j:]
+
+
+def sandbox_tools(root, common=None, shells=None):
+    """Copies of the tools under ``root``'s worklog layout: ``exp22_r2c_common.py``'s config block replaced by
+    ``common`` and each shell script's by ``shells[name]`` (exactly their names, nothing else changed)."""
+    dest = os.path.join(str(root), "worklog", "worklog_yixun", "exp_22_loc_meshgrid_claude", "tools")
+    os.makedirs(dest, exist_ok=True)
+    for name in TOOLS:
+        src = os.path.join(HERE, name)
+        if not os.path.exists(src):
+            continue
+        with open(src) as f:
+            text = f.read()
+        values = common if name == "exp22_r2c_common.py" else (shells or {}).get(name)
+        if values is not None:
+            text = replace_block(text, values, name.endswith(".sh"))
+        with open(os.path.join(dest, name), "w") as f:
+            f.write(text)
+        shutil.copymode(src, os.path.join(dest, name))
+    return dest

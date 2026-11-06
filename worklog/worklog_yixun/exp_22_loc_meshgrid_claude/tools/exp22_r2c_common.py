@@ -16,6 +16,7 @@ reserves, spawns a workload or signals a process: nvidia-smi queries and reads o
 
 Written by the exp_22 A7 Coder (Claude Opus 5.5, max effort).
 """
+import argparse
 import collections
 import datetime
 import fcntl
@@ -319,3 +320,60 @@ def observe(world, cfg, card, held=None):
     return {"t": t, "iso": iso(t), "card": card, "uuid": uuid, "index": next(i for i, u in m.items() if u == uuid),
             "gpu_map_raw": map_raw, "apps_raw": apps_raw, "apps_sha256": sha256_bytes(apps_raw.encode()),
             "pids_on_card": pids, "reservation": res, "rule": rule, "free": not reasons, "reasons": reasons}
+
+
+def detect(world, cfg, max_seconds):
+    """The READ-ONLY detector (A7 r2 (v)(1), r3 (d)): both cards observed every POLL_S s; ``(0, 'EVENT CANDIDATE ...')``
+    once a card was free at WINDOW_POLLS consecutive polls (GPU 0 first), ``(3, 'EVENT TIMEOUT ...')`` when the next
+    poll would lie past ``max_seconds``, ``(4, 'EVENT UNREADABLE ...')`` at the first unreadable input. A poll later
+    than POLL_SLACK_S restarts every window at that poll (no catch-up burst). It keeps no memory across runs."""
+    start = due = world.now()
+    streak = {c: [] for c in CARDS}
+    while True:
+        world.sleep(due - world.now())
+        if world.now() - due > POLL_SLACK_S:
+            streak, due = {c: [] for c in CARDS}, world.now()
+        try:
+            seen = {c: observe(world, cfg, c) for c in CARDS}
+        except Unreadable as err:
+            return 4, f"EVENT UNREADABLE at {iso(world.now())}: {err} (busy: nothing admitted)"
+        for c, o in seen.items():
+            streak[c] = streak[c] + [o["t"]] if o["free"] else []
+        ready = [c for c in CARDS if len(streak[c]) >= WINDOW_POLLS]
+        if ready:
+            c = "GPU0" if "GPU0" in ready else ready[0]
+            first, last = streak[c][-WINDOW_POLLS], streak[c][-1]
+            return 0, (f"EVENT CANDIDATE {c} {CARDS[c]} index {seen[c]['index']}: free at {WINDOW_POLLS} consecutive "
+                       f"polls {POLL_S} s apart, {iso(first)} .. {iso(last)} (read-only detector: only the launcher's "
+                       "sealed capture admits a card)")
+        due += POLL_S
+        if due - start > max_seconds:
+            counts = ", ".join(f"{c} {len(streak[c])}/{WINDOW_POLLS}" for c in CARDS)
+            return 3, f"EVENT TIMEOUT at {iso(world.now())} after {max_seconds} s: no candidate (consecutive free polls {counts}); re-arm"
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="exp_22 R2-C read-only card observation / detector")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("observe").add_argument("--card", required=True, choices=sorted(CARDS))
+    sub.add_parser("detect").add_argument("--max-seconds", type=int, required=True)
+    args = ap.parse_args(argv)
+    cfg, world = registered_config(), World(NVIDIA_SMI)
+    if args.cmd == "observe":
+        try:
+            o = observe(world, cfg, args.card)
+        except Unreadable as err:
+            print(json.dumps({"card": args.card, "unreadable": str(err)}))
+            return 4
+        print(json.dumps(o))
+        return 0 if o["free"] else 1
+    if not 1 <= args.max_seconds <= 7200:
+        print("EVENT ARGUMENT ERROR: --max-seconds must lie in 1..7200 (the Planner re-arms every <= 2 h)")
+        return 2
+    rc, line = detect(world, cfg, args.max_seconds)
+    print(line, flush=True)
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())
