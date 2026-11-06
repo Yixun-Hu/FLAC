@@ -133,3 +133,95 @@ def test_dataloader_fork_and_spawn_workers_run_the_sdpa_path(tmp_path):
     assert p.stdout.count(MESSAGE) == 2                     # the parent's import and the spawned worker's
 
 
+# --------------------------------------------------------------------------- #
+# the localize_FLAC.py tree starts no Python child process
+# --------------------------------------------------------------------------- #
+ALLOWED_ARGV0 = {"git", "nvidia-smi", "ps"}       # literal argv lists of non-Python tools only
+SPAWNERS = {"subprocess": {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"},
+            "os": {"system", "popen", "execl", "execle", "execlp", "execlpe", "execv", "execve", "execvp", "execvpe",
+                   "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+                   "posix_spawn", "posix_spawnp", "fork", "forkpty"},
+            "pty": {"spawn", "fork"}, "asyncio": {"create_subprocess_exec", "create_subprocess_shell"},
+            "multiprocessing": {"Process", "Pool", "get_context", "set_start_method"}}
+
+
+def _resolve(name):
+    """A dotted repo-local module name -> its file (module or package ``__init__``), else None; a namespace
+    directory (``AGREE``) resolves to None but does not stop its submodules."""
+    base = os.path.join(REPO, *name.split("."))
+    for cand in (base + ".py", os.path.join(base, "__init__.py")):
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def _import_closure(roots):
+    """Every repo-local file reachable from ``roots`` through ANY import statement (lazy ones too)."""
+    seen, todo = set(), list(roots)
+    while todo:
+        path = todo.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        rel = os.path.relpath(path, REPO)[:-len(".py")].replace(os.sep, ".")
+        pkg = rel.rsplit(".", 1)[0] if not rel.endswith("__init__") else rel[:-len(".__init__")]
+        names = []
+        for node in ast.walk(ast.parse(open(path).read(), path)):
+            if isinstance(node, ast.Import):
+                names += [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                base = node.module or ""
+                if node.level:
+                    parts = pkg.split(".")[:len(pkg.split(".")) - node.level + 1]
+                    base = ".".join(parts + ([node.module] if node.module else []))
+                names += [base] + [f"{base}.{a.name}" for a in node.names]
+        for name in names:
+            parts = name.split(".")
+            for i in range(1, len(parts) + 1):
+                hit = _resolve(".".join(parts[:i]))
+                if hit and not os.path.relpath(hit, REPO).startswith(os.path.join("src", "tests")):
+                    todo.append(hit)
+    return seen
+
+
+def _spawn_violations(path):
+    """Process-spawning calls in ``path`` that are not a literal argv list of an allowed non-Python tool."""
+    out, aliases = [], {}
+    tree = ast.parse(open(path).read(), path)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in SPAWNERS:
+            out += [f"{path}:{node.lineno}: from {node.module} import {a.name}" for a in node.names
+                    if a.name in SPAWNERS[node.module]]
+        if isinstance(node, ast.Import):
+            aliases.update({a.asname or a.name: a.name for a in node.names if a.name in SPAWNERS})
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)):
+            continue
+        mod = aliases.get(node.func.value.id, node.func.value.id)
+        if mod in SPAWNERS and node.func.attr in SPAWNERS[mod]:
+            argv = node.args[0] if node.args else None
+            tool = (isinstance(argv, (ast.List, ast.Tuple)) and argv.elts and isinstance(argv.elts[0], ast.Constant)
+                    and argv.elts[0].value in ALLOWED_ARGV0)
+            if not (mod == "subprocess" and tool):
+                out.append(f"{path}:{node.lineno}: {mod}.{node.func.attr}(...)")
+    return out
+
+
+def test_the_localize_flac_tree_starts_no_python_child():
+    closure = _import_closure([os.path.join(REPO, "localize_FLAC.py")])
+    for rel in ("src/models/transformer.py", "src/data/yaw_rotation.py", "src/localization/runner.py",
+                "src/localization/engine.py", "eval_FLAC.py", "AGREE/AGREE/model.py"):
+        assert os.path.join(REPO, rel) in closure, rel
+    assert len(closure) > 30
+    assert [v for p in sorted(closure) for v in _spawn_violations(p)] == []
+
+
+def test_the_spawn_scanner_bites(tmp_path):
+    bad = tmp_path / "bad.py"
+    bad.write_text("import subprocess, os\nimport subprocess as sp\nsubprocess.run(['git', 'status'])\n"
+                   "subprocess.run([sys.executable, '-c', 'x'])\nsp.Popen(['python'])\nos.execv('/bin/sh', [])\n"
+                   "from multiprocessing import Process\nsubprocess.run(['nvidia-smi', '-L'])\n"
+                   "subprocess.run(argv)\n")
+    got = _spawn_violations(str(bad))
+    assert len(got) == 5 and not any(":3:" in g or ":8:" in g for g in got), got
