@@ -37,6 +37,7 @@ from src.localization.mesh_remap import resolve_mesh_root
 from src.localization.pilot import canonical_sha256, resolve_pilot_records
 from src.localization.run_provenance import (
     attention_identity,
+    card_uuid,
     no_flash_launch_handoff,
     weights_footprint,
     write_host_record,
@@ -558,6 +559,9 @@ def run_localization(
             raise ValueError("rotated runs use the full frozen candidate set (no --candidate-subset)")
     if candidate_subset and (Path(output_dir) / "run_manifest.json").exists():
         raise RuntimeError("a nested / c2f pass is never resumed: use a fresh output directory")
+    monitored = bool(require_attention_backend) and bool(measure_core_forward or synchronize_timing)
+    if monitored and (Path(output_dir) / "run_manifest.json").exists():
+        raise RuntimeError("a monitored timing pass is never resumed: use a fresh output directory")
     if dump_waveforms is not None or replay_of is not None or require_attention_backend or mesh_root is not None \
             or rotate_deg or context_count != 8 or frame_angles is not None or candidate_subset or stage_split:
         from src.localization import exp37_artifacts, exp37_waveforms    # exp_37 announcement-08 waveform rules
@@ -624,6 +628,12 @@ def run_localization(
     write_host_record(
         output_dir, "start", device=device, handoff=handoff, run_manifest_sha256=run_sha256
     )
+    monitor = None
+    if monitored:                  # BLOCKING 3: the run-bound co-tenancy monitor over the whole timed interval
+        from src.localization import exp37_cotenancy
+
+        monitor = exp37_cotenancy.Monitor(Path(output_dir) / "cotenancy", binding_sha256=run_sha256,
+                                          card_uuid=card_uuid(device)).start()
 
     torch.set_float32_matmul_precision("medium")
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -635,6 +645,8 @@ def run_localization(
         output_dir, "loaded", device=device, handoff=handoff, run_manifest_sha256=run_sha256,
         extra={"memory_after_flac_load": flac_footprint, "memory_after_agree_load": weights_footprint(device)},
     )
+    if monitor is not None:
+        monitor.marker("gpu_resident")
 
     subset_fn = None
 
@@ -669,6 +681,8 @@ def run_localization(
     room_bases: dict[str, np.ndarray] = {}
     if warmup_query_count > len(joined):
         raise ValueError("warmup_query_count exceeds the selected query count")
+    if monitor is not None:
+        monitor.marker("timed_start")
     for selected, record, _geometry in joined[:warmup_query_count]:
         record = context_count_view(record, context_count)
         room = selected["room"]
@@ -757,6 +771,9 @@ def run_localization(
             f"candidates={len(candidates)} seconds={result['elapsed_seconds']:.1f}",
             flush=True,
         )
+    if monitor is not None:
+        monitor.marker("timed_end")
+        monitor.stop()
     if dump is not None:
         dump.finish(run_manifest_sha256=run_sha256, identity=identity, mode=identity["waveform_dump"]["mode"],
                     query_indices=identity["query_indices"], replay_of=identity.get("replay_of"))

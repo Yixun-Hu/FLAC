@@ -12,9 +12,13 @@ import os
 import pytest
 
 from src.localization import exp37_cotenancy, exp37_waveforms, runner
-from test_exp37_no_flash_launch_integration import REPO, _import_closure, _spawn_violations, _spawner_references
+from pathlib import Path
+
+from test_exp37_no_flash_launch_integration import REPO as _REPO, _import_closure, _spawn_violations, \
+    _spawner_references
 from test_exp37_runner_wiring import _run, frozen, stubbed  # noqa: F401
 
+REPO = Path(_REPO)
 TIMED = {"measure_core_forward": True, "synchronize_timing": True}
 
 

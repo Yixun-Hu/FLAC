@@ -108,6 +108,14 @@ def _cuda_device(device: str) -> dict | None:
             "total_memory_bytes": int(props.total_memory)}
 
 
+def card_uuid(device: str) -> str:
+    """The timed pass's CUDA card UUID (the co-tenancy monitor binds to it); RuntimeError when it is unknown."""
+    card = _cuda_device(device)
+    if not card or not card.get("uuid"):
+        raise RuntimeError(f"{device}: no CUDA card UUID -- the co-tenancy monitor cannot bind to the card")
+    return card["uuid"]
+
+
 def host_snapshot(device: str, *, run=subprocess.run) -> dict:
     return {
         "recorded_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
