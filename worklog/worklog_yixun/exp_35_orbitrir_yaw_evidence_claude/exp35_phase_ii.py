@@ -8,6 +8,7 @@ Part 1a: the registered pins, the durable writers and the pure checks -- the 68-
 at H35 and its name digest, the CANON re-pin, the runner's plan JSON re-derived row by row, the lane list.
 Part 1b: the runner's relevant-tree digest, the phase-(i) completion contract and the report evidence.
 Part 2a: the read-only world (nvidia-smi, lock probes, process scans, his table-job rule, /proc identities).
+Part 2b: the O_EXCL reservation records with their exact authentication, and the one card observation every mode makes.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -573,3 +574,111 @@ def identity_status(ident, proc):
             return "gone"
         raise Unreadable(str(err)) from err
     return "alive" if live["start_time"] == ident["start_time"] else "reused"
+
+
+# --------------------------------------------------------------------------- #
+# part 2b: the O_EXCL reservation records and the card observation
+# --------------------------------------------------------------------------- #
+RES_KEYS = ("holder", "phase", "h35", "gpu_uuid", "gpu_index", "created", "run")
+
+
+def reservation_path(cfg, uuid):
+    return os.path.join(cfg.reservations, f"{uuid}.json")
+
+
+def reservation_status(cfg, uuid):
+    """'absent', 'present (holder X)' or 'present (...)' for any other file (malformed, a dangling link);
+    Unreadable when the directory is missing or unreadable or the file cannot be read."""
+    try:
+        os.listdir(cfg.reservations)
+    except OSError as err:
+        raise Unreadable(f"the reservation directory {cfg.reservations} is missing or unreadable ({err})") from err
+    path = reservation_path(cfg, uuid)
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return "absent"
+    except OSError as err:
+        raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError:
+        return "present (a dangling link, or removed while it was read)"
+    except OSError as err:
+        raise Unreadable(f"the reservation file {path} is unreadable ({err})") from err
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return "present (malformed)"
+    return f"present (holder {doc['holder']})" if isinstance(doc, dict) and isinstance(doc.get("holder"), str) else (
+        "present (malformed)")
+
+
+def create_reservation(cfg, index, *, h35, run, now):
+    """§15 item 6: the O_EXCL record (holder exp35, phase ii, H35, the card's uuid and index, created, the run id),
+    fully written and fsynced with its directory; the held record: path, exact bytes' sha256, (device, inode)."""
+    uuid = CARDS[index]
+    raw = json.dumps(dict(zip(RES_KEYS, ("exp35", "ii", h35, uuid, index, now, run)))).encode()
+    s = write_exclusive(reservation_path(cfg, uuid), raw)
+    return {"index": index, "uuid": uuid, "path": reservation_path(cfg, uuid), "sha256": s.sha256, "dev": s.dev,
+            "inode": s.inode}
+
+
+def held_reasons(held):
+    """[] iff the file at ``held['path']`` IS our record: its bytes' sha256 and its (device, inode), never via a link."""
+    s = snapshot(held["path"])
+    if s is None:
+        return [f"our reservation {held['path']} is gone, a link or unreadable"]
+    return ([] if s.sha256 == held["sha256"] else [f"{held['path']} is not our record (other bytes)"]) + (
+        [] if (s.dev, s.inode) == (held["dev"], held["inode"]) else [f"{held['path']} is not our record (another inode)"])
+
+
+def release_reservation(held):
+    """Unlink ``held['path']`` only while it IS our record, through the inode just authenticated, then fsync the
+    directory; [] once removed, else the reasons -- and nothing is unlinked."""
+    why = held_reasons(held)
+    if why:
+        return why
+    try:
+        st = os.lstat(held["path"])
+        if (st.st_dev, st.st_ino) != (held["dev"], held["inode"]):
+            return [f"{held['path']} was replaced while it was authenticated"]
+        os.unlink(held["path"])
+    except OSError as err:
+        return [f"{held['path']} could not be removed ({err})"]
+    fsync_dir(os.path.dirname(held["path"]))
+    return []
+
+
+def observe(world, cfg, lanes, held=()):
+    """ONE observation (§15 item 6; S6): the GPU map is exactly the registered index <-> uuid pair; per lane no compute
+    process and no reservation file of any holder -- with ``held``: exactly our record -- and on GPU 1 his s43 table
+    job terminally complete; no exp35 or unexplained file on another card; no supervisor, runner, wrapper or
+    run-worktree evaluator alive; the supervisor and runner locks unheld. Unreadable inputs raise Unreadable."""
+    t, map_raw, apps_raw = world.now(), world.nvsmi("map"), world.nvsmi("apps")
+    try:
+        m, apps = gpu_map(map_raw), compute_apps(apps_raw)
+    except ValueError as err:
+        raise Unreadable(f"the nvidia-smi tables: {err}") from err
+    mine, cards = {h["uuid"]: h for h in held}, {}
+    out = [] if m == CARDS else [f"the GPU map {m} is not the registered {CARDS}"]
+    out += [f"compute process {p} sits on an unknown uuid {u}" for p, u in apps if u not in CARDS.values()]
+    for i, uuid in CARDS.items():
+        pids = sorted(p for p, u in apps if u == uuid)
+        res = "held" if uuid in mine else reservation_status(cfg, uuid)
+        if i in lanes:
+            out += [f"GPU {i} ({uuid}) holds compute process(es) {pids}"] if pids else []
+            out += held_reasons(mine[uuid]) if uuid in mine else (
+                [] if res == "absent" else [f"GPU {i}: a reservation file exists ({res})"])
+            out += table_job_reasons(cfg) if i == 1 else []
+        elif res == "present (holder exp35)":
+            out.append(f"GPU {i}: an exp35 reservation exists ({res}): a phase-(i) leftover or another phase-(ii) record")
+        elif res != "absent" and not res.startswith("present (holder "):
+            out.append(f"GPU {i}: an unexplained reservation file ({res})")
+        cards[str(i)] = {"uuid": uuid, "pids": pids, "reservation": res}
+    locks = {k: lock_status(os.path.join(cfg.run, rel)) for k, rel in (("supervisor", SUP_LOCK), ("runner", RUNNER_LOCK))}
+    out += [f"the {k} lock is held" for k, v in locks.items() if v == "held"]
+    out += [f"pid {p}: {why}" for p, why in live_procs(cfg)]
+    return {"t": t, "iso": iso(t), "map": {str(k): v for k, v in m.items()}, "map_raw": map_raw, "apps_raw": apps_raw,
+            "apps_sha256": sha256_bytes(apps_raw.encode()), "cards": cards, "locks": locks, "reasons": out}
