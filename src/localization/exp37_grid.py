@@ -66,9 +66,10 @@ def subset_readout(candidates, scores, truth, indices) -> dict:
     return {**metrics, "prediction_index_full": int(indices[local]), "candidate_count": int(len(indices))}
 
 
-def readout_run(run_dir: Path, pilot: dict) -> dict:
+def readout_run(run_dir: Path, pilot: dict, full_only: bool = False) -> dict:
     """Per grid, per pilot query: the readout rows (with ``room``) of one complete 0.5 m run; the full-grid readout
-    must reproduce each query's recorded K=1 metrics, else the run is refused."""
+    must reproduce each query's recorded K=1 metrics, else the run is refused. ``full_only``: only the full set
+    (``"full"``) -- for a run off the 0.5 m lattice (0.75 m) or a rotated B3 run."""
     run_dir = Path(run_dir)
     run = json.loads((run_dir / "run_manifest.json").read_text())
     verify_hashed_payload(run, "run manifest")
@@ -76,7 +77,8 @@ def readout_run(run_dir: Path, pilot: dict) -> dict:
     if identity["pilot_manifest_sha256"] != pilot["sha256"] or identity["query_indices"] != [
             int(r["index"]) for r in pilot["records"]]:
         raise RuntimeError(f"{run_dir} is not a complete run of this pilot manifest")
-    grids = ["0.50", "1.00_nested", f"c2f_k{REGISTERED_K}"] + [f"c2f_k{k}" for k in SENSITIVITY_K]
+    grids = ["full"] if full_only else (["0.50", "1.00_nested", f"c2f_k{REGISTERED_K}"]
+                                        + [f"c2f_k{k}" for k in SENSITIVITY_K])
     rows = {name: [] for name in grids}
     for record in pilot["records"]:
         result = completed_query_result(run_dir, query_index=int(record["index"]), query_id=record["query_id"],
@@ -92,8 +94,12 @@ def readout_run(run_dir: Path, pilot: dict) -> dict:
         if full["prediction_index"] != recorded["prediction_index"] or full["localization_error_m"] != recorded[
                 "localization_error_m"]:
             raise RuntimeError(f"{run_dir}: query {record['index']} arrays disagree with its recorded K=1 metrics")
-        sets = {"0.50": np.arange(len(candidates)), "1.00_nested": nested_subset(candidates)}
-        sets.update({f"c2f_k{k}": c2f_indices(candidates, scores, k)["union"] for k in (REGISTERED_K, *SENSITIVITY_K)})
+        if full_only:
+            sets = {"full": np.arange(len(candidates))}
+        else:
+            sets = {"0.50": np.arange(len(candidates)), "1.00_nested": nested_subset(candidates)}
+            sets.update({f"c2f_k{k}": c2f_indices(candidates, scores, k)["union"]
+                         for k in (REGISTERED_K, *SENSITIVITY_K)})
         for name in grids:
             rows[name].append({**subset_readout(candidates, scores, truth, sets[name]), "room": result["room"],
                                "query_index": int(record["index"])})

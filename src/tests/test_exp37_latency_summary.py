@@ -111,7 +111,8 @@ def _arm_run(tmp_path, name, arm, selection, *, context_count=8, over=None, quer
                 "n_context": context_count, "score_sample_counts": [1], "measure_core_forward": True,
                 "synchronize_timing": True, "warmup_query_count": 1, "candidate_batch_size": 64, "tau": 0.1,
                 "attention_backend": "sdpa", "pilot_manifest_sha256": selection["sha256"],
-                "query_indices": [r["index"] for r in selection["records"]], **(over or {})}
+                "query_indices": [r["index"] for r in selection["records"]],
+                "frame_average_angles": lat.C4 if arm == "BF" else None, **(over or {})}
     run = tmp_path / name
     manifest = initialize_run(run, identity)
     for r in selection["records"]:

@@ -42,6 +42,7 @@ def world(tmp_path):
     def run(name, arm, k=8, scale=1.0, split=False, cotenant=False):
         identity = {"conditioning_method": lat.ARM_PROTOCOL[arm]["cond"], "checkpoint_sha256": lat.ARM_PROTOCOL[arm]["ckpt"],
                     "n_context": k, "pilot_manifest_sha256": selection["sha256"], "query_indices": list(COUNTS),
+                    "frame_average_angles": lat.C4 if arm == "BF" else None,
                     **lat.TIMING_IDENTITY, **({"stage_split": True} if split else {})}
         run_dir = tmp_path / name
         manifest = initialize_run(run_dir, identity)

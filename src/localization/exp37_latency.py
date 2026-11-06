@@ -30,6 +30,7 @@ TIMING_IDENTITY = {"score_sample_counts": [1], "measure_core_forward": True, "sy
 CPU_COTENANT_PCPU = 10.0
 SPLIT_TOLERANCE = 0.02          # plan §10: outside 2 % the split is withheld, never the headline
 STAGES = ("context_conditioning", "candidate_conditioning", "dit", "vae_decode")
+C4 = [0.0, 90.0, 180.0, 270.0]
 
 
 def _hashed(path: Path) -> dict:
@@ -131,29 +132,51 @@ def selector_cotenancy(payload: dict) -> dict:
             "unidentified_card": not identified, "own_process_seen_on_card": own_seen}
 
 
-def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False) -> dict:
+def _arm_identity(arm: str, selection: dict, context_count: int, frame_angles) -> dict:
+    return {**TIMING_IDENTITY, "conditioning_method": ARM_PROTOCOL[arm]["cond"],
+            "checkpoint_sha256": ARM_PROTOCOL[arm]["ckpt"], "n_context": int(context_count),
+            "pilot_manifest_sha256": selection["sha256"],
+            "query_indices": [int(r["index"]) for r in selection["records"]],
+            "frame_average_angles": (list(map(float, frame_angles)) if frame_angles else C4)
+            if ARM_PROTOCOL[arm]["cond"] == "fa_invariant" else None}
+
+
+def load_arm_run(run_dir: Path, *, arm: str, selection: dict, context_count: int, stage_split: bool = False,
+                 subset_manifest: dict | None = None, frame_angles=None) -> dict:
     """``{query index: {core, context, candidate, peak_memory_bytes, candidate_count}}`` of one validated run;
-    a headline run must be uninstrumented and a split run must be the split pass (plus its stage fields)."""
+    a headline run must be uninstrumented and a split run must be the split pass (plus its stage fields); the
+    orbit (``frame_angles``, default C4 for fa) is checked; a rotated run is never a timing source; a nested-1.0 m
+    timing pass is bound to its ``subset_manifest`` (counts and each query's subset sha256)."""
     run_dir = Path(run_dir)
     manifest = _hashed(run_dir / "run_manifest.json")
     identity = manifest["identity"]
-    want = {**TIMING_IDENTITY, "conditioning_method": ARM_PROTOCOL[arm]["cond"],
-            "checkpoint_sha256": ARM_PROTOCOL[arm]["ckpt"], "n_context": int(context_count),
-            "pilot_manifest_sha256": selection["sha256"],
-            "query_indices": [int(r["index"]) for r in selection["records"]]}
+    want = _arm_identity(arm, selection, context_count, frame_angles)
+    if subset_manifest is not None:
+        if subset_manifest.get("parent_pilot_sha256") != selection["sha256"]:
+            raise RuntimeError("the subset manifest is not a subset of this selection")
+        want["candidate_subset"] = "nested_1m"
     bad = [key for key, value in want.items() if identity.get(key) != value]
     if bool(identity.get("stage_split")) != stage_split:
         bad.append("stage_split")
+    if subset_manifest is None and "candidate_subset" in identity:
+        bad.append("candidate_subset")
+    if "rotate_deg" in identity:
+        bad.append("rotate_deg")
     if bad:
         raise RuntimeError(f"{run_dir}: identity fields {bad} differ from the {arm} K_ctx={context_count} protocol")
     protocol = {"name": f"fem_core_aligned_kctx{context_count}_kgen1", "context_count": int(context_count)}
+    subset_rows = {int(r["index"]): r for r in (subset_manifest or {}).get("records", [])}
     rows = {}
     for record in selection["records"]:
         index = int(record["index"])
         query = _hashed(run_dir / "queries" / f"query_{index:05d}.json")
+        expected = subset_rows[index]["candidate_count"] if subset_manifest is not None else record["candidate_count"]
         if query.get("run_manifest_sha256") != manifest["sha256"] or int(query["candidate_count"]) != int(
-                record["candidate_count"]) or query.get("query_id") != record["query_id"]:
+                expected) or query.get("query_id") != record["query_id"]:
             raise RuntimeError(f"{run_dir}: query {index} does not belong to this run / selection")
+        if subset_manifest is not None and (query.get("candidate_subset") or {}).get(
+                "indices_sha256") != subset_rows[index]["candidate_indices_sha256"]:
+            raise RuntimeError(f"{run_dir}: query {index} ran another candidate subset than the subset manifest's")
         given = query.get("latency_protocol") or {}
         if any(given.get(k) != v for k, v in protocol.items()) or bool(given.get("stage_split")) != stage_split:
             raise RuntimeError(f"{run_dir}: query {index} latency_protocol is not {protocol} (stage_split={stage_split})")
@@ -208,3 +231,28 @@ def stage_breakdown(split: dict, selector: dict, counts: dict) -> dict:
             old = peaks.get(name, {"allocated_bytes": 0, "reserved_bytes": 0})
             peaks[name] = {k: max(old[k], int(peak[k])) for k in ("allocated_bytes", "reserved_bytes")}
     return {"seconds": seconds, "peak_memory": peaks}
+
+
+def load_c2f_run(run_dir: Path, *, arm: str, selection: dict, top_k: int = 5) -> dict:
+    """``{query index: {c2f_total, core, union_count, generated_count}}`` of one validated c2f sequential pass."""
+    run_dir = Path(run_dir)
+    manifest = _hashed(run_dir / "run_manifest.json")
+    identity = manifest["identity"]
+    want = {**_arm_identity(arm, selection, 8, None), "candidate_subset": "c2f", "c2f_top_k": int(top_k)}
+    bad = [key for key, value in want.items() if identity.get(key) != value]
+    bad += [key for key in ("rotate_deg", "stage_split") if key in identity]
+    if bad:
+        raise RuntimeError(f"{run_dir}: identity fields {bad} differ from the {arm} c2f (k = {top_k}) protocol")
+    rows = {}
+    for record in selection["records"]:
+        index = int(record["index"])
+        query = _hashed(run_dir / "queries" / f"query_{index:05d}.json")
+        protocol = query.get("latency_protocol") or {}
+        if query.get("run_manifest_sha256") != manifest["sha256"] or query.get("query_id") != record["query_id"] or \
+                protocol.get("name") != "exp37_c2f_sequential_kctx8_kgen1" or protocol.get("top_k") != int(top_k) or \
+                len(query["c2f"]["union_indices"]) != int(query["candidate_count"]):
+            raise RuntimeError(f"{run_dir}: query {index} is not a c2f (k = {top_k}) result of this run / selection")
+        rows[index] = {"c2f_total": float(query["latency_seconds"]["c2f_total"]),
+                       "core": float(query["latency_seconds"]["core_forward_total"]),
+                       "union_count": int(query["candidate_count"]), "generated_count": int(query["c2f"]["generated_count"])}
+    return rows
