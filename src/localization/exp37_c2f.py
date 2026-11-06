@@ -13,6 +13,7 @@ Written by the exp_37 Coder (Claude Opus 5.5, max effort) per the Coder brief r1
 from __future__ import annotations
 
 import hashlib
+import statistics
 import time
 
 import numpy as np
@@ -26,6 +27,16 @@ from src.localization.engine import (
 )
 from src.localization.exp37_grid import CHEBYSHEV_RADIUS_M, TOLERANCE_M, nested_subset, query_scores, top_k
 from src.localization.runner import _build_query_result, _cache_branch, _repeat_branch, validate_frame_angles
+
+REPEATS = 3                       # the bundle selector's repeat count (median-of-three per component)
+
+
+def _same(a, b) -> bool:
+    if isinstance(a, torch.Tensor):
+        return torch.equal(a, b)
+    if isinstance(a, tuple):
+        return all(np.array_equal(x, y) for x, y in zip(a, b))
+    return a == b
 
 
 @torch.inference_mode()
@@ -54,19 +65,34 @@ def execute_query_c2f(*, module, retrieval, selected, record, audit, room_base, 
         raise RuntimeError("pilot and reconstructed candidate counts differ")
     if len(record["contexts"]) != context_count:
         raise RuntimeError(f"formal pilot requires N_ctx={context_count}")
-    marks = {"start": clock()}
-    observation_features = encode_audio_features(retrieval, observed.unsqueeze(0).to(device=device, dtype=torch.float32))
-    marks["observed_encoding"] = clock()
+
+    def repeated(label, work):
+        """``work`` run REPEATS times, each between synced clocks; its outputs must agree across the repeats."""
+        times, first = [], None
+        for _ in range(REPEATS):
+            t0 = clock()
+            out = work()
+            times.append(clock() - t0)
+            if first is None:
+                first = out
+            elif not _same(out, first):
+                raise RuntimeError(f"the c2f {label} differs across the selector repeats")
+        return first, times
+
+    features, repeats = None, {}
+    features, repeats["observed_encoding"] = repeated("observed encoding", lambda: encode_audio_features(
+        retrieval, observed.unsqueeze(0).to(device=device, dtype=torch.float32)))
+    t0 = clock()
     with torch.amp.autocast(device_type):
         context = _cache_branch(module, [metadata], FA_CONTEXT_CONDITIONING_IDS if cond_method == "fa_invariant"
                                 else CONTEXT_CONDITIONING_IDS, device, cond_method, frame_angles=frame_angles)
-    marks["context_conditioning"] = clock()
+    seconds = {"context_conditioning": clock() - t0}
     similarities = np.full(len(full), np.nan, dtype=np.float32)
-    generated_count, seconds = 0, {}
+    generated_count = 0
 
     def score(indices, stage):
         nonlocal generated_count
-        generation = scoring = 0.0
+        generation, scoring = 0.0, [0.0] * REPEATS
         for start in range(0, len(indices), candidate_batch_size):
             batch = indices[start:start + candidate_batch_size]
             t0 = clock()
@@ -79,34 +105,35 @@ def execute_query_c2f(*, module, retrieval, selected, record, audit, room_base, 
             seeds = [candidate_seed(sample_seed, int(record["index"]), int(i), 0) for i in batch]
             generated = generate_rir_batch(module, _repeat_branch(source, 1), context, seeds,
                                            dynamic_branch=_repeat_branch(dynamic, 1) if dynamic else None)
-            t1 = clock()
-            scores = (encode_audio_features(retrieval, generated) @ observation_features.T).reshape(-1).cpu()
+            generation += clock() - t0
+            scores, times = repeated(f"{stage} scoring", lambda: (
+                encode_audio_features(retrieval, generated) @ features.T).reshape(-1).cpu())
+            scoring = [a + b for a, b in zip(scoring, times)]
             similarities[batch] = scores.float().numpy()
-            t2 = clock()
-            generation, scoring, generated_count = generation + t1 - t0, scoring + t2 - t1, generated_count + len(batch)
-        seconds[f"{stage}_generation"], seconds[f"{stage}_scoring"] = generation, scoring
+            generated_count += len(batch)
+        seconds[f"{stage}_generation"], repeats[f"{stage}_scoring"] = generation, scoring
 
     coarse = nested_subset(full)
     score(coarse, "coarse")
-    t_selection = clock()
-    coarse_scores = np.full(len(full), np.nan)                      # only the coarse rows are scored yet
-    coarse_scores[coarse] = query_scores(similarities[coarse][:, None], tau)
-    top = top_k(coarse_scores, coarse, int(top_k_count))
-    near = np.zeros(len(full), dtype=bool)
-    for index in top:
-        near |= np.abs(full.astype(np.float64) - full[index].astype(np.float64)).max(axis=1) <= CHEBYSHEV_RADIUS_M + TOLERANCE_M
-    refined = np.flatnonzero(near)
+
+    def select():
+        coarse_scores = np.full(len(full), np.nan)                      # only the coarse rows are scored yet
+        coarse_scores[coarse] = query_scores(similarities[coarse][:, None], tau)
+        top = top_k(coarse_scores, coarse, int(top_k_count))
+        near = np.zeros(len(full), dtype=bool)
+        for index in top:
+            near |= np.abs(full.astype(np.float64) - full[index].astype(np.float64)).max(axis=1) \
+                <= CHEBYSHEV_RADIUS_M + TOLERANCE_M
+        return top, np.flatnonzero(near)
+
+    (top, refined), repeats["selection"] = repeated("top-k / neighbour selection", select)
     new = np.setdiff1d(refined, coarse)
-    seconds["selection"] = clock() - t_selection
     score(new, "refined")
-    t_union = clock()
     union = np.union1d(coarse, refined)
-    union_scores = query_scores(similarities[union][:, None], tau)
-    winner = int(union[int(np.argmax(union_scores))])
-    seconds["union_argmax"] = clock() - t_union
+    winner, repeats["union_argmax"] = repeated("union argmax", lambda: int(
+        union[int(np.argmax(query_scores(similarities[union][:, None], tau)))]))
     peak = int(torch.cuda.max_memory_allocated(device)) if cuda else 0
-    seconds.update(observed_encoding=marks["observed_encoding"] - marks["start"],
-                   context_conditioning=marks["context_conditioning"] - marks["observed_encoding"])
+    seconds.update({part: float(statistics.median(times)) for part, times in repeats.items()})
     result = _build_query_result(selected=selected, record=record, candidates=full[union],
                                  similarities=torch.from_numpy(similarities[union][:, None]), run_sha256=run_sha256,
                                  elapsed_seconds=time.perf_counter() - start_time, peak_memory_bytes=peak, tau=tau,
@@ -117,12 +144,19 @@ def execute_query_c2f(*, module, retrieval, selected, record, audit, room_base, 
                                  "c2f_total": float(sum(seconds[p] for p in parts)),
                                  "core_forward_total": float(seconds["context_conditioning"] + seconds["coarse_generation"]
                                                              + seconds["refined_generation"])}
+    result["selector_repeat_seconds"] = {part: [float(t) for t in times] for part, times in repeats.items()}
     result["latency_protocol"] = {"name": f"exp37_c2f_sequential_kctx{context_count}_kgen1", "context_count": context_count,
                                   "top_k": int(top_k_count), "chebyshev_radius_m": CHEBYSHEV_RADIUS_M,
                                   "observed_encoding_included": True, "candidate_scoring_included": True,
-                                  "input_loading_included": False, "candidate_filtering_included": False}
+                                  "input_loading_included": False, "candidate_filtering_included": False,
+                                  "selector_repeat_count": REPEATS,
+                                  "selector_statistic": "per-component median over the repeats on the exact generated "
+                                                        "tensors (the bundle selector's median-of-three)"}
+    union_sha = hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()
+    result["parent_candidate_indices_sha256"] = result["candidate_indices_sha256"]
+    result["candidate_indices_sha256"] = union_sha
     result["c2f"] = {"full_candidate_count": len(full), "coarse_count": len(coarse), "top_indices": top.tolist(),
                      "refined_count": len(refined), "new_count": len(new), "union_indices": union.tolist(),
-                     "generated_count": generated_count, "winner_full_index": winner,
-                     "union_indices_sha256": hashlib.sha256(union.astype("<u4").tobytes()).hexdigest()}
+                     "generated_count": generated_count, "winner_full_index": winner, "union_indices_sha256": union_sha,
+                     "top_k": int(top_k_count), "chebyshev_radius_m": CHEBYSHEV_RADIUS_M}
     return result, full[union], similarities[union][:, None]
