@@ -16,6 +16,7 @@ Part 4a: the exact runner command and the exact parser of its DRY_RUN transcript
 Part 4b: the dry-run transaction (from 'reserved' only; the runner is never given a timeout: the kit never kills).
 Part 5a: the detached wrapper -- the kit lock, both complete identities and environment proofs, the exact rc.
 Part 5b: the launch (the matching fresh dry run, the recheck, launch_pending, the last look, the detachment).
+Part 6a: the authenticated release and the read-only status.
 
 Never: moves or modifies H35, installs anything, selects E2-FAIL, suppresses dumps, enables GPU sharing,
 overwrites / adopts / removes another holder's reservation, signals / kills / attaches to any process,
@@ -1374,6 +1375,112 @@ def confirm(cfg, orch, pid):
         return 1, f"LAUNCH NOT CONFIRMED: the recorded wrapper {w} / runner {r} are not both alive as pid {pid}'s run"
     return 0, (f"LAUNCHED: wrapper pid {pid} (start time {w['start_time']}), runner pid {r['pid']} (start time "
                f"{r['start_time']}); state running; {orch}")
+
+
+# --------------------------------------------------------------------------- #
+# part 6a: the authenticated release and the read-only status (S6)
+# --------------------------------------------------------------------------- #
+RELEASABLE = ("reserved", "dry_run_passed", "dry_run_failed", "launch_refused", "wrapper_spawn_failed", "wrapper_refused",
+              "runner_spawn_failed", "exited")       # durable exit / refusal states, or a reservation never launched
+MEANING = {0: "every selected cell complete and verified", 1: "a cell failed (later cells may still have run)",
+           2: "a gate, backend or lane refusal, or another abort", 4: "PIN DRIFT: HEAD or the relevant tree changed"}
+
+
+def release(world, cfg, *, kit_commit, h35, orch):
+    """S6: from a durable exit / refusal state only (or a reservation never launched: withdrawn), under the kit lock
+    (held by no wrapper, runner or descendant -- they all inherited it); no recorded wrapper / runner alive (complete
+    identities), the runner lock unheld, no exp_35 process alive; ALL records authenticated, then each one again right
+    before its unlink and the directory fsynced. 'released', or 'release_failed' (retained). (rc, message)."""
+    opened, why = open_mode(cfg, kit_commit, h35, orch, RELEASABLE)
+    if opened is None:
+        return 1, "RELEASE REFUSED (nothing unlinked): " + "; ".join(why)
+    lock, st = opened
+    try:
+        try:
+            why = [f"the recorded {k} {st[k]['pid']} may be alive ({s})" for k in ("wrapper", "runner")
+                   if st[k] and "start_time" in st[k] for s in [identity_status(st[k], cfg.proc)] if s == "alive"]
+            why += ["the runner was never identified and no exit is recorded"] if (
+                st["runner"] and "start_time" not in st["runner"] and st["exit"] is None) else []
+            why += ["the runner lock is held (a runner or an evaluator descendant lives)"] if lock_status(
+                os.path.join(cfg.run, RUNNER_LOCK)) == "held" else []
+            why += [f"pid {p}: {w}" for p, w in live_procs(cfg)] + [x for h in st["reservations"] for x in held_reasons(h)]
+        except Unreadable as err:
+            why = [f"unreadable: {err}"]
+        if why:
+            return 1, "RELEASE REFUSED (nothing unlinked): " + "; ".join(why)
+        done, kept, prior_phase = [], [], st["phase"]
+        for h in st["reservations"]:
+            r = release_reservation(h)                    # authenticated again right before its unlink
+            kept += [dict(h, unreleased=r)] if r else []
+            done += [] if r else [h["path"]]
+        st.update(phase="release_failed" if kept else "released", reservations=kept, released={
+            "by": "planner", "prior_phase": prior_phase, "records": done, "time": iso(world.now())})
+        event(st, world.now(), st["phase"], records=done)
+        write_json_atomic(state_path(orch), st)
+    finally:
+        os.close(lock)
+    if kept:
+        return 1, f"RELEASE FAILED (retained): {len(kept)} record(s) not ours at the unlink: {kept}"
+    return 0, f"RELEASED {orch}: " + ", ".join(done) + f" (prior phase {prior_phase})"
+
+
+def _status_of(cfg, orch, m, rows):
+    try:
+        st = load_state(orch)
+    except ValueError as err:
+        return [f"{orch}: {err}"]
+    out = [f"{orch}: phase {st['phase']}; lanes {[x['index'] for x in st['lanes']]}; failure {st['failure']}"]
+    out += [f"  record {h['path']}: " + ("; ".join(held_reasons(h)) or "our exact record") for h in st["reservations"]]
+    for k in ("wrapper", "runner"):
+        ident = st[k]
+        try:
+            s = "none" if not ident else ident.get("unidentified") and "unidentified" or identity_status(ident, cfg.proc)
+        except ValueError as err:
+            s = f"unreadable ({err})"
+        out.append(f"  {k}: {s}" + (f" (pid {ident['pid']}, start time {ident.get('start_time')})" if ident else ""))
+    log = snapshot(((st["launch"] or {}).get("runner") or {}).get("log") or "")
+    if log is not None:
+        lines = log.raw.decode(errors="replace").splitlines()
+        out.append(f"  runner log: {len(log.raw)} B, sha256 {log.sha256}; DONE {sum(ln.startswith('  DONE ') for ln in lines)}"
+                   f", FAILED {sum(ln.startswith('  !! FAILED ') for ln in lines)}; last line {(lines or [''])[-1]!r}")
+    plan = expected_plan(m, rows, run=os.path.realpath(cfg.run), digest=cfg.digest)["cells"] if m else []
+    got = sum(os.path.isfile(os.path.join(cfg.run, e["receipt"])) for e in plan)
+    out.append(f"  receipts: {got}/{len(plan)} of the exact cells")
+    rc = (st["exit"] or {}).get("rc")
+    return out + ([f"  exit: rc {rc} ({MEANING.get(rc, 'an unexpected exit code')})"] if st["exit"] else [])
+
+
+def status(world, cfg, *, orch=None, kit_commit=None):
+    """S6: READ-ONLY -- no lock taken or created, no state written, no git index refreshed: the kit pin, the
+    preconditions, the locks, the cards, every orchestration, and for ``orch`` (else the newest) its records,
+    identities, runner log, receipts of the exact 68 cells and final rc. (0, report)."""
+    out = [f"exp_35 phase (ii) status at {iso(world.now())} (read-only)"]
+    if kit_commit:
+        why = kit_evidence(cfg, kit_commit)[0]
+        out.append("kit: " + ("; ".join(why) or f"the reviewed commit {kit_commit}, clean"))
+    cells, st_i, sup = (snapshot(os.path.join(cfg.run, rel)) for rel in (CELLS, SUP_STATE, SUP_FILE))
+    why, m, rows = selection(cells.raw if cells else b"")
+    out.append(f"cells: {len(rows)} selected, names sha256 {names_sha256([r['cell'] for r in rows])}; " + ("; ".join(why) or "OK"))
+    doc = _json(st_i.raw) if st_i else None
+    why = phase_i_reasons(doc, h35=cfg.h35, digest=cfg.digest, supervisor_sha256=sup.sha256 if sup else None)
+    out.append(f"phase (i): state sha256 {st_i.sha256 if st_i else None}; " + ("; ".join(why) or "complete"))
+    out.append("run worktree: " + ("; ".join(worktree_reasons(cfg, m) if m else ["no manifest"]) or "at H35, clean, digest OK"))
+    out.append("his files: " + ("; ".join(external_reasons(cfg)) or "at their pins; his s43 training ended"))
+    try:
+        locks = {k: lock_status(os.path.join(cfg.run, rel)) for k, rel in (("supervisor", SUP_LOCK),
+                                                                           ("runner", RUNNER_LOCK), ("kit", KIT_LOCK))}
+        out.append("locks: " + "; ".join(f"{k} lock {v}" for k, v in locks.items()))
+        apps = compute_apps(world.nvsmi("apps"))
+        out += [f"GPU {i} {u}: compute pids {sorted(p for p, x in apps if x == u)}; reservation "
+                f"{reservation_status(cfg, u)}" for i, u in CARDS.items()]
+        out.append(f"exp_35 processes: {live_procs(cfg) or 'none'}")
+    except (ValueError, Unreadable) as err:
+        out.append(f"unreadable: {err}")
+    orchs = orchestrations(cfg)
+    out.append("orchestrations: " + (", ".join(f"{os.path.basename(d)} "
+                                               f"({s['phase'] if isinstance(s, dict) else s})" for d, s in orchs) or "none"))
+    target = orch or (orchs[-1][0] if orchs else None)
+    return 0, "\n".join(out + (_status_of(cfg, target, m, rows) if target else []))
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="exp_35 phase (ii): the launch kit's helper (run by exp35_phase_ii.sh)")
