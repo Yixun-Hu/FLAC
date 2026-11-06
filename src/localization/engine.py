@@ -346,11 +346,21 @@ def candidate_metadata(metadata: dict, candidates_global, receiver_global) -> li
     return output
 
 
-def reconstruct_room_base_candidates(room_name: str, audit: dict) -> np.ndarray:
-    """Rebuild and hash-check one room's mesh-valid global base lattice."""
+def reconstruct_room_base_candidates(
+    room_name: str, audit: dict, mesh_path: Path | str | None = None
+) -> np.ndarray:
+    """Rebuild and hash-check one room's mesh-valid global base lattice.
+
+    ``mesh_path`` (exp_37 ``--mesh-root`` remap) replaces the audit's absolute path; the loaded bytes must then
+    hash to the audit's ``mesh_sha256``. Without it the audit's own path is used, unchanged.
+    """
 
     room = audit["rooms"][room_name]
-    mesh = load_raycast_scene(room["mesh_path"], compute_topology=False)
+    mesh = load_raycast_scene(
+        room["mesh_path"] if mesh_path is None else mesh_path, compute_topology=False
+    )
+    if mesh_path is not None and mesh.sha256 != room["mesh_sha256"]:
+        raise RuntimeError("remapped mesh SHA-256 does not match geometry audit")
     raw = build_lattice(mesh.aabb_min, mesh.aabb_max, audit["grid_spacing_m"])
     base_mask, _distance = classify_mesh_candidates(
         mesh,
